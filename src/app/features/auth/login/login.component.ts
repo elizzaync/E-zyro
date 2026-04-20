@@ -4,6 +4,9 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Router, RouterModule } from '@angular/router';
 import { AlertComponent } from '../shared/components/login/alert.component';
 import { SpinnerComponent } from '../shared/components/spinner/spinner.component';
+// 1. IMPORTAR EL SERVICIO
+import { AuthService } from '../../../core/services/auth.service';
+
 @Component({
   selector: 'app-login',
   standalone: true,
@@ -15,13 +18,16 @@ export class LoginComponent {
   loginForm: FormGroup;
   showPassword = signal(false);
 
-  // Nuevos estados divididos
-  isAuthenticating = signal(false); // Carga en el botón
-  errorMessage = signal('');        // Alerta de error
-  successMessage = signal('');      // Alerta de éxito en el formulario
-  isPreparingEnv = signal(false);   // Pantalla final de carga
+  isAuthenticating = signal(false);
+  errorMessage = signal('');
+  successMessage = signal('');
+  isPreparingEnv = signal(false);
 
-  constructor(private fb: FormBuilder, private router: Router) {
+  constructor(
+    private fb: FormBuilder,
+    private router: Router,
+    private authService: AuthService // 2. INYECTAR EL SERVICIO
+  ) {
     this.loginForm = this.fb.group({
       username: ['', [Validators.required, Validators.minLength(3)]],
       password: ['', [Validators.required, Validators.minLength(6)]],
@@ -36,7 +42,7 @@ export class LoginComponent {
     this.showPassword.update(v => !v);
   }
 
- onSubmit(): void {
+  onSubmit(): void {
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
       return;
@@ -48,26 +54,34 @@ export class LoginComponent {
 
     const { username, password } = this.loginForm.value;
 
-    // 1. Simulamos la llamada a la base de datos
-    setTimeout(() => {
-      this.isAuthenticating.set(false);
-
-      if (username === 'admin' && password === '123456') {
-        // 2. Credenciales correctas: Mostramos alerta verde en el form
+    // 3. LLAMADA REAL A LA API
+    this.authService.login({ username, password }).subscribe({
+      next: (response) => {
+        // Entra aquí si el backend devuelve status 200 (éxito)
+        this.isAuthenticating.set(false);
         this.successMessage.set('Autenticación exitosa. Redirigiendo...');
 
-        // 3. Esperamos 1.5 segundos para que el usuario lea la alerta
-        setTimeout(() => {
-          this.isPreparingEnv.set(true); // Oculta el form, muestra pantalla de carga
+        // Guardar el token en el local storage (opcional, para el futuro)
+        // localStorage.setItem('token', response.data.token);
 
-          // 4. Simulamos la carga del sistema antes de ir al dashboard
+        setTimeout(() => {
+          this.isPreparingEnv.set(true);
+
+          // Descomenta esto cuando tengas tu dashboard listo
           // setTimeout(() => this.router.navigate(['/dashboard']), 2000);
         }, 1500);
+      },
+      error: (err) => {
+        // Entra aquí si el backend lanza el HTTPException (401 u otro error)
+        this.isAuthenticating.set(false);
 
-      } else {
-        // Credenciales incorrectas
-        this.errorMessage.set('Usuario o contraseña incorrectos.');
+        if (err.status === 401) {
+          this.errorMessage.set('Usuario o contraseña incorrectos.');
+        } else {
+          this.errorMessage.set('Error al conectar con el servidor.');
+        }
+        console.error('Detalles del error:', err);
       }
-    }, 1200);
+    });
   }
 }

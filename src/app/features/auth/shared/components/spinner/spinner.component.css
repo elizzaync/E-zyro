@@ -1,3 +1,8 @@
+/* =======================================================
+   SPINNER.CSS
+   (Los colores se toman del index.css global)
+   ======================================================= */
+
 /* ══════════════════════════════════════
    VARIANT: ring — circular para botones
    ══════════════════════════════════════ */
@@ -10,7 +15,7 @@
 
 .spinner-primary {
   border-color: rgba(141, 198, 63, 0.2);
-  border-top-color: #8dc63f;
+  border-top-color: var(--brand-green); /* Usa la variable global */
 }
 
 .spinner-light {
@@ -23,51 +28,83 @@
 }
 
 /* ══════════════════════════════════════
-   VARIANT: loader — cuadrado para pantallas
+   VARIANT: loader — bolas animadas para pantallas
    ══════════════════════════════════════ */
 .spinner-loader {
-  position: relative;
-  display: inline-block;
+  animation: loader-rotate 1s infinite;
+  height: 50px;
+  width: 50px;
   flex-shrink: 0;
-  width: calc(var(--sz) * 1.1);
-  height: var(--sz);
 }
 
-/* Base semiredondeada que se balancea */
+.spinner-loader::before,
 .spinner-loader::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: calc(var(--sz) * 1.1);
-  height: calc(var(--sz) * 0.52);
-  border-radius: 0 0 999px 999px;
-  animation: loader-rock 0.5s linear infinite alternate;
+  border-radius: 50%;
+  content: "";
+  display: block;
+  height: 20px;
+  width: 20px;
 }
 
-/* Cuadrado que gira encima */
-.spinner-loader::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: calc(var(--sz) * 0.38);
-  height: calc(var(--sz) * 0.38);
-  transform: translateX(-50%) rotate(0deg);
-  animation: loader-spin 1.6s linear infinite;
+/* ── SPINNER PRIMARY (Verde y Dinámico Claro/Oscuro) ── */
+.spinner-loader.spinner-primary::before {
+  animation: ball1 1s infinite;
+  background-color: var(--spinner-dynamic); /* Cambia con el tema */
+  box-shadow: 30px 0 0 var(--brand-green);
+  margin-bottom: 10px;
 }
 
-.spinner-loader.spinner-primary::after  { background: #8dc63f; }
-.spinner-loader.spinner-primary::before { background: rgba(141, 198, 63, 0.55); }
-
-.spinner-loader.spinner-light::after  { background: rgba(255, 255, 255, 0.85); }
-.spinner-loader.spinner-light::before { background: rgba(255, 255, 255, 0.5); }
-
-@keyframes loader-spin {
-  100% { transform: translateX(-50%) rotate(360deg); }
+.spinner-loader.spinner-primary::after {
+  animation: ball2 1s infinite;
+  background-color: var(--brand-green);
+  box-shadow: 30px 0 0 var(--spinner-dynamic); /* Cambia con el tema */
 }
 
-@keyframes loader-rock {
-  0%   { transform: rotate(10deg); }
-  100% { transform: rotate(-10deg); }
+/* ── SPINNER LIGHT (Blanco y Naranja) ── */
+.spinner-loader.spinner-light::before {
+  animation: ball1-light 1s infinite;
+  background-color: rgba(255,255,255,0.5);
+  box-shadow: 30px 0 0 #ff3d00;
+  margin-bottom: 10px;
+}
+
+.spinner-loader.spinner-light::after {
+  animation: ball2-light 1s infinite;
+  background-color: #ff3d00;
+  box-shadow: 30px 0 0 rgba(255,255,255,0.5);
+}
+
+/* ══════════════════════════════════════
+   ANIMACIONES (KEYFRAMES)
+   ══════════════════════════════════════ */
+@keyframes loader-rotate {
+  0%   { transform: rotate(0deg)   scale(0.8); }
+  50%  { transform: rotate(360deg) scale(1.2); }
+  100% { transform: rotate(720deg) scale(0.8); }
+}
+
+/* Animaciones para el Primary */
+@keyframes ball1 {
+  0%   { box-shadow: 30px 0 0 var(--brand-green); }
+  50%  { box-shadow: 0 0 0 var(--brand-green); margin-bottom: 0; transform: translate(15px, 15px); }
+  100% { box-shadow: 30px 0 0 var(--brand-green); margin-bottom: 10px; }
+}
+
+@keyframes ball2 {
+  0%   { box-shadow: 30px 0 0 var(--spinner-dynamic); }
+  50%  { box-shadow: 0 0 0 var(--spinner-dynamic); margin-top: -20px; transform: translate(15px, 15px); }
+  100% { box-shadow: 30px 0 0 var(--spinner-dynamic); margin-top: 0; }
+}
+
+/* Animaciones corregidas para el Light */
+@keyframes ball1-light {
+  0%   { box-shadow: 30px 0 0 #ff3d00; }
+  50%  { box-shadow: 0 0 0 #ff3d00; margin-bottom: 0; transform: translate(15px, 15px); }
+  100% { box-shadow: 30px 0 0 #ff3d00; margin-bottom: 10px; }
+}
+
+@keyframes ball2-light {
+  0%   { box-shadow: 30px 0 0 rgba(255,255,255,0.5); }
+  50%  { box-shadow: 0 0 0 rgba(255,255,255,0.5); margin-top: -20px; transform: translate(15px, 15px); }
+  100% { box-shadow: 30px 0 0 rgba(255,255,255,0.5); margin-top: 0; }
 }
