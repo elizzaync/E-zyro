@@ -1,29 +1,26 @@
-# BACKEND/app/routers/auth.py
 from fastapi import APIRouter, HTTPException, status
 from app.schemas.auth import LoginData
-
-# Creamos un router específico para todo lo relacionado con autenticación
+# Creamos un router especifico para todo lo relacionado con autenticacion
 router = APIRouter(
     prefix="/auth",
-    tags=["Autenticación"]
+    tags=["Autenticacion"]
 )
-
 @router.post("/login")
 def login_usuario(credenciales: LoginData):
-    # Lógica estática temporal
+    # Logica estatica temporal
     if credenciales.username == "admin" and credenciales.password == "123456":
         return {
             "status": "success",
-            "mensaje": "Autenticación exitosa",
+            "mensaje": "Autenticacion exitosa",
             "data": {
                 "username": credenciales.username,
                 "rol": "administrador",
-                "token": "fake-jwt-token-12345" # Listo para cuando metamos JWT real
+                "token": "fake-jwt-token-12345"
             }
         }
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
+            detail="Usuario o contrasena incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
