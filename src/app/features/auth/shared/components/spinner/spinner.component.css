@@ -1,0 +1,73 @@
+/* ══════════════════════════════════════
+   VARIANT: ring — circular para botones
+   ══════════════════════════════════════ */
+.custom-spinner {
+  border-style: solid;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner-primary {
+  border-color: rgba(141, 198, 63, 0.2);
+  border-top-color: #8dc63f;
+}
+
+.spinner-light {
+  border-color: rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ══════════════════════════════════════
+   VARIANT: loader — cuadrado para pantallas
+   ══════════════════════════════════════ */
+.spinner-loader {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: calc(var(--sz) * 1.1);
+  height: var(--sz);
+}
+
+/* Base semiredondeada que se balancea */
+.spinner-loader::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: calc(var(--sz) * 1.1);
+  height: calc(var(--sz) * 0.52);
+  border-radius: 0 0 999px 999px;
+  animation: loader-rock 0.5s linear infinite alternate;
+}
+
+/* Cuadrado que gira encima */
+.spinner-loader::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(var(--sz) * 0.38);
+  height: calc(var(--sz) * 0.38);
+  transform: translateX(-50%) rotate(0deg);
+  animation: loader-spin 1.6s linear infinite;
+}
+
+.spinner-loader.spinner-primary::after  { background: #8dc63f; }
+.spinner-loader.spinner-primary::before { background: rgba(141, 198, 63, 0.55); }
+
+.spinner-loader.spinner-light::after  { background: rgba(255, 255, 255, 0.85); }
+.spinner-loader.spinner-light::before { background: rgba(255, 255, 255, 0.5); }
+
+@keyframes loader-spin {
+  100% { transform: translateX(-50%) rotate(360deg); }
+}
+
+@keyframes loader-rock {
+  0%   { transform: rotate(10deg); }
+  100% { transform: rotate(-10deg); }
+}
