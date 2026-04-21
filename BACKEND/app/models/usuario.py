@@ -10,4 +10,9 @@ class Usuario(Base):
     email = Column(String(150), nullable=False)
     password_hash = Column(String(255), nullable=False)
     activo = Column(Boolean, default=True)
+class UsuarioRol(Base):
     # No es necesario mapear el 100% de las columnas de la tabla para el login, solo las útiles.
+    __tablename__ = "usuario_rol"
+    id = Column(String(36), primary_key=True, index=True)
+    usuario_id = Column(String(36), nullable=False)
+    rol_id = Column(String(36), nullable=False)
