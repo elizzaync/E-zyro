@@ -1,9 +1,7 @@
 from sqlalchemy import Column, String, Boolean
 from app.db.database import Base # Asegúrate de tener este archivo como lo vimos antes
-
 class Usuario(Base):
     __tablename__ = "usuario"
-
     id = Column(String(36), primary_key=True, index=True)
     empresa_id = Column(String(36), nullable=False)
     nombre = Column(String(100), nullable=False)
