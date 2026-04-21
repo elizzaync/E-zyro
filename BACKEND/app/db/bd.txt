@@ -1,0 +1,979 @@
+-- =========================================================================
+-- SCRIPT DE CREACIÓN DE BASE DE DATOS PARA POSTGRESQL (RAILWAY)
+-- =========================================================================
+
+-- ─────────────────────────────────────────
+-- BLOQUE 1 · MULTI-TENANCY — NÚCLEO
+-- ─────────────────────────────────────────
+
+CREATE TABLE empresa (
+    id VARCHAR(36) PRIMARY KEY,
+    razon_social VARCHAR(200) NOT NULL,
+    ruc VARCHAR(20) NOT NULL,
+    email_contacto VARCHAR(150) NOT NULL,
+    telefono VARCHAR(20),
+    logo_url VARCHAR(500),
+    slug VARCHAR(100) NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    fecha_registro TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP,
+    CONSTRAINT idx_ruc UNIQUE (ruc),
+    CONSTRAINT idx_slug UNIQUE (slug)
+);
+
+CREATE TABLE plan_suscripcion (
+    id VARCHAR(36) PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    max_usuarios INT NOT NULL,
+    max_proyectos INT,
+    precio_mensual DECIMAL(10,2) NOT NULL,
+    descripcion TEXT,
+    activo BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE suscripcion (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    plan_id VARCHAR(36) NOT NULL,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE,
+    estado VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (plan_id) REFERENCES plan_suscripcion(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 2 · USUARIOS Y AUTENTICACIÓN
+-- ─────────────────────────────────────────
+
+CREATE TABLE usuario (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    email VARCHAR(150) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    telefono VARCHAR(20),
+    foto_url VARCHAR(500),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    email_verificado BOOLEAN NOT NULL DEFAULT FALSE,
+    ultimo_acceso TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    CONSTRAINT idx_empresa_email UNIQUE (empresa_id, email),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE sesion_usuario (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    token_hash VARCHAR(255) NOT NULL,
+    dispositivo VARCHAR(100),
+    ip VARCHAR(45),
+    user_agent VARCHAR(255),
+    activa BOOLEAN NOT NULL DEFAULT TRUE,
+    fecha_expiracion TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+);
+
+CREATE TABLE recuperacion_password (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    token_hash VARCHAR(255) NOT NULL,
+    usado BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_expiracion TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 3 · ROLES Y PERMISOS
+-- ─────────────────────────────────────────
+
+CREATE TABLE rol (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255),
+    es_rol_sistema BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE permiso (
+    id VARCHAR(36) PRIMARY KEY,
+    modulo VARCHAR(100) NOT NULL,
+    accion VARCHAR(50) NOT NULL,
+    descripcion VARCHAR(255)
+);
+
+CREATE TABLE rol_permiso (
+    rol_id VARCHAR(36) NOT NULL,
+    permiso_id VARCHAR(36) NOT NULL,
+    PRIMARY KEY (rol_id, permiso_id),
+    FOREIGN KEY (rol_id) REFERENCES rol(id),
+    FOREIGN KEY (permiso_id) REFERENCES permiso(id)
+);
+
+CREATE TABLE usuario_rol (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    rol_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    asignado_por VARCHAR(36),
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id),
+    FOREIGN KEY (rol_id) REFERENCES rol(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (asignado_por) REFERENCES usuario(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 4 · EMPLEADOS Y ÁREA TÉCNICA
+-- ─────────────────────────────────────────
+
+CREATE TABLE empleado (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    codigo VARCHAR(50),
+    cargo VARCHAR(100) NOT NULL,
+    area VARCHAR(100),
+    tipo VARCHAR(20) NOT NULL,
+    fecha_ingreso DATE NOT NULL,
+    fecha_fin_contrato DATE,
+    dias_aviso_vencimiento INT DEFAULT 7,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    CONSTRAINT idx_empresa_codigo UNIQUE (empresa_id, codigo),
+    CONSTRAINT idx_usuario_1_1 UNIQUE (usuario_id),
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE contrato (
+    id VARCHAR(36) PRIMARY KEY,
+    empleado_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE,
+    estado VARCHAR(20) NOT NULL,
+    documento_url VARCHAR(500),
+    public_id_cloudinary VARCHAR(255),
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE documento_laboral (
+    id VARCHAR(36) PRIMARY KEY,
+    empleado_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    nombre VARCHAR(200) NOT NULL,
+    url_archivo VARCHAR(500),
+    public_id_cloudinary VARCHAR(255),
+    fecha_emision DATE NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE solicitud_laboral (
+    id VARCHAR(36) PRIMARY KEY,
+    empleado_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    descripcion TEXT,
+    fecha_inicio DATE,
+    fecha_fin DATE,
+    aprobado_por VARCHAR(36),
+    fecha_aprobacion TIMESTAMP NULL,
+    observacion VARCHAR(500),
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (aprobado_por) REFERENCES empleado(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 5 · HABILIDADES TÉCNICAS
+-- ─────────────────────────────────────────
+
+CREATE TABLE categoria_habilidad (
+    id VARCHAR(36) PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255)
+);
+
+CREATE TABLE habilidad (
+    id VARCHAR(36) PRIMARY KEY,
+    categoria_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    descripcion VARCHAR(255),
+    FOREIGN KEY (categoria_id) REFERENCES categoria_habilidad(id)
+);
+
+CREATE TABLE empleado_habilidad (
+    id VARCHAR(36) PRIMARY KEY,
+    empleado_id VARCHAR(36) NOT NULL,
+    habilidad_id VARCHAR(36) NOT NULL,
+    nivel VARCHAR(20) NOT NULL,
+    certificado_url VARCHAR(500),
+    verificado BOOLEAN NOT NULL DEFAULT FALSE,
+    verificado_por VARCHAR(36),
+    fecha_verificacion DATE,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT idx_empleado_habilidad UNIQUE (empleado_id, habilidad_id),
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (habilidad_id) REFERENCES habilidad(id),
+    FOREIGN KEY (verificado_por) REFERENCES empleado(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 6 · FIRMA DIGITAL
+-- ─────────────────────────────────────────
+
+CREATE TABLE firma_digital (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    url_cloudinary VARCHAR(500) NOT NULL,
+    public_id_cloudinary VARCHAR(255) NOT NULL,
+    primera_vez BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    CONSTRAINT idx_usuario_firma_1_1_fd UNIQUE (usuario_id),
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE historial_firma (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    url_cloudinary VARCHAR(500) NOT NULL,
+    public_id_cloudinary VARCHAR(255) NOT NULL,
+    reemplazada_en TIMESTAMP NOT NULL,
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE documento_firmado (
+    id VARCHAR(36) PRIMARY KEY,
+    firma_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    documento_id VARCHAR(36),
+    tabla_documento VARCHAR(100) NOT NULL,
+    firmado_en TIMESTAMP NOT NULL,
+    ip_firma VARCHAR(45),
+    FOREIGN KEY (firma_id) REFERENCES firma_digital(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 7 · NOTIFICACIONES Y DISPOSITIVOS
+-- ─────────────────────────────────────────
+
+CREATE TABLE dispositivo_push (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    token_push VARCHAR(500) NOT NULL,
+    plataforma VARCHAR(10) NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+);
+
+CREATE TABLE notificacion (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    usuario_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(20) NOT NULL,
+    categoria VARCHAR(50),
+    titulo VARCHAR(200) NOT NULL,
+    mensaje TEXT NOT NULL,
+    leido BOOLEAN NOT NULL DEFAULT FALSE,
+    enviado BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_envio TIMESTAMP NULL,
+    referencia_tabla VARCHAR(100),
+    referencia_id VARCHAR(36),
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 8 · ASISTENCIA
+-- ─────────────────────────────────────────
+
+CREATE TABLE turno (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    hora_entrada TIME NOT NULL,
+    hora_salida TIME NOT NULL,
+    tolerancia_minutos INT DEFAULT 5,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE turno_empleado (
+    id VARCHAR(36) PRIMARY KEY,
+    empleado_id VARCHAR(36) NOT NULL,
+    turno_id VARCHAR(36) NOT NULL,
+    fecha_desde DATE NOT NULL,
+    fecha_hasta DATE NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (turno_id) REFERENCES turno(id)
+);
+
+CREATE TABLE registro_asistencia (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    empleado_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(30) NOT NULL,
+    fecha_hora TIMESTAMP NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    observacion VARCHAR(500),
+    validado_por VARCHAR(36),
+    fecha_validacion TIMESTAMP NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (validado_por) REFERENCES empleado(id)
+);
+-- Indices extraidos para PostgreSQL
+CREATE INDEX idx_asistencia_busqueda ON registro_asistencia (empresa_id, empleado_id, fecha_hora);
+CREATE INDEX idx_empresa_asistencia ON registro_asistencia (empresa_id);
+
+CREATE TABLE geolocalizacion_asistencia (
+    id VARCHAR(36) PRIMARY KEY,
+    registro_id VARCHAR(36) NOT NULL,
+    latitud DECIMAL(10,8) NOT NULL,
+    longitud DECIMAL(11,8) NOT NULL,
+    precision_m FLOAT,
+    altitud FLOAT,
+    CONSTRAINT idx_registro_geo_1_1 UNIQUE (registro_id),
+    FOREIGN KEY (registro_id) REFERENCES registro_asistencia(id)
+);
+
+CREATE TABLE foto_asistencia (
+    id VARCHAR(36) PRIMARY KEY,
+    registro_id VARCHAR(36) NOT NULL,
+    url_cloudinary VARCHAR(500) NOT NULL,
+    public_id_cloudinary VARCHAR(255) NOT NULL,
+    fecha_captura TIMESTAMP NOT NULL,
+    CONSTRAINT idx_registro_foto_1_1 UNIQUE (registro_id),
+    FOREIGN KEY (registro_id) REFERENCES registro_asistencia(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 9 · GRUPOS DE TRABAJO TÉCNICO
+-- ─────────────────────────────────────────
+
+CREATE TABLE grupo_trabajo (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    descripcion VARCHAR(255),
+    jefe_id VARCHAR(36) NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (jefe_id) REFERENCES empleado(id)
+);
+
+CREATE TABLE grupo_miembro (
+    id VARCHAR(36) PRIMARY KEY,
+    grupo_id VARCHAR(36) NOT NULL,
+    empleado_id VARCHAR(36) NOT NULL,
+    fecha_asignacion DATE NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    asignado_por VARCHAR(36),
+    CONSTRAINT idx_grupo_empleado UNIQUE (grupo_id, empleado_id),
+    FOREIGN KEY (grupo_id) REFERENCES grupo_trabajo(id),
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (asignado_por) REFERENCES empleado(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 10 · CLIENTES
+-- ─────────────────────────────────────────
+
+CREATE TABLE cliente (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    razon_social VARCHAR(200) NOT NULL,
+    ruc VARCHAR(20),
+    contacto VARCHAR(150),
+    telefono VARCHAR(20),
+    email VARCHAR(150),
+    direccion VARCHAR(300),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 11 · PROYECTOS Y SERVICIOS
+-- ─────────────────────────────────────────
+
+CREATE TABLE proyecto (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    cliente_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(200) NOT NULL,
+    descripcion TEXT,
+    estado VARCHAR(20) NOT NULL,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin_estimada DATE,
+    fecha_fin_real DATE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (cliente_id) REFERENCES cliente(id)
+);
+
+CREATE TABLE fase (
+    id VARCHAR(36) PRIMARY KEY,
+    proyecto_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    orden INT NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    fecha_inicio DATE,
+    fecha_fin DATE,
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id)
+);
+
+CREATE TABLE tarea (
+    id VARCHAR(36) PRIMARY KEY,
+    fase_id VARCHAR(36) NOT NULL,
+    responsable_id VARCHAR(36),
+    nombre VARCHAR(200) NOT NULL,
+    descripcion TEXT,
+    estado VARCHAR(20) NOT NULL,
+    prioridad VARCHAR(10),
+    fecha_limite DATE,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (fase_id) REFERENCES fase(id),
+    FOREIGN KEY (responsable_id) REFERENCES empleado(id)
+);
+
+CREATE TABLE proyecto_miembro (
+    id VARCHAR(36) PRIMARY KEY,
+    proyecto_id VARCHAR(36) NOT NULL,
+    empleado_id VARCHAR(36) NOT NULL,
+    rol_proyecto VARCHAR(50),
+    fecha_asignacion DATE NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    CONSTRAINT idx_proyecto_empleado UNIQUE (proyecto_id, empleado_id),
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id)
+);
+
+CREATE TABLE seguimiento_proyecto (
+    id VARCHAR(36) PRIMARY KEY,
+    proyecto_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    porcentaje_avance DECIMAL(5,2) NOT NULL,
+    descripcion TEXT,
+    fecha DATE NOT NULL,
+    registrado_por VARCHAR(36) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (registrado_por) REFERENCES empleado(id)
+);
+
+CREATE TABLE calificacion_cliente (
+    id VARCHAR(36) PRIMARY KEY,
+    cliente_id VARCHAR(36) NOT NULL,
+    proyecto_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    puntaje INT NOT NULL,
+    comentario TEXT,
+    fecha DATE NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (cliente_id) REFERENCES cliente(id),
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 12 · EQUIPOS Y MANTENIMIENTO
+-- ─────────────────────────────────────────
+
+CREATE TABLE tipo_equipo (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion TEXT,
+    procedimiento_tecnico TEXT,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE equipo (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    tipo_equipo_id VARCHAR(36) NOT NULL,
+    proyecto_id VARCHAR(36),
+    cliente_id VARCHAR(36),
+    nombre VARCHAR(150) NOT NULL,
+    codigo VARCHAR(50),
+    modelo VARCHAR(100),
+    marca VARCHAR(100),
+    numero_serie VARCHAR(100),
+    ubicacion VARCHAR(200),
+    estado VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (tipo_equipo_id) REFERENCES tipo_equipo(id),
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (cliente_id) REFERENCES cliente(id)
+);
+
+CREATE TABLE plan_mantenimiento (
+    id VARCHAR(36) PRIMARY KEY,
+    equipo_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(20) NOT NULL,
+    frecuencia VARCHAR(30),
+    frecuencia_dias INT,
+    proxima_fecha DATE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (equipo_id) REFERENCES equipo(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE orden_mantenimiento (
+    id VARCHAR(36) PRIMARY KEY,
+    equipo_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    tecnico_id VARCHAR(36),
+    plan_id VARCHAR(36),
+    tipo VARCHAR(20) NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    fecha DATE NOT NULL,
+    fecha_inicio TIMESTAMP NULL,
+    fecha_fin TIMESTAMP NULL,
+    observaciones TEXT,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (equipo_id) REFERENCES equipo(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (tecnico_id) REFERENCES empleado(id),
+    FOREIGN KEY (plan_id) REFERENCES plan_mantenimiento(id)
+);
+
+CREATE TABLE evidencia_mantenimiento (
+    id VARCHAR(36) PRIMARY KEY,
+    orden_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    etapa VARCHAR(20) NOT NULL,
+    url_cloudinary VARCHAR(500) NOT NULL,
+    public_id_cloudinary VARCHAR(255) NOT NULL,
+    descripcion VARCHAR(500),
+    fecha_captura TIMESTAMP NOT NULL,
+    FOREIGN KEY (orden_id) REFERENCES orden_mantenimiento(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE informe_tecnico (
+    id VARCHAR(36) PRIMARY KEY,
+    orden_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    titulo VARCHAR(200) NOT NULL,
+    contenido TEXT,
+    url_archivo VARCHAR(500),
+    public_id_cloudinary VARCHAR(255),
+    generado_por VARCHAR(36) NOT NULL,
+    fecha DATE NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (orden_id) REFERENCES orden_mantenimiento(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (generado_por) REFERENCES empleado(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 13 · INVENTARIO Y LOGÍSTICA
+-- ─────────────────────────────────────────
+
+CREATE TABLE categoria_material (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE material (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    categoria_id VARCHAR(36),
+    nombre VARCHAR(200) NOT NULL,
+    codigo VARCHAR(50),
+    unidad VARCHAR(30) NOT NULL,
+    descripcion VARCHAR(255),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (categoria_id) REFERENCES categoria_material(id)
+);
+
+CREATE TABLE stock (
+    material_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    almacen VARCHAR(100) NOT NULL,
+    cantidad INT NOT NULL DEFAULT 0,
+    cantidad_minima INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (material_id, empresa_id, almacen),
+    FOREIGN KEY (material_id) REFERENCES material(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE requerimiento (
+    id VARCHAR(36) PRIMARY KEY,
+    proyecto_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    solicitante_id VARCHAR(36) NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    observacion VARCHAR(500),
+    fecha DATE NOT NULL,
+    aprobado_por VARCHAR(36),
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (solicitante_id) REFERENCES empleado(id),
+    FOREIGN KEY (aprobado_por) REFERENCES empleado(id)
+);
+
+CREATE TABLE requerimiento_detalle (
+    id VARCHAR(36) PRIMARY KEY,
+    requerimiento_id VARCHAR(36) NOT NULL,
+    material_id VARCHAR(36) NOT NULL,
+    cantidad INT NOT NULL,
+    cantidad_aprobada INT,
+    observacion VARCHAR(255),
+    FOREIGN KEY (requerimiento_id) REFERENCES requerimiento(id),
+    FOREIGN KEY (material_id) REFERENCES material(id)
+);
+
+CREATE TABLE movimiento_inventario (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    material_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(20) NOT NULL,
+    cantidad INT NOT NULL,
+    referencia_id VARCHAR(36),
+    referencia_tipo VARCHAR(50),
+    responsable_id VARCHAR(36),
+    fecha TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (material_id) REFERENCES material(id),
+    FOREIGN KEY (responsable_id) REFERENCES empleado(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 14 · COMPRAS Y PROVEEDORES
+-- ─────────────────────────────────────────
+
+CREATE TABLE proveedor (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    razon_social VARCHAR(200) NOT NULL,
+    ruc VARCHAR(20),
+    contacto VARCHAR(150),
+    email VARCHAR(150),
+    telefono VARCHAR(20),
+    direccion VARCHAR(300),
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE proveedor_categoria (
+    proveedor_id VARCHAR(36) NOT NULL,
+    categoria_id VARCHAR(36) NOT NULL,
+    PRIMARY KEY (proveedor_id, categoria_id),
+    FOREIGN KEY (proveedor_id) REFERENCES proveedor(id),
+    FOREIGN KEY (categoria_id) REFERENCES categoria_material(id)
+);
+
+CREATE TABLE orden_compra (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    proveedor_id VARCHAR(36) NOT NULL,
+    requerimiento_id VARCHAR(36),
+    estado VARCHAR(20) NOT NULL,
+    fecha_emision DATE NOT NULL,
+    fecha_entrega_estimada DATE,
+    fecha_entrega_real DATE,
+    total_referencial DECIMAL(10,2),
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (proveedor_id) REFERENCES proveedor(id),
+    FOREIGN KEY (requerimiento_id) REFERENCES requerimiento(id)
+);
+
+CREATE TABLE detalle_compra (
+    id VARCHAR(36) PRIMARY KEY,
+    orden_id VARCHAR(36) NOT NULL,
+    material_id VARCHAR(36) NOT NULL,
+    cantidad INT NOT NULL,
+    precio_unitario DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (orden_id) REFERENCES orden_compra(id),
+    FOREIGN KEY (material_id) REFERENCES material(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 15 · GESTIÓN DOCUMENTAL (PLANOS)
+-- ─────────────────────────────────────────
+
+CREATE TABLE carpeta_documental (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    proyecto_id VARCHAR(36),
+    padre_id VARCHAR(36),
+    nombre VARCHAR(150) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (padre_id) REFERENCES carpeta_documental(id)
+);
+
+CREATE TABLE plano (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    proyecto_id VARCHAR(36) NOT NULL,
+    carpeta_id VARCHAR(36),
+    nombre VARCHAR(200) NOT NULL,
+    disciplina VARCHAR(50),
+    descripcion VARCHAR(255),
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (carpeta_id) REFERENCES carpeta_documental(id)
+);
+
+CREATE TABLE version_plano (
+    id VARCHAR(36) PRIMARY KEY,
+    plano_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    version VARCHAR(20) NOT NULL,
+    url_cloudinary VARCHAR(500) NOT NULL,
+    public_id_cloudinary VARCHAR(255) NOT NULL,
+    subido_por VARCHAR(36) NOT NULL,
+    fecha DATE NOT NULL,
+    es_version_activa BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (plano_id) REFERENCES plano(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (subido_por) REFERENCES usuario(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 16 · EVALUACIONES DE PERSONAL
+-- ─────────────────────────────────────────
+
+CREATE TABLE criterio_evaluacion (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    descripcion VARCHAR(255),
+    peso DECIMAL(5,2) NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+);
+
+CREATE TABLE evaluacion (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    empleado_id VARCHAR(36) NOT NULL,
+    evaluador_id VARCHAR(36) NOT NULL,
+    periodo VARCHAR(50) NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    fecha DATE NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id),
+    FOREIGN KEY (evaluador_id) REFERENCES empleado(id)
+);
+
+CREATE TABLE detalle_evaluacion (
+    id VARCHAR(36) PRIMARY KEY,
+    evaluacion_id VARCHAR(36) NOT NULL,
+    criterio_id VARCHAR(36) NOT NULL,
+    puntaje INT NOT NULL,
+    comentario TEXT,
+    FOREIGN KEY (evaluacion_id) REFERENCES evaluacion(id),
+    FOREIGN KEY (criterio_id) REFERENCES criterio_evaluacion(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 17 · SOPORTE OPERATIVO DE CAMPO
+-- ─────────────────────────────────────────
+
+CREATE TABLE programacion_campo (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    proyecto_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(50) NOT NULL,
+    descripcion TEXT,
+    fecha DATE NOT NULL,
+    cantidad_personas INT,
+    registrado_por VARCHAR(36) NOT NULL,
+    confirmado BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (registrado_por) REFERENCES empleado(id)
+);
+
+CREATE TABLE programacion_empleado (
+    id VARCHAR(36) PRIMARY KEY,
+    programacion_id VARCHAR(36) NOT NULL,
+    empleado_id VARCHAR(36) NOT NULL,
+    confirmacion_movil BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_confirmacion TIMESTAMP NULL,
+    FOREIGN KEY (programacion_id) REFERENCES programacion_campo(id),
+    FOREIGN KEY (empleado_id) REFERENCES empleado(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 18 · CHAT INTERNO POR PROYECTO
+-- ─────────────────────────────────────────
+
+CREATE TABLE mensaje_chat (
+    id VARCHAR(36) PRIMARY KEY,
+    proyecto_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    remitente_id VARCHAR(36) NOT NULL,
+    contenido TEXT NOT NULL,
+    adjunto_url VARCHAR(500),
+    fecha TIMESTAMP NOT NULL,
+    leido BOOLEAN NOT NULL DEFAULT FALSE,
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (remitente_id) REFERENCES usuario(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 19 · CAJA CHICA
+-- ─────────────────────────────────────────
+
+CREATE TABLE caja_chica (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    responsable_id VARCHAR(36) NOT NULL,
+    proyecto_id VARCHAR(36),
+    nombre VARCHAR(150) NOT NULL,
+    descripcion VARCHAR(255),
+    monto_asignado_referencial DECIMAL(10,2),
+    fecha_apertura DATE NOT NULL,
+    fecha_cierre DATE NULL,
+    estado VARCHAR(30) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (responsable_id) REFERENCES empleado(id),
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id)
+);
+
+CREATE TABLE movimiento_caja (
+    id VARCHAR(36) PRIMARY KEY,
+    caja_id VARCHAR(36) NOT NULL,
+    empresa_id VARCHAR(36) NOT NULL,
+    tipo VARCHAR(10) NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    descripcion VARCHAR(500) NOT NULL,
+    concepto VARCHAR(100),
+    comprobante_url VARCHAR(500),
+    public_id_cloudinary VARCHAR(255),
+    registrado_por VARCHAR(36) NOT NULL,
+    fecha TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (caja_id) REFERENCES caja_chica(id),
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (registrado_por) REFERENCES empleado(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 20 · RECORDATORIOS ADMINISTRATIVOS
+-- ─────────────────────────────────────────
+
+CREATE TABLE recordatorio (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36) NOT NULL,
+    creado_por VARCHAR(36) NOT NULL,
+    titulo VARCHAR(200) NOT NULL,
+    descripcion TEXT,
+    categoria VARCHAR(50),
+    monto_referencial DECIMAL(10,2),
+    fecha_vencimiento DATE NOT NULL,
+    recurrente BOOLEAN NOT NULL DEFAULT FALSE,
+    frecuencia_dias INT,
+    dias_aviso INT NOT NULL DEFAULT 3,
+    estado VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (creado_por) REFERENCES usuario(id)
+);
+
+CREATE TABLE recordatorio_destinatario (
+    id VARCHAR(36) PRIMARY KEY,
+    recordatorio_id VARCHAR(36) NOT NULL,
+    usuario_id VARCHAR(36) NOT NULL,
+    notificado_push BOOLEAN NOT NULL DEFAULT FALSE,
+    notificado_email BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_notificacion TIMESTAMP NULL,
+    FOREIGN KEY (recordatorio_id) REFERENCES recordatorio(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+);
+
+-- ─────────────────────────────────────────
+-- BLOQUE 21 · AUDITORÍA COMPLETA
+-- ─────────────────────────────────────────
+
+CREATE TABLE auditoria (
+    id VARCHAR(36) PRIMARY KEY,
+    empresa_id VARCHAR(36),
+    usuario_id VARCHAR(36),
+    tabla_afectada VARCHAR(100) NOT NULL,
+    registro_id VARCHAR(36),
+    accion VARCHAR(30) NOT NULL,
+    modulo VARCHAR(100),
+    datos_anteriores TEXT,
+    datos_nuevos TEXT,
+    ip VARCHAR(45),
+    user_agent VARCHAR(500),
+    descripcion VARCHAR(500),
+    fecha TIMESTAMP NOT NULL,
+    FOREIGN KEY (empresa_id) REFERENCES empresa(id),
+    FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+);
+-- Indices extraidos para PostgreSQL
+CREATE INDEX idx_auditoria_empresa ON auditoria (empresa_id);
+CREATE INDEX idx_auditoria_tabla ON auditoria (tabla_afectada);
+CREATE INDEX idx_auditoria_fecha ON auditoria (fecha);
+CREATE INDEX idx_auditoria_usuario ON auditoria (usuario_id);
