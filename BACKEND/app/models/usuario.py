@@ -6,7 +6,8 @@ class Usuario(Base):
     empresa_id = Column(String(36), nullable=False)
     nombre = Column(String(100), nullable=False)
     apellido = Column(String(100), nullable=False)
-    email = Column(String(150), unique=True, index=True, nullable=False)
+    username = Column(String(50), nullable=False)
+    email = Column(String(150), nullable=False)
     password_hash = Column(String(255), nullable=False)
     activo = Column(Boolean, default=True)
     # No es necesario mapear el 100% de las columnas de la tabla para el login, solo las útiles.
