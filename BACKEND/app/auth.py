@@ -43,7 +43,7 @@ def registrar_auditoria(db: Session, usuario_id: str, empresa_id: str, tabla: st
     db.add(nueva_auditoria)
 
 # =========================================================================
-# 1. SOLICITAR CÓDIGO (POST /auth/password-recovery/request)
+# 1. SOLICITAR CÓDIGO
 # =========================================================================
 @router.post("/password-recovery/request")
 async def solicitar_codigo(payload: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
@@ -94,7 +94,7 @@ async def solicitar_codigo(payload: PasswordResetRequest, request: Request, db: 
     return {"status": "success", "mensaje": "Código de seguridad enviado al correo."}
 
 # =========================================================================
-# 2. VERIFICAR CÓDIGO (POST /auth/password-recovery/verify)
+# 2. VERIFICAR CÓDIGO
 # =========================================================================
 @router.post("/password-recovery/verify")
 async def verificar_codigo(payload: PasswordVerifyCode, request: Request, db: Session = Depends(get_db)):
@@ -145,7 +145,7 @@ async def verificar_codigo(payload: PasswordVerifyCode, request: Request, db: Se
     return {"status": "success", "mensaje": "Código verificado correctamente."}
 
 # =========================================================================
-# 3. ACTUALIZAR CONTRASEÑA (POST /auth/password-recovery/reset)
+# 3. ACTUALIZAR CONTRASEÑA
 # =========================================================================
 @router.post("/password-recovery/reset")
 async def actualizar_password(payload: PasswordResetConfirm, request: Request, db: Session = Depends(get_db)):
