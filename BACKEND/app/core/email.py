@@ -1,7 +1,7 @@
 import requests
 
 # Reemplaza esto con la URL larguísima que te dio Google
-URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyc7LpJsIFgJjzlzjc-r-jJAYQp4tYfalMPAuUSpCgMbnON-0E3fsYZTlZ51lVtblV9/exec"
+URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyq5y-h2R0JPVL4REIL1Q5FQIUf15JSy-nnfvCTNBWIkdbK-4MPVNyZlyaYa-j59muS/exec"
 
 async def enviar_correo_otp(email_destino: str, codigo_otp: str):
     html = f"""
