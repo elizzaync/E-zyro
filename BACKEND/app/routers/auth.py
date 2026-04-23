@@ -111,11 +111,6 @@ async def solicitar_codigo(payload: PasswordResetRequest, request: Request, db: 
                         f"Solicitud OTP para {payload.email}")
     db.commit()
 
-    # Simulación de envío por consola
-    print(f"--- DEBUG: EL CÓDIGO PARA {payload.email} ES: {codigo_plano} ---")
-
-    return {"status": "success", "mensaje": "Código de seguridad enviado al correo."}
-
 # =========================================================================
 # 2. VERIFICAR CÓDIGO (POST /auth/password-recovery/verify)
 # =========================================================================

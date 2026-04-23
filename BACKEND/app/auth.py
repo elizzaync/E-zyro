@@ -88,6 +88,7 @@ async def solicitar_codigo(payload: PasswordResetRequest, request: Request, db: 
 
     try:
         await enviar_correo_otp(payload.email, codigo_plano)
+        print("EL CORREO SALIÓ DE FASTAPI EXITOSAMENTE")
     except Exception as e:
         print(f"Error enviando correo: {e}")
 
