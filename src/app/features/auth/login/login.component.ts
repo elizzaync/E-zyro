@@ -4,7 +4,6 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Router, RouterModule } from '@angular/router';
 import { AlertComponent } from '../shared/components/login/alert.component';
 import { SpinnerComponent } from '../shared/components/spinner/spinner.component';
-// 1. IMPORTAR EL SERVICIO
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
@@ -53,34 +52,30 @@ export class LoginComponent {
     this.successMessage.set('');
 
     const { username, password } = this.loginForm.value;
-
     // 3. LLAMADA REAL A LA API
     this.authService.login({ username, password }).subscribe({
       next: (response) => {
-        // Entra aquí si el backend devuelve status 200 (éxito)
+        // La API validó la contraseña encriptada correctamente
         this.isAuthenticating.set(false);
-        this.successMessage.set('Autenticación exitosa. Redirigiendo...');
 
-        // Guardar el token en el local storage (opcional, para el futuro)
-        // localStorage.setItem('token', response.data.token);
+        // Podemos usar el nombre real que viene de la base de datos!
+        const nombre = response.data.nombre_completo;
+        this.successMessage.set(`¡Bienvenido(a), ${nombre}! Preparando entorno...`);
 
         setTimeout(() => {
           this.isPreparingEnv.set(true);
 
-          // Descomenta esto cuando tengas tu dashboard listo
-          // setTimeout(() => this.router.navigate(['/dashboard']), 2000);
+          // Redirección final al panel principal (asegúrate de tener esta ruta creada)
+          setTimeout(() => this.router.navigate(['/dashboard']), 1500);
         }, 1500);
       },
       error: (err) => {
-        // Entra aquí si el backend lanza el HTTPException (401 u otro error)
         this.isAuthenticating.set(false);
-
         if (err.status === 401) {
           this.errorMessage.set('Usuario o contraseña incorrectos.');
         } else {
-          this.errorMessage.set('Error al conectar con el servidor.');
+          this.errorMessage.set('Error de conexión con el servidor.');
         }
-        console.error('Detalles del error:', err);
       }
     });
   }
