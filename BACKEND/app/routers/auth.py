@@ -95,7 +95,7 @@ async def solicitar_codigo(payload: PasswordResetRequest, request: Request, db: 
         usuario_id=usuario.id,
         codigo_hash=pwd_context.hash(codigo_plano),
         ip_solicitud=ip_cliente,
-        fecha_expiracion=datetime.utcnow() + timedelta(minutes=15)
+        fecha_expiracion = datetime.now(ZONA_HORARIA) + timedelta(minutes=15)
     )
     db.add(nuevo_registro)
     # Registrar en Auditoría
@@ -139,7 +139,7 @@ async def verificar_codigo(payload: PasswordVerifyCode, request: Request, db: Se
     if not registro_otp:
         raise HTTPException(status_code=400, detail="No has solicitado un código de recuperación.")
     # Validaciones de Seguridad
-    if datetime.utcnow() > registro_otp.fecha_expiracion:
+    if datetime.now(ZONA_HORARIA) > registro_otp.fecha_expiracion:
         raise HTTPException(status_code=400, detail="El código de seguridad ha expirado.")
     if registro_otp.intentos_fallidos >= 3:
         registrar_auditoria(
@@ -179,13 +179,13 @@ async def actualizar_password(payload: PasswordResetConfirm, request: Request, d
         RecuperacionPassword.usado == False
     ).order_by(RecuperacionPassword.created_at.desc()).first()
     # Verificación final de seguridad
-    if not registro_otp or datetime.utcnow() > registro_otp.fecha_expiracion or registro_otp.intentos_fallidos >= 3:
+    if not registro_otp or datetime.now(ZONA_HORARIA) > registro_otp.fecha_expiracion or registro_otp.intentos_fallidos >= 3:
         raise HTTPException(status_code=400, detail="La solicitud de cambio es inválida o ha expirado.")
     if not pwd_context.verify(payload.code, registro_otp.codigo_hash):
         raise HTTPException(status_code=400, detail="Validación de código fallida.")
     # 1. Actualizar el password_hash del usuario
     usuario.password_hash = pwd_context.hash(payload.new_password)
-    usuario.updated_at = datetime.utcnow()
+    usuario.updated_at = datetime.now(ZONA_HORARIA)
     # 2. Invalidar el código utilizado
     registro_otp.usado = True
     # 3. Registrar el éxito en Auditoría
