@@ -1,35 +1,6 @@
-/* ── Paleta de Colores Empresarial (Light & Dark) ── */
-.login-wrapper {
-  /* TEMA CLARO - Limpio y espacioso */
-  --bg-color: #f3f4f6;          /* Gris muy suave */
-  --card-bg: #ffffff;           /* Blanco puro */
-  --card-border: transparent;   /* Sin borde en claro, usamos sombra */
-  --text-main: #111827;         /* Casi negro para máxima legibilidad */
-  --text-muted: #6b7280;        /* Gris medio para etiquetas */
-  --input-bg: #f9fafb;          /* Fondo de input ligerísimamente gris */
-  --input-border: #d1d5db;      /* Borde gris claro */
-  --input-text: #111827;
-  --brand-green: #8dc63f;
-  --brand-green-hover: #7ab530;
-  --shadow-color: rgba(17, 24, 39, 0.06); /* Sombra elegante */
-  --box-bg: #ffffff;
-}
-
-@media (prefers-color-scheme: dark) {
-  .login-wrapper {
-    /* TEMA OSCURO - Premium Slate (Azul/Gris Profundo) */
-    --bg-color: #0f172a;          /* Fondo principal pizarron oscuro */
-    --card-bg: #1e293b;           /* Tarjeta ligeramente más clara */
-    --card-border: #334155;       /* Borde sutil para definir la tarjeta */
-    --text-main: #f8fafc;         /* Blanco brillante y nítido para títulos */
-    --text-muted: #94a3b8;        /* Gris plomo para textos secundarios */
-    --input-bg: #0f172a;          /* Inputs se hunden en el fondo */
-    --input-border: #475569;      /* Borde visible pero sofisticado */
-    --input-text: #f8fafc;
-    --shadow-color: rgba(0, 0, 0, 0.4); /* Sombra densa y corta */
-    --box-bg: #1e293b;
-  }
-}
+/* =======================================================
+   LOGIN.CSS (SOLO ESTRUCTURA, LOS COLORES ESTÁN EN INDEX.CSS)
+   ======================================================= */
 
 /* ── Layout Global ── */
 .login-wrapper {
