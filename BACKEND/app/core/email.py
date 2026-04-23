@@ -5,21 +5,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Configuración de conexión con Gmail
+# Configuración de conexión con Gmail (VÍA RÁPIDA SSL)
+# Configuración de conexión con Gmail (VÍA RÁPIDA SSL)
 conf = ConnectionConfig(
     MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
     MAIL_FROM = os.getenv("MAIL_FROM"),
-    MAIL_PORT = int(os.getenv("MAIL_PORT")),
-    MAIL_SERVER = os.getenv("MAIL_SERVER"),
-    MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME"),
-    MAIL_STARTTLS = True,
-    MAIL_SSL_TLS = False,
+    MAIL_PORT = 465,        # <-- Forzamos el puerto 465
+    MAIL_SERVER = "smtp.gmail.com",
+    MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "E-SystemTic Soporte"),
+    MAIL_STARTTLS = False,  # <-- APAGAMOS ESTO
+    MAIL_SSL_TLS = True,    # <-- ENCENDEMOS ESTO
     USE_CREDENTIALS = True,
     VALIDATE_CERTS = True
 )
 
 async def enviar_correo_otp(email_destino: EmailStr, codigo_otp: str):
+    # ... (tu código html sigue igual)
     html = f"""
     <html>
         <body style="font-family: sans-serif;">
