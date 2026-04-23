@@ -1,27 +1,9 @@
-import os
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
-from pydantic import EmailStr
-from dotenv import load_dotenv
+import requests
 
-load_dotenv()
+# Reemplaza esto con la URL larguísima que te dio Google
+URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyc7LpJsIFgJjzlzjc-r-jJAYQp4tYfalMPAuUSpCgMbnON-0E3fsYZTlZ51lVtblV9/exec"
 
-# Configuración de conexión con Gmail (VÍA RÁPIDA SSL)
-# Configuración de conexión con Gmail (VÍA RÁPIDA SSL)
-conf = ConnectionConfig(
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME"),
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
-    MAIL_FROM = os.getenv("MAIL_FROM"),
-    MAIL_PORT = 465,        # <-- Forzamos el puerto 465
-    MAIL_SERVER = "smtp.gmail.com",
-    MAIL_FROM_NAME = os.getenv("MAIL_FROM_NAME", "E-SystemTic Soporte"),
-    MAIL_STARTTLS = False,  # <-- APAGAMOS ESTO
-    MAIL_SSL_TLS = True,    # <-- ENCENDEMOS ESTO
-    USE_CREDENTIALS = True,
-    VALIDATE_CERTS = True
-)
-
-async def enviar_correo_otp(email_destino: EmailStr, codigo_otp: str):
-    # ... (tu código html sigue igual)
+async def enviar_correo_otp(email_destino: str, codigo_otp: str):
     html = f"""
     <html>
         <body style="font-family: sans-serif;">
@@ -33,12 +15,11 @@ async def enviar_correo_otp(email_destino: EmailStr, codigo_otp: str):
     </html>
     """
 
-    message = MessageSchema(
-        subject="Código de Recuperación - E-SystemTic",
-        recipients=[email_destino],
-        body=html,
-        subtype=MessageType.html
-    )
+    payload = {
+        "to": email_destino,
+        "subject": "Código de Recuperación - E-SystemTic",
+        "html": html
+    }
 
-    fm = FastMail(conf)
-    await fm.send_message(message)
+    # Enviamos por la puerta 443 (HTTPS). Railway no puede bloquear esto.
+    requests.post(URL_GOOGLE_SCRIPT, json=payload)
