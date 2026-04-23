@@ -10,13 +10,12 @@ class Auditoria(Base):
     usuario_id = Column(String(36), nullable=True)
     tabla_afectada = Column(String(100), nullable=False)
     registro_id = Column(String(36), nullable=True)
-    accion = Column(String(30), nullable=False)
+    accion = Column(String(50), nullable=False)
     modulo = Column(String(100), nullable=True)
     datos_anteriores = Column(Text, nullable=True)
     datos_nuevos = Column(Text, nullable=True)
     ip = Column(String(45), nullable=True)
     user_agent = Column(String(500), nullable=True)
     descripcion = Column(String(500), nullable=True)
-
     # Manejo de fecha automática
     fecha = Column(DateTime, default=datetime.utcnow, nullable=False)
