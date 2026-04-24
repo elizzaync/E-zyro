@@ -1,9 +1,7 @@
 import { Routes } from '@angular/router';
 import { LoginComponent } from './features/auth/login/login.component';
-// --- NUESTRO NUEVO COMPONENTE UNIFICADO ---
 import { ResetPasswordComponent } from './features/auth/reset-password/reset-password.component';
-// --- IMPORTAMOS EL DASHBOARD Y EL GUARDIÁN ---
-import { DashboardComponent } from './features/dashboard/dashboard.component';
+import { HomeComponent } from './features/home/home.component';
 import { authGuard } from './core/guards/auth.guards';
 
 export const routes: Routes = [
@@ -17,14 +15,12 @@ export const routes: Routes = [
     component: ResetPasswordComponent, // <-- Ahora este maneja todo el flujo de 4 pasos
     title: 'Recuperar Contraseña | E-System Tic'
   },
-  // --- RUTA PROTEGIDA ---
   {
-    path: 'dashboard',
-    component: DashboardComponent,
-    title: 'Dashboard | E-System Tic',
+    path: 'home',
+    component: HomeComponent,
+    title: 'Inicio | E-System Tic',
     canActivate: [authGuard] // Esto bloquea a los que no tienen Token JWT
   },
-  // --- RUTA COMODÍN (Si escriben una URL que no existe, los manda al login) ---
   {
     path: '**',
     redirectTo: ''

@@ -1,0 +1,47 @@
+.home-layout {
+  background-color: var(--bg-color); /* 👈 Dinámico */
+  min-height: calc(100vh - 72px);
+  padding: 32px 24px;
+  box-sizing: border-box; /* 👈 Elimina el scroll innecesario */
+  transition: background-color 0.4s ease;
+}
+
+.home-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.welcome-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-main); /* <-- Dinámico: Blanco o Negro */
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.4s ease;
+}
+
+.welcome-subtitle {
+  font-size: 15px;
+  color: var(--text-muted); /* <-- Dinámico */
+  margin: 0;
+  transition: color 0.4s ease;
+}
+
+/* Animación opcional de la manito */
+.wave-emoji {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: wave 2.5s infinite;
+}
+
+@keyframes wave {
+  0% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+  60%, 100% { transform: rotate(0deg); }
+}

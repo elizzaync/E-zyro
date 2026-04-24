@@ -1,0 +1,359 @@
+/* =======================================================
+   NAVBAR COMPONENT CSS (TEMA DINÁMICO)
+   ======================================================= */
+
+.top-navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 24px;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+
+/* ── Zona Izquierda: Marca ── */
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-box {
+  width: 42px;
+  height: 42px;
+  background-color: var(--brand-green);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.3px;
+  transition: color 0.4s ease;
+}
+
+.text-green {
+  color: var(--brand-green);
+}
+
+.brand-subtitle {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  transition: color 0.4s ease;
+}
+
+/* ── Zona Central: Enlaces ── */
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 20px;
+  transition: background-color 0.2s ease, color 0.4s ease;
+}
+
+.nav-item:hover:not(.active):not(.inactive) {
+  background-color: var(--hover-bg);
+  color: var(--text-main);
+}
+
+.nav-item svg {
+  flex-shrink: 0;
+}
+
+/* Estilo exacto de la pestaña "Inicio" Activa */
+.nav-item.active {
+  background-color: var(--card-bg);
+  color: var(--brand-green);
+  box-shadow: 0 2px 10px var(--shadow-color);
+  border: 1px solid var(--border-color);
+  position: relative;
+  overflow: hidden;
+  transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* La rayita verde en la parte inferior del botón activo */
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 3px;
+  background-color: var(--brand-green);
+  border-radius: 4px 4px 0 0;
+}
+
+.nav-item.inactive {
+  opacity: 0.5;
+}
+
+/* ── Zona Derecha: Acciones y Perfil ── */
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.action-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.4s ease;
+}
+
+.action-btn:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-main);
+}
+
+/* Punto rojo de notificaciones */
+.badge-container {
+  position: relative;
+}
+
+.notification-dot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  background-color: #ef4444; /* Rojo alerta */
+  border-radius: 50%;
+  border: 2px solid var(--card-bg);
+  transition: border-color 0.4s ease;
+}
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background-color: var(--border-color);
+  margin: 0 4px;
+  transition: background-color 0.4s ease;
+}
+
+/* ── CONTENEDOR Y MENÚ DESPLEGABLE ── */
+.profile-container {
+  position: relative;
+}
+
+.profile-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 24px;
+  transition: background-color 0.2s;
+  cursor: pointer;
+}
+
+.profile-section:hover, .profile-section.active {
+  background-color: var(--hover-bg);
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  text-align: right;
+}
+
+.profile-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  transition: color 0.4s ease;
+}
+
+.profile-role {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  transition: color 0.4s ease;
+}
+
+.profile-avatar {
+  width: 36px;
+  height: 36px;
+  background-color: var(--brand-green);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.chevron-icon {
+  color: var(--text-muted);
+  transition: transform 0.3s ease, color 0.4s ease;
+}
+
+.chevron-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.menu-backdrop {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 99;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 280px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color); /* Ajustado para usar la variable correcta */
+  border-radius: 16px;
+  box-shadow: 0 10px 40px var(--shadow-color);
+  z-index: 100;
+  overflow: hidden;
+  transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+  transition: border-color 0.4s ease;
+}
+
+.profile-avatar.large {
+  width: 48px;
+  height: 48px;
+  font-size: 16px;
+}
+
+.header-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-id {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  transition: color 0.4s ease;
+}
+
+.dropdown-body {
+  padding: 8px;
+}
+
+.dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-main);
+  transition: background-color 0.2s, color 0.4s ease;
+}
+
+.dropdown-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.dropdown-item svg {
+  color: var(--text-muted);
+  transition: color 0.4s ease;
+}
+
+.item-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.item-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.item-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.dropdown-footer {
+  padding: 8px;
+  border-top: 1px solid var(--border-color);
+  transition: border-color 0.4s ease;
+}
+
+.logout-btn {
+  color: #ef4444 !important;
+}
+
+.logout-btn svg {
+  color: #ef4444 !important;
+}
+
+.logout-btn:hover {
+  background-color: #fef2f2;
+}
+
+/* En modo oscuro, el hover del botón salir debe ser distinto */
+html[data-theme="dark"] .logout-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme="light"]) .logout-btn:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+  }
+}
+
+.fade-in {
+  animation: dropFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dropFade {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

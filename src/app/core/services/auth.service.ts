@@ -10,7 +10,7 @@ export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
 
-  // 1. CORRECCIÓN: Dejamos la URL base limpia hasta "auth"
+  // Dejamos la URL base limpia hasta "auth"
   private apiUrl = 'https://e-zyro-production.up.railway.app/auth';
 
   login(credentials: any): Observable<any> {
@@ -52,7 +52,7 @@ export class AuthService {
     localStorage.removeItem('ezyro_token');
     localStorage.removeItem('ezyro_user');
 
-    // 2. CORRECCIÓN: Te mandamos a la ruta raíz vacía, que es donde está el Login
+    //CORRECCIÓN: Te mandamos a la ruta raíz vacía, que es donde está el Login
     this.router.navigate(['/']);
   }
 

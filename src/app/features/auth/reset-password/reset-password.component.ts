@@ -1,14 +1,16 @@
-import { Component, signal, computed, inject } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
-import { AlertComponent } from '../shared/components/login/alert.component';
-import { SpinnerComponent } from '../shared/components/spinner/spinner.component';
-import { PasswordStrengthComponent } from '../shared/components/password-strength/password-strength.component';
-import { SuccessCheckmarkComponent } from '../shared/components/success-checkmark/success-checkmark.component';
+
+import { AlertComponent } from '../../../shared/components/login/alert.component';
+import { SpinnerComponent } from '../../../shared/components/spinner/spinner.component';
+import { PasswordStrengthComponent } from '../../../shared/components/password-strength/password-strength.component';
+import { SuccessCheckmarkComponent } from '../../../shared/components/success-checkmark/success-checkmark.component';
 import { AuthService } from '../../../core/services/auth.service';
 
 type ResetStep = 'EMAIL' | 'CODE' | 'PASSWORD' | 'SUCCESS';
+type CodeStatus = 'idle' | 'validating' | 'success' | 'error';
 
 @Component({
   selector: 'app-reset-password',
@@ -20,12 +22,15 @@ type ResetStep = 'EMAIL' | 'CODE' | 'PASSWORD' | 'SUCCESS';
 export class ResetPasswordComponent {
   private fb = inject(FormBuilder);
   private router = inject(Router);
-  // 2. INYECTA EL SERVICIO
   private authService = inject(AuthService);
 
   currentStep = signal<ResetStep>('EMAIL');
   isLoading = signal(false);
+
   errorMessage = signal('');
+  successMessage = signal('');
+  codeStatus = signal<CodeStatus>('idle');
+
   showPassword = signal(false);
   showConfirm = signal(false);
 
@@ -65,39 +70,65 @@ export class ResetPasswordComponent {
     }
     this.isLoading.set(true);
     this.errorMessage.set('');
+    this.successMessage.set('');
 
     const correoIngresado = this.email.value.toLowerCase();
 
-    // LLAMADA REAL
     this.authService.solicitarCodigoRecuperacion(correoIngresado).subscribe({
       next: () => {
         this.isLoading.set(false);
-        this.currentStep.set('CODE');
+        // 1. Mostramos la alerta verde en la pantalla actual
+        this.successMessage.set('¡Correo validado! Revisa tu bandeja de entrada.');
+
+        // 2. Esperamos 2 segundos para que el usuario lea, y cambiamos de pantalla
+        setTimeout(() => {
+          this.currentStep.set('CODE');
+          this.successMessage.set(''); // Limpiamos la alerta para que no viaje al Paso 2
+        }, 2000);
       },
       error: (err) => {
         this.isLoading.set(false);
-        // Atrapa el error que mandemos desde FastAPI (ej. 404 Not Found)
         this.errorMessage.set(err.error?.detail || 'Este correo no está registrado en el sistema.');
       }
     });
   }
 
+  // ── NUEVO: Escuchador directo del input del código ──
+  onCodeInput(): void {
+    // Si estaba en rojo por un error anterior, lo limpiamos apenas vuelva a escribir
+    if (this.codeStatus() === 'error') {
+      this.codeStatus.set('idle');
+      this.errorMessage.set('');
+    }
+
+    // Si llega a 6 dígitos exactos, disparamos la verificación automáticamente
+    const val = this.code.value;
+    if (val && val.length === 6 && this.codeForm.valid && this.codeStatus() !== 'validating' && this.codeStatus() !== 'success') {
+      this.submitCode();
+    }
+  }
+
   // ── PASO 2: Verificar Código en Backend ──
   submitCode(): void {
-    if (this.codeForm.invalid) {
-      this.codeForm.markAllAsTouched();
-      return;
-    }
+    if (this.codeForm.invalid) return;
+
+    this.codeStatus.set('validating');
     this.isLoading.set(true);
     this.errorMessage.set('');
 
-    // LLAMADA REAL
     this.authService.verificarCodigo(this.email.value, this.code.value).subscribe({
       next: () => {
+        this.codeStatus.set('success');
         this.isLoading.set(false);
-        this.currentStep.set('PASSWORD');
+
+        // Pausa elegante antes de ir a crear contraseña
+        setTimeout(() => {
+          this.currentStep.set('PASSWORD');
+          this.codeStatus.set('idle');
+        }, 1500);
       },
       error: (err) => {
+        this.codeStatus.set('error');
         this.isLoading.set(false);
         this.errorMessage.set(err.error?.detail || 'El código es incorrecto o ha expirado.');
       }
@@ -108,6 +139,8 @@ export class ResetPasswordComponent {
     this.currentStep.set('EMAIL');
     this.codeForm.reset();
     this.errorMessage.set('');
+    this.successMessage.set('');
+    this.codeStatus.set('idle');
   }
 
   // ── PASO 3: Guardar Nueva Clave en Backend ──
@@ -119,7 +152,6 @@ export class ResetPasswordComponent {
     this.isLoading.set(true);
     this.errorMessage.set('');
 
-    // LLAMADA REAL
     this.authService.actualizarPassword(this.email.value, this.code.value, this.nuevaPassword.value).subscribe({
       next: () => {
         this.isLoading.set(false);

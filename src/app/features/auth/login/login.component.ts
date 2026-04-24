@@ -2,8 +2,8 @@ import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
-import { AlertComponent } from '../shared/components/login/alert.component';
-import { SpinnerComponent } from '../shared/components/spinner/spinner.component';
+import { AlertComponent } from '../../../shared/components/login/alert.component';
+import { SpinnerComponent } from '../../../shared/components/spinner/spinner.component';
 import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
@@ -64,9 +64,8 @@ export class LoginComponent {
 
         setTimeout(() => {
           this.isPreparingEnv.set(true);
-
           // Redirección final al panel principal (asegúrate de tener esta ruta creada)
-          setTimeout(() => this.router.navigate(['/dashboard']), 1500);
+          setTimeout(() => this.router.navigate(['/home']), 1500);
         }, 1500);
       },
       error: (err) => {
