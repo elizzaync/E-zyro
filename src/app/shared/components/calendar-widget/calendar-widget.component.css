@@ -1,0 +1,134 @@
+.calendar-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 6px var(--shadow-color);
+  transition: all 0.4s ease;
+  height: 100%;
+  box-sizing: border-box;
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.month-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.nav-btn {
+  background: var(--bg-color);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+
+.nav-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-main);
+}
+
+.weekdays-grid, .days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+
+.weekdays-grid {
+  margin-bottom: 12px;
+}
+
+.weekday {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.day-cell {
+  height: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.day-cell:not(.empty):hover {
+  background-color: var(--hover-bg);
+}
+
+/* El día actual se pinta de verde */
+.day-cell.is-today {
+  background-color: var(--brand-green);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(141, 198, 63, 0.3);
+}
+
+.event-dot {
+  width: 4px;
+  height: 4px;
+  background-color: var(--brand-green);
+  border-radius: 50%;
+  position: absolute;
+  bottom: 4px;
+}
+
+.calendar-footer {
+  margin-top: auto; /* Empuja el footer hacia abajo */
+  padding-top: 24px;
+  border-top: 1px solid rgba(0,0,0,0.05);
+  text-align: center;
+}
+
+/* 1. Borde superior en Modo Oscuro Manual */
+:host-context(html[data-theme="dark"]) .calendar-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 2. Borde superior en Modo Oscuro Automático */
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .calendar-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+.link-calendar {
+  color: var(--brand-green);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: opacity 0.2s;
+}
+
+.link-calendar:hover {
+  opacity: 0.8;
+}

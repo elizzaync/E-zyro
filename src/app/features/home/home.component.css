@@ -1,35 +1,56 @@
+/* =======================================================
+   HOME COMPONENT CSS
+   ======================================================= */
 .home-layout {
-  background-color: var(--bg-color); /* 👈 Dinámico */
+  background-color: var(--bg-color);
   min-height: calc(100vh - 72px);
-  padding: 32px 24px;
-  box-sizing: border-box; /* 👈 Elimina el scroll innecesario */
+  padding: 40px 32px;
+  box-sizing: border-box;
   transition: background-color 0.4s ease;
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
 }
 
 .home-content {
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
+/* ── ESTILO MEJORADO DEL SALUDO ── */
+.home-header {
+  margin-bottom: 40px;
+}
+
 .welcome-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-main); /* <-- Dinámico: Blanco o Negro */
-  margin: 0 0 4px 0;
+  font-size: 32px; /* Letra más grande */
+  font-weight: 800; /* Más gruesa */
+  color: var(--text-main);
+  margin: 0 0 8px 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  letter-spacing: -0.5px; /* Tipografía más moderna y junta */
   transition: color 0.4s ease;
 }
 
 .welcome-subtitle {
-  font-size: 15px;
-  color: var(--text-muted); /* <-- Dinámico */
+  font-size: 16px;
+  color: var(--text-muted);
   margin: 0;
+  font-weight: 500;
   transition: color 0.4s ease;
 }
 
-/* Animación opcional de la manito */
+/* ── CUADRÍCULA (GRID) PARA LAS TARJETAS ── */
+/* Esto es lo que pone las tarjetas una al lado de la otra */
+.summary-grid {
+  display: grid;
+  /* El auto-fit permite que se adapten a pantallas pequeñas automáticamente */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 420px));
+  gap: 24px;
+}
+
+/* ── Animaciones ── */
 .wave-emoji {
   display: inline-block;
   transform-origin: 70% 70%;
@@ -44,4 +65,54 @@
   40% { transform: rotate(-4deg); }
   50% { transform: rotate(10deg); }
   60%, 100% { transform: rotate(0deg); }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Agrega esto al final de tu home.component.css */
+.gradient-text {
+  background: linear-gradient(90deg, var(--brand-green) 0%, #22c55e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.welcome-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--text-muted);
+  margin: 0;
+  font-weight: 500;
+  transition: color 0.4s ease;
+}
+/* Agrega esto a tu home.component.css */
+
+.dashboard-grid {
+  display: grid;
+  /* El secreto: 1fr para la izquierda (se estira), 340px para la derecha (fijo) */
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 40px;
+  align-items: start; /* Para que el calendario no se estire a lo alto si hay muchas tarjetas */
+}
+
+/* Modificamos un poco tu summary-grid existente para que se adapte mejor */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+}
+
+/* ── RESPONSIVIDAD (Para laptops pequeñas o celulares) ── */
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr; /* Rompe la pantalla en 1 sola columna */
+  }
 }
