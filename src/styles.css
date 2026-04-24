@@ -8,45 +8,58 @@ html, body {
 /* =======================================================
    INDEX.CSS (ARCHIVO GLOBAL DE VARIABLES Y TEMAS)
    ======================================================= */
-
-/* ── TEMA CLARO (Por defecto) ── */
+/* 1. TEMA CLARO (Por defecto) */
 :root {
-  /* Colores del Login */
-  --bg-color: #f3f4f6;          /* Gris muy suave */
-  --card-bg: #ffffff;           /* Blanco puro */
-  --card-border: transparent;   /* Sin borde en claro, usamos sombra */
-  --text-main: #111827;         /* Casi negro para máxima legibilidad */
-  --text-muted: #6b7280;        /* Gris medio para etiquetas */
-  --input-bg: #f9fafb;          /* Fondo de input ligerísimamente gris */
-  --input-border: #d1d5db;      /* Borde gris claro */
+  --bg-color: #f3f4f6;
+  --card-bg: #ffffff;
+  --card-border: transparent;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --input-bg: #f9fafb;
+  --input-border: #d1d5db;
   --input-text: #111827;
-  --shadow-color: rgba(17, 24, 39, 0.06); /* Sombra elegante */
+  --shadow-color: rgba(17, 24, 39, 0.06);
   --box-bg: #ffffff;
-
-  /* Colores de Marca (No suelen cambiar con el tema, pero es bueno tenerlos aquí) */
   --brand-green: #8dc63f;
   --brand-green-hover: #7ab530;
-
-  /* Color del Spinner */
   --spinner-dynamic: #000000;
+  /* Variables extra para el Navbar */
+  --hover-bg: #f3f4f6;
+  --border-color: #e5e7eb;
 }
 
-/* ── TEMA OSCURO ── */
+/* 2. TEMA OSCURO AUTOMÁTICO (Solo si NO has forzado el claro) */
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* Colores del Login */
-    --bg-color: #0f172a;          /* Fondo principal pizarron oscuro */
-    --card-bg: #1e293b;           /* Tarjeta ligeramente más clara */
-    --card-border: #334155;       /* Borde sutil para definir la tarjeta */
-    --text-main: #f8fafc;         /* Blanco brillante y nítido para títulos */
-    --text-muted: #94a3b8;        /* Gris plomo para textos secundarios */
-    --input-bg: #0f172a;          /* Inputs se hunden en el fondo */
-    --input-border: #475569;      /* Borde visible pero sofisticado */
+  :root:not([data-theme="light"]) {
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --input-bg: #0f172a;
+    --input-border: #475569;
     --input-text: #f8fafc;
-    --shadow-color: rgba(0, 0, 0, 0.4); /* Sombra densa y corta */
+    --shadow-color: rgba(0, 0, 0, 0.4);
     --box-bg: #1e293b;
-
-    /* Color del Spinner */
     --spinner-dynamic: #ffffff;
+    --hover-bg: #334155;
+    --border-color: #334155;
   }
+}
+
+/* 3. TEMA OSCURO MANUAL (Forzado por el botón del Navbar) */
+:root[data-theme="dark"] {
+  --bg-color: #0f172a;
+  --card-bg: #1e293b;
+  --card-border: #334155;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --input-bg: #0f172a;
+  --input-border: #475569;
+  --input-text: #f8fafc;
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --box-bg: #1e293b;
+  --spinner-dynamic: #ffffff;
+  --hover-bg: #334155;
+  --border-color: #334155;
 }
