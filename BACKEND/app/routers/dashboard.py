@@ -3,11 +3,18 @@ from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
 from typing import Dict, Any
 from datetime import date
-from database import get_db
-from models.orden_mantenimiento import OrdenMantenimiento
-from models.notificacion import Notificacion
-from models.empleado import Empleado
-from dependencies import get_current_user
+
+# =================================================================
+# IMPORTACIONES CORREGIDAS (Igual que en auth.py)
+# =================================================================
+from app.db.database import get_db
+from app.models.orden_mantenimiento import OrdenMantenimiento
+from app.models.notificacion import Notificacion
+from app.models.empleado import Empleado
+
+# Asegúrate de que esta ruta apunte a donde tienes tu función get_current_user
+# Si la tienes en security.py, cámbiala a: from app.core.security import get_current_user
+from app.dependencies import get_current_user
 
 router = APIRouter(
     prefix="/dashboard",
@@ -33,19 +40,19 @@ async def obtener_resumen_kpis(
         # 2. Filtramos la base de datos EXCLUSIVAMENTE por su 'tecnico_id'
         activos = db.query(OrdenMantenimiento).filter(
             OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id, # 👈 Filtro por Pedro/Juan
+            OrdenMantenimiento.tecnico_id == empleado.id,
             OrdenMantenimiento.estado == 'Activo'
         ).count()
 
         pendientes = db.query(OrdenMantenimiento).filter(
             OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id, # 👈 Filtro por Pedro/Juan
+            OrdenMantenimiento.tecnico_id == empleado.id,
             OrdenMantenimiento.estado == 'Pendiente'
         ).count()
 
         completados = db.query(OrdenMantenimiento).filter(
             OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id, # 👈 Filtro por Pedro/Juan
+            OrdenMantenimiento.tecnico_id == empleado.id,
             OrdenMantenimiento.estado == 'Completado'
         ).count()
 
@@ -81,7 +88,7 @@ async def obtener_proximos_servicios(
         # 2. Consultamos solo los servicios asignados a este empleado
         servicios = db.query(OrdenMantenimiento).filter(
             OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id, # 👈 Filtro para que solo vea lo suyo
+            OrdenMantenimiento.tecnico_id == empleado.id,
             OrdenMantenimiento.fecha >= hoy,
             OrdenMantenimiento.estado.in_(['Activo', 'Pendiente'])
         ).order_by(asc(OrdenMantenimiento.fecha)).limit(3).all()
@@ -111,8 +118,6 @@ async def obtener_notificaciones(
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     try:
-        # Las notificaciones YA son personales, porque la tabla Notificacion
-        # tiene la columna 'usuario_id' directa. Aquí no hay que cambiar nada.
         usuario_id = current_user.get("id")
 
         notificaciones = db.query(Notificacion).filter(
