@@ -10,6 +10,5 @@ class UsuarioRol(Base):
     rol_id = Column(String(36), nullable=False)
     empresa_id = Column(String(36), nullable=False)
     asignado_por = Column(String(36), nullable=True)
-
     # Manejo de fecha automática
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
