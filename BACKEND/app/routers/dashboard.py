@@ -3,13 +3,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
 from typing import Dict, Any
 from datetime import date
-
-# IMPORTACIONES LOCALES (Sin el "app.")
 from database import get_db
 from models.orden_mantenimiento import OrdenMantenimiento
 from models.notificacion import Notificacion
 from models.empleado import Empleado
-
 from dependencies import get_current_user
 
 router = APIRouter(
