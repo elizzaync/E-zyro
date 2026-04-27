@@ -1,26 +1,24 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base
 
-# 👇 IMPORTANTE: Importamos cada tabla para que SQLAlchemy las registre
-from app.models.empresa import Empresa
-from app.models.usuario import Usuario
-from app.models.empleado import Empleado
-from app.models.orden_mantenimiento import OrdenMantenimiento
-from app.models.notificacion import Notificacion
+# IMPORTACIONES LOCALES (Sin el "app.")
+from database import engine, Base
+from models.empresa import Empresa
+from models.usuario import Usuario
+from models.empleado import Empleado
+from models.orden_mantenimiento import OrdenMantenimiento
+from models.notificacion import Notificacion
 
-# Importamos los routers
-from app.routers import auth, dashboard
+from routers import auth, dashboard
 
-# Crea las tablas en la BD si no existen
+# Crea las tablas
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="API E-zyro")
 
-# 1. Configurar los dominios permitidos (CORS)
 origenes_permitidos = [
     "http://localhost:4200",
-    "*"  # Tu Angular en local y en prod
+    "*"
 ]
 
 app.add_middleware(
@@ -31,9 +29,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Incluir los routers
 app.include_router(auth.router)
-app.include_router(dashboard.router) # 👈 Añade el del dashboard
+app.include_router(dashboard.router)
 
 @app.get("/")
 def read_root():

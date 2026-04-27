@@ -4,13 +4,13 @@ from sqlalchemy import asc, desc
 from typing import Dict, Any
 from datetime import date
 
-from app.database import get_db
-from app.models.orden_mantenimiento import OrdenMantenimiento
-from app.models.notificacion import Notificacion
-# 👇 IMPORTANTE: Importamos el modelo Empleado para saber quién es el técnico
-from app.models.empleado import Empleado
+# IMPORTACIONES LOCALES (Sin el "app.")
+from database import get_db
+from models.orden_mantenimiento import OrdenMantenimiento
+from models.notificacion import Notificacion
+from models.empleado import Empleado
 
-from app.dependencies import get_current_user
+from dependencies import get_current_user
 
 router = APIRouter(
     prefix="/dashboard",
