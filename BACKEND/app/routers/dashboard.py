@@ -5,7 +5,9 @@ from typing import Dict, Any
 from datetime import date
 
 from app.db.database import get_db
-from app.models.orden_mantenimiento import OrdenMantenimiento
+
+# 👇 NUEVO: Importamos Proyecto en lugar de OrdenMantenimiento
+from app.models.proyecto import Proyecto
 from app.models.notificacion import Notificacion
 from app.models.empleado import Empleado
 
@@ -15,7 +17,6 @@ router = APIRouter(
     prefix="/dashboard",
     tags=["Dashboard"]
 )
-
 
 @router.get("/resumen")
 async def obtener_resumen_kpis(
@@ -31,22 +32,23 @@ async def obtener_resumen_kpis(
         if not empleado:
             return {"status": "success", "data": {"activos": 0, "pendientes": 0, "completados": 0}}
 
-        activos = db.query(OrdenMantenimiento).filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id,
-            OrdenMantenimiento.estado == 'Activo'
+        # 👇 AHORA CONSULTAMOS A LA TABLA PROYECTO
+        activos = db.query(Proyecto).filter(
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.jefe_operaciones_id == empleado.id,
+            Proyecto.estado == 'Activo'
         ).count()
 
-        pendientes = db.query(OrdenMantenimiento).filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id,
-            OrdenMantenimiento.estado == 'Pendiente'
+        pendientes = db.query(Proyecto).filter(
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.jefe_operaciones_id == empleado.id,
+            Proyecto.estado == 'Pendiente'
         ).count()
 
-        completados = db.query(OrdenMantenimiento).filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id,
-            OrdenMantenimiento.estado == 'Completado'
+        completados = db.query(Proyecto).filter(
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.jefe_operaciones_id == empleado.id,
+            Proyecto.estado == 'Completado'
         ).count()
 
         return {
@@ -77,22 +79,22 @@ async def obtener_proximos_servicios(
         if not empleado:
              return {"status": "success", "data": []}
 
-        servicios = db.query(OrdenMantenimiento).filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.tecnico_id == empleado.id,
-            OrdenMantenimiento.fecha >= hoy,
-            OrdenMantenimiento.estado.in_(['Activo', 'Pendiente'])
-        ).order_by(asc(OrdenMantenimiento.fecha)).limit(3).all()
+        servicios = db.query(Proyecto).filter(
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.jefe_operaciones_id == empleado.id,
+            Proyecto.fecha_inicio >= hoy,
+            Proyecto.estado.in_(['Activo', 'Pendiente'])
+        ).order_by(asc(Proyecto.fecha_inicio)).limit(3).all()
 
         data_servicios = []
         for s in servicios:
-            etiqueta_fecha = "Hoy" if s.fecha == hoy else s.fecha.strftime("%d/%m/%Y")
+            etiqueta_fecha = "Hoy" if s.fecha_inicio == hoy else s.fecha_inicio.strftime("%d/%m/%Y")
 
             data_servicios.append({
-                "empresa": "Cliente Asignado",
-                "tipo": s.tipo,
+                "empresa": "TechCorp S.A.", # Simulado por ahora
+                "tipo": s.nombre_proyecto,  # Mostrará "SISTEMA ELECTRICO TACNA..."
                 "fecha": etiqueta_fecha,
-                "hora": "Por definir",
+                "hora": s.orden_trabajo,    # Temporalmente mostramos la OT aquí
                 "estado": s.estado
             })
 
