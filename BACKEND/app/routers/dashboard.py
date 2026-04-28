@@ -4,11 +4,9 @@ from sqlalchemy import asc, desc, extract
 from typing import Dict, Any
 from datetime import date, datetime
 import calendar
-
-# 👇 ESTA ES LA IMPORTACIÓN QUE FALTABA PARA QUE FUNCIONE EL GUARDADO (POST)
+from app.models.empresa import Empresa
+from app.models.usuario import Usuario
 from pydantic import BaseModel
-
-# Importaciones locales de tus modelos
 from app.db.database import get_db
 from app.models.proyecto import Proyecto
 from app.models.cliente import Cliente
