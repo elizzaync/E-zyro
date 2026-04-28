@@ -13,7 +13,15 @@ class Notificacion(Base):
     empresa_id = Column(String(36), ForeignKey("empresa.id"), nullable=False)
     usuario_id = Column(String(36), ForeignKey("usuario.id"), nullable=False)
     tipo = Column(String(20), nullable=False)
+
+
+    categoria = Column(String(50))
     titulo = Column(String(200), nullable=False)
     mensaje = Column(Text, nullable=False)
     leido = Column(Boolean, nullable=False, default=False)
+    enviado = Column(Boolean, nullable=False, default=False)
+    fecha_envio = Column(DateTime)
+    referencia_tabla = Column(String(100))
+    referencia_id = Column(String(36))
+
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
