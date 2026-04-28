@@ -26,7 +26,7 @@ class NotaCalendario(BaseModel):
     texto: str
 
 @router.get("/resumen")
-async def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
@@ -45,7 +45,7 @@ async def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db
 
 
 @router.get("/proximos-servicios")
-async def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
@@ -84,7 +84,7 @@ async def obtener_proximos_servicios(current_user: dict = Depends(verificar_toke
 
 
 @router.get("/notificaciones")
-async def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         usuario_id = current_user.get("id")
         notificaciones = db.query(Notificacion).filter(Notificacion.usuario_id == usuario_id).order_by(desc(Notificacion.created_at)).limit(2).all()
@@ -95,7 +95,7 @@ async def obtener_notificaciones(current_user: dict = Depends(verificar_token), 
 
 
 @router.get("/rendimiento-mensual")
-async def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
@@ -157,7 +157,7 @@ async def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_tok
 
 
 @router.get("/calendario")
-async def obtener_calendario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+def obtener_calendario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
@@ -219,7 +219,7 @@ async def obtener_calendario(current_user: dict = Depends(verificar_token), db: 
 
 
 @router.post("/calendario/nota")
-async def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
