@@ -15,7 +15,10 @@ from app.models.catalogo_servicio import CatalogoServicio
 from app.models.notificacion import Notificacion
 from app.models.empleado import Empleado
 from app.core.security import verificar_token
-
+from app.models.rol import Rol
+from app.models.usuario_rol import UsuarioRol
+from app.models.permiso import Permiso
+from app.models.rol_permiso import RolPermiso
 # 👇 IMPORTAMOS LA CONFIGURACIÓN CENTRALIZADA DE CLOUDINARY
 from app.core.config_cloudinary import cloudinary_uploader
 
@@ -256,6 +259,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
     try:
         usuario_id = current_user.get("id")
 
+        # 1. Obtenemos datos personales y de empresa
         resultado = db.query(Usuario, Empleado, Empresa).join(
             Empleado, Empleado.usuario_id == Usuario.id
         ).join(
@@ -266,14 +270,31 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
             raise HTTPException(status_code=404, detail="Perfil no encontrado")
 
         usuario, empleado, empresa = resultado
+
+        # 2. 🔥 LA NUEVA MAGIA (RBAC): Buscamos roles y permisos reales en tu BD
+        roles_db = db.query(Rol).join(
+            UsuarioRol, UsuarioRol.rol_id == Rol.id
+        ).filter(UsuarioRol.usuario_id == usuario_id).all()
+
+        nombres_roles = [rol.nombre for rol in roles_db]
+
+        # Buscamos todos los permisos asignados a los roles de este usuario
+        permisos_db = db.query(Permiso.modulo).join(
+            RolPermiso, RolPermiso.permiso_id == Permiso.id
+        ).join(
+            UsuarioRol, UsuarioRol.rol_id == RolPermiso.rol_id
+        ).filter(UsuarioRol.usuario_id == usuario_id).distinct().all()
+
+        # Extraemos solo los nombres de los módulos (Ej: ['OPERACIONES', 'LOGISTICA'])
+        modulos_permitidos = [p[0].upper() for p in permisos_db]
+
+        # Formateo de fechas
         meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         fecha_txt = ""
-
         fecha_referencia = empleado.fecha_ingreso or usuario.created_at
         if fecha_referencia:
             fecha_txt = f"{fecha_referencia.day} de {meses[fecha_referencia.month]}, {fecha_referencia.year}"
 
-        # 👇 ENVIAMOS NOMBRE Y APELLIDO SEPARADOS AL FRONTEND
         return {
             "status": "success",
             "data": {
@@ -285,7 +306,10 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "telefono": usuario.telefono or "",
                     "fotoUrl": usuario.foto_url or "",
                     "rol": empleado.cargo,
-                    "fechaCreacion": fecha_txt
+                    "fechaCreacion": fecha_txt,
+                    # 👇 Enviamos la data de seguridad al Frontend
+                    "roles_sistema": nombres_roles,
+                    "permisos_modulo": modulos_permitidos
                 },
                 "empresa": {
                     "id": empresa.id,
@@ -296,6 +320,8 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
             }
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error al cargar el perfil")
 
 @router.put("/perfil")
