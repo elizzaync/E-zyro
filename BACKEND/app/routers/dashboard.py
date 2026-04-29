@@ -242,3 +242,58 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+""""ESTE ENDPOINT DEVUELVE LOS DATOS DEL PERFIL DEL USUARIO LOGUEADO, INCLUYENDO INFO PERSONAL Y DE LA EMPRESA. SE HACE UNA CONSULTA OPTIMIZADA PARA OBTENER USUARIO + EMPLEADO + EMPRESA EN UN SOLO GOLPE."""
+@router.get("/perfil")
+def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    try:
+        usuario_id = current_user.get("id")
+
+        # 1. Cruzamos Usuario + Empleado + Empresa de un solo golpe
+        resultado = db.query(Usuario, Empleado, Empresa).join(
+            Empleado, Empleado.usuario_id == Usuario.id
+        ).join(
+            Empresa, Empresa.id == Usuario.empresa_id
+        ).filter(Usuario.id == usuario_id).first()
+
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Perfil no encontrado")
+
+        usuario, empleado, empresa = resultado
+
+        # Formateamos la fecha a un texto elegante (Ej: 21 de Abril, 2026)
+        meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        fecha_txt = ""
+
+        # Usamos la fecha de ingreso del empleado, o en su defecto la de creación del usuario
+        fecha_referencia = empleado.fecha_ingreso or usuario.created_at
+        if fecha_referencia:
+            fecha_txt = f"{fecha_referencia.day} de {meses[fecha_referencia.month]}, {fecha_referencia.year}"
+
+        # Unimos nombre y apellido (según tu bd1.sql)
+        nombre_completo = f"{usuario.nombre} {usuario.apellido}"
+
+        # 2. Devolvemos la data mapeada exactamente como la pide el Modal de Angular
+        return {
+            "status": "success",
+            "data": {
+                "personal": {
+                    "id": usuario.id,
+                    "nombre": nombre_completo,
+                    "correo": usuario.email,
+                    "telefono": usuario.telefono or "",
+                    "fotoUrl": usuario.foto_url or "",
+                    "rol": empleado.cargo, # Cargo real (Ej: Técnico de Campo)
+                    "fechaCreacion": fecha_txt
+                },
+                "empresa": {
+                    "id": empresa.id,
+                    "nombre": empresa.razon_social,
+                    "ruc": empresa.ruc,
+                    "ubicacion": "Sede Principal" # En tu bd1.sql la empresa no tiene dirección, pondremos esto por defecto
+                }
+            }
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Error al cargar el perfil")
