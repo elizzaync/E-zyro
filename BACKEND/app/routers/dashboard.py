@@ -28,11 +28,12 @@ router = APIRouter(
 class NotaCalendario(BaseModel):
     fecha: str
     texto: str
-
 class PerfilUpdate(BaseModel):
-    nombre_completo: str
+    nombre: str
+    apellido: str
     telefono: str
-    fotoBase64: str = None  # Recibiremos la imagen desde Angular en Base64
+    fotoBase64: str = None
+
 
 @router.get("/resumen")
 def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
@@ -265,7 +266,6 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
             raise HTTPException(status_code=404, detail="Perfil no encontrado")
 
         usuario, empleado, empresa = resultado
-
         meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         fecha_txt = ""
 
@@ -273,14 +273,14 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
         if fecha_referencia:
             fecha_txt = f"{fecha_referencia.day} de {meses[fecha_referencia.month]}, {fecha_referencia.year}"
 
-        nombre_completo = f"{usuario.nombre} {usuario.apellido}".strip()
-
+        # 👇 ENVIAMOS NOMBRE Y APELLIDO SEPARADOS AL FRONTEND
         return {
             "status": "success",
             "data": {
                 "personal": {
                     "id": usuario.id,
-                    "nombre": nombre_completo,
+                    "nombre": usuario.nombre,
+                    "apellido": usuario.apellido,
                     "correo": usuario.email,
                     "telefono": usuario.telefono or "",
                     "fotoUrl": usuario.foto_url or "",
@@ -296,8 +296,6 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
             }
         }
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error al cargar el perfil")
 
 @router.put("/perfil")
@@ -309,21 +307,18 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
         if not usuario:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        # 1. Separamos el nombre (tu BD almacena nombre y apellido en columnas separadas)
-        nombres = datos.nombre_completo.strip().split(" ", 1)
-        usuario.nombre = nombres[0]
-        usuario.apellido = nombres[1] if len(nombres) > 1 else ""
+        # 👇 GUARDAMOS DIRECTAMENTE SIN HACER SPLIT
+        usuario.nombre = datos.nombre.strip()
+        usuario.apellido = datos.apellido.strip()
         usuario.telefono = datos.telefono
 
-        # 2. Lógica de Cloudinary
         if datos.fotoBase64 and datos.fotoBase64.startswith("data:image"):
-            # Usamos un public_id fijo para que Cloudinary reemplace la foto antigua automáticamente
             upload_result = cloudinary_uploader.upload(
                 datos.fotoBase64,
                 public_id=f"perfil_{usuario.id}",
                 folder="e-zyro/perfiles",
                 overwrite=True,
-                invalidate=True # Limpia el caché para actualización instantánea
+                invalidate=True
             )
             usuario.foto_url = upload_result.get("secure_url")
 
@@ -332,6 +327,4 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
 
     except Exception as e:
         db.rollback()
-        import traceback
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail="Error interno actualizando perfil")
