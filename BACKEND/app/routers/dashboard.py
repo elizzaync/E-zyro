@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc, extract, func, case
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import date, datetime
 import calendar
 
@@ -32,7 +32,7 @@ class PerfilUpdate(BaseModel):
     nombre: str
     apellido: str
     telefono: str
-    fotoBase64: str = None
+    fotoBase64: Optional[str] = None
 
 
 @router.get("/resumen")
