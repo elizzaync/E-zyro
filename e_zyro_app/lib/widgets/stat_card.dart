@@ -1,13 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Tarjeta de estadística reutilizable usada en HomeScreen y OperationsScreen.
-///
-/// [label]         → texto debajo del número
-/// [value]         → número a mostrar (String para flexibilidad)
-/// [iconData]      → ícono del encabezado
-/// [color]         → color de fondo de la tarjeta
-/// [iconColor]     → color del ícono
-/// [isHighlighted] → si es true, el texto del valor usa el color del ícono
 class StatCard extends StatelessWidget {
   final String label;
   final String value;
@@ -28,11 +20,32 @@ class StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
-        color: color,
+        color: isDark ? surface : color,
         borderRadius: BorderRadius.circular(14),
+        border: isDark
+            ? Border.all(color: iconColor.withValues(alpha: 0.75), width: 1.5)
+            : null,
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: iconColor.withValues(alpha: 0.35),
+                  blurRadius: 12,
+                  spreadRadius: 1,
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
       ),
       child: Column(
         children: [
@@ -43,7 +56,7 @@ class StatCard extends StatelessWidget {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: isHighlighted ? iconColor : Colors.black87,
+              color: isDark ? iconColor : (isHighlighted ? iconColor : Colors.black87),
             ),
           ),
           const SizedBox(height: 2),
@@ -51,8 +64,10 @@ class StatCard extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: isHighlighted ? iconColor : Colors.grey,
               fontWeight: FontWeight.w500,
+              color: isDark
+                  ? iconColor.withValues(alpha: 0.8)
+                  : (isHighlighted ? iconColor : Colors.grey),
             ),
           ),
         ],

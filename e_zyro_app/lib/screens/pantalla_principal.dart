@@ -1,69 +1,174 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/api_service.dart';
+import '../models/dashboard_models.dart';
 import '../widgets/stat_card.dart';
+import '../utils/app_notifiers.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  ApiService? _apiService;
+  bool _isLoading = true;
+  bool _hasError = false;
+
+  String _userName = '';
+  DashboardResumen _resumen = const DashboardResumen(
+    activos: 0,
+    pendientes: 0,
+    completados: 0,
+  );
+  List<ProximoServicio> _servicios = [];
+  List<NotificacionDashboard> _notificaciones = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _userName = prefs.getString('user_name') ?? 'Usuario';
+    _apiService = ApiService(prefs);
+    await _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (_apiService == null) return;
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+    try {
+      // Lanzar las 3 peticiones en paralelo
+      late DashboardResumen resumen;
+      late List<ProximoServicio> servicios;
+      late List<NotificacionDashboard> notifs;
+
+      await Future.wait([
+        _apiService!.getDashboardResumen().then((v) => resumen = v),
+        _apiService!.getProximosServicios().then((v) => servicios = v),
+        _apiService!.getNotificaciones().then((v) => notifs = v),
+      ]);
+
+      if (!mounted) return;
+      setState(() {
+        _resumen = resumen;
+        _servicios = servicios;
+        _notificaciones = notifs;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      if (e.toString().contains('Sesión expirada')) {
+        Navigator.pushReplacementNamed(context, '/login');
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)),
+        ),
+      );
+    }
+
+    if (_hasError) {
+      return Center(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // ── Saludo ──────────────────────────────────────────────────
-            _buildGreeting(),
-            const SizedBox(height: 24),
-
-            // ── Tarjetas de estadísticas ─────────────────────────────────
-            _buildStatsRow(),
-            const SizedBox(height: 16),
-
-            // ── Próxima actualización ───────────────────────────────────
-            _buildNextUpdate(),
-            const SizedBox(height: 28),
-
-            // ── Acciones Rápidas ────────────────────────────────────────
+            const Icon(Icons.wifi_off_rounded, size: 52, color: Colors.grey),
+            const SizedBox(height: 14),
             const Text(
-              'Acciones Rápidas',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Error al cargar los datos',
+              style: TextStyle(color: Colors.grey, fontSize: 15),
             ),
             const SizedBox(height: 14),
-            _buildQuickActions(context),
-            const SizedBox(height: 28),
-
-            // ── Notificaciones ──────────────────────────────────────────
-            _buildNotificationsHeader(),
-            const SizedBox(height: 12),
-            _buildNotificationItem(
-              title: 'Nuevo servicio asignado',
-              subtitle: 'Hace 5 min',
-            ),
-            const SizedBox(height: 8),
-            _buildNotificationItem(
-              title: 'Materiales aprobados',
-              subtitle: 'Hace 1 hora',
+            ElevatedButton(
+              onPressed: _loadData,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8FD11B),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Reintentar'),
             ),
           ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: const Color(0xFF8FD11B),
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Saludo ─────────────────────────────────────────────────
+              _buildGreeting(),
+              const SizedBox(height: 24),
+
+              // ── KPIs ───────────────────────────────────────────────────
+              _buildStatsRow(),
+              const SizedBox(height: 20),
+
+              // ── Próximos Servicios ──────────────────────────────────────
+              _buildProximosServicios(),
+              const SizedBox(height: 28),
+
+              // ── Acciones Rápidas ────────────────────────────────────────
+              const Text(
+                'Acciones Rápidas',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 14),
+              _buildQuickActions(context),
+              const SizedBox(height: 28),
+
+              // ── Notificaciones ──────────────────────────────────────────
+              _buildNotificationsHeader(),
+              const SizedBox(height: 12),
+              ..._buildNotificationsList(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ── Widgets privados ──────────────────────────────────────────────────────
-
+  // ── Saludo ──────────────────────────────────────────────────────────────────
   Widget _buildGreeting() {
-    // TODO: Reemplazar con el nombre real del usuario desde el estado/servicio
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
+      children: [
         Text(
-          'Hola, Alex 👋',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          'Hola, $_userName 👋',
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
-        SizedBox(height: 4),
-        Text(
+        const SizedBox(height: 4),
+        const Text(
           'Bienvenido de nuevo',
           style: TextStyle(fontSize: 14, color: Colors.grey),
         ),
@@ -71,37 +176,37 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  // ── KPIs ────────────────────────────────────────────────────────────────────
   Widget _buildStatsRow() {
-    // TODO: Reemplazar los valores con datos reales desde el proveedor/bloc
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: StatCard(
             label: 'Activos',
-            value: '–', // <-- coloca aquí tu variable
+            value: '${_resumen.activos}',
             iconData: Icons.access_time,
-            color: Color(0xFFFFF3CD),
-            iconColor: Color(0xFFF59E0B),
+            color: const Color(0xFFFFF3CD),
+            iconColor: const Color(0xFFF59E0B),
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: StatCard(
             label: 'Pendientes',
-            value: '–',
+            value: '${_resumen.pendientes}',
             iconData: Icons.build_outlined,
-            color: Color(0xFFF3F3F3),
+            color: const Color(0xFFF3F3F3),
             iconColor: Colors.grey,
           ),
         ),
-        SizedBox(width: 10),
+        const SizedBox(width: 10),
         Expanded(
           child: StatCard(
             label: 'Completados',
-            value: '–',
+            value: '${_resumen.completados}',
             iconData: Icons.check_circle_outline,
-            color: Color(0xFFEFFAE0),
-            iconColor: Color(0xFF8FD11B),
+            color: const Color(0xFFEFFAE0),
+            iconColor: const Color(0xFF8FD11B),
             isHighlighted: true,
           ),
         ),
@@ -109,38 +214,110 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNextUpdate() {
-    // TODO: Conectar con datos reales del próximo evento/servicio
+  // ── Helper: decoración adaptativa con efecto neon en modo oscuro ───────────
+  BoxDecoration _neonDecoration({double radius = 14}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    const green = Color(0xFF8FD11B);
+    return BoxDecoration(
+      color: surface,
+      borderRadius: BorderRadius.circular(radius),
+      border: isDark
+          ? Border.all(color: green.withValues(alpha: 0.55), width: 1.0)
+          : null,
+      boxShadow: isDark
+          ? [BoxShadow(color: green.withValues(alpha: 0.14), blurRadius: 12, spreadRadius: 1)]
+          : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+    );
+  }
+
+  // ── Próximos Servicios ──────────────────────────────────────────────────────
+  Widget _buildProximosServicios() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Próximos Servicios',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        if (_servicios.isEmpty)
+          _buildEmptyCard('Sin servicios próximos programados')
+        else
+          ..._servicios.map(
+            (s) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _buildServicioCard(s),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildServicioCard(ProximoServicio s) {
+    final Color estadoColor = switch (s.estado) {
+      'Activo' => const Color(0xFF8FD11B),
+      'Pendiente' => const Color(0xFFF59E0B),
+      _ => Colors.grey,
+    };
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+      decoration: _neonDecoration(),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.tipo,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${s.fecha}  •  ${s.hora}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Text(
-            'Actualización',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Mañana  •  08:00 AM', // <-- reemplazar con fecha real
-            style: TextStyle(color: Colors.grey, fontSize: 13),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: estadoColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              s.estado,
+              style: TextStyle(
+                color: estadoColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildEmptyCard(String mensaje) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: _neonDecoration(),
+      child: Text(
+        mensaje,
+        style: const TextStyle(color: Colors.grey, fontSize: 13),
+      ),
+    );
+  }
+
+  // ── Acciones Rápidas ────────────────────────────────────────────────────────
   Widget _buildQuickActions(BuildContext context) {
     return GridView.count(
       crossAxisCount: 2,
@@ -154,39 +331,40 @@ class HomeScreen extends StatelessWidget {
           label: 'Asistencia',
           icon: Icons.access_time,
           isActive: true,
-          onTap: () {
-            // TODO: Navegar o ejecutar lógica de Asistencia
-          },
+          onTap: () => Navigator.pushNamed(context, '/asistencia'),
         ),
         _QuickActionButton(
           label: 'Calendario',
           icon: Icons.calendar_today_outlined,
-          onTap: () {
-            // TODO: Navegar a Calendario
-          },
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Calendario disponible próximamente'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          )),
         ),
         _QuickActionButton(
           label: 'Operaciones',
           icon: Icons.build_outlined,
-          onTap: () {
-            // TODO: Navegar a Operaciones
-          },
+          onTap: () => tabNotifier.value = 1,
         ),
         _QuickActionButton(
           label: 'Evidencia',
           icon: Icons.camera_alt_outlined,
-          onTap: () {
-            // TODO: Abrir cámara o galería de evidencias
-          },
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Evidencia disponible próximamente'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          )),
         ),
       ],
     );
   }
 
+  // ── Notificaciones ──────────────────────────────────────────────────────────
   Widget _buildNotificationsHeader() {
-    return Row(
+    return const Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: const [
+      children: [
         Text(
           'Notificaciones',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -196,24 +374,37 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  List<Widget> _buildNotificationsList() {
+    if (_notificaciones.isEmpty) {
+      return [
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'Sin notificaciones recientes',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          ),
+        ),
+      ];
+    }
+    return _notificaciones
+        .map(
+          (n) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildNotificationItem(title: n.titulo, subtitle: n.tiempo),
+          ),
+        )
+        .toList();
+  }
+
   Widget _buildNotificationItem({
     required String title,
     required String subtitle,
   }) {
-    // TODO: Reemplazar con lista dinámica de notificaciones
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
+      decoration: _neonDecoration(radius: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -232,9 +423,7 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Botón de Acción Rápida (privado, solo usado en HomeScreen)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Botón de Acción Rápida ───────────────────────────────────────────────────
 class _QuickActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -252,37 +441,45 @@ class _QuickActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF8FD11B) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      child: Builder(
+        builder: (context) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final surface = Theme.of(context).colorScheme.surface;
+          const green = Color(0xFF8FD11B);
+          return Container(
+            decoration: BoxDecoration(
+              color: isActive ? green : surface,
+              borderRadius: BorderRadius.circular(14),
+              border: (!isActive && isDark)
+                  ? Border.all(color: green.withValues(alpha: 0.45), width: 1.0)
+                  : null,
+              boxShadow: isActive
+                  ? [BoxShadow(color: green.withValues(alpha: 0.4), blurRadius: 10, spreadRadius: 1)]
+                  : isDark
+                      ? [BoxShadow(color: green.withValues(alpha: 0.10), blurRadius: 8)]
+                      : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: isActive ? Colors.white : Colors.grey.shade700,
-              size: 22,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isActive ? Colors.white : Colors.grey.shade700,
+                  size: 22,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: isActive ? Colors.white : Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? Colors.white : Colors.grey.shade700,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
