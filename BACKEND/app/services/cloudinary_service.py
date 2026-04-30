@@ -1,5 +1,6 @@
 from app.core.config_cloudinary import cloudinary_uploader
 import logging
+import re
 
 def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_perfil: bool = False) -> str:
     """
@@ -36,3 +37,30 @@ def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_pe
     except Exception as e:
         logging.error(f"Error subiendo imagen a Cloudinary: {str(e)}")
         raise Exception(f"Fallo al procesar la imagen en la nube: {str(e)}")
+
+# FUNCIÓN PARA ELIMINAR LA FOTO VIEJA
+def eliminar_imagen_cloudinary(url: str):
+    """
+    Extrae el ID público de una URL de Cloudinary y elimina el archivo de la nube.
+    """
+    if not url or "res.cloudinary.com" not in url:
+        return
+
+    try:
+        # Ejemplo URL: https://res.cloudinary.com/demo/image/upload/v1714000/e-zyro/perfiles/uuid_harold.webp
+        partes = url.split("/upload/")
+        if len(partes) > 1:
+            ruta = partes[1] # "v1714000/e-zyro/perfiles/uuid_harold.webp"
+
+            # 1. Quitamos la versión de la URL (el "v1714000/") si existe
+            ruta_sin_version = re.sub(r'^v\d+/', '', ruta)
+
+            # 2. Le quitamos la extensión (".webp", ".jpg") para obtener el public_id exacto
+            public_id = ruta_sin_version.rsplit('.', 1)[0]
+
+            # 3. ¡Destruimos la foto vieja en Cloudinary!
+            cloudinary_uploader.destroy(public_id)
+            logging.info(f"Foto antigua eliminada con éxito: {public_id}")
+
+    except Exception as e:
+        logging.error(f"Error al intentar eliminar foto antigua en Cloudinary: {str(e)}")

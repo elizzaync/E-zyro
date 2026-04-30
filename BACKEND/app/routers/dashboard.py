@@ -22,8 +22,8 @@ from app.models.permiso import Permiso
 from app.models.rol_permiso import RolPermiso
 from app.models.usuario_permiso import UsuarioPermiso
 
-# Servicio de Cloudinary optimizado
-from app.services.cloudinary_service import subir_imagen_cloudinary
+# Servicio de Cloudinary optimizado con destructor
+from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 
 router = APIRouter(
     prefix="/dashboard",
@@ -314,6 +314,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "permisos_modulo": modulos_permitidos
                 },
                 "empresa": {
+                    "id": empresa.id, # 👈 AQUÍ ESTÁ EL ID DE EMPRESA QUE EVITA QUE ANGULAR EXPLOTE
                     "nombre": empresa.razon_social,
                     "ruc": empresa.ruc,
                     "ubicacion": "Sede Principal"
@@ -338,6 +339,12 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
 
         # Subida a Cloudinary
         if datos.fotoBase64 and datos.fotoBase64.startswith("data:image"):
+
+            # 👇 Si el usuario ya tenía foto, la eliminamos primero para no dejar "archivos huérfanos"
+            if usuario.foto_url:
+                eliminar_imagen_cloudinary(usuario.foto_url)
+
+            # 👇 Creamos el nombre personalizado (id_nombre)
             primer_nombre = usuario.nombre.split(" ")[0].lower()
             nombre_archivo = f"{usuario.id}_{primer_nombre}"
 
