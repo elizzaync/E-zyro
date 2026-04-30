@@ -19,9 +19,10 @@ from app.models.rol import Rol
 from app.models.usuario_rol import UsuarioRol
 from app.models.permiso import Permiso
 from app.models.rol_permiso import RolPermiso
-# 👇 IMPORTAMOS LA CONFIGURACIÓN CENTRALIZADA DE CLOUDINARY
+from app.models.usuario_permiso import UsuarioPermiso
 from app.core.config_cloudinary import cloudinary_uploader
-
+# Servicio de Cloudinary
+from app.services.cloudinary_service import subir_imagen_cloudinary
 router = APIRouter(
     prefix="/dashboard",
     tags=["Dashboard"]
@@ -31,6 +32,9 @@ router = APIRouter(
 class NotaCalendario(BaseModel):
     fecha: str
     texto: str
+
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
+
 class PerfilUpdate(BaseModel):
     nombre: str
     apellido: str
@@ -253,13 +257,12 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
 # =========================================================================
 # RUTAS DE PERFIL (CONSULTA Y ACTUALIZACIÓN CON CLOUDINARY)
 # =========================================================================
-
 @router.get("/perfil")
 def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         usuario_id = current_user.get("id")
 
-        # 1. Obtenemos datos personales y de empresa
+        # 1. Datos básicos
         resultado = db.query(Usuario, Empleado, Empresa).join(
             Empleado, Empleado.usuario_id == Usuario.id
         ).join(
@@ -271,29 +274,31 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
 
         usuario, empleado, empresa = resultado
 
-        # 2. 🔥 LA NUEVA MAGIA (RBAC): Buscamos roles y permisos reales en tu BD
-        roles_db = db.query(Rol).join(
-            UsuarioRol, UsuarioRol.rol_id == Rol.id
-        ).filter(UsuarioRol.usuario_id == usuario_id).all()
-
-        nombres_roles = [rol.nombre for rol in roles_db]
-
-        # Buscamos todos los permisos asignados a los roles de este usuario
-        permisos_db = db.query(Permiso.modulo).join(
+        # 2. Motor de Permisos (Heredados por Rol + Excepciones Directas)
+        # Permisos por roles
+        permisos_rol = db.query(Permiso.modulo).join(
             RolPermiso, RolPermiso.permiso_id == Permiso.id
         ).join(
             UsuarioRol, UsuarioRol.rol_id == RolPermiso.rol_id
-        ).filter(UsuarioRol.usuario_id == usuario_id).distinct().all()
+        ).filter(UsuarioRol.usuario_id == usuario_id).all()
 
-        # Extraemos solo los nombres de los módulos (Ej: ['OPERACIONES', 'LOGISTICA'])
-        modulos_permitidos = [p[0].upper() for p in permisos_db]
+        # Permisos directos al usuario
+        permisos_directos = db.query(Permiso.modulo).join(
+            UsuarioPermiso, UsuarioPermiso.permiso_id == Permiso.id
+        ).filter(UsuarioPermiso.usuario_id == usuario_id).all()
 
-        # Formateo de fechas
+        # Fusión y limpieza de duplicados
+        modulos_permitidos = list(set(
+            [p[0].upper() for p in permisos_rol] +
+            [p[0].upper() for p in permisos_directos]
+        ))
+
+        # Formateo de fecha
         meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         fecha_txt = ""
-        fecha_referencia = empleado.fecha_ingreso or usuario.created_at
-        if fecha_referencia:
-            fecha_txt = f"{fecha_referencia.day} de {meses[fecha_referencia.month]}, {fecha_referencia.year}"
+        fecha_ref = empleado.fecha_ingreso or usuario.created_at
+        if fecha_ref:
+            fecha_txt = f"{fecha_ref.day} de {meses[fecha_ref.month]}, {fecha_ref.year}"
 
         return {
             "status": "success",
@@ -307,12 +312,9 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "fotoUrl": usuario.foto_url or "",
                     "rol": empleado.cargo,
                     "fechaCreacion": fecha_txt,
-                    # 👇 Enviamos la data de seguridad al Frontend
-                    "roles_sistema": nombres_roles,
                     "permisos_modulo": modulos_permitidos
                 },
                 "empresa": {
-                    "id": empresa.id,
                     "nombre": empresa.razon_social,
                     "ruc": empresa.ruc,
                     "ubicacion": "Sede Principal"
@@ -320,9 +322,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
             }
         }
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Error al cargar el perfil")
+        raise HTTPException(status_code=500, detail="Error al cargar perfil")
 
 @router.put("/perfil")
 def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
@@ -333,24 +333,28 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
         if not usuario:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        # 👇 GUARDAMOS DIRECTAMENTE SIN HACER SPLIT
         usuario.nombre = datos.nombre.strip()
         usuario.apellido = datos.apellido.strip()
         usuario.telefono = datos.telefono
 
+        # Subida a Cloudinary con nombre personalizado
         if datos.fotoBase64 and datos.fotoBase64.startswith("data:image"):
-            upload_result = cloudinary_uploader.upload(
-                datos.fotoBase64,
-                public_id=f"perfil_{usuario.id}",
+            # Extraemos solo el primer nombre (Ej: "Harold Arturo" -> "harold")
+            primer_nombre = usuario.nombre.split(" ")[0].lower()
+
+            # Formato solicitado: ID_Nombre
+            nombre_archivo = f"{usuario.id}_{primer_nombre}"
+
+            url_optimizada = subir_imagen_cloudinary(
+                base64_data=datos.fotoBase64,
                 folder="e-zyro/perfiles",
-                overwrite=True,
-                invalidate=True
+                public_id=nombre_archivo,
+                is_perfil=True
             )
-            usuario.foto_url = upload_result.get("secure_url")
+            usuario.foto_url = url_optimizada
 
         db.commit()
         return {"status": "success", "foto_url": usuario.foto_url}
-
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Error interno actualizando perfil")
+        raise HTTPException(status_code=500, detail="Error al actualizar perfil")
