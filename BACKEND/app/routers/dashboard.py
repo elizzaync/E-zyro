@@ -1,3 +1,4 @@
+# app/routers/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc, extract, func, case
@@ -20,20 +21,21 @@ from app.models.usuario_rol import UsuarioRol
 from app.models.permiso import Permiso
 from app.models.rol_permiso import RolPermiso
 from app.models.usuario_permiso import UsuarioPermiso
-from app.core.config_cloudinary import cloudinary_uploader
-# Servicio de Cloudinary
+
+# Servicio de Cloudinary optimizado
 from app.services.cloudinary_service import subir_imagen_cloudinary
+
 router = APIRouter(
     prefix="/dashboard",
     tags=["Dashboard"]
 )
 
-# Modelos Pydantic para recibir datos desde Angular
+# =========================================================================
+# MODELOS PYDANTIC
+# =========================================================================
 class NotaCalendario(BaseModel):
     fecha: str
     texto: str
-
-router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 class PerfilUpdate(BaseModel):
     nombre: str
@@ -41,7 +43,9 @@ class PerfilUpdate(BaseModel):
     telefono: str
     fotoBase64: Optional[str] = None
 
-
+# =========================================================================
+# RUTAS DE WIDGETS (HOME)
+# =========================================================================
 @router.get("/resumen")
 def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
@@ -255,14 +259,13 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
         raise HTTPException(status_code=500, detail=str(e))
 
 # =========================================================================
-# RUTAS DE PERFIL (CONSULTA Y ACTUALIZACIÓN CON CLOUDINARY)
+# RUTAS DE PERFIL Y SEGURIDAD (RBAC + CLOUDINARY OPTIMIZADO)
 # =========================================================================
 @router.get("/perfil")
 def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         usuario_id = current_user.get("id")
 
-        # 1. Datos básicos
         resultado = db.query(Usuario, Empleado, Empresa).join(
             Empleado, Empleado.usuario_id == Usuario.id
         ).join(
@@ -274,26 +277,22 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
 
         usuario, empleado, empresa = resultado
 
-        # 2. Motor de Permisos (Heredados por Rol + Excepciones Directas)
-        # Permisos por roles
+        # Motor de Permisos (Rol + Directos)
         permisos_rol = db.query(Permiso.modulo).join(
             RolPermiso, RolPermiso.permiso_id == Permiso.id
         ).join(
             UsuarioRol, UsuarioRol.rol_id == RolPermiso.rol_id
         ).filter(UsuarioRol.usuario_id == usuario_id).all()
 
-        # Permisos directos al usuario
         permisos_directos = db.query(Permiso.modulo).join(
             UsuarioPermiso, UsuarioPermiso.permiso_id == Permiso.id
         ).filter(UsuarioPermiso.usuario_id == usuario_id).all()
 
-        # Fusión y limpieza de duplicados
         modulos_permitidos = list(set(
             [p[0].upper() for p in permisos_rol] +
             [p[0].upper() for p in permisos_directos]
         ))
 
-        # Formateo de fecha
         meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         fecha_txt = ""
         fecha_ref = empleado.fecha_ingreso or usuario.created_at
@@ -337,12 +336,9 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
         usuario.apellido = datos.apellido.strip()
         usuario.telefono = datos.telefono
 
-        # Subida a Cloudinary con nombre personalizado
+        # Subida a Cloudinary
         if datos.fotoBase64 and datos.fotoBase64.startswith("data:image"):
-            # Extraemos solo el primer nombre (Ej: "Harold Arturo" -> "harold")
             primer_nombre = usuario.nombre.split(" ")[0].lower()
-
-            # Formato solicitado: ID_Nombre
             nombre_archivo = f"{usuario.id}_{primer_nombre}"
 
             url_optimizada = subir_imagen_cloudinary(
