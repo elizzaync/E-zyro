@@ -1,7 +1,7 @@
 # app/routers/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import asc, desc, extract, func, case
+from sqlalchemy import asc, desc, extract, func, case, or_
 from typing import Dict, Any, Optional
 from datetime import date, datetime
 import calendar
@@ -21,7 +21,7 @@ from app.models.usuario_rol import UsuarioRol
 from app.models.permiso import Permiso
 from app.models.rol_permiso import RolPermiso
 from app.models.usuario_permiso import UsuarioPermiso
-
+from app.models.proyecto_miembro import ProyectoMiembro
 # Servicio de Cloudinary optimizado con destructor
 from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 
@@ -56,11 +56,17 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
         if not empleado:
             return {"status": "success", "data": {"activos": 0, "pendientes": 0, "completados": 0}}
 
+        # 🔥 LA MAGIA: Solo ve proyectos si es el jefe O si está asignado como miembro
+        condicion_visibilidad = or_(
+            Proyecto.jefe_operaciones_id == empleado.id,
+            Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+        )
+
         kpis = db.query(
-            func.sum(case((Proyecto.estado == 'Activo', 1), else_=0)).label('activos'),
+            func.sum(case((Proyecto.estado == 'En_Proceso', 1), else_=0)).label('activos'),
             func.sum(case((Proyecto.estado == 'Pendiente', 1), else_=0)).label('pendientes'),
             func.sum(case((Proyecto.estado == 'Completado', 1), else_=0)).label('completados')
-        ).filter(Proyecto.empresa_id == empresa_id, Proyecto.jefe_operaciones_id == empleado.id).first()
+        ).filter(Proyecto.empresa_id == empresa_id, condicion_visibilidad).first()
 
         return {"status": "success", "data": {
             "activos": int(kpis.activos or 0),
@@ -80,15 +86,20 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
         if not empleado: return {"status": "success", "data": []}
 
+        condicion_visibilidad = or_(
+            Proyecto.jefe_operaciones_id == empleado.id,
+            Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+        )
+
         servicios = db.query(Proyecto, Cliente, CatalogoServicio).join(
             Cliente, Proyecto.cliente_id == Cliente.id
         ).join(
             CatalogoServicio, Proyecto.servicio_id == CatalogoServicio.id
         ).filter(
             Proyecto.empresa_id == empresa_id,
-            Proyecto.jefe_operaciones_id == empleado.id,
             Proyecto.fecha_inicio >= hoy,
-            Proyecto.estado.in_(['Activo', 'Pendiente'])
+            Proyecto.estado.in_(['En_Proceso', 'Pendiente']),
+            condicion_visibilidad
         ).order_by(asc(Proyecto.fecha_inicio)).limit(3).all()
 
         data_servicios = []
@@ -147,14 +158,19 @@ def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), d
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
         if not empleado: raise HTTPException(status_code=400, detail="Usuario no es empleado")
 
+        condicion_visibilidad = or_(
+            Proyecto.jefe_operaciones_id == empleado.id,
+            Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+        )
+
         primer_dia = date(anio_actual, mes_actual, 1)
         ultimo_dia = date(anio_actual, mes_actual, calendar.monthrange(anio_actual, mes_actual)[1])
 
         proyectos_mes = db.query(Proyecto).filter(
             Proyecto.empresa_id == empresa_id,
-            Proyecto.jefe_operaciones_id == empleado.id,
             Proyecto.fecha_inicio >= primer_dia,
-            Proyecto.fecha_inicio <= ultimo_dia
+            Proyecto.fecha_inicio <= ultimo_dia,
+            condicion_visibilidad
         ).all()
 
         semanas_data = [{"nombre": f"Semana {i+1}", "completados": 0, "total": 0} for i in range(4)]
@@ -181,19 +197,26 @@ def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), d
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error rendimiento")
-
 @router.get("/calendario")
 def obtener_calendario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
-        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
         hoy = date.today()
+
+        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+
+        condicion_visibilidad = True
+        if empleado:
+            condicion_visibilidad = or_(
+                Proyecto.jefe_operaciones_id == empleado.id,
+                Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+            )
 
         proyectos_usuario = db.query(Proyecto).filter(
             Proyecto.empresa_id == empresa_id,
-            Proyecto.jefe_operaciones_id == empleado.id if empleado else True,
-            Proyecto.estado.in_(['Activo', 'Pendiente'])
+            Proyecto.estado.in_(['En_Proceso', 'Pendiente']),
+            condicion_visibilidad
         ).all()
 
         dias_con_servicio = [p.fecha_inicio.strftime("%Y-%m-%d") for p in proyectos_usuario if p.fecha_inicio]
@@ -205,9 +228,9 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
             CatalogoServicio, Proyecto.servicio_id == CatalogoServicio.id
         ).filter(
             Proyecto.empresa_id == empresa_id,
-            Proyecto.jefe_operaciones_id == empleado.id if empleado else True,
             Proyecto.fecha_inicio >= hoy,
-            Proyecto.estado.in_(['Activo', 'Pendiente'])
+            Proyecto.estado.in_(['En_Proceso', 'Pendiente']),
+            condicion_visibilidad
         ).order_by(asc(Proyecto.fecha_inicio)).limit(2).all()
 
         proximos_eventos = []
@@ -230,7 +253,6 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
         return {"status": "success", "data": {"proximosEventos": proximos_eventos, "notas": notas, "diasConServicio": dias_con_servicio}}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error cargando calendario")
-
 @router.post("/calendario/nota")
 def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
