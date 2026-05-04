@@ -1,7 +1,7 @@
 # app/routers/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import asc, desc, extract, func, case, or_
+from sqlalchemy import asc, desc, extract, func, case, or_  # 🔥 or_ está incluido aquí
 from typing import Dict, Any, Optional
 from datetime import date, datetime
 import calendar
@@ -21,8 +21,9 @@ from app.models.usuario_rol import UsuarioRol
 from app.models.permiso import Permiso
 from app.models.rol_permiso import RolPermiso
 from app.models.usuario_permiso import UsuarioPermiso
+
+# 🔥 El modelo ProyectoMiembro está importado aquí
 from app.models.proyecto_miembro import ProyectoMiembro
-# Servicio de Cloudinary optimizado con destructor
 from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 
 router = APIRouter(
@@ -51,22 +52,21 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
-
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
-        if not empleado:
-            return {"status": "success", "data": {"activos": 0, "pendientes": 0, "completados": 0}}
 
-        # 🔥 LA MAGIA: Solo ve proyectos si es el jefe O si está asignado como miembro
-        condicion_visibilidad = or_(
-            Proyecto.jefe_operaciones_id == empleado.id,
-            Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
-        )
+        # Filtro base
+        filtros = [Proyecto.empresa_id == empresa_id]
+        if empleado:
+            filtros.append(or_(
+                Proyecto.jefe_operaciones_id == empleado.id,
+                Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+            ))
 
         kpis = db.query(
             func.sum(case((Proyecto.estado == 'En_Proceso', 1), else_=0)).label('activos'),
             func.sum(case((Proyecto.estado == 'Pendiente', 1), else_=0)).label('pendientes'),
             func.sum(case((Proyecto.estado == 'Completado', 1), else_=0)).label('completados')
-        ).filter(Proyecto.empresa_id == empresa_id, condicion_visibilidad).first()
+        ).filter(*filtros).first()
 
         return {"status": "success", "data": {
             "activos": int(kpis.activos or 0),
@@ -74,6 +74,7 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
             "completados": int(kpis.completados or 0)
         }}
     except Exception as e:
+        print(f"Error resumen: {e}")
         raise HTTPException(status_code=500, detail="Error al calcular resumen")
 
 @router.get("/proximos-servicios")
@@ -82,25 +83,25 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
         hoy = date.today()
-
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
-        if not empleado: return {"status": "success", "data": []}
 
-        condicion_visibilidad = or_(
-            Proyecto.jefe_operaciones_id == empleado.id,
-            Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
-        )
+        # Filtros a prueba de fallos
+        filtros = [
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.fecha_inicio >= hoy,
+            Proyecto.estado.in_(['En_Proceso', 'Pendiente'])
+        ]
+        if empleado:
+            filtros.append(or_(
+                Proyecto.jefe_operaciones_id == empleado.id,
+                Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+            ))
 
         servicios = db.query(Proyecto, Cliente, CatalogoServicio).join(
             Cliente, Proyecto.cliente_id == Cliente.id
         ).join(
             CatalogoServicio, Proyecto.servicio_id == CatalogoServicio.id
-        ).filter(
-            Proyecto.empresa_id == empresa_id,
-            Proyecto.fecha_inicio >= hoy,
-            Proyecto.estado.in_(['En_Proceso', 'Pendiente']),
-            condicion_visibilidad
-        ).order_by(asc(Proyecto.fecha_inicio)).limit(3).all()
+        ).filter(*filtros).order_by(asc(Proyecto.fecha_inicio)).limit(3).all()
 
         data_servicios = []
         for p, c, cat in servicios:
@@ -113,6 +114,7 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
             })
         return {"status": "success", "data": data_servicios}
     except Exception as e:
+        print(f"Error próximos servicios: {e}")
         raise HTTPException(status_code=500, detail="Error al cargar próximos servicios")
 
 @router.get("/notificaciones")
@@ -129,13 +131,16 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
         data = []
         for n in notificaciones_db:
             if n.categoria == 'Nota Calendario':
-                if n.fecha_envio and (n.fecha_envio.date() - hoy).days <= 1:
+                # Convertimos fecha segura
+                fecha_obj = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
+                if (fecha_obj - hoy).days <= 1:
                     data.append({"id": n.id, "titulo": n.titulo, "mensaje": n.mensaje, "tiempo": n.created_at.strftime("%H:%M")})
             else:
                 data.append({"id": n.id, "titulo": n.titulo, "mensaje": n.mensaje, "tiempo": n.created_at.strftime("%H:%M")})
 
         return {"status": "success", "data": data}
     except Exception as e:
+        print(f"Error notificaciones: {e}")
         raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
 
 @router.put("/notificaciones/{noti_id}/ignorar")
@@ -156,22 +161,22 @@ def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), d
         meses_es = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
-        if not empleado: raise HTTPException(status_code=400, detail="Usuario no es empleado")
-
-        condicion_visibilidad = or_(
-            Proyecto.jefe_operaciones_id == empleado.id,
-            Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
-        )
-
         primer_dia = date(anio_actual, mes_actual, 1)
         ultimo_dia = date(anio_actual, mes_actual, calendar.monthrange(anio_actual, mes_actual)[1])
 
-        proyectos_mes = db.query(Proyecto).filter(
+        # Filtros a prueba de fallos
+        filtros = [
             Proyecto.empresa_id == empresa_id,
             Proyecto.fecha_inicio >= primer_dia,
-            Proyecto.fecha_inicio <= ultimo_dia,
-            condicion_visibilidad
-        ).all()
+            Proyecto.fecha_inicio <= ultimo_dia
+        ]
+        if empleado:
+            filtros.append(or_(
+                Proyecto.jefe_operaciones_id == empleado.id,
+                Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+            ))
+
+        proyectos_mes = db.query(Proyecto).filter(*filtros).all()
 
         semanas_data = [{"nombre": f"Semana {i+1}", "completados": 0, "total": 0} for i in range(4)]
         total_completados_mes = 0
@@ -196,37 +201,33 @@ def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), d
             }
         }
     except Exception as e:
+        print(f"Error rendimiento: {e}")
         raise HTTPException(status_code=500, detail="Error rendimiento")
+
 @router.get("/calendario")
 def obtener_calendario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
         hoy = date.today()
-
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
-        # 🔥 FIX 1: Filtros dinámicos estructurados (Evita el error de "condicion_visibilidad = True")
         filtros_base = [
             Proyecto.empresa_id == empresa_id,
             Proyecto.estado.in_(['En_Proceso', 'Pendiente'])
         ]
 
-        # Si es un empleado, agregamos la condición de que sea jefe o miembro
         if empleado:
             filtros_base.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
                 Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
             ))
 
-        # Aplicamos los filtros desglosados
         proyectos_usuario = db.query(Proyecto).filter(*filtros_base).all()
-
         dias_con_servicio = [p.fecha_inicio.strftime("%Y-%m-%d") for p in proyectos_usuario if p.fecha_inicio]
 
         meses_abrev = ["", "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
 
-        # Reutilizamos los filtros base pero añadimos la restricción de fecha para "Próximos Eventos"
         proximos_proyectos = db.query(Proyecto, Cliente, CatalogoServicio).join(
             Cliente, Proyecto.cliente_id == Cliente.id
         ).join(
@@ -252,73 +253,14 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
         notas = {}
         for n in notas_db:
             if n.fecha_envio:
-                # 🔥 FIX 2: Conversión a prueba de fallos (Soporta DateTime de Python o Strings de la BD)
-                if hasattr(n.fecha_envio, 'strftime'):
-                    fecha_str = n.fecha_envio.strftime("%Y-%m-%d")
-                else:
-                    fecha_str = str(n.fecha_envio)[:10]  # Extrae solo el "YYYY-MM-DD"
-
+                fecha_str = n.fecha_envio.strftime("%Y-%m-%d") if hasattr(n.fecha_envio, 'strftime') else str(n.fecha_envio)[:10]
                 notas[fecha_str] = n.mensaje
 
         return {"status": "success", "data": {"proximosEventos": proximos_eventos, "notas": notas, "diasConServicio": dias_con_servicio}}
     except Exception as e:
-        print(f"ERROR FATAL EN CALENDARIO: {str(e)}") # Esto te ayudará a ver qué pasa en los logs de Railway
+        print(f"Error calendario: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    try:
-        empresa_id = current_user.get("empresa_id")
-        usuario_id = current_user.get("id")
-        hoy = date.today()
-
-        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
-
-        condicion_visibilidad = True
-        if empleado:
-            condicion_visibilidad = or_(
-                Proyecto.jefe_operaciones_id == empleado.id,
-                Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
-            )
-
-        proyectos_usuario = db.query(Proyecto).filter(
-            Proyecto.empresa_id == empresa_id,
-            Proyecto.estado.in_(['En_Proceso', 'Pendiente']),
-            condicion_visibilidad
-        ).all()
-
-        dias_con_servicio = [p.fecha_inicio.strftime("%Y-%m-%d") for p in proyectos_usuario if p.fecha_inicio]
-
-        meses_abrev = ["", "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
-        proximos_proyectos = db.query(Proyecto, Cliente, CatalogoServicio).join(
-            Cliente, Proyecto.cliente_id == Cliente.id
-        ).join(
-            CatalogoServicio, Proyecto.servicio_id == CatalogoServicio.id
-        ).filter(
-            Proyecto.empresa_id == empresa_id,
-            Proyecto.fecha_inicio >= hoy,
-            Proyecto.estado.in_(['En_Proceso', 'Pendiente']),
-            condicion_visibilidad
-        ).order_by(asc(Proyecto.fecha_inicio)).limit(2).all()
-
-        proximos_eventos = []
-        for p, c, cat in proximos_proyectos:
-            if p.fecha_inicio:
-                proximos_eventos.append({
-                    "dia": str(p.fecha_inicio.day), "mes": meses_abrev[p.fecha_inicio.month],
-                    "empresa": c.razon_social, "tipo": cat.nombre,
-                    "hora": "09:00 AM", "activo": p.fecha_inicio == hoy
-                })
-
-        notas_db = db.query(Notificacion).filter(
-            Notificacion.usuario_id == usuario_id, Notificacion.categoria == 'Nota Calendario'
-        ).all()
-
-        notas = {}
-        for n in notas_db:
-            if n.fecha_envio: notas[n.fecha_envio.strftime("%Y-%m-%d")] = n.mensaje
-
-        return {"status": "success", "data": {"proximosEventos": proximos_eventos, "notas": notas, "diasConServicio": dias_con_servicio}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Error cargando calendario")
 @router.post("/calendario/nota")
 def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
@@ -347,7 +289,7 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
         raise HTTPException(status_code=500, detail=str(e))
 
 # =========================================================================
-# RUTAS DE PERFIL Y SEGURIDAD (RBAC + CLOUDINARY OPTIMIZADO)
+# RUTAS DE PERFIL Y SEGURIDAD
 # =========================================================================
 @router.get("/perfil")
 def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
@@ -365,7 +307,6 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
 
         usuario, empleado, empresa = resultado
 
-        # Motor de Permisos (Rol + Directos)
         permisos_rol = db.query(Permiso.modulo).join(
             RolPermiso, RolPermiso.permiso_id == Permiso.id
         ).join(
@@ -402,7 +343,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "permisos_modulo": modulos_permitidos
                 },
                 "empresa": {
-                    "id": empresa.id, # 👈 AQUÍ ESTÁ EL ID DE EMPRESA QUE EVITA QUE ANGULAR EXPLOTE
+                    "id": empresa.id,
                     "nombre": empresa.razon_social,
                     "ruc": empresa.ruc,
                     "ubicacion": "Sede Principal"
@@ -425,14 +366,10 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
         usuario.apellido = datos.apellido.strip()
         usuario.telefono = datos.telefono
 
-        # Subida a Cloudinary
         if datos.fotoBase64 and datos.fotoBase64.startswith("data:image"):
-
-            # 👇 Si el usuario ya tenía foto, la eliminamos primero para no dejar "archivos huérfanos"
             if usuario.foto_url:
                 eliminar_imagen_cloudinary(usuario.foto_url)
 
-            # 👇 Creamos el nombre personalizado (id_nombre)
             primer_nombre = usuario.nombre.split(" ")[0].lower()
             nombre_archivo = f"{usuario.id}_{primer_nombre}"
 
