@@ -62,8 +62,8 @@ def login_usuario(credenciales: LoginData, db: Session = Depends(get_db)):
     nombre_rol_real = rol_asignado[0] if rol_asignado else "Sin Rol Asignado"
     datos_para_token = {
         "sub": usuario_db.username,
-        "id": usuario_db.id,
-        "empresa_id": usuario_db.empresa_id,
+        "id": str(usuario_db.id),
+        "empresa_id": str(usuario_db.empresa_id),
         "rol": nombre_rol_real
     }
     token_real = crear_token_acceso(datos_para_token)

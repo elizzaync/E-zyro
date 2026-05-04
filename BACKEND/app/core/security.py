@@ -20,14 +20,12 @@ def verificar_token(credentials: HTTPAuthorizationCredentials = Security(securit
     try:
         # Intentamos descifrar el token usando tu llave secreta
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-
         # Extraemos los datos útiles
         usuario_id: str = payload.get("id")
         empresa_id: str = payload.get("empresa_id")
 
         if usuario_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
-
         # Devolvemos los datos del usuario si todo está bien
         return payload
     except JWTError:
