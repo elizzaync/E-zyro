@@ -206,6 +206,72 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
 
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
+        # 🔥 FIX 1: Filtros dinámicos estructurados (Evita el error de "condicion_visibilidad = True")
+        filtros_base = [
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.estado.in_(['En_Proceso', 'Pendiente'])
+        ]
+
+        # Si es un empleado, agregamos la condición de que sea jefe o miembro
+        if empleado:
+            filtros_base.append(or_(
+                Proyecto.jefe_operaciones_id == empleado.id,
+                Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+            ))
+
+        # Aplicamos los filtros desglosados
+        proyectos_usuario = db.query(Proyecto).filter(*filtros_base).all()
+
+        dias_con_servicio = [p.fecha_inicio.strftime("%Y-%m-%d") for p in proyectos_usuario if p.fecha_inicio]
+
+        meses_abrev = ["", "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
+
+        # Reutilizamos los filtros base pero añadimos la restricción de fecha para "Próximos Eventos"
+        proximos_proyectos = db.query(Proyecto, Cliente, CatalogoServicio).join(
+            Cliente, Proyecto.cliente_id == Cliente.id
+        ).join(
+            CatalogoServicio, Proyecto.servicio_id == CatalogoServicio.id
+        ).filter(
+            Proyecto.fecha_inicio >= hoy,
+            *filtros_base
+        ).order_by(asc(Proyecto.fecha_inicio)).limit(2).all()
+
+        proximos_eventos = []
+        for p, c, cat in proximos_proyectos:
+            if p.fecha_inicio:
+                proximos_eventos.append({
+                    "dia": str(p.fecha_inicio.day), "mes": meses_abrev[p.fecha_inicio.month],
+                    "empresa": c.razon_social, "tipo": cat.nombre,
+                    "hora": "09:00 AM", "activo": p.fecha_inicio == hoy
+                })
+
+        notas_db = db.query(Notificacion).filter(
+            Notificacion.usuario_id == usuario_id, Notificacion.categoria == 'Nota Calendario'
+        ).all()
+
+        notas = {}
+        for n in notas_db:
+            if n.fecha_envio:
+                # 🔥 FIX 2: Conversión a prueba de fallos (Soporta DateTime de Python o Strings de la BD)
+                if hasattr(n.fecha_envio, 'strftime'):
+                    fecha_str = n.fecha_envio.strftime("%Y-%m-%d")
+                else:
+                    fecha_str = str(n.fecha_envio)[:10]  # Extrae solo el "YYYY-MM-DD"
+
+                notas[fecha_str] = n.mensaje
+
+        return {"status": "success", "data": {"proximosEventos": proximos_eventos, "notas": notas, "diasConServicio": dias_con_servicio}}
+    except Exception as e:
+        print(f"ERROR FATAL EN CALENDARIO: {str(e)}") # Esto te ayudará a ver qué pasa en los logs de Railway
+        raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        empresa_id = current_user.get("empresa_id")
+        usuario_id = current_user.get("id")
+        hoy = date.today()
+
+        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+
         condicion_visibilidad = True
         if empleado:
             condicion_visibilidad = or_(
