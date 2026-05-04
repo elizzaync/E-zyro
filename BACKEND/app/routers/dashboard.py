@@ -1,7 +1,7 @@
 # app/routers/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import asc, desc, extract, func, case, or_  # 🔥 or_ está incluido aquí
+from sqlalchemy import asc, desc, extract, func, case, or_
 from typing import Dict, Any, Optional
 from datetime import date, datetime
 import calendar
@@ -21,19 +21,11 @@ from app.models.usuario_rol import UsuarioRol
 from app.models.permiso import Permiso
 from app.models.rol_permiso import RolPermiso
 from app.models.usuario_permiso import UsuarioPermiso
-
-# 🔥 El modelo ProyectoMiembro está importado aquí
 from app.models.proyecto_miembro import ProyectoMiembro
 from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 
-router = APIRouter(
-    prefix="/dashboard",
-    tags=["Dashboard"]
-)
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
-# =========================================================================
-# MODELOS PYDANTIC
-# =========================================================================
 class NotaCalendario(BaseModel):
     fecha: str
     texto: str
@@ -44,9 +36,6 @@ class PerfilUpdate(BaseModel):
     telefono: str
     fotoBase64: Optional[str] = None
 
-# =========================================================================
-# RUTAS DE WIDGETS (HOME)
-# =========================================================================
 @router.get("/resumen")
 def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
@@ -54,7 +43,6 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
         usuario_id = current_user.get("id")
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
-        # Filtro base
         filtros = [Proyecto.empresa_id == empresa_id]
         if empleado:
             filtros.append(or_(
@@ -74,8 +62,7 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
             "completados": int(kpis.completados or 0)
         }}
     except Exception as e:
-        print(f"Error resumen: {e}")
-        raise HTTPException(status_code=500, detail="Error al calcular resumen")
+        raise HTTPException(status_code=500, detail="Error resumen")
 
 @router.get("/proximos-servicios")
 def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
@@ -85,7 +72,6 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
         hoy = date.today()
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
-        # Filtros a prueba de fallos
         filtros = [
             Proyecto.empresa_id == empresa_id,
             Proyecto.fecha_inicio >= hoy,
@@ -114,42 +100,7 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
             })
         return {"status": "success", "data": data_servicios}
     except Exception as e:
-        print(f"Error próximos servicios: {e}")
-        raise HTTPException(status_code=500, detail="Error al cargar próximos servicios")
-
-@router.get("/notificaciones")
-def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    try:
-        usuario_id = current_user.get("id")
-        hoy = date.today()
-
-        notificaciones_db = db.query(Notificacion).filter(
-            Notificacion.usuario_id == usuario_id,
-            Notificacion.leido == False
-        ).order_by(desc(Notificacion.created_at)).all()
-
-        data = []
-        for n in notificaciones_db:
-            if n.categoria == 'Nota Calendario':
-                # Convertimos fecha segura
-                fecha_obj = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
-                if (fecha_obj - hoy).days <= 1:
-                    data.append({"id": n.id, "titulo": n.titulo, "mensaje": n.mensaje, "tiempo": n.created_at.strftime("%H:%M")})
-            else:
-                data.append({"id": n.id, "titulo": n.titulo, "mensaje": n.mensaje, "tiempo": n.created_at.strftime("%H:%M")})
-
-        return {"status": "success", "data": data}
-    except Exception as e:
-        print(f"Error notificaciones: {e}")
-        raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
-
-@router.put("/notificaciones/{noti_id}/ignorar")
-def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    noti = db.query(Notificacion).filter(Notificacion.id == noti_id, Notificacion.usuario_id == current_user.get("id")).first()
-    if noti:
-        noti.leido = True
-        db.commit()
-    return {"status": "success"}
+        raise HTTPException(status_code=500, detail="Error próximos servicios")
 
 @router.get("/rendimiento-mensual")
 def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
@@ -164,7 +115,6 @@ def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), d
         primer_dia = date(anio_actual, mes_actual, 1)
         ultimo_dia = date(anio_actual, mes_actual, calendar.monthrange(anio_actual, mes_actual)[1])
 
-        # Filtros a prueba de fallos
         filtros = [
             Proyecto.empresa_id == empresa_id,
             Proyecto.fecha_inicio >= primer_dia,
@@ -201,7 +151,6 @@ def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), d
             }
         }
     except Exception as e:
-        print(f"Error rendimiento: {e}")
         raise HTTPException(status_code=500, detail="Error rendimiento")
 
 @router.get("/calendario")
@@ -243,7 +192,7 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
                 proximos_eventos.append({
                     "dia": str(p.fecha_inicio.day), "mes": meses_abrev[p.fecha_inicio.month],
                     "empresa": c.razon_social, "tipo": cat.nombre,
-                    "hora": "09:00 AM", "activo": p.fecha_inicio == hoy
+                    "hora": p.orden_trabajo, "activo": p.fecha_inicio == hoy
                 })
 
         notas_db = db.query(Notificacion).filter(
@@ -258,7 +207,6 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
 
         return {"status": "success", "data": {"proximosEventos": proximos_eventos, "notas": notas, "diasConServicio": dias_con_servicio}}
     except Exception as e:
-        print(f"Error calendario: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/calendario/nota")
@@ -269,85 +217,143 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
         texto_limpio = nota.texto.strip() if nota.texto else ""
         fecha_obj = datetime.strptime(nota.fecha, "%Y-%m-%d")
 
-        nota_existente = db.query(Notificacion).filter(Notificacion.usuario_id == usuario_id, Notificacion.categoria == 'Nota Calendario', Notificacion.fecha_envio == fecha_obj).first()
+        # Buscar si ya hay un evento ese día
+        nota_existente = db.query(Notificacion).filter(
+            Notificacion.usuario_id == usuario_id,
+            Notificacion.categoria == 'Nota Calendario',
+            Notificacion.fecha_envio == fecha_obj
+        ).first()
 
+        # Si borraste el texto, eliminamos la notificación
         if not texto_limpio:
             if nota_existente:
                 db.delete(nota_existente)
                 db.commit()
             return {"status": "success"}
 
+        # Si ya existe, actualizamos y volvemos a poner como "No Leído"
         if nota_existente:
             nota_existente.mensaje = texto_limpio
             nota_existente.titulo = f"Alerta: {texto_limpio[:25]}..."
+            nota_existente.leido = False  # 🔥 CRÍTICO: Para que vuelva a salir en la bandeja
         else:
-            nueva_notif = Notificacion(empresa_id=empresa_id, usuario_id=usuario_id, tipo="Alerta", categoria="Nota Calendario", titulo=f"Alerta: {texto_limpio[:25]}...", mensaje=texto_limpio, fecha_envio=fecha_obj)
+            # Si es nuevo, lo creamos como tipo "Alerta"
+            nueva_notif = Notificacion(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                tipo="Alerta",
+                categoria="Nota Calendario",
+                titulo=f"Alerta: {texto_limpio[:25]}...",
+                mensaje=texto_limpio,
+                fecha_envio=fecha_obj,
+                leido=False
+            )
             db.add(nueva_notif)
+
         db.commit()
         return {"status": "success"}
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+@router.get("/notificaciones")
+def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    try:
+        usuario_id = current_user.get("id")
+        hoy = date.today()
 
-# =========================================================================
-# RUTAS DE PERFIL Y SEGURIDAD
-# =========================================================================
+        # 🔥 Solo traemos las que NO han sido leídas
+        notificaciones_db = db.query(Notificacion).filter(
+            Notificacion.usuario_id == usuario_id,
+            Notificacion.leido == False
+        ).order_by(desc(Notificacion.created_at)).all()
+
+        data = []
+        for n in notificaciones_db:
+            if n.categoria == 'Nota Calendario':
+                # Parseo seguro de fecha
+                if not n.fecha_envio:
+                    continue
+
+                try:
+                    fecha_obj = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
+                    dias_diferencia = (fecha_obj - hoy).days
+
+                    # 🔥 Solo mostrar en bandeja si el evento es HOY o MAÑANA
+                    if 0 <= dias_diferencia <= 1:
+                        tiempo_str = "Hoy" if dias_diferencia == 0 else "Mañana"
+                        data.append({
+                            "id": n.id,
+                            "titulo": "📅 Evento Próximo",
+                            "mensaje": n.mensaje,
+                            "tiempo": tiempo_str,
+                            "tipo": n.tipo
+                        })
+                except Exception as e:
+                    print(f"Error de fecha en notificacion: {e}")
+                    continue
+            else:
+                # Notificaciones del sistema (Ej. "Bienvenido a E-zyro")
+                tiempo_formato = n.created_at.strftime("%d/%m %H:%M") if n.created_at else ""
+                data.append({
+                    "id": n.id,
+                    "titulo": n.titulo,
+                    "mensaje": n.mensaje,
+                    "tiempo": tiempo_formato,
+                    "tipo": n.tipo
+                })
+
+        return {"status": "success", "data": data}
+    except Exception as e:
+        print(f"Error notificaciones: {e}")
+        raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
+@router.put("/notificaciones/{noti_id}/ignorar")
+def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    try:
+        # Buscamos la notificación asegurando que sea del usuario actual
+        noti = db.query(Notificacion).filter(
+            Notificacion.id == noti_id,
+            Notificacion.usuario_id == current_user.get("id")
+        ).first()
+
+        if not noti:
+            raise HTTPException(status_code=404, detail="Notificación no encontrada")
+
+        # 🔥 La ocultamos para siempre
+        noti.leido = True
+        db.commit()
+
+        return {"status": "success", "mensaje": "Notificación marcada como leída"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error al actualizar notificación")
 @router.get("/perfil")
 def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         usuario_id = current_user.get("id")
+        resultado = db.query(Usuario, Empleado, Empresa).join(Empleado, Empleado.usuario_id == Usuario.id).join(Empresa, Empresa.id == Usuario.empresa_id).filter(Usuario.id == usuario_id).first()
 
-        resultado = db.query(Usuario, Empleado, Empresa).join(
-            Empleado, Empleado.usuario_id == Usuario.id
-        ).join(
-            Empresa, Empresa.id == Usuario.empresa_id
-        ).filter(Usuario.id == usuario_id).first()
-
-        if not resultado:
-            raise HTTPException(status_code=404, detail="Perfil no encontrado")
-
+        if not resultado: raise HTTPException(status_code=404, detail="Perfil no encontrado")
         usuario, empleado, empresa = resultado
 
-        permisos_rol = db.query(Permiso.modulo).join(
-            RolPermiso, RolPermiso.permiso_id == Permiso.id
-        ).join(
-            UsuarioRol, UsuarioRol.rol_id == RolPermiso.rol_id
-        ).filter(UsuarioRol.usuario_id == usuario_id).all()
+        permisos_rol = db.query(Permiso.modulo).join(RolPermiso, RolPermiso.permiso_id == Permiso.id).join(UsuarioRol, UsuarioRol.rol_id == RolPermiso.rol_id).filter(UsuarioRol.usuario_id == usuario_id).all()
+        permisos_directos = db.query(Permiso.modulo).join(UsuarioPermiso, UsuarioPermiso.permiso_id == Permiso.id).filter(UsuarioPermiso.usuario_id == usuario_id).all()
 
-        permisos_directos = db.query(Permiso.modulo).join(
-            UsuarioPermiso, UsuarioPermiso.permiso_id == Permiso.id
-        ).filter(UsuarioPermiso.usuario_id == usuario_id).all()
-
-        modulos_permitidos = list(set(
-            [p[0].upper() for p in permisos_rol] +
-            [p[0].upper() for p in permisos_directos]
-        ))
+        modulos_permitidos = list(set([p[0].upper() for p in permisos_rol] + [p[0].upper() for p in permisos_directos]))
 
         meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         fecha_txt = ""
         fecha_ref = empleado.fecha_ingreso or usuario.created_at
-        if fecha_ref:
-            fecha_txt = f"{fecha_ref.day} de {meses[fecha_ref.month]}, {fecha_ref.year}"
+        if fecha_ref: fecha_txt = f"{fecha_ref.day} de {meses[fecha_ref.month]}, {fecha_ref.year}"
 
         return {
             "status": "success",
             "data": {
                 "personal": {
-                    "id": usuario.id,
-                    "nombre": usuario.nombre,
-                    "apellido": usuario.apellido,
-                    "correo": usuario.email,
-                    "telefono": usuario.telefono or "",
-                    "fotoUrl": usuario.foto_url or "",
-                    "rol": empleado.cargo,
-                    "fechaCreacion": fecha_txt,
-                    "permisos_modulo": modulos_permitidos
+                    "id": usuario.id, "nombre": usuario.nombre, "apellido": usuario.apellido, "correo": usuario.email,
+                    "telefono": usuario.telefono or "", "fotoUrl": usuario.foto_url or "", "rol": empleado.cargo,
+                    "fechaCreacion": fecha_txt, "permisos_modulo": modulos_permitidos
                 },
-                "empresa": {
-                    "id": empresa.id,
-                    "nombre": empresa.razon_social,
-                    "ruc": empresa.ruc,
-                    "ubicacion": "Sede Principal"
-                }
+                "empresa": {"id": empresa.id, "nombre": empresa.razon_social, "ruc": empresa.ruc, "ubicacion": "Sede Principal"}
             }
         }
     except Exception as e:
@@ -359,26 +365,17 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
         usuario_id = current_user.get("id")
         usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
 
-        if not usuario:
-            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        if not usuario: raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
         usuario.nombre = datos.nombre.strip()
         usuario.apellido = datos.apellido.strip()
         usuario.telefono = datos.telefono
 
         if datos.fotoBase64 and datos.fotoBase64.startswith("data:image"):
-            if usuario.foto_url:
-                eliminar_imagen_cloudinary(usuario.foto_url)
-
+            if usuario.foto_url: eliminar_imagen_cloudinary(usuario.foto_url)
             primer_nombre = usuario.nombre.split(" ")[0].lower()
             nombre_archivo = f"{usuario.id}_{primer_nombre}"
-
-            url_optimizada = subir_imagen_cloudinary(
-                base64_data=datos.fotoBase64,
-                folder="e-zyro/perfiles",
-                public_id=nombre_archivo,
-                is_perfil=True
-            )
+            url_optimizada = subir_imagen_cloudinary(base64_data=datos.fotoBase64, folder="e-zyro/perfiles", public_id=nombre_archivo, is_perfil=True)
             usuario.foto_url = url_optimizada
 
         db.commit()
