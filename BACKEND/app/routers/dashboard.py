@@ -5,7 +5,7 @@ from sqlalchemy import asc, desc, extract, func, case, or_
 from typing import Dict, Any, Optional
 from datetime import date, datetime
 import calendar
-
+from app.models.proyecto_servicio import ProyectoServicio
 from app.models.empresa import Empresa
 from app.models.usuario import Usuario
 from pydantic import BaseModel
@@ -84,10 +84,12 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
             ))
 
         servicios = db.query(Proyecto, Cliente, CatalogoServicio).join(
-            Cliente, Proyecto.cliente_id == Cliente.id
-        ).join(
-            CatalogoServicio, Proyecto.servicio_id == CatalogoServicio.id
-        ).filter(*filtros).order_by(asc(Proyecto.fecha_inicio)).limit(3).all()
+         Cliente, Proyecto.cliente_id == Cliente.id
+     ).join(
+         ProyectoServicio, Proyecto.id == ProyectoServicio.proyecto_id
+     ).join(
+         CatalogoServicio, ProyectoServicio.catalogo_servicio_id == CatalogoServicio.id
+     ).filter(*filtros).order_by(asc(Proyecto.fecha_inicio)).limit(3).all()
 
         data_servicios = []
         for p, c, cat in servicios:
@@ -178,13 +180,15 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
         meses_abrev = ["", "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
 
         proximos_proyectos = db.query(Proyecto, Cliente, CatalogoServicio).join(
-            Cliente, Proyecto.cliente_id == Cliente.id
-        ).join(
-            CatalogoServicio, Proyecto.servicio_id == CatalogoServicio.id
-        ).filter(
-            Proyecto.fecha_inicio >= hoy,
-            *filtros_base
-        ).order_by(asc(Proyecto.fecha_inicio)).limit(2).all()
+         Cliente, Proyecto.cliente_id == Cliente.id
+     ).join(
+         ProyectoServicio, Proyecto.id == ProyectoServicio.proyecto_id
+     ).join(
+         CatalogoServicio, ProyectoServicio.catalogo_servicio_id == CatalogoServicio.id
+     ).filter(
+         Proyecto.fecha_inicio >= hoy,
+         *filtros_base
+     ).order_by(asc(Proyecto.fecha_inicio)).limit(2).all()
 
         proximos_eventos = []
         for p, c, cat in proximos_proyectos:
@@ -306,8 +310,75 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
     except Exception as e:
         print(f"Error notificaciones: {e}")
         raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
+    try:
+        usuario_id = current_user.get("id")
+        hoy = date.today()
+
+        # 🔥 Solo traemos las que NO han sido leídas
+        notificaciones_db = db.query(Notificacion).filter(
+            Notificacion.usuario_id == usuario_id,
+            Notificacion.leido == False
+        ).order_by(desc(Notificacion.created_at)).all()
+
+        data = []
+        for n in notificaciones_db:
+            if n.categoria == 'Nota Calendario':
+                # Parseo seguro de fecha
+                if not n.fecha_envio:
+                    continue
+
+                try:
+                    fecha_obj = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
+                    dias_diferencia = (fecha_obj - hoy).days
+
+                    # 🔥 Solo mostrar en bandeja si el evento es HOY o MAÑANA
+                    if 0 <= dias_diferencia <= 1:
+                        tiempo_str = "Hoy" if dias_diferencia == 0 else "Mañana"
+                        data.append({
+                            "id": n.id,
+                            "titulo": "📅 Evento Próximo",
+                            "mensaje": n.mensaje,
+                            "tiempo": tiempo_str,
+                            "tipo": n.tipo
+                        })
+                except Exception as e:
+                    print(f"Error de fecha en notificacion: {e}")
+                    continue
+            else:
+                # Notificaciones del sistema (Ej. "Bienvenido a E-zyro")
+                tiempo_formato = n.created_at.strftime("%d/%m %H:%M") if n.created_at else ""
+                data.append({
+                    "id": n.id,
+                    "titulo": n.titulo,
+                    "mensaje": n.mensaje,
+                    "tiempo": tiempo_formato,
+                    "tipo": n.tipo
+                })
+
+        return {"status": "success", "data": data}
+    except Exception as e:
+        print(f"Error notificaciones: {e}")
+        raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
 @router.put("/notificaciones/{noti_id}/ignorar")
 def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    try:
+        # Buscamos la notificación asegurando que sea del usuario actual
+        noti = db.query(Notificacion).filter(
+            Notificacion.id == noti_id,
+            Notificacion.usuario_id == current_user.get("id")
+        ).first()
+
+        if not noti:
+            raise HTTPException(status_code=404, detail="Notificación no encontrada")
+
+        # 🔥 La ocultamos para siempre
+        noti.leido = True
+        db.commit()
+
+        return {"status": "success", "mensaje": "Notificación marcada como leída"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error al actualizar notificación")
     try:
         # Buscamos la notificación asegurando que sea del usuario actual
         noti = db.query(Notificacion).filter(

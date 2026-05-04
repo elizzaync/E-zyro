@@ -1,8 +1,6 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Date, DateTime, ForeignKey
-
-# Importación local
 from app.db.database import Base
 
 def generate_uuid():
@@ -14,11 +12,12 @@ class Proyecto(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     empresa_id = Column(String(36), ForeignKey("empresa.id"), nullable=False)
     cliente_id = Column(String(36), nullable=False)
-    servicio_id = Column(String(36), nullable=False)
+
+    # 🔥 Agregado según tu bd.txt
+    contrato_comercial_id = Column(String(36))
 
     orden_trabajo = Column(String(50), nullable=False)
     jefe_operaciones_id = Column(String(36), ForeignKey("empleado.id"), nullable=False)
-    grupo_trabajo_id = Column(String(36))
 
     nombre_proyecto = Column(String(200), nullable=False)
     estado = Column(String(30), nullable=False, default='Pendiente')
