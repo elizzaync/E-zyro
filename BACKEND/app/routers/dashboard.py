@@ -5,25 +5,32 @@ from sqlalchemy import asc, desc, extract, func, case, or_
 from typing import Dict, Any, Optional
 from datetime import date, datetime
 import calendar
+
+from pydantic import BaseModel
+from app.db.database import get_db
+
+# Modelos
 from app.models.proyecto_servicio import ProyectoServicio
 from app.models.empresa import Empresa
 from app.models.usuario import Usuario
-from pydantic import BaseModel
-from app.db.database import get_db
 from app.models.proyecto import Proyecto
 from app.models.cliente import Cliente
 from app.models.catalogo_servicio import CatalogoServicio
 from app.models.notificacion import Notificacion
 from app.models.empleado import Empleado
-from app.core.security import verificar_token
 from app.models.rol import Rol
 from app.models.usuario_rol import UsuarioRol
 from app.models.permiso import Permiso
 from app.models.rol_permiso import RolPermiso
 from app.models.usuario_permiso import UsuarioPermiso
 from app.models.proyecto_miembro import ProyectoMiembro
-from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 from app.models.dispositivo_push import DispositivoPush
+
+# Servicios y Seguridad
+from app.core.security import verificar_token
+from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
+from app.services.fcm_service import enviar_push_a_usuario # 🔥 IMPORTAMOS TU NUEVO MOTOR PUSH
+
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 class NotaCalendario(BaseModel):
@@ -35,6 +42,7 @@ class PerfilUpdate(BaseModel):
     apellido: str
     telefono: str
     fotoBase64: Optional[str] = None
+
 class TokenPush(BaseModel):
     token: str
     plataforma: str = "web"
@@ -49,7 +57,7 @@ def guardar_token_push(datos: TokenPush, current_user: dict = Depends(verificar_
             DispositivoPush.token_push == datos.token
         ).first()
 
-        # 2. Si no existe, lo guardamos asociado a Harold (o al usuario actual)
+        # 2. Si no existe, lo guardamos
         if not dispositivo_existente:
             nuevo_dispositivo = DispositivoPush(
                 usuario_id=usuario_id,
@@ -250,51 +258,59 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
         texto_limpio = nota.texto.strip() if nota.texto else ""
         fecha_obj = datetime.strptime(nota.fecha, "%Y-%m-%d")
 
-        # Buscar si ya hay un evento ese día
         nota_existente = db.query(Notificacion).filter(
             Notificacion.usuario_id == usuario_id,
             Notificacion.categoria == 'Nota Calendario',
             Notificacion.fecha_envio == fecha_obj
         ).first()
 
-        # Si borraste el texto, eliminamos la notificación
+        titulo_notif = f"Alerta de Calendario"
+
         if not texto_limpio:
             if nota_existente:
                 db.delete(nota_existente)
                 db.commit()
             return {"status": "success"}
 
-        # Si ya existe, actualizamos y volvemos a poner como "No Leído"
         if nota_existente:
             nota_existente.mensaje = texto_limpio
-            nota_existente.titulo = f"Alerta: {texto_limpio[:25]}..."
-            nota_existente.leido = False  # 🔥 CRÍTICO: Para que vuelva a salir en la bandeja
+            nota_existente.titulo = titulo_notif
+            nota_existente.leido = False
         else:
-            # Si es nuevo, lo creamos como tipo "Alerta"
             nueva_notif = Notificacion(
                 empresa_id=empresa_id,
                 usuario_id=usuario_id,
                 tipo="Alerta",
                 categoria="Nota Calendario",
-                titulo=f"Alerta: {texto_limpio[:25]}...",
+                titulo=titulo_notif,
                 mensaje=texto_limpio,
                 fecha_envio=fecha_obj,
                 leido=False
             )
             db.add(nueva_notif)
 
-        db.commit()
+        db.commit() # Guardamos en PostgreSQL
+
+        # 🔥 DISPARAMOS EL PUSH A FIREBASE
+        if texto_limpio:
+            enviar_push_a_usuario(
+                usuario_id=usuario_id,
+                titulo=titulo_notif,
+                mensaje=texto_limpio,
+                db=db
+            )
+
         return {"status": "success"}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/notificaciones")
 def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         usuario_id = current_user.get("id")
         hoy = date.today()
 
-        # 🔥 Solo traemos las que NO han sido leídas
         notificaciones_db = db.query(Notificacion).filter(
             Notificacion.usuario_id == usuario_id,
             Notificacion.leido == False
@@ -303,15 +319,12 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
         data = []
         for n in notificaciones_db:
             if n.categoria == 'Nota Calendario':
-                # Parseo seguro de fecha
                 if not n.fecha_envio:
                     continue
-
                 try:
                     fecha_obj = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
                     dias_diferencia = (fecha_obj - hoy).days
 
-                    # 🔥 Solo mostrar en bandeja si el evento es HOY o MAÑANA
                     if 0 <= dias_diferencia <= 1:
                         tiempo_str = "Hoy" if dias_diferencia == 0 else "Mañana"
                         data.append({
@@ -325,7 +338,6 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
                     print(f"Error de fecha en notificacion: {e}")
                     continue
             else:
-                # Notificaciones del sistema (Ej. "Bienvenido a E-zyro")
                 tiempo_formato = n.created_at.strftime("%d/%m %H:%M") if n.created_at else ""
                 data.append({
                     "id": n.id,
@@ -339,59 +351,10 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
     except Exception as e:
         print(f"Error notificaciones: {e}")
         raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
-    try:
-        usuario_id = current_user.get("id")
-        hoy = date.today()
 
-        # 🔥 Solo traemos las que NO han sido leídas
-        notificaciones_db = db.query(Notificacion).filter(
-            Notificacion.usuario_id == usuario_id,
-            Notificacion.leido == False
-        ).order_by(desc(Notificacion.created_at)).all()
-
-        data = []
-        for n in notificaciones_db:
-            if n.categoria == 'Nota Calendario':
-                # Parseo seguro de fecha
-                if not n.fecha_envio:
-                    continue
-
-                try:
-                    fecha_obj = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
-                    dias_diferencia = (fecha_obj - hoy).days
-
-                    # 🔥 Solo mostrar en bandeja si el evento es HOY o MAÑANA
-                    if 0 <= dias_diferencia <= 1:
-                        tiempo_str = "Hoy" if dias_diferencia == 0 else "Mañana"
-                        data.append({
-                            "id": n.id,
-                            "titulo": "📅 Evento Próximo",
-                            "mensaje": n.mensaje,
-                            "tiempo": tiempo_str,
-                            "tipo": n.tipo
-                        })
-                except Exception as e:
-                    print(f"Error de fecha en notificacion: {e}")
-                    continue
-            else:
-                # Notificaciones del sistema (Ej. "Bienvenido a E-zyro")
-                tiempo_formato = n.created_at.strftime("%d/%m %H:%M") if n.created_at else ""
-                data.append({
-                    "id": n.id,
-                    "titulo": n.titulo,
-                    "mensaje": n.mensaje,
-                    "tiempo": tiempo_formato,
-                    "tipo": n.tipo
-                })
-
-        return {"status": "success", "data": data}
-    except Exception as e:
-        print(f"Error notificaciones: {e}")
-        raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
 @router.put("/notificaciones/{noti_id}/ignorar")
 def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
-        # Buscamos la notificación asegurando que sea del usuario actual
         noti = db.query(Notificacion).filter(
             Notificacion.id == noti_id,
             Notificacion.usuario_id == current_user.get("id")
@@ -400,7 +363,6 @@ def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_to
         if not noti:
             raise HTTPException(status_code=404, detail="Notificación no encontrada")
 
-        # 🔥 La ocultamos para siempre
         noti.leido = True
         db.commit()
 
@@ -408,24 +370,7 @@ def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_to
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Error al actualizar notificación")
-    try:
-        # Buscamos la notificación asegurando que sea del usuario actual
-        noti = db.query(Notificacion).filter(
-            Notificacion.id == noti_id,
-            Notificacion.usuario_id == current_user.get("id")
-        ).first()
 
-        if not noti:
-            raise HTTPException(status_code=404, detail="Notificación no encontrada")
-
-        # 🔥 La ocultamos para siempre
-        noti.leido = True
-        db.commit()
-
-        return {"status": "success", "mensaje": "Notificación marcada como leída"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Error al actualizar notificación")
 @router.get("/perfil")
 def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
