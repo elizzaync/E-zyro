@@ -316,8 +316,7 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
 
         db.commit()
 
-        # ── Push inmediato solo si el evento es HOY o MAÑANA ─────────────────
-        # Para fechas futuras, el scheduler nocturno (8 AM) se encarga.
+        # ── Push inmediato para confirmar que la nota fue guardada ───────────
         fecha_nota = fecha_obj.date()
         hoy        = date.today()
         dias_diff  = (fecha_nota - hoy).days
@@ -326,8 +325,10 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
             cuando = "hoy"
         elif dias_diff == 1:
             cuando = "mañana"
+        elif dias_diff > 1:
+            cuando = f"el {fecha_nota.strftime('%d/%m/%Y')}"
         else:
-            cuando = None   # el scheduler lo enviará en su momento
+            cuando = None   # fecha pasada, no notificar
 
         if cuando:
             notificar_recordatorio_calendario(
@@ -360,12 +361,17 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
                 if not n.fecha_envio:
                     continue
                 try:
-                    fecha_obj     = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
-                    dias_diff     = (fecha_obj - hoy).days
+                    fecha_obj = n.fecha_envio.date() if hasattr(n.fecha_envio, 'date') else datetime.strptime(str(n.fecha_envio)[:10], "%Y-%m-%d").date()
+                    dias_diff = (fecha_obj - hoy).days
 
-                    # Solo mostramos notas de hoy y mañana en el panel
-                    if 0 <= dias_diff <= 1:
-                        tiempo_str = "Hoy" if dias_diff == 0 else "Mañana"
+                    # Mostramos notas de hoy hasta los próximos 7 días
+                    if 0 <= dias_diff <= 7:
+                        if dias_diff == 0:
+                            tiempo_str = "Hoy"
+                        elif dias_diff == 1:
+                            tiempo_str = "Mañana"
+                        else:
+                            tiempo_str = f"En {dias_diff} días"
                         data.append({
                             "id":      n.id,
                             "titulo":  "📅 Evento Próximo",
@@ -390,6 +396,70 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
     except Exception as e:
         print(f"Error notificaciones: {e}")
         raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
+
+
+class AsignacionMiembro(BaseModel):
+    proyecto_id: str
+    empleado_id: str
+    rol_proyecto: Optional[str] = "Técnico"
+
+
+@router.post("/proyectos/asignar-tecnico")
+def asignar_tecnico_grupo(datos: AsignacionMiembro, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Asigna un técnico a un proyecto y le envía una notificación push."""
+    try:
+        proyecto = db.query(Proyecto).filter(Proyecto.id == datos.proyecto_id).first()
+        if not proyecto:
+            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+        empleado = db.query(Empleado).filter(Empleado.id == datos.empleado_id).first()
+        if not empleado:
+            raise HTTPException(status_code=404, detail="Técnico no encontrado")
+
+        # Verificar que no esté ya asignado
+        existente = db.query(ProyectoMiembro).filter(
+            ProyectoMiembro.proyecto_id == datos.proyecto_id,
+            ProyectoMiembro.empleado_id == datos.empleado_id
+        ).first()
+
+        if existente:
+            if not existente.activo:
+                existente.activo = True
+                db.commit()
+            return {"status": "success", "mensaje": "El técnico ya estaba en el grupo"}
+
+        nuevo_miembro = ProyectoMiembro(
+            proyecto_id=datos.proyecto_id,
+            empleado_id=datos.empleado_id,
+            rol_proyecto=datos.rol_proyecto,
+            activo=True
+        )
+        db.add(nuevo_miembro)
+        db.commit()
+
+        # Notificar al técnico por push
+        if empleado.usuario_id:
+            usuario_tec = db.query(Usuario).filter(Usuario.id == empleado.usuario_id).first()
+            nombre_tecnico = f"{usuario_tec.nombre} {usuario_tec.apellido}" if usuario_tec else "Técnico"
+            cliente = db.query(Cliente).filter(Cliente.id == proyecto.cliente_id).first()
+            nombre_cliente = cliente.razon_social if cliente else "cliente"
+            fecha_str = proyecto.fecha_inicio.strftime("%d/%m/%Y") if proyecto.fecha_inicio else "por definir"
+
+            notificar_asignacion_servicio(
+                usuario_id_tecnico=empleado.usuario_id,
+                nombre_tecnico=nombre_tecnico,
+                nombre_servicio=proyecto.nombre_proyecto or "Servicio",
+                nombre_cliente=nombre_cliente,
+                fecha_servicio=fecha_str,
+                db=db
+            )
+
+        return {"status": "success", "mensaje": f"Técnico {empleado.nombre} asignado al proyecto"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/notificaciones/{noti_id}/ignorar")
