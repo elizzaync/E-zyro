@@ -13,7 +13,6 @@ class Proyecto(Base):
     empresa_id = Column(String(36), ForeignKey("empresa.id"), nullable=False)
     cliente_id = Column(String(36), nullable=False)
 
-    # 🔥 Agregado según tu bd.txt
     contrato_comercial_id = Column(String(36))
 
     orden_trabajo = Column(String(50), nullable=False)
