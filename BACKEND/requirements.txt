@@ -10,3 +10,4 @@ pydantic[email]
 fastapi-mail
 requests
 cloudinary
+firebase-admin
