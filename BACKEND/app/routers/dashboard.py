@@ -404,6 +404,95 @@ class AsignacionMiembro(BaseModel):
     rol_proyecto: Optional[str] = "Técnico"
 
 
+@router.get("/calendario/servicio/{fecha}")
+def obtener_detalle_servicio_dia(fecha: str, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Devuelve los proyectos asignados al usuario para una fecha dada, con equipo y jefe."""
+    try:
+        usuario_id = current_user.get("id")
+        empresa_id = current_user.get("empresa_id")
+        fecha_obj  = datetime.strptime(fecha, "%Y-%m-%d").date()
+
+        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+
+        filtros = [
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.fecha_inicio == fecha_obj,
+            Proyecto.estado.in_(["En_Proceso", "Pendiente", "Completado"])
+        ]
+        if empleado:
+            filtros.append(or_(
+                Proyecto.jefe_operaciones_id == empleado.id,
+                Proyecto.id.in_(
+                    db.query(ProyectoMiembro.proyecto_id).filter(
+                        ProyectoMiembro.empleado_id == empleado.id,
+                        ProyectoMiembro.activo == True
+                    )
+                )
+            ))
+
+        proyectos = db.query(Proyecto, Cliente, CatalogoServicio).join(
+            Cliente, Proyecto.cliente_id == Cliente.id
+        ).join(
+            ProyectoServicio, Proyecto.id == ProyectoServicio.proyecto_id
+        ).join(
+            CatalogoServicio, ProyectoServicio.catalogo_servicio_id == CatalogoServicio.id
+        ).filter(*filtros).all()
+
+        if not proyectos:
+            return {"status": "success", "data": []}
+
+        resultado = []
+        for p, c, cat in proyectos:
+            # Jefe de operaciones
+            jefe_data = None
+            if p.jefe_operaciones_id:
+                jefe_emp = db.query(Empleado).filter(Empleado.id == p.jefe_operaciones_id).first()
+                if jefe_emp:
+                    jefe_usr = db.query(Usuario).filter(Usuario.id == jefe_emp.usuario_id).first()
+                    jefe_data = {
+                        "nombre": f"{jefe_usr.nombre} {jefe_usr.apellido}" if jefe_usr else "—",
+                        "cargo": jefe_emp.cargo
+                    }
+
+            # Equipo de trabajo
+            equipo_rows = db.query(ProyectoMiembro, Empleado, Usuario).join(
+                Empleado, ProyectoMiembro.empleado_id == Empleado.id
+            ).join(
+                Usuario, Empleado.usuario_id == Usuario.id
+            ).filter(
+                ProyectoMiembro.proyecto_id == p.id,
+                ProyectoMiembro.activo == True
+            ).all()
+
+            equipo = [
+                {
+                    "nombre": f"{u.nombre} {u.apellido}",
+                    "cargo": e.cargo,
+                    "rol_proyecto": m.rol_proyecto or "Técnico"
+                }
+                for m, e, u in equipo_rows
+            ]
+
+            estado_map = {
+                "En_Proceso": "En Proceso", "Pendiente": "Pendiente", "Completado": "Completado"
+            }
+            resultado.append({
+                "id":             p.id,
+                "nombre":         p.nombre_proyecto,
+                "orden_trabajo":  p.orden_trabajo,
+                "estado":         estado_map.get(p.estado, p.estado),
+                "servicio":       cat.nombre,
+                "cliente":        c.razon_social,
+                "fecha":          fecha,
+                "jefe_operaciones": jefe_data,
+                "equipo":         equipo
+            })
+
+        return {"status": "success", "data": resultado}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/proyectos/asignar-tecnico")
 def asignar_tecnico_grupo(datos: AsignacionMiembro, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     """Asigna un técnico a un proyecto y le envía una notificación push."""
