@@ -11,3 +11,4 @@ fastapi-mail
 requests
 cloudinary
 firebase-admin
+apscheduler
