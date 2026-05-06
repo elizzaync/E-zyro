@@ -1,0 +1,40 @@
+<div class="services-widget-container">
+
+    <div class="widget-header">
+        <h3 class="widget-title">Próximos Servicios</h3>
+        <a href="javascript:void(0)" class="link-all">
+            Ver todos
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+        </a>
+    </div>
+
+    <div class="services-list">
+        @for (servicio of servicios; track servicio.empresa) {
+        <div class="service-card">
+
+            <div class="sc-top">
+                <div class="sc-info">
+                    <h4 class="sc-company">{{ servicio.empresa }}</h4>
+                    <p class="sc-type">{{ servicio.tipo }}</p>
+                </div>
+
+                <div class="sc-badge"
+                    [ngClass]="{'badge-active': servicio.estado === 'Activo', 'badge-pending': servicio.estado === 'Pendiente'}">
+                    {{ servicio.estado }}
+                </div>
+            </div>
+
+            <div class="sc-bottom">
+                <span class="sc-datetime">
+                    {{ servicio.fecha }} <span class="dot">•</span> {{ servicio.hora }}
+                </span>
+            </div>
+
+        </div>
+        }
+    </div>
+
+</div>

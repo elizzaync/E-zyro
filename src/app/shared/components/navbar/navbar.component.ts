@@ -1,90 +1,227 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
+import { DashboardService } from '../../../core/services/dashboard.service';
+import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css']
 })
-export class NavbarComponent implements OnInit {
-  usuarioActual = { nombre: 'Cargando...', rol: '...', iniciales: '', id: 'EMP-0000' };
+export class NavbarComponent implements OnInit, OnDestroy {
+  usuarioActual = { nombre: 'Cargando...', rol: '...', iniciales: '', id: 'EMP-0000', foto: '' };
 
-  // Control del menú
   isMenuOpen = false;
+  showProfileModal = false;
+  isEditingProfile = false;
+  permisosUsuario: string[] = [];
 
-  constructor(private authService: AuthService) {}
+  showNotifPanel = false;
+  notificaciones: any[] = [];
+  private notiSub!: Subscription;
+
+  perfilData = {
+    nombre: '',
+    apellido: '',
+    correo: '',
+    telefono: '',
+    rol: '',
+    empresa: '',
+    empresaId: '',
+    ruc: '',
+    ubicacion: 'Cargando...',
+    fechaCreacion: '',
+    fotoUrl: ''
+  };
+
+  constructor(private authService: AuthService, private dashboardService: DashboardService, private toastService: ToastService) {}
+
+  private notiInitialized = false;
 
   ngOnInit(): void {
     this.cargarDatosDeUsuario();
     this.inicializarTema();
+    this.notiSub = this.dashboardService.notificaciones$.subscribe(lista => {
+      const prevCount = this.notificaciones.length;
+      this.notificaciones = lista;
+
+      if (!this.notiInitialized) {
+        this.notiInitialized = true;
+        return;
+      }
+
+      if (lista.length > prevCount) {
+        const nueva = lista[0];
+        if (nueva) {
+          this.toastService.mostrar(`${nueva.titulo}: ${nueva.mensaje}`, 'info');
+        }
+      }
+    });
   }
 
-  // --- LÓGICA DEL MENÚ ---
-  toggleMenu(): void {
-    this.isMenuOpen = !this.isMenuOpen;
+  ngOnDestroy(): void {
+    this.notiSub?.unsubscribe();
   }
 
-  cerrarMenu(): void {
-    this.isMenuOpen = false;
+  toggleMenu() { this.isMenuOpen = !this.isMenuOpen; }
+  cerrarMenu() { this.isMenuOpen = false; }
+
+  toggleNotifPanel() {
+    this.showNotifPanel = !this.showNotifPanel;
+    if (this.isMenuOpen) this.isMenuOpen = false;
   }
 
-  cerrarSesion(): void {
-    // CLAVE: Limpiamos la configuración manual del HTML antes de salir.
-    // Así el Login vuelve a comportarse de forma 100% automática.
+  cerrarNotifPanel() { this.showNotifPanel = false; }
+
+  ignorarNotif(id: string, event: MouseEvent) {
+    event.stopPropagation();
+    this.dashboardService.ignorarNotificacion(id).subscribe({
+      next: () => {
+        this.notificaciones = this.notificaciones.filter(n => n.id !== id);
+        this.dashboardService.notificaciones$.next(this.notificaciones);
+      }
+    });
+  }
+
+  cerrarSesion() {
     document.documentElement.removeAttribute('data-theme');
-
     this.authService.logout();
   }
 
-  // --- LÓGICA DEL TEMA ---
-  inicializarTema(): void {
-    // Al entrar al Home, leemos la memoria y aplicamos el tema forzado si existe
-    const temaGuardado = localStorage.getItem('ezyro_tema');
-    if (temaGuardado) {
-      document.documentElement.setAttribute('data-theme', temaGuardado);
-    }
-  }
-
-  alternarTema(): void {
-    const html = document.documentElement;
-    // Evaluamos si estamos en oscuro (ya sea porque el HTML lo dice o por el navegador)
-    const isDark = html.getAttribute('data-theme') === 'dark' ||
-                   (!html.hasAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-
-    // Cambiamos al tema opuesto
-    const nuevoTema = isDark ? 'light' : 'dark';
-    html.setAttribute('data-theme', nuevoTema);
-    localStorage.setItem('ezyro_tema', nuevoTema);
-  }
-  // --- TUS FUNCIONES BLINDADAS ---
   cargarDatosDeUsuario(): void {
-    try {
-      const userDataString = localStorage.getItem('ezyro_user');
-      if (userDataString) {
-        const userData = JSON.parse(userDataString);
-        const nombreReal = userData.nombre_completo || 'Usuario E-zyro';
-        const rolReal = userData.rol || 'Técnico';
+    const userDataString = localStorage.getItem('ezyro_user');
+    if (userDataString) {
+      const u = JSON.parse(userDataString);
+      this.usuarioActual.nombre = u.nombre_completo || 'Usuario';
+      this.usuarioActual.iniciales = this.usuarioActual.nombre.substring(0, 2).toUpperCase();
+    }
 
-        this.usuarioActual.nombre = nombreReal;
-        this.usuarioActual.rol = rolReal;
-        this.usuarioActual.iniciales = this.generarIniciales(nombreReal);
-        // Generamos un ID ficticio para el diseño, luego lo puedes traer de tu BD
-        this.usuarioActual.id = 'EMP-' + Math.floor(1000 + Math.random() * 9000);
+    this.dashboardService.getPerfilUsuario().subscribe({
+      next: (res: any) => {
+        if (res.status === 'success') {
+          const personal = res.data.personal;
+          const empresa = res.data.empresa;
+          this.permisosUsuario = personal.permisos_modulo || [];
+          localStorage.setItem('ezyro_permisos', JSON.stringify(this.permisosUsuario));
+
+          this.usuarioActual = {
+            nombre: `${personal.nombre} ${personal.apellido}`,
+            rol: personal.rol,
+            iniciales: this.generarIniciales(personal.nombre, personal.apellido),
+            id: personal.id.split('-')[0].toUpperCase() + '-USR',
+            foto: personal.fotoUrl
+          };
+
+          this.perfilData = {
+            nombre: personal.nombre,
+            apellido: personal.apellido,
+            correo: personal.correo,
+            telefono: personal.telefono || '',
+            rol: personal.rol,
+            empresa: empresa.nombre,
+            // 👇 AQUÍ PROTEGEMOS A ANGULAR CONTRA ERRORES
+            empresaId: empresa.id ? empresa.id.substring(0,8).toUpperCase() : 'SIN-ID',
+            ruc: empresa.ruc,
+            ubicacion: empresa.ubicacion,
+            fechaCreacion: personal.fechaCreacion,
+            fotoUrl: personal.fotoUrl
+          };
+        }
+      },
+      error: (err) => {
+        console.error(err);
+        this.toastService.mostrar('Error al conectar con el servidor', 'error');
       }
-    } catch (error) {
-      console.error("Error al cargar usuario:", error);
+    });
+  }
+
+  abrirModalPerfil() {
+    this.isMenuOpen = false;
+    this.isEditingProfile = false;
+    this.showProfileModal = true;
+    document.body.style.overflow = 'hidden';
+  }
+
+  cerrarModalPerfil() {
+    this.showProfileModal = false;
+    this.isEditingProfile = false;
+    document.body.style.overflow = '';
+  }
+
+  onFileSelected(event: any) {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        this.perfilData.fotoUrl = e.target.result;
+      };
+      reader.readAsDataURL(file);
     }
   }
 
-  generarIniciales(nombreCompleto: string): string {
-    if (!nombreCompleto || typeof nombreCompleto !== 'string') return 'U';
-    const partes = nombreCompleto.trim().split(' ');
-    if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
-    else if (nombreCompleto.length >= 2) return nombreCompleto.substring(0, 2).toUpperCase();
-    else return nombreCompleto.toUpperCase();
+  guardarPerfil() {
+    const datosParaEnviar = {
+      nombre: this.perfilData.nombre || '',
+      apellido: this.perfilData.apellido || '',
+      telefono: this.perfilData.telefono || '',
+      fotoBase64: this.perfilData.fotoUrl && this.perfilData.fotoUrl.startsWith('data:image')
+                  ? this.perfilData.fotoUrl : null
+    };
+
+    this.dashboardService.actualizarPerfil(datosParaEnviar).subscribe({
+      next: (res: any) => {
+        if (res.status === 'success') {
+          this.usuarioActual.nombre = `${this.perfilData.nombre} ${this.perfilData.apellido}`;
+          this.usuarioActual.iniciales = this.generarIniciales(this.perfilData.nombre, this.perfilData.apellido);
+
+          if (res.foto_url) {
+            this.usuarioActual.foto = res.foto_url;
+            this.perfilData.fotoUrl = res.foto_url;
+          }
+
+          // AVISAMOS AL HOME EN TIEMPO REAL DEL NUEVO NOMBRE
+          this.dashboardService.notificarPerfilActualizado(this.perfilData.nombre);
+
+          // ACTUALIZAMOS EL CACHÉ DEL NAVEGADOR
+          const userDataString = localStorage.getItem('ezyro_user');
+          if (userDataString) {
+            const userData = JSON.parse(userDataString);
+            userData.nombre_completo = this.usuarioActual.nombre;
+            localStorage.setItem('ezyro_user', JSON.stringify(userData));
+          }
+
+          this.isEditingProfile = false;
+          this.toastService.mostrar('¡Perfil actualizado con éxito!', 'success');
+        }
+      },
+      error: (err) => {
+        console.error(err);
+        this.toastService.mostrar('Error al actualizar el perfil', 'error');
+      }
+    });
+  }
+
+  generarIniciales(nombre: string, apellido: string): string {
+    const inicialNombre = nombre ? nombre.charAt(0).toUpperCase() : '';
+    const inicialApellido = apellido ? apellido.charAt(0).toUpperCase() : '';
+    return (inicialNombre + inicialApellido) || 'U';
+  }
+
+  inicializarTema() {
+    const t = localStorage.getItem('ezyro_tema');
+    if (t) document.documentElement.setAttribute('data-theme', t);
+  }
+
+  alternarTema() {
+    const html = document.documentElement;
+    const nuevo = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', nuevo);
+    localStorage.setItem('ezyro_tema', nuevo);
   }
 }

@@ -1,0 +1,46 @@
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  /* 🔥 FIX DE ESPACIO: Las despegamos del Banner y de las Pestañas 🔥 */
+  margin-top: 32px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: white; border: 1px solid #e2e8f0;
+  border-radius: 20px; padding: 24px;
+  display: flex; align-items: center; gap: 20px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+  transition: all 0.3s ease;
+}
+.stat-card.hover-up:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.05); border-color: #cbd5e1; }
+
+.stat-info h3 { margin: 0 0 4px 0; font-size: 26px; color: #0f172a; font-weight: 800; letter-spacing: -0.5px; }
+.stat-info p { margin: 0; font-size: 14px; color: #64748b; font-weight: 500; }
+
+.icon-box {
+  width: 54px; height: 54px; border-radius: 16px;
+  display: flex; justify-content: center; align-items: center;
+  flex-shrink: 0; /* Evita que el cuadro se aplaste */
+}
+.icon-box.green { background: #f4fbf0; color: #91d337; }
+.icon-box.light-green { background: #f0fdf4; color: #22c55e; }
+.icon-box.warning { background: #fefce8; color: #eab308; }
+.icon-box.time { background: #f0fdf4; color: #84cc16; }
+
+/* --- MODO OSCURO --- */
+:host-context([data-theme="dark"]) .stat-card { background: #1e293b; border-color: rgba(255,255,255,0.05); }
+:host-context([data-theme="dark"]) .stat-info h3 { color: #f8fafc; }
+:host-context([data-theme="dark"]) .stat-card.hover-up:hover { border-color: #334155; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+
+/* 🔥 Hacemos que los íconos brillen más en el fondo oscuro 🔥 */
+:host-context([data-theme="dark"]) .icon-box.green { background: rgba(145, 211, 55, 0.15); color: #a3e635; }
+:host-context([data-theme="dark"]) .icon-box.light-green { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+:host-context([data-theme="dark"]) .icon-box.warning { background: rgba(234, 179, 8, 0.15); color: #facc15; }
+:host-context([data-theme="dark"]) .icon-box.time { background: rgba(132, 204, 22, 0.15); color: #a3e635; }
+
+/* Animación de entrada */
+.fade-in { animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; }
+.delay-1 { animation-delay: 0.1s; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
