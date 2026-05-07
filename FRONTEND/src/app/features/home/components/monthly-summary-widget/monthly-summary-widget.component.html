@@ -1,0 +1,39 @@
+<div class="summary-widget-card">
+
+    <div class="widget-top">
+        <h3 class="widget-title">Resumen de {{ mesActual }}</h3>
+
+        <div class="progress-list">
+            @for (semana of semanas; track semana.nombre) {
+            <div class="progress-item">
+                <div class="progress-header">
+                    <span class="week-label">{{ semana.nombre }}</span>
+                    <span class="week-value"><strong>{{ semana.completados }}/{{ semana.total }}</strong>
+                        servicios</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" [style.width.%]="getPorcentaje(semana.completados, semana.total)"></div>
+                </div>
+            </div>
+            }
+        </div>
+    </div>
+
+    <div class="widget-footer">
+        <div class="stat-box">
+            <span class="stat-value text-green">{{ stats.tasaExito }}</span>
+            <span class="stat-label">Tasa de Éxito</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-box">
+            <span class="stat-value">{{ stats.totalServicios }}</span>
+            <span class="stat-label">Total Servicios</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-box">
+            <span class="stat-value">{{ stats.esteMes }}</span>
+            <span class="stat-label">Este Mes</span>
+        </div>
+    </div>
+
+</div>

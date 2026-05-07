@@ -1,0 +1,22 @@
+<main class="main-layout">
+    <div class="content-container fade-in">
+
+        <app-profile-banner [perfil]="perfilReal" class="reveal-on-scroll"></app-profile-banner>
+
+        <app-profile-cards class="reveal-on-scroll"></app-profile-cards>
+
+        <div class="layout-grid">
+
+            <div class="left-column reveal-on-scroll">
+                <app-profile-contact [perfil]="perfilReal"></app-profile-contact>
+                <app-profile-certifications></app-profile-certifications>
+            </div>
+
+            <div class="right-column reveal-on-scroll">
+                <app-profile-recent-activity></app-profile-recent-activity>
+            </div>
+
+        </div>
+
+    </div>
+</main>

@@ -1,0 +1,25 @@
+.toast-notification {
+  position: fixed; top: 24px; right: 24px; display: flex; align-items: center; gap: 12px;
+  padding: 16px; background-color: var(--card-bg); border-left: 4px solid var(--brand-green);
+  border-radius: 8px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15), 0 0 0 1px var(--border-color);
+  z-index: 9999999; min-width: 300px; font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+}
+.toast-notification.error { border-left-color: #ef4444; }
+.toast-notification.error .toast-icon { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.toast-notification.info { border-left-color: #3b82f6; }
+.toast-notification.info .toast-icon { background-color: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+
+.toast-icon {
+  width: 36px; height: 36px; border-radius: 50%; background-color: rgba(141, 198, 63, 0.15);
+  color: var(--brand-green); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.toast-content { flex-grow: 1; display: flex; flex-direction: column; gap: 2px; }
+.toast-title { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-main); }
+.toast-message { margin: 0; font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.toast-close { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+.toast-close:hover { background-color: var(--hover-bg); color: var(--text-main); }
+
+:host-context(html[data-theme="dark"]) .toast-notification { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--card-border); }
+@media (prefers-color-scheme: dark) { :host-context(html:not([data-theme="light"])) .toast-notification { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--card-border); } }
+.slide-in-right { animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(50px); } to { opacity: 1; transform: translateX(0); } }

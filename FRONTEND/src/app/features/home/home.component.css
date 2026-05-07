@@ -1,0 +1,214 @@
+/* =======================================================
+   HOME COMPONENT CSS (RESTAURADO)
+   ======================================================= */
+.home-layout {
+  background-color: var(--bg-color);
+  min-height: calc(100vh - 72px);
+  padding: 40px 32px;
+  box-sizing: border-box;
+  transition: background-color 0.4s ease;
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+}
+
+.home-content {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ── ESTILOS DE CABECERAS ── */
+.home-header {
+  margin-bottom: 40px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.header-greeting { flex: 1; min-width: 0; }
+
+/* ── TARJETA DE CLIMA ── */
+.clima-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  flex-shrink: 0;
+  transition: box-shadow 0.2s;
+}
+.clima-card:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
+}
+
+.clima-emoji { font-size: 30px; line-height: 1; }
+
+.clima-data { display: flex; flex-direction: column; gap: 1px; }
+
+.clima-temp {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.clima-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+}
+.clima-sep { opacity: 0.35; font-size: 13px; }
+
+.welcome-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0 0 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  letter-spacing: -0.5px;
+  transition: color 0.4s ease;
+}
+
+.welcome-subtitle {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin: 0;
+  font-weight: 500;
+  transition: color 0.4s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, var(--brand-green) 0%, #22c55e 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── CUADRÍCULAS ESTRUCTURALES ── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
+  align-items: start; /* Para evitar que la sección de abajo se estire raro */
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+}
+
+/* ── LÍNEA SEPARADORA ── */
+.section-divider {
+  border: none;
+  border-top: 1px solid rgba(0,0,0,0.05);
+  margin: 56px 0; /* Espacio grande para separar el contenido al hacer scroll */
+}
+
+/* 1. Línea separadora en Modo Oscuro Manual */
+:host-context(html[data-theme="dark"]) .section-divider {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* 2. Línea separadora en Modo Oscuro Automático del sistema */
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .section-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* ── PLACEHOLDER DE ACCIONES ── */
+.quick-actions-placeholder {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 32px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.quick-actions-placeholder h3 {
+  margin-top: 0;
+  color: var(--text-main);
+}
+
+.quick-actions-placeholder p {
+  color: var(--text-muted);
+}
+
+/* ── ANIMACIONES BÁSICAS ── */
+.wave-emoji {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: wave 2.5s infinite;
+}
+
+@keyframes wave {
+  0% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+  60%, 100% { transform: rotate(0deg); }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── RESPONSIVIDAD ── */
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .clima-card { align-self: flex-start; }
+}
+/* =======================================================
+   ANIMACIONES PREMIUM
+   ======================================================= */
+
+/* Estado oculto (Cuando el elemento no está en pantalla) */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(40px); /* Baja un poco */
+  /* La transición se aplica tanto al aparecer como al desaparecer */
+  transition: opacity 0.6s cubic-bezier(0.25, 1, 0.5, 1),
+              transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Estado visible (Cuando hacemos scroll y entra en pantalla) */
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  transform: none;
+}

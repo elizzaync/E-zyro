@@ -1,0 +1,90 @@
+<main class="home-layout">
+  <div class="home-content fade-in">
+
+    <header class="home-header">
+      <div class="header-greeting">
+        <h2 class="welcome-title">
+          {{ saludoTiempo }}, <span class="gradient-text">{{ nombreUsuario }}</span> <span class="wave-emoji">👋</span>
+        </h2>
+        <p class="welcome-subtitle">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          {{ fechaActual }} • Panel de resumen operativo
+        </p>
+      </div>
+
+      @if (climaData) {
+      <div class="clima-card">
+        <span class="clima-emoji">{{ climaData.icono }}</span>
+        <div class="clima-data">
+          <span class="clima-temp">{{ climaData.temperatura }}°C</span>
+          <span class="clima-meta">{{ climaData.descripcion }} <span class="clima-sep">·</span> {{ climaData.ciudad }}</span>
+        </div>
+      </div>
+      }
+    </header>
+
+    <div class="dashboard-grid">
+      <div class="left-panel">
+
+        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        <div class="summary-grid">
+          @for (tarjeta of tarjetasHome; track tarjeta.titulo; let i = $index) {
+          <div class="reveal-on-scroll" [style.transition-delay]="(i * 0.1) + 's'">
+            <app-summary-card [titulo]="tarjeta.titulo" [valor]="tarjeta.valor" [icono]="tarjeta.icono"
+              [tema]="tarjeta.tema" [subtitulo]="tarjeta.subtitulo">
+            </app-summary-card>
+          </div>
+          }
+        </div>
+        }
+
+        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        <div class="reveal-on-scroll" style="transition-delay: 0.3s; margin-top: 24px;">
+          <app-monthly-summary-widget></app-monthly-summary-widget>
+        </div>
+        }
+
+      </div>
+
+      <div class="right-panel">
+        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        <div class="reveal-on-scroll" style="transition-delay: 0.5s;">
+          <app-calendar-widget></app-calendar-widget>
+        </div>
+        }
+      </div>
+    </div>
+
+    @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.includes('PERSONAL') || permisosUsuario.length ===
+    0) {
+    <hr class="section-divider">
+
+    <header class="home-header reveal-on-scroll">
+      <h2 class="welcome-title" style="font-size: 24px;">Control de Asignaciones</h2>
+    </header>
+
+    <div class="dashboard-grid reveal-on-scroll" style="transition-delay: 0.2s;">
+
+      <div class="left-panel">
+        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        <app-upcoming-services-widget></app-upcoming-services-widget>
+        }
+      </div>
+
+      <div class="right-panel">
+        @if (permisosUsuario.includes('PERSONAL') || permisosUsuario.length === 0) {
+        <div class="reveal-on-scroll" style="transition-delay: 0.4s;">
+          <app-quick-actions-widget></app-quick-actions-widget>
+        </div>
+        }
+      </div>
+
+    </div>
+    }
+
+  </div>
+</main>

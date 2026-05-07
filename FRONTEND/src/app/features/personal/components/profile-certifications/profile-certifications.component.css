@@ -1,0 +1,154 @@
+.cert-card {
+    margin-top: 25px;
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.02);
+    transition: all 0.3s ease;
+}
+
+.cert-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 18px;
+    letter-spacing: -0.5px;
+}
+
+.cert-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.cert-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 10px 18px;
+    transition: all 0.3s ease;
+}
+
+.cert-badge.hover-up:hover {
+    border-color: #91d337;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(145, 211, 55, 0.1);
+}
+
+.cert-icon {
+    background: #91d337;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cert-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+}
+
+.cert-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.cert-level {
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* MODO OSCURO — Toggle manual */
+:host-context([data-theme="dark"]) .cert-card {
+    background: #1e293b;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+:host-context([data-theme="dark"]) .cert-title,
+:host-context([data-theme="dark"]) .cert-name { color: #f8fafc; }
+:host-context([data-theme="dark"]) .cert-level { color: #94a3b8; }
+:host-context([data-theme="dark"]) .cert-badge { background: #0f172a; border-color: #334155; }
+:host-context([data-theme="dark"]) .cert-skeleton {
+    background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+    background-size: 200% 100%;
+}
+
+/* MODO OSCURO — Sistema (prefers-color-scheme sin toggle) */
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .cert-card {
+    background: #1e293b;
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+  :host-context(html:not([data-theme="light"])) .cert-title,
+  :host-context(html:not([data-theme="light"])) .cert-name { color: #f8fafc; }
+  :host-context(html:not([data-theme="light"])) .cert-level { color: #94a3b8; }
+  :host-context(html:not([data-theme="light"])) .cert-badge { background: #0f172a; border-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .cert-skeleton {
+    background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+    background-size: 200% 100%;
+  }
+}
+
+/* Niveles de habilidad */
+.nivel-basico     { background: #e2e8f0; color: #64748b; }
+.nivel-intermedio { background: #dbeafe; color: #3b82f6; }
+.nivel-avanzado   { background: #fff7ed; color: #f97316; }
+.nivel-experto    { background: #91d337; color: white; }
+
+/* Estado vacío */
+.cert-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 16px;
+    color: #94a3b8;
+    text-align: center;
+}
+.cert-vacio p { margin: 0; font-size: 13px; font-weight: 500; }
+
+/* Skeleton loader */
+.cert-skeleton {
+    height: 46px;
+    border-radius: 14px;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    width: 100%;
+}
+
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+:host-context([data-theme="dark"]) .cert-skeleton {
+    background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+    background-size: 200% 100%;
+}
+
+.fade-in {
+    animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

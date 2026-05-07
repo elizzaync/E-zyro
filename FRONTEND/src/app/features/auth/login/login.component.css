@@ -1,0 +1,268 @@
+/* =======================================================
+   LOGIN.CSS (SOLO ESTRUCTURA, LOS COLORES ESTÁN EN INDEX.CSS)
+   ======================================================= */
+
+/* ── Layout Global ── */
+.login-wrapper {
+  font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-color);
+  padding: 24px;
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: background-color 0.4s ease; /* Transición fluida de todo el fondo */
+}
+
+/* ── Tarjetas Base ── */
+.login-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border); /* Clave para el modo oscuro */
+  border-radius: 12px;
+  padding: 40px 32px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 10px 25px var(--shadow-color);
+  transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* ── Brand (Logo) ── */
+.brand {
+  text-align: center;
+  margin-bottom: 32px;
+  background-color: var(--box-bg);
+  border: 1px solid var(--card-border);
+  padding: 16px 32px;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px var(--shadow-color);
+  transition: background-color 0.4s ease, border-color 0.4s ease;
+}
+
+.brand-logo-text {
+  font-size: 34px;
+  font-weight: 800;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
+}
+
+.text-green {
+  color: var(--brand-green);
+}
+
+.text-black {
+  color: var(--text-main);
+  transition: color 0.4s ease;
+}
+
+.brand-tagline {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0;
+  letter-spacing: 0.3px;
+  transition: color 0.4s ease;
+}
+
+/* ── Formulario ── */
+.card-header {
+  margin-bottom: 28px;
+  text-align: center;
+}
+
+.card-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  transition: color 0.4s ease;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  transition: color 0.4s ease;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  padding: 0 16px;
+  height: 48px;
+  background-color: var(--input-bg);
+  transition: all 0.3s ease;
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 3px rgba(141, 198, 63, 0.15); /* Efecto Glow verde */
+}
+
+.input-wrapper.input-error {
+  border-color: #ef4444; /* Rojo de error estándar moderno */
+}
+
+.form-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: var(--input-text);
+  background: transparent;
+  width: 100%;
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Forzar color de texto de input autofill en navegadores webkit */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus,
+.form-input:-webkit-autofill:active{
+    -webkit-box-shadow: 0 0 0 30px var(--input-bg) inset !important;
+    -webkit-text-fill-color: var(--input-text) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+.toggle-password {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 0;
+  margin-left: 8px;
+  transition: color 0.2s;
+}
+
+.toggle-password:hover {
+  color: var(--brand-green);
+}
+
+.field-error {
+  display: block;
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 6px;
+}
+
+/* ── Controles Inferiores ── */
+.remember-row {
+  margin-bottom: 28px;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  gap: 10px;
+  transition: color 0.4s ease;
+}
+
+.checkbox-container input {
+  accent-color: var(--brand-green);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.btn-login {
+  width: 100%;
+  height: 48px;
+  background-color: var(--brand-green);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-login:hover:not(:disabled) {
+  background-color: var(--brand-green-hover);
+}
+
+.btn-login:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-login:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.forgot-row {
+  text-align: center;
+  margin-top: 24px;
+}
+
+.forgot-link {
+  font-size: 13px;
+  color: var(--brand-green);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.forgot-link:hover {
+  color: var(--brand-green-hover);
+  text-decoration: underline;
+}
+
+/* ── Tarjeta de Éxito / Carga ── */
+.success-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  min-height: 300px;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.loading-text {
+  margin-top: 16px;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.4s ease;
+}
+
+/* ── Animaciones ── */
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

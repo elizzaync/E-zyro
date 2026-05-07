@@ -1,0 +1,206 @@
+.attendance-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* =========================================
+   BANNER "ESTADO DE HOY" (Verde)
+   ========================================= */
+.today-banner {
+  background: linear-gradient(135deg, #a3e635 0%, #8dc63f 100%);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(141, 198, 63, 0.25);
+  margin-bottom: 8px;
+}
+
+.tb-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tb-label {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.tb-title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.tb-time {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+.tb-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =========================================
+   TARJETAS MINIMALISTAS
+   ========================================= */
+.attendance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Máximo ~4 registros visibles, el resto con scroll */
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.attendance-list::-webkit-scrollbar { width: 4px; }
+.attendance-list::-webkit-scrollbar-track { background: transparent; }
+.attendance-list::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+.attendance-list::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+
+.minimal-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.minimal-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.mc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mc-date {
+  margin: 0;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.mc-times {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+/* Botones de Estado Lado Derecho */
+.pill-active {
+  background: #eff6ff;
+  color: #3b82f6;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 20px;
+}
+
+.completed-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.check-icon {
+  color: #8dc63f; /* Verde E-zyro */
+}
+
+.hours-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* =========================================
+   EMPTY STATE (ESTADO VACÍO)
+   ========================================= */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 2px dashed #e2e8f0;
+  border-radius: 16px;
+  margin-top: 8px;
+}
+
+.empty-state svg {
+  color: #cbd5e1;
+  margin-bottom: 12px;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* =========================================
+   🔥 MODO OSCURO — Toggle manual 🔥
+   ========================================= */
+:host-context([data-theme="dark"]) .today-banner {
+  background: linear-gradient(135deg, rgba(141, 198, 63, 0.15) 0%, rgba(141, 198, 63, 0.05) 100%);
+  border: 1px solid rgba(141, 198, 63, 0.2);
+  box-shadow: none;
+}
+:host-context([data-theme="dark"]) .tb-label,
+:host-context([data-theme="dark"]) .tb-time { color: #94a3b8; opacity: 1; }
+:host-context([data-theme="dark"]) .tb-title { color: #8dc63f; }
+:host-context([data-theme="dark"]) .tb-icon { border-color: rgba(141, 198, 63, 0.3); color: #8dc63f; }
+:host-context([data-theme="dark"]) .minimal-card { background: #0f172a; border-color: #334155; }
+:host-context([data-theme="dark"]) .mc-date { color: #f8fafc; }
+:host-context([data-theme="dark"]) .mc-times { color: #94a3b8; }
+:host-context([data-theme="dark"]) .hours-text { color: #94a3b8; }
+:host-context([data-theme="dark"]) .pill-active { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+:host-context([data-theme="dark"]) .empty-state { background: #0f172a; border-color: #334155; color: #64748b; }
+:host-context([data-theme="dark"]) .empty-state svg { color: #334155; }
+:host-context([data-theme="dark"]) .attendance-list::-webkit-scrollbar-thumb { background: #334155; }
+
+/* 🌙 MODO OSCURO — Sistema (prefers-color-scheme sin toggle) 🌙 */
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .today-banner {
+    background: linear-gradient(135deg, rgba(141, 198, 63, 0.15) 0%, rgba(141, 198, 63, 0.05) 100%);
+    border: 1px solid rgba(141, 198, 63, 0.2);
+    box-shadow: none;
+  }
+  :host-context(html:not([data-theme="light"])) .tb-label,
+  :host-context(html:not([data-theme="light"])) .tb-time { color: #94a3b8; opacity: 1; }
+  :host-context(html:not([data-theme="light"])) .tb-title { color: #8dc63f; }
+  :host-context(html:not([data-theme="light"])) .tb-icon { border-color: rgba(141, 198, 63, 0.3); color: #8dc63f; }
+  :host-context(html:not([data-theme="light"])) .minimal-card { background: #0f172a; border-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .mc-date { color: #f8fafc; }
+  :host-context(html:not([data-theme="light"])) .mc-times { color: #94a3b8; }
+  :host-context(html:not([data-theme="light"])) .hours-text { color: #94a3b8; }
+  :host-context(html:not([data-theme="light"])) .pill-active { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+  :host-context(html:not([data-theme="light"])) .empty-state { background: #0f172a; border-color: #334155; color: #64748b; }
+  :host-context(html:not([data-theme="light"])) .empty-state svg { color: #334155; }
+}

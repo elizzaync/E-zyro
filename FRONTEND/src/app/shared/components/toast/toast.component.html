@@ -1,0 +1,35 @@
+@if (visible) {
+<div class="toast-notification slide-in-right" [class.error]="tipo === 'error'" [class.info]="tipo === 'info'">
+    <div class="toast-icon">
+        @if (tipo === 'success') {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+        } @else if (tipo === 'error') {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+        } @else {
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        }
+    </div>
+    <div class="toast-content">
+        <h5 class="toast-title">
+            {{ tipo === 'success' ? '¡Hecho!' : (tipo === 'error' ? 'Error' : 'Aviso') }}
+        </h5>
+        <p class="toast-message">{{ mensaje }}</p>
+    </div>
+    <button class="toast-close" (click)="cerrar()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    </button>
+</div>
+}

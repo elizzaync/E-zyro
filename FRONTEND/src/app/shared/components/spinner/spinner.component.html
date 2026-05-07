@@ -1,0 +1,12 @@
+<!-- Circular simple — para botones -->
+@if (variant === 'ring') {
+<div class="custom-spinner" [ngClass]="'spinner-' + theme" [style.width.px]="size" [style.height.px]="size"
+    [style.border-width.px]="thickness">
+</div>
+}
+
+<!-- Cuadrado sobre base — para pantallas de carga -->
+@if (variant === 'loader') {
+<div class="spinner-loader" [ngClass]="'spinner-' + theme">
+</div>
+}

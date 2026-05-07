@@ -1,0 +1,89 @@
+/* EL RECUADRO BLANCO (Card) */
+.details-card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 32px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+}
+
+/* NAVEGACIÓN (Tabs) */
+.tabs-container {
+    display: inline-flex;
+    background: #f8fafc;
+    padding: 6px;
+    border-radius: 12px;
+    gap: 4px;
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.tab-btn:hover:not(.active) { color: #0f172a; }
+
+.tab-btn.active {
+    background: #91d337;
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(145, 211, 55, 0.3);
+}
+
+.card-divider { border: none; border-top: 1px solid #f1f5f9; margin: 20px 0 25px 0; }
+
+/* GRILLA DE CONTACTO */
+.section-title { font-size: 18px; font-weight: 800; color: #0f172a; margin: 0 0 20px 0; }
+.contact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.contact-item {
+    background: white; border: 1px solid #e2e8f0; border-radius: 16px;
+    padding: 20px; display: flex; align-items: center; gap: 16px; transition: 0.3s;
+}
+.contact-item:hover { border-color: #cbd5e1; transform: translateY(-2px); }
+.c-icon { width: 44px; height: 44px; background: #f4fbf0; color: #91d337; border-radius: 12px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; }
+.c-text { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+.label { font-size: 13px; color: #64748b; font-weight: 500; }
+.value { font-size: 14.5px; color: #0f172a; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.dot-online { width: 6px; height: 6px; background: #91d337; border-radius: 50%; }
+
+/* ESTADO VACÍO (Documentos) */
+.empty-state { padding: 40px; text-align: center; color: #94a3b8; }
+.empty-state i { font-size: 30px; color: #cbd5e1; margin-bottom: 12px; }
+
+/* ANIMACIÓN */
+.fade-in { animation: slideUp 0.5s ease-out forwards; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ════════════════════════════════════════════
+   MODO OSCURO — Toggle manual
+   ════════════════════════════════════════════ */
+:host-context([data-theme="dark"]) .details-card { background: #1e293b; border-color: rgba(255,255,255,0.05); }
+:host-context([data-theme="dark"]) .tabs-container { background: #0f172a; }
+:host-context([data-theme="dark"]) .tab-btn { color: #94a3b8; }
+:host-context([data-theme="dark"]) .tab-btn.active { background: #91d337; color: #ffffff; }
+:host-context([data-theme="dark"]) .card-divider { border-color: #334155; }
+:host-context([data-theme="dark"]) .section-title { color: #f8fafc; }
+:host-context([data-theme="dark"]) .contact-item { background: #0f172a; border-color: #334155; }
+:host-context([data-theme="dark"]) .label { color: #94a3b8; }
+:host-context([data-theme="dark"]) .value { color: #f8fafc; }
+
+/* ════════════════════════════════════════════
+   MODO OSCURO — Sistema (prefers-color-scheme sin toggle)
+   ════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .details-card { background: #1e293b; border-color: rgba(255,255,255,0.05); }
+  :host-context(html:not([data-theme="light"])) .tabs-container { background: #0f172a; }
+  :host-context(html:not([data-theme="light"])) .tab-btn { color: #94a3b8; }
+  :host-context(html:not([data-theme="light"])) .tab-btn.active { background: #91d337; color: #ffffff; }
+  :host-context(html:not([data-theme="light"])) .card-divider { border-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .section-title { color: #f8fafc; }
+  :host-context(html:not([data-theme="light"])) .contact-item { background: #0f172a; border-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .label { color: #94a3b8; }
+  :host-context(html:not([data-theme="light"])) .value { color: #f8fafc; }
+}
