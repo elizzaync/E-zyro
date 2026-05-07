@@ -58,6 +58,10 @@ export class DashboardService {
   // --- RUTAS DEL PERFIL ---
   getPerfilUsuario(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil`, { headers: this.getHeaders() }); }
   actualizarPerfil(datos: any): Observable<any> { return this.http.put(`${this.apiUrl}/perfil`, datos, { headers: this.getHeaders() }); }
+  getCapacitaciones(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/capacitaciones`, { headers: this.getHeaders() }); }
+  getActividadReciente(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/actividad`, { headers: this.getHeaders() }); }
+  getPerfilEstadisticas(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/estadisticas`, { headers: this.getHeaders() }); }
+  getAsistencia(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/asistencia`, { headers: this.getHeaders() }); }
 
   // --- RUTAS DE NOTIFICACIONES Y FIREBASE ---
   getNotificaciones(): Observable<any> { return this.http.get(`${this.apiUrl}/notificaciones`, { headers: this.getHeaders() }); }

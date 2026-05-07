@@ -1,6 +1,6 @@
-import { Component, Input, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { DashboardService } from '../../../../core/services/dashboard.service';
 
 @Component({
   selector: 'app-profile-certifications',
@@ -10,20 +10,28 @@ import { ActivatedRoute } from '@angular/router';
   styleUrls: ['./profile-certifications.component.css']
 })
 export class ProfileCertificationsComponent implements OnInit {
-  @Input() perfil: any = {};
+  private dashboardService = inject(DashboardService);
 
-  tabActiva: string = 'perfil';
-  private route = inject(ActivatedRoute);
+  capacitaciones: any[] = [];
+  cargando = true;
 
   ngOnInit() {
-    this.route.queryParams.subscribe(params => {
-      if (params['tab']) {
-        this.tabActiva = params['tab'];
-      }
+    this.dashboardService.getCapacitaciones().subscribe({
+      next: (res: any) => {
+        if (res.status === 'success') this.capacitaciones = res.data;
+        this.cargando = false;
+      },
+      error: () => { this.cargando = false; }
     });
   }
 
-  cambiarTab(tab: string) {
-    this.tabActiva = tab;
+  nivelClase(nivelRaw: string): string {
+    const mapa: Record<string, string> = {
+      basico: 'nivel-basico',
+      intermedio: 'nivel-intermedio',
+      avanzado: 'nivel-avanzado',
+      experto: 'nivel-experto'
+    };
+    return mapa[nivelRaw] ?? '';
   }
 }

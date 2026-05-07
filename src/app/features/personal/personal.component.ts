@@ -4,7 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 // Ajusta esta ruta según dónde esté tu servicio
 import { DashboardService } from '../../core/services/dashboard.service';
-// 👇 1. IMPORTAMOS AMBAS TARJETAS
+import { ProfileRecentActivityComponent } from './components/profile-recent-activity/profile-recent-activity.component';
 import { ProfileBannerComponent } from './components/profile-banner/profile-banner.component';
 import { ProfileCardsComponent } from './components/profile-cards/profile-cards.component';
 import { ProfileContactComponent } from './components/profile-contact/profile-contact.component';
@@ -13,7 +13,7 @@ import { ProfileCertificationsComponent } from './components/profile-certificati
   selector: 'app-personal',
   standalone: true,
   // 👇 2. EL SECRETO ESTÁ AQUÍ: Agregamos ProfileCardsComponent al arreglo
-  imports: [CommonModule, ProfileBannerComponent, ProfileCardsComponent, ProfileContactComponent, ProfileCertificationsComponent],
+  imports: [CommonModule, ProfileBannerComponent, ProfileRecentActivityComponent, ProfileCardsComponent, ProfileContactComponent, ProfileCertificationsComponent],
   templateUrl: './personal.component.html',
   styleUrls: ['./personal.component.css']
 })

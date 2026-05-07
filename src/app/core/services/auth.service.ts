@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap } from 'rxjs';
+import { Observable, tap, catchError, of } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -49,11 +49,17 @@ export class AuthService {
   }
 
   logout(): void {
-    localStorage.removeItem('ezyro_token');
-    localStorage.removeItem('ezyro_user');
+    const token = localStorage.getItem('ezyro_token');
+    const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
 
-    //CORRECCIÓN: Te mandamos a la ruta raíz vacía, que es donde está el Login
-    this.router.navigate(['/']);
+    // Notifica al backend para registrar fecha_cierre en sesion_usuario
+    this.http.post(`${this.apiUrl}/logout`, {}, { headers }).pipe(
+      catchError(() => of(null))
+    ).subscribe(() => {
+      localStorage.removeItem('ezyro_token');
+      localStorage.removeItem('ezyro_user');
+      this.router.navigate(['/']);
+    });
   }
 
   isAuthenticated(): boolean {

@@ -1,41 +1,44 @@
 <div class="cert-card fade-in">
 
-    <h3 class="cert-title">Certificaciones</h3>
+    <h3 class="cert-title">Capacitaciones</h3>
 
+    @if (cargando) {
     <div class="cert-list">
-
-        <div class="cert-badge hover-up">
-            <span class="cert-icon">✔</span>
-            <div class="cert-info">
-                <span class="cert-name">Network+</span>
-                <span class="cert-level">Nivel Avanzado</span>
-            </div>
-        </div>
-
-        <div class="cert-badge hover-up">
-            <span class="cert-icon">✔</span>
-            <div class="cert-info">
-                <span class="cert-name">CCNA</span>
-                <span class="cert-level">Nivel Avanzado</span>
-            </div>
-        </div>
-
-        <div class="cert-badge hover-up">
-            <span class="cert-icon">✔</span>
-            <div class="cert-info">
-                <span class="cert-name">Fibra Óptica</span>
-                <span class="cert-level">Nivel Avanzado</span>
-            </div>
-        </div>
-
-        <div class="cert-badge hover-up">
-            <span class="cert-icon">✔</span>
-            <div class="cert-info">
-                <span class="cert-name">Seguridad N3</span>
-                <span class="cert-level">Nivel Avanzado</span>
-            </div>
-        </div>
-
+        <div class="cert-skeleton" *ngFor="let i of [1,2,3]"></div>
     </div>
+    } @else if (capacitaciones.length === 0) {
+    <div class="cert-vacio">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24"
+            stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 14l9-5-9-5-9 5 9 5zm0 7l-9-5 9-5 9 5-9 5z" />
+        </svg>
+        <p>Sin capacitaciones registradas</p>
+    </div>
+    } @else {
+    <div class="cert-list">
+        @for (cap of capacitaciones; track cap.id) {
+        <div class="cert-badge hover-up">
+            <span class="cert-icon" [ngClass]="nivelClase(cap.nivel_raw)">
+                @if (cap.verificado) {
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                } @else {
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="9" />
+                </svg>
+                }
+            </span>
+            <div class="cert-info">
+                <span class="cert-name">{{ cap.nombre }}</span>
+                <span class="cert-level">{{ cap.nivel }} · {{ cap.categoria }}</span>
+            </div>
+        </div>
+        }
+    </div>
+    }
 
 </div>
