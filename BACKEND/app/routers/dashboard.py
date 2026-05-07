@@ -3,7 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc, extract, func, case, or_, cast, Date
 from typing import Dict, Any, Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from collections import defaultdict
 import calendar
 
 from pydantic import BaseModel
@@ -811,6 +812,111 @@ def obtener_estadisticas_perfil(current_user: dict = Depends(verificar_token), d
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al cargar estadísticas: {str(e)}")
+
+
+@router.get("/perfil/asistencia")
+def obtener_asistencia_perfil(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """
+    Retorna los registros de asistencia del empleado autenticado para los últimos 30 días,
+    agrupados por día con entrada, salida, horas trabajadas, localización y estado.
+    """
+    try:
+        usuario_id = current_user.get("id")
+        empleado   = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+
+        if not empleado:
+            return {"status": "success", "data": {
+                "registros": [],
+                "resumen": {"dias_asistidos": 0, "promedio_horas": "—"}
+            }}
+
+        hoy    = date.today()
+        inicio = datetime.combine(hoy - timedelta(days=29), datetime.min.time())
+
+        registros_db = db.query(RegistroAsistencia).filter(
+            RegistroAsistencia.empleado_id == empleado.id,
+            RegistroAsistencia.fecha_hora  >= inicio
+        ).order_by(RegistroAsistencia.fecha_hora).all()
+
+        por_dia: dict = defaultdict(lambda: {"entradas": [], "salidas": [], "observacion": ""})
+        for r in registros_db:
+            fecha_key = r.fecha_hora.date().isoformat()
+            if r.tipo == "entrada":
+                por_dia[fecha_key]["entradas"].append(r.fecha_hora)
+            elif r.tipo == "salida":
+                por_dia[fecha_key]["salidas"].append(r.fecha_hora)
+            if r.observacion:
+                por_dia[fecha_key]["observacion"] = r.observacion
+
+        dias_semana_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        dias_corto_es  = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"]
+        meses_es       = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                          "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+
+        resultado = []
+        for fecha_str in sorted(por_dia.keys(), reverse=True):
+            d       = por_dia[fecha_str]
+            fecha_o = date.fromisoformat(fecha_str)
+
+            entrada_dt = min(d["entradas"]) if d["entradas"] else None
+            salida_dt  = max(d["salidas"])  if d["salidas"]  else None
+
+            if entrada_dt and salida_dt:
+                segs      = (salida_dt - entrada_dt).total_seconds()
+                mins_tot  = int(segs // 60)
+                h, m      = divmod(mins_tot, 60)
+                horas_txt = f"{h}h {m:02d}m" if m else f"{h}h"
+                estado    = "completo"
+            elif entrada_dt:
+                horas_txt = "En curso"
+                estado    = "en_curso"
+            else:
+                horas_txt = "—"
+                estado    = "incompleto"
+
+            resultado.append({
+                "dia":              f"{fecha_o.day:02d}",
+                "mes":              meses_es[fecha_o.month],
+                "anio":             str(fecha_o.year),
+                "dia_semana":       dias_semana_es[fecha_o.weekday()],
+                "dia_corto":        dias_corto_es[fecha_o.weekday()],
+                "entrada":          entrada_dt.strftime("%H:%M") if entrada_dt else None,
+                "salida":           salida_dt.strftime("%H:%M")  if salida_dt  else None,
+                "horas_trabajadas": horas_txt,
+                "estado":           estado,
+                "localizacion":     d["observacion"] or "Sede Principal"
+            })
+
+        # Resumen: solo días del mes actual con entrada Y salida
+        dias_completos_mes = [
+            k for k, v in por_dia.items()
+            if date.fromisoformat(k).month == hoy.month
+            and date.fromisoformat(k).year  == hoy.year
+            and v["entradas"] and v["salidas"]
+        ]
+        total_secs = sum(
+            (max(por_dia[k]["salidas"]) - min(por_dia[k]["entradas"])).total_seconds()
+            for k in dias_completos_mes
+        )
+        if dias_completos_mes:
+            avg_mins = round(total_secs / len(dias_completos_mes) / 60)
+            h, m     = divmod(avg_mins, 60)
+            promedio_txt = f"{h}h {m:02d}m" if m else f"{h}h"
+        else:
+            promedio_txt = "—"
+
+        return {
+            "status": "success",
+            "data": {
+                "registros": resultado,
+                "resumen": {
+                    "dias_asistidos": len(dias_completos_mes),
+                    "promedio_horas": promedio_txt
+                }
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error asistencia: {str(e)}")
 
 
 @router.put("/perfil")
