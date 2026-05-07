@@ -33,6 +33,8 @@ from app.models.categoria_habilidad import CategoriaHabilidad
 from app.models.registro_asistencia import RegistroAsistencia
 from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.sesion_usuario import SesionUsuario
+from app.models.contrato import Contrato
+from app.models.documento_laboral import DocumentoLaboral
 
 # Servicios y Seguridad
 from app.core.security import verificar_token
@@ -917,6 +919,127 @@ def obtener_asistencia_perfil(current_user: dict = Depends(verificar_token), db:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error asistencia: {str(e)}")
+
+
+@router.get("/perfil/contratos")
+def obtener_contratos(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    try:
+        usuario_id = current_user.get("id")
+        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+        if not empleado:
+            return {"status": "success", "data": []}
+
+        contratos = db.query(Contrato).filter(
+            Contrato.empleado_id == empleado.id
+        ).order_by(desc(Contrato.created_at)).all()
+
+        meses = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        tipo_label = {
+            'planilla': 'Planilla', 'recibo_honorarios': 'Recibo por Honorarios',
+            'practicante': 'Practicante', 'contrato': 'Tiempo Definido',
+        }
+        estado_label = {
+            'vigente': 'Vigente', 'vencido': 'Vencido',
+            'rescindido': 'Rescindido', 'renovado': 'Renovado',
+        }
+
+        data = []
+        for c in contratos:
+            fi = c.fecha_inicio
+            fecha_fmt = f"{fi.day} {meses[fi.month]}, {fi.year}" if fi else "—"
+            ff = c.fecha_fin
+            fecha_fin_fmt = f"{ff.day} {meses[ff.month]}, {ff.year}" if ff else None
+            data.append({
+                "id":          str(c.id),
+                "titulo":      f"Contrato {tipo_label.get(c.tipo, c.tipo.replace('_', ' ').title())}",
+                "tipo":        c.tipo,
+                "estado":      estado_label.get(c.estado, c.estado.title()),
+                "fecha_inicio": fecha_fmt,
+                "fecha_fin":   fecha_fin_fmt,
+                "url":         c.documento_url,
+            })
+        return {"status": "success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al cargar contratos: {str(e)}")
+
+
+@router.get("/perfil/boletas")
+def obtener_boletas(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    try:
+        usuario_id = current_user.get("id")
+        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+        if not empleado:
+            return {"status": "success", "data": []}
+
+        documentos = db.query(DocumentoLaboral).filter(
+            DocumentoLaboral.empleado_id == empleado.id
+        ).order_by(desc(DocumentoLaboral.fecha_emision)).all()
+
+        meses = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+
+        data = []
+        for d in documentos:
+            fe = d.fecha_emision
+            fecha_fmt = f"{fe.day} {meses[fe.month]}, {fe.year}" if fe else "—"
+            data.append({
+                "id":    str(d.id),
+                "titulo": d.nombre,
+                "tipo":  d.tipo,
+                "fecha": fecha_fmt,
+                "url":   d.url_archivo,
+            })
+        return {"status": "success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al cargar documentos: {str(e)}")
+
+
+@router.get("/perfil/permisos")
+def obtener_permisos_laborales(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    try:
+        usuario_id = current_user.get("id")
+        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+        if not empleado:
+            return {"status": "success", "data": []}
+
+        solicitudes = db.query(SolicitudLaboral).filter(
+            SolicitudLaboral.empleado_id == empleado.id
+        ).order_by(desc(SolicitudLaboral.created_at)).all()
+
+        meses = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        tipo_label = {
+            'justificacion_falta': 'Justificación de Falta', 'permiso': 'Permiso',
+            'vacaciones': 'Vacaciones', 'adelanto': 'Adelanto', 'otro': 'Otro',
+        }
+        estado_label = {
+            'pendiente': 'Pendiente', 'aprobada': 'Aprobada',
+            'rechazada': 'Rechazada', 'anulada': 'Anulada',
+        }
+
+        data = []
+        for s in solicitudes:
+            fecha_ref = s.fecha_inicio or (s.created_at.date() if s.created_at else None)
+            if hasattr(fecha_ref, 'date'):
+                fecha_ref = fecha_ref.date()
+            fecha_fmt = f"{fecha_ref.day} {meses[fecha_ref.month]}, {fecha_ref.year}" if fecha_ref else "—"
+
+            titulo = tipo_label.get(s.tipo, s.tipo.replace('_', ' ').title())
+            if s.descripcion:
+                titulo += f" — {s.descripcion[:60]}"
+
+            fi = s.fecha_inicio
+            ff = s.fecha_fin
+            data.append({
+                "id":          str(s.id),
+                "titulo":      titulo,
+                "tipo":        s.tipo,
+                "estado":      estado_label.get(s.estado, s.estado.title()),
+                "fecha":       fecha_fmt,
+                "fecha_inicio": f"{fi.day} {meses[fi.month]}, {fi.year}" if fi else None,
+                "fecha_fin":   f"{ff.day} {meses[ff.month]}, {ff.year}" if ff else None,
+            })
+        return {"status": "success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al cargar permisos: {str(e)}")
 
 
 @router.put("/perfil")
