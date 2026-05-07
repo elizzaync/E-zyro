@@ -1,7 +1,7 @@
 # app/routers/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import asc, desc, extract, func, case, or_
+from sqlalchemy import asc, desc, extract, func, case, or_, cast, Date
 from typing import Dict, Any, Optional
 from datetime import date, datetime
 import calendar
@@ -25,6 +25,13 @@ from app.models.rol_permiso import RolPermiso
 from app.models.usuario_permiso import UsuarioPermiso
 from app.models.proyecto_miembro import ProyectoMiembro
 from app.models.dispositivo_push import DispositivoPush
+from app.models.auditoria import Auditoria
+from app.models.empleado_habilidad import EmpleadoHabilidad
+from app.models.habilidad import Habilidad
+from app.models.categoria_habilidad import CategoriaHabilidad
+from app.models.registro_asistencia import RegistroAsistencia
+from app.models.solicitud_laboral import SolicitudLaboral
+from app.models.sesion_usuario import SesionUsuario
 
 # Servicios y Seguridad
 from app.core.security import verificar_token
@@ -622,6 +629,188 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error al cargar perfil")
+
+
+# Tablas y acciones que nunca se exponen al usuario por seguridad
+_TABLAS_SENSIBLES = frozenset({
+    'recuperacion_password', 'sesion_usuario', 'sesion_cliente',
+    'dispositivo_push', 'firma_digital', 'historial_firma', 'usuario'
+})
+_ACCIONES_PRIVADAS = frozenset({'LOGIN', 'LOGOUT'})
+
+
+@router.get("/perfil/capacitaciones")
+def obtener_capacitaciones(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Retorna las habilidades/capacitaciones registradas para el empleado autenticado."""
+    try:
+        usuario_id = current_user.get("id")
+        empleado   = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+
+        if not empleado:
+            return {"status": "success", "data": []}
+
+        rows = (
+            db.query(EmpleadoHabilidad, Habilidad, CategoriaHabilidad)
+            .join(Habilidad, EmpleadoHabilidad.habilidad_id == Habilidad.id)
+            .join(CategoriaHabilidad, Habilidad.categoria_id == CategoriaHabilidad.id)
+            .filter(EmpleadoHabilidad.empleado_id == empleado.id)
+            .order_by(CategoriaHabilidad.nombre, Habilidad.nombre)
+            .all()
+        )
+
+        nivel_es = {
+            'basico': 'Básico', 'intermedio': 'Intermedio',
+            'avanzado': 'Avanzado', 'experto': 'Experto'
+        }
+
+        data = [
+            {
+                "id":         eh.id,
+                "nombre":     h.nombre,
+                "categoria":  c.nombre,
+                "nivel":      nivel_es.get(eh.nivel, eh.nivel),
+                "nivel_raw":  eh.nivel,
+                "verificado": eh.verificado
+            }
+            for eh, h, c in rows
+        ]
+
+        return {"status": "success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error al cargar capacitaciones")
+
+
+@router.get("/perfil/actividad")
+def obtener_actividad_reciente(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """
+    Retorna los últimos registros de auditoría del usuario autenticado.
+    Se omiten explícitamente eventos de sesión, contraseñas y datos sensibles.
+    """
+    try:
+        usuario_id = current_user.get("id")
+
+        registros = (
+            db.query(Auditoria)
+            .filter(
+                Auditoria.usuario_id == usuario_id,
+                ~Auditoria.tabla_afectada.in_(_TABLAS_SENSIBLES),
+                ~Auditoria.accion.in_(_ACCIONES_PRIVADAS)
+            )
+            .order_by(desc(Auditoria.fecha))
+            .limit(15)
+            .all()
+        )
+
+        accion_label = {
+            'INSERT':          'creado',
+            'UPDATE':          'actualizado',
+            'DELETE':          'eliminado',
+            'EXPORT':          'exportado',
+            'ACCESO_DENEGADO': 'acceso denegado'
+        }
+
+        data = []
+        for r in registros:
+            desc_safe = r.descripcion or f"Registro {accion_label.get(r.accion, r.accion)} en {r.modulo or r.tabla_afectada}"
+            data.append({
+                "id":          r.id,
+                "accion":      r.accion,
+                "modulo":      r.modulo or r.tabla_afectada,
+                "descripcion": desc_safe,
+                "fecha":       r.fecha.isoformat() if r.fecha else None
+            })
+
+        return {"status": "success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Error al cargar actividad reciente")
+
+
+@router.get("/perfil/estadisticas")
+def obtener_estadisticas_perfil(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """
+    Retorna 4 métricas personales del empleado autenticado:
+    - Servicios completados (proyecto_servicio donde es responsable)
+    - Asistencias del mes (días con entrada Y salida en el mes actual)
+    - Solicitudes laborales pendientes
+    - Tiempo promedio de sesión (de sesion_usuario)
+    """
+    try:
+        usuario_id = current_user.get("id")
+        empleado   = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+        hoy        = date.today()
+
+        if not empleado:
+            return {"status": "success", "data": {
+                "servicios_completados": 0,
+                "asistencias_mes": 0,
+                "solicitudes_pendientes": 0,
+                "tiempo_promedio": "—"
+            }}
+
+        # 1. Servicios completados donde el empleado es responsable
+        servicios_completados = db.query(func.count(ProyectoServicio.id)).filter(
+            ProyectoServicio.responsable_id == empleado.id,
+            ProyectoServicio.estado         == 'Completado'
+        ).scalar() or 0
+
+        # 2. Asistencias del mes: días donde existe tanto 'entrada' como 'salida'
+        fechas_entrada = {
+            r[0] for r in db.query(cast(RegistroAsistencia.fecha_hora, Date))
+            .filter(
+                RegistroAsistencia.empleado_id == empleado.id,
+                RegistroAsistencia.tipo        == 'entrada',
+                extract('month', RegistroAsistencia.fecha_hora) == hoy.month,
+                extract('year',  RegistroAsistencia.fecha_hora) == hoy.year
+            ).distinct().all()
+        }
+        fechas_salida = {
+            r[0] for r in db.query(cast(RegistroAsistencia.fecha_hora, Date))
+            .filter(
+                RegistroAsistencia.empleado_id == empleado.id,
+                RegistroAsistencia.tipo        == 'salida',
+                extract('month', RegistroAsistencia.fecha_hora) == hoy.month,
+                extract('year',  RegistroAsistencia.fecha_hora) == hoy.year
+            ).distinct().all()
+        }
+        asistencias_mes = len(fechas_entrada & fechas_salida)
+
+        # 3. Solicitudes laborales pendientes del empleado
+        solicitudes_pendientes = db.query(func.count(SolicitudLaboral.id)).filter(
+            SolicitudLaboral.empleado_id == empleado.id,
+            SolicitudLaboral.estado      == 'pendiente'
+        ).scalar() or 0
+
+        # 4. Tiempo promedio de sesión (segundos → formato legible)
+        avg_seg = db.query(
+            func.avg(
+                func.extract(
+                    'epoch',
+                    func.coalesce(SesionUsuario.fecha_cierre, func.now()) - SesionUsuario.created_at
+                )
+            )
+        ).filter(SesionUsuario.usuario_id == usuario_id).scalar()
+
+        avg_mins = round((avg_seg or 0) / 60)
+        if avg_mins < 1:
+            tiempo_promedio = "< 1m"
+        elif avg_mins < 60:
+            tiempo_promedio = f"{avg_mins}m"
+        else:
+            h = avg_mins // 60
+            m = avg_mins % 60
+            tiempo_promedio = f"{h}h {m}m" if m else f"{h}h"
+
+        return {
+            "status": "success",
+            "data": {
+                "servicios_completados": int(servicios_completados),
+                "asistencias_mes":       int(asistencias_mes),
+                "solicitudes_pendientes": int(solicitudes_pendientes),
+                "tiempo_promedio":        tiempo_promedio
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al cargar estadísticas: {str(e)}")
 
 
 @router.put("/perfil")

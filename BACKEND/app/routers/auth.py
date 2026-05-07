@@ -1,10 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Security
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 import uuid
 import random
 import json
+import hashlib
 from zoneinfo import ZoneInfo
 # Importaciones de esquemas y modelos
 from app.schemas.auth import (
@@ -18,10 +21,12 @@ from app.models.usuario_rol import UsuarioRol
 from app.models.rol import Rol
 from app.models.auditoria import Auditoria
 from app.models.recuperacion_password import RecuperacionPassword
+from app.models.sesion_usuario import SesionUsuario
 from app.db.database import get_db
-from app.core.security import crear_token_acceso
+from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.core.email import enviar_correo_otp
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
+_http_bearer = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ZONA_HORARIA = ZoneInfo("America/Lima")
 # =========================================================================
@@ -48,7 +53,7 @@ def registrar_auditoria(db: Session, usuario_id: str, empresa_id: str, tabla: st
 # LOGIN
 # =========================================================================
 @router.post("/login")
-def login_usuario(credenciales: LoginData, db: Session = Depends(get_db)):
+def login_usuario(credenciales: LoginData, request: Request, db: Session = Depends(get_db)):
     usuario_db = db.query(Usuario).filter(Usuario.username == credenciales.username).first()
     if not usuario_db or not pwd_context.verify(credenciales.password, usuario_db.password_hash):
         raise HTTPException(
@@ -67,6 +72,29 @@ def login_usuario(credenciales: LoginData, db: Session = Depends(get_db)):
         "rol": nombre_rol_real
     }
     token_real = crear_token_acceso(datos_para_token)
+
+    # Registrar sesión en sesion_usuario
+    try:
+        ip_cliente  = request.client.host if request.client else None
+        user_agent  = request.headers.get("user-agent", "")[:255]
+        dispositivo = user_agent[:100]
+        token_hash  = hashlib.sha256(token_real.encode()).hexdigest()
+        fecha_exp   = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+        nueva_sesion = SesionUsuario(
+            usuario_id       = str(usuario_db.id),
+            token_hash       = token_hash,
+            ip               = ip_cliente,
+            user_agent       = user_agent,
+            dispositivo      = dispositivo,
+            activa           = True,
+            fecha_expiracion = fecha_exp
+        )
+        db.add(nueva_sesion)
+        db.commit()
+    except Exception:
+        db.rollback()  # No bloqueamos el login si falla el registro de sesión
+
     return {
         "status": "success",
         "mensaje": "Autenticación exitosa",
@@ -76,6 +104,33 @@ def login_usuario(credenciales: LoginData, db: Session = Depends(get_db)):
             "token": token_real
         }
     }
+
+
+@router.post("/logout")
+def logout_usuario(
+    credentials: HTTPAuthorizationCredentials = Security(_http_bearer),
+    current_user: dict = Depends(verificar_token),
+    db: Session = Depends(get_db)
+):
+    try:
+        token_hash = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+        usuario_id = current_user.get("id")
+
+        sesion = db.query(SesionUsuario).filter(
+            SesionUsuario.usuario_id == usuario_id,
+            SesionUsuario.token_hash == token_hash,
+            SesionUsuario.activa    == True
+        ).first()
+
+        if sesion:
+            sesion.activa       = False
+            sesion.fecha_cierre = datetime.now(ZONA_HORARIA)
+            db.commit()
+
+        return {"status": "success", "mensaje": "Sesión cerrada correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error al cerrar sesión")
 # =========================================================================
 # 1. SOLICITAR CÓDIGO
 # =========================================================================
