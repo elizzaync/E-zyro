@@ -4,7 +4,7 @@ import { ResetPasswordComponent } from './features/auth/reset-password/reset-pas
 import { HomeComponent } from './features/home/home.component';
 import { authGuard } from './core/guards/auth.guards';
 import { PersonalComponent } from './features/personal/personal.component';
-
+import { PermisosComponent } from './features/permisos/permisos.component';
 export const routes: Routes = [
   {
     path: '',
@@ -28,6 +28,9 @@ export const routes: Routes = [
     title: 'Personal | E-System Tic',
     canActivate: [authGuard]
   },
+    { path: 'permisos',
+    component: PermisosComponent,
+    canActivate: [authGuard] },
   {
     path: '**',
     redirectTo: ''
