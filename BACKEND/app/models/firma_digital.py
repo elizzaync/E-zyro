@@ -10,7 +10,7 @@ class FirmaDigital(Base):
     __tablename__ = "firma_digital"
 
     id                   = Column(String(36), primary_key=True, default=generate_uuid)
-    empleado_id          = Column(String(36), ForeignKey("empleado.id"), nullable=False)
+    usuario_id           = Column(String(36), ForeignKey("usuario.id"), nullable=False, unique=True)
     empresa_id           = Column(String(36), ForeignKey("empresa.id"), nullable=False)
     url_firma            = Column(String(500), nullable=False)
     public_id_cloudinary = Column(String(255), nullable=False)

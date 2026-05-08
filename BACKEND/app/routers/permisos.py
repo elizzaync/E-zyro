@@ -58,12 +58,9 @@ def obtener_mi_firma(
 ):
     try:
         usuario_id = current_user.get("id")
-        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
-        if not empleado:
-            return {"status": "success", "data": None}
 
         firma = db.query(FirmaDigital).filter(
-            FirmaDigital.empleado_id == empleado.id
+            FirmaDigital.usuario_id == usuario_id
         ).first()
 
         if not firma:
@@ -91,15 +88,15 @@ def enviar_solicitud(
         # ── 1. Gestión de la firma digital ───────────────────────────────
         firma_url = datos.firma_base64
         firma_existente = db.query(FirmaDigital).filter(
-            FirmaDigital.empleado_id == empleado.id
+            FirmaDigital.usuario_id == usuario_id
         ).first()
 
         if datos.firma_base64.startswith("data:"):
-            firma_public_id = f"e-zyro/firmas/firma_{empleado.id}"
+            firma_public_id = f"e-zyro/firmas/firma_{usuario_id}"
             firma_url = subir_imagen_cloudinary(
                 base64_data=datos.firma_base64,
                 folder="e-zyro/firmas",
-                public_id=f"firma_{empleado.id}"
+                public_id=f"firma_{usuario_id}"
             )
             if firma_existente:
                 firma_existente.url_firma            = firma_url
@@ -107,7 +104,7 @@ def enviar_solicitud(
                 firma_existente.updated_at           = datetime.utcnow()
             else:
                 db.add(FirmaDigital(
-                    empleado_id          = empleado.id,
+                    usuario_id           = usuario_id,
                     empresa_id           = empresa_id,
                     url_firma            = firma_url,
                     public_id_cloudinary = firma_public_id,
