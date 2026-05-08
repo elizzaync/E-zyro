@@ -31,7 +31,7 @@ export class App {
   // Función maestra que decide si se muestra o no
   verificarRuta(url: string) {
     // Si la URL tiene '/login' o es exactamente la ruta raíz '/', ocultamos el Navbar
-    if (url.includes('/login') || url === '/') {
+    if (url.includes('/login') || url.includes('/reset-password') || url === '/') {
       this.mostrarNavbar = false;
     } else {
       this.mostrarNavbar = true;

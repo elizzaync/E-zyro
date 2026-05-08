@@ -1,0 +1,41 @@
+<div class="tramite-card">
+
+  <div class="tc-header">
+    <div>
+      <h4>{{ tramite.tipo }}</h4>
+      <span class="tc-id">{{ tramite.id }} &bull; Solicitado el {{ tramite.fechaEmision }}</span>
+    </div>
+    <button class="btn-outline btn-sm">Ver PDF</button>
+  </div>
+
+  <div class="stepper-wrapper">
+
+    <div class="step active">
+      <div class="step-icon">&#10004;</div>
+      <p>Enviado</p>
+    </div>
+
+    <div class="step-line active"></div>
+
+    <div class="step" [class.active]="tramite.estadoActual !== 'enviado'">
+      <div class="step-icon">&#128064;</div>
+      <p>Visto</p>
+    </div>
+
+    <div class="step-line" [class.active]="tramite.estadoActual !== 'enviado'"></div>
+
+    <div class="step" [class.active]="tramite.estadoActual === 'proceso' || tramite.estadoActual === 'aceptado'">
+      <div class="step-icon">&#9881;</div>
+      <p>En Proceso</p>
+    </div>
+
+    <div class="step-line" [class.active]="tramite.estadoActual === 'proceso' || tramite.estadoActual === 'aceptado'"></div>
+
+    <div class="step" [class.active]="tramite.estadoActual === 'aceptado'">
+      <div class="step-icon">&#127937;</div>
+      <p>Resolución</p>
+    </div>
+
+  </div>
+
+</div>

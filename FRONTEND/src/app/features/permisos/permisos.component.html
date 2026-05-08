@@ -1,158 +1,56 @@
 <div class="permisos-layout fade-in">
 
-    <div class="header-section">
-        <div>
-            <h2 class="page-title">Trámites y Permisos</h2>
-            <p class="page-subtitle">Gestiona tus solicitudes de descanso, vacaciones y licencias.</p>
-        </div>
-
-        <div class="tabs-container">
-            <button class="tab-btn" [class.active]="tabActiva === 'solicitar'" (click)="cambiarTab('solicitar')">Nueva
-                Solicitud</button>
-            <button class="tab-btn" [class.active]="tabActiva === 'historial'" (click)="cambiarTab('historial')">Mis
-                Trámites</button>
-        </div>
+  <div class="header-section">
+    <div>
+      <h2 class="page-title">Trámites y Permisos</h2>
+      <p class="page-subtitle">Gestiona tus solicitudes de descanso, vacaciones y licencias.</p>
     </div>
 
-    @if (tabActiva === 'solicitar') {
+    <div class="tabs-container">
+      <button class="tab-btn" [class.active]="tabActiva === 'solicitar'" (click)="cambiarTab('solicitar')">
+        Nueva Solicitud
+      </button>
+      <button class="tab-btn" [class.active]="tabActiva === 'historial'" (click)="cambiarTab('historial')">
+        Mis Trámites
+      </button>
+    </div>
+  </div>
+
+  @if (tabActiva === 'solicitar') {
     <div class="split-view">
 
-        <div class="form-panel">
-            <h3 class="panel-title">Detalles de la Solicitud</h3>
+      <app-permiso-form
+        [firmaGuardadaUrl]="firmaGuardadaUrl"
+        (previewDataChange)="onPreviewData($event)"
+        (onEnviar)="generarPdf()">
+      </app-permiso-form>
 
-            <div class="form-group">
-                <label>Tipo de Permiso</label>
-                <select [(ngModel)]="formulario.tipo" class="form-input">
-                    <option value="Descanso Médico">Descanso Médico</option>
-                    <option value="Vacaciones Anuales">Vacaciones Anuales</option>
-                    <option value="Permiso Personal">Permiso Personal</option>
-                    <option value="Licencia por Paternidad/Maternidad">Licencia por Paternidad/Maternidad</option>
-                </select>
-            </div>
+      <div class="preview-wrapper">
+        <app-permiso-pdf-preview
+          [previewData]="previewData"
+          [empleadoInfo]="empleadoInfo">
+        </app-permiso-pdf-preview>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Desde</label>
-                    <input type="date" [(ngModel)]="formulario.fechaInicio" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label>Hasta</label>
-                    <input type="date" [(ngModel)]="formulario.fechaFin" class="form-input">
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Sustento / Motivo</label>
-                <textarea [(ngModel)]="formulario.motivo" class="form-input" rows="5"
-                    placeholder="Escribe el motivo detallado de tu solicitud..."></textarea>
-            </div>
-
-            <div class="firma-section">
-                <label>Firma Digital Obligatoria</label>
-                <div class="canvas-placeholder">
-                    @if (!formulario.firmaBase64) {
-                    <p>Área para dibujar la firma</p>
-                    <button class="btn-outline" (click)="simularFirma()">Simular Firma</button>
-                    } @else {
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/f/f6/Firma_de_ejemplo.png" alt="Firma"
-                        class="firma-img">
-                    }
-                </div>
-            </div>
-
-            <button class="btn-primary w-full" (click)="prepararEnvio()">
-                Firmar y Enviar Documento
-            </button>
-        </div>
-
-        <div class="pdf-preview-panel">
-            <div class="a4-paper">
-                <div class="a4-header">
-                    <h2>E-System TIC</h2>
-                    <p>Departamento de Recursos Humanos</p>
-                </div>
-
-                <h1 class="a4-title">FORMATO DE SOLICITUD DE PERMISO</h1>
-                <hr class="a4-divider">
-
-                <div class="a4-body">
-                    <p><strong>Tipo de Solicitud:</strong> {{ formulario.tipo }}</p>
-                    <p><strong>Fecha de Inicio:</strong> {{ formulario.fechaInicio || '---' }}</p>
-                    <p><strong>Fecha de Término:</strong> {{ formulario.fechaFin || '---' }}</p>
-
-                    <p style="margin-top: 20px;"><strong>Sustento del colaborador:</strong></p>
-                    <div class="a4-motivo-box">
-                        {{ formulario.motivo || 'El sustento aparecerá aquí a medida que escriba...' }}
-                    </div>
-                </div>
-
-                <div class="a4-footer">
-                    <div class="firma-caja">
-                        @if (formulario.firmaBase64) {
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/f/f6/Firma_de_ejemplo.png" alt="Firma"
-                            height="60">
-                        }
-                        <hr>
-                        <p>Firma del Colaborador</p>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-    </div>
-    }
-
-    @if (tabActiva === 'historial') {
-    <div class="historial-panel">
-
-        @for (tramite of misTramites; track tramite.id) {
-        <div class="tramite-card">
-
-            <div class="tc-header">
-                <div>
-                    <h4>{{ tramite.tipo }}</h4>
-                    <span class="tc-id">{{ tramite.id }} • Solicitado el {{ tramite.fechaEmision }}</span>
-                </div>
-                <button class="btn-outline btn-sm">Ver PDF</button>
-            </div>
-
-            <div class="stepper-wrapper">
-
-                <div class="step active">
-                    <div class="step-icon">✔</div>
-                    <p>Enviado</p>
-                </div>
-
-                <div class="step-line active"></div>
-
-                <div class="step" [class.active]="tramite.estadoActual !== 'enviado'">
-                    <div class="step-icon">👀</div>
-                    <p>Visto</p>
-                </div>
-
-                <div class="step-line" [class.active]="tramite.estadoActual !== 'enviado'"></div>
-
-                <div class="step"
-                    [class.active]="tramite.estadoActual === 'proceso' || tramite.estadoActual === 'aceptado'">
-                    <div class="step-icon">⚙</div>
-                    <p>En Proceso</p>
-                </div>
-
-                <div class="step-line"
-                    [class.active]="tramite.estadoActual === 'proceso' || tramite.estadoActual === 'aceptado'"></div>
-
-                <div class="step" [class.active]="tramite.estadoActual === 'aceptado'">
-                    <div class="step-icon">🏁</div>
-                    <p>Resolución</p>
-                </div>
-
-            </div>
-
-        </div>
+        @if (generandoPdf) {
+          <div class="pdf-loading-overlay">
+            <div class="pdf-loading-spinner"></div>
+            <span>Generando y enviando PDF...</span>
+          </div>
         }
+      </div>
 
     </div>
+  }
+
+  @if (tabActiva === 'historial') {
+    @if (cargandoHistorial) {
+      <div class="historial-loading">
+        <div class="pdf-loading-spinner"></div>
+        <span>Cargando tus trámites...</span>
+      </div>
+    } @else {
+      <app-permiso-historial [tramites]="misTramites"></app-permiso-historial>
     }
+  }
 
 </div>

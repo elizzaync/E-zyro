@@ -61,7 +61,7 @@ export class ProfileDocumentsComponent implements OnInit {
 
         if (permisos.status === 'success') {
           for (const p of permisos.data) {
-            docs.push({ id: p.id, titulo: p.titulo, categoria: 'Permisos', subtipo: p.tipo, estado: p.estado, fecha: p.fecha, url: null });
+            docs.push({ id: p.id, titulo: p.titulo, categoria: 'Permisos', subtipo: p.tipo, estado: p.estado, fecha: p.fecha, url: p.url ?? null });
           }
         }
 

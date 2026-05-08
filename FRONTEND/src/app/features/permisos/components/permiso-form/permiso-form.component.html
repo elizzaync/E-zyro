@@ -1,0 +1,228 @@
+<div class="form-panel">
+  <h3 class="panel-title">Detalles de la Solicitud</h3>
+
+  <form [formGroup]="form">
+
+    <!-- TIPO DE PERMISO -->
+    <div class="form-group">
+      <label class="field-label">Tipo de Permiso</label>
+      <div class="select-wrapper">
+        <select formControlName="tipo" class="form-input">
+          @for (t of tipos; track t.id) {
+            <option [value]="t.id">({{ t.num }}) {{ t.label }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <!-- BLOQUEO: VACACIONES SIN AÑO DE SERVICIO -->
+    @if (bloqueVacaciones) {
+      <div class="alert-wrapper">
+        <app-alert type="error"
+          message="No cuentas con el año de servicio requerido para solicitar vacaciones. Tu ingreso registrado es menor a 12 meses.">
+        </app-alert>
+      </div>
+    }
+
+    <!-- FECHAS -->
+    @if (mostrarFechas) {
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label">Fecha Inicio</label>
+          <input type="date" formControlName="fechaInicio" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="field-label">
+            Fecha Fin
+            @if (esMismoDia) { <span class="badge-tag">Mismo día</span> }
+          </label>
+          <input type="date" formControlName="fechaFin" class="form-input"
+            [attr.readonly]="esMismoDia ? '' : null">
+        </div>
+      </div>
+    }
+
+    <!-- SOLO FECHA: Permanencia -->
+    @if (soloHoras) {
+      <div class="form-group">
+        <label class="field-label">Fecha</label>
+        <input type="date" formControlName="fechaInicio" class="form-input">
+      </div>
+    }
+
+    <!-- HORAS -->
+    @if (mostrarHoras) {
+      <div class="form-row">
+        <div class="form-group">
+          <label class="field-label">Hora Inicio</label>
+          <input type="time" formControlName="horaInicio" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="field-label">Hora Fin</label>
+          <input type="time" formControlName="horaFin" class="form-input">
+        </div>
+      </div>
+      @if (horasCalculadas !== null) {
+        <div class="horas-badge">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+          </svg>
+          <strong>{{ horasCalculadas }}h</strong>&nbsp;calculadas automáticamente
+        </div>
+      }
+    }
+
+    <!-- LUGAR: Comisión / Transferencia -->
+    @if (mostrarLugar) {
+      <div class="form-group">
+        <label class="field-label">Lugar de Destino / Sede <span class="req-mark">*</span></label>
+        <input type="text" formControlName="lugarDestino" class="form-input"
+          placeholder="Ej. Sede Surco, Planta Norte...">
+      </div>
+    }
+
+    <!-- ARCHIVO: Cita Essalud / Recuperación -->
+    @if (mostrarArchivo) {
+      <div class="form-group">
+        <label class="field-label">Documento de Sustento <span class="req-mark">*</span></label>
+        <label class="file-upload-area" [class.has-file]="!!adjuntoNombre">
+          <span class="file-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </span>
+          @if (!adjuntoNombre) {
+            <span class="file-placeholder">Adjuntar PDF o imagen del sustento</span>
+          } @else {
+            <span class="file-name">{{ adjuntoNombre }}</span>
+          }
+          <input type="file" class="file-input-hidden" accept=".pdf,.jpg,.jpeg,.png"
+            (change)="onArchivoSeleccionado($event)">
+        </label>
+      </div>
+    }
+
+    <!-- MOTIVO -->
+    @if (mostrarMotivo) {
+      <div class="form-group">
+        <label class="field-label">Sustento / Motivo <span class="req-mark">*</span></label>
+        <textarea formControlName="motivo" class="form-input" rows="4"
+          placeholder="Escribe el motivo detallado de tu solicitud..."></textarea>
+      </div>
+    }
+
+    <!-- ══════════════════════════════
+         FIRMA DIGITAL
+         ══════════════════════════════ -->
+    <div class="firma-section">
+      <label class="field-label">Firma Digital Obligatoria</label>
+
+      @if (!firmaBase64) {
+
+        <!-- Opción: usar firma guardada en la nube -->
+        @if (firmaGuardadaUrl) {
+          <div class="firma-guardada-banner">
+            <div class="firma-guardada-preview">
+              <img [src]="firmaGuardadaUrl" alt="Firma guardada" class="firma-guardada-img">
+              <div class="firma-guardada-info">
+                <span class="firma-guardada-label">Tienes una firma guardada</span>
+                <span class="firma-guardada-sub">Puedes reutilizarla o crear una nueva</span>
+              </div>
+            </div>
+            <button type="button" class="btn-usar-guardada" (click)="usarFirmaGuardada()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Usar esta firma
+            </button>
+          </div>
+          <div class="firma-o-divider"><span>o crea una nueva</span></div>
+        }
+
+        <!-- Selector de modo -->
+        <div class="firma-tabs">
+          <button type="button" class="firma-tab" [class.active]="firmaMode === 'draw'"
+            (click)="firmaMode = 'draw'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+            </svg>
+            Dibujar
+          </button>
+          <button type="button" class="firma-tab" [class.active]="firmaMode === 'upload'"
+            (click)="firmaMode = 'upload'">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            Subir Imagen
+          </button>
+        </div>
+
+        <!-- MODO: DIBUJAR -->
+        @if (firmaMode === 'draw') {
+          <div class="canvas-wrapper">
+            <canvas #firmaCanvas class="firma-canvas"
+              (mousedown)="onMouseDown($event)"
+              (mousemove)="onMouseMove($event)"
+              (mouseup)="onMouseUp()"
+              (mouseleave)="onMouseUp()">
+            </canvas>
+            <p class="canvas-hint">Dibuja tu firma en el área de arriba</p>
+            <button type="button" class="btn-limpiar" (click)="limpiarFirma()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Limpiar
+            </button>
+          </div>
+        }
+
+        <!-- MODO: SUBIR IMAGEN -->
+        @if (firmaMode === 'upload') {
+          <label class="file-upload-area firma-upload-area">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Seleccionar imagen de firma (PNG, JPG)</span>
+            <input type="file" class="file-input-hidden" accept="image/*"
+              (change)="onFirmaImageSeleccionada($event)">
+          </label>
+        }
+
+      }
+
+      <!-- FIRMA REGISTRADA: previsualización -->
+      @if (firmaBase64) {
+        <div class="firma-preview-wrapper">
+          <img [src]="firmaBase64" alt="Tu firma" class="firma-preview-img">
+          <div class="firma-ok-row">
+            <div class="firma-ok-badge">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="#91d337" stroke-width="2.5"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Firma registrada</span>
+            </div>
+            <button type="button" class="btn-cambiar-firma" (click)="limpiarFirma()">
+              Cambiar
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- BOTÓN ENVIAR -->
+    <button type="button" class="btn-primary w-full"
+      [class.btn-blocked]="bloqueVacaciones"
+      [disabled]="bloqueVacaciones"
+      (click)="enviarSolicitud()">
+      Firmar y Enviar Documento
+    </button>
+
+  </form>
+</div>

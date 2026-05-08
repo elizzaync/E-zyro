@@ -1,0 +1,96 @@
+<div class="pdf-container">
+  <div class="a4-sheet" #a4Paper id="permiso-documento">
+
+    <div class="table-row header-row">
+      <div class="col-logo">
+        <img src="/logo.ico" alt="Logo">
+      </div>
+      <div class="col-center">
+        <span class="small-label">Formato</span>
+        <h1 class="doc-title">AUTORIZACION AL PERSONAL</h1>
+      </div>
+      <div class="col-meta">
+        <div class="meta-item"><span>Versión:</span> <strong>01</strong></div>
+        <div class="meta-item"><span>Fecha:</span> <strong>26-07-2024</strong></div>
+        <div class="meta-item"><span>Página:</span> <strong>1 - 1</strong></div>
+      </div>
+    </div>
+
+    <div class="table-row data-row">
+      <div class="col-field">
+        <span class="label">FECHA:</span>
+        <span class="value underline">{{ previewData?.fechaInicio || todayStr }}</span>
+      </div>
+      <div class="col-field">
+        <span class="label">ÁREA:</span>
+        <span class="value underline">{{ empleadoInfo.area }}</span>
+      </div>
+      <div class="col-field">
+        <span class="label">PUESTO:</span>
+        <span class="value underline">{{ empleadoInfo.cargo }}</span>
+      </div>
+    </div>
+
+    <div class="table-row name-row">
+      <span class="label">NOMBRE DEL COLABORADOR:</span>
+      <span class="value underline bold uppercase">{{ empleadoInfo.nombre }}</span>
+    </div>
+
+    <div class="options-container">
+      @for (tipo of tiposGrid; track tipo.id) {
+      <div class="option-box">
+        <div class="check-square" [class.active]="isSelected(tipo.id)">
+          {{ isSelected(tipo.id) ? 'X' : '' }}
+        </div>
+        <span class="option-text">({{ tipo.num }}) {{ tipo.label }}</span>
+      </div>
+      }
+    </div>
+
+    <div class="table-row note-box">
+      <p class="note-text">Nota: (1) (2) (3) (4) (5) (6) Indicar horario</p>
+      <div class="horario-flex">
+        <span>Inicio: <span class="underline">{{ previewData?.horaInicio || '00:00' }}</span></span>
+        <span>Fin: <span class="underline">{{ previewData?.horaFin || '00:00' }}</span></span>
+      </div>
+    </div>
+
+    <div class="table-row note-box no-top">
+      <p class="note-text">(7) (8) Indicar para el concepto:</p>
+      <div class="concept-grid">
+        <div class="c-item">Total Días: <span class="underline">{{ previewData?.totalDias || '---' }}</span></div>
+        <div class="c-item">Período: <span class="underline">{{ previewData?.periodo || '---' }}</span></div>
+        <div class="c-item">F. Inicio: <span class="underline">{{ previewData?.fechaInicio || '---' }}</span></div>
+        <div class="c-item">F. Fin: <span class="underline">{{ previewData?.fechaFin || '---' }}</span></div>
+      </div>
+    </div>
+
+    <div class="sustento-area">
+      <span class="label bold">SUSTENTO:</span>
+      <div class="sustento-text">{{ previewData?.motivo }}</div>
+    </div>
+
+    <div class="firmas-area">
+      <p class="firmas-aviso">Firmas del personal, de no ser autorización por medio electrónico</p>
+      <div class="firmas-wrapper">
+        <div class="firma-col">
+          <div class="firma-space">
+            @if (previewData?.firmaBase64) {
+            <img [src]="previewData?.firmaBase64" alt="Firma">
+            }
+          </div>
+          <div class="firma-line"></div>
+          <span class="f-label">Colaborador</span>
+          <span class="f-name">{{ empleadoInfo.nombre }}</span>
+        </div>
+        <div class="firma-col">
+          <div class="firma-space"></div>
+          <div class="firma-line"></div>
+          <span class="f-label">Jefe Inmediato</span>
+          <span class="f-name">--------------------------------</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

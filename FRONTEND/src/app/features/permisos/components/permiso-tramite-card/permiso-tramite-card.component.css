@@ -1,0 +1,149 @@
+.tramite-card {
+  background: var(--card-bg, #ffffff);
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  box-shadow: 0 4px 6px var(--shadow-color, rgba(0,0,0,0.03));
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.tramite-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px var(--shadow-color, rgba(0,0,0,0.06));
+}
+
+.tc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.tc-header h4 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+}
+
+.tc-id {
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  font-weight: 500;
+}
+
+/* STEPPER */
+.stepper-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 2;
+  width: 80px;
+}
+
+.step-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--page-bg, #f1f5f9);
+  color: var(--border-color, #cbd5e1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border: 2px solid var(--card-bg, #ffffff);
+  transition: background 0.3s, color 0.3s;
+}
+
+.step p {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+}
+
+.step.active .step-icon {
+  background: var(--brand-green, #91d337);
+  color: white;
+}
+
+.step.active p {
+  color: var(--text-main, #0f172a);
+}
+
+.step-line {
+  flex-grow: 1;
+  height: 4px;
+  background: var(--page-bg, #f1f5f9);
+  margin: 0 -20px;
+  z-index: 1;
+  transform: translateY(-12px);
+  transition: background 0.3s;
+}
+
+.step-line.active {
+  background: var(--brand-green, #91d337);
+}
+
+/* BOTÓN */
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-color, #cbd5e1);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-main, #0f172a);
+  transition: all 0.2s;
+}
+
+.btn-outline:hover { background: var(--hover-bg, #f1f5f9); }
+.btn-sm { font-size: 12px; padding: 6px 12px; }
+
+/* ── DARK MODE MANUAL ── */
+:host-context(html[data-theme="dark"]) .tramite-card {
+  background: var(--card-bg);
+  border-color: var(--border-color);
+}
+:host-context(html[data-theme="dark"]) .tc-header h4 { color: var(--text-main); }
+:host-context(html[data-theme="dark"]) .step-icon {
+  background: var(--page-bg);
+  border-color: var(--card-bg);
+  color: var(--text-muted);
+}
+:host-context(html[data-theme="dark"]) .step-line { background: var(--page-bg); }
+:host-context(html[data-theme="dark"]) .step.active p { color: var(--text-main); }
+:host-context(html[data-theme="dark"]) .btn-outline {
+  border-color: var(--border-color);
+  color: var(--text-main);
+}
+:host-context(html[data-theme="dark"]) .btn-outline:hover { background: var(--hover-bg); }
+
+/* ── DARK MODE SISTEMA ── */
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .tramite-card {
+    background: var(--card-bg);
+    border-color: var(--border-color);
+  }
+  :host-context(html:not([data-theme="light"])) .tc-header h4 { color: var(--text-main); }
+  :host-context(html:not([data-theme="light"])) .step-icon {
+    background: var(--page-bg);
+    border-color: var(--card-bg);
+    color: var(--text-muted);
+  }
+  :host-context(html:not([data-theme="light"])) .step-line { background: var(--page-bg); }
+  :host-context(html:not([data-theme="light"])) .step.active p { color: var(--text-main); }
+  :host-context(html:not([data-theme="light"])) .btn-outline {
+    border-color: var(--border-color);
+    color: var(--text-main);
+  }
+  :host-context(html:not([data-theme="light"])) .btn-outline:hover { background: var(--hover-bg); }
+}
