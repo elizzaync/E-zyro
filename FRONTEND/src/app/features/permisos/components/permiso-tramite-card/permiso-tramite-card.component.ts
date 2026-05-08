@@ -2,10 +2,11 @@ import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 export interface Solicitud {
-  id: string;
-  tipo: string;
+  id:           string;
+  tipo:         string;
   fechaEmision: string;
   estadoActual: 'enviado' | 'visto' | 'proceso' | 'aceptado' | 'rechazado';
+  urlPdf?:      string;
 }
 
 @Component({
@@ -17,4 +18,10 @@ export interface Solicitud {
 })
 export class PermisoTramiteCardComponent {
   @Input() tramite!: Solicitud;
+
+  verPdf(): void {
+    if (this.tramite.urlPdf) {
+      window.open(this.tramite.urlPdf, '_blank');
+    }
+  }
 }

@@ -5,7 +5,9 @@
       <h4>{{ tramite.tipo }}</h4>
       <span class="tc-id">{{ tramite.id }} &bull; Solicitado el {{ tramite.fechaEmision }}</span>
     </div>
-    <button class="btn-outline btn-sm">Ver PDF</button>
+    <button class="btn-outline btn-sm"
+            [disabled]="!tramite.urlPdf"
+            (click)="verPdf()">Ver PDF</button>
   </div>
 
   <div class="stepper-wrapper">

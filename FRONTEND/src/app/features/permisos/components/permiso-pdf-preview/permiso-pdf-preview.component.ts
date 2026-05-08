@@ -1,4 +1,4 @@
-import { Component, Input, ViewChild, ElementRef } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PreviewData } from '../permiso-form/permiso-form.component';
 
@@ -31,8 +31,6 @@ const TIPOS_PERMISO = [
 export class PermisoPdfPreviewComponent {
   @Input() previewData:  PreviewData | null = null;
   @Input() empleadoInfo: EmpleadoInfo       = { nombre: '', cargo: 'PRACTICANTE', area: 'TI' };
-
-  @ViewChild('a4Paper') a4PaperRef!: ElementRef<HTMLElement>;
 
   readonly tiposGrid = TIPOS_PERMISO.slice(0, 9);
   readonly tipoOtros = TIPOS_PERMISO[9];

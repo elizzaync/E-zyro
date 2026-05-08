@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PermisoFormComponent, PreviewData } from './components/permiso-form/permiso-form.component';
 import { PermisoPdfPreviewComponent, EmpleadoInfo } from './components/permiso-pdf-preview/permiso-pdf-preview.component';
@@ -6,9 +6,7 @@ import { PermisoHistorialComponent } from './components/permiso-historial/permis
 import { Solicitud } from './components/permiso-tramite-card/permiso-tramite-card.component';
 import { ToastService } from '../../core/services/toast.service';
 import { DashboardService } from '../../core/services/dashboard.service';
-import { PermisosService } from './permisos.service';
-
-import * as html2pdfLib from 'html2pdf.js';
+import { PermisosService } from '../../core/services/permisos.service';
 
 @Component({
   selector: 'app-permisos',
@@ -18,8 +16,6 @@ import * as html2pdfLib from 'html2pdf.js';
   styleUrls: ['./permisos.component.css']
 })
 export class PermisosComponent implements OnInit {
-  @ViewChild(PermisoPdfPreviewComponent) pdfPreviewRef?: PermisoPdfPreviewComponent;
-
   private toastService     = inject(ToastService);
   private dashboardService = inject(DashboardService);
   private permisosService  = inject(PermisosService);
@@ -62,7 +58,7 @@ export class PermisosComponent implements OnInit {
     this.empleadoInfo = {
       nombre: apellido && nombre ? `${apellido}, ${nombre}` : (nombre || apellido),
       cargo,
-      area: 'TI',
+      area:  (p.area ?? 'TI').toUpperCase(),
     };
   }
 
@@ -91,14 +87,19 @@ export class PermisosComponent implements OnInit {
 
   private mapearSolicitud(s: any): Solicitud {
     const estadoMap: Record<string, Solicitud['estadoActual']> = {
-      'Pendiente': 'enviado', 'Aprobada':  'aceptado',
-      'Rechazada': 'rechazado', 'Anulada': 'rechazado',
+      'pendiente':  'enviado',
+      'aprobada':   'aceptado',
+      'rechazada':  'rechazado',
+      'anulada':    'rechazado',
+      'en_proceso': 'proceso',
     };
+    const estado = (s.estado ?? '').toLowerCase();
     return {
       id:           `PRM-${String(s.id).substring(0, 6).toUpperCase()}`,
       tipo:         s.titulo ?? s.tipo,
       fechaEmision: s.fecha  ?? '',
-      estadoActual: estadoMap[s.estado] ?? 'enviado',
+      estadoActual: estadoMap[estado] ?? 'enviado',
+      urlPdf:       s.url_pdf ?? undefined,
     };
   }
 
@@ -112,52 +113,17 @@ export class PermisosComponent implements OnInit {
     this.previewData = data;
   }
 
-  // ── Generación y envío del PDF ────────────────────────────────────
+  // ── Envío de la solicitud (PDF generado en el backend con WeasyPrint) ────
   generarPdf(): void {
-    const a4Element = this.pdfPreviewRef?.a4PaperRef?.nativeElement;
-    if (!a4Element) {
-      this.toastService.mostrar('No se pudo capturar el documento. Inténtalo de nuevo.', 'error');
-      return;
-    }
     if (!this.previewData) {
       this.toastService.mostrar('Faltan datos del formulario.', 'error');
       return;
     }
-
     this.generandoPdf = true;
-
-    const options = {
-      margin:      0,
-      filename:    'Permiso_Solicitud.pdf',
-      image:       { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF:       { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    };
-
-    const html2pdf = (html2pdfLib as any).default || html2pdfLib;
-
-    html2pdf()
-      .from(a4Element)
-      .set(options)
-      .output('blob')
-      .then((blob: Blob) => this.procesarBlob(blob))
-      .catch(() => {
-        this.generandoPdf = false;
-        this.toastService.mostrar('Error al generar el PDF. Inténtalo de nuevo.', 'error');
-      });
+    this.enviarAlBackend();
   }
 
-  private procesarBlob(blob: Blob): void {
-    const reader = new FileReader();
-    reader.onload = () => this.enviarAlBackend(reader.result as string);
-    reader.onerror = () => {
-      this.generandoPdf = false;
-      this.toastService.mostrar('Error al procesar el PDF generado.', 'error');
-    };
-    reader.readAsDataURL(blob);
-  }
-
-  private enviarAlBackend(pdfBase64: string): void {
+  private enviarAlBackend(): void {
     const p = this.previewData!;
 
     const payload = {
@@ -172,7 +138,6 @@ export class PermisosComponent implements OnInit {
       horas_calculadas: p.horasCalculadas ?? undefined,
       total_dias:       typeof p.totalDias === 'number' ? p.totalDias : undefined,
       firma_base64:     p.firmaBase64    ?? '',
-      pdf_base64:       pdfBase64,
       adjunto_nombre:   p.adjuntoNombre  || undefined,
     };
 
@@ -186,6 +151,7 @@ export class PermisosComponent implements OnInit {
               tipo:         res.data.tipo,
               fechaEmision: res.data.fechaEmision,
               estadoActual: 'enviado',
+              urlPdf:       res.data.url_pdf ?? undefined,
             },
             ...this.misTramites,
           ];

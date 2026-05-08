@@ -30,7 +30,6 @@ export class PermisosService {
     horas_calculadas?: number | null;
     total_dias?:      number | null;
     firma_base64:     string;
-    pdf_base64:       string;
     adjunto_nombre?:  string;
   }): Observable<any> {
     return this.http.post(`${this.apiUrl}/enviar-solicitud`, datos, { headers: this.getHeaders() });
