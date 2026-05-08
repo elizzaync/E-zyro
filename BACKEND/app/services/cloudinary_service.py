@@ -1,4 +1,5 @@
 from app.core.config_cloudinary import cloudinary_uploader
+import cloudinary.uploader
 import logging
 import re
 
@@ -64,3 +65,25 @@ def eliminar_imagen_cloudinary(url: str):
 
     except Exception as e:
         logging.error(f"Error al intentar eliminar foto antigua en Cloudinary: {str(e)}")
+
+
+def subir_pdf_cloudinary(base64_data: str, public_id: str) -> str:
+    """
+    Sube un PDF en base64 a Cloudinary como recurso raw.
+    Acepta data URI completo (data:application/pdf;base64,...) o solo la parte base64.
+    """
+    try:
+        if ',' in base64_data:
+            base64_data = base64_data.split(',')[1]
+
+        upload_result = cloudinary.uploader.upload(
+            f"data:application/pdf;base64,{base64_data}",
+            public_id=public_id,
+            resource_type="raw",
+            overwrite=True,
+            invalidate=True,
+        )
+        return upload_result.get("secure_url", "")
+    except Exception as e:
+        logging.error(f"Error subiendo PDF a Cloudinary: {str(e)}")
+        raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")

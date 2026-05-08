@@ -20,5 +20,7 @@ class SolicitudLaboral(Base):
     aprobado_por     = Column(String(36), nullable=True)
     fecha_aprobacion = Column(DateTime, nullable=True)
     observacion      = Column(String(500))
+    url_pdf          = Column(String(500), nullable=True)
+    public_id_pdf    = Column(String(255), nullable=True)
     created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at       = Column(DateTime, nullable=True)

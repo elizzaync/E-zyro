@@ -1007,8 +1007,20 @@ def obtener_permisos_laborales(current_user: dict = Depends(verificar_token), db
 
         meses = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
         tipo_label = {
-            'justificacion_falta': 'Justificación de Falta', 'permiso': 'Permiso',
-            'vacaciones': 'Vacaciones', 'adelanto': 'Adelanto', 'otro': 'Otro',
+            'justificacion_falta':    'Justificación de Falta',
+            'permiso':                'Permiso',
+            'vacaciones':             'Vacaciones',
+            'adelanto':               'Adelanto',
+            'otro':                   'Otro',
+            'permiso_personal':       'Permiso Personal',
+            'comision_trabajo':       'Comisión de Trabajo',
+            'cita_essalud':           'Cita Essalud / Clínica',
+            'permanencia_capacitacion': 'Permanencia Capacitación',
+            'permanencia_extra':      'Permanencia Extra (H)',
+            'recuperacion':           'Recuperación (H)',
+            'dias_libres':            'Día(s) Libre(s)',
+            'transferencia':          'Transferencia',
+            'otros':                  'Otros',
         }
         estado_label = {
             'pendiente': 'Pendiente', 'aprobada': 'Aprobada',
@@ -1023,19 +1035,23 @@ def obtener_permisos_laborales(current_user: dict = Depends(verificar_token), db
             fecha_fmt = f"{fecha_ref.day} {meses[fecha_ref.month]}, {fecha_ref.year}" if fecha_ref else "—"
 
             titulo = tipo_label.get(s.tipo, s.tipo.replace('_', ' ').title())
-            if s.descripcion:
-                titulo += f" — {s.descripcion[:60]}"
+            motivo = s.descripcion or ""
+            if '|' in motivo:
+                motivo = motivo.split('|')[1].strip() if len(motivo.split('|')) > 1 else ''
+            if motivo:
+                titulo += f" — {motivo[:60]}"
 
             fi = s.fecha_inicio
             ff = s.fecha_fin
             data.append({
-                "id":          str(s.id),
-                "titulo":      titulo,
-                "tipo":        s.tipo,
-                "estado":      estado_label.get(s.estado, s.estado.title()),
-                "fecha":       fecha_fmt,
+                "id":           str(s.id),
+                "titulo":       titulo,
+                "tipo":         s.tipo,
+                "estado":       estado_label.get(s.estado, s.estado.title()),
+                "fecha":        fecha_fmt,
                 "fecha_inicio": f"{fi.day} {meses[fi.month]}, {fi.year}" if fi else None,
-                "fecha_fin":   f"{ff.day} {meses[ff.month]}, {ff.year}" if ff else None,
+                "fecha_fin":    f"{ff.day} {meses[ff.month]}, {ff.year}" if ff else None,
+                "url":          getattr(s, 'url_pdf', None),
             })
         return {"status": "success", "data": data}
     except Exception as e:
