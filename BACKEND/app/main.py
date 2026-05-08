@@ -17,6 +17,7 @@ from app.models import (  # noqa: F401
     registro_asistencia, rol, rol_permiso, sesion_usuario,
     solicitud_laboral, usuario, usuario_permiso, usuario_rol,
     contrato, documento_laboral, firma_digital,
+    historial_firma, documento_firmado,
 )
 
 

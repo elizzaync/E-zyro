@@ -619,6 +619,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "telefono":       usuario.telefono or "",
                     "fotoUrl":        usuario.foto_url or "",
                     "rol":            empleado.cargo,
+                    "area":           empleado.area or "",
                     "fechaCreacion":  fecha_txt,
                     "permisos_modulo": modulos_permitidos
                 },

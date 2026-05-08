@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.models.empleado import Empleado
 from app.models.firma_digital import FirmaDigital
+from app.models.historial_firma import HistorialFirma
+from app.models.documento_firmado import DocumentoFirmado
 from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.auditoria import Auditoria
 from app.core.security import verificar_token
@@ -66,7 +68,7 @@ def obtener_mi_firma(
         if not firma:
             return {"status": "success", "data": None}
 
-        return {"status": "success", "data": {"url_firma": firma.url_firma}}
+        return {"status": "success", "data": {"url_firma": firma.url_cloudinary}}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -86,7 +88,7 @@ def enviar_solicitud(
             raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
         # ── 1. Gestión de la firma digital ───────────────────────────────
-        firma_url = datos.firma_base64
+        firma_url       = datos.firma_base64
         firma_existente = db.query(FirmaDigital).filter(
             FirmaDigital.usuario_id == usuario_id
         ).first()
@@ -99,22 +101,34 @@ def enviar_solicitud(
                 public_id=f"firma_{usuario_id}"
             )
             if firma_existente:
-                firma_existente.url_firma            = firma_url
-                firma_existente.public_id_cloudinary = firma_public_id
-                firma_existente.updated_at           = datetime.utcnow()
-            else:
-                db.add(FirmaDigital(
+                # Guardar firma anterior en historial antes de reemplazar
+                db.add(HistorialFirma(
                     usuario_id           = usuario_id,
                     empresa_id           = empresa_id,
-                    url_firma            = firma_url,
-                    public_id_cloudinary = firma_public_id,
+                    url_cloudinary       = firma_existente.url_cloudinary,
+                    public_id_cloudinary = firma_existente.public_id_cloudinary,
                 ))
+                firma_existente.url_cloudinary       = firma_url
+                firma_existente.public_id_cloudinary = firma_public_id
+                firma_existente.primera_vez          = False
+                firma_existente.updated_at           = datetime.utcnow()
+            else:
+                nueva_firma = FirmaDigital(
+                    usuario_id           = usuario_id,
+                    empresa_id           = empresa_id,
+                    url_cloudinary       = firma_url,
+                    public_id_cloudinary = firma_public_id,
+                    primera_vez          = True,
+                )
+                db.add(nueva_firma)
+                db.flush()
+                firma_existente = nueva_firma
         # Si firma_base64 comienza con "http" es la URL guardada; no se re-sube.
 
         # ── 2. Subir PDF a Cloudinary ─────────────────────────────────────
-        pdf_uid        = uuid.uuid4().hex[:12]
-        pdf_public_id  = f"e-zyro/permisos/permiso_{empleado.id}_{pdf_uid}"
-        pdf_url        = subir_pdf_cloudinary(datos.pdf_base64, pdf_public_id)
+        pdf_uid       = uuid.uuid4().hex[:12]
+        pdf_public_id = f"e-zyro/permisos/permiso_{empleado.id}_{pdf_uid}"
+        pdf_url       = subir_pdf_cloudinary(datos.pdf_base64, pdf_public_id)
 
         # ── 3. Parsear fechas ─────────────────────────────────────────────
         def parse_date(s: Optional[str]) -> Optional[date]:
@@ -151,7 +165,16 @@ def enviar_solicitud(
         db.add(solicitud)
         db.flush()
 
-        # ── 6. Registrar en Auditoría ─────────────────────────────────────
+        # ── 6. Registrar DocumentoFirmado ─────────────────────────────────
+        if firma_existente and firma_existente.id:
+            db.add(DocumentoFirmado(
+                firma_id        = firma_existente.id,
+                empresa_id      = empresa_id,
+                documento_id    = solicitud.id,
+                tabla_documento = "solicitud_laboral",
+            ))
+
+        # ── 7. Registrar en Auditoría ─────────────────────────────────────
         datos_nuevos = json.dumps({
             "tipo":         datos.tipo,
             "tipo_label":   TIPOS_LABEL.get(datos.tipo, datos.tipo_label),
@@ -161,20 +184,20 @@ def enviar_solicitud(
         }, ensure_ascii=False)
 
         db.add(Auditoria(
-            id              = str(uuid.uuid4()),
-            empresa_id      = empresa_id,
-            usuario_id      = usuario_id,
-            tabla_afectada  = "solicitud_laboral",
-            registro_id     = solicitud.id,
-            accion          = "INSERT",
-            modulo          = "Permisos",
-            descripcion     = f"Solicitud de {TIPOS_LABEL.get(datos.tipo, datos.tipo_label)} enviada",
-            datos_nuevos    = datos_nuevos,
+            id             = str(uuid.uuid4()),
+            empresa_id     = empresa_id,
+            usuario_id     = usuario_id,
+            tabla_afectada = "solicitud_laboral",
+            registro_id    = solicitud.id,
+            accion         = "INSERT",
+            modulo         = "Permisos",
+            descripcion    = f"Solicitud de {TIPOS_LABEL.get(datos.tipo, datos.tipo_label)} enviada",
+            datos_nuevos   = datos_nuevos,
         ))
 
         db.commit()
 
-        # ── 7. Respuesta ──────────────────────────────────────────────────
+        # ── 8. Respuesta ──────────────────────────────────────────────────
         hoy        = date.today()
         fecha_fmt  = f"{hoy.day} {MESES[hoy.month]}, {hoy.year}"
         id_display = f"PRM-{solicitud.id[:6].upper()}"
