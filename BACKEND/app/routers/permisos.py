@@ -16,7 +16,11 @@ from app.models.documento_firmado import DocumentoFirmado
 from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.auditoria import Auditoria
 from app.core.security import verificar_token
-from app.services.cloudinary_service import subir_imagen_cloudinary, subir_pdf_cloudinary
+from app.services.cloudinary_service import (
+    subir_imagen_cloudinary,
+    subir_pdf_bytes_cloudinary,
+)
+from app.services.pdf_service import generar_pdf_solicitud
 
 router = APIRouter(prefix="/permisos", tags=["Permisos"])
 
@@ -31,6 +35,14 @@ TIPOS_LABEL = {
     'dias_libres':              'Día(s) Libre(s)',
     'transferencia':            'Transferencia',
     'otros':                    'Otros',
+}
+
+# Mapeo hacia los valores permitidos por chk_solicitud_tipo en BD:
+#   'justificacion_falta' | 'permiso' | 'vacaciones' | 'adelanto' | 'otro'
+TIPO_MAP_BD = {
+    'vacaciones':          'vacaciones',
+    'adelanto':            'adelanto',
+    'justificacion_falta': 'justificacion_falta',
 }
 
 MESES = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
@@ -49,7 +61,6 @@ class SolicitudPermisoRequest(BaseModel):
     horas_calculadas: Optional[float] = None
     total_dias:       Optional[int]   = None
     firma_base64:     str
-    pdf_base64:       str
     adjunto_nombre:   Optional[str] = None
 
 
@@ -101,7 +112,6 @@ def enviar_solicitud(
                 public_id=f"firma_{usuario_id}"
             )
             if firma_existente:
-                # Guardar firma anterior en historial antes de reemplazar
                 db.add(HistorialFirma(
                     usuario_id           = usuario_id,
                     empresa_id           = empresa_id,
@@ -125,12 +135,7 @@ def enviar_solicitud(
                 firma_existente = nueva_firma
         # Si firma_base64 comienza con "http" es la URL guardada; no se re-sube.
 
-        # ── 2. Subir PDF a Cloudinary ─────────────────────────────────────
-        pdf_uid       = uuid.uuid4().hex[:12]
-        pdf_public_id = f"e-zyro/permisos/permiso_{empleado.id}_{pdf_uid}"
-        pdf_url       = subir_pdf_cloudinary(datos.pdf_base64, pdf_public_id)
-
-        # ── 3. Parsear fechas ─────────────────────────────────────────────
+        # ── 2. Parsear fechas ─────────────────────────────────────────────
         def parse_date(s: Optional[str]) -> Optional[date]:
             if not s:
                 return None
@@ -142,30 +147,64 @@ def enviar_solicitud(
         fecha_inicio = parse_date(datos.fecha_inicio)
         fecha_fin    = parse_date(datos.fecha_fin)
 
-        # ── 4. Construir descripción ──────────────────────────────────────
-        partes = [TIPOS_LABEL.get(datos.tipo, datos.tipo_label)]
+        # ── 3. Mapear tipo al valor permitido por el constraint BD ────────
+        # chk_solicitud_tipo: 'justificacion_falta'|'permiso'|'vacaciones'|'adelanto'|'otro'
+        tipo_bd     = TIPO_MAP_BD.get(datos.tipo, 'permiso')
+        tipo_label  = TIPOS_LABEL.get(datos.tipo, datos.tipo_label)
+
+        # ── 4. Construir descripción (tipo original al inicio para no perder detalle)
+        partes = [datos.tipo]
+        partes.append(tipo_label)
         if datos.motivo:
             partes.append(datos.motivo[:200])
         if datos.lugar_destino:
             partes.append(f"Lugar: {datos.lugar_destino}")
         descripcion = " | ".join(partes)[:500]
 
-        # ── 5. Crear SolicitudLaboral ─────────────────────────────────────
+        # ── 5. Crear SolicitudLaboral (sin url_pdf aún) ───────────────────
         solicitud = SolicitudLaboral(
-            empleado_id   = empleado.id,
-            empresa_id    = empresa_id,
-            tipo          = datos.tipo,
-            estado        = 'pendiente',
-            descripcion   = descripcion,
-            fecha_inicio  = fecha_inicio,
-            fecha_fin     = fecha_fin,
-            url_pdf       = pdf_url,
-            public_id_pdf = pdf_public_id,
+            empleado_id  = empleado.id,
+            empresa_id   = empresa_id,
+            tipo         = tipo_bd,
+            estado       = 'pendiente',
+            descripcion  = descripcion,
+            fecha_inicio = fecha_inicio,
+            fecha_fin    = fecha_fin,
+            url_pdf      = None,
+            public_id_pdf= None,
         )
         db.add(solicitud)
-        db.flush()
+        db.flush()  # Obtiene el ID antes del commit
 
-        # ── 6. Registrar DocumentoFirmado ─────────────────────────────────
+        # ── 6. Generar PDF con overlay (reportlab + pypdf) ────────────────
+        perfil = getattr(empleado, '__dict__', {})
+        pdf_datos = {
+            "tipo_original":  datos.tipo,
+            "tipo":           tipo_bd,
+            "nombre":         perfil.get("nombre", ""),
+            "cargo":          perfil.get("cargo", perfil.get("puesto", "")),
+            "area":           perfil.get("area", ""),
+            "fecha_inicio":   datos.fecha_inicio or "",
+            "fecha_fin":      datos.fecha_fin    or "",
+            "hora_inicio":    datos.hora_inicio  or "",
+            "hora_fin":       datos.hora_fin     or "",
+            "motivo":         datos.motivo       or "",
+            "total_dias":     datos.total_dias,
+            "periodo":        f"{datos.fecha_inicio} - {datos.fecha_fin}" if datos.fecha_inicio and datos.fecha_fin else "",
+            "firma_base64":   datos.firma_base64 if datos.firma_base64.startswith("data:") else firma_url,
+        }
+        pdf_bytes = generar_pdf_solicitud(pdf_datos)
+
+        # ── 7. Subir PDF generado a Cloudinary ────────────────────────────
+        pdf_uid       = uuid.uuid4().hex[:12]
+        pdf_public_id = f"e-zyro/permisos/permiso_{empleado.id}_{pdf_uid}"
+        pdf_url       = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)
+
+        # ── 8. Actualizar la solicitud con la URL del PDF ─────────────────
+        solicitud.url_pdf       = pdf_url
+        solicitud.public_id_pdf = pdf_public_id
+
+        # ── 9. Registrar DocumentoFirmado ─────────────────────────────────
         if firma_existente and firma_existente.id:
             db.add(DocumentoFirmado(
                 firma_id        = firma_existente.id,
@@ -174,10 +213,11 @@ def enviar_solicitud(
                 tabla_documento = "solicitud_laboral",
             ))
 
-        # ── 7. Registrar en Auditoría ─────────────────────────────────────
+        # ── 10. Registrar en Auditoría ────────────────────────────────────
         datos_nuevos = json.dumps({
             "tipo":         datos.tipo,
-            "tipo_label":   TIPOS_LABEL.get(datos.tipo, datos.tipo_label),
+            "tipo_bd":      tipo_bd,
+            "tipo_label":   tipo_label,
             "estado":       "pendiente",
             "fecha_inicio": str(fecha_inicio),
             "url_pdf":      pdf_url,
@@ -191,13 +231,13 @@ def enviar_solicitud(
             registro_id    = solicitud.id,
             accion         = "INSERT",
             modulo         = "Permisos",
-            descripcion    = f"Solicitud de {TIPOS_LABEL.get(datos.tipo, datos.tipo_label)} enviada",
+            descripcion    = f"Solicitud de {tipo_label} enviada",
             datos_nuevos   = datos_nuevos,
         ))
 
         db.commit()
 
-        # ── 8. Respuesta ──────────────────────────────────────────────────
+        # ── 11. Respuesta ─────────────────────────────────────────────────
         hoy        = date.today()
         fecha_fmt  = f"{hoy.day} {MESES[hoy.month]}, {hoy.year}"
         id_display = f"PRM-{solicitud.id[:6].upper()}"
@@ -206,7 +246,7 @@ def enviar_solicitud(
             "status": "success",
             "data": {
                 "id":           id_display,
-                "tipo":         TIPOS_LABEL.get(datos.tipo, datos.tipo_label),
+                "tipo":         tipo_label,
                 "fechaEmision": fecha_fmt,
                 "estadoActual": "enviado",
                 "url_pdf":      pdf_url,

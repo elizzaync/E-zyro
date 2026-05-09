@@ -67,6 +67,26 @@ def eliminar_imagen_cloudinary(url: str):
         logging.error(f"Error al intentar eliminar foto antigua en Cloudinary: {str(e)}")
 
 
+def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
+    """
+    Sube un PDF desde bytes en memoria a Cloudinary como recurso raw.
+    """
+    try:
+        import base64 as _b64
+        encoded = _b64.b64encode(pdf_bytes).decode("utf-8")
+        upload_result = cloudinary.uploader.upload(
+            f"data:application/pdf;base64,{encoded}",
+            public_id=public_id,
+            resource_type="raw",
+            overwrite=True,
+            invalidate=True,
+        )
+        return upload_result.get("secure_url", "")
+    except Exception as e:
+        logging.error(f"Error subiendo PDF (bytes) a Cloudinary: {str(e)}")
+        raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")
+
+
 def subir_pdf_cloudinary(base64_data: str, public_id: str) -> str:
     """
     Sube un PDF en base64 a Cloudinary como recurso raw.

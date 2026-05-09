@@ -12,3 +12,5 @@ requests
 cloudinary
 firebase-admin
 apscheduler
+reportlab
+pypdf
