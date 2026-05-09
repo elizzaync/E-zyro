@@ -4,8 +4,7 @@ import json
 from datetime import date, datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -20,7 +19,6 @@ from app.services.cloudinary_service import (
     subir_imagen_cloudinary,
     subir_pdf_bytes_cloudinary,
 )
-from app.services.pdf_service import generar_pdf_solicitud
 
 router = APIRouter(prefix="/permisos", tags=["Permisos"])
 
@@ -37,48 +35,22 @@ TIPOS_LABEL = {
     'otros':                    'Otros',
 }
 
-# Mapeo hacia los valores permitidos por chk_solicitud_tipo en BD:
-#   'justificacion_falta' | 'permiso' | 'vacaciones' | 'adelanto' | 'otro'
-TIPO_MAP_BD = {
-    'vacaciones':          'vacaciones',
-    'adelanto':            'adelanto',
-    'justificacion_falta': 'justificacion_falta',
-}
-
 MESES = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
          "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-
-
-class SolicitudPermisoRequest(BaseModel):
-    tipo:             str
-    tipo_label:       str
-    fecha_inicio:     Optional[str] = None
-    fecha_fin:        Optional[str] = None
-    hora_inicio:      Optional[str] = None
-    hora_fin:         Optional[str] = None
-    motivo:           Optional[str] = None
-    lugar_destino:    Optional[str] = None
-    horas_calculadas: Optional[float] = None
-    total_dias:       Optional[int]   = None
-    firma_base64:     str
-    adjunto_nombre:   Optional[str] = None
 
 
 @router.get("/mi-firma")
 def obtener_mi_firma(
     current_user: dict = Depends(verificar_token),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     try:
         usuario_id = current_user.get("id")
-
         firma = db.query(FirmaDigital).filter(
             FirmaDigital.usuario_id == usuario_id
         ).first()
-
         if not firma:
             return {"status": "success", "data": None}
-
         return {"status": "success", "data": {"url_firma": firma.url_cloudinary}}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -86,9 +58,25 @@ def obtener_mi_firma(
 
 @router.post("/enviar-solicitud")
 def enviar_solicitud(
-    datos: SolicitudPermisoRequest,
-    current_user: dict = Depends(verificar_token),
-    db: Session = Depends(get_db)
+    # ── Archivo PDF generado en el cliente (pdf-lib) ──────────────
+    pdf_file: UploadFile = File(...),
+
+    # ── Campos del formulario ─────────────────────────────────────
+    tipo:             str           = Form(...),
+    tipo_label:       str           = Form(...),
+    firma_base64:     str           = Form(...),
+    fecha_inicio:     Optional[str] = Form(None),
+    fecha_fin:        Optional[str] = Form(None),
+    hora_inicio:      Optional[str] = Form(None),
+    hora_fin:         Optional[str] = Form(None),
+    motivo:           Optional[str] = Form(None),
+    lugar_destino:    Optional[str] = Form(None),
+    adjunto_nombre:   Optional[str] = Form(None),
+    horas_calculadas: Optional[str] = Form(None),  # llega como string desde FormData
+    total_dias:       Optional[str] = Form(None),  # llega como string desde FormData
+
+    current_user: dict    = Depends(verificar_token),
+    db:           Session = Depends(get_db),
 ):
     try:
         usuario_id = current_user.get("id")
@@ -99,17 +87,17 @@ def enviar_solicitud(
             raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
         # ── 1. Gestión de la firma digital ───────────────────────────────
-        firma_url       = datos.firma_base64
+        firma_url       = firma_base64
         firma_existente = db.query(FirmaDigital).filter(
             FirmaDigital.usuario_id == usuario_id
         ).first()
 
-        if datos.firma_base64.startswith("data:"):
+        if firma_base64.startswith("data:"):
             firma_public_id = f"e-zyro/firmas/firma_{usuario_id}"
             firma_url = subir_imagen_cloudinary(
-                base64_data=datos.firma_base64,
+                base64_data=firma_base64,
                 folder="e-zyro/firmas",
-                public_id=f"firma_{usuario_id}"
+                public_id=f"firma_{usuario_id}",
             )
             if firma_existente:
                 db.add(HistorialFirma(
@@ -133,9 +121,9 @@ def enviar_solicitud(
                 db.add(nueva_firma)
                 db.flush()
                 firma_existente = nueva_firma
-        # Si firma_base64 comienza con "http" es la URL guardada; no se re-sube.
+        # Si firma_base64 comienza con "http", es la URL ya guardada; no se re-sube.
 
-        # ── 2. Parsear fechas ─────────────────────────────────────────────
+        # ── 2. Parsear fechas y números ───────────────────────────────────
         def parse_date(s: Optional[str]) -> Optional[date]:
             if not s:
                 return None
@@ -144,67 +132,43 @@ def enviar_solicitud(
             except ValueError:
                 return None
 
-        fecha_inicio = parse_date(datos.fecha_inicio)
-        fecha_fin    = parse_date(datos.fecha_fin)
+        fecha_inicio_dt = parse_date(fecha_inicio)
+        fecha_fin_dt    = parse_date(fecha_fin)
 
-        # ── 3. Mapear tipo al valor permitido por el constraint BD ────────
-        # chk_solicitud_tipo: 'justificacion_falta'|'permiso'|'vacaciones'|'adelanto'|'otro'
-        tipo_bd     = TIPO_MAP_BD.get(datos.tipo, 'permiso')
-        tipo_label  = TIPOS_LABEL.get(datos.tipo, datos.tipo_label)
+        # ── 3. Subir PDF recibido a Cloudinary (resource_type raw, extensión .pdf)
+        pdf_bytes     = pdf_file.file.read()
+        pdf_uid       = uuid.uuid4().hex[:12]
+        pdf_public_id = f"e-zyro/permisos/permiso_{empleado.id}_{pdf_uid}.pdf"
+        pdf_url       = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)
 
-        # ── 4. Construir descripción (tipo original al inicio para no perder detalle)
-        partes = [datos.tipo]
-        partes.append(tipo_label)
-        if datos.motivo:
-            partes.append(datos.motivo[:200])
-        if datos.lugar_destino:
-            partes.append(f"Lugar: {datos.lugar_destino}")
+        # ── 4. Construir descripción ──────────────────────────────────────
+        label_display = TIPOS_LABEL.get(tipo, tipo_label)
+        partes = [tipo, label_display]
+        if motivo:
+            partes.append(motivo[:200])
+        if lugar_destino:
+            partes.append(f"Lugar: {lugar_destino}")
         descripcion = " | ".join(partes)[:500]
 
-        # ── 5. Crear SolicitudLaboral (sin url_pdf aún) ───────────────────
+        # ── 5. Crear SolicitudLaboral ─────────────────────────────────────
+        # NOTA: el campo tipo se guarda tal cual llega del frontend.
+        # Asegúrate de que el constraint chk_solicitud_tipo en PostgreSQL
+        # esté actualizado para aceptar los valores exactos del frontend.
         solicitud = SolicitudLaboral(
             empleado_id  = empleado.id,
             empresa_id   = empresa_id,
-            tipo         = tipo_bd,
+            tipo         = tipo,
             estado       = 'pendiente',
             descripcion  = descripcion,
-            fecha_inicio = fecha_inicio,
-            fecha_fin    = fecha_fin,
-            url_pdf      = None,
-            public_id_pdf= None,
+            fecha_inicio = fecha_inicio_dt,
+            fecha_fin    = fecha_fin_dt,
+            url_pdf      = pdf_url,
+            public_id_pdf= pdf_public_id,
         )
         db.add(solicitud)
-        db.flush()  # Obtiene el ID antes del commit
+        db.flush()
 
-        # ── 6. Generar PDF con overlay (reportlab + pypdf) ────────────────
-        perfil = getattr(empleado, '__dict__', {})
-        pdf_datos = {
-            "tipo_original":  datos.tipo,
-            "tipo":           tipo_bd,
-            "nombre":         perfil.get("nombre", ""),
-            "cargo":          perfil.get("cargo", perfil.get("puesto", "")),
-            "area":           perfil.get("area", ""),
-            "fecha_inicio":   datos.fecha_inicio or "",
-            "fecha_fin":      datos.fecha_fin    or "",
-            "hora_inicio":    datos.hora_inicio  or "",
-            "hora_fin":       datos.hora_fin     or "",
-            "motivo":         datos.motivo       or "",
-            "total_dias":     datos.total_dias,
-            "periodo":        f"{datos.fecha_inicio} - {datos.fecha_fin}" if datos.fecha_inicio and datos.fecha_fin else "",
-            "firma_base64":   datos.firma_base64 if datos.firma_base64.startswith("data:") else firma_url,
-        }
-        pdf_bytes = generar_pdf_solicitud(pdf_datos)
-
-        # ── 7. Subir PDF generado a Cloudinary ────────────────────────────
-        pdf_uid       = uuid.uuid4().hex[:12]
-        pdf_public_id = f"e-zyro/permisos/permiso_{empleado.id}_{pdf_uid}"
-        pdf_url       = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)
-
-        # ── 8. Actualizar la solicitud con la URL del PDF ─────────────────
-        solicitud.url_pdf       = pdf_url
-        solicitud.public_id_pdf = pdf_public_id
-
-        # ── 9. Registrar DocumentoFirmado ─────────────────────────────────
+        # ── 6. Registrar DocumentoFirmado ─────────────────────────────────
         if firma_existente and firma_existente.id:
             db.add(DocumentoFirmado(
                 firma_id        = firma_existente.id,
@@ -213,13 +177,12 @@ def enviar_solicitud(
                 tabla_documento = "solicitud_laboral",
             ))
 
-        # ── 10. Registrar en Auditoría ────────────────────────────────────
+        # ── 7. Registrar en Auditoría ─────────────────────────────────────
         datos_nuevos = json.dumps({
-            "tipo":         datos.tipo,
-            "tipo_bd":      tipo_bd,
-            "tipo_label":   tipo_label,
+            "tipo":         tipo,
+            "tipo_label":   label_display,
             "estado":       "pendiente",
-            "fecha_inicio": str(fecha_inicio),
+            "fecha_inicio": str(fecha_inicio_dt),
             "url_pdf":      pdf_url,
         }, ensure_ascii=False)
 
@@ -231,13 +194,13 @@ def enviar_solicitud(
             registro_id    = solicitud.id,
             accion         = "INSERT",
             modulo         = "Permisos",
-            descripcion    = f"Solicitud de {tipo_label} enviada",
+            descripcion    = f"Solicitud de {label_display} enviada",
             datos_nuevos   = datos_nuevos,
         ))
 
         db.commit()
 
-        # ── 11. Respuesta ─────────────────────────────────────────────────
+        # ── 8. Respuesta ──────────────────────────────────────────────────
         hoy        = date.today()
         fecha_fmt  = f"{hoy.day} {MESES[hoy.month]}, {hoy.year}"
         id_display = f"PRM-{solicitud.id[:6].upper()}"
@@ -246,11 +209,11 @@ def enviar_solicitud(
             "status": "success",
             "data": {
                 "id":           id_display,
-                "tipo":         tipo_label,
+                "tipo":         label_display,
                 "fechaEmision": fecha_fmt,
                 "estadoActual": "enviado",
                 "url_pdf":      pdf_url,
-            }
+            },
         }
 
     except HTTPException:
