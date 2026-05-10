@@ -25,8 +25,10 @@ from pydantic import BaseModel, Field
 # ─────────────────────────────────────────────
 CONFIG = {
     "UMBRAL_APROBADO": 0.42,
-    "JITTER_NUM": 5,
-    "MODELO_ENCODING": "large",
+    # FIX: "small" es 5x más rápido que "large" con pérdida mínima de precisión.
+    # FIX: jitters=1 elimina el principal cuello de botella de latencia.
+    "JITTER_NUM": 1,
+    "MODELO_ENCODING": "small",
 }
 
 logging.basicConfig(
@@ -76,7 +78,6 @@ def base64_a_imagen(b64_str: str) -> np.ndarray:
     """Decodifica un string base64 a un array numpy (imagen RGB)."""
     try:
         datos = base64.b64decode(b64_str)
-        arr = np.frombuffer(datos, dtype=np.uint8)
         img = face_recognition.load_image_file(io.BytesIO(datos))
         return img
     except Exception as e:
@@ -144,7 +145,7 @@ def _verificar(img_base: np.ndarray, img_selfie: np.ndarray) -> dict:
     response_model=RespuestaVerificacion,
     summary="Verificar identidad facial y marcar asistencia",
 )
-async def verificar_asistencia(solicitud: SolicitudVerificacion):
+def verificar_asistencia(solicitud: SolicitudVerificacion):  # FIX: sync — face_recognition bloquea el event loop en async
     """
     Recibe dos imágenes en base64:
     - **imagen_base**: foto de referencia del empleado.
