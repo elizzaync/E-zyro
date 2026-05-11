@@ -73,14 +73,17 @@ def eliminar_imagen_cloudinary(url: str):
 def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
     """
     Sube un PDF desde bytes en memoria a Cloudinary como recurso raw.
+    Usa io.BytesIO para enviar binario directo — evita corrupción por base64.
+    El public_id NO debe incluir la extensión; se fuerza via format="pdf".
     """
     try:
-        import base64 as _b64
-        encoded = _b64.b64encode(pdf_bytes).decode("utf-8")
+        import io
+        pid = public_id.removesuffix(".pdf")   # Cloudinary añade .pdf via format
         upload_result = cloudinary.uploader.upload(
-            f"data:application/pdf;base64,{encoded}",
-            public_id=public_id,
+            io.BytesIO(pdf_bytes),
+            public_id=pid,
             resource_type="raw",
+            format="pdf",
             overwrite=True,
             invalidate=True,
         )

@@ -136,9 +136,11 @@ def enviar_solicitud(
         fecha_fin_dt    = parse_date(fecha_fin)
 
         # ── 3. Subir PDF recibido a Cloudinary (resource_type raw, extensión .pdf)
+        pdf_file.file.seek(0)                  # garantiza cursor al inicio
         pdf_bytes     = pdf_file.file.read()
         pdf_uid       = uuid.uuid4().hex[:12]
-        pdf_public_id = f"e-zyro/permisos/permiso_{empleado.id}_{pdf_uid}.pdf"
+        # public_id SIN extensión — subir_pdf_bytes_cloudinary la añade via format="pdf"
+        pdf_public_id = f"e-zyro/permisos/permiso_{str(empleado.id)}_{pdf_uid}"
         pdf_url       = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)
 
         # ── 4. Construir descripción ──────────────────────────────────────
