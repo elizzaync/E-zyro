@@ -4,7 +4,6 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/asistencia_models.dart';
 import '../services/asistencia_service.dart';
@@ -997,65 +996,21 @@ class _SubirFotoBaseSheet extends StatefulWidget {
 }
 
 class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
-  CameraController? _camCtrl;
-  bool _camReady   = false;
-  String? _camError;
   XFile?  _captured;
   bool    _isSaving = false;
   String? _errorMsg;
 
-  @override
-  void initState() {
-    super.initState();
-    _initCamera();
-  }
-
-  @override
-  void dispose() {
-    _camCtrl?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _initCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) {
-        if (mounted) setState(() => _camError = 'No se encontró cámara disponible');
-        return;
-      }
-      final front = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
-      final ctrl = CameraController(
-        front,
-        ResolutionPreset.high,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
-      );
-      await ctrl.initialize();
-      if (!mounted) { ctrl.dispose(); return; }
-      setState(() { _camCtrl = ctrl; _camReady = true; });
-    } catch (e) {
-      if (mounted) setState(() => _camError = 'Error al iniciar cámara');
+  Future<void> _openCamera() async {
+    final photo = await Navigator.push<XFile?>(
+      context,
+      MaterialPageRoute(builder: (_) => const _FullScreenCameraPage()),
+    );
+    if (photo != null && mounted) {
+      setState(() { _captured = photo; _errorMsg = null; });
     }
   }
 
-  Future<void> _capture() async {
-    if (_camCtrl == null || !_camReady || _isSaving) return;
-    try {
-      final photo = await _camCtrl!.takePicture();
-      await _camCtrl!.pausePreview();
-      if (mounted) setState(() { _captured = photo; _errorMsg = null; });
-    } catch (_) {
-      if (mounted) setState(() => _errorMsg = 'Error al capturar foto. Intenta de nuevo.');
-    }
-  }
-
-  Future<void> _retake() async {
-    await _camCtrl?.resumePreview();
-    if (mounted) setState(() { _captured = null; _errorMsg = null; });
-  }
+  void _retake() => setState(() { _captured = null; _errorMsg = null; });
 
   Future<void> _save() async {
     if (_captured == null) {
@@ -1067,7 +1022,7 @@ class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
       await widget.service.subirFotoBase(File(_captured!.path));
       if (!mounted) return;
       Navigator.of(context).pop();
-      widget.onConfigured(); // actualización optimista en el parent (no awaited)
+      widget.onConfigured();
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -1080,9 +1035,8 @@ class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final surface  = Theme.of(context).colorScheme.surface;
-    final screenH  = MediaQuery.of(context).size.height;
-    final previewH = screenH * 0.44;
+    final surface = Theme.of(context).colorScheme.surface;
+    const green   = Color(0xFF8FD11B);
 
     return Container(
       decoration: BoxDecoration(
@@ -1093,7 +1047,6 @@ class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
@@ -1103,8 +1056,6 @@ class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
                 ),
               ),
             ),
-
-            // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
@@ -1127,12 +1078,74 @@ class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 20),
 
-            // Área de cámara / preview
-            _buildCameraArea(previewH),
+            // Área de foto
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _captured == null
+                  ? GestureDetector(
+                      onTap: _openCamera,
+                      child: Container(
+                        width: double.infinity, height: 220,
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.orange.withValues(alpha: 0.45), width: 2),
+                        ),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo_outlined, size: 52, color: Colors.orange),
+                            SizedBox(height: 12),
+                            Text('Tomar foto biométrica', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w600, fontSize: 15)),
+                            SizedBox(height: 4),
+                            Text('Toca para abrir la cámara', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.file(File(_captured!.path), width: double.infinity, height: 280, fit: BoxFit.cover),
+                        ),
+                        Positioned(
+                          top: 12, left: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(color: green.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(20)),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.white, size: 13),
+                                SizedBox(width: 4),
+                                Text('Foto capturada', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        if (_isSaving)
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(16)),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
+                                  SizedBox(height: 12),
+                                  Text('Subiendo al servidor...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                                  SizedBox(height: 4),
+                                  Text('Procesando foto biométrica', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
 
-            // Error
             if (_errorMsg != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
@@ -1151,231 +1164,81 @@ class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
 
             const SizedBox(height: 18),
 
-            // Botones de acción
-            _buildActions(),
+            // Botones
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: _isSaving
+                  ? SizedBox(
+                      width: double.infinity, height: 54,
+                      child: ElevatedButton(
+                        onPressed: null,
+                        style: ElevatedButton.styleFrom(
+                          disabledBackgroundColor: Colors.orange.withValues(alpha: 0.55),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
+                            SizedBox(width: 12),
+                            Text('Subiendo foto...', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    )
+                  : _captured != null
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _retake,
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('Retomar'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  side: const BorderSide(color: Colors.orange),
+                                  foregroundColor: Colors.orange,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton.icon(
+                                onPressed: _save,
+                                icon: const Icon(Icons.cloud_upload_outlined, size: 20),
+                                label: const Text('Guardar foto', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : SizedBox(
+                          width: double.infinity, height: 54,
+                          child: ElevatedButton.icon(
+                            onPressed: _openCamera,
+                            icon: const Icon(Icons.camera_alt, size: 20),
+                            label: const Text('Abrir cámara', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                          ),
+                        ),
+            ),
             const SizedBox(height: 20),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCameraArea(double previewH) {
-    const green = Color(0xFF8FD11B);
-
-    // Error de cámara
-    if (_camError != null) {
-      return Container(
-        height: previewH,
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(16)),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.no_photography, size: 42, color: Colors.red),
-              const SizedBox(height: 10),
-              Text(_camError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Inicializando cámara
-    if (!_camReady || _camCtrl == null) {
-      return Container(
-        height: previewH,
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(16)),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
-              SizedBox(height: 12),
-              Text('Iniciando cámara...', style: TextStyle(color: Colors.white70)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Foto capturada — review mode
-    if (_captured != null) {
-      return Stack(
-        children: [
-          Container(
-            height: previewH,
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.file(File(_captured!.path), fit: BoxFit.cover, width: double.infinity),
-            ),
-          ),
-          // Badge "Foto capturada"
-          Positioned(
-            top: 12, left: 36,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(color: green.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(20)),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 13),
-                  SizedBox(width: 4),
-                  Text('Foto capturada', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-          ),
-          // Overlay de carga al guardar
-          if (_isSaving)
-            Positioned.fill(
-              left: 24, right: 24,
-              child: Container(
-                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(16)),
-                child: const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
-                    SizedBox(height: 12),
-                    Text('Subiendo al servidor...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                    SizedBox(height: 4),
-                    Text('Procesando foto biométrica', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      );
-    }
-
-    // Preview en vivo
-    return Container(
-      height: previewH,
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CameraPreview(_camCtrl!),
-            // Guía oval para el rostro
-            Center(
-              child: Container(
-                width:  previewH * 0.50,
-                height: previewH * 0.72,
-                decoration: BoxDecoration(
-                  border: Border.all(color: green.withValues(alpha: 0.75), width: 2.5),
-                  borderRadius: BorderRadius.circular(previewH * 0.38),
-                ),
-              ),
-            ),
-            // Hint
-            Positioned(
-              bottom: 12, left: 0, right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
-                  child: const Text('Centra tu cara en el óvalo', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActions() {
-    if (_camError != null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24),
-        child: Text('Verifica los permisos de cámara en Configuración del dispositivo.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)),
-      );
-    }
-
-    // Guardando
-    if (_isSaving) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: SizedBox(
-          width: double.infinity, height: 54,
-          child: ElevatedButton(
-            onPressed: null,
-            style: ElevatedButton.styleFrom(
-              disabledBackgroundColor: Colors.orange.withValues(alpha: 0.55),
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
-                SizedBox(width: 12),
-                Text('Subiendo foto...', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Foto tomada → retomar / guardar
-    if (_captured != null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _retake,
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retomar'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  side: const BorderSide(color: Colors.orange),
-                  foregroundColor: Colors.orange,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.cloud_upload_outlined, size: 20),
-                label: const Text('Guardar foto', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Preview en vivo → botón de captura
-    if (!_camReady) return const SizedBox.shrink();
-
-    return GestureDetector(
-      onTap: _capture,
-      child: Container(
-        width: 72, height: 72,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.orange,
-          boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)],
-        ),
-        child: const Icon(Icons.camera_alt, color: Colors.white, size: 34),
       ),
     );
   }
@@ -1408,21 +1271,17 @@ class _RegistroSheetState extends State<_RegistroSheet> {
   bool _isLoading = false;
   String? _errorMsg;
 
-  Future<void> _takeSelfie() async {
-    try {
-      final image = await ImagePicker().pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        maxWidth: 800, maxHeight: 800,
-        imageQuality: 85,
-      );
-      if (image != null && mounted) {
-        setState(() { _selfie = image; _errorMsg = null; });
-      }
-    } catch (_) {
-      if (mounted) { setState(() => _errorMsg = 'No se pudo acceder a la cámara'); }
+  Future<void> _openCamera() async {
+    final photo = await Navigator.push<XFile?>(
+      context,
+      MaterialPageRoute(builder: (_) => const _FullScreenCameraPage()),
+    );
+    if (photo != null && mounted) {
+      setState(() { _selfie = photo; _errorMsg = null; });
     }
   }
+
+  void _retake() => setState(() { _selfie = null; _errorMsg = null; });
 
   Future<void> _submit() async {
     if (_selfie == null) {
@@ -1479,7 +1338,6 @@ class _RegistroSheetState extends State<_RegistroSheet> {
               ),
               const SizedBox(height: 20),
 
-              // Título
               Row(
                 children: [
                   Container(
@@ -1504,7 +1362,6 @@ class _RegistroSheetState extends State<_RegistroSheet> {
               ),
               const SizedBox(height: 20),
 
-              // GPS con dirección
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -1566,13 +1423,12 @@ class _RegistroSheetState extends State<_RegistroSheet> {
               ),
               const SizedBox(height: 20),
 
-              // Selfie
               const Text('Verificación Facial', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               const SizedBox(height: 10),
 
               if (_selfie == null)
                 GestureDetector(
-                  onTap: _isLoading ? null : _takeSelfie,
+                  onTap: _isLoading ? null : _openCamera,
                   child: Container(
                     width: double.infinity, height: 160,
                     decoration: BoxDecoration(
@@ -1583,11 +1439,11 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.camera_alt_outlined, size: 46, color: Colors.grey.shade400),
+                        Icon(Icons.add_a_photo_outlined, size: 46, color: Colors.grey.shade400),
                         const SizedBox(height: 10),
                         Text('Tomar selfie', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600, fontSize: 15)),
                         const SizedBox(height: 4),
-                        Text('Toca para abrir la cámara frontal', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                        Text('Toca para abrir la cámara', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
                       ],
                     ),
                   ),
@@ -1602,7 +1458,7 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                     Positioned(
                       top: 10, right: 10,
                       child: GestureDetector(
-                        onTap: _isLoading ? null : _takeSelfie,
+                        onTap: _isLoading ? null : _retake,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(20)),
@@ -1686,6 +1542,212 @@ class _RegistroSheetState extends State<_RegistroSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Cámara a pantalla completa (compartida por ambos flujos) ──────────────────
+class _FullScreenCameraPage extends StatefulWidget {
+  const _FullScreenCameraPage();
+
+  @override
+  State<_FullScreenCameraPage> createState() => _FullScreenCameraPageState();
+}
+
+class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
+  CameraController? _ctrl;
+  bool _ready = false;
+  XFile? _captured;
+
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _ctrl?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) { if (mounted) Navigator.pop(context); return; }
+      final front = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+      final ctrl = CameraController(front, ResolutionPreset.high, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
+      await ctrl.initialize();
+      try {
+        await ctrl.setExposureMode(ExposureMode.auto);
+        await ctrl.setFocusMode(FocusMode.auto);
+      } catch (_) {}
+      if (!mounted) { ctrl.dispose(); return; }
+      setState(() { _ctrl = ctrl; _ready = true; });
+    } catch (_) {
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _capture() async {
+    if (_ctrl == null || !_ready) return;
+    final photo = await _ctrl!.takePicture();
+    await _ctrl!.pausePreview();
+    if (mounted) setState(() => _captured = photo);
+  }
+
+  Future<void> _retake() async {
+    await _ctrl?.resumePreview();
+    if (mounted) setState(() => _captured = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF8FD11B);
+
+    if (!_ready || _ctrl == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)))),
+      );
+    }
+
+    if (_captured != null) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.file(File(_captured!.path), fit: BoxFit.cover),
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: _retake,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                          child: const Icon(Icons.refresh, color: Colors.white),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(color: green.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(20)),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, color: Colors.white, size: 14),
+                            SizedBox(width: 4),
+                            Text('Foto tomada', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0, left: 0, right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _retake,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Retomar'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white54),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.pop(context, _captured),
+                          icon: const Icon(Icons.check, size: 20),
+                          label: const Text('Usar foto', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: green,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          CameraPreview(_ctrl!),
+          Positioned(
+            top: 0, left: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                    child: const Icon(Icons.arrow_back, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0, left: 0, right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 32),
+                child: Center(
+                  child: GestureDetector(
+                    onTap: _capture,
+                    child: Container(
+                      width: 78, height: 78,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                        border: Border.all(color: Colors.white70, width: 4),
+                        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 16)],
+                      ),
+                      child: const Icon(Icons.camera_alt, color: Colors.black87, size: 36),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
