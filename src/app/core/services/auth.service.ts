@@ -97,6 +97,14 @@ export class AuthService {
     });
   }
 
+  logoutAllDevices(): Observable<any> {
+    const token = localStorage.getItem('ezyro_token');
+    const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+    return this.http.post(`${this.apiUrl}/password-recovery/logout-all`, {}, { headers }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
   // ==========================================
   // UTILIDADES
   // ==========================================

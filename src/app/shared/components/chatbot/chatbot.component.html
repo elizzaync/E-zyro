@@ -1,0 +1,68 @@
+@if (!isOpen) {
+<button class="chatbot-fab fade-in-up" (click)="toggleChat()" title="Abrir E-Zyro">
+    <div class="fab-avatar-container">
+        <img src="/e-zyro-avatar.png" alt="E-Zyro" class="avatar-img">
+    </div>
+</button>
+}
+
+@if (isOpen) {
+<div class="chatbot-window fade-in-up">
+    <div class="chat-header">
+        <div class="header-info">
+            <div class="bot-avatar-header">
+                <img src="/e-zyro-avatar.png" alt="E-Zyro" class="avatar-img">
+            </div>
+            <div class="bot-details">
+                <h4>E-Zyro</h4>
+                <span class="status"><span class="dot"></span> En línea</span>
+            </div>
+        </div>
+        <button class="btn-close" (click)="toggleChat()">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="chat-body" #chatScroll>
+        <div class="chat-date-separator">Hoy</div>
+
+        @for (msg of messages; track $index) {
+        <div class="message-wrapper" [class.user]="msg.sender === 'user'" [class.bot]="msg.sender === 'bot'">
+            @if (msg.sender === 'bot') {
+            <div class="msg-avatar-container">
+                <img src="/e-zyro-avatar.png" alt="E-Zyro" class="avatar-img">
+            </div>
+            }
+            <div class="message-bubble">
+                <p>{{ msg.text }}</p>
+                <span class="msg-time">{{ msg.time }}</span>
+            </div>
+        </div>
+        }
+
+        @if (isTyping) {
+        <div class="message-wrapper bot">
+            <div class="msg-avatar-container">
+                <img src="/e-zyro-avatar.png" alt="E-Zyro" class="avatar-img">
+            </div>
+            <div class="message-bubble typing-bubble">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+            </div>
+        </div>
+        }
+    </div>
+
+    <div class="chat-footer">
+        <input type="text" [(ngModel)]="newMessage" (keyup.enter)="sendMessage()" placeholder="Escribe tu consulta...">
+        <button class="btn-send" (click)="sendMessage()" [disabled]="!newMessage.trim()">
+            <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+        </button>
+    </div>
+</div>
+}

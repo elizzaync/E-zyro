@@ -1,0 +1,36 @@
+<div class="faq-card">
+    @if (faqs.length === 0) {
+    <div class="empty-state">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p>No encontramos resultados para tu búsqueda.</p>
+        <span>Intenta con otras palabras clave.</span>
+    </div>
+    } @else {
+    @for (faq of faqs; track faq.id) {
+    <div class="faq-item" [class.expanded]="isExpanded(faq.id)" (click)="toggle(faq.id)">
+        <div class="faq-question">
+            <div class="faq-icon">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="faq-meta">
+                <span class="faq-categoria">{{ faq.categoria }}</span>
+                <h4>{{ faq.pregunta }}</h4>
+            </div>
+            <svg class="chevron" [class.rotated]="isExpanded(faq.id)" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </div>
+        <div class="faq-answer" [class.visible]="isExpanded(faq.id)">
+            <p>{{ faq.respuesta }}</p>
+        </div>
+    </div>
+    }
+    }
+</div>

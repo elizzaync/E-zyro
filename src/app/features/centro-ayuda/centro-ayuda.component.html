@@ -1,0 +1,37 @@
+<div class="page-layout fade-in">
+    <div class="page-content">
+        <header class="page-header">
+            <h1 class="title">Centro de Ayuda</h1>
+            <p class="subtitle">Preguntas frecuentes y soporte</p>
+        </header>
+
+        <app-help-search (searchChange)="onSearch($event)"></app-help-search>
+
+        <div class="help-grid">
+            <div class="left-col">
+                <h2 class="section-title">Preguntas Frecuentes</h2>
+
+                <app-faq-list [faqs]="preguntasVisibles"></app-faq-list>
+
+                @if (!searchTerm && !mostrarTodas && filteredFaqs.length > 5) {
+                <div class="ver-todas-wrapper">
+                    <button class="ver-todas-btn" (click)="verTodas()">
+                        Ver todas las preguntas
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                </div>
+                }
+
+                <app-doc-banner></app-doc-banner>
+            </div>
+
+            <div class="right-col">
+                <h2 class="section-title">Contacto</h2>
+                <app-contact-cards></app-contact-cards>
+            </div>
+        </div>
+    </div>
+</div>

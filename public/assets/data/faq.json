@@ -1,0 +1,110 @@
+[
+  {
+    "id": 1,
+    "categoria": "Asistencia",
+    "pregunta": "¿Cómo registro mi entrada al inicio de la jornada?",
+    "respuesta": "Ingresa al sistema con tus credenciales y dirígete al módulo 'Asistencia' desde el menú lateral. En el panel principal verás el botón verde 'Registrar Entrada'. Al hacer clic, el sistema capturará automáticamente la hora exacta del servidor y, si tienes el permiso de geolocalización activado en tu navegador, registrará también tu ubicación GPS para validación. Recibirás una confirmación en pantalla con el sello de hora. Importante: el registro debe realizarse antes de la hora límite establecida por tu sede para no generar tardanza. Si tu dispositivo no tiene conexión en ese momento, guarda la pantalla y registra en cuanto recuperes internet; no se permite registro retroactivo sin autorización del Jefe de Servicio."
+  },
+  {
+    "id": 2,
+    "categoria": "Asistencia",
+    "pregunta": "¿Cómo registro mi salida al cierre de la jornada?",
+    "respuesta": "Al finalizar tu jornada, ve al módulo 'Asistencia' y haz clic en el botón rojo 'Registrar Salida'. El sistema validará que ya existe un registro de entrada para ese día antes de permitir la salida. Si realizas trabajos fuera del horario habitual (horas extras), el sistema los registrará con un indicador especial que tu Jefe de Servicio deberá aprobar. Asegúrate de registrar la salida antes de abandonar las instalaciones; los registros omitidos generan marcaciones de 'Salida Pendiente' que afectan tu reporte mensual y deben ser justificados."
+  },
+  {
+    "id": 3,
+    "categoria": "Asistencia",
+    "pregunta": "¿Qué hago si no pude marcar mi asistencia a tiempo?",
+    "respuesta": "Si olvidaste registrar tu entrada o salida, o el sistema presentó algún inconveniente técnico, debes solicitar una corrección. Ve a Asistencia > Mis Registros > Solicitar Corrección. Completa el formulario indicando la fecha, el tipo de marcación que falta (entrada o salida) y el motivo justificado. La solicitud irá a tu Jefe de Servicio (JS), quien evaluará y realizará el ajuste manual si corresponde. El plazo máximo para solicitar una corrección es al día hábil siguiente al incidente; no se aceptan justificaciones fuera de este plazo. Las solicitudes frecuentes sin justificación válida pueden generar observaciones en tu expediente."
+  },
+  {
+    "id": 4,
+    "categoria": "Materiales",
+    "pregunta": "¿Cómo genero un requerimiento de materiales para un servicio?",
+    "respuesta": "Accede al SV (Servicio) activo desde tu Panel Principal o desde el módulo Operaciones. Dentro del detalle del SV, ubica la sección 'Requerimiento de Materiales' y haz clic en '+ Nuevo Requerimiento'. Se abrirá el catálogo de materiales: usa el buscador por nombre o código, selecciona cada ítem y especifica la cantidad exacta. Si algún material requiere medida o especificación especial (ejemplo: cable de 10mm²), añade la observación en el campo correspondiente. Al enviar, el requerimiento irá directamente al Jefe de Operaciones (JO) para su revisión y aprobación. Solo puedes tener un requerimiento activo por SV al mismo tiempo."
+  },
+  {
+    "id": 5,
+    "categoria": "Materiales",
+    "pregunta": "¿Cómo verifico si mi requerimiento de materiales fue aprobado?",
+    "respuesta": "Recibirás una notificación en el sistema y, si tienes activadas las notificaciones push en tu navegador, también recibirás una alerta en tu dispositivo. Para consultar el estado en cualquier momento, ve a Materiales > Mis Requerimientos. Verás el listado con el estado de cada solicitud: Pendiente (en revisión por el JO), Aprobado (materiales listos para despacho), o Rechazado. Si el JO rechazó la solicitud, encontrarás una observación explicando el motivo, por ejemplo: material fuera de stock o especificación incorrecta. Podrás corregir los ítems observados y re-enviar el requerimiento desde el mismo panel."
+  },
+  {
+    "id": 6,
+    "categoria": "Materiales",
+    "pregunta": "¿Qué hago si recibo materiales en mal estado o la entrega fue incompleta?",
+    "respuesta": "No utilices materiales en mal estado; hacerlo compromete la calidad del servicio y tu responsabilidad técnica. Accede al requerimiento aprobado en Materiales > Mis Requerimientos y haz clic en 'Reportar Incidencia'. Detalla el problema: qué ítems están afectados, el tipo de defecto (golpe, humedad, faltante, etc.) y adjunta fotos del estado del material si es posible. La incidencia llegará inmediatamente al JO para su gestión: reposición, devolución al proveedor o ajuste del inventario. Guarda siempre el comprobante de recepción como respaldo."
+  },
+  {
+    "id": 7,
+    "categoria": "Contratos",
+    "pregunta": "¿Cómo visualizo un contrato vinculado a mi servicio?",
+    "respuesta": "En el detalle de cualquier SV activo o en el Historial de Servicios, ve a la pestaña 'Contratos'. Verás el listado de contratos vinculados a ese SV. Haz clic sobre el contrato para abrirlo en el visor PDF integrado, el cual permite zoom, navegación por páginas y descarga para consulta offline. Algunos contratos pueden estar cifrados y requerir tu contraseña de acceso para desbloquearlos. Lee el contrato completo antes de proceder a firmarlo; una vez firmado, el documento no podrá ser modificado."
+  },
+  {
+    "id": 8,
+    "categoria": "Contratos",
+    "pregunta": "¿Cómo firmo digitalmente un contrato desde el sistema?",
+    "respuesta": "Después de revisar el contrato en el visor, desplázate al final del documento y haz clic en el botón 'Firmar Contrato'. El sistema abrirá el panel de firma digital con dos opciones: dibujar tu firma con el dedo (en móvil) o el mouse (en escritorio), o cargar una imagen de tu firma oficial previamente registrada. Una vez trazada la firma, haz clic en 'Confirmar Firma'. El sistema sellará el documento con tu usuario, la fecha y la hora exacta del servidor. El estado del contrato cambiará a 'Firmado' y tanto tú como el JF recibirán una copia notificada. Esta acción es irreversible; si firmaste por error, contacta al JF para gestionar la anulación."
+  },
+  {
+    "id": 9,
+    "categoria": "Equipos Intervenidos",
+    "pregunta": "¿Cómo registro un equipo intervenido durante un servicio?",
+    "respuesta": "Dentro del detalle del SV en progreso, ubica la sección 'Equipos Intervenidos' y haz clic en '+ Agregar Equipo'. Completa el formulario: tipo de equipo (selecciona del catálogo), marca, modelo, número de serie o placa, descripción técnica de la falla o intervención realizada, y el estado resultante (Operativo / En Falla / Dado de Baja). Si el equipo tiene un código QR o código de barras, puedes escanearlo desde la aplicación para autocompletar los campos y reducir errores. Guarda el registro. El historial del equipo quedará vinculado permanentemente al SV y al cliente para trazabilidad futura."
+  },
+  {
+    "id": 10,
+    "categoria": "Historial de Servicios",
+    "pregunta": "¿Cómo consulto el historial de mis servicios anteriores?",
+    "respuesta": "Ve al módulo 'Historial de Servicios' desde el menú lateral. Verás el listado de todos los SV en los que has participado, ordenados de más reciente a más antiguo. Puedes filtrar por: rango de fechas, estado del SV (Completado, Cancelado, En Revisión, Con Observaciones), cliente o tipo de servicio. Al hacer clic sobre un SV, accedes a su ficha completa: datos del cliente, materiales usados, equipos intervenidos, planos, contratos y la calificación recibida. Si necesitas exportar el historial, usa el botón 'Descargar PDF' o 'Exportar Excel' en la barra de acciones superior."
+  },
+  {
+    "id": 11,
+    "categoria": "Historial de Servicios",
+    "pregunta": "¿Cómo visualizo los planos asociados a un servicio?",
+    "respuesta": "En el detalle de cualquier SV, ya sea activo o desde el Historial, ve a la pestaña 'Planos'. El sistema listará todos los planos cargados para ese servicio. Haz clic sobre un plano para abrirlo en el visor integrado, que soporta zoom, navegación por capas (eléctricas, sanitarias, estructurales) y descarga en PDF o DWG. Si el plano tiene estado 'Observado', encontrarás el comentario técnico del JO indicando qué debe corregirse. Los planos en estado 'Aprobado' ya fueron validados por el JO y son la versión oficial del servicio."
+  },
+  {
+    "id": 12,
+    "categoria": "Historial de Servicios",
+    "pregunta": "¿Cómo reviso las calificaciones que recibí en mis servicios?",
+    "respuesta": "Abre cualquier SV con estado 'Completado' desde el Historial de Servicios y ve a la pestaña 'Calificación'. Verás la puntuación asignada (escala del 1 al 5 estrellas) por el cliente o el Jefe de Servicio, acompañada de comentarios específicos sobre tu desempeño técnico, puntualidad y trato al cliente. Tu promedio de calificaciones aparecerá también en tu perfil personal. Si consideras que una calificación es incorrecta o injusta, puedes solicitar una revisión al JS desde esa misma pestaña usando el botón 'Impugnar Calificación', adjuntando el sustento correspondiente."
+  },
+  {
+    "id": 13,
+    "categoria": "Buenas Prácticas",
+    "pregunta": "¿Cómo descargo un manual de Buenas Prácticas?",
+    "respuesta": "Accede al módulo 'Buenas Prácticas (BP)' desde el menú lateral. Verás el catálogo de manuales organizado por categorías: Seguridad Eléctrica, Instalación de Redes, Mantenimiento Preventivo, Protocolos de Emergencia y EPP, entre otros. Usa el buscador o filtra por categoría para encontrar el manual que necesitas. Haz clic en el ícono de descarga junto al título para guardar el PDF en tu dispositivo. Los manuales marcados con ícono de candado rojo son de lectura 'Obligatoria': después de abrirlos, deberás hacer clic en 'Marcar como Leído' para registrar tu conformidad. El sistema lleva un control de qué manuales obligatorios has revisado y cuáles tienes pendientes."
+  },
+  {
+    "id": 14,
+    "categoria": "Calendario",
+    "pregunta": "¿Cómo consulto mis servicios programados en el calendario?",
+    "respuesta": "Desde el módulo 'Calendario' en el menú lateral, verás una vista mensual con todos tus SV programados. Puedes cambiar entre vista mensual, semanal y diaria usando los botones de la parte superior. Los colores indican el estado: gris (Pendiente), azul (Confirmado), naranja (En Proceso), verde (Completado) y rojo (Cancelado). Al hacer clic sobre cualquier SV en el calendario, se despliega un resumen rápido: cliente, dirección, tipo de servicio y técnicos asignados. Para ir al detalle completo, haz clic en 'Ver SV'. También puedes exportar tu calendario en formato iCal para sincronizarlo con Google Calendar o Outlook desde el ícono de configuración del calendario."
+  },
+  {
+    "id": 15,
+    "categoria": "Gestión de Servicios (JF)",
+    "pregunta": "¿Cómo creo y asigno servicios siendo Jefe de Servicio?",
+    "respuesta": "Como Jefe de Servicio (JF), accede al módulo 'Gestión de Servicios'. Para crear un nuevo SV, haz clic en '+ Nuevo Servicio' y completa la ficha: datos del cliente, tipo de servicio, dirección, fecha y hora programada, y observaciones especiales. Para asignar técnicos, ve a la pestaña 'Equipo' dentro del SV y haz clic en 'Asignar Técnico': el sistema mostrará solo el personal disponible y habilitado para esa fecha y sede. Selecciona los técnicos necesarios y confirma. Los técnicos asignados recibirán una notificación inmediata. Desde el panel de disponibilidad puedes visualizar la carga de trabajo actual de cada técnico para evitar sobrecargas y asegurar la calidad del servicio."
+  },
+  {
+    "id": 16,
+    "categoria": "Validación de Planos (JO)",
+    "pregunta": "¿Cómo valido o rechazo los planos de un servicio como Jefe de Operaciones?",
+    "respuesta": "Como Jefe de Operaciones (JO), ve al módulo 'Validación de Planos' en tu panel, o accede directamente al SV y abre la pestaña 'Planos'. Los planos pendientes de validación están marcados con una bandera naranja. Abre cada plano en el visor y revísalo técnicamente. Si cumple con las especificaciones, haz clic en 'Aprobar'. Si tiene errores o inconsistencias, haz clic en 'Rechazar' e ingresa obligatoriamente una observación técnica detallada, por ejemplo: 'El diagrama unifilar no refleja la carga real instalada en el tablero TB-02'. El técnico responsable recibirá la notificación y deberá corregir y re-subir el plano. Cuando todos los planos del SV estén aprobados, el servicio avanzará automáticamente a la siguiente etapa."
+  },
+  {
+    "id": 17,
+    "categoria": "Retornos (JO)",
+    "pregunta": "¿Cómo gestiono el retorno de materiales sobrantes como Jefe de Operaciones?",
+    "respuesta": "Al finalizar un SV, el sistema genera automáticamente un aviso de 'Retorno Pendiente' si el técnico tiene materiales del requerimiento que no fueron utilizados. Como JO, accede a 'Gestión de Retornos' en tu módulo. Verás la lista de retornos pendientes agrupados por SV. Selecciona uno, revisa los materiales listados contra el requerimiento original y confirma la recepción de cada ítem usando los checkboxes. Si hay faltantes o materiales en mal estado al retorno, regístralos en el campo de observaciones y genera una incidencia. El sistema actualizará el inventario automáticamente, generará el comprobante de retorno con firma digital y notificará al técnico la conformidad o discrepancias encontradas."
+  },
+  {
+    "id": 18,
+    "categoria": "Renuncia",
+    "pregunta": "¿Cómo inicio el proceso de renuncia desde el sistema?",
+    "respuesta": "Si has tomado la decisión de renunciar, ve a tu Perfil Personal (clic en tu avatar, esquina superior derecha) > Gestión Laboral > Iniciar Proceso de Renuncia. El sistema te presentará el formulario oficial con los campos: fecha efectiva de renuncia (respetando el preaviso mínimo de 30 días calendario según la legislación laboral vigente), motivo de renuncia (campo opcional) y confirmación de identidad mediante tu contraseña. Una vez enviado, tu Jefe de Servicio (JS) y el área de Recursos Humanos recibirán la notificación simultáneamente. El sistema generará automáticamente el cronograma de cierre: entrega de equipos y herramientas, liquidación de servicios pendientes, firma de documentos de cese y programación de la liquidación final. Haz seguimiento de cada etapa desde Perfil > Gestión Laboral > Estado de mi Renuncia."
+  }
+]

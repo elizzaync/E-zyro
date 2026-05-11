@@ -1,6 +1,6 @@
-import { Component, signal, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Component, signal, inject, OnInit } from '@angular/core';
+import { CommonModule, Location } from '@angular/common';
+import { ReactiveFormsModule, FormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 
 import { AlertComponent } from '../../../shared/components/login/alert.component';
@@ -15,14 +15,18 @@ type CodeStatus = 'idle' | 'validating' | 'success' | 'error';
 @Component({
   selector: 'app-reset-password',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, AlertComponent, SpinnerComponent, PasswordStrengthComponent, SuccessCheckmarkComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, AlertComponent, SpinnerComponent, PasswordStrengthComponent, SuccessCheckmarkComponent],
   templateUrl: './reset-password.component.html',
   styleUrls: ['./reset-password.component.css']
 })
-export class ResetPasswordComponent {
+export class ResetPasswordComponent implements OnInit {
   private fb = inject(FormBuilder);
   private router = inject(Router);
   private authService = inject(AuthService);
+  private location = inject(Location);
+
+  isUserAuthenticated = false;
+  cerrarOtrasSesiones = false;
 
   currentStep = signal<ResetStep>('EMAIL');
   isLoading = signal(false);
@@ -49,6 +53,38 @@ export class ResetPasswordComponent {
       nuevaPassword: ['', [Validators.required, Validators.minLength(6)]],
       confirmarPassword: ['', [Validators.required]]
     });
+  }
+
+  ngOnInit(): void {
+    this.isUserAuthenticated = this.authService.isAuthenticated();
+  }
+
+  volver(): void {
+    if (this.isUserAuthenticated) {
+      this.location.back();
+    } else {
+      this.router.navigate(['/login']);
+    }
+  }
+
+  finalizarFlujo(): void {
+    if (this.cerrarOtrasSesiones && this.isUserAuthenticated) {
+      this.isLoading.set(true);
+      this.authService.logoutAllDevices().subscribe(() => {
+        this.isLoading.set(false);
+        this.redirigirTrasExito();
+      });
+    } else {
+      this.redirigirTrasExito();
+    }
+  }
+
+  private redirigirTrasExito(): void {
+    if (this.isUserAuthenticated) {
+      this.router.navigate(['/home']);
+    } else {
+      this.router.navigate(['/login']);
+    }
   }
 
   get email() { return this.emailForm.get('email')!; }
@@ -156,7 +192,6 @@ export class ResetPasswordComponent {
       next: () => {
         this.isLoading.set(false);
         this.currentStep.set('SUCCESS');
-        setTimeout(() => this.router.navigate(['/']), 3000);
       },
       error: (err) => {
         this.isLoading.set(false);

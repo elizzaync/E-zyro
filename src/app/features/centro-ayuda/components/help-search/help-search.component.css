@@ -1,0 +1,17 @@
+.search-container { display: flex; justify-content: center; margin: 40px 0; }
+.search-box {
+    position: relative; width: 100%; max-width: 600px;
+}
+.search-box input {
+    width: 100%; height: 56px; padding: 0 20px 0 50px;
+    border-radius: 12px; border: 1px solid var(--border-color);
+    background-color: var(--card-bg); color: var(--text-main);
+    font-size: 15px; font-family: inherit; outline: none;
+    box-shadow: 0 4px 15px var(--shadow-color);
+    transition: all 0.3s ease; box-sizing: border-box;
+}
+.search-box input:focus { border-color: var(--brand-green); box-shadow: 0 0 0 4px rgba(141, 198, 63, 0.15); }
+.search-icon {
+    position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; color: var(--text-muted);
+}

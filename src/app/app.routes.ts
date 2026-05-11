@@ -7,6 +7,7 @@ import { PersonalComponent } from './features/personal/personal.component';
 import { PermisosComponent } from './features/permisos/permisos.component';
 import { MasComponent } from './features/masComponentes/mas.component';
 import { ConfiguracionComponent } from './features/configuracion/configuracion.component';
+import { CentroAyudaComponent } from './features/centro-ayuda/centro-ayuda.component';
 export const routes: Routes = [
   {
     path: '',
@@ -42,6 +43,12 @@ export const routes: Routes = [
   {
     path: 'configuracion',
     component: ConfiguracionComponent,
+    canActivate: [authGuard]
+  },
+  {
+    path: 'centro-ayuda',
+    component: CentroAyudaComponent,
+    title: 'Centro de Ayuda | E-System Tic',
     canActivate: [authGuard]
   },
   {

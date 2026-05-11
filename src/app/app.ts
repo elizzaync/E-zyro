@@ -1,15 +1,18 @@
 import { Component, OnInit } from '@angular/core';
 import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
-import { CommonModule } from '@angular/common'; // Asegúrate de tenerlo para el modal
+import { CommonModule } from '@angular/common';
 import { ToastComponent } from './shared/components/toast/toast.component';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
-import { AuthService } from './core/services/auth.service'; // Ajusta la ruta
+import { AuthService } from './core/services/auth.service';
+// 👇 Importamos el nuevo Chatbot
+import { ChatbotComponent } from './shared/components/chatbot/chatbot.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, ToastComponent, NavbarComponent, CommonModule],
+  // 👇 Lo agregamos a los imports
+  imports: [RouterOutlet, ToastComponent, NavbarComponent, ChatbotComponent, CommonModule],
   templateUrl: './app.html',
 })
 export class App implements OnInit {
@@ -21,9 +24,8 @@ export class App implements OnInit {
 
   constructor(
     private router: Router,
-    private authService: AuthService // Inyectamos el servicio global
+    private authService: AuthService
   ) {
-    // Lógica existente del Navbar
     this.verificarRuta(window.location.pathname);
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
@@ -33,7 +35,6 @@ export class App implements OnInit {
   }
 
   ngOnInit(): void {
-    // Nos suscribimos al estado global del modal que definimos en el AuthService
     this.authService.showLogoutModal$.subscribe(estado => {
       this.showLogoutModal = estado;
     });
@@ -47,7 +48,6 @@ export class App implements OnInit {
     }
   }
 
-  // Funciones para que el modal interactúe con el servicio
   cancelarSalir() {
     this.authService.cancelarCerrarSesion();
   }
