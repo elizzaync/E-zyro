@@ -11,6 +11,6 @@ class FotoAsistencia(Base):
     registro_id          = Column(String(36), ForeignKey("registro_asistencia.id"), nullable=False)
     url_cloudinary       = Column(String(500), nullable=True)
     public_id_cloudinary = Column(String(255), nullable=True)
-    similitud_ia         = Column(Numeric(6, 4), nullable=True)   # 0.0000 – 1.0000
-    resultado            = Column(String(20),  nullable=True)     # aprobado | revision_manual | rechazado
+    similitud_ia         = Column(Numeric(6, 4), nullable=True) 
+    resultado            = Column(String(20),  nullable=True)    
     fecha_captura        = Column(DateTime, nullable=False, default=datetime.utcnow)
