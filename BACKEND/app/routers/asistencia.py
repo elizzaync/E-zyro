@@ -30,13 +30,12 @@ from sqlalchemy.orm import Session
 
 from ..db.database import get_db
 from ..core.security import verificar_token
-from ..models.models import (
-    Empleado,
-    FotoAsistencia,
-    FotoBiometrica,
-    GeolocalizacionAsistencia,
-    RegistroAsistencia,
-)
+from ..models.empleado                      import Empleado
+from ..models.foto_biometrica               import FotoBiometrica
+from ..models.foto_asistencia               import FotoAsistencia
+from ..models.geolocalizacion_asistencia    import GeolocalizacionAsistencia
+from ..models.registro_asistencia           import RegistroAsistencia
+
 from ..services.cloudinary_service import subir_imagen_cloudinary
 
 logger = logging.getLogger(__name__)
