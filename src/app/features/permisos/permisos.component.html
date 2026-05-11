@@ -19,12 +19,14 @@
   @if (tabActiva === 'solicitar') {
     <div class="split-view">
 
+      <!-- Columna izquierda: formulario -->
       <app-permiso-form
         [firmaGuardadaUrl]="firmaGuardadaUrl"
         (previewDataChange)="onPreviewData($event)"
         (onEnviar)="generarPdf()">
       </app-permiso-form>
 
+      <!-- Columna derecha: preview PDF en iframe -->
       <div class="preview-wrapper">
         <app-permiso-pdf-preview
           [previewData]="previewData"
@@ -34,7 +36,7 @@
         @if (generandoPdf) {
           <div class="pdf-loading-overlay">
             <div class="pdf-loading-spinner"></div>
-            <span>Enviando solicitud...</span>
+            <span>Enviando solicitud…</span>
           </div>
         }
       </div>
@@ -46,7 +48,7 @@
     @if (cargandoHistorial) {
       <div class="historial-loading">
         <div class="pdf-loading-spinner"></div>
-        <span>Cargando tus trámites...</span>
+        <span>Cargando tus trámites…</span>
       </div>
     } @else {
       <app-permiso-historial [tramites]="misTramites"></app-permiso-historial>
