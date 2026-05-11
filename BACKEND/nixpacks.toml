@@ -1,2 +1,2 @@
 [phases.setup]
-nixPkgs = ["cmake", "gcc", "pkg-config", "openblas", "libpng", "libjpeg"]
+nixPkgs = ["cmake", "gcc", "pkg-config", "openblas", "libpng", "libjpeg", "xorg.libX11", "xorg.libXext", "xorg.libXrender", "libGL"]
