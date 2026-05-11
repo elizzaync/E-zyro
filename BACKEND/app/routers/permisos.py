@@ -173,7 +173,7 @@ def enviar_solicitud(
             db.add(DocumentoFirmado(
                 firma_id        = firma_existente.id,
                 empresa_id      = empresa_id,
-                documento_id    = solicitud.id,
+                documento_id    = str(solicitud.id),
                 tabla_documento = "solicitud_laboral",
             ))
 
@@ -191,7 +191,7 @@ def enviar_solicitud(
             empresa_id     = empresa_id,
             usuario_id     = usuario_id,
             tabla_afectada = "solicitud_laboral",
-            registro_id    = solicitud.id,
+            registro_id    = str(solicitud.id),
             accion         = "INSERT",
             modulo         = "Permisos",
             descripcion    = f"Solicitud de {label_display} enviada",
@@ -203,7 +203,7 @@ def enviar_solicitud(
         # ── 8. Respuesta ──────────────────────────────────────────────────
         hoy        = date.today()
         fecha_fmt  = f"{hoy.day} {MESES[hoy.month]}, {hoy.year}"
-        id_display = f"PRM-{solicitud.id[:6].upper()}"
+        id_display = f"PRM-{str(solicitud.id)[:6].upper()}"
 
         return {
             "status": "success",
