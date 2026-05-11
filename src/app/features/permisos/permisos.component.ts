@@ -105,9 +105,15 @@ export class PermisosComponent implements OnInit {
       en_proceso: 'proceso',
     };
     const estado = (s.estado ?? '').toLowerCase();
+    const rawTipo = (s.titulo ?? s.tipo ?? '').trim();
+    const partes  = rawTipo.split(' — ');
+    const tipo    = partes.length === 2 && partes[0].toLowerCase() === partes[1].toLowerCase()
+      ? partes[0]
+      : rawTipo;
+
     return {
       id:           `PRM-${String(s.id).substring(0, 6).toUpperCase()}`,
-      tipo:         s.titulo ?? s.tipo,
+      tipo,
       fechaEmision: s.fecha  ?? '',
       estadoActual: estadoMap[estado] ?? 'enviado',
       urlPdf:       s.url_pdf ?? undefined,

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, catchError, of } from 'rxjs';
+import { Observable, tap, catchError, of, BehaviorSubject } from 'rxjs'; // 👈 Añadido BehaviorSubject
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +13,15 @@ export class AuthService {
   // Dejamos la URL base limpia hasta "auth"
   private apiUrl = 'https://e-zyro-production.up.railway.app/auth';
 
+  // ==========================================
+  // ESTADO GLOBAL DEL MODAL DE CERRAR SESIÓN
+  // ==========================================
+  private showLogoutModalSubject = new BehaviorSubject<boolean>(false);
+  showLogoutModal$ = this.showLogoutModalSubject.asObservable();
+
+  // ==========================================
+  // MÉTODOS DE LOGIN Y RECUPERACIÓN
+  // ==========================================
   login(credentials: any): Observable<any> {
     // Le agregamos el "/login" solo a esta petición
     return this.http.post(`${this.apiUrl}/login`, credentials).pipe(
@@ -30,8 +39,6 @@ export class AuthService {
     );
   }
 
-  // --- FLUJO DE RECUPERACIÓN DE CONTRASEÑA ---
-
   solicitarCodigoRecuperacion(email: string): Observable<any> {
     return this.http.post(`${this.apiUrl}/password-recovery/request`, { email });
   }
@@ -48,6 +55,34 @@ export class AuthService {
     });
   }
 
+  // ==========================================
+  // CONTROL DEL MODAL Y CIERRE DE SESIÓN
+  // ==========================================
+
+  // 1. Abre el modal desde cualquier parte del sistema
+  solicitarCerrarSesion() {
+    this.showLogoutModalSubject.next(true);
+    document.body.style.overflow = 'hidden';
+  }
+
+  // 2. Cancela el modal
+  cancelarCerrarSesion() {
+    this.showLogoutModalSubject.next(false);
+    document.body.style.overflow = '';
+  }
+
+  // 3. Ejecuta la decisión de salir
+  ejecutarCerrarSesion() {
+    // Ocultamos el modal y limpiamos el scroll/tema
+    this.showLogoutModalSubject.next(false);
+    document.body.style.overflow = '';
+    document.documentElement.removeAttribute('data-theme');
+
+    // Llamamos a tu lógica real de logout
+    this.logout();
+  }
+
+  // 4. Tu lógica original intacta que avisa al backend
   logout(): void {
     const token = localStorage.getItem('ezyro_token');
     const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
@@ -62,6 +97,9 @@ export class AuthService {
     });
   }
 
+  // ==========================================
+  // UTILIDADES
+  // ==========================================
   isAuthenticated(): boolean {
     const token = localStorage.getItem('ezyro_token');
     return !!token;

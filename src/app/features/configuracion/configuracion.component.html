@@ -1,0 +1,149 @@
+<div class="page-layout fade-in">
+    <div class="page-content">
+        <h1 class="page-title">Configuración</h1>
+
+        <div class="user-banner">
+            <div class="banner-avatar">
+                @if (usuarioActual.foto) {
+                <img [src]="usuarioActual.foto" class="avatar-img">
+                } @else {
+                {{ usuarioActual.iniciales }}
+                }
+            </div>
+            <div class="banner-info">
+                <h2 class="user-name">{{ usuarioActual.nombre }}</h2>
+                <p class="user-email">{{ usuarioActual.correo }}</p>
+            </div>
+        </div>
+
+        <div class="section-title">Cuenta</div>
+        <div class="menu-card">
+            <div class="divider"></div>
+            <a routerLink="/reset-password" class="menu-item">
+                <div class="item-left">
+                    <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span>Cambiar Contraseña</span>
+                </div>
+                <svg class="chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </a>
+        </div>
+
+        <div class="section-title">Preferencias</div>
+        <div class="menu-card">
+            <div class="divider"></div>
+            <a class="menu-item" (click)="alternarTema()">
+                <div class="item-left">
+                    <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span>Tema</span>
+                </div>
+                <div class="item-right">
+                    <span class="status-text">{{ temaActual | titlecase }}</span>
+                    <svg class="chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+            <div class="divider"></div>
+            <a class="menu-item">
+                <div class="item-left">
+                    <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                    <span>Idioma</span>
+                </div>
+                <div class="item-right">
+                    <span class="status-text">Español</span>
+                    <svg class="chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+        </div>
+
+        <div class="section-title">Soporte</div>
+        <div class="menu-card">
+            <a routerLink="/centro-ayuda" class="menu-item">
+                <div class="item-left">
+                    <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Centro de Ayuda</span>
+                </div>
+                <svg class="chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </a>
+            <div class="divider"></div>
+            <a class="menu-item" style="cursor: default;">
+                <div class="item-left">
+                    <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span>Versión de la App</span>
+                </div>
+                <div class="item-right">
+                    <span class="status-text">v2.4.1</span>
+                    <svg class="chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+        </div>
+
+        <div class="menu-card mt-3" (click)="confirmarCerrarSesion()">
+            <div class="menu-item logout-item">
+                <div class="item-left">
+                    <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    <span>Cerrar Sesión</span>
+                </div>
+                <svg class="chevron" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </div>
+        </div>
+
+        <footer class="page-footer">
+            <p class="footer-title">E-System TIC</p>
+            <p>Plataforma de Servicios de Campo</p>
+            <p>© 2026 Todos los derechos reservados</p>
+        </footer>
+    </div>
+</div>
+
+@if (showLogoutModal) {
+<div class="modal-backdrop-pro" (click)="cerrarModalLogout()"></div>
+<div class="modal-dialog-pro fade-in-up" style="max-width: 400px; text-align: center; padding-top: 30px;">
+    <div class="modal-body-pro" style="padding-bottom: 0;">
+        <div class="logout-icon-wrapper">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        </div>
+        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800; color: var(--text-main);">Cerrar Sesión</h3>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">¿Estás seguro de que deseas cerrar tu
+            sesión en el sistema?</p>
+    </div>
+    <div class="modal-footer-pro" style="justify-content: center; border-top: none;">
+        <button class="btn-cancel-pro" style="flex: 1; text-align: center;"
+            (click)="cerrarModalLogout()">Cancelar</button>
+        <button class="btn-save-main"
+            style="flex: 1; background-color: #ef4444; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.25);"
+            (click)="ejecutarCerrarSesion()">Sí, salir</button>
+    </div>
+</div>
+}

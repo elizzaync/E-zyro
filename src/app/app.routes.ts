@@ -5,6 +5,8 @@ import { HomeComponent } from './features/home/home.component';
 import { authGuard } from './core/guards/auth.guards';
 import { PersonalComponent } from './features/personal/personal.component';
 import { PermisosComponent } from './features/permisos/permisos.component';
+import { MasComponent } from './features/masComponentes/mas.component';
+import { ConfiguracionComponent } from './features/configuracion/configuracion.component';
 export const routes: Routes = [
   {
     path: '',
@@ -28,9 +30,20 @@ export const routes: Routes = [
     title: 'Personal | E-System Tic',
     canActivate: [authGuard]
   },
+  {
+    path: 'mas',
+    component: MasComponent,
+    title: 'Más | E-System Tic',
+    canActivate: [authGuard]
+  },
     { path: 'permisos',
     component: PermisosComponent,
     canActivate: [authGuard] },
+  {
+    path: 'configuracion',
+    component: ConfiguracionComponent,
+    canActivate: [authGuard]
+  },
   {
     path: '**',
     redirectTo: ''

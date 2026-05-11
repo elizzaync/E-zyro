@@ -1,43 +1,84 @@
 <div class="tramite-card">
 
+  <!-- CABECERA -->
   <div class="tc-header">
-    <div>
-      <h4>{{ tramite.tipo }}</h4>
-      <span class="tc-id">{{ tramite.id }} &bull; Solicitado el {{ tramite.fechaEmision }}</span>
+    <div class="tc-left">
+      <div class="tipo-icon" [ngClass]="'tipo-' + getTipoKey()" [innerHTML]="getTipoIcono()"></div>
+      <div class="tc-info">
+        <h4>{{ tramite.tipo }}</h4>
+        <span class="tc-id">{{ tramite.id }} &bull; {{ tramite.fechaEmision }}</span>
+      </div>
     </div>
-    <button class="btn-outline btn-sm"
-            [disabled]="!tramite.urlPdf"
-            (click)="verPdf()">Ver PDF</button>
+
+    <div class="tc-actions">
+      <span class="estado-badge" [ngClass]="'estado-' + tramite.estadoActual">
+        {{ getEstadoLabel() }}
+      </span>
+      <button class="btn-ver-pdf" [disabled]="!tramite.urlPdf" (click)="verPdf()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        Ver PDF
+      </button>
+    </div>
   </div>
 
+  <!-- STEPPER -->
   <div class="stepper-wrapper">
 
     <div class="step active">
-      <div class="step-icon">&#10004;</div>
+      <div class="step-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </div>
       <p>Enviado</p>
     </div>
 
     <div class="step-line active"></div>
 
     <div class="step" [class.active]="tramite.estadoActual !== 'enviado'">
-      <div class="step-icon">&#128064;</div>
+      <div class="step-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
       <p>Visto</p>
     </div>
 
     <div class="step-line" [class.active]="tramite.estadoActual !== 'enviado'"></div>
 
     <div class="step" [class.active]="tramite.estadoActual === 'proceso' || tramite.estadoActual === 'aceptado'">
-      <div class="step-icon">&#9881;</div>
+      <div class="step-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </div>
       <p>En Proceso</p>
     </div>
 
     <div class="step-line" [class.active]="tramite.estadoActual === 'proceso' || tramite.estadoActual === 'aceptado'"></div>
 
     <div class="step" [class.active]="tramite.estadoActual === 'aceptado'">
-      <div class="step-icon">&#127937;</div>
-      <p>Resolución</p>
+      <div class="step-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <p>Resuelto</p>
     </div>
 
   </div>
+
+  @if (tramite.estadoActual === 'rechazado') {
+    <div class="rechazado-notice">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+      Esta solicitud fue rechazada o anulada
+    </div>
+  }
 
 </div>

@@ -1,40 +1,58 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { RouterOutlet, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
+import { CommonModule } from '@angular/common'; // Asegúrate de tenerlo para el modal
 import { ToastComponent } from './shared/components/toast/toast.component';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
+import { AuthService } from './core/services/auth.service'; // Ajusta la ruta
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ToastComponent, NavbarComponent],
+  standalone: true,
+  imports: [RouterOutlet, ToastComponent, NavbarComponent, CommonModule],
   templateUrl: './app.html',
 })
-export class App {
+export class App implements OnInit {
   title = 'e-zyro';
-
-  // Por defecto lo ocultamos hasta saber en qué página estamos
   mostrarNavbar = false;
 
-  constructor(private router: Router) {
-    // 1. Revisamos la ruta inicial justo cuando arranca la app
-    this.verificarRuta(window.location.pathname);
+  // Variable local para controlar la vista del modal
+  showLogoutModal = false;
 
-    // 2. Revisamos la ruta cada vez que el usuario navega a otra pantalla
+  constructor(
+    private router: Router,
+    private authService: AuthService // Inyectamos el servicio global
+  ) {
+    // Lógica existente del Navbar
+    this.verificarRuta(window.location.pathname);
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: any) => {
-      // urlAfterRedirects captura la URL final, incluso si hubo una redirección
       this.verificarRuta(event.urlAfterRedirects || event.url);
     });
   }
 
-  // Función maestra que decide si se muestra o no
+  ngOnInit(): void {
+    // Nos suscribimos al estado global del modal que definimos en el AuthService
+    this.authService.showLogoutModal$.subscribe(estado => {
+      this.showLogoutModal = estado;
+    });
+  }
+
   verificarRuta(url: string) {
-    // Si la URL tiene '/login' o es exactamente la ruta raíz '/', ocultamos el Navbar
     if (url.includes('/login') || url.includes('/reset-password') || url === '/') {
       this.mostrarNavbar = false;
     } else {
       this.mostrarNavbar = true;
     }
+  }
+
+  // Funciones para que el modal interactúe con el servicio
+  cancelarSalir() {
+    this.authService.cancelarCerrarSesion();
+  }
+
+  confirmarSalir() {
+    this.authService.ejecutarCerrarSesion();
   }
 }

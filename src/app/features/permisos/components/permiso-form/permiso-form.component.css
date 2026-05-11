@@ -51,7 +51,7 @@
   letter-spacing: 0.3px;
 }
 
-/* ── INPUTS ──────────────────────────────────────────────────── */
+/* ── INPUTS ANIMADOS (GLOW EFFECT) ───────────────────────────── */
 .form-input {
   padding: 11px 14px;
   border-radius: 8px;
@@ -60,7 +60,8 @@
   font-size: 14px;
   background: var(--page-bg, #f8fafc);
   color: var(--text-main, #0f172a);
-  transition: border-color 0.2s, background 0.2s;
+  /* Transición fluida para el glow */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
   box-sizing: border-box;
 }
@@ -69,7 +70,10 @@
   outline: none;
   border-color: var(--brand-green, #91d337);
   background: var(--card-bg, #ffffff);
-  box-shadow: 0 0 0 3px rgba(145, 211, 55, 0.12);
+  /* Resplandor verde estilo Vercel */
+  box-shadow: 0 0 0 4px rgba(145, 211, 55, 0.15),
+              0 2px 4px rgba(0,0,0,0.05) inset;
+  transform: translateY(-1px);
 }
 
 .form-input[readonly] { opacity: 0.65; cursor: not-allowed; }
@@ -89,10 +93,9 @@ textarea.form-input { resize: vertical; min-height: 90px; }
 }
 select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
 
-/* ── ALERT ───────────────────────────────────────────────────── */
+/* ── ALERT & HORAS BADGE ─────────────────────────────────────── */
 .alert-wrapper { margin-bottom: 18px; }
 
-/* ── HORAS BADGE ─────────────────────────────────────────────── */
 .horas-badge {
   display: inline-flex;
   align-items: center;
@@ -116,35 +119,31 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
   border-radius: 10px;
   background: var(--page-bg, #f8fafc);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
   min-height: 56px;
 }
 .file-upload-area:hover {
   border-color: var(--brand-green, #91d337);
   background: rgba(145, 211, 55, 0.04);
+  transform: translateY(-1px);
 }
 .file-upload-area.has-file {
   border-color: var(--brand-green, #91d337);
   background: rgba(145, 211, 55, 0.06);
   border-style: solid;
 }
-.file-icon { color: var(--text-muted, #94a3b8); display: flex; flex-shrink: 0; }
+.file-icon { color: var(--text-muted, #94a3b8); display: flex; flex-shrink: 0; transition: color 0.3s ease; }
+.file-upload-area:hover .file-icon { color: var(--brand-green, #91d337); }
 .file-upload-area.has-file .file-icon { color: var(--brand-green, #91d337); }
 .file-placeholder { font-size: 13px; color: var(--text-muted, #94a3b8); }
 .file-name { font-size: 13px; font-weight: 600; color: var(--text-main, #0f172a); word-break: break-all; }
 .file-input-hidden { display: none; }
 
 /* ══════════════════════════════════════════════════════════════
-   FIRMA DIGITAL
+   FIRMA DIGITAL ANIMADA
    ══════════════════════════════════════════════════════════════ */
-.firma-section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 20px;
-}
+.firma-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
 
-/* TABS DIBUJAR / SUBIR */
 .firma-tabs {
   display: inline-flex;
   background: var(--page-bg, #f1f5f9);
@@ -155,213 +154,110 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
 }
 
 .firma-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-radius: 7px;
-  border: none;
-  background: transparent;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-muted, #64748b);
-  cursor: pointer;
-  transition: all 0.2s;
+  display: flex; align-items: center; gap: 6px; padding: 7px 16px;
+  border-radius: 7px; border: none; background: transparent;
+  font-size: 12.5px; font-weight: 600; color: var(--text-muted, #64748b);
+  cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .firma-tab.active {
   background: var(--card-bg, #ffffff);
   color: var(--text-main, #0f172a);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transform: scale(1.02);
 }
 
-/* CANVAS DE DIBUJO */
-.canvas-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+/* CANVAS DE DIBUJO CON PULSO */
+.canvas-wrapper { display: flex; flex-direction: column; gap: 8px; }
 
 .firma-canvas {
-  width: 100%;
-  height: 110px;
-  display: block;
+  width: 100%; height: 110px; display: block;
   border: 1.5px solid var(--border-color, #cbd5e1);
   border-radius: 8px;
-  background: #fafafa;
-  cursor: crosshair;
-  touch-action: none;
+  background: #ffffff;
+  cursor: crosshair; touch-action: none;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
 }
 
-.canvas-hint {
-  margin: 0;
-  font-size: 11.5px;
-  color: var(--text-muted, #94a3b8);
-  text-align: center;
+.firma-canvas:hover {
+  border-color: var(--brand-green, #91d337);
+  box-shadow: 0 0 15px rgba(145, 211, 55, 0.15), inset 0 1px 4px rgba(0, 0, 0, 0.02);
 }
+
+.canvas-hint { margin: 0; font-size: 11.5px; color: var(--text-muted, #94a3b8); text-align: center; }
 
 .btn-limpiar {
-  align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color, #cbd5e1);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted, #64748b);
-  cursor: pointer;
-  transition: all 0.2s;
+  align-self: flex-start; display: flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1);
+  background: transparent; font-size: 12px; font-weight: 600; color: var(--text-muted, #64748b);
+  cursor: pointer; transition: all 0.2s;
 }
-.btn-limpiar:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #dc2626;
-}
+.btn-limpiar:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; transform: translateY(-1px); }
 
-/* UPLOAD DE FIRMA */
+/* UPLOAD DE FIRMA CON MARCHING ANTS */
 .firma-upload-area {
-  flex-direction: column;
-  justify-content: center;
-  min-height: 80px;
-  gap: 8px;
+  flex-direction: column; justify-content: center; min-height: 80px; gap: 8px;
+  background-image: repeating-linear-gradient(-45deg, var(--border-color, #cbd5e1) 0, var(--border-color, #cbd5e1) 2px, transparent 2px, transparent 8px);
+  background-size: 12px 12px;
+  border: 1.5px solid transparent; /* Quitamos borde sólido para el efecto animado */
+  animation: moveStripes 1s linear infinite;
+  opacity: 0.85;
 }
+
+.firma-upload-area:hover {
+  opacity: 1;
+  background-image: repeating-linear-gradient(-45deg, var(--brand-green, #91d337) 0, var(--brand-green, #91d337) 2px, transparent 2px, transparent 8px);
+  transform: scale(1.01);
+}
+
+@keyframes moveStripes {
+  0% { background-position: 0 0; }
+  100% { background-position: 12px 0; }
+}
+
 .firma-upload-area span { font-size: 13px; color: var(--text-muted, #94a3b8); }
-.firma-upload-area svg { color: var(--text-muted, #94a3b8); }
+.firma-upload-area svg { color: var(--text-muted, #94a3b8); transition: color 0.3s; }
+.firma-upload-area:hover svg { color: var(--brand-green, #91d337); }
 
-/* PREVISUALIZACIÓN DE FIRMA */
+/* ── PREVISUALIZACIÓN Y FIRMA GUARDADA ───────────────────────── */
 .firma-preview-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  border: 1.5px solid var(--brand-green, #91d337);
-  border-radius: 10px;
-  padding: 12px 16px;
-  background: rgba(145, 211, 55, 0.05);
+  display: flex; flex-direction: column; gap: 8px;
+  border: 1.5px solid var(--brand-green, #91d337); border-radius: 10px;
+  padding: 12px 16px; background: rgba(145, 211, 55, 0.05);
+  animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+@keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 
-.firma-preview-img {
-  max-height: 80px;
-  max-width: 100%;
-  object-fit: contain;
-  align-self: center;
-  background: white;
-  border-radius: 4px;
-}
+.firma-preview-img { max-height: 80px; max-width: 100%; object-fit: contain; align-self: center; background: white; border-radius: 4px; }
+.firma-ok-row { display: flex; align-items: center; justify-content: space-between; }
+.firma-ok-badge { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--brand-green, #4d7c1a); }
 
-.firma-ok-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.firma-ok-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--brand-green, #4d7c1a);
-}
-
-.btn-cambiar-firma {
-  padding: 4px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border-color, #cbd5e1);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted, #64748b);
-  cursor: pointer;
-  transition: all 0.2s;
-}
+.btn-cambiar-firma { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1); background: transparent; font-size: 12px; font-weight: 600; color: var(--text-muted, #64748b); cursor: pointer; transition: all 0.2s; }
 .btn-cambiar-firma:hover { background: var(--hover-bg, #f1f5f9); }
 
-/* FIRMA GUARDADA EN LA NUBE */
 .firma-guardada-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1.5px solid #91d337;
-  border-radius: 10px;
-  padding: 10px 14px;
-  background: rgba(145, 211, 55, 0.06);
-  margin-bottom: 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1.5px solid #91d337; border-radius: 10px; padding: 10px 14px;
+  background: rgba(145, 211, 55, 0.06); margin-bottom: 10px;
 }
-
-.firma-guardada-preview {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.firma-guardada-img {
-  height: 36px;
-  max-width: 110px;
-  object-fit: contain;
-  background: white;
-  border-radius: 4px;
-  border: 1px solid #e2e8f0;
-  padding: 2px 4px;
-  flex-shrink: 0;
-}
-
-.firma-guardada-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.firma-guardada-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-main, #0f172a);
-}
-
-.firma-guardada-sub {
-  font-size: 11px;
-  color: var(--text-muted, #64748b);
-}
+.firma-guardada-preview { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.firma-guardada-img { height: 36px; max-width: 110px; object-fit: contain; background: white; border-radius: 4px; border: 1px solid #e2e8f0; padding: 2px 4px; flex-shrink: 0; }
+.firma-guardada-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.firma-guardada-label { font-size: 13px; font-weight: 700; color: var(--text-main, #0f172a); }
+.firma-guardada-sub { font-size: 11px; color: var(--text-muted, #64748b); }
 
 .btn-usar-guardada {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: none;
-  background: #91d337;
-  color: white;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: 8px; border: none; background: #91d337; color: white;
+  font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
 }
-.btn-usar-guardada:hover { background: #7ab530; }
+.btn-usar-guardada:hover { background: #7ab530; transform: translateY(-1px); }
 
-.firma-o-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 12px 0 10px;
-  color: var(--text-muted, #94a3b8);
-  font-size: 12px;
-}
-.firma-o-divider::before,
-.firma-o-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color, #e2e8f0);
-}
+.firma-o-divider { display: flex; align-items: center; gap: 10px; margin: 12px 0 10px; color: var(--text-muted, #94a3b8); font-size: 12px; }
+.firma-o-divider::before, .firma-o-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-color, #e2e8f0); }
 
-/* ── BOTONES PRINCIPALES ─────────────────────────────────────── */
+/* ── BOTONES PRINCIPALES (CON FEEDBACK TÁCTIL) ───────────────── */
 .btn-primary {
   background: var(--brand-green, #91d337);
   color: white;
@@ -371,80 +267,42 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
   font-weight: 700;
   font-size: 15px;
   cursor: pointer;
-  transition: all 0.2s;
+  /* Transición de rebote para una sensación Premium */
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 14px 0 rgba(145, 211, 55, 0.39);
 }
-.btn-primary:hover:not(.btn-blocked) { background: #7ab530; transform: translateY(-1px); }
+
+.btn-primary:hover:not(.btn-blocked) {
+  background: #a3e63f;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(145, 211, 55, 0.5);
+}
+
+.btn-primary:active:not(.btn-blocked) {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 2px 8px rgba(145, 211, 55, 0.3);
+}
+
 .btn-primary.btn-blocked,
 .btn-primary:disabled {
-  background: #e2e8f0;
-  color: #94a3b8;
-  cursor: not-allowed;
-  transform: none;
+  background: #e2e8f0; color: #94a3b8; cursor: not-allowed; transform: none; box-shadow: none;
 }
 .w-full { width: 100%; margin-top: 4px; }
 
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--border-color, #cbd5e1);
-  padding: 8px 18px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--text-main, #0f172a);
-  transition: all 0.2s;
-}
-.btn-outline:hover { background: var(--hover-bg, #f1f5f9); }
-
-/* ── DARK MODE MANUAL ────────────────────────────────────────── */
-:host-context(html[data-theme="dark"]) .form-panel {
-  background: var(--card-bg); border-color: var(--border-color);
-}
+/* ── MODO OSCURO (Adaptación) ────────────────────────────────── */
+:host-context(html[data-theme="dark"]) .form-panel { background: var(--card-bg); border-color: var(--border-color); }
 :host-context(html[data-theme="dark"]) .panel-title { color: var(--text-main); }
-:host-context(html[data-theme="dark"]) .form-input {
-  background: var(--page-bg); border-color: var(--border-color); color: var(--text-main);
-}
-:host-context(html[data-theme="dark"]) .form-input:focus { background: var(--card-bg); }
-:host-context(html[data-theme="dark"]) .firma-canvas {
-  background: #0f172a; border-color: var(--border-color);
-}
-:host-context(html[data-theme="dark"]) .firma-tabs {
-  background: var(--page-bg); border-color: var(--border-color);
-}
-:host-context(html[data-theme="dark"]) .firma-tab.active {
-  background: var(--card-bg);
-}
-:host-context(html[data-theme="dark"]) .file-upload-area,
-:host-context(html[data-theme="dark"]) .firma-upload-area {
-  background: var(--page-bg); border-color: var(--border-color);
-}
+:host-context(html[data-theme="dark"]) .form-input { background: var(--page-bg); border-color: var(--border-color); color: var(--text-main); }
+:host-context(html[data-theme="dark"]) .form-input:focus { background: var(--card-bg); box-shadow: 0 0 0 4px rgba(145, 211, 55, 0.1), 0 2px 4px rgba(0,0,0,0.2) inset; }
+:host-context(html[data-theme="dark"]) .firma-canvas { background: #ffffff; border-color: #4b6071; }
+:host-context(html[data-theme="dark"]) .firma-tabs { background: var(--page-bg); border-color: var(--border-color); }
+:host-context(html[data-theme="dark"]) .firma-tab.active { background: var(--card-bg); }
+:host-context(html[data-theme="dark"]) .file-upload-area { background: var(--page-bg); border-color: var(--border-color); }
+:host-context(html[data-theme="dark"]) .firma-upload-area { background-image: repeating-linear-gradient(-45deg, #334155 0, #334155 2px, transparent 2px, transparent 8px); }
+:host-context(html[data-theme="dark"]) .firma-upload-area:hover { background-image: repeating-linear-gradient(-45deg, rgba(145, 211, 55, 0.4) 0, rgba(145, 211, 55, 0.4) 2px, transparent 2px, transparent 8px); }
 :host-context(html[data-theme="dark"]) .btn-primary.btn-blocked,
-:host-context(html[data-theme="dark"]) .btn-primary:disabled {
-  background: #1e293b; color: #475569;
-}
+:host-context(html[data-theme="dark"]) .btn-primary:disabled { background: #1e293b; color: #475569; }
 :host-context(html[data-theme="dark"]) .horas-badge { color: var(--brand-green); }
 :host-context(html[data-theme="dark"]) .firma-preview-wrapper { background: rgba(145, 211, 55, 0.08); }
-:host-context(html[data-theme="dark"]) .firma-preview-img { background: #1e293b; }
-
-/* ── DARK MODE SISTEMA ───────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
-  :host-context(html:not([data-theme="light"])) .form-panel {
-    background: var(--card-bg); border-color: var(--border-color);
-  }
-  :host-context(html:not([data-theme="light"])) .form-input {
-    background: var(--page-bg); border-color: var(--border-color); color: var(--text-main);
-  }
-  :host-context(html:not([data-theme="light"])) .firma-canvas {
-    background: #0f172a; border-color: var(--border-color);
-  }
-  :host-context(html:not([data-theme="light"])) .firma-tabs {
-    background: var(--page-bg); border-color: var(--border-color);
-  }
-  :host-context(html:not([data-theme="light"])) .firma-tab.active { background: var(--card-bg); }
-  :host-context(html:not([data-theme="light"])) .file-upload-area { background: var(--page-bg); }
-  :host-context(html:not([data-theme="light"])) .horas-badge { color: var(--brand-green); }
-  :host-context(html:not([data-theme="light"])) .btn-primary.btn-blocked,
-  :host-context(html:not([data-theme="light"])) .btn-primary:disabled {
-    background: #1e293b; color: #475569;
-  }
-}
+:host-context(html[data-theme="dark"]) .firma-preview-img { background: #ffffff; }
+:host-context(html[data-theme="dark"]) .firma-guardada-img { background: #ffffff; border-color: #4b6071; }

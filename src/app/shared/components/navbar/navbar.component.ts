@@ -90,8 +90,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   cerrarSesion() {
-    document.documentElement.removeAttribute('data-theme');
-    this.authService.logout();
+    this.isMenuOpen = false;
+    this.authService.solicitarCerrarSesion();
   }
 
   cargarDatosDeUsuario(): void {
@@ -224,4 +224,5 @@ export class NavbarComponent implements OnInit, OnDestroy {
     html.setAttribute('data-theme', nuevo);
     localStorage.setItem('ezyro_tema', nuevo);
   }
+
 }

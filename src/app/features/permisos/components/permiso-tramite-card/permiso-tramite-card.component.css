@@ -1,149 +1,260 @@
+/* ── CARD CONTENEDOR ─────────────────────────────────────────── */
 .tramite-card {
   background: var(--card-bg, #ffffff);
   border-radius: 16px;
-  padding: 24px;
+  padding: 22px 24px;
   border: 1px solid var(--border-color, #e2e8f0);
-  box-shadow: 0 4px 6px var(--shadow-color, rgba(0,0,0,0.03));
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .tramite-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px var(--shadow-color, rgba(0,0,0,0.06));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
+/* ── CABECERA ────────────────────────────────────────────────── */
 .tc-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.tc-header h4 {
-  margin: 0 0 4px 0;
-  font-size: 16px;
+.tc-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* ── ICONO TIPO (SVG) ────────────────────────────────────────── */
+.tipo-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.tipo-personal  { background: rgba(59,130,246,0.08);  border-color: rgba(59,130,246,0.2);  color: #3b82f6; }
+.tipo-comision  { background: rgba(139,92,246,0.08);  border-color: rgba(139,92,246,0.2);  color: #7c3aed; }
+.tipo-essalud   { background: rgba(239,68,68,0.08);   border-color: rgba(239,68,68,0.2);   color: #dc2626; }
+.tipo-capacita  { background: rgba(245,158,11,0.08);  border-color: rgba(245,158,11,0.2);  color: #d97706; }
+.tipo-extra     { background: rgba(249,115,22,0.08);  border-color: rgba(249,115,22,0.2);  color: #ea580c; }
+.tipo-recupera  { background: rgba(16,185,129,0.08);  border-color: rgba(16,185,129,0.2);  color: #059669; }
+.tipo-vacaci    { background: rgba(6,182,212,0.08);   border-color: rgba(6,182,212,0.2);   color: #0891b2; }
+.tipo-libre     { background: rgba(100,116,139,0.08); border-color: rgba(100,116,139,0.2); color: #475569; }
+.tipo-transfer  { background: rgba(99,102,241,0.08);  border-color: rgba(99,102,241,0.2);  color: #4f46e5; }
+.tipo-default   { background: rgba(148,163,184,0.08); border-color: rgba(148,163,184,0.2); color: #64748b; }
+
+.tc-info { min-width: 0; }
+
+.tc-info h4 {
+  margin: 0 0 3px 0;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-main, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tc-id {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-muted, #64748b);
   font-weight: 500;
 }
 
-/* STEPPER */
+.tc-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ── BADGE DE ESTADO ─────────────────────────────────────────── */
+.estado-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 13px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.estado-badge::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.estado-enviado   { background: rgba(234,179,8,0.13);  color: #a16207; }
+.estado-visto     { background: rgba(59,130,246,0.13); color: #1d4ed8; }
+.estado-proceso   { background: rgba(249,115,22,0.13); color: #c2410c; }
+.estado-aceptado  { background: rgba(34,197,94,0.13);  color: #15803d; }
+.estado-rechazado { background: rgba(239,68,68,0.13);  color: #dc2626; }
+
+/* ── BOTÓN VER PDF ───────────────────────────────────────────── */
+.btn-ver-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1.5px solid var(--border-color, #cbd5e1);
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-ver-pdf:hover:not(:disabled) {
+  border-color: #91d337;
+  color: #4d7c1a;
+  background: rgba(145, 211, 55, 0.07);
+}
+
+.btn-ver-pdf:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── STEPPER ─────────────────────────────────────────────────── */
 .stepper-wrapper {
   display: flex;
   align-items: center;
   justify-content: space-between;
   position: relative;
+  padding: 0 4px;
 }
 
 .step {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   z-index: 2;
-  width: 80px;
+  width: 76px;
 }
 
 .step-icon {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--page-bg, #f1f5f9);
-  color: var(--border-color, #cbd5e1);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  border: 2px solid var(--card-bg, #ffffff);
-  transition: background 0.3s, color 0.3s;
+  border: 2px solid var(--border-color, #e2e8f0);
+  transition: background 0.3s, border-color 0.3s, transform 0.2s;
+  filter: grayscale(1);
+  opacity: 0.4;
+  color: #64748b;
 }
 
 .step p {
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted, #94a3b8);
+  text-align: center;
+  transition: color 0.3s;
 }
 
 .step.active .step-icon {
-  background: var(--brand-green, #91d337);
-  color: white;
+  background: #f0fdf4;
+  border-color: #91d337;
+  filter: grayscale(0);
+  opacity: 1;
+  transform: scale(1.08);
+  color: #16a34a;
 }
 
-.step.active p {
-  color: var(--text-main, #0f172a);
-}
+.step.active p { color: var(--text-main, #0f172a); }
 
+/* Línea conectora */
 .step-line {
   flex-grow: 1;
-  height: 4px;
-  background: var(--page-bg, #f1f5f9);
-  margin: 0 -20px;
+  height: 2px;
+  background: var(--border-color, #e2e8f0);
+  margin: 0 -18px;
   z-index: 1;
   transform: translateY(-12px);
-  transition: background 0.3s;
+  border-radius: 4px;
+  transition: background 0.4s;
 }
 
-.step-line.active {
-  background: var(--brand-green, #91d337);
-}
+.step-line.active { background: #91d337; }
 
-/* BOTÓN */
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--border-color, #cbd5e1);
-  padding: 8px 16px;
-  border-radius: 8px;
+/* ── AVISO RECHAZO ───────────────────────────────────────────── */
+.rechazado-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  font-size: 13px;
   font-weight: 600;
-  cursor: pointer;
-  color: var(--text-main, #0f172a);
-  transition: all 0.2s;
+  color: #dc2626;
 }
 
-.btn-outline:hover { background: var(--hover-bg, #f1f5f9); }
-.btn-sm { font-size: 12px; padding: 6px 12px; }
-
-/* ── DARK MODE MANUAL ── */
+/* ── DARK MODE ───────────────────────────────────────────────── */
 :host-context(html[data-theme="dark"]) .tramite-card {
   background: var(--card-bg);
   border-color: var(--border-color);
 }
-:host-context(html[data-theme="dark"]) .tc-header h4 { color: var(--text-main); }
+:host-context(html[data-theme="dark"]) .tc-info h4 { color: var(--text-main); }
 :host-context(html[data-theme="dark"]) .step-icon {
   background: var(--page-bg);
-  border-color: var(--card-bg);
+  border-color: var(--border-color);
+}
+:host-context(html[data-theme="dark"]) .step.active .step-icon {
+  background: rgba(145, 211, 55, 0.12);
+  border-color: #91d337;
+}
+:host-context(html[data-theme="dark"]) .step-line { background: var(--border-color); }
+:host-context(html[data-theme="dark"]) .step.active p { color: var(--text-main); }
+:host-context(html[data-theme="dark"]) .btn-ver-pdf {
+  border-color: var(--border-color);
   color: var(--text-muted);
 }
-:host-context(html[data-theme="dark"]) .step-line { background: var(--page-bg); }
-:host-context(html[data-theme="dark"]) .step.active p { color: var(--text-main); }
-:host-context(html[data-theme="dark"]) .btn-outline {
-  border-color: var(--border-color);
-  color: var(--text-main);
+:host-context(html[data-theme="dark"]) .btn-ver-pdf:hover:not(:disabled) {
+  border-color: #91d337;
+  background: rgba(145, 211, 55, 0.1);
+  color: #91d337;
 }
-:host-context(html[data-theme="dark"]) .btn-outline:hover { background: var(--hover-bg); }
 
-/* ── DARK MODE SISTEMA ── */
+/* ── DARK MODE SISTEMA ───────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
   :host-context(html:not([data-theme="light"])) .tramite-card {
-    background: var(--card-bg);
-    border-color: var(--border-color);
+    background: var(--card-bg); border-color: var(--border-color);
   }
-  :host-context(html:not([data-theme="light"])) .tc-header h4 { color: var(--text-main); }
+  :host-context(html:not([data-theme="light"])) .tc-info h4 { color: var(--text-main); }
   :host-context(html:not([data-theme="light"])) .step-icon {
-    background: var(--page-bg);
-    border-color: var(--card-bg);
-    color: var(--text-muted);
+    background: var(--page-bg); border-color: var(--border-color);
   }
-  :host-context(html:not([data-theme="light"])) .step-line { background: var(--page-bg); }
-  :host-context(html:not([data-theme="light"])) .step.active p { color: var(--text-main); }
-  :host-context(html:not([data-theme="light"])) .btn-outline {
-    border-color: var(--border-color);
-    color: var(--text-main);
+  :host-context(html:not([data-theme="light"])) .step.active .step-icon {
+    background: rgba(145, 211, 55, 0.12); border-color: #91d337;
   }
-  :host-context(html:not([data-theme="light"])) .btn-outline:hover { background: var(--hover-bg); }
+  :host-context(html:not([data-theme="light"])) .step-line { background: var(--border-color); }
+  :host-context(html:not([data-theme="light"])) .btn-ver-pdf {
+    border-color: var(--border-color); color: var(--text-muted);
+  }
 }

@@ -19,12 +19,14 @@
   @if (tabActiva === 'solicitar') {
     <div class="split-view">
 
-      <!-- Columna izquierda: formulario -->
-      <app-permiso-form
-        [firmaGuardadaUrl]="firmaGuardadaUrl"
-        (previewDataChange)="onPreviewData($event)"
-        (onEnviar)="generarPdf()">
-      </app-permiso-form>
+      <!-- Columna izquierda: formulario (scroll independiente) -->
+      <div class="form-scroll-wrapper">
+        <app-permiso-form
+          [firmaGuardadaUrl]="firmaGuardadaUrl"
+          (previewDataChange)="onPreviewData($event)"
+          (onEnviar)="generarPdf()">
+        </app-permiso-form>
+      </div>
 
       <!-- Columna derecha: preview PDF en iframe -->
       <div class="preview-wrapper">

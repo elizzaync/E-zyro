@@ -37,7 +37,7 @@ const TEMPLATE_PATH = '/assets/plantilla_permiso.pdf';
   imports: [CommonModule],
   template: `
     <div class="preview-shell">
-      <p class="preview-label">Vista previa en tiempo real</p>
+      <p class="preview-label">Vista Previa del Documento</p>
 
       @if (pdfUrl) {
         <iframe
@@ -57,27 +57,29 @@ const TEMPLATE_PATH = '/assets/plantilla_permiso.pdf';
   `,
   styles: [`
     .preview-shell {
+      background: var(--card-bg, #ffffff);
+      border-radius: 16px;
+      padding: 22px 24px;
+      border: 1px solid var(--border-color, #e2e8f0);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.02);
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      height: 100%;
+      gap: 16px;
     }
     .preview-label {
       margin: 0;
-      font-size: 12px;
-      font-weight: 600;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main, #0f172a);
     }
     .preview-iframe {
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border-color, #e2e8f0);
       border-radius: 10px;
-      min-height: 620px;
+      min-height: 580px;
       background: #f1f5f9;
     }
     .preview-placeholder {
-      height: 620px;
+      min-height: 580px;
       display: flex;
       flex-direction: column;
       align-items: center;

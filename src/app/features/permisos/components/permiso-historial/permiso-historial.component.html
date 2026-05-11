@@ -1,5 +1,139 @@
-<div class="historial-panel">
-  @for (tramite of tramites; track tramite.id) {
-    <app-permiso-tramite-card [tramite]="tramite"></app-permiso-tramite-card>
-  }
+<div class="historial-layout">
+
+  <!-- Columna izquierda: lista paginada -->
+  <div class="tramites-col">
+
+    <div class="col-header">
+      <span class="col-title">Mis Solicitudes</span>
+      <span class="col-badge">{{ tramites.length }}</span>
+    </div>
+
+    @if (tramites.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <p class="empty-title">Sin solicitudes aún</p>
+        <span class="empty-sub">Usa "Nueva Solicitud" para crear tu primer trámite.</span>
+      </div>
+    }
+
+    <div class="tramites-list">
+      @for (tramite of tramitesPaginados; track tramite.id) {
+        <app-permiso-tramite-card [tramite]="tramite"></app-permiso-tramite-card>
+      }
+    </div>
+
+    @if (totalPages > 1) {
+      <div class="paginacion">
+        <button class="pg-btn" (click)="prevPage()" [disabled]="currentPage === 1">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Anterior
+        </button>
+        <span class="pg-info">{{ currentPage }} / {{ totalPages }}</span>
+        <button class="pg-btn" (click)="nextPage()" [disabled]="currentPage === totalPages">
+          Siguiente
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    }
+
+  </div>
+
+  <!-- Columna derecha: panel de resumen -->
+  <div class="resumen-col">
+
+    <div class="resumen-card">
+      <h3 class="resumen-title">Resumen</h3>
+      <div class="stats-grid">
+
+        <div class="stat-item stat-total">
+          <div class="stat-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </div>
+          <div class="stat-texts">
+            <span class="stat-num">{{ totalCount }}</span>
+            <span class="stat-lbl">Total</span>
+          </div>
+        </div>
+
+        <div class="stat-item stat-pendiente">
+          <div class="stat-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div class="stat-texts">
+            <span class="stat-num">{{ pendientesCount }}</span>
+            <span class="stat-lbl">Pendientes</span>
+          </div>
+        </div>
+
+        <div class="stat-item stat-proceso">
+          <div class="stat-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </div>
+          <div class="stat-texts">
+            <span class="stat-num">{{ procesoCount }}</span>
+            <span class="stat-lbl">En Proceso</span>
+          </div>
+        </div>
+
+        <div class="stat-item stat-aprobado">
+          <div class="stat-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <div class="stat-texts">
+            <span class="stat-num">{{ aprobadosCount }}</span>
+            <span class="stat-lbl">Aprobadas</span>
+          </div>
+        </div>
+
+        <div class="stat-item stat-rechazado">
+          <div class="stat-icon-wrap">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <div class="stat-texts">
+            <span class="stat-num">{{ rechazadosCount }}</span>
+            <span class="stat-lbl">Rechazadas</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    @if (tramites.length > 0) {
+      <div class="ultima-card">
+        <p class="ultima-label">Última solicitud</p>
+        <p class="ultima-tipo">{{ tramites[0].tipo }}</p>
+        <p class="ultima-fecha">{{ tramites[0].fechaEmision }}</p>
+        <span class="ultima-estado" [ngClass]="'estado-' + tramites[0].estadoActual">
+          {{ getEstadoLabel(tramites[0].estadoActual) }}
+        </span>
+      </div>
+    }
+
+  </div>
+
 </div>
