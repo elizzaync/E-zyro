@@ -1,5 +1,6 @@
 from app.core.config_cloudinary import cloudinary_uploader
 import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
 import logging
 import re
 
@@ -72,14 +73,13 @@ def eliminar_imagen_cloudinary(url: str):
 
 def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
     """
-    Sube un PDF desde bytes en memoria a Cloudinary como recurso image/pdf.
-    resource_type="image" con format="pdf" evita el bloqueo "untrusted" de
-    cuentas gratuitas que afecta a resource_type="raw".
+    Sube un PDF a Cloudinary y devuelve una Signed URL válida por 1 hora.
+    La firma es necesaria en cuentas gratuitas para evitar el 401 Unauthorized.
     """
     try:
         import io
-        pid = public_id.removesuffix(".pdf")   # Cloudinary añade .pdf via format
-        upload_result = cloudinary.uploader.upload(
+        pid = public_id.removesuffix(".pdf")
+        cloudinary.uploader.upload(
             io.BytesIO(pdf_bytes),
             public_id=pid,
             resource_type="image",
@@ -87,7 +87,14 @@ def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
             overwrite=True,
             invalidate=True,
         )
-        return upload_result.get("secure_url", "")
+        signed_url, _ = cloudinary_url(
+            pid,
+            resource_type="image",
+            format="pdf",
+            sign_url=True,
+            secure=True,
+        )
+        return signed_url
     except Exception as e:
         logging.error(f"Error subiendo PDF (bytes) a Cloudinary: {str(e)}")
         raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")
