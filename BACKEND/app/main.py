@@ -5,9 +5,13 @@ from sqlalchemy import text
 
 from app.db.database import engine, Base
 from app.routers import auth, dashboard
-from app.routers import permisos as permisos_router
-from app.routers import asistencia as asistencia_router   # ← AGREGAR
+from app.routers import permisos     as permisos_router
+from app.routers import asistencia   as asistencia_router
+from app.routers import proyectos    as proyectos_router
+from app.routers import comunicados  as comunicados_router
+from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 
+# Importar todos los modelos para que Base los registre antes de create_all
 from app.models import (  # noqa: F401
     auditoria, catalogo_servicio, categoria_habilidad, cliente,
     dispositivo_push, empleado, empleado_habilidad, empresa, habilidad,
@@ -17,7 +21,7 @@ from app.models import (  # noqa: F401
     solicitud_laboral, usuario, usuario_permiso, usuario_rol,
     contrato, documento_laboral, firma_digital,
     historial_firma, documento_firmado,
-    foto_biometrica, foto_asistencia, geolocalizacion_asistencia,  # ← AGREGAR
+    foto_biometrica, foto_asistencia, geolocalizacion_asistencia,
 )
 
 
@@ -37,9 +41,7 @@ def _run_migrations():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear tablas nuevas (firma_digital) sin tocar las existentes
     Base.metadata.create_all(bind=engine)
-    # Agregar columnas nuevas a tablas existentes
     _run_migrations()
     iniciar_scheduler()
     yield
@@ -48,13 +50,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="API E-zyro", lifespan=lifespan)
 
-origenes_permitidos = [
-    "http://localhost:4200",
-    "*"
-]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origenes_permitidos,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,8 +61,9 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(permisos_router.router)
-app.include_router(asistencia_router.router)   # ← AGREGAR
-
+app.include_router(asistencia_router.router)
+app.include_router(proyectos_router.router)
+app.include_router(comunicados_router.router)
 
 
 @app.get("/")
