@@ -21,7 +21,6 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
-import face_recognition
 import requests as _req
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -95,6 +94,7 @@ def _decode_face(b64: str):
     Decodifica base64 → face encoding.
     Retorna None si la imagen no contiene ningún rostro detectable.
     """
+    import face_recognition
     try:
         raw      = base64.b64decode(_strip_header(b64))
         img      = face_recognition.load_image_file(io.BytesIO(raw))
@@ -112,6 +112,7 @@ def _url_to_face(url: str):
     Descarga imagen desde Cloudinary y extrae su face encoding.
     Lanza HTTPException 503 si la descarga falla.
     """
+    import face_recognition
     try:
         resp = _req.get(url, timeout=30)   # 30 s — Railway + Cloudinary puede ser lento
         resp.raise_for_status()
@@ -130,6 +131,7 @@ def _url_to_face(url: str):
 
 def _comparar(enc_base, enc_selfie) -> tuple[float, str]:
     """Retorna (score 0–100, resultado_ia)."""
+    import face_recognition
     distancia = float(face_recognition.face_distance([enc_base], enc_selfie)[0])
     score     = round(max(0.0, (1.0 - distancia) * 100.0), 2)
     if score >= _UMBRAL_SCORE:
