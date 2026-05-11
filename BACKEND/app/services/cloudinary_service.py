@@ -8,6 +8,9 @@ def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_pe
     Sube una imagen optimizada a Cloudinary.
     """
     try:
+        # Cloudinary requiere el prefijo data URI; añadirlo si viene como base64 puro
+        if not base64_data.startswith("data:"):
+            base64_data = f"data:image/jpeg;base64,{base64_data}"
         # Aquí estamos aplicando exactamente f_auto y q_auto
         transformaciones = [
             {"fetch_format": "auto"},  # Equivalente a f_auto
