@@ -177,12 +177,14 @@ def subir_foto_base(
     ).update({"activa": False}, synchronize_session=False)
 
     # Subir nueva foto a Cloudinary
-    public_id = f"biometrico/{empresa_id}/{usuario_id}/base_{uuid.uuid4().hex[:10]}"
+    bio_folder  = f"biometrico/{empresa_id}/{usuario_id}"
+    bio_name    = f"base_{uuid.uuid4().hex[:10]}"
+    public_id   = f"{bio_folder}/{bio_name}"
     try:
         url = subir_imagen_cloudinary(
             base64_data=body.imagen_base,
-            folder=f"biometrico/{empresa_id}/{usuario_id}",
-            public_id=public_id,
+            folder=bio_folder,
+            public_id=bio_name,          # solo el nombre, folder lo pone Cloudinary
             is_perfil=True,
         )
     except Exception as exc:
@@ -195,7 +197,7 @@ def subir_foto_base(
 
     # Guardar en BD
     foto = FotoBiometrica(
-        id=uuid.uuid4(),
+        id=str(uuid.uuid4()),
         usuario_id=usuario_id,
         empresa_id=empresa_id,
         url_cloudinary=url,
@@ -312,14 +314,13 @@ def marcar_asistencia(
     selfie_url:       Optional[str] = None
     selfie_public_id: Optional[str] = None
     try:
-        selfie_public_id = (
-            f"asistencia/{empresa_id}/{empleado.id}/"
-            f"{ahora.strftime('%Y%m%d')}_{uuid.uuid4().hex[:10]}"
-        )
+        selfie_folder = f"asistencia/{empresa_id}/{empleado.id}"
+        selfie_name   = f"{ahora.strftime('%Y%m%d')}_{uuid.uuid4().hex[:10]}"
+        selfie_public_id = f"{selfie_folder}/{selfie_name}"
         selfie_url = subir_imagen_cloudinary(
             base64_data=body.imagen_selfie,
-            folder=f"asistencia/{empresa_id}/{empleado.id}",
-            public_id=selfie_public_id,
+            folder=selfie_folder,
+            public_id=selfie_name,       # solo el nombre, folder lo pone Cloudinary
             is_perfil=False,
         )
     except Exception as exc:
