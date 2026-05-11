@@ -317,17 +317,17 @@ def marcar_asistencia(
         selfie_public_id = None
 
     # 8 ── Persistencia en BD (3 tablas en una transacción)
-    reg_id = uuid.uuid4()
+    reg_id = str(uuid.uuid4())
 
     registro = RegistroAsistencia(
         id=reg_id,
         empresa_id=empresa_id,
         empleado_id=empleado.id,
         proyecto_id=(
-            uuid.UUID(body.proyecto_id) if body.proyecto_id else None
+            str(uuid.UUID(body.proyecto_id)) if body.proyecto_id else None
         ),
         proyecto_servicio_id=(
-            uuid.UUID(body.proyecto_servicio_id) if body.proyecto_servicio_id else None
+            str(uuid.UUID(body.proyecto_servicio_id)) if body.proyecto_servicio_id else None
         ),
         tipo=tipo,
         fecha_hora=ahora,
@@ -335,13 +335,13 @@ def marcar_asistencia(
         observacion=motivo,
     )
     db.add(registro)
-    db.flush()   # obtener ID antes del commit
+    db.flush()
 
     fa = FotoAsistencia(
         registro_id=reg_id,
         url_cloudinary=selfie_url,
         public_id_cloudinary=selfie_public_id,
-        similitud_ia=round(score / 100.0, 4),   # 0.0000 – 1.0000
+        similitud_ia=round(score / 100.0, 4),
         resultado=resultado_ia,
         fecha_captura=ahora,
     )
