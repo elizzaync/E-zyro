@@ -339,6 +339,7 @@ def marcar_asistencia(
 
     fa = FotoAsistencia(
         registro_id=reg_id,
+        foto_base_id=foto_base.id,
         url_cloudinary=selfie_url,
         public_id_cloudinary=selfie_public_id,
         similitud_ia=round(score / 100.0, 4),
