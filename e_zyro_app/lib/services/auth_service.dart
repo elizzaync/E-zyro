@@ -24,6 +24,9 @@ class AuthService {
         await _prefs.setString('auth_token', res.data.token);
         await _prefs.setString('user_name', res.data.nombreCompleto);
         await _prefs.setString('user_rol', res.data.rol);
+        if (res.data.fotoUrl.isNotEmpty) {
+          await _prefs.setString('user_foto_url', res.data.fotoUrl);
+        }
         return res;
       } else if (r.statusCode == 401) {
         throw Exception('Usuario o contraseña incorrectos');
@@ -119,6 +122,7 @@ class AuthService {
     await _prefs.remove('auth_token');
     await _prefs.remove('user_name');
     await _prefs.remove('user_rol');
+    await _prefs.remove('user_foto_url');
   }
 
   bool get isAuthenticated => _prefs.getString('auth_token') != null;

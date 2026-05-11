@@ -159,17 +159,18 @@ class _LoginScreenState extends State<LoginScreen> {
   // ── Layout: modo biométrico (centrado vertical en pantalla completa) ────────
 
   Widget _buildBioLayout() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const Spacer(flex: 2),
-          _buildLogo(),
-          const Spacer(flex: 2),
-          _buildBioMode(),
-          const Spacer(flex: 3),
-        ],
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _buildLogo(),
+            const SizedBox(height: 52),
+            _buildBioMode(),
+          ],
+        ),
       ),
     );
   }
@@ -325,7 +326,12 @@ class _LoginScreenState extends State<LoginScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 20),
             child: TextButton.icon(
-              onPressed: () => setState(() => _showPasswordForm = false),
+              onPressed: () {
+                setState(() => _showPasswordForm = false);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _isBioMode) _authenticateWithBiometric();
+                });
+              },
               icon: const Icon(Icons.fingerprint, size: 18, color: Colors.grey),
               label: const Text(
                 'Usar huella digital',

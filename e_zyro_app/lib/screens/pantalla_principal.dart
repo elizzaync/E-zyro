@@ -159,12 +159,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── Saludo ──────────────────────────────────────────────────────────────────
+  String get _firstName => _userName.split(' ').first;
+
   Widget _buildGreeting() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Hola, $_userName 👋',
+          'Hola, $_firstName 👋',
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),

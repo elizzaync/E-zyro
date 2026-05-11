@@ -14,6 +14,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _rolCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  String _fotoUrl = '';
   bool _isSaving = false;
   bool _isLoading = true;
 
@@ -42,6 +43,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _rolCtrl.text = prefs.getString('user_rol') ?? '';
         _emailCtrl.text = prefs.getString('user_email') ?? '';
         _phoneCtrl.text = prefs.getString('user_phone') ?? '';
+        _fotoUrl = prefs.getString('user_foto_url') ?? '';
         _isLoading = false;
       });
     }
@@ -135,7 +137,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 shape: BoxShape.circle,
                                 border: Border.all(color: _green, width: 2.5),
                               ),
-                              child: const Icon(Icons.person, size: 50, color: _green),
+                              child: ClipOval(
+                                child: _fotoUrl.isNotEmpty
+                                    ? Image.network(
+                                        _fotoUrl,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, _) =>
+                                            const Icon(Icons.person, size: 50, color: _green),
+                                      )
+                                    : const Icon(Icons.person, size: 50, color: _green),
+                              ),
                             ),
                             Positioned(
                               right: 0,

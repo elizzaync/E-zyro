@@ -46,7 +46,7 @@ class BiometricService {
             'Usa tu huella digital para acceder a E-System TIC',
         options: const AuthenticationOptions(
           stickyAuth: true,
-          biometricOnly: true,
+          biometricOnly: false,
         ),
       );
     } catch (_) {

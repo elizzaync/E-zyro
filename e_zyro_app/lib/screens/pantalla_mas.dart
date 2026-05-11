@@ -14,6 +14,7 @@ class MoreScreen extends StatefulWidget {
 class _MoreScreenState extends State<MoreScreen> {
   String _userName = '';
   String _userRol = '';
+  String _fotoUrl = '';
 
   @override
   void initState() {
@@ -27,6 +28,7 @@ class _MoreScreenState extends State<MoreScreen> {
       setState(() {
         _userName = prefs.getString('user_name') ?? 'Usuario';
         _userRol = prefs.getString('user_rol') ?? '';
+        _fotoUrl = prefs.getString('user_foto_url') ?? '';
       });
     }
   }
@@ -261,7 +263,10 @@ class _MoreScreenState extends State<MoreScreen> {
           CircleAvatar(
             radius: 26,
             backgroundColor: Colors.white.withValues(alpha: 0.3),
-            child: const Icon(Icons.person, color: Colors.white, size: 28),
+            backgroundImage: _fotoUrl.isNotEmpty ? NetworkImage(_fotoUrl) : null,
+            child: _fotoUrl.isEmpty
+                ? const Icon(Icons.person, color: Colors.white, size: 28)
+                : null,
           ),
           const SizedBox(width: 14),
           Expanded(

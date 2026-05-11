@@ -31,11 +31,13 @@ class LoginData {
   final String nombreCompleto;
   final String rol;
   final String token;
+  final String fotoUrl;
 
   LoginData({
     required this.nombreCompleto,
     required this.rol,
     required this.token,
+    required this.fotoUrl,
   });
 
   factory LoginData.fromJson(Map<String, dynamic> json) {
@@ -43,6 +45,7 @@ class LoginData {
       nombreCompleto: json['nombre_completo'] ?? '',
       rol: json['rol'] ?? '',
       token: json['token'] ?? '',
+      fotoUrl: json['foto_url'] ?? '',
     );
   }
 }

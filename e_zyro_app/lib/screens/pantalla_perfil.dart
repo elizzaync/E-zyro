@@ -134,6 +134,7 @@ class _ProfileTabState extends State<_ProfileTab> {
   String _rol = '';
   String _email = '';
   String _phone = '';
+  String _fotoUrl = '';
   bool _loaded = false;
 
   @override
@@ -150,6 +151,7 @@ class _ProfileTabState extends State<_ProfileTab> {
         _rol = prefs.getString('user_rol') ?? 'Colaborador';
         _email = prefs.getString('user_email') ?? '';
         _phone = prefs.getString('user_phone') ?? '';
+        _fotoUrl = prefs.getString('user_foto_url') ?? '';
         _loaded = true;
       });
     }
@@ -206,15 +208,24 @@ class _ProfileTabState extends State<_ProfileTab> {
                       BoxShadow(color: green.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 2),
                     ],
                   ),
-                  child: Center(
-                    child: Text(
-                      _initials,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                  child: ClipOval(
+                    child: _fotoUrl.isNotEmpty
+                        ? Image.network(
+                            _fotoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, _) => Center(
+                              child: Text(
+                                _initials,
+                                style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Text(
+                              _initials,
+                              style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                   ),
                 ),
                 const SizedBox(height: 14),
