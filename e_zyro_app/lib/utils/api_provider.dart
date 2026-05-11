@@ -1,7 +1,38 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/api_service.dart';
+import '../core/api_client.dart';
+import '../services/auth_service.dart';
+import '../services/biometric_service.dart';
+import '../services/comunicado_service.dart';
+import '../services/dashboard_service.dart';
+import '../services/asistencia_service.dart';
+import '../services/proyecto_service.dart';
 
-Future<ApiService> getApiService() async {
+Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
-  return ApiService(prefs);
+  return AuthService(ApiClient(prefs), prefs);
+}
+
+Future<DashboardService> getDashboardService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return DashboardService(ApiClient(prefs));
+}
+
+Future<AsistenciaService> getAsistenciaService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return AsistenciaService(ApiClient(prefs));
+}
+
+Future<BiometricService> getBiometricService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return BiometricService(prefs);
+}
+
+Future<ProyectoService> getProyectoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return ProyectoService(ApiClient(prefs));
+}
+
+Future<ComunicadoService> getComunicadoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return ComunicadoService(ApiClient(prefs));
 }

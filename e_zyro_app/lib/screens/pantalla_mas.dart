@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
+import 'pantalla_comunicados.dart';
 import 'pantalla_editar_perfil.dart';
 
 class MoreScreen extends StatefulWidget {
@@ -142,11 +143,12 @@ class _MoreScreenState extends State<MoreScreen> {
                   ),
                 ),
                 _MenuItem(
-                  icon: Icons.notifications_outlined,
-                  label: 'Notificaciones',
-                  onTap: () => _showInfoDialog(
-                    'Notificaciones',
-                    'No tienes notificaciones pendientes en este momento.',
+                  icon: Icons.campaign_outlined,
+                  label: 'Comunicados',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ComunicadosScreen()),
                   ),
                 ),
                 _MenuItem(

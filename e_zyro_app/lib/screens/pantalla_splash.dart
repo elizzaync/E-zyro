@@ -20,9 +20,14 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
     final hasToken = prefs.getString('auth_token') != null;
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, hasToken ? '/' : '/login');
-    }
+    final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+    if (!mounted) return;
+    // Si biométrica habilitada → pasar siempre por login para verificación.
+    // Si no → acceso directo al home cuando ya hay sesión.
+    Navigator.pushReplacementNamed(
+      context,
+      (!hasToken || bioEnabled) ? '/login' : '/',
+    );
   }
 
   @override

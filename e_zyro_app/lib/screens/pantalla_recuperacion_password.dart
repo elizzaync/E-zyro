@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../services/api_service.dart';
+import '../services/auth_service.dart';
+import '../utils/api_provider.dart';
 
 class PasswordRecoveryScreen extends StatefulWidget {
   const PasswordRecoveryScreen({super.key});
@@ -20,7 +20,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
   bool _isLoading = false;
   int _step = 0; // 0: email | 1: código | 2: nueva contraseña
   String _verifiedEmail = '';
-  ApiService? _apiService;
+  AuthService? _authService;
 
   @override
   void initState() {
@@ -29,13 +29,13 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
   }
 
   Future<void> _initService() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() => _apiService = ApiService(prefs));
+    final svc = await getAuthService();
+    if (mounted) setState(() => _authService = svc);
   }
 
   // ── PASO 1: Solicitar código ────────────────────────────────────────────────
   Future<void> _requestCode() async {
-    if (_apiService == null || _isLoading) return;
+    if (_authService == null || _isLoading) return;
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       _showSnack('Ingresa tu correo electrónico', Colors.orange);
@@ -43,7 +43,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      await _apiService!.requestPasswordReset(email: email);
+      await _authService!.requestPasswordReset(email: email);
       if (!mounted) return;
       _verifiedEmail = email;
       setState(() => _step = 1);
@@ -58,7 +58,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
 
   // ── PASO 2: Verificar código ────────────────────────────────────────────────
   Future<void> _verifyCode() async {
-    if (_apiService == null || _isLoading) return;
+    if (_authService == null || _isLoading) return;
     final code = _codeController.text.trim();
     if (code.length != 6) {
       _showSnack('El código debe tener 6 dígitos', Colors.orange);
@@ -66,7 +66,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      await _apiService!.verifyPasswordCode(
+      await _authService!.verifyPasswordCode(
         email: _verifiedEmail,
         code: code,
       );
@@ -83,7 +83,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
 
   // ── PASO 3: Cambiar contraseña ──────────────────────────────────────────────
   Future<void> _resetPassword() async {
-    if (_apiService == null || _isLoading) return;
+    if (_authService == null || _isLoading) return;
     final newPass = _newPassController.text;
     final confirmPass = _confirmPassController.text;
     if (newPass.length < 6) {
@@ -96,7 +96,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      await _apiService!.resetPassword(
+      await _authService!.resetPassword(
         email: _verifiedEmail,
         code: _codeController.text.trim(),
         newPassword: newPass,
@@ -452,7 +452,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
       width: double.infinity,
       height: 52,
       child: ElevatedButton(
-        onPressed: (_isLoading || _apiService == null) ? null : action,
+        onPressed: (_isLoading || _authService == null) ? null : action,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF8FD11B),
           foregroundColor: Colors.white,

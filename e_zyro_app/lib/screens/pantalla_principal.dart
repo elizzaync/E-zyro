@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/api_service.dart';
+import '../services/dashboard_service.dart';
 import '../models/dashboard_models.dart';
 import '../widgets/stat_card.dart';
 import '../utils/app_notifiers.dart';
+import '../utils/api_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  ApiService? _apiService;
+  DashboardService? _dashboardService;
   bool _isLoading = true;
   bool _hasError = false;
 
@@ -35,26 +36,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _userName = prefs.getString('user_name') ?? 'Usuario';
-    _apiService = ApiService(prefs);
+    _dashboardService = await getDashboardService();
     await _loadData();
   }
 
   Future<void> _loadData() async {
-    if (_apiService == null) return;
+    if (_dashboardService == null) return;
     setState(() {
       _isLoading = true;
       _hasError = false;
     });
     try {
-      // Lanzar las 3 peticiones en paralelo
       late DashboardResumen resumen;
       late List<ProximoServicio> servicios;
       late List<NotificacionDashboard> notifs;
 
       await Future.wait([
-        _apiService!.getDashboardResumen().then((v) => resumen = v),
-        _apiService!.getProximosServicios().then((v) => servicios = v),
-        _apiService!.getNotificaciones().then((v) => notifs = v),
+        _dashboardService!.getResumen().then((v) => resumen = v),
+        _dashboardService!.getProximosServicios().then((v) => servicios = v),
+        _dashboardService!.getNotificaciones().then((v) => notifs = v),
       ]);
 
       if (!mounted) return;
@@ -336,11 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _QuickActionButton(
           label: 'Calendario',
           icon: Icons.calendar_today_outlined,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Text('Calendario disponible próximamente'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          )),
+          onTap: () => Navigator.pushNamed(context, '/calendario'),
         ),
         _QuickActionButton(
           label: 'Operaciones',

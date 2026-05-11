@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/app_notifiers.dart';
 import 'screens/pantalla_splash.dart';
@@ -10,12 +11,16 @@ import 'screens/pantalla_mas.dart';
 import 'screens/pantalla_login.dart';
 import 'screens/pantalla_recuperacion_password.dart';
 import 'screens/pantalla_asistencia.dart';
+import 'screens/pantalla_calendario.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('dark_mode') ?? false;
   themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
+  await initializeDateFormatting('es_ES', null);
+  await NotificationService.initialize();
   runApp(const ESystemApp());
 }
 
@@ -73,6 +78,7 @@ class ESystemApp extends StatelessWidget {
           '/logistics': (context) => const MainShell(initialIndex: 2),
           '/personal': (context) => const MainShell(initialIndex: 3),
           '/more': (context) => const MainShell(initialIndex: 4),
+          '/calendario': (context) => const CalendarioScreen(),
           '/asistencia': (context) => Scaffold(
             appBar: AppBar(
               leading: const BackButton(),

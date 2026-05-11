@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
 import '../models/asistencia_models.dart';
-import '../services/asistencia_service.dart';
+import '../utils/api_provider.dart';
 
 class PersonalScreen extends StatefulWidget {
   const PersonalScreen({super.key});
@@ -430,17 +430,20 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final svc = AsistenciaService(prefs);
-    final hoy = svc.getHoy();
-    final entradas = hoy.where((r) => r.tipo == 'ENTRADA' && r.status == 'APROBADO');
-    final salidas = hoy.where((r) => r.tipo == 'SALIDA' && r.status == 'APROBADO');
+    final svc = await getAsistenciaService();
+    final historial = await svc.getHistorial();
+    final ahora = DateTime.now();
+    bool esHoy(DateTime dt) =>
+        dt.year == ahora.year && dt.month == ahora.month && dt.day == ahora.day;
+    final hoyList  = historial.where((r) => esHoy(r.timestamp));
+    final entradas = hoyList.where((r) => r.tipo == 'ENTRADA' && r.status == 'APROBADO');
+    final salidas  = hoyList.where((r) => r.tipo == 'SALIDA'  && r.status == 'APROBADO');
     if (mounted) {
       setState(() {
-        _historial = svc.getHistorial();
+        _historial  = historial;
         _entradaHoy = entradas.isEmpty ? null : entradas.first;
-        _salidaHoy = salidas.isEmpty ? null : salidas.first;
-        _isLoading = false;
+        _salidaHoy  = salidas.isEmpty  ? null : salidas.first;
+        _isLoading  = false;
       });
     }
   }

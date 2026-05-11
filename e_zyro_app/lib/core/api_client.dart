@@ -1,0 +1,94 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'app_constants.dart';
+
+/// Low-level HTTP client — injects auth token, applies timeout, centralises
+/// error translation. All services receive an instance of this class.
+class ApiClient {
+  final SharedPreferences _prefs;
+  ApiClient(this._prefs);
+
+  String get _token => _prefs.getString('auth_token') ?? '';
+
+  Map<String, String> get _authHeaders => {
+        'Authorization': 'Bearer $_token',
+        'Content-Type': 'application/json',
+      };
+
+  static const Map<String, String> _publicHeaders = {
+    'Content-Type': 'application/json',
+  };
+
+  // ── HTTP verbs ────────────────────────────────────────────────────────────
+
+  Future<http.Response> get(String path, {Duration? timeout}) => http
+      .get(
+        Uri.parse('${AppConstants.baseUrl}$path'),
+        headers: _authHeaders,
+      )
+      .timeout(timeout ?? AppConstants.defaultTimeout);
+
+  Future<http.Response> post(
+    String path,
+    Object body, {
+    Duration? timeout,
+  }) =>
+      http
+          .post(
+            Uri.parse('${AppConstants.baseUrl}$path'),
+            headers: _authHeaders,
+            body: jsonEncode(body),
+          )
+          .timeout(timeout ?? AppConstants.defaultTimeout);
+
+  /// POST without Bearer token (login, password recovery).
+  Future<http.Response> postPublic(String path, Object body) => http
+      .post(
+        Uri.parse('${AppConstants.baseUrl}$path'),
+        headers: _publicHeaders,
+        body: jsonEncode(body),
+      )
+      .timeout(AppConstants.defaultTimeout);
+
+  // ── Error handling ────────────────────────────────────────────────────────
+
+  /// Throws [Exception] with a human-readable message when status != 200.
+  void checkResponse(http.Response r, {required String fallback}) {
+    if (r.statusCode == 200) return;
+
+    final String mensaje;
+
+    if (r.statusCode == 404) {
+      final detail = _extractDetail(r.body, '');
+      mensaje = (detail.isEmpty || detail == 'Not Found')
+          ? 'Endpoint no encontrado en el servidor.'
+          : detail;
+    } else if (r.statusCode == 422) {
+      mensaje = _extractDetail(r.body, 'Datos inválidos enviados al servidor.');
+    } else if (r.statusCode == 401 || r.statusCode == 403) {
+      mensaje = 'Sesión expirada. Vuelve a iniciar sesión.';
+    } else if (r.statusCode >= 500) {
+      mensaje =
+          'Error interno del servidor (${r.statusCode}). Intenta nuevamente.';
+    } else {
+      mensaje = _extractDetail(r.body, '$fallback (${r.statusCode})');
+    }
+
+    throw Exception(mensaje);
+  }
+
+  String _extractDetail(String body, String fallback) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final detail = decoded['detail'];
+        if (detail is String) return detail;
+        if (detail is List && detail.isNotEmpty) {
+          return (detail.first as Map)['msg']?.toString() ?? fallback;
+        }
+      }
+    } catch (_) {}
+    return fallback;
+  }
+}

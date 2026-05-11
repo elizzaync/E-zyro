@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/asistencia_models.dart';
 import '../services/asistencia_service.dart';
+import '../utils/api_provider.dart';
 
 class AsistenciaScreen extends StatefulWidget {
   const AsistenciaScreen({super.key});
@@ -28,18 +29,33 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   Position? _position;
   bool _fetchingLocation = false;
   String _locationStatus = 'Toca para obtener ubicación';
-  String? _addressLine1; // "Av. Tomás Valle 570"
-  String? _addressLine2; // "Bocanegra, Callao"
+  String? _addressLine1;
+  String? _addressLine2;
 
-  // Foto de referencia
-  bool _hasRefPhoto = false;
-  bool _checkingRefPhoto = true;
-
-  // Estado asistencia del día
+  // Estado del backend
+  EstadoHoy? _estadoHoy;
   List<RegistroAsistencia> _historial = [];
-  RegistroAsistencia? _entradaHoy;
-  RegistroAsistencia? _salidaHoy;
+  bool _cargandoInicial = true;
 
+  // ── Getters derivados ──────────────────────────────────────────────────────
+  bool get _tieneFotoBase => _estadoHoy?.tieneFotoBase ?? false;
+  bool get _jornadaCompleta => _estadoHoy?.jornadaCompleta ?? false;
+  String? get _tipoRegistro => _estadoHoy?.tipoProximo;
+
+  bool _esHoy(DateTime dt) {
+    final hoy = DateTime.now();
+    return dt.year == hoy.year && dt.month == hoy.month && dt.day == hoy.day;
+  }
+
+  RegistroAsistencia? get _entradaHoy => _historial
+      .where((r) => r.tipo == 'ENTRADA' && _esHoy(r.timestamp))
+      .firstOrNull;
+
+  RegistroAsistencia? get _salidaHoy => _historial
+      .where((r) => r.tipo == 'SALIDA' && _esHoy(r.timestamp))
+      .firstOrNull;
+
+  // ── Ciclo de vida ──────────────────────────────────────────────────────────
   static const _meses = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -67,39 +83,37 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    final svc = AsistenciaService(prefs);
-    final hasRef = await svc.tieneRefPhoto();
-    if (mounted) {
-      setState(() {
-        _service = svc;
-        _userName = prefs.getString('user_name') ?? 'Usuario';
-        _hasRefPhoto = hasRef;
-        _checkingRefPhoto = false;
-      });
-      _refreshData();
+    final svc = await getAsistenciaService();
+    if (mounted) setState(() { _service = svc; _userName = prefs.getString('user_name') ?? 'Usuario'; });
+    await _cargarDatos(svc);
+  }
+
+  Future<void> _cargarDatos(AsistenciaService svc) async {
+    try {
+      final results = await Future.wait([
+        svc.getEstadoHoy(),
+        svc.getHistorial(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _estadoHoy = results[0] as EstadoHoy;
+          _historial  = results[1] as List<RegistroAsistencia>;
+          _cargandoInicial = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _cargandoInicial = false);
     }
   }
 
-  void _refreshData() {
-    if (_service == null || !mounted) return;
-    final hoy = _service!.getHoy();
-    final entradas = hoy.where((r) => r.tipo == 'ENTRADA' && r.status == 'APROBADO');
-    final salidas = hoy.where((r) => r.tipo == 'SALIDA' && r.status == 'APROBADO');
-    setState(() {
-      _historial = _service!.getHistorial();
-      _entradaHoy = entradas.isEmpty ? null : entradas.first;
-      _salidaHoy = salidas.isEmpty ? null : salidas.first;
-    });
-  }
-
-  // ── GPS + Geocodificación inversa ────────────────────────────────────────────
+  // ── GPS ────────────────────────────────────────────────────────────────────
   Future<void> _fetchLocation() async {
     if (!mounted) return;
     setState(() {
       _fetchingLocation = true;
-      _locationStatus = 'Obteniendo ubicación...';
-      _addressLine1 = null;
-      _addressLine2 = null;
+      _locationStatus   = 'Obteniendo ubicación...';
+      _addressLine1     = null;
+      _addressLine2     = null;
     });
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
@@ -119,20 +133,15 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
         if (mounted) setState(() { _fetchingLocation = false; _locationStatus = 'Permiso denegado permanentemente'; });
         return;
       }
-
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       ).timeout(const Duration(seconds: 20));
-
       if (!mounted) return;
       setState(() {
-        _position = pos;
-        _locationStatus =
-            '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}';
+        _position       = pos;
+        _locationStatus = '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}';
         _fetchingLocation = false;
       });
-
-      // Geocodificación inversa para obtener dirección legible
       _resolveAddress(pos.latitude, pos.longitude);
     } catch (_) {
       if (mounted) setState(() { _fetchingLocation = false; _locationStatus = 'Error al obtener ubicación'; });
@@ -143,33 +152,26 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     try {
       final placemarks = await placemarkFromCoordinates(lat, lng)
           .timeout(const Duration(seconds: 10));
-      if (placemarks.isEmpty || !mounted) return;
+      if (placemarks.isEmpty || !mounted) { return; }
       final p = placemarks.first;
-
-      // Línea 1: "Av. Tomás Valle 570" (vía + número)
       final street = [
         if ((p.thoroughfare ?? '').isNotEmpty) p.thoroughfare!,
         if ((p.subThoroughfare ?? '').isNotEmpty) p.subThoroughfare!,
       ].join(' ');
-
-      // Línea 2: "Bocanegra, Callao" (barrio + ciudad)
       final district = [
         if ((p.subLocality ?? '').isNotEmpty) p.subLocality!,
         if ((p.locality ?? '').isNotEmpty) p.locality!,
       ].join(', ');
-
       if (mounted) {
         setState(() {
           _addressLine1 = street.isNotEmpty ? street : null;
           _addressLine2 = district.isNotEmpty ? district : null;
         });
       }
-    } catch (_) {
-      // Geocodificación fallida — las coordenadas siguen mostrándose
-    }
+    } catch (_) {}
   }
 
-  // ── Helpers de formato ───────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
   String get _greeting {
     final h = _now.hour;
     if (h < 12) return 'Buenos días';
@@ -185,31 +187,58 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   String _pad(int n) => n.toString().padLeft(2, '0');
 
-  String? get _tipoRegistro {
-    if (_entradaHoy == null) return 'ENTRADA';
-    if (_salidaHoy == null) return 'SALIDA';
-    return null;
-  }
-
-  bool get _jornadaCompleta => _entradaHoy != null && _salidaHoy != null;
-
-  // ── Configurar foto de referencia ────────────────────────────────────────────
-  void _openSetupRefPhoto() {
+  // ── Acciones ───────────────────────────────────────────────────────────────
+  void _openSubirFotoBase() {
+    if (_service == null) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SetupRefPhotoSheet(
-        onConfigured: () {
-          if (mounted) setState(() => _hasRefPhoto = true);
-        },
+      enableDrag: false,
+      builder: (_) => _SubirFotoBaseSheet(
+        service: _service!,
+        onConfigured: _onFotoBaseConfigured,
       ),
     );
   }
 
-  // ── Abrir modal de registro ──────────────────────────────────────────────────
+  void _onFotoBaseConfigured() {
+    // Optimistic update — UI cambia de inmediato sin esperar el refresh
+    if (mounted) {
+      final old = _estadoHoy;
+      setState(() {
+        _estadoHoy = EstadoHoy(
+          tieneEntrada:   old?.tieneEntrada   ?? false,
+          tieneSalida:    old?.tieneSalida    ?? false,
+          tieneFotoBase:  true,
+          entradaHora:    old?.entradaHora,
+          salidaHora:     old?.salidaHora,
+          jornadaCompleta: old?.jornadaCompleta ?? false,
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle, color: Colors.white, size: 16),
+              SizedBox(width: 8),
+              Text('¡Foto biométrica registrada exitosamente!'),
+            ],
+          ),
+          backgroundColor: const Color(0xFF8FD11B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+    // Refresh en background para confirmar con el servidor
+    if (_service != null) _cargarDatos(_service!);
+  }
+
   void _openRegistroSheet() {
-    if (_service == null || _tipoRegistro == null || !_hasRefPhoto) return;
+    if (_service == null || _tipoRegistro == null || !_tieneFotoBase || _cargandoInicial) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -220,26 +249,22 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
         addressLine1: _addressLine1,
         addressLine2: _addressLine2,
         service: _service!,
-        onCompleted: (registro) {
-          _service!.guardarRegistro(registro);
-          if (mounted) {
-            setState(() {
-              _historial.insert(0, registro);
-              if (registro.tipo == 'ENTRADA' && registro.status == 'APROBADO') _entradaHoy = registro;
-              if (registro.tipo == 'SALIDA' && registro.status == 'APROBADO') _salidaHoy = registro;
-            });
-            _showResultDialog(registro);
-          }
-        },
+        onCompleted: _onMarkCompleted,
       ),
     );
   }
 
-  // ── Dialog de resultado ──────────────────────────────────────────────────────
-  void _showResultDialog(RegistroAsistencia r) {
-    final aprobado = r.status == 'APROBADO';
-    const green = Color(0xFF8FD11B);
-    final statusColor = aprobado ? green : Colors.red;
+  void _onMarkCompleted(MarcarResponse result) {
+    _showResultDialog(result);
+    if (_service != null) _cargarDatos(_service!);
+  }
+
+  // ── Diálogo de resultado ───────────────────────────────────────────────────
+  void _showResultDialog(MarcarResponse r) {
+    final aprobado     = r.status == 'APROBADO';
+    final esRevision   = r.resultadoIa == 'revision_manual';
+    const green        = Color(0xFF8FD11B);
+    final statusColor  = aprobado ? green : (esRevision ? Colors.orange : Colors.red);
 
     showDialog(
       context: context,
@@ -256,23 +281,28 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 84,
-                height: 84,
+                width: 84, height: 84,
                 decoration: BoxDecoration(
-                  color: statusColor,
-                  shape: BoxShape.circle,
+                  color: statusColor, shape: BoxShape.circle,
                   boxShadow: [BoxShadow(color: statusColor.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4)],
                 ),
-                child: Icon(aprobado ? Icons.check_rounded : Icons.close_rounded, color: Colors.white, size: 50),
+                child: Icon(
+                  aprobado ? Icons.check_rounded : (esRevision ? Icons.hourglass_top_rounded : Icons.close_rounded),
+                  color: Colors.white, size: 50,
+                ),
               ),
               const SizedBox(height: 20),
               Text(
-                aprobado ? '¡APROBADO!' : 'RECHAZADO',
+                aprobado ? '¡APROBADO!' : (esRevision ? 'EN REVISIÓN' : 'RECHAZADO'),
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: statusColor),
               ),
               const SizedBox(height: 6),
-              Text('${r.tipo} registrada', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+              Text(
+                '${r.resultadoIa == "revision_manual" ? "Asistencia registrada" : "Asistencia registrada"} · Tipo marcado',
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
+              ),
               const SizedBox(height: 16),
+              // Score badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                 decoration: BoxDecoration(
@@ -280,17 +310,44 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'Score: ${r.score.toStringAsFixed(1)}%',
+                  'Similitud: ${r.score.toStringAsFixed(1)}%',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: statusColor),
                 ),
               ),
-              if (r.motivo != null && r.motivo!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              // GPS badge
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    r.gpsGuardado ? Icons.location_on : Icons.location_off,
+                    size: 14,
+                    color: r.gpsGuardado ? green : Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    r.gpsGuardado ? 'GPS guardado' : 'Sin GPS',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: r.gpsGuardado ? green : Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              if (r.motivo.isNotEmpty) ...[
                 const SizedBox(height: 12),
-                Text(r.motivo!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                Text(
+                  r.motivo,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey, fontSize: 12, height: 1.5),
+                ),
               ],
               const SizedBox(height: 8),
-              Text('${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}:${_pad(r.timestamp.second)}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              Text(
+                '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}:${_pad(r.timestamp.second)}',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -313,12 +370,15 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  // ── Build principal ──────────────────────────────────────────────────────────
+  // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: () async { _refreshData(); await _fetchLocation(); },
+        onRefresh: () async {
+          if (_service != null) await _cargarDatos(_service!);
+          await _fetchLocation();
+        },
         color: const Color(0xFF8FD11B),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -332,9 +392,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               const SizedBox(height: 16),
               _buildStatusHoy(),
               const SizedBox(height: 20),
-              // Alerta de foto de referencia requerida
-              if (!_checkingRefPhoto && !_hasRefPhoto) ...[
-                _buildRefPhotoAlert(),
+              if (!_cargandoInicial && !_tieneFotoBase) ...[
+                _buildFotoBaseAlert(),
                 const SizedBox(height: 16),
               ],
               _buildRegisterButton(),
@@ -348,7 +407,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  // ── Header gradiente ─────────────────────────────────────────────────────────
+  // ── Header gradiente ───────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -379,7 +438,6 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   ],
                 ),
               ),
-              // Indicador de foto de referencia
               Stack(
                 children: [
                   CircleAvatar(
@@ -387,22 +445,19 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
                     child: const Icon(Icons.person, color: Colors.white, size: 26),
                   ),
-                  if (!_checkingRefPhoto)
+                  if (!_cargandoInicial)
                     Positioned(
-                      right: 0,
-                      bottom: 0,
+                      right: 0, bottom: 0,
                       child: Container(
-                        width: 16,
-                        height: 16,
+                        width: 16, height: 16,
                         decoration: BoxDecoration(
-                          color: _hasRefPhoto ? const Color(0xFF8FD11B) : Colors.orange,
+                          color: _tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange,
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2),
                         ),
                         child: Icon(
-                          _hasRefPhoto ? Icons.check : Icons.priority_high,
-                          color: Colors.white,
-                          size: 9,
+                          _tieneFotoBase ? Icons.check : Icons.priority_high,
+                          color: Colors.white, size: 9,
                         ),
                       ),
                     ),
@@ -412,8 +467,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           ),
           const SizedBox(height: 16),
           Wrap(
-            spacing: 8,
-            runSpacing: 6,
+            spacing: 8, runSpacing: 6,
             children: [
               _chip(Icons.calendar_today, _fechaFormateada),
               _chip(Icons.access_time, _hora),
@@ -437,17 +491,17 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     ),
   );
 
-  // ── Tarjeta GPS con dirección ─────────────────────────────────────────────────
+  // ── Tarjeta GPS ────────────────────────────────────────────────────────────
   Widget _buildLocationCard() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasLoc = _position != null;
-    const green = Color(0xFF8FD11B);
+    const green  = Color(0xFF8FD11B);
 
     Color accuracyColor = Colors.grey;
     String accuracyLabel = '';
     if (hasLoc) {
       final acc = _position!.accuracy;
-      if (acc <= 10) { accuracyColor = green; accuracyLabel = 'Alta'; }
+      if (acc <= 10) { accuracyColor = green;          accuracyLabel = 'Alta'; }
       else if (acc <= 30) { accuracyColor = Colors.orange; accuracyLabel = 'Media'; }
       else { accuracyColor = Colors.red; accuracyLabel = 'Baja'; }
     }
@@ -472,8 +526,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   ),
                   child: Icon(
                     hasLoc ? Icons.location_on : Icons.location_searching,
-                    color: hasLoc ? green : Colors.orange,
-                    size: 22,
+                    color: hasLoc ? green : Colors.orange, size: 22,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -483,23 +536,13 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                     children: [
                       const Text('Ubicación GPS', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                       const SizedBox(height: 4),
-
-                      // Dirección legible (línea 1)
                       if (_addressLine1 != null)
-                        Text(
-                          _addressLine1!,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                        ),
-                      // Barrio y ciudad (línea 2)
+                        Text(_addressLine1!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                       if (_addressLine2 != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 1),
-                          child: Text(
-                            _addressLine2!,
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
+                          child: Text(_addressLine2!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                         ),
-                      // Mientras no hay dirección, mostrar estado
                       if (_addressLine1 == null)
                         Text(
                           _fetchingLocation ? 'Obteniendo dirección...' : _locationStatus,
@@ -512,8 +555,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 18, height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
                     ),
                   )
@@ -521,13 +563,11 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   IconButton(
                     icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
                     onPressed: _fetchLocation,
-                    tooltip: 'Actualizar ubicación',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
               ],
             ),
-            // Fila inferior: coordenadas + precisión
             if (hasLoc) ...[
               const SizedBox(height: 10),
               Row(
@@ -540,20 +580,13 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                     ),
                     child: Text(
                       '${_position!.latitude.toStringAsFixed(5)}, ${_position!.longitude.toStringAsFixed(5)}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
-                      ),
+                      style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: isDark ? Colors.grey.shade300 : Colors.grey.shade600),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: accuracyColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                    decoration: BoxDecoration(color: accuracyColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                     child: Text(
                       '±${_position!.accuracy.toStringAsFixed(0)}m · $accuracyLabel',
                       style: TextStyle(fontSize: 11, color: accuracyColor, fontWeight: FontWeight.w600),
@@ -568,8 +601,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  // ── Alerta: foto de referencia no configurada ────────────────────────────────
-  Widget _buildRefPhotoAlert() {
+  // ── Alerta: sin foto biométrica ────────────────────────────────────────────
+  Widget _buildFotoBaseAlert() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -584,34 +617,29 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
                 child: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
               ),
               const SizedBox(width: 10),
               const Expanded(
-                child: Text(
-                  'Foto de referencia requerida',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
+                child: Text('Foto biométrica requerida', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               ),
             ],
           ),
           const SizedBox(height: 10),
           const Text(
-            'Para registrar tu asistencia necesitas configurar tu foto de referencia. '
-            'Esta imagen se usará para verificar tu identidad en cada registro.',
+            'Para registrar tu asistencia necesitas subir tu foto biométrica base. '
+            'Se almacena de forma segura en nuestros servidores y se usa para verificar '
+            'tu identidad en cada registro.',
             style: TextStyle(color: Colors.grey, fontSize: 12, height: 1.5),
           ),
           const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _openSetupRefPhoto,
-              icon: const Icon(Icons.camera_alt, size: 18),
-              label: const Text('Configurar mi foto de referencia'),
+              onPressed: _openSubirFotoBase,
+              icon: const Icon(Icons.face_retouching_natural, size: 18),
+              label: const Text('Registrar mi foto biométrica'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
@@ -626,7 +654,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  // ── Estado del día ───────────────────────────────────────────────────────────
+  // ── Estado del día ─────────────────────────────────────────────────────────
   Widget _buildStatusHoy() {
     return Container(
       decoration: _cardDecoration(),
@@ -638,29 +666,27 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Estado del Día', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-              // Badge de foto de referencia configurada
-              if (!_checkingRefPhoto)
+              if (!_cargandoInicial)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: (_hasRefPhoto ? const Color(0xFF8FD11B) : Colors.orange).withValues(alpha: 0.1),
+                    color: (_tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        _hasRefPhoto ? Icons.verified_user : Icons.person_off,
+                        _tieneFotoBase ? Icons.verified_user : Icons.person_off,
                         size: 11,
-                        color: _hasRefPhoto ? const Color(0xFF8FD11B) : Colors.orange,
+                        color: _tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange,
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        _hasRefPhoto ? 'Foto configurada' : 'Sin foto base',
+                        _tieneFotoBase ? 'Foto registrada' : 'Sin foto base',
                         style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _hasRefPhoto ? const Color(0xFF8FD11B) : Colors.orange,
+                          fontSize: 10, fontWeight: FontWeight.w600,
+                          color: _tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange,
                         ),
                       ),
                     ],
@@ -669,23 +695,49 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _buildStatusItem('Entrada', _entradaHoy, Icons.login, isEntrada: true)),
-              const SizedBox(width: 12),
-              Expanded(child: _buildStatusItem('Salida', _salidaHoy, Icons.logout, isEntrada: false)),
-            ],
-          ),
+          if (_cargandoInicial)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: SizedBox(
+                  width: 24, height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(child: _buildStatusItem('Entrada', _entradaHoy, Icons.login, isEntrada: true)),
+                const SizedBox(width: 12),
+                Expanded(child: _buildStatusItem('Salida',  _salidaHoy,  Icons.logout, isEntrada: false)),
+              ],
+            ),
         ],
       ),
     );
   }
 
   Widget _buildStatusItem(String label, RegistroAsistencia? r, IconData icon, {required bool isEntrada}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final registered = r != null;
-    const green = Color(0xFF8FD11B);
-    final col = isEntrada ? green : Colors.blue;
+    final isDark      = Theme.of(context).brightness == Brightness.dark;
+    final registered  = r != null;
+    const green       = Color(0xFF8FD11B);
+    final col         = isEntrada ? green : Colors.blue;
+
+    String horaStr = '--:--';
+    if (registered) {
+      horaStr = '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}';
+    } else if (isEntrada && (_estadoHoy?.entradaHora != null)) {
+      horaStr = _estadoHoy!.entradaHora!;
+    } else if (!isEntrada && (_estadoHoy?.salidaHora != null)) {
+      horaStr = _estadoHoy!.salidaHora!;
+    }
+
+    final gpsInfo = registered && r.latitud != null
+        ? (r.precisionM != null ? '±${r.precisionM!.toStringAsFixed(0)}m' : 'GPS ✓')
+        : '';
+    final scoreInfo = registered ? '${r.score.toStringAsFixed(1)}%' : '';
+    final subtitle  = [scoreInfo, gpsInfo].where((s) => s.isNotEmpty).join(' · ');
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -708,12 +760,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            registered ? '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}' : '--:--',
+            horaStr,
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: registered ? col : Colors.grey.shade400),
           ),
           const SizedBox(height: 3),
           Text(
-            registered ? '${r.score.toStringAsFixed(1)}% · ${r.latitud != null ? "GPS ✓" : "Sin GPS"}' : 'Pendiente',
+            subtitle.isNotEmpty ? subtitle : 'Pendiente',
             style: const TextStyle(fontSize: 10, color: Colors.grey),
           ),
         ],
@@ -721,21 +773,20 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  // ── Botón principal de registro ──────────────────────────────────────────────
+  // ── Botón de registro ──────────────────────────────────────────────────────
   Widget _buildRegisterButton() {
-    const green = Color(0xFF8FD11B);
-    final tipo = _tipoRegistro;
-    final enabled = !_jornadaCompleta && _hasRefPhoto && _service != null;
+    const green  = Color(0xFF8FD11B);
+    final tipo   = _tipoRegistro;
+    final enabled = !_jornadaCompleta && _tieneFotoBase && !_cargandoInicial && _service != null;
 
     return SizedBox(
-      width: double.infinity,
-      height: 58,
+      width: double.infinity, height: 58,
       child: ElevatedButton(
         onPressed: enabled ? _openRegistroSheet : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: _jornadaCompleta
               ? Colors.grey.shade300
-              : (!_hasRefPhoto ? Colors.orange.withValues(alpha: 0.5) : green),
+              : (!_tieneFotoBase ? Colors.orange.withValues(alpha: 0.5) : green),
           foregroundColor: _jornadaCompleta ? Colors.grey : Colors.white,
           disabledBackgroundColor: _jornadaCompleta ? Colors.grey.shade200 : Colors.orange.withValues(alpha: 0.3),
           disabledForegroundColor: Colors.white70,
@@ -746,17 +797,21 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              _jornadaCompleta
-                  ? Icons.check_circle
-                  : (!_hasRefPhoto ? Icons.lock : (tipo == 'ENTRADA' ? Icons.fingerprint : Icons.logout)),
-              size: 24,
-            ),
+            if (_cargandoInicial)
+              const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+            else
+              Icon(
+                _jornadaCompleta ? Icons.check_circle
+                    : (!_tieneFotoBase ? Icons.lock
+                    : (tipo == 'ENTRADA' ? Icons.fingerprint : Icons.logout)),
+                size: 24,
+              ),
             const SizedBox(width: 10),
             Text(
-              _jornadaCompleta
-                  ? 'Jornada Completada'
-                  : (!_hasRefPhoto ? 'Configura tu foto primero' : 'Registrar ${tipo ?? ''}'),
+              _cargandoInicial ? 'Cargando...'
+                  : (_jornadaCompleta ? 'Jornada Completada'
+                  : (!_tieneFotoBase ? 'Registra tu foto biométrica'
+                  : 'Registrar ${tipo ?? ''}')),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ],
@@ -765,7 +820,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  // ── Historial ────────────────────────────────────────────────────────────────
+  // ── Historial ──────────────────────────────────────────────────────────────
   Widget _buildHistorySection() {
     final Map<String, List<RegistroAsistencia>> grupos = {};
     for (final r in _historial) {
@@ -777,7 +832,17 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       children: [
         const Text('Historial', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
-        if (grupos.isEmpty)
+        if (_cargandoInicial)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: _cardDecoration(),
+            child: const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)),
+              ),
+            ),
+          )
+        else if (grupos.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
             decoration: _cardDecoration(),
@@ -799,8 +864,10 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_labelForKey(entry.key),
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey, letterSpacing: 0.6)),
+                child: Text(
+                  _labelForKey(entry.key),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey, letterSpacing: 0.6),
+                ),
               ),
               ...entry.value.map(_buildRegistroItem),
               const SizedBox(height: 12),
@@ -822,11 +889,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   }
 
   Widget _buildRegistroItem(RegistroAsistencia r) {
-    final aprobado = r.status == 'APROBADO';
-    final isEntrada = r.tipo == 'ENTRADA';
-    const green = Color(0xFF8FD11B);
-    final tipoColor = isEntrada ? green : Colors.blue;
-    final statusColor = aprobado ? green : Colors.red;
+    final aprobado   = r.status == 'APROBADO';
+    final esRevision = r.resultadoIa == 'revision_manual';
+    final isEntrada  = r.tipo == 'ENTRADA';
+    const green      = Color(0xFF8FD11B);
+    final tipoColor  = isEntrada ? green : Colors.blue;
+    final statusColor = aprobado ? green : (esRevision ? Colors.orange : Colors.red);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -846,10 +914,42 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               children: [
                 Text(r.tipo, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 3),
-                Text(
-                  '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}  ·  ${r.latitud != null ? "GPS ✓" : "Sin GPS"}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                Row(
+                  children: [
+                    Text(
+                      '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    if (r.latitud != null) ...[
+                      const Text(' · ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Icon(Icons.location_on, size: 11, color: Color(0xFF8FD11B)),
+                      Text(
+                        r.precisionM != null
+                            ? ' ±${r.precisionM!.toStringAsFixed(0)}m'
+                            : ' GPS',
+                        style: const TextStyle(color: Color(0xFF8FD11B), fontSize: 11, fontWeight: FontWeight.w500),
+                      ),
+                    ] else ...[
+                      const Text(' · ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Icon(Icons.location_off, size: 11, color: Colors.grey),
+                      const Text(' Sin GPS', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    ],
+                  ],
                 ),
+                if (esRevision) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Requiere revisión manual',
+                      style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -871,9 +971,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   }
 
   BoxDecoration _cardDecoration() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
-    const green = Color(0xFF8FD11B);
+    const green   = Color(0xFF8FD11B);
     return BoxDecoration(
       color: surface,
       borderRadius: BorderRadius.circular(14),
@@ -885,224 +985,158 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   }
 }
 
-// ── Sheet: Configurar foto de referencia ──────────────────────────────────────
-class _SetupRefPhotoSheet extends StatefulWidget {
+// ── Sheet: Subir foto biométrica base (cámara live) ──────────────────────────
+class _SubirFotoBaseSheet extends StatefulWidget {
+  final AsistenciaService service;
   final void Function() onConfigured;
 
-  const _SetupRefPhotoSheet({required this.onConfigured});
+  const _SubirFotoBaseSheet({required this.service, required this.onConfigured});
 
   @override
-  State<_SetupRefPhotoSheet> createState() => _SetupRefPhotoSheetState();
+  State<_SubirFotoBaseSheet> createState() => _SubirFotoBaseSheetState();
 }
 
-class _SetupRefPhotoSheetState extends State<_SetupRefPhotoSheet> {
-  XFile? _photo;
-  bool _isSaving = false;
+class _SubirFotoBaseSheetState extends State<_SubirFotoBaseSheet> {
+  CameraController? _camCtrl;
+  bool _camReady   = false;
+  String? _camError;
+  XFile?  _captured;
+  bool    _isSaving = false;
   String? _errorMsg;
 
-  Future<void> _takePhoto() async {
+  @override
+  void initState() {
+    super.initState();
+    _initCamera();
+  }
+
+  @override
+  void dispose() {
+    _camCtrl?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _initCamera() async {
     try {
-      final picker = ImagePicker();
-      final image = await picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front,
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 92,
-      );
-      if (image != null && mounted) {
-        setState(() { _photo = image; _errorMsg = null; });
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) {
+        if (mounted) setState(() => _camError = 'No se encontró cámara disponible');
+        return;
       }
-    } catch (_) {
-      if (mounted) setState(() => _errorMsg = 'No se pudo acceder a la cámara');
+      final front = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first,
+      );
+      final ctrl = CameraController(
+        front,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+      await ctrl.initialize();
+      if (!mounted) { ctrl.dispose(); return; }
+      setState(() { _camCtrl = ctrl; _camReady = true; });
+    } catch (e) {
+      if (mounted) setState(() => _camError = 'Error al iniciar cámara');
     }
   }
 
+  Future<void> _capture() async {
+    if (_camCtrl == null || !_camReady || _isSaving) return;
+    try {
+      final photo = await _camCtrl!.takePicture();
+      await _camCtrl!.pausePreview();
+      if (mounted) setState(() { _captured = photo; _errorMsg = null; });
+    } catch (_) {
+      if (mounted) setState(() => _errorMsg = 'Error al capturar foto. Intenta de nuevo.');
+    }
+  }
+
+  Future<void> _retake() async {
+    await _camCtrl?.resumePreview();
+    if (mounted) setState(() { _captured = null; _errorMsg = null; });
+  }
+
   Future<void> _save() async {
-    if (_photo == null) {
-      setState(() => _errorMsg = 'Primero toma tu foto de referencia');
+    if (_captured == null) {
+      setState(() => _errorMsg = 'Primero captura tu foto de referencia');
       return;
     }
     setState(() { _isSaving = true; _errorMsg = null; });
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final refPath = '${dir.path}/reference_photo.jpg';
-      await File(_photo!.path).copy(refPath);
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_foto_local_path', refPath);
-
+      await widget.service.subirFotoBase(File(_captured!.path));
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onConfigured(); // actualización optimista en el parent (no awaited)
+    } catch (e) {
       if (mounted) {
-        Navigator.pop(context);
-        widget.onConfigured();
+        setState(() {
+          _isSaving = false;
+          _errorMsg = e.toString().replaceAll('Exception: ', '');
+        });
       }
-    } catch (_) {
-      if (mounted) setState(() { _isSaving = false; _errorMsg = 'Error al guardar. Inténtalo de nuevo.'; });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
-    const green = Color(0xFF8FD11B);
+    final surface  = Theme.of(context).colorScheme.surface;
+    final screenH  = MediaQuery.of(context).size.height;
+    final previewH = screenH * 0.44;
 
     return Container(
-      decoration: BoxDecoration(color: surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(width: 40, height: 4,
-                    decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                ),
               ),
-              const SizedBox(height: 20),
+            ),
 
-              // Título
-              Row(
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.badge_outlined, color: Colors.orange, size: 22),
+                    child: const Icon(Icons.face_retouching_natural, color: Colors.orange, size: 22),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Foto de Referencia', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text('Configuración inicial requerida', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text('Foto Biométrica', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text('Centra tu cara · buena iluminación · mira directo', style: TextStyle(color: Colors.grey, fontSize: 11)),
                       ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 14),
 
-              // Explicación
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
-                ),
-                child: const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.blue, size: 18),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Esta foto se almacena localmente en tu dispositivo y se usa como imagen de referencia para comparar con tu selfie al momento de registrar asistencia. '
-                        'Asegúrate de estar en un lugar bien iluminado y mirar directamente a la cámara.',
-                        style: TextStyle(fontSize: 12, color: Colors.blue, height: 1.5),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
+            // Área de cámara / preview
+            _buildCameraArea(previewH),
 
-              // Área de captura
-              if (_photo == null)
-                GestureDetector(
-                  onTap: _isSaving ? null : _takePhoto,
-                  child: Container(
-                    width: double.infinity,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                        style: BorderStyle.solid,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.camera_alt_outlined, size: 36, color: Colors.orange),
-                        ),
-                        const SizedBox(height: 14),
-                        Text('Tomar foto de referencia',
-                            style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600, fontSize: 15)),
-                        const SizedBox(height: 4),
-                        Text('Cámara frontal · Buena iluminación',
-                            style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: Image.file(File(_photo!.path), width: double.infinity, height: 240, fit: BoxFit.cover),
-                    ),
-                    // Badge de aprobado
-                    Positioned(
-                      top: 12,
-                      left: 12,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: green.withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.white, size: 13),
-                            SizedBox(width: 4),
-                            Text('Foto lista', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: GestureDetector(
-                        onTap: _isSaving ? null : _takePhoto,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.refresh, color: Colors.white, size: 14),
-                              SizedBox(width: 4),
-                              Text('Retomar', style: TextStyle(color: Colors.white, fontSize: 12)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-              if (_errorMsg != null) ...[
-                const SizedBox(height: 12),
-                Container(
+            // Error
+            if (_errorMsg != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+                child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10)),
                   child: Row(
@@ -1113,57 +1147,248 @@ class _SetupRefPhotoSheetState extends State<_SetupRefPhotoSheet> {
                     ],
                   ),
                 ),
-              ],
-
-              const SizedBox(height: 24),
-
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.orange.withValues(alpha: 0.5),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: _isSaving
-                      ? const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
-                            SizedBox(width: 12),
-                            Text('Guardando...', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                          ],
-                        )
-                      : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.save_alt, size: 20),
-                            SizedBox(width: 10),
-                            Text('Guardar foto de referencia', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                ),
               ),
+
+            const SizedBox(height: 18),
+
+            // Botones de acción
+            _buildActions(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraArea(double previewH) {
+    const green = Color(0xFF8FD11B);
+
+    // Error de cámara
+    if (_camError != null) {
+      return Container(
+        height: previewH,
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(16)),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.no_photography, size: 42, color: Colors.red),
+              const SizedBox(height: 10),
+              Text(_camError!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13)),
             ],
           ),
         ),
+      );
+    }
+
+    // Inicializando cámara
+    if (!_camReady || _camCtrl == null) {
+      return Container(
+        height: previewH,
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(16)),
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
+              SizedBox(height: 12),
+              Text('Iniciando cámara...', style: TextStyle(color: Colors.white70)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Foto capturada — review mode
+    if (_captured != null) {
+      return Stack(
+        children: [
+          Container(
+            height: previewH,
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.file(File(_captured!.path), fit: BoxFit.cover, width: double.infinity),
+            ),
+          ),
+          // Badge "Foto capturada"
+          Positioned(
+            top: 12, left: 36,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: green.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(20)),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 13),
+                  SizedBox(width: 4),
+                  Text('Foto capturada', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
+          // Overlay de carga al guardar
+          if (_isSaving)
+            Positioned.fill(
+              left: 24, right: 24,
+              child: Container(
+                decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(16)),
+                child: const Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
+                    SizedBox(height: 12),
+                    Text('Subiendo al servidor...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    SizedBox(height: 4),
+                    Text('Procesando foto biométrica', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+
+    // Preview en vivo
+    return Container(
+      height: previewH,
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CameraPreview(_camCtrl!),
+            // Guía oval para el rostro
+            Center(
+              child: Container(
+                width:  previewH * 0.50,
+                height: previewH * 0.72,
+                decoration: BoxDecoration(
+                  border: Border.all(color: green.withValues(alpha: 0.75), width: 2.5),
+                  borderRadius: BorderRadius.circular(previewH * 0.38),
+                ),
+              ),
+            ),
+            // Hint
+            Positioned(
+              bottom: 12, left: 0, right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(20)),
+                  child: const Text('Centra tu cara en el óvalo', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActions() {
+    if (_camError != null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 24),
+        child: Text('Verifica los permisos de cámara en Configuración del dispositivo.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 12)),
+      );
+    }
+
+    // Guardando
+    if (_isSaving) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: SizedBox(
+          width: double.infinity, height: 54,
+          child: ElevatedButton(
+            onPressed: null,
+            style: ElevatedButton.styleFrom(
+              disabledBackgroundColor: Colors.orange.withValues(alpha: 0.55),
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white))),
+                SizedBox(width: 12),
+                Text('Subiendo foto...', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Foto tomada → retomar / guardar
+    if (_captured != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _retake,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Retomar'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  side: const BorderSide(color: Colors.orange),
+                  foregroundColor: Colors.orange,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                onPressed: _save,
+                icon: const Icon(Icons.cloud_upload_outlined, size: 20),
+                label: const Text('Guardar foto', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Preview en vivo → botón de captura
+    if (!_camReady) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: _capture,
+      child: Container(
+        width: 72, height: 72,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.orange,
+          boxShadow: [BoxShadow(color: Colors.orange.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 4)],
+        ),
+        child: const Icon(Icons.camera_alt, color: Colors.white, size: 34),
       ),
     );
   }
 }
 
-// ── Modal de registro de asistencia ──────────────────────────────────────────
+// ── Sheet: Registrar asistencia ───────────────────────────────────────────────
 class _RegistroSheet extends StatefulWidget {
   final String tipo;
   final Position? position;
   final String? addressLine1;
   final String? addressLine2;
   final AsistenciaService service;
-  final void Function(RegistroAsistencia) onCompleted;
+  final void Function(MarcarResponse) onCompleted;
 
   const _RegistroSheet({
     required this.tipo,
@@ -1185,19 +1410,17 @@ class _RegistroSheetState extends State<_RegistroSheet> {
 
   Future<void> _takeSelfie() async {
     try {
-      final picker = ImagePicker();
-      final image = await picker.pickImage(
+      final image = await ImagePicker().pickImage(
         source: ImageSource.camera,
         preferredCameraDevice: CameraDevice.front,
-        maxWidth: 800,
-        maxHeight: 800,
+        maxWidth: 800, maxHeight: 800,
         imageQuality: 85,
       );
       if (image != null && mounted) {
         setState(() { _selfie = image; _errorMsg = null; });
       }
     } catch (_) {
-      if (mounted) setState(() => _errorMsg = 'No se pudo acceder a la cámara');
+      if (mounted) { setState(() => _errorMsg = 'No se pudo acceder a la cámara'); }
     }
   }
 
@@ -1208,37 +1431,34 @@ class _RegistroSheetState extends State<_RegistroSheet> {
     }
     setState(() { _isLoading = true; _errorMsg = null; });
     try {
-      final result = await widget.service.verificar(
+      final result = await widget.service.marcar(
         selfieFile: File(_selfie!.path),
         tipo: widget.tipo,
-        latitud: widget.position?.latitude,
-        longitud: widget.position?.longitude,
-      );
-      final registro = RegistroAsistencia(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        timestamp: DateTime.now(),
-        tipo: widget.tipo,
-        status: result.status,
-        score: result.score,
-        latitud: widget.position?.latitude,
-        longitud: widget.position?.longitude,
-        motivo: result.motivo,
+        latitud:    widget.position?.latitude,
+        longitud:   widget.position?.longitude,
+        precisionM: widget.position?.accuracy,
+        altitud:    widget.position?.altitude,
       );
       if (mounted) {
         Navigator.pop(context);
-        widget.onCompleted(registro);
+        widget.onCompleted(result);
       }
     } catch (e) {
-      if (mounted) setState(() { _isLoading = false; _errorMsg = e.toString().replaceAll('Exception: ', ''); });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMsg  = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
-    const green = Color(0xFF8FD11B);
-    final now = DateTime.now();
+    final isDark    = Theme.of(context).brightness == Brightness.dark;
+    final surface   = Theme.of(context).colorScheme.surface;
+    const green     = Color(0xFF8FD11B);
+    final now       = DateTime.now();
     final isEntrada = widget.tipo == 'ENTRADA';
     final tipoColor = isEntrada ? green : Colors.orange;
     String pad(int n) => n.toString().padLeft(2, '0');
@@ -1253,7 +1473,6 @@ class _RegistroSheetState extends State<_RegistroSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle
               Center(
                 child: Container(width: 40, height: 4,
                     decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
@@ -1274,8 +1493,10 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Registrar ${widget.tipo}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text('${pad(now.day)}/${pad(now.month)}/${now.year}  ·  ${pad(now.hour)}:${pad(now.minute)}',
-                            style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text(
+                          '${pad(now.day)}/${pad(now.month)}/${now.year}  ·  ${pad(now.hour)}:${pad(now.minute)}',
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
                       ],
                     ),
                   ),
@@ -1289,9 +1510,7 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                 decoration: BoxDecoration(
                   color: (widget.position != null ? green : Colors.orange).withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: (widget.position != null ? green : Colors.orange).withValues(alpha: 0.25),
-                  ),
+                  border: Border.all(color: (widget.position != null ? green : Colors.orange).withValues(alpha: 0.25)),
                 ),
                 child: widget.position != null
                     ? Column(
@@ -1319,10 +1538,7 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: green.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
+                                decoration: BoxDecoration(color: green.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
                                 child: Text(
                                   '±${widget.position!.accuracy.toStringAsFixed(0)}m',
                                   style: const TextStyle(color: Color(0xFF8FD11B), fontSize: 11, fontWeight: FontWeight.w600),
@@ -1334,11 +1550,7 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                             const SizedBox(height: 6),
                             Text(
                               '${widget.position!.latitude.toStringAsFixed(5)}, ${widget.position!.longitude.toStringAsFixed(5)}',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontFamily: 'monospace',
-                                color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
-                              ),
+                              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: isDark ? Colors.grey.shade400 : Colors.grey.shade500),
                             ),
                           ],
                         ],
@@ -1347,7 +1559,8 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                         children: [
                           Icon(Icons.location_off, color: Colors.orange, size: 18),
                           SizedBox(width: 8),
-                          Text('Sin ubicación GPS', style: TextStyle(fontSize: 12, color: Colors.orange)),
+                          Text('Sin ubicación GPS — se registrará sin coordenadas',
+                              style: TextStyle(fontSize: 12, color: Colors.orange)),
                         ],
                       ),
               ),
@@ -1361,8 +1574,7 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                 GestureDetector(
                   onTap: _isLoading ? null : _takeSelfie,
                   child: Container(
-                    width: double.infinity,
-                    height: 160,
+                    width: double.infinity, height: 160,
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF2A2A2A) : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(16),
@@ -1388,8 +1600,7 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                       child: Image.file(File(_selfie!.path), width: double.infinity, height: 220, fit: BoxFit.cover),
                     ),
                     Positioned(
-                      top: 10,
-                      right: 10,
+                      top: 10, right: 10,
                       child: GestureDetector(
                         onTap: _isLoading ? null : _takeSelfie,
                         child: Container(
@@ -1416,6 +1627,8 @@ class _RegistroSheetState extends State<_RegistroSheet> {
                               CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
                               SizedBox(height: 12),
                               Text('Verificando identidad...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                              SizedBox(height: 4),
+                              Text('Comparando con foto biométrica del servidor', style: TextStyle(color: Colors.white70, fontSize: 11)),
                             ],
                           ),
                         ),
@@ -1441,8 +1654,7 @@ class _RegistroSheetState extends State<_RegistroSheet> {
               const SizedBox(height: 24),
 
               SizedBox(
-                width: double.infinity,
-                height: 54,
+                width: double.infinity, height: 54,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submit,
                   style: ElevatedButton.styleFrom(
