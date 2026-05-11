@@ -6,9 +6,8 @@ from sqlalchemy import text
 from app.db.database import engine, Base
 from app.routers import auth, dashboard
 from app.routers import permisos as permisos_router
-from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
+from app.routers import asistencia as asistencia_router   # ← AGREGAR
 
-# Importar todos los modelos para que Base los registre antes de create_all
 from app.models import (  # noqa: F401
     auditoria, catalogo_servicio, categoria_habilidad, cliente,
     dispositivo_push, empleado, empleado_habilidad, empresa, habilidad,
@@ -18,6 +17,7 @@ from app.models import (  # noqa: F401
     solicitud_laboral, usuario, usuario_permiso, usuario_rol,
     contrato, documento_laboral, firma_digital,
     historial_firma, documento_firmado,
+    foto_biometrica, foto_asistencia, geolocalizacion_asistencia,  # ← AGREGAR
 )
 
 
@@ -63,6 +63,8 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(permisos_router.router)
+app.include_router(asistencia_router.router)   # ← AGREGAR
+
 
 
 @app.get("/")
