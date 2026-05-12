@@ -1,17 +1,4 @@
-"""
-Router de Asistencia — E-ZYRO
-=================================
-Endpoints disponibles:
-  POST /asistencia/foto-base        Registrar foto biométrica base del empleado
-  GET  /asistencia/tiene-foto-base  Verificar si el empleado ya tiene foto base activa
-  POST /asistencia/marcar           Marcar entrada/salida con selfie + GPS
-  GET  /asistencia/estado-hoy       Estado de asistencia del día actual
-  GET  /asistencia/historial        Historial paginado desde BD
 
-Registrar en main.py:
-  from app.routers.asistencia import router as asistencia_router
-  app.include_router(asistencia_router)
-"""
 from __future__ import annotations
 
 import base64
@@ -288,7 +275,7 @@ def marcar_asistencia(
     # 6 ── Comparación facial
     score, resultado_ia = _comparar(enc_base, enc_selfie)
     aprobado = resultado_ia == "aprobado"
-    ahora    = datetime.utcnow()
+    ahora    = datetime.utc()
 
     _motivos = {
         "aprobado":        f"Identidad verificada · Similitud {score:.1f}%",
