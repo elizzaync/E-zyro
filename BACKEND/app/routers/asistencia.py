@@ -281,10 +281,13 @@ def marcar_asistencia(
     # Usar timestamp del cliente si se proporciona, sino usar la hora del servidor
     if body.timestamp:
         try:
-            ahora = datetime.fromisoformat(body.timestamp)
-            # Si el timestamp no tiene zona horaria, asumir la zona horaria local del servidor
-            if ahora.tzinfo is None:
-                ahora = ahora.replace(tzinfo=ZoneInfo("America/Lima"))
+            # El cliente envía en UTC, convertir a zona horaria de Lima
+            ahora_utc = datetime.fromisoformat(body.timestamp)
+            # Si viene sin zona horaria, asumir que es UTC
+            if ahora_utc.tzinfo is None:
+                ahora_utc = ahora_utc.replace(tzinfo=ZoneInfo("UTC"))
+            # Convertir de UTC a Lima
+            ahora = ahora_utc.astimezone(ZoneInfo("America/Lima"))
         except ValueError:
             ahora = datetime.now(ZoneInfo("America/Lima"))
     else:
