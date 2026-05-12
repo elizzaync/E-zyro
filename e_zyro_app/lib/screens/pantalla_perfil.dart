@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
 import '../models/asistencia_models.dart';
+import '../models/dashboard_models.dart';
 import '../utils/api_provider.dart';
 
 class PersonalScreen extends StatefulWidget {
@@ -45,8 +46,10 @@ class _PersonalScreenState extends State<PersonalScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Personal',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Personal',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 16),
                 Row(
                   children: List.generate(
@@ -87,7 +90,11 @@ class _TabButton extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _TabButton({required this.label, required this.isSelected, required this.onTap});
+  const _TabButton({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -105,13 +112,17 @@ class _TabButton extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? green
-                : (isDark ? green.withValues(alpha: 0.35) : Colors.grey.shade300),
+                : (isDark
+                      ? green.withValues(alpha: 0.35)
+                      : Colors.grey.shade300),
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
+            color: isSelected
+                ? Colors.white
+                : Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.w600,
             fontSize: 13,
           ),
@@ -135,6 +146,9 @@ class _ProfileTabState extends State<_ProfileTab> {
   String _email = '';
   String _phone = '';
   String _fotoUrl = '';
+  int _serviciosCompletados = 0;
+  int _asistenciasMes = 0;
+  int _solicitudesPendientes = 0;
   bool _loaded = false;
 
   @override
@@ -144,16 +158,39 @@ class _ProfileTabState extends State<_ProfileTab> {
   }
 
   Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() {
-        _name = prefs.getString('user_name') ?? 'Usuario';
-        _rol = prefs.getString('user_rol') ?? 'Colaborador';
-        _email = prefs.getString('user_email') ?? '';
-        _phone = prefs.getString('user_phone') ?? '';
-        _fotoUrl = prefs.getString('user_foto_url') ?? '';
-        _loaded = true;
-      });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dashboardService = await getDashboardService();
+
+      final resumen = await dashboardService.getResumen();
+
+      if (mounted) {
+        setState(() {
+          _name = '${resumen.usuario.nombre} ${resumen.usuario.apellido}'
+              .trim();
+          _rol = prefs.getString('user_rol') ?? 'Colaborador';
+          _email = resumen.usuario.email;
+          _phone = resumen.usuario.telefono;
+          _fotoUrl = resumen.usuario.fotoUrl;
+          _serviciosCompletados = resumen.completados;
+          _asistenciasMes = resumen.asistenciasMes;
+          _solicitudesPendientes = resumen.solicitudesPendientes;
+          _loaded = true;
+        });
+      }
+    } catch (e) {
+      // En caso de error, cargar desde SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      if (mounted) {
+        setState(() {
+          _name = prefs.getString('user_name') ?? 'Usuario';
+          _rol = prefs.getString('user_rol') ?? 'Colaborador';
+          _email = prefs.getString('user_email') ?? '';
+          _phone = prefs.getString('user_phone') ?? '';
+          _fotoUrl = prefs.getString('user_foto_url') ?? '';
+          _loaded = true;
+        });
+      }
     }
   }
 
@@ -171,13 +208,27 @@ class _ProfileTabState extends State<_ProfileTab> {
     const green = Color(0xFF8FD11B);
 
     BoxDecoration cardDeco({double radius = 14}) => BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(radius),
-          border: isDark ? Border.all(color: green.withValues(alpha: 0.45), width: 1.0) : null,
-          boxShadow: isDark
-              ? [BoxShadow(color: green.withValues(alpha: 0.10), blurRadius: 12, spreadRadius: 1)]
-              : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
-        );
+      color: surface,
+      borderRadius: BorderRadius.circular(radius),
+      border: isDark
+          ? Border.all(color: green.withValues(alpha: 0.45), width: 1.0)
+          : null,
+      boxShadow: isDark
+          ? [
+              BoxShadow(
+                color: green.withValues(alpha: 0.10),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+    );
 
     if (!_loaded) {
       return const Center(
@@ -205,7 +256,11 @@ class _ProfileTabState extends State<_ProfileTab> {
                     color: green,
                     shape: BoxShape.circle,
                     boxShadow: [
-                      BoxShadow(color: green.withValues(alpha: 0.35), blurRadius: 16, spreadRadius: 2),
+                      BoxShadow(
+                        color: green.withValues(alpha: 0.35),
+                        blurRadius: 16,
+                        spreadRadius: 2,
+                      ),
                     ],
                   ),
                   child: ClipOval(
@@ -216,14 +271,22 @@ class _ProfileTabState extends State<_ProfileTab> {
                             errorBuilder: (context, error, _) => Center(
                               child: Text(
                                 _initials,
-                                style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           )
                         : Center(
                             child: Text(
                               _initials,
-                              style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 30,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                   ),
@@ -231,24 +294,39 @@ class _ProfileTabState extends State<_ProfileTab> {
                 const SizedBox(height: 14),
                 Text(
                   _name,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 if (_rol.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(_rol, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text(
+                    _rol,
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
                 ],
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? green.withValues(alpha: 0.12) : const Color(0xFFEFFAE0),
+                    color: isDark
+                        ? green.withValues(alpha: 0.12)
+                        : const Color(0xFFEFFAE0),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.verified_user_outlined, size: 13, color: Color(0xFF8FD11B)),
+                      const Icon(
+                        Icons.verified_user_outlined,
+                        size: 13,
+                        color: Color(0xFF8FD11B),
+                      ),
                       const SizedBox(width: 5),
                       const Text(
                         'Cuenta Activa',
@@ -274,11 +352,17 @@ class _ProfileTabState extends State<_ProfileTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Información de Contacto',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text(
+                  'Información de Contacto',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
                 const SizedBox(height: 14),
                 if (_email.isNotEmpty)
-                  _InfoRow(icon: Icons.email_outlined, label: 'Correo', value: _email)
+                  _InfoRow(
+                    icon: Icons.email_outlined,
+                    label: 'Correo',
+                    value: _email,
+                  )
                 else
                   _InfoRow(
                     icon: Icons.email_outlined,
@@ -287,7 +371,11 @@ class _ProfileTabState extends State<_ProfileTab> {
                     muted: true,
                   ),
                 if (_phone.isNotEmpty)
-                  _InfoRow(icon: Icons.phone_outlined, label: 'Teléfono', value: _phone)
+                  _InfoRow(
+                    icon: Icons.phone_outlined,
+                    label: 'Teléfono',
+                    value: _phone,
+                  )
                 else
                   _InfoRow(
                     icon: Icons.phone_outlined,
@@ -313,15 +401,30 @@ class _ProfileTabState extends State<_ProfileTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Resumen', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text(
+                  'Resumen',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _StatMini(label: 'Servicios', value: '–', icon: Icons.build_outlined),
+                    _StatMini(
+                      label: 'Servicios',
+                      value: _serviciosCompletados.toString(),
+                      icon: Icons.build_outlined,
+                    ),
                     const SizedBox(width: 10),
-                    _StatMini(label: 'Este mes', value: '–', icon: Icons.calendar_month_outlined),
+                    _StatMini(
+                      label: 'Asistencias',
+                      value: _asistenciasMes.toString(),
+                      icon: Icons.calendar_month_outlined,
+                    ),
                     const SizedBox(width: 10),
-                    _StatMini(label: 'Puntualidad', value: '–', icon: Icons.timer_outlined),
+                    _StatMini(
+                      label: 'Solicitudes',
+                      value: _solicitudesPendientes.toString(),
+                      icon: Icons.timer_outlined,
+                    ),
                   ],
                 ),
               ],
@@ -368,7 +471,10 @@ class _InfoRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(
+                label,
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
               Text(
                 value,
                 style: TextStyle(
@@ -391,7 +497,11 @@ class _StatMini extends StatelessWidget {
   final String value;
   final IconData icon;
 
-  const _StatMini({required this.label, required this.value, required this.icon});
+  const _StatMini({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -408,9 +518,14 @@ class _StatMini extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: const Color(0xFF8FD11B)),
             const SizedBox(height: 4),
-            Text(value,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10)),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.grey, fontSize: 10),
+            ),
           ],
         ),
       ),
@@ -423,7 +538,8 @@ class _AsistenciaHistorialTab extends StatefulWidget {
   const _AsistenciaHistorialTab();
 
   @override
-  State<_AsistenciaHistorialTab> createState() => _AsistenciaHistorialTabState();
+  State<_AsistenciaHistorialTab> createState() =>
+      _AsistenciaHistorialTabState();
 }
 
 class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
@@ -446,15 +562,19 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
     final ahora = DateTime.now();
     bool esHoy(DateTime dt) =>
         dt.year == ahora.year && dt.month == ahora.month && dt.day == ahora.day;
-    final hoyList  = historial.where((r) => esHoy(r.timestamp));
-    final entradas = hoyList.where((r) => r.tipo == 'ENTRADA' && r.status == 'APROBADO');
-    final salidas  = hoyList.where((r) => r.tipo == 'SALIDA'  && r.status == 'APROBADO');
+    final hoyList = historial.where((r) => esHoy(r.timestamp));
+    final entradas = hoyList.where(
+      (r) => r.tipo == 'ENTRADA' && r.status == 'APROBADO',
+    );
+    final salidas = hoyList.where(
+      (r) => r.tipo == 'SALIDA' && r.status == 'APROBADO',
+    );
     if (mounted) {
       setState(() {
-        _historial  = historial;
+        _historial = historial;
         _entradaHoy = entradas.isEmpty ? null : entradas.first;
-        _salidaHoy  = salidas.isEmpty  ? null : salidas.first;
-        _isLoading  = false;
+        _salidaHoy = salidas.isEmpty ? null : salidas.first;
+        _isLoading = false;
       });
     }
   }
@@ -467,10 +587,24 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
     return BoxDecoration(
       color: surface,
       borderRadius: BorderRadius.circular(14),
-      border: isDark ? Border.all(color: _green.withValues(alpha: 0.45), width: 1.0) : null,
+      border: isDark
+          ? Border.all(color: _green.withValues(alpha: 0.45), width: 1.0)
+          : null,
       boxShadow: isDark
-          ? [BoxShadow(color: _green.withValues(alpha: 0.10), blurRadius: 12, spreadRadius: 1)]
-          : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+          ? [
+              BoxShadow(
+                color: _green.withValues(alpha: 0.10),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
     );
   }
 
@@ -500,13 +634,30 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Hoy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  const Text(
+                    'Hoy',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: _buildStatusItem(context, 'Entrada', _entradaHoy, true)),
+                      Expanded(
+                        child: _buildStatusItem(
+                          context,
+                          'Entrada',
+                          _entradaHoy,
+                          true,
+                        ),
+                      ),
                       const SizedBox(width: 12),
-                      Expanded(child: _buildStatusItem(context, 'Salida', _salidaHoy, false)),
+                      Expanded(
+                        child: _buildStatusItem(
+                          context,
+                          'Salida',
+                          _salidaHoy,
+                          false,
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -515,7 +666,10 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
             const SizedBox(height: 20),
 
             // ── Historial ─────────────────────────────────────────────
-            const Text('Historial', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            const Text(
+              'Historial',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 12),
             if (_historial.isEmpty)
               Container(
@@ -526,12 +680,20 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
                     children: [
                       Icon(Icons.history, size: 48, color: Colors.grey),
                       SizedBox(height: 10),
-                      Text('Sin registros previos',
-                          style: TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w500)),
+                      Text(
+                        'Sin registros previos',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       SizedBox(height: 4),
-                      Text('Usa "Asistencia" desde Inicio para registrar',
-                          style: TextStyle(color: Colors.grey, fontSize: 12),
-                          textAlign: TextAlign.center),
+                      Text(
+                        'Usa "Asistencia" desde Inicio para registrar',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
@@ -546,7 +708,11 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
   }
 
   Widget _buildStatusItem(
-      BuildContext context, String label, RegistroAsistencia? r, bool isEntrada) {
+    BuildContext context,
+    String label,
+    RegistroAsistencia? r,
+    bool isEntrada,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const green = Color(0xFF8FD11B);
     final registered = r != null;
@@ -556,30 +722,43 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: registered
-            ? (isDark ? col.withValues(alpha: 0.12) : col.withValues(alpha: 0.08))
-            : (isDark ? Colors.grey.withValues(alpha: 0.08) : Colors.grey.shade50),
+            ? (isDark
+                  ? col.withValues(alpha: 0.12)
+                  : col.withValues(alpha: 0.08))
+            : (isDark
+                  ? Colors.grey.withValues(alpha: 0.08)
+                  : Colors.grey.shade50),
         borderRadius: BorderRadius.circular(12),
-        border: registered ? Border.all(color: col.withValues(alpha: 0.3)) : null,
+        border: registered
+            ? Border.all(color: col.withValues(alpha: 0.3))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(isEntrada ? Icons.login : Icons.logout,
-                  size: 13, color: registered ? col : Colors.grey),
+              Icon(
+                isEntrada ? Icons.login : Icons.logout,
+                size: 13,
+                color: registered ? col : Colors.grey,
+              ),
               const SizedBox(width: 5),
-              Text(label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: registered ? col : Colors.grey,
-                    fontWeight: FontWeight.w500,
-                  )),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: registered ? col : Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            registered ? '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}' : '--:--',
+            registered
+                ? '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}'
+                : '--:--',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 22,
@@ -592,7 +771,10 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
               style: const TextStyle(fontSize: 10, color: Colors.grey),
             )
           else
-            const Text('Pendiente', style: TextStyle(fontSize: 10, color: Colors.grey)),
+            const Text(
+              'Pendiente',
+              style: TextStyle(fontSize: 10, color: Colors.grey),
+            ),
         ],
       ),
     );
@@ -604,25 +786,27 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
       grupos.putIfAbsent(_dayKey(r.timestamp), () => []).add(r);
     }
     return grupos.entries
-        .map((entry) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    _labelForKey(entry.key),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
-                      letterSpacing: 0.6,
-                    ),
+        .map(
+          (entry) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _labelForKey(entry.key),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                    letterSpacing: 0.6,
                   ),
                 ),
-                ...entry.value.map((r) => _buildRegistroItem(context, r)),
-                const SizedBox(height: 12),
-              ],
-            ))
+              ),
+              ...entry.value.map((r) => _buildRegistroItem(context, r)),
+              const SizedBox(height: 12),
+            ],
+          ),
+        )
         .toList();
   }
 
@@ -656,15 +840,24 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
               color: tipoColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(isEntrada ? Icons.login : Icons.logout, color: tipoColor, size: 20),
+            child: Icon(
+              isEntrada ? Icons.login : Icons.logout,
+              color: tipoColor,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(r.tipo,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                Text(
+                  r.tipo,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
                 const SizedBox(height: 3),
                 Text(
                   '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}  ·  ${r.latitud != null ? "GPS ✓" : "Sin GPS"}',
@@ -682,13 +875,20 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
                   color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text(r.status,
-                    style: TextStyle(
-                        color: statusColor, fontSize: 11, fontWeight: FontWeight.w600)),
+                child: Text(
+                  r.status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
               const SizedBox(height: 4),
-              Text('${r.score.toStringAsFixed(1)}%',
-                  style: const TextStyle(color: Colors.grey, fontSize: 11)),
+              Text(
+                '${r.score.toStringAsFixed(1)}%',
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
             ],
           ),
         ],
@@ -708,13 +908,19 @@ class _DocumentsTab extends StatelessWidget {
     const green = Color(0xFF8FD11B);
 
     BoxDecoration cardDeco() => BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(14),
-          border: isDark ? Border.all(color: green.withValues(alpha: 0.35)) : null,
-          boxShadow: isDark
-              ? [BoxShadow(color: green.withValues(alpha: 0.08), blurRadius: 10)]
-              : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
-        );
+      color: surface,
+      borderRadius: BorderRadius.circular(14),
+      border: isDark ? Border.all(color: green.withValues(alpha: 0.35)) : null,
+      boxShadow: isDark
+          ? [BoxShadow(color: green.withValues(alpha: 0.08), blurRadius: 10)]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+    );
 
     final docTypes = [
       (Icons.badge_outlined, 'Contrato de Trabajo'),
@@ -753,11 +959,17 @@ class _DocumentsTab extends StatelessWidget {
                     color: green.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.folder_outlined, size: 38, color: Color(0xFF8FD11B)),
+                  child: const Icon(
+                    Icons.folder_outlined,
+                    size: 38,
+                    color: Color(0xFF8FD11B),
+                  ),
                 ),
                 const SizedBox(height: 14),
-                const Text('Documentos',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Documentos',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 6),
                 Text(
                   'Aquí podrás acceder a tus documentos laborales, contratos y certificaciones.',
@@ -770,14 +982,21 @@ class _DocumentsTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: green,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
                     'Próximamente',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -799,27 +1018,43 @@ class _DocumentsTab extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 10),
               decoration: cardDeco(),
               child: ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 leading: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: isDark ? green.withValues(alpha: 0.12) : const Color(0xFFEFFAE0),
+                    color: isDark
+                        ? green.withValues(alpha: 0.12)
+                        : const Color(0xFFEFFAE0),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(doc.$1, color: green, size: 20),
                 ),
-                title: Text(doc.$2,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                subtitle: const Text('No disponible aún',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                title: Text(
+                  doc.$2,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                subtitle: const Text(
+                  'No disponible aún',
+                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text('Pronto',
-                      style: TextStyle(fontSize: 10, color: Colors.grey)),
+                  child: const Text(
+                    'Pronto',
+                    style: TextStyle(fontSize: 10, color: Colors.grey),
+                  ),
                 ),
               ),
             ),

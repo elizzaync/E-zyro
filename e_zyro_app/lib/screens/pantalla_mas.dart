@@ -1,3 +1,4 @@
+import 'package:e_zyro_app/screens/pantalla_tramites.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
@@ -120,8 +121,9 @@ class _MoreScreenState extends State<MoreScreen> {
                   value: mode == ThemeMode.dark,
                   activeThumbColor: const Color(0xFF8FD11B),
                   onChanged: (val) async {
-                    themeNotifier.value =
-                        val ? ThemeMode.dark : ThemeMode.light;
+                    themeNotifier.value = val
+                        ? ThemeMode.dark
+                        : ThemeMode.light;
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.setBool('dark_mode', val);
                   },
@@ -141,7 +143,9 @@ class _MoreScreenState extends State<MoreScreen> {
                   label: 'Mi Perfil',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const EditProfileScreen(),
+                    ),
                   ),
                 ),
                 _MenuItem(
@@ -150,7 +154,16 @@ class _MoreScreenState extends State<MoreScreen> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const ComunicadosScreen()),
+                      builder: (_) => const ComunicadosScreen(),
+                    ),
+                  ),
+                ),
+                _MenuItem(
+                  icon: Icons.article_outlined,
+                  label: 'Trámites y Permisos',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaTramites()),
                   ),
                 ),
                 _MenuItem(
@@ -238,7 +251,10 @@ class _MoreScreenState extends State<MoreScreen> {
                     style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                   SizedBox(height: 2),
-                  Text('v1.0.0', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                  Text(
+                    'v1.0.0',
+                    style: TextStyle(color: Colors.grey, fontSize: 10),
+                  ),
                 ],
               ),
             ),
@@ -263,7 +279,9 @@ class _MoreScreenState extends State<MoreScreen> {
           CircleAvatar(
             radius: 26,
             backgroundColor: Colors.white.withValues(alpha: 0.3),
-            backgroundImage: _fotoUrl.isNotEmpty ? NetworkImage(_fotoUrl) : null,
+            backgroundImage: _fotoUrl.isNotEmpty
+                ? NetworkImage(_fotoUrl)
+                : null,
             child: _fotoUrl.isEmpty
                 ? const Icon(Icons.person, color: Colors.white, size: 28)
                 : null,
@@ -344,8 +362,7 @@ class _MoreScreenState extends State<MoreScreen> {
           return Column(
             children: [
               items[i],
-              if (i < items.length - 1)
-                const Divider(height: 1, indent: 52),
+              if (i < items.length - 1) const Divider(height: 1, indent: 52),
             ],
           );
         }),

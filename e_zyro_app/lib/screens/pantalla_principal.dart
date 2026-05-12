@@ -159,7 +159,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── Saludo ──────────────────────────────────────────────────────────────────
-  String get _firstName => _userName.split(' ').first;
+  String get _firstName {
+    final parts = _userName.trim().split(' ');
+    return parts.isNotEmpty ? parts.first : 'Usuario';
+  }
 
   Widget _buildGreeting() {
     return Column(
@@ -228,8 +231,20 @@ class _HomeScreenState extends State<HomeScreen> {
           ? Border.all(color: green.withValues(alpha: 0.55), width: 1.0)
           : null,
       boxShadow: isDark
-          ? [BoxShadow(color: green.withValues(alpha: 0.14), blurRadius: 12, spreadRadius: 1)]
-          : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+          ? [
+              BoxShadow(
+                color: green.withValues(alpha: 0.14),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
     );
   }
 
@@ -348,11 +363,15 @@ class _HomeScreenState extends State<HomeScreen> {
         _QuickActionButton(
           label: 'Evidencia',
           icon: Icons.camera_alt_outlined,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Text('Evidencia disponible próximamente'),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          )),
+          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Evidencia disponible próximamente'),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -452,10 +471,27 @@ class _QuickActionButton extends StatelessWidget {
                   ? Border.all(color: green.withValues(alpha: 0.45), width: 1.0)
                   : null,
               boxShadow: isActive
-                  ? [BoxShadow(color: green.withValues(alpha: 0.4), blurRadius: 10, spreadRadius: 1)]
+                  ? [
+                      BoxShadow(
+                        color: green.withValues(alpha: 0.4),
+                        blurRadius: 10,
+                        spreadRadius: 1,
+                      ),
+                    ]
                   : isDark
-                      ? [BoxShadow(color: green.withValues(alpha: 0.10), blurRadius: 8)]
-                      : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+                  ? [
+                      BoxShadow(
+                        color: green.withValues(alpha: 0.10),
+                        blurRadius: 8,
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
