@@ -6,6 +6,7 @@ import logging
 import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import requests as _req
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -275,7 +276,7 @@ def marcar_asistencia(
     # 6 ── Comparación facial
     score, resultado_ia = _comparar(enc_base, enc_selfie)
     aprobado = resultado_ia == "aprobado"
-    ahora    = datetime.now(timezone.utc)
+    ahora = datetime.now(ZoneInfo("America/Lima"))
 
     _motivos = {
         "aprobado":        f"Identidad verificada · Similitud {score:.1f}%",
