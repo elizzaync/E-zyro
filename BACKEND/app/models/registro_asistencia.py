@@ -20,4 +20,4 @@ class RegistroAsistencia(Base):
     observacion          = Column(String(500))
     validado_por         = Column(String(36), nullable=True)
     fecha_validacion     = Column(DateTime, nullable=True)
-    created_at           = Column(DateTime, nullable=False, default=datetime.utc)
+    created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)
