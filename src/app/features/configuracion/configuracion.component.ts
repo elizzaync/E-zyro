@@ -12,7 +12,7 @@ import { DashboardService } from '../../core/services/dashboard.service';
   styleUrls: ['./configuracion.component.css']
 })
 export class ConfiguracionComponent implements OnInit {
-  usuarioActual = { nombre: 'Cargando...', correo: '...', iniciales: '', foto: '' };
+  usuarioActual = { nombre: 'Cargando...', rol: '...', iniciales: '', foto: '' };
   showLogoutModal = false;
   temaActual: string = 'claro';
 
@@ -42,7 +42,7 @@ export class ConfiguracionComponent implements OnInit {
           const personal = res.data.personal;
           this.usuarioActual = {
             nombre: `${personal.nombre} ${personal.apellido}`,
-            correo: personal.correo || 'correo@esystem.com', // Mostramos correo como en la imagen
+            rol: personal.rol || 'Usuario',
             iniciales: this.generarIniciales(personal.nombre, personal.apellido),
             foto: personal.fotoUrl
           };
