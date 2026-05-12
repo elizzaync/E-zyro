@@ -110,7 +110,7 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
             func.sum(case((Proyecto.estado == 'Completado', 1), else_=0)).label('completados')
         ).filter(*filtros).first()
 
-        servicios_completados = int(kpis.completados or 0)
+        servicios_completados = int(kpis.completados or 0) if kpis else 0
 
         # ── Asistencias del mes ────────────────────────────────────────────────
         hoy = date.today()
@@ -122,7 +122,7 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
             asistencias_mes = db.query(RegistroAsistencia).filter(
                 RegistroAsistencia.empleado_id == empleado.id,
                 RegistroAsistencia.empresa_id == empresa_id,
-                RegistroAsistencia.estado == 'aprobado',
+                RegistroAsistencia.estado.in_(['APROBADO', 'aprobado']),
                 cast(RegistroAsistencia.fecha_hora, Date) >= primer_dia_mes,
                 cast(RegistroAsistencia.fecha_hora, Date) <= ultimo_dia_mes
             ).count()
@@ -133,12 +133,12 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
             solicitudes_pendientes = db.query(SolicitudLaboral).filter(
                 SolicitudLaboral.empleado_id == empleado.id,
                 SolicitudLaboral.empresa_id == empresa_id,
-                SolicitudLaboral.estado == 'pendiente'
+                SolicitudLaboral.estado.in_(['pendiente', 'PENDIENTE'])
             ).count()
 
         return {"status": "success", "data": {
-            "activos": int(kpis.activos or 0),
-            "pendientes": int(kpis.pendientes or 0),
+            "activos": int(kpis.activos or 0) if kpis else 0,
+            "pendientes": int(kpis.pendientes or 0) if kpis else 0,
             "completados": servicios_completados,
             "asistencias_mes": asistencias_mes,
             "solicitudes_pendientes": solicitudes_pendientes,
@@ -151,7 +151,9 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
             }
         }}
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Error resumen")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error resumen: {str(e)}")
 
 
 @router.get("/proximos-servicios")
