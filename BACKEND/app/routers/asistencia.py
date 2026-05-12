@@ -53,6 +53,7 @@ class MarcarRequest(BaseModel):
     altitud:              Optional[float] = None
     proyecto_id:          Optional[str]   = None
     proyecto_servicio_id: Optional[str]   = None
+    timestamp:            Optional[str]   = None  # ISO 8601 timestamp del cliente
 
 
 class MarcarResponse(BaseModel):
@@ -276,7 +277,18 @@ def marcar_asistencia(
     # 6 ── Comparación facial
     score, resultado_ia = _comparar(enc_base, enc_selfie)
     aprobado = resultado_ia == "aprobado"
-    ahora = datetime.now(ZoneInfo("America/Lima"))
+    
+    # Usar timestamp del cliente si se proporciona, sino usar la hora del servidor
+    if body.timestamp:
+        try:
+            ahora = datetime.fromisoformat(body.timestamp)
+            # Si el timestamp no tiene zona horaria, asumir la zona horaria local del servidor
+            if ahora.tzinfo is None:
+                ahora = ahora.replace(tzinfo=ZoneInfo("America/Lima"))
+        except ValueError:
+            ahora = datetime.now(ZoneInfo("America/Lima"))
+    else:
+        ahora = datetime.now(ZoneInfo("America/Lima"))
 
     _motivos = {
         "aprobado":        f"Identidad verificada · Similitud {score:.1f}%",
