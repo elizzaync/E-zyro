@@ -93,8 +93,10 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
+        usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
         empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
+        # ── Servicios completados ──────────────────────────────────────────────
         filtros = [Proyecto.empresa_id == empresa_id]
         if empleado:
             filtros.append(or_(
@@ -108,10 +110,45 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
             func.sum(case((Proyecto.estado == 'Completado', 1), else_=0)).label('completados')
         ).filter(*filtros).first()
 
+        servicios_completados = int(kpis.completados or 0)
+
+        # ── Asistencias del mes ────────────────────────────────────────────────
+        hoy = date.today()
+        primer_dia_mes = date(hoy.year, hoy.month, 1)
+        ultimo_dia_mes = date(hoy.year, hoy.month, calendar.monthrange(hoy.year, hoy.month)[1])
+
+        asistencias_mes = 0
+        if empleado:
+            asistencias_mes = db.query(RegistroAsistencia).filter(
+                RegistroAsistencia.empleado_id == empleado.id,
+                RegistroAsistencia.empresa_id == empresa_id,
+                RegistroAsistencia.estado == 'aprobado',
+                cast(RegistroAsistencia.fecha_hora, Date) >= primer_dia_mes,
+                cast(RegistroAsistencia.fecha_hora, Date) <= ultimo_dia_mes
+            ).count()
+
+        # ── Solicitudes pendientes ─────────────────────────────────────────────
+        solicitudes_pendientes = 0
+        if empleado:
+            solicitudes_pendientes = db.query(SolicitudLaboral).filter(
+                SolicitudLaboral.empleado_id == empleado.id,
+                SolicitudLaboral.empresa_id == empresa_id,
+                SolicitudLaboral.estado == 'pendiente'
+            ).count()
+
         return {"status": "success", "data": {
             "activos": int(kpis.activos or 0),
             "pendientes": int(kpis.pendientes or 0),
-            "completados": int(kpis.completados or 0)
+            "completados": servicios_completados,
+            "asistencias_mes": asistencias_mes,
+            "solicitudes_pendientes": solicitudes_pendientes,
+            "usuario": {
+                "nombre": usuario.nombre if usuario else "",
+                "apellido": usuario.apellido if usuario else "",
+                "email": usuario.email if usuario else "",
+                "telefono": usuario.telefono if usuario else "",
+                "foto_url": usuario.foto_url if usuario else ""
+            }
         }}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error resumen")
