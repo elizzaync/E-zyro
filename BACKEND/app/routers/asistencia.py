@@ -388,7 +388,7 @@ def estado_hoy(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Estado de asistencia del empleado para el día actual (hora UTC)."""
+    """Estado de asistencia del empleado para el día actual (en zona horaria Lima)."""
     usuario_id = payload["id"]
     empresa_id = payload["empresa_id"]
 
@@ -414,22 +414,31 @@ def estado_hoy(
             "entrada_hora": None, "salida_hora": None,
         }
 
+    # Usar fecha actual en zona horaria de Lima, no UTC
+    hoy_lima = datetime.now(ZoneInfo("America/Lima")).date()
+    
     registros_hoy = (
         db.query(RegistroAsistencia)
         .filter(
             RegistroAsistencia.empleado_id == empleado.id,
             RegistroAsistencia.empresa_id == empresa_id,
-            cast(RegistroAsistencia.fecha_hora, Date) == date.today(),
         )
-        .order_by(RegistroAsistencia.fecha_hora)
         .all()
     )
+    
+    # Filtrar por fecha en zona horaria de Lima
+    registros_hoy = [
+        r for r in registros_hoy
+        if r.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Lima")).date() == hoy_lima
+    ]
 
     entrada = next((r for r in registros_hoy if r.tipo == "entrada"), None)
     salida  = next((r for r in registros_hoy if r.tipo == "salida"),  None)
 
     def _fmt(r) -> Optional[str]:
-        return r.fecha_hora.strftime("%H:%M") if r else None
+        # Convertir de UTC a Lima para mostrar la hora correcta
+        fecha_lima = r.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Lima"))
+        return fecha_lima.strftime("%H:%M") if r else None
 
     return {
         "tiene_entrada":    entrada is not None,
@@ -488,7 +497,7 @@ def historial(
         items.append({
             "id":           str(r.id),
             "tipo":         r.tipo.upper(),
-            "fecha_hora":   r.fecha_hora.isoformat(),
+            "fecha_hora":   r.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).isoformat() if r.fecha_hora else None,
             "estado":       r.estado,
             "status":       "APROBADO" if r.estado == "validado" else "RECHAZADO",
             "score":        score_pct,
