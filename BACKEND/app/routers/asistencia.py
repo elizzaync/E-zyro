@@ -4,7 +4,7 @@ from __future__ import annotations
 import base64
 import logging
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import requests as _req
@@ -275,7 +275,7 @@ def marcar_asistencia(
     # 6 ── Comparación facial
     score, resultado_ia = _comparar(enc_base, enc_selfie)
     aprobado = resultado_ia == "aprobado"
-    ahora    = datetime.utc()
+    ahora    = datetime.now(timezone.utc)
 
     _motivos = {
         "aprobado":        f"Identidad verificada · Similitud {score:.1f}%",
