@@ -412,12 +412,14 @@ def estado_hoy(
             "entrada_hora": None, "salida_hora": None,
         }
 
+    hoy_lima = datetime.now(ZoneInfo("America/Lima")).date()
+
     registros_hoy = (
         db.query(RegistroAsistencia)
         .filter(
             RegistroAsistencia.empleado_id == empleado.id,
             RegistroAsistencia.empresa_id == empresa_id,
-            cast(RegistroAsistencia.fecha_hora, Date) == date.today(),
+            cast(RegistroAsistencia.fecha_hora, Date) == hoy_lima,
         )
         .order_by(RegistroAsistencia.fecha_hora)
         .all()
@@ -427,7 +429,10 @@ def estado_hoy(
     salida  = next((r for r in registros_hoy if r.tipo == "salida"),  None)
 
     def _fmt(r) -> Optional[str]:
-        return r.fecha_hora.strftime("%H:%M") if r else None
+        if not r:
+            return None
+        # Como la BD ya tiene los números exactos de Perú, se lee y formatea directo
+        return r.fecha_hora.strftime("%H:%M")
 
     return {
         "tiene_entrada":    entrada is not None,
@@ -486,7 +491,7 @@ def historial(
         items.append({
             "id":           str(r.id),
             "tipo":         r.tipo.upper(),
-            "fecha_hora":   r.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).isoformat() if r.fecha_hora else None,
+            "fecha_hora":   r.fecha_hora.isoformat() if r.fecha_hora else None,
             "estado":       r.estado,
             "status":       "APROBADO" if r.estado == "validado" else "RECHAZADO",
             "score":        score_pct,
