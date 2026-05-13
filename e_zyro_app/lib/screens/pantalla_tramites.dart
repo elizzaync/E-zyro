@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signature/signature.dart';
 import 'package:pdf/pdf.dart';
@@ -98,6 +99,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
   late TabController _tabController;
   final TramiteModel _model = TramiteModel();
   Uint8List? _firmaGuardada; // firma persistida (PNG bytes)
+  String? _firmaUrl; // URL de la firma en Cloudinary (si existe)
   bool _usandoFirmaGuardada = false;
 
   @override
@@ -116,29 +118,38 @@ class _PantallaTramitesState extends State<PantallaTramites>
   // ── Persistencia de firma ──────────────────
   Future<void> _cargarFirmaGuardada() async {
     final prefs = await SharedPreferences.getInstance();
-    final b64 = prefs.getString('firma_digital');
-    if (b64 != null) {
-      setState(() {
-        _firmaGuardada = base64Decode(b64);
-        _usandoFirmaGuardada = true;
-      });
+    final token = prefs.getString('auth_token') ?? '';
+    final baseUrl = prefs.getString('api_url') ?? 'http://10.0.2.2:8000';
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/permisos/mi-firma'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['data'] != null && data['data']['url_firma'] != null) {
+          final url = data['data']['url_firma'];
+          final imgResponse = await http.get(Uri.parse(url));
+          if (imgResponse.statusCode == 200) {
+            setState(() {
+              _firmaGuardada = imgResponse.bodyBytes;
+              _firmaUrl = url;
+              _usandoFirmaGuardada = true;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error al cargar firma desde BD: $e');
     }
   }
 
-  Future<void> _guardarFirma(Uint8List bytes) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('firma_digital', base64Encode(bytes));
-    setState(() {
-      _firmaGuardada = bytes;
-      _usandoFirmaGuardada = true;
-    });
-  }
-
   Future<void> _eliminarFirmaGuardada() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('firma_digital');
     setState(() {
       _firmaGuardada = null;
+      _firmaUrl = null;
       _usandoFirmaGuardada = false;
     });
   }
@@ -153,16 +164,20 @@ class _PantallaTramitesState extends State<PantallaTramites>
           _ModalFirma(firmaExistente: crearNueva ? null : _firmaGuardada),
     );
     if (result != null) {
-      await _guardarFirma(result);
       if (mounted) {
+        setState(() {
+          _firmaGuardada = result;
+          _firmaUrl = null;
+          _usandoFirmaGuardada = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          _snackBar('✓ Firma guardada correctamente', AppColors.accent),
+          _snackBar('✓ Nueva firma lista para usar', AppColors.accent),
         );
       }
     }
   }
 
-  void _enviarSolicitud() async {
+  void _previsualizarSolicitud() async {
     if (_model.fechaInicio == null) {
       _mostrarError('Selecciona la fecha de inicio');
       return;
@@ -191,26 +206,127 @@ class _PantallaTramitesState extends State<PantallaTramites>
       'nombre': nombre,
       'puesto': puesto,
       'area': area,
-      'total_dias': _model.fechaFin != null ? _model.fechaFin!.difference(_model.fechaInicio!).inDays + 1 : 1,
+      'total_dias': _model.fechaFin != null
+          ? _model.fechaFin!.difference(_model.fechaInicio!).inDays + 1
+          : 1,
     };
 
     // 2. Generar Bytes del PDF
     final pdfBytes = await PermisoPdfTemplate.generate(dataPdf, _firmaGuardada);
 
-    // 3. Visualizar PDF inmediatamente
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdfBytes,
-      name: 'Solicitud_Permiso_${DateTime.now().millisecondsSinceEpoch}.pdf',
-    );
-
-    // 4. (Opcional) Aquí llamarías a tu servicio para subir a Cloudinary y guardar en BD
-    // await miServicio.subirFirmaYDatos(pdfBytes, _firmaGuardada);
-
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      _snackBar('✓ PDF generado y solicitud procesada', AppColors.accent),
+    // 3. Abrir pantalla de vista previa para confirmación
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VistaPreviaPdfScreen(
+          pdfBytes: pdfBytes,
+          onConfirm: () => _subirSolicitud(pdfBytes),
+        ),
+      ),
     );
+  }
+
+  Future<void> _subirSolicitud(Uint8List pdfBytes) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      ),
+    );
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+      final baseUrl =
+          prefs.getString('api_url') ??
+          'https://e-zyro-production.up.railway.app/'; // <- CAMBIA ESTO por tu URL de Railway si el backend ya está subido allí
+
+      final uri = Uri.parse('$baseUrl/permisos/enviar-solicitud');
+      final request = http.MultipartRequest('POST', uri);
+
+      request.headers['Authorization'] = 'Bearer $token';
+
+      request.fields['tipo'] = _model.tipoPemiso.toString();
+      request.fields['tipo_label'] = tiposPermiso.firstWhere(
+        (t) => t['id'] == _model.tipoPemiso,
+      )['label'];
+
+      // Si tenemos URL de firma, mandamos eso para que la BD no duplique en Cloudinary. Si es nueva, base64.
+      if (_firmaUrl != null) {
+        request.fields['firma_base64'] = _firmaUrl!;
+      } else {
+        request.fields['firma_base64'] =
+            'data:image/png;base64,${base64Encode(_firmaGuardada!)}';
+      }
+
+      if (_model.fechaInicio != null) {
+        request.fields['fecha_inicio'] = DateFormat(
+          'yyyy-MM-dd',
+        ).format(_model.fechaInicio!);
+      }
+      if (_model.fechaFin != null) {
+        request.fields['fecha_fin'] = DateFormat(
+          'yyyy-MM-dd',
+        ).format(_model.fechaFin!);
+      }
+      if (_model.horaInicio != null) {
+        final now = DateTime.now();
+        final dt = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          _model.horaInicio!.hour,
+          _model.horaInicio!.minute,
+        );
+        request.fields['hora_inicio'] = DateFormat('HH:mm').format(dt);
+      }
+      if (_model.horaFin != null) {
+        final now = DateTime.now();
+        final dt = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          _model.horaFin!.hour,
+          _model.horaFin!.minute,
+        );
+        request.fields['hora_fin'] = DateFormat('HH:mm').format(dt);
+      }
+      request.fields['motivo'] = _model.sustento;
+
+      final totalDias = _model.fechaFin != null
+          ? _model.fechaFin!.difference(_model.fechaInicio!).inDays + 1
+          : 1;
+      request.fields['total_dias'] = totalDias.toString();
+
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'pdf_file',
+          pdfBytes,
+          filename: 'solicitud_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        ),
+      );
+
+      final streamedResponse = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
+      final response = await http.Response.fromStream(streamedResponse);
+
+      Navigator.of(context).pop(); // cerrar loading
+      if (response.statusCode == 200) {
+        Navigator.of(context).pop(); // cerrar vista previa
+        ScaffoldMessenger.of(context).showSnackBar(
+          _snackBar('✓ Solicitud enviada correctamente', AppColors.accent),
+        );
+        _tabController.animateTo(1);
+      } else {
+        _mostrarError('Error al enviar la solicitud: ${response.statusCode}');
+      }
+    } catch (e) {
+      Navigator.of(context).pop(); // cerrar loading
+      _mostrarError('Ocurrió un error: $e');
+    }
   }
 
   void _mostrarError(String msg) {
@@ -443,7 +559,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _enviarSolicitud,
+              onPressed: _previsualizarSolicitud,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.black,
@@ -453,7 +569,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
                 ),
               ),
               child: const Text(
-                'Enviar Solicitud',
+                'Previsualizar y Enviar',
                 style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
               ),
             ),
@@ -927,7 +1043,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
               },
               child: const Center(
                 child: Text(
-                  'Eliminar firma guardada',
+                  'Quitar firma actual',
                   style: TextStyle(
                     color: AppColors.danger,
                     fontSize: 12,
@@ -1272,6 +1388,93 @@ class _ModalFirmaState extends State<_ModalFirma> {
             fontWeight: FontWeight.w600,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+//  PANTALLA VISTA PREVIA PDF
+// ─────────────────────────────────────────────
+class VistaPreviaPdfScreen extends StatefulWidget {
+  final Uint8List pdfBytes;
+  final VoidCallback onConfirm;
+
+  const VistaPreviaPdfScreen({
+    Key? key,
+    required this.pdfBytes,
+    required this.onConfirm,
+  }) : super(key: key);
+
+  @override
+  State<VistaPreviaPdfScreen> createState() => _VistaPreviaPdfScreenState();
+}
+
+class _VistaPreviaPdfScreenState extends State<VistaPreviaPdfScreen> {
+  double? _top;
+  double? _left;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppColors.navBg,
+        title: const Text(
+          'Vista Previa',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // Posición inicial: esquina inferior derecha
+          _top ??= constraints.maxHeight - 80;
+          _left ??= constraints.maxWidth - 220;
+
+          return Stack(
+            children: [
+              PdfPreview(
+                build: (format) => widget.pdfBytes,
+                allowPrinting: true,
+                allowSharing: true,
+                canChangeOrientation: false,
+                canChangePageFormat: false,
+                pdfFileName: 'Solicitud_Permiso.pdf',
+              ),
+              Positioned(
+                top: _top,
+                left: _left,
+                child: GestureDetector(
+                  onPanUpdate: (details) {
+                    setState(() {
+                      // Evitamos que el botón se salga de los bordes de la pantalla
+                      _top = (_top! + details.delta.dy).clamp(
+                        0.0,
+                        constraints.maxHeight - 60.0,
+                      );
+                      _left = (_left! + details.delta.dx).clamp(
+                        0.0,
+                        constraints.maxWidth - 210.0,
+                      );
+                    });
+                  },
+                  child: FloatingActionButton.extended(
+                    backgroundColor: AppColors.accent,
+                    onPressed: widget.onConfirm,
+                    icon: const Icon(Icons.cloud_upload, color: Colors.black),
+                    label: const Text(
+                      'Confirmar y Enviar',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
