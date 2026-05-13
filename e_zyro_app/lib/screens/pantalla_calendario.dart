@@ -52,25 +52,26 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
 
-    final asistSvc = await getAsistenciaService();
-    final proySvc  = await getProyectoService();
-    final comSvc   = await getComunicadoService();
+    try {
+      final asistSvc = await getAsistenciaService();
+      final proySvc  = await getProyectoService();
+      final comSvc   = await getComunicadoService();
 
-    final results = await Future.wait([
-      asistSvc.getHistorial(pagina: 1),
-      asistSvc.getHistorial(pagina: 2),
-      proySvc.getMisServicios(),
-      comSvc.getComunicados(),
-    ]);
+      final results = await Future.wait([
+        asistSvc.getHistorial(pagina: 1),
+        asistSvc.getHistorial(pagina: 2),
+        proySvc.getMisServicios(),
+        comSvc.getComunicados(),
+      ], eagerError: false).then((values) => values.map((v) => v is Exception ? [] : v).toList());
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    final registros  = [...results[0] as List<RegistroAsistencia>,
-                         ...results[1] as List<RegistroAsistencia>];
-    final proyectos  = results[2] as List<ProyectoServicio>;
-    final comunicados = results[3] as List<Comunicado>;
+      final registros  = [...(results.isNotEmpty && results[0] is List ? results[0] as List<RegistroAsistencia> : []),
+                           ...(results.length > 1 && results[1] is List ? results[1] as List<RegistroAsistencia> : [])];
+      final proyectos  = results.length > 2 && results[2] is List ? results[2] as List<ProyectoServicio> : [];
+      final comunicados = results.length > 3 && results[3] is List ? results[3] as List<Comunicado> : [];
 
-    final Map<DateTime, List<_CalEvent>> events = {};
+      final Map<DateTime, List<_CalEvent>> events = {};
 
     // ── Asistencia ──────────────────────────────────────────────────
     final Map<DateTime, List<RegistroAsistencia>> byDay = {};
@@ -152,10 +153,17 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
       ));
     }
 
-    setState(() {
-      _events    = events;
-      _isLoading = false;
-    });
+      setState(() {
+        _events    = events;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _events    = {};
+        _isLoading = false;
+      });
+    }
   }
 
   static String _formatTipo(String tipo) => switch (tipo) {

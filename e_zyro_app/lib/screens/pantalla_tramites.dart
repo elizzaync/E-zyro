@@ -259,7 +259,6 @@ class _PantallaTramitesState extends State<PantallaTramites>
     );
   }
 
-  // ── Header de página ──────────────────────
   Widget _buildPageHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
@@ -638,7 +637,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
   Widget _buildTextArea() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.inputBg,
+        color: const ui.Color.fromARGB(255, 20, 32, 20),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.border),
       ),
@@ -650,7 +649,10 @@ class _PantallaTramitesState extends State<PantallaTramites>
         ),
         decoration: const InputDecoration(
           hintText: 'Escribe el motivo detallado de tu solicitud...',
-          hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 14),
+          hintStyle: TextStyle(
+            color: ui.Color.fromARGB(255, 0, 0, 0),
+            fontSize: 14,
+          ),
           border: InputBorder.none,
           contentPadding: EdgeInsets.all(12),
         ),

@@ -195,7 +195,7 @@ class _ProfileTabState extends State<_ProfileTab> {
   }
 
   String get _initials {
-    final parts = _name.trim().split(' ');
+    final parts = _name.trim().split(' ').where((p) => p.isNotEmpty).toList();
     if (parts.isEmpty) return 'U';
     if (parts.length == 1) return parts[0][0].toUpperCase();
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();

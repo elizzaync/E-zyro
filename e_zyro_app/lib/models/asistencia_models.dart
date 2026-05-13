@@ -1,10 +1,10 @@
 class RegistroAsistencia {
   final String id;
   final DateTime timestamp;
-  final String tipo;        // ENTRADA | SALIDA | ENTRADA_ALMUERZO | SALIDA_ALMUERZO
-  final String status;      // APROBADO | RECHAZADO
-  final String estado;      // validado | pendiente | rechazado | justificado
-  final double score;       // 0.0 – 100.0
+  final String tipo; // ENTRADA | SALIDA | ENTRADA_ALMUERZO | SALIDA_ALMUERZO
+  final String status; // APROBADO | RECHAZADO
+  final String estado; // validado | pendiente | rechazado | justificado
+  final double score; // 0.0 – 100.0
   final double? latitud;
   final double? longitud;
   final double? precisionM;
@@ -49,7 +49,7 @@ class RegistroAsistencia {
 
 class MarcarResponse {
   final String registroId;
-  final String status;      // APROBADO | RECHAZADO
+  final String status; // APROBADO | RECHAZADO
   final double score;
   final String motivo;
   final DateTime timestamp;
@@ -74,7 +74,8 @@ class MarcarResponse {
       status: json['status'] as String? ?? 'RECHAZADO',
       score: (json['score'] as num?)?.toDouble() ?? 0.0,
       motivo: json['motivo'] as String? ?? '',
-      timestamp: DateTime.tryParse(json['timestamp'] as String? ?? '') ??
+      timestamp:
+          DateTime.tryParse(json['timestamp'] as String? ?? '') ??
           DateTime.now(),
       gpsGuardado: json['gps_guardado'] as bool? ?? false,
       fotoUrl: json['foto_url'] as String?,
@@ -88,7 +89,7 @@ class EstadoHoy {
   final bool tieneSalida;
   final bool tieneFotoBase;
   final String? entradaHora; // "HH:MM"
-  final String? salidaHora;  // "HH:MM"
+  final String? salidaHora; // "HH:MM"
   final bool jornadaCompleta;
 
   const EstadoHoy({
@@ -112,11 +113,11 @@ class EstadoHoy {
   }
 
   factory EstadoHoy.empty() => const EstadoHoy(
-        tieneEntrada: false,
-        tieneSalida: false,
-        tieneFotoBase: false,
-        jornadaCompleta: false,
-      );
+    tieneEntrada: false,
+    tieneSalida: false,
+    tieneFotoBase: false,
+    jornadaCompleta: false,
+  );
 
   String? get tipoProximo {
     if (!tieneEntrada) return 'ENTRADA';
