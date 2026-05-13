@@ -286,9 +286,7 @@ def marcar_asistencia(
             # Si viene sin zona horaria, asumir que es UTC
             if ahora_utc.tzinfo is None:
                 ahora_utc = ahora_utc.replace(tzinfo=ZoneInfo("UTC"))
-            # Para mostrar al usuario: convertir a Lima (solo para logs/notificaciones)
-            ahora_lima = ahora_utc.astimezone(ZoneInfo("America/Lima"))
-            # Pero guardar en UTC en la BD
+            # Guardar en UTC en la BD
             ahora = ahora_utc
         except ValueError:
             ahora = datetime.now(ZoneInfo("UTC"))
@@ -388,7 +386,7 @@ def estado_hoy(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Estado de asistencia del empleado para el día actual (en zona horaria Lima)."""
+    """Estado de asistencia del empleado para el día actual."""
     usuario_id = payload["id"]
     empresa_id = payload["empresa_id"]
 
@@ -414,31 +412,22 @@ def estado_hoy(
             "entrada_hora": None, "salida_hora": None,
         }
 
-    # Usar fecha actual en zona horaria de Lima, no UTC
-    hoy_lima = datetime.now(ZoneInfo("America/Lima")).date()
-    
     registros_hoy = (
         db.query(RegistroAsistencia)
         .filter(
             RegistroAsistencia.empleado_id == empleado.id,
             RegistroAsistencia.empresa_id == empresa_id,
+            cast(RegistroAsistencia.fecha_hora, Date) == date.today(),
         )
+        .order_by(RegistroAsistencia.fecha_hora)
         .all()
     )
-    
-    # Filtrar por fecha en zona horaria de Lima
-    registros_hoy = [
-        r for r in registros_hoy
-        if r.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Lima")).date() == hoy_lima
-    ]
 
     entrada = next((r for r in registros_hoy if r.tipo == "entrada"), None)
     salida  = next((r for r in registros_hoy if r.tipo == "salida"),  None)
 
     def _fmt(r) -> Optional[str]:
-        # Convertir de UTC a Lima para mostrar la hora correcta
-        fecha_lima = r.fecha_hora.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/Lima"))
-        return fecha_lima.strftime("%H:%M") if r else None
+        return r.fecha_hora.strftime("%H:%M") if r else None
 
     return {
         "tiene_entrada":    entrada is not None,
