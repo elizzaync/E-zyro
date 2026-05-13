@@ -119,7 +119,9 @@ class _PantallaTramitesState extends State<PantallaTramites>
   Future<void> _cargarFirmaGuardada() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token') ?? '';
-    final baseUrl = prefs.getString('api_url') ?? 'http://10.0.2.2:8000';
+    final baseUrl =
+        prefs.getString('api_url') ??
+        'https://e-zyro-production.up.railway.app';
 
     try {
       final response = await http.get(
@@ -241,7 +243,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
       final token = prefs.getString('auth_token') ?? '';
       final baseUrl =
           prefs.getString('api_url') ??
-          'https://e-zyro-production.up.railway.app/'; // <- CAMBIA ESTO por tu URL de Railway si el backend ya está subido allí
+          'https://e-zyro-production.up.railway.app';
 
       final uri = Uri.parse('$baseUrl/permisos/enviar-solicitud');
       final request = http.MultipartRequest('POST', uri);
