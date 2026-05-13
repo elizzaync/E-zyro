@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signature/signature.dart';
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
+import '../templates/permiso_pdf_template.dart';
 
 // ─────────────────────────────────────────────
 //  TEMA DE COLORES (basado en la captura)
@@ -28,6 +31,7 @@ class AppColors {
 // ─────────────────────────────────────────────
 //  MODELO DE DATOS
 // ─────────────────────────────────────────────
+
 class TramiteModel {
   int tipoPemiso;
   DateTime? fechaInicio;
@@ -58,6 +62,26 @@ const List<Map<String, dynamic>> tiposPermiso = [
   {'id': 9, 'label': '(9) Transferencia'},
   {'id': 10, 'label': '(10) Otros'},
 ];
+
+Map<String, dynamic> prepararDatosFirma({
+  required String userId,
+  required String empresaId,
+  required String urlCloudinary,
+  required String publicId,
+  bool esPrimeraVez = false,
+}) {
+  return {
+    'id': DateTime.now().millisecondsSinceEpoch
+        .toString(), // Generar un ID simple
+    'usuario_id': userId,
+    'empresa_id': empresaId,
+    'url_cloudinary': urlCloudinary,
+    'public_id_cloudinary': publicId,
+    'primera_vez': esPrimeraVez,
+    'created_at': DateTime.now().toIso8601String(),
+    'updated_at': DateTime.now().toIso8601String(),
+  };
+}
 
 // ─────────────────────────────────────────────
 //  PANTALLA PRINCIPAL
@@ -138,22 +162,61 @@ class _PantallaTramitesState extends State<PantallaTramites>
     }
   }
 
-  void _enviarSolicitud() {
+  void _enviarSolicitud() async {
     if (_model.fechaInicio == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        _snackBar('Selecciona la fecha de inicio', AppColors.danger),
-      );
+      _mostrarError('Selecciona la fecha de inicio');
       return;
     }
-    if (!_usandoFirmaGuardada || _firmaGuardada == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(_snackBar('Agrega tu firma digital', AppColors.danger));
+
+    if (_firmaGuardada == null) {
+      _mostrarError('Agrega tu firma digital');
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      _snackBar('✓ Solicitud enviada exitosamente', AppColors.accent),
+
+    final prefs = await SharedPreferences.getInstance();
+    final nombre = prefs.getString('user_name') ?? 'Usuario';
+    final puesto = prefs.getString('user_rol') ?? 'Colaborador';
+    final area = prefs.getString('user_area') ?? 'TIC';
+
+    // 1. Mapear datos para el PDF
+    final dataPdf = {
+      'tipo': _model.tipoPemiso,
+      'f_inicio': DateFormat('dd/MM/yyyy').format(_model.fechaInicio!),
+      'f_fin': _model.fechaFin != null
+          ? DateFormat('dd/MM/yyyy').format(_model.fechaFin!)
+          : '',
+      'hora_inicio': _model.horaInicio?.format(context) ?? '',
+      'hora_fin': _model.horaFin?.format(context) ?? '',
+      'sustento': _model.sustento,
+      'nombre': nombre,
+      'puesto': puesto,
+      'area': area,
+      'total_dias': _model.fechaFin != null ? _model.fechaFin!.difference(_model.fechaInicio!).inDays + 1 : 1,
+    };
+
+    // 2. Generar Bytes del PDF
+    final pdfBytes = await PermisoPdfTemplate.generate(dataPdf, _firmaGuardada);
+
+    // 3. Visualizar PDF inmediatamente
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdfBytes,
+      name: 'Solicitud_Permiso_${DateTime.now().millisecondsSinceEpoch}.pdf',
     );
+
+    // 4. (Opcional) Aquí llamarías a tu servicio para subir a Cloudinary y guardar en BD
+    // await miServicio.subirFirmaYDatos(pdfBytes, _firmaGuardada);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      _snackBar('✓ PDF generado y solicitud procesada', AppColors.accent),
+    );
+  }
+
+  void _mostrarError(String msg) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(_snackBar(msg, AppColors.danger));
   }
 
   SnackBar _snackBar(String msg, Color color) => SnackBar(
@@ -650,7 +713,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
         decoration: const InputDecoration(
           hintText: 'Escribe el motivo detallado de tu solicitud...',
           hintStyle: TextStyle(
-            color: ui.Color.fromARGB(255, 0, 0, 0),
+            color: ui.Color.fromARGB(255, 255, 255, 255),
             fontSize: 14,
           ),
           border: InputBorder.none,
@@ -949,7 +1012,7 @@ class _ModalFirmaState extends State<_ModalFirma> {
     _controller = SignatureController(
       penColor: Colors.black,
       penStrokeWidth: 3.0,
-      exportBackgroundColor: Colors.white,
+      exportBackgroundColor: Colors.transparent,
     );
     // Si hay firma existente, empieza mostrándola
     if (widget.firmaExistente != null) {

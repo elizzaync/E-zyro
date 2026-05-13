@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
 import '../models/asistencia_models.dart';
-import '../models/dashboard_models.dart';
 import '../utils/api_provider.dart';
 
 class PersonalScreen extends StatefulWidget {

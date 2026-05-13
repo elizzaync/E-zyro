@@ -54,136 +54,154 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
 
     try {
       final asistSvc = await getAsistenciaService();
-      final proySvc  = await getProyectoService();
-      final comSvc   = await getComunicadoService();
+      final proySvc = await getProyectoService();
+      final comSvc = await getComunicadoService();
 
-      final results = await Future.wait([
-        asistSvc.getHistorial(pagina: 1),
-        asistSvc.getHistorial(pagina: 2),
-        proySvc.getMisServicios(),
-        comSvc.getComunicados(),
-      ], eagerError: false).then((values) => values.map((v) => v is Exception ? [] : v).toList());
+      final results = await Future.wait(
+        [
+          asistSvc.getHistorial(pagina: 1),
+          asistSvc.getHistorial(pagina: 2),
+          proySvc.getMisServicios(),
+          comSvc.getComunicados(),
+        ],
+        eagerError: false,
+      ).then((values) => values.map((v) => v is Exception ? [] : v).toList());
 
       if (!mounted) return;
 
-      final registros  = [...(results.isNotEmpty && results[0] is List ? results[0] as List<RegistroAsistencia> : []),
-                           ...(results.length > 1 && results[1] is List ? results[1] as List<RegistroAsistencia> : [])];
-      final proyectos  = results.length > 2 && results[2] is List ? results[2] as List<ProyectoServicio> : [];
-      final comunicados = results.length > 3 && results[3] is List ? results[3] as List<Comunicado> : [];
+      final registros = [
+        ...(results.isNotEmpty ? results[0] as List<RegistroAsistencia> : []),
+        ...(results.length > 1 ? results[1] as List<RegistroAsistencia> : []),
+      ];
+      final proyectos = results.length > 2
+          ? results[2] as List<ProyectoServicio>
+          : [];
+      final comunicados = results.length > 3
+          ? results[3] as List<Comunicado>
+          : [];
 
       final Map<DateTime, List<_CalEvent>> events = {};
 
-    // ── Asistencia ──────────────────────────────────────────────────
-    final Map<DateTime, List<RegistroAsistencia>> byDay = {};
-    for (final r in registros) {
-      (byDay[_dayKey(r.timestamp)] ??= []).add(r);
-    }
-
-    for (final entry in byDay.entries) {
-      final regs = entry.value;
-      final aprobados = regs.where((r) => r.status == 'APROBADO');
-      final tieneEntrada = aprobados.any((r) => r.tipo == 'ENTRADA');
-      final tieneSalida  = aprobados.any((r) => r.tipo == 'SALIDA');
-      final rechazado    = regs.any((r) => r.status == 'RECHAZADO');
-
-      final Color dotColor;
-      final String label;
-
-      if (tieneEntrada && tieneSalida) {
-        dotColor = const Color(0xFF8FD11B);
-        label    = 'Jornada completa';
-      } else if (tieneEntrada) {
-        dotColor = const Color(0xFFF59E0B);
-        label    = 'Solo entrada registrada';
-      } else if (rechazado) {
-        dotColor = Colors.red;
-        label    = 'Marcación rechazada';
-      } else {
-        dotColor = const Color(0xFFF59E0B);
-        label    = 'Asistencia parcial';
+      // ── Asistencia ──────────────────────────────────────────────────
+      final Map<DateTime, List<RegistroAsistencia>> byDay = {};
+      for (final r in registros) {
+        (byDay[_dayKey(r.timestamp)] ??= []).add(r);
       }
 
-      final tipos = aprobados.map((r) => _formatTipo(r.tipo)).join(' · ');
+      for (final entry in byDay.entries) {
+        final regs = entry.value;
+        final aprobados = regs.where((r) => r.status == 'APROBADO');
+        final tieneEntrada = aprobados.any((r) => r.tipo == 'ENTRADA');
+        final tieneSalida = aprobados.any((r) => r.tipo == 'SALIDA');
+        final rechazado = regs.any((r) => r.status == 'RECHAZADO');
 
-      (events[entry.key] ??= []).add(_CalEvent(
-        type:     _EventType.asistencia,
-        title:    label,
-        subtitle: tipos.isNotEmpty ? tipos : null,
-        color:    dotColor,
-      ));
-    }
+        final Color dotColor;
+        final String label;
 
-    // ── Proyectos ────────────────────────────────────────────────────
-    for (final p in proyectos) {
-      final label = '${p.empresa} — ${p.tipoServicio}';
-      if (p.fechaInicio != null) {
-        final dt = DateTime.tryParse(p.fechaInicio!);
-        if (dt != null) {
-          (events[_dayKey(dt)] ??= []).add(_CalEvent(
-            type:     _EventType.proyecto,
-            title:    label,
-            subtitle: 'Inicio del servicio',
-            color:    const Color(0xFFF59E0B),
-          ));
+        if (tieneEntrada && tieneSalida) {
+          dotColor = const Color(0xFF8FD11B);
+          label = 'Jornada completa';
+        } else if (tieneEntrada) {
+          dotColor = const Color(0xFFF59E0B);
+          label = 'Solo entrada registrada';
+        } else if (rechazado) {
+          dotColor = Colors.red;
+          label = 'Marcación rechazada';
+        } else {
+          dotColor = const Color(0xFFF59E0B);
+          label = 'Asistencia parcial';
+        }
+
+        final tipos = aprobados.map((r) => _formatTipo(r.tipo)).join(' · ');
+
+        (events[entry.key] ??= []).add(
+          _CalEvent(
+            type: _EventType.asistencia,
+            title: label,
+            subtitle: tipos.isNotEmpty ? tipos : null,
+            color: dotColor,
+          ),
+        );
+      }
+
+      // ── Proyectos ────────────────────────────────────────────────────
+      for (final p in proyectos) {
+        final label = '${p.empresa} — ${p.tipoServicio}';
+        if (p.fechaInicio != null) {
+          final dt = DateTime.tryParse(p.fechaInicio!);
+          if (dt != null) {
+            (events[_dayKey(dt)] ??= []).add(
+              _CalEvent(
+                type: _EventType.proyecto,
+                title: label,
+                subtitle: 'Inicio del servicio',
+                color: const Color(0xFFF59E0B),
+              ),
+            );
+          }
+        }
+        if (p.fechaFin != null) {
+          final dt = DateTime.tryParse(p.fechaFin!);
+          if (dt != null) {
+            (events[_dayKey(dt)] ??= []).add(
+              _CalEvent(
+                type: _EventType.proyecto,
+                title: label,
+                subtitle: 'Plazo del servicio',
+                color: Colors.deepOrange,
+              ),
+            );
+          }
         }
       }
-      if (p.fechaFin != null) {
-        final dt = DateTime.tryParse(p.fechaFin!);
-        if (dt != null) {
-          (events[_dayKey(dt)] ??= []).add(_CalEvent(
-            type:     _EventType.proyecto,
-            title:    label,
-            subtitle: 'Plazo del servicio',
-            color:    Colors.deepOrange,
-          ));
-        }
-      }
-    }
 
-    // ── Comunicados ──────────────────────────────────────────────────
-    for (final c in comunicados) {
-      if (c.fecha.isEmpty) continue;
-      final dt = DateTime.tryParse(c.fecha);
-      if (dt == null) continue;
-      (events[_dayKey(dt)] ??= []).add(_CalEvent(
-        type:     _EventType.comunicado,
-        title:    c.titulo,
-        subtitle: c.leido ? 'Leído' : 'Sin leer',
-        color:    Colors.blue.shade600,
-      ));
-    }
+      // ── Comunicados ──────────────────────────────────────────────────
+      for (final c in comunicados) {
+        if (c.fecha.isEmpty) continue;
+        final dt = DateTime.tryParse(c.fecha);
+        if (dt == null) continue;
+        (events[_dayKey(dt)] ??= []).add(
+          _CalEvent(
+            type: _EventType.comunicado,
+            title: c.titulo,
+            subtitle: c.leido ? 'Leído' : 'Sin leer',
+            color: Colors.blue.shade600,
+          ),
+        );
+      }
 
       setState(() {
-        _events    = events;
+        _events = events;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _events    = {};
+        _events = {};
         _isLoading = false;
       });
     }
   }
 
   static String _formatTipo(String tipo) => switch (tipo) {
-        'ENTRADA'          => 'Entrada',
-        'SALIDA'           => 'Salida',
-        'ENTRADA_ALMUERZO' => 'Salida almuerzo',
-        'SALIDA_ALMUERZO'  => 'Regreso almuerzo',
-        _                  => tipo,
-      };
+    'ENTRADA' => 'Entrada',
+    'SALIDA' => 'Salida',
+    'ENTRADA_ALMUERZO' => 'Salida almuerzo',
+    'SALIDA_ALMUERZO' => 'Regreso almuerzo',
+    _ => tipo,
+  };
 
-  List<_CalEvent> _eventsFor(DateTime day) =>
-      _events[_dayKey(day)] ?? const [];
+  List<_CalEvent> _eventsFor(DateTime day) => _events[_dayKey(day)] ?? const [];
 
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    const green   = Color(0xFF8FD11B);
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    const green = Color(0xFF8FD11B);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
-    final selected = _selectedDay != null ? _eventsFor(_selectedDay!) : <_CalEvent>[];
+    final selected = _selectedDay != null
+        ? _eventsFor(_selectedDay!)
+        : <_CalEvent>[];
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -225,14 +243,16 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
               boxShadow: isDark
                   ? [
                       BoxShadow(
-                          color: green.withValues(alpha: 0.08),
-                          blurRadius: 12)
+                        color: green.withValues(alpha: 0.08),
+                        blurRadius: 12,
+                      ),
                     ]
                   : [
                       BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2))
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
                     ],
             ),
             child: TableCalendar<_CalEvent>(
@@ -277,8 +297,10 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
                   color: green,
                   shape: BoxShape.circle,
                 ),
-                todayTextStyle:
-                    const TextStyle(color: green, fontWeight: FontWeight.bold),
+                todayTextStyle: const TextStyle(
+                  color: green,
+                  fontWeight: FontWeight.bold,
+                ),
                 weekendTextStyle: TextStyle(
                   color: isDark ? Colors.white54 : Colors.grey.shade500,
                 ),
@@ -297,10 +319,11 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
                             (e) => Container(
                               width: 5,
                               height: 5,
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 1),
+                              margin: const EdgeInsets.symmetric(horizontal: 1),
                               decoration: BoxDecoration(
-                                  color: e.color, shape: BoxShape.circle),
+                                color: e.color,
+                                shape: BoxShape.circle,
+                              ),
                             ),
                           )
                           .toList(),
@@ -310,10 +333,10 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
               ),
               onDaySelected: (selected, focused) => setState(() {
                 _selectedDay = selected;
-                _focusedDay  = focused;
+                _focusedDay = focused;
               }),
               onFormatChanged: (fmt) => setState(() => _format = fmt),
-              onPageChanged:   (focused) => setState(() => _focusedDay = focused),
+              onPageChanged: (focused) => setState(() => _focusedDay = focused),
             ),
           ),
 
@@ -322,11 +345,11 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
             child: Row(
               children: [
-                _Dot(color: green,              label: 'Asistencia'),
+                _Dot(color: green, label: 'Asistencia'),
                 const SizedBox(width: 16),
                 _Dot(color: const Color(0xFFF59E0B), label: 'Proyecto'),
                 const SizedBox(width: 16),
-                _Dot(color: Colors.blue.shade600,    label: 'Comunicado'),
+                _Dot(color: Colors.blue.shade600, label: 'Comunicado'),
               ],
             ),
           ),
@@ -340,8 +363,11 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.event_note_outlined,
-                            size: 48, color: Colors.grey.shade400),
+                        Icon(
+                          Icons.event_note_outlined,
+                          size: 48,
+                          color: Colors.grey.shade400,
+                        ),
                         const SizedBox(height: 10),
                         const Text(
                           'Sin eventos este día',
@@ -385,8 +411,7 @@ class _Dot extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 5),
-        Text(label,
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
     );
   }
@@ -396,14 +421,17 @@ class _EventCard extends StatelessWidget {
   final _CalEvent event;
   final bool isDark;
   final Color surface;
-  const _EventCard(
-      {required this.event, required this.isDark, required this.surface});
+  const _EventCard({
+    required this.event,
+    required this.isDark,
+    required this.surface,
+  });
 
   IconData get _icon => switch (event.type) {
-        _EventType.asistencia  => Icons.fingerprint,
-        _EventType.proyecto    => Icons.work_outline,
-        _EventType.comunicado  => Icons.campaign_outlined,
-      };
+    _EventType.asistencia => Icons.fingerprint,
+    _EventType.proyecto => Icons.work_outline,
+    _EventType.comunicado => Icons.campaign_outlined,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -416,14 +444,16 @@ class _EventCard extends StatelessWidget {
         boxShadow: isDark
             ? [
                 BoxShadow(
-                    color: event.color.withValues(alpha: 0.08),
-                    blurRadius: 8)
+                  color: event.color.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                ),
               ]
             : [
                 BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2))
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
               ],
       ),
       child: Row(
@@ -444,7 +474,9 @@ class _EventCard extends StatelessWidget {
                 Text(
                   event.title,
                   style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 14),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -452,8 +484,7 @@ class _EventCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     event.subtitle!,
-                    style:
-                        const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
               ],
