@@ -1,30 +1,8 @@
 from app.core.config_cloudinary import cloudinary_uploader
 import cloudinary.uploader
-from cloudinary.utils import cloudinary_url
 import logging
 import re
-from fastapi import UploadFile
-async def subir_archivo_cloudinary(file: UploadFile, folder: str = "operaciones_evidencias") -> str:
-    """
-    Recibe un UploadFile de FastAPI, lee sus bytes y lo sube a Cloudinary.
-    Devuelve la URL segura de la imagen.
-    """
-    try:
-        # Leemos los bytes físicos de la imagen subida
-        contents = await file.read()
 
-        # Subimos los bytes a Cloudinary
-        upload_result = cloudinary.uploader.upload(
-            contents,
-            folder=folder,
-            resource_type="auto"  # Detecta automáticamente si es imagen/png/jpg
-        )
-
-        return upload_result.get("secure_url")
-
-    except Exception as e:
-        logging.error(f"Error subiendo archivo físico a Cloudinary: {str(e)}")
-        raise Exception(f"Fallo al procesar el archivo en la nube: {str(e)}")
 def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_perfil: bool = False) -> str:
     """
     Sube una imagen optimizada a Cloudinary.
@@ -94,28 +72,22 @@ def eliminar_imagen_cloudinary(url: str):
 
 def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
     """
-    Sube un PDF a Cloudinary y devuelve una Signed URL válida por 1 hora.
-    La firma es necesaria en cuentas gratuitas para evitar el 401 Unauthorized.
+    Sube un PDF a Cloudinary como recurso raw y devuelve su secure_url.
+    resource_type="raw" evita el procesamiento interno del SDK que referencia
+    la variable full_public_id causando NameError en ciertas versiones.
     """
     try:
         import io
-        pid = public_id.removesuffix(".pdf")
-        cloudinary.uploader.upload(
+        # Asegurar que el public_id termine en .pdf para que la URL sea descargable
+        pid = public_id.removesuffix(".pdf") + ".pdf"
+        upload_result = cloudinary.uploader.upload(
             io.BytesIO(pdf_bytes),
             public_id=pid,
-            resource_type="image",
-            format="pdf",
+            resource_type="raw",
             overwrite=True,
             invalidate=True,
         )
-        signed_url, _ = cloudinary_url(
-            pid,
-            resource_type="image",
-            format="pdf",
-            sign_url=True,
-            secure=True,
-        )
-        return signed_url
+        return upload_result["secure_url"]
     except Exception as e:
         logging.error(f"Error subiendo PDF (bytes) a Cloudinary: {str(e)}")
         raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")

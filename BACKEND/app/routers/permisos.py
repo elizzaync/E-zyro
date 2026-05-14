@@ -53,6 +53,98 @@ MESES = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
          "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
 
+@router.get("/mis-solicitudes")
+def mis_solicitudes(
+    current_user: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    try:
+        usuario_id = current_user.get("id")
+        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+        if not empleado:
+            return {"status": "success", "data": []}
+
+        solicitudes = (
+            db.query(SolicitudLaboral)
+            .filter(SolicitudLaboral.empleado_id == empleado.id)
+            .order_by(SolicitudLaboral.created_at.desc())
+            .all()
+        )
+
+        data = []
+        for s in solicitudes:
+            dt = s.created_at
+            fecha_fmt = f"{dt.day} {MESES[dt.month]}, {dt.year}" if dt else ""
+            data.append({
+                "id":           f"PRM-{str(s.id)[:6].upper()}",
+                "tipo":         s.tipo,
+                "tipo_label":   TIPOS_LABEL.get(s.tipo, s.tipo),
+                "estado":       s.estado,
+                "fecha_inicio": str(s.fecha_inicio) if s.fecha_inicio else None,
+                "fecha_fin":    str(s.fecha_fin)    if s.fecha_fin    else None,
+                "fecha_emision": fecha_fmt,
+                "descripcion":  s.descripcion,
+                "url_pdf":      s.url_pdf,
+                "observacion":  s.observacion,
+            })
+
+        return {"status": "success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/guardar-firma")
+async def guardar_firma(
+    firma_base64: str = Form(...),
+    current_user: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    try:
+        usuario_id = current_user.get("id")
+        empresa_id = current_user.get("empresa_id")
+
+        firma_public_id = f"e-zyro/firmas/firma_{usuario_id}"
+        firma_url = subir_imagen_cloudinary(
+            base64_data=firma_base64,
+            folder="e-zyro/firmas",
+            public_id=f"firma_{usuario_id}",
+        )
+
+        firma_existente = db.query(FirmaDigital).filter(
+            FirmaDigital.usuario_id == usuario_id
+        ).first()
+
+        if firma_existente:
+            db.add(HistorialFirma(
+                usuario_id           = usuario_id,
+                empresa_id           = empresa_id,
+                url_cloudinary       = firma_existente.url_cloudinary,
+                public_id_cloudinary = firma_existente.public_id_cloudinary,
+            ))
+            firma_existente.url_cloudinary       = firma_url
+            firma_existente.public_id_cloudinary = firma_public_id
+            firma_existente.primera_vez          = False
+            firma_existente.updated_at           = datetime.utcnow()
+        else:
+            db.add(FirmaDigital(
+                usuario_id           = usuario_id,
+                empresa_id           = empresa_id,
+                url_cloudinary       = firma_url,
+                public_id_cloudinary = firma_public_id,
+                primera_vez          = True,
+            ))
+
+        db.commit()
+        return {"status": "success", "data": {"url_firma": firma_url}}
+
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/mi-firma")
 def obtener_mi_firma(
     current_user: dict = Depends(verificar_token),
@@ -70,24 +162,39 @@ def obtener_mi_firma(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/historial-firmas")
+def obtener_historial_firmas(
+    current_user: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    try:
+        usuario_id = current_user.get("id")
+        historial = db.query(HistorialFirma).filter(
+            HistorialFirma.usuario_id == usuario_id
+        ).all()
+        return {
+            "status": "success", 
+            "data": [{"url_firma": h.url_cloudinary} for h in historial]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/enviar-solicitud")
 async def enviar_solicitud(
-    # ── Archivo PDF generado en el cliente (pdf-lib) ──────────────
+    # ── Archivo PDF generado en el cliente ────────────────────────
     pdf_file: UploadFile = File(...),
 
     # ── Campos del formulario ─────────────────────────────────────
-    tipo:             str           = Form(...),
-    tipo_label:       str           = Form(...),
-    firma_base64:     str           = Form(...),
-    fecha_inicio:     Optional[str] = Form(None),
-    fecha_fin:        Optional[str] = Form(None),
-    hora_inicio:      Optional[str] = Form(None),
-    hora_fin:         Optional[str] = Form(None),
-    motivo:           Optional[str] = Form(None),
-    lugar_destino:    Optional[str] = Form(None),
-    adjunto_nombre:   Optional[str] = Form(None),
-    horas_calculadas: Optional[str] = Form(None),  # llega como string desde FormData
-    total_dias:       Optional[str] = Form(None),  # llega como string desde FormData
+    tipo:        str           = Form(...),
+    tipo_label:  str           = Form(...),
+    fecha_inicio: Optional[str] = Form(None),
+    fecha_fin:   Optional[str] = Form(None),
+    hora_inicio: Optional[str] = Form(None),
+    hora_fin:    Optional[str] = Form(None),
+    motivo:      Optional[str] = Form(None),
+    lugar_destino: Optional[str] = Form(None),
+    total_dias:  Optional[str] = Form(None),
 
     current_user: dict    = Depends(verificar_token),
     db:           Session = Depends(get_db),
@@ -100,42 +207,10 @@ async def enviar_solicitud(
         if not empleado:
             raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-        # ── 1. Gestión de la firma digital ───────────────────────────────
-        firma_url       = firma_base64
+        # ── 1. Obtener firma existente (guardada previamente via /guardar-firma)
         firma_existente = db.query(FirmaDigital).filter(
             FirmaDigital.usuario_id == usuario_id
         ).first()
-
-        if firma_base64.startswith("data:"):
-            firma_public_id = f"e-zyro/firmas/firma_{usuario_id}"
-            firma_url = subir_imagen_cloudinary(
-                base64_data=firma_base64,
-                folder="e-zyro/firmas",
-                public_id=f"firma_{usuario_id}",
-            )
-            if firma_existente:
-                db.add(HistorialFirma(
-                    usuario_id           = usuario_id,
-                    empresa_id           = empresa_id,
-                    url_cloudinary       = firma_existente.url_cloudinary,
-                    public_id_cloudinary = firma_existente.public_id_cloudinary,
-                ))
-                firma_existente.url_cloudinary       = firma_url
-                firma_existente.public_id_cloudinary = full_public_id
-                firma_existente.primera_vez          = False
-                firma_existente.updated_at           = datetime.utcnow()
-            else:
-                nueva_firma = FirmaDigital(
-                    usuario_id           = usuario_id,
-                    empresa_id           = empresa_id,
-                    url_cloudinary       = firma_url,
-                    public_id_cloudinary = full_public_id,
-                    primera_vez          = True,
-                )
-                db.add(nueva_firma)
-                db.flush()
-                firma_existente = nueva_firma
-        # Si firma_base64 comienza con "http", es la URL ya guardada; no se re-sube.
 
         # ── 2. Parsear fechas y números ───────────────────────────────────
         def parse_date(s: Optional[str]) -> Optional[date]:
@@ -149,10 +224,9 @@ async def enviar_solicitud(
         fecha_inicio_dt = parse_date(fecha_inicio)
         fecha_fin_dt    = parse_date(fecha_fin)
 
-        # ── 3. Subir PDF recibido a Cloudinary (resource_type raw, extensión .pdf)
+        # ── 3. Subir PDF a Cloudinary (resource_type raw)
         pdf_bytes     = await pdf_file.read()
         pdf_uid       = uuid.uuid4().hex[:12]
-        # public_id SIN extensión — subir_pdf_bytes_cloudinary la añade via format="pdf"
         pdf_public_id = f"e-zyro/permisos/permiso_{str(empleado.id)}_{pdf_uid}"
         pdf_url       = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)
 
