@@ -1,0 +1,48 @@
+<div class="operaciones-layout fade-in">
+
+    <div class="header-section">
+        <div>
+            <h2 class="page-title">Operaciones</h2>
+            <p class="page-subtitle">Gestión de servicios y asignaciones</p>
+        </div>
+
+        <div class="header-actions">
+            <input
+                type="date"
+                class="input-fecha"
+                [(ngModel)]="fechaFiltro"
+                (change)="cargarDashboard(fechaFiltro)"
+                [attr.aria-label]="'Filtrar por fecha'">
+            <button class="btn-outline-calendar" (click)="irAlCalendario()">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                Ver Calendario
+            </button>
+        </div>
+    </div>
+
+    @if (errorMessage) {
+    <div style="margin-bottom: 24px;">
+        <app-alert type="error" [message]="errorMessage"></app-alert>
+    </div>
+    }
+
+    @if (isLoading) {
+    <div class="historial-loading">
+        <div class="spinner"></div> <span>Sincronizando servicios en tiempo real...</span>
+    </div>
+    } @else {
+    <section class="cards-section">
+        <app-operaciones-cards [metricas]="datosTarjetas"></app-operaciones-cards>
+    </section>
+
+    <section class="lista-section">
+        <app-operaciones-servicios [servicios]="listaServicios"></app-operaciones-servicios>
+    </section>
+    }
+
+</div>

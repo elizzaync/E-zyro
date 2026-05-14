@@ -9,6 +9,8 @@ import { MasComponent } from './features/masComponentes/mas.component';
 import { ConfiguracionComponent } from './features/configuracion/configuracion.component';
 import { CentroAyudaComponent } from './features/centro-ayuda/centro-ayuda.component';
 import { DocumentacionComponent } from './features/documentacion/documentacion.component';
+import { OperacionesComponent } from './features/operaciones/operaciones.component';
+import { OperacionesDetalleComponent } from './features/operaciones/components/operaciones-detalle/operaciones-detalle.component';
 export const routes: Routes = [
   {
     path: '',
@@ -56,6 +58,18 @@ export const routes: Routes = [
     path: 'documentacion',
     component: DocumentacionComponent,
     title: 'Documentación | E-System Tic',
+    canActivate: [authGuard]
+},
+{
+    path: 'operaciones',
+    component: OperacionesComponent,
+    title: 'Operaciones | E-System Tic',
+    canActivate: [authGuard]
+},
+{
+    path: 'operaciones/detalle/:id',
+    component: OperacionesDetalleComponent,
+    title: 'Detalle de Operación | E-System Tic',
     canActivate: [authGuard]
 },
   {

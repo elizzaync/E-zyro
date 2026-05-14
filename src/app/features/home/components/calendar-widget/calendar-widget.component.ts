@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { ToastService } from '../../../../core/services/toast.service';
 
@@ -16,6 +17,7 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
   mesActual: string = '';
   diasSemana = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
   private toastService = inject(ToastService);
+  private router = inject(Router);
 
   diasMes: { num: number | null, isHoy: boolean, hasEvent: boolean, fechaStr: string, tooltipText: string }[] = [];
   notasGuardadas: { [fecha: string]: string } = {};
@@ -152,7 +154,14 @@ ngOnInit() {
   }
 
   verEnOperaciones() {
-    this.toastService.mostrar('Módulo Operaciones en construcción', 'info');
+    if (this.serviciosDelDia.length === 1) {
+      this.router.navigate(['/operaciones/detalle', this.serviciosDelDia[0].id]);
+    } else {
+      this.router.navigate(['/operaciones'], {
+        queryParams: { fecha: this.diaSeleccionado?.fechaStr }
+      });
+    }
+    this.cerrarServicioModal();
   }
 
   eliminarNota() {

@@ -1,0 +1,53 @@
+<div class="servicios-container">
+
+    <div class="filtros-wrapper">
+        @for (filtro of filtros; track filtro) {
+        <button class="filtro-btn" [class.active]="filtroActual === filtro" (click)="setFiltro(filtro)">
+            {{ filtro }}
+        </button>
+        }
+    </div>
+
+    <div class="servicios-scroll-area">
+        <div class="servicios-grid">
+            @for (servicio of serviciosFiltrados; track servicio.id) {
+            <div class="servicio-card" [routerLink]="['/operaciones/detalle', servicio.id]" style="cursor: pointer;">
+
+                <div class="sc-header">
+                    <h4 class="sc-cliente">{{ servicio.cliente }}</h4>
+                    @if (servicio.alerta) {
+                    <div class="alerta-icon" title="Atención requerida">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    }
+                </div>
+
+                <p class="sc-tipo">{{ servicio.tipoServicio }}</p>
+
+                <div class="sc-ubicacion">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <span>{{ servicio.ubicacion }}</span>
+                </div>
+
+                <div class="sc-footer">
+                    <div class="sc-fecha">
+                        {{ servicio.fechaStr }} &nbsp;&bull;&nbsp; {{ servicio.horaStr }}
+                    </div>
+                    <div class="sc-badge" [ngClass]="'badge-' + servicio.estado.toLowerCase()">
+                        {{ servicio.estado }}
+                    </div>
+                </div>
+
+            </div>
+            }
+        </div>
+    </div>
+
+</div>

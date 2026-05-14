@@ -1,0 +1,84 @@
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  width: 100%;
+}
+
+.metric-card {
+  background: var(--card-bg, #ffffff);
+  border-radius: 20px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 20px var(--shadow-color, rgba(0,0,0,0.02));
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px var(--shadow-color, rgba(0,0,0,0.05));
+}
+
+/* Tarjeta Resaltada (El "Hoy" en color verde) */
+.metric-card.is-highlighted {
+  background: rgba(145, 211, 55, 0.08);
+  border: 1px solid rgba(145, 211, 55, 0.3);
+}
+
+.icon-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+/* El contenedor SVG asegura que el icono herede el color y tamaño */
+::ng-deep .svg-container svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.metric-value {
+  font-size: 36px;
+  font-weight: 500;
+  color: var(--text-main, #0f172a);
+  line-height: 1.1;
+  margin-bottom: 8px;
+}
+
+.metric-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted, #64748b);
+}
+
+/* Soporte para Modo Oscuro */
+:host-context([data-theme="dark"]) .metric-card {
+  background: #0f172a;
+  border-color: #1e293b;
+}
+
+:host-context([data-theme="dark"]) .metric-card.is-highlighted {
+  background: rgba(145, 211, 55, 0.05);
+  border-color: rgba(145, 211, 55, 0.2);
+}
+
+:host-context([data-theme="dark"]) .metric-value {
+  color: #f8fafc;
+}
+
+:host-context([data-theme="dark"]) .metric-card.is-highlighted .metric-value {
+  color: #91d337;
+}

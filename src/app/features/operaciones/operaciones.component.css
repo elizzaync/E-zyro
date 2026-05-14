@@ -1,0 +1,40 @@
+/* Header actions wrapper */
+.header-actions { display: flex; align-items: center; gap: 12px; }
+
+/* Date filter input */
+.input-fecha {
+  height: 42px; padding: 0 14px; border-radius: 10px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--card-bg, #fff); color: var(--text-main, #0f172a);
+  font-size: 14px; font-weight: 500; cursor: pointer; outline: none;
+  transition: border-color .2s;
+}
+.input-fecha:focus { border-color: var(--brand-green, #91d337); }
+:host-context([data-theme="dark"]) .input-fecha {
+  background: #0b1425; border-color: #334155; color: #f8fafc;
+  color-scheme: dark;
+}
+
+/* Botón de Calendario */
+.btn-outline-calendar {
+  display: flex; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid var(--border-color, #cbd5e1);
+  padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 14px;
+  color: var(--text-main, #0f172a); cursor: pointer; transition: all 0.2s;
+}
+.btn-outline-calendar:hover { background: var(--hover-bg, #f1f5f9); border-color: var(--brand-green, #91d337); color: var(--brand-green, #91d337); }
+:host-context([data-theme="dark"]) .btn-outline-calendar { border-color: #334155; color: #f8fafc; }
+:host-context([data-theme="dark"]) .btn-outline-calendar:hover { background: #1e293b; border-color: var(--brand-green); color: var(--brand-green); }
+
+/* Loader Reutilizado */
+.historial-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 100px 0; color: var(--text-muted, #64748b); font-size: 15px; font-weight: 600;
+}
+.spinner {
+  width: 40px; height: 40px; border: 4px solid var(--border-color, #e2e8f0);
+  border-top-color: var(--brand-green, #91d337); border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+:host-context([data-theme="dark"]) .spinner { border-color: #334155; }
