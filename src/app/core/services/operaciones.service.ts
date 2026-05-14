@@ -14,9 +14,8 @@ export class OperacionesService {
   private http = inject(HttpClient);
   private readonly api = 'https://e-zyro-production.up.railway.app';
 
-  getDashboardData(fecha?: string): Observable<any> {
-    const params = fecha ? new HttpParams().set('fecha', fecha) : undefined;
-    return this.http.get(`${this.api}/operaciones/dashboard`, { params });
+  getDashboardData(): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/dashboard`);
   }
 
   getDetalleServicio(id: string): Observable<any> {

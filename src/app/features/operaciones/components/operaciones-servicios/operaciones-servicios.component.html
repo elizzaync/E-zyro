@@ -11,7 +11,8 @@
     <div class="servicios-scroll-area">
         <div class="servicios-grid">
             @for (servicio of serviciosFiltrados; track servicio.id) {
-            <div class="servicio-card" [routerLink]="['/operaciones/detalle', servicio.id]" style="cursor: pointer;">
+            <div class="servicio-card" [routerLink]="['/operaciones/detalle', servicio.id]" style="cursor: pointer;"
+                 [ngClass]="'semaforo-' + (servicio.estadoColor ?? 'amarillo')">
 
                 <div class="sc-header">
                     <h4 class="sc-cliente">{{ servicio.cliente }}</h4>

@@ -11,6 +11,7 @@ export interface ServicioOperacion {
   horaStr: string;
   estado: 'Pendiente' | 'Activo' | 'Completado';
   alerta?: boolean;
+  estadoColor?: 'rojo' | 'amarillo' | 'verde';
 }
 
 @Component({

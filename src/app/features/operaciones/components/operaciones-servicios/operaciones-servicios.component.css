@@ -163,3 +163,8 @@
 :host-context([data-theme="dark"]) .servicio-card { background: #0f172a; border-color: #1e293b; }
 :host-context([data-theme="dark"]) .sc-cliente { color: #f8fafc; }
 :host-context([data-theme="dark"]) .servicios-scroll-area::-webkit-scrollbar-thumb { background-color: #334155; }
+
+/* ── SEMÁFORO DE PRIORIDAD ── */
+.semaforo-rojo    { border-left: 4px solid #ef4444; }
+.semaforo-amarillo { border-left: 4px solid #f59e0b; }
+.semaforo-verde   { border-left: 4px solid #91d337; }
