@@ -39,7 +39,25 @@ export class NavbarComponent implements OnInit, OnDestroy {
     fechaCreacion: '',
     fotoUrl: ''
   };
+// ... tu perfilData ...
 
+  perfilDataBackup: any = null; // Variable para guardar los datos originales
+
+  iniciarEdicion() {
+    this.isEditingProfile = true;
+    // Hacemos una copia exacta de los datos antes de editar
+    this.perfilDataBackup = { ...this.perfilData };
+  }
+
+  cancelarEdicion() {
+    this.isEditingProfile = false;
+    // Si cancela, restauramos la copia original
+    if (this.perfilDataBackup) {
+      this.perfilData = { ...this.perfilDataBackup };
+    }
+  }
+
+  // ... resto de tu código (cargarDatosDeUsuario, etc.) ...
   constructor(private authService: AuthService, private dashboardService: DashboardService, private toastService: ToastService) {}
 
   private notiInitialized = false;

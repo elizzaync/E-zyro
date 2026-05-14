@@ -320,9 +320,9 @@
     <div class="modal-footer-pro">
         @if (!isEditingProfile) {
         <button class="btn-cancel-pro" (click)="cerrarModalPerfil()">Cerrar</button>
-        <button class="btn-edit-main" (click)="isEditingProfile = true">Editar Información</button>
+        <button class="btn-edit-main" (click)="iniciarEdicion()">Editar Información</button>
         } @else {
-        <button class="btn-cancel-pro" (click)="isEditingProfile = false">Cancelar Cambios</button>
+        <button class="btn-cancel-pro" (click)="cancelarEdicion()">Cancelar Cambios</button>
         <button class="btn-save-main" (click)="guardarPerfil()">Guardar Cambios</button>
         }
     </div>
