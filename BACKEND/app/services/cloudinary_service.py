@@ -93,6 +93,26 @@ def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
         raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")
 
 
+async def subir_archivo_cloudinary(archivo, folder: str) -> str:
+    """
+    Sube un UploadFile de FastAPI a Cloudinary.
+    Usa resource_type='auto' para aceptar imágenes y documentos.
+    """
+    import io
+    try:
+        contenido = await archivo.read()
+        upload_result = cloudinary.uploader.upload(
+            io.BytesIO(contenido),
+            folder=folder,
+            resource_type="auto",
+            overwrite=False,
+        )
+        return upload_result.get("secure_url", "")
+    except Exception as e:
+        logging.error(f"Error subiendo archivo a Cloudinary: {str(e)}")
+        raise Exception(f"Fallo al subir archivo a Cloudinary: {str(e)}")
+
+
 def subir_pdf_cloudinary(base64_data: str, public_id: str) -> str:
     """
     Sube un PDF en base64 a Cloudinary como recurso raw.
