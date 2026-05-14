@@ -9,6 +9,7 @@ from app.routers import permisos     as permisos_router
 from app.routers import asistencia   as asistencia_router
 from app.routers import proyectos    as proyectos_router
 from app.routers import comunicados  as comunicados_router
+from app.routers import operaciones  as operaciones_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 
 # Importar todos los modelos para que Base los registre antes de create_all
@@ -22,6 +23,7 @@ from app.models import (  # noqa: F401
     contrato, documento_laboral, firma_digital,
     historial_firma, documento_firmado,
     foto_biometrica, foto_asistencia, geolocalizacion_asistencia,
+    procedimiento, evidencia_procedimiento, requerimiento, material, seguimiento_proyecto,
 )
 
 
@@ -64,6 +66,7 @@ app.include_router(permisos_router.router)
 app.include_router(asistencia_router.router)
 app.include_router(proyectos_router.router)
 app.include_router(comunicados_router.router)
+app.include_router(operaciones_router.router)
 
 
 @app.get("/")
