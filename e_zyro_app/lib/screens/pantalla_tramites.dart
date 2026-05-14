@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
@@ -997,7 +998,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Dibuja tu firma aquí',
+                      'Dibuja o sube tu firma aquí',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
@@ -1006,7 +1007,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'Toca para abrir el panel de firma',
+                      'Toca para abrir las opciones',
                       style: TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 12,
@@ -1144,6 +1145,17 @@ class _ModalFirmaState extends State<_ModalFirma> {
     super.dispose();
   }
 
+  Future<void> _seleccionarDeGaleria() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      if (mounted) {
+        Navigator.of(context).pop(bytes);
+      }
+    }
+  }
+
   Future<void> _confirmar() async {
     if (_lienzo) {
       if (_controller.isEmpty) {
@@ -1232,12 +1244,12 @@ class _ModalFirmaState extends State<_ModalFirma> {
                   children: [
                     _tabBtn(
                       'Dibujar nueva',
-                      !_lienzo ? null : () => setState(() => _lienzo = false),
+                      _lienzo ? null : () => setState(() => _lienzo = true),
                     ),
                     const SizedBox(width: 10),
                     _tabBtn(
                       'Usar guardada',
-                      _lienzo ? null : () => setState(() => _lienzo = true),
+                      !_lienzo ? null : () => setState(() => _lienzo = false),
                     ),
                   ],
                 ),
@@ -1321,42 +1333,69 @@ class _ModalFirmaState extends State<_ModalFirma> {
             // ── Botones de acción ──────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-              child: Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                          child: const Text(
+                            'Cancelar',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _confirmar,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accent,
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                          ),
+                          child: const Text(
+                            'Confirmar Firma',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _seleccionarDeGaleria,
+                      icon: const Icon(
+                        Icons.photo_library_outlined,
+                        size: 18,
+                        color: AppColors.textPrimary,
+                      ),
+                      label: const Text(
+                        'Subir imagen desde la Galería',
+                        style: TextStyle(color: AppColors.textPrimary),
+                      ),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: AppColors.border),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _confirmar,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.accent,
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                      ),
-                      child: const Text(
-                        'Confirmar Firma',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
