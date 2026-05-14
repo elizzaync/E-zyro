@@ -35,6 +35,20 @@ TIPOS_LABEL = {
     'otros':                    'Otros',
 }
 
+# Mapeo de IDs numéricos de Flutter hacia la Base de Datos
+TIPO_DB_MAP = {
+    '1': 'permiso_personal',
+    '2': 'comision_trabajo',
+    '3': 'cita_essalud',
+    '4': 'permanencia_capacitacion',
+    '5': 'permanencia_extra',
+    '6': 'recuperacion',
+    '7': 'vacaciones',
+    '8': 'dias_libres',
+    '9': 'transferencia',
+    '10': 'otros',
+}
+
 MESES = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
          "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
@@ -57,7 +71,7 @@ def obtener_mi_firma(
 
 
 @router.post("/enviar-solicitud")
-def enviar_solicitud(
+async def enviar_solicitud(
     # ── Archivo PDF generado en el cliente (pdf-lib) ──────────────
     pdf_file: UploadFile = File(...),
 
@@ -107,7 +121,7 @@ def enviar_solicitud(
                     public_id_cloudinary = firma_existente.public_id_cloudinary,
                 ))
                 firma_existente.url_cloudinary       = firma_url
-                firma_existente.public_id_cloudinary = firma_public_id
+                firma_existente.public_id_cloudinary = full_public_id
                 firma_existente.primera_vez          = False
                 firma_existente.updated_at           = datetime.utcnow()
             else:
@@ -115,7 +129,7 @@ def enviar_solicitud(
                     usuario_id           = usuario_id,
                     empresa_id           = empresa_id,
                     url_cloudinary       = firma_url,
-                    public_id_cloudinary = firma_public_id,
+                    public_id_cloudinary = full_public_id,
                     primera_vez          = True,
                 )
                 db.add(nueva_firma)
@@ -136,18 +150,21 @@ def enviar_solicitud(
         fecha_fin_dt    = parse_date(fecha_fin)
 
         # ── 3. Subir PDF recibido a Cloudinary (resource_type raw, extensión .pdf)
-        pdf_file.file.seek(0)                  # garantiza cursor al inicio
-        pdf_bytes     = pdf_file.file.read()
+        pdf_bytes     = await pdf_file.read()
         pdf_uid       = uuid.uuid4().hex[:12]
         # public_id SIN extensión — subir_pdf_bytes_cloudinary la añade via format="pdf"
         pdf_public_id = f"e-zyro/permisos/permiso_{str(empleado.id)}_{pdf_uid}"
         pdf_url       = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)
 
         # ── 4. Construir descripción ──────────────────────────────────────
-        label_display = TIPOS_LABEL.get(tipo, tipo_label)
-        partes = [tipo, label_display]
+        label_display = tipo_label if tipo_label else TIPOS_LABEL.get(tipo, "Trámite Laboral")
+        partes = [label_display]
         if motivo:
-            partes.append(motivo[:200])
+            partes.append(f"Motivo: {motivo[:200]}")
+        if hora_inicio and hora_fin:
+            partes.append(f"Horario: {hora_inicio} - {hora_fin}")
+        if total_dias:
+            partes.append(f"Días: {total_dias}")
         if lugar_destino:
             partes.append(f"Lugar: {lugar_destino}")
         descripcion = " | ".join(partes)[:500]
@@ -156,10 +173,11 @@ def enviar_solicitud(
         # NOTA: el campo tipo se guarda tal cual llega del frontend.
         # Asegúrate de que el constraint chk_solicitud_tipo en PostgreSQL
         # esté actualizado para aceptar los valores exactos del frontend.
+        tipo_db = TIPO_DB_MAP.get(tipo, tipo) # Mapea "1" a "permiso_personal", si no existe guarda el original
         solicitud = SolicitudLaboral(
             empleado_id  = empleado.id,
             empresa_id   = empresa_id,
-            tipo         = tipo,
+            tipo         = tipo_db,
             estado       = 'pendiente',
             descripcion  = descripcion,
             fecha_inicio = fecha_inicio_dt,
@@ -181,10 +199,10 @@ def enviar_solicitud(
 
         # ── 7. Registrar en Auditoría ─────────────────────────────────────
         datos_nuevos = json.dumps({
-            "tipo":         tipo,
+            "tipo":         tipo_db,
             "tipo_label":   label_display,
             "estado":       "pendiente",
-            "fecha_inicio": str(fecha_inicio_dt),
+            "fecha_inicio": str(fecha_inicio_dt) if fecha_inicio_dt else None,
             "url_pdf":      pdf_url,
         }, ensure_ascii=False)
 
