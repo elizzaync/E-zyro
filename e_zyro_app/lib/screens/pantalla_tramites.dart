@@ -99,14 +99,22 @@ class _PantallaTramitesState extends State<PantallaTramites>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TramiteModel _model = TramiteModel();
-  Uint8List? _firmaGuardada; // firma persistida (PNG bytes)
-  String? _firmaUrl; // URL de la firma en Cloudinary (si existe)
+  Uint8List? _firmaGuardada;
+  String? _firmaUrl;
   bool _usandoFirmaGuardada = false;
+  bool _guardandoFirma = false;
+  List<Map<String, dynamic>> _misSolicitudes = [];
+  bool _cargandoSolicitudes = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (_tabController.index == 1 && !_tabController.indexIsChanging) {
+        _cargarMisSolicitudes();
+      }
+    });
     _cargarFirmaGuardada();
   }
 
@@ -157,6 +165,81 @@ class _PantallaTramitesState extends State<PantallaTramites>
     });
   }
 
+  // ── Carga las solicitudes del usuario ──────
+  Future<void> _cargarMisSolicitudes() async {
+    if (_cargandoSolicitudes) return;
+    setState(() => _cargandoSolicitudes = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+      final baseUrl =
+          prefs.getString('api_url') ??
+          'https://e-zyro-production.up.railway.app';
+      final response = await http.get(
+        Uri.parse('$baseUrl/permisos/mis-solicitudes'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _misSolicitudes =
+                List<Map<String, dynamic>>.from(data['data'] ?? []);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error cargando solicitudes: $e');
+    } finally {
+      if (mounted) setState(() => _cargandoSolicitudes = false);
+    }
+  }
+
+  // ── Sube la firma a Cloudinary y la guarda en BD ──
+  Future<void> _guardarFirmaEnNube() async {
+    if (_firmaGuardada == null || _guardandoFirma) return;
+    setState(() => _guardandoFirma = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+      final baseUrl =
+          prefs.getString('api_url') ??
+          'https://e-zyro-production.up.railway.app';
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/permisos/guardar-firma'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields['firma_base64'] =
+          'data:image/png;base64,${base64Encode(_firmaGuardada!)}';
+
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
+      final response = await http.Response.fromStream(streamed);
+
+      if (mounted) {
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          setState(() {
+            _firmaUrl = data['data']['url_firma'];
+            _usandoFirmaGuardada = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            _snackBar('✓ Firma guardada en la nube', AppColors.accent),
+          );
+        } else {
+          _mostrarError('Error al guardar la firma en la nube');
+        }
+      }
+    } catch (e) {
+      if (mounted) _mostrarError('Error: $e');
+    } finally {
+      if (mounted) setState(() => _guardandoFirma = false);
+    }
+  }
+
   // ── Abre el modal de firma ─────────────────
   Future<void> _abrirModalFirma({bool crearNueva = false}) async {
     final result = await showModalBottomSheet<Uint8List>(
@@ -187,7 +270,11 @@ class _PantallaTramitesState extends State<PantallaTramites>
     }
 
     if (_firmaGuardada == null) {
-      _mostrarError('Agrega tu firma digital');
+      _mostrarError('Dibuja o sube tu firma digital');
+      return;
+    }
+    if (_firmaUrl == null) {
+      _mostrarError('Guarda tu firma en la nube antes de enviar');
       return;
     }
 
@@ -255,14 +342,6 @@ class _PantallaTramitesState extends State<PantallaTramites>
       request.fields['tipo_label'] = tiposPermiso.firstWhere(
         (t) => t['id'] == _model.tipoPemiso,
       )['label'];
-
-      // Si tenemos URL de firma, mandamos eso para que la BD no duplique en Cloudinary. Si es nueva, base64.
-      if (_firmaUrl != null) {
-        request.fields['firma_base64'] = _firmaUrl!;
-      } else {
-        request.fields['firma_base64'] =
-            'data:image/png;base64,${base64Encode(_firmaGuardada!)}';
-      }
 
       if (_model.fechaInicio != null) {
         request.fields['fecha_inicio'] = DateFormat(
@@ -442,46 +521,25 @@ class _PantallaTramitesState extends State<PantallaTramites>
   }
 
   Widget _buildPageHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-      child: Row(
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  'Trámites y Permisos',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Gestiona tus solicitudes de descanso, vacaciones y licencias.',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
+          Text(
+            'Trámites y Permisos',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          ElevatedButton(
-            onPressed: () => _tabController.animateTo(0),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            child: const Text(
-              'Nueva Solicitud',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          SizedBox(height: 4),
+          Text(
+            'Gestiona tus solicitudes de descanso, vacaciones y licencias.',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
             ),
           ),
         ],
@@ -868,7 +926,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
           const SizedBox(height: 14),
 
           if (_firmaGuardada != null) ...[
-            // ── Firma guardada ───────────────
+            // ── Preview de firma ─────────────
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -878,7 +936,6 @@ class _PantallaTramitesState extends State<PantallaTramites>
               ),
               child: Row(
                 children: [
-                  // Preview de la firma
                   Container(
                     width: 90,
                     height: 50,
@@ -895,22 +952,42 @@ class _PantallaTramitesState extends State<PantallaTramites>
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Tienes una firma guardada',
+                      children: [
+                        const Text(
+                          'Firma lista',
                           style: TextStyle(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
                           ),
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Puedes reutilizarla o crear una nueva',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                          ),
+                        const SizedBox(height: 2),
+                        // Estado de subida a la nube
+                        Row(
+                          children: [
+                            Icon(
+                              _firmaUrl != null
+                                  ? Icons.cloud_done_outlined
+                                  : Icons.cloud_off_outlined,
+                              size: 13,
+                              color: _firmaUrl != null
+                                  ? AppColors.accent
+                                  : Colors.orange,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _firmaUrl != null
+                                  ? 'Guardada en la nube'
+                                  : 'Pendiente de guardar',
+                              style: TextStyle(
+                                color: _firmaUrl != null
+                                    ? AppColors.accent
+                                    : Colors.orange,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -918,7 +995,41 @@ class _PantallaTramitesState extends State<PantallaTramites>
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            // ── Botón guardar en nube (solo si no está guardada aún) ──
+            if (_firmaUrl == null)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _guardandoFirma ? null : _guardarFirmaEnNube,
+                  icon: _guardandoFirma
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.black,
+                          ),
+                        )
+                      : const Icon(Icons.cloud_upload_outlined, size: 16),
+                  label: Text(
+                    _guardandoFirma ? 'Guardando...' : 'Guardar firma en la nube',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(
@@ -930,7 +1041,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
                       color: AppColors.accent,
                     ),
                     label: const Text(
-                      'Usar esta firma',
+                      'Ver firma',
                       style: TextStyle(
                         color: AppColors.accent,
                         fontSize: 13,
@@ -956,7 +1067,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
                       color: AppColors.textSecondary,
                     ),
                     label: const Text(
-                      'Crear nueva',
+                      'Nueva firma',
                       style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
@@ -1062,48 +1173,239 @@ class _PantallaTramitesState extends State<PantallaTramites>
   }
 
   // ─────────────────────────────────────────
-  //  TAB 2: MIS TRÁMITES (placeholder)
+  //  TAB 2: MIS TRÁMITES
   // ─────────────────────────────────────────
   Widget _buildMisTramitesTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.folder_open_outlined,
-            color: AppColors.textMuted,
-            size: 56,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No tienes trámites registrados',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
+    if (_cargandoSolicitudes) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.accent),
+      );
+    }
+
+    if (_misSolicitudes.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.folder_open_outlined,
+              color: AppColors.textMuted,
+              size: 56,
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Crea tu primera solicitud',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () => _tabController.animateTo(0),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+            const SizedBox(height: 16),
+            const Text(
+              'No tienes trámites registrados',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
               ),
             ),
-            child: const Text(
-              'Nueva Solicitud',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            const SizedBox(height: 8),
+            const Text(
+              'Crea tu primera solicitud en la pestaña anterior',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: _cargarMisSolicitudes,
+              icon: const Icon(Icons.refresh, size: 16, color: AppColors.textSecondary),
+              label: const Text(
+                'Actualizar',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: AppColors.accent,
+      backgroundColor: AppColors.surface,
+      onRefresh: _cargarMisSolicitudes,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _misSolicitudes.length,
+        itemBuilder: (context, index) {
+          final s = _misSolicitudes[index];
+          return _buildSolicitudCard(s);
+        },
+      ),
+    );
+  }
+
+  Widget _buildSolicitudCard(Map<String, dynamic> s) {
+    final estado = s['estado'] as String? ?? 'pendiente';
+    Color estadoColor;
+    IconData estadoIcon;
+    switch (estado) {
+      case 'aprobado':
+        estadoColor = AppColors.accent;
+        estadoIcon = Icons.check_circle_outline;
+        break;
+      case 'rechazado':
+        estadoColor = AppColors.danger;
+        estadoIcon = Icons.cancel_outlined;
+        break;
+      default:
+        estadoColor = Colors.orange;
+        estadoIcon = Icons.schedule_outlined;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Cabecera: ID + estado ──
+            Row(
+              children: [
+                Text(
+                  s['id'] ?? '',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: estadoColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: estadoColor.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(estadoIcon, size: 12, color: estadoColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        estado[0].toUpperCase() + estado.substring(1),
+                        style: TextStyle(
+                          color: estadoColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // ── Tipo ──
+            Text(
+              s['tipo_label'] ?? s['tipo'] ?? '',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            // ── Fecha ──
+            if (s['fecha_emision'] != null && (s['fecha_emision'] as String).isNotEmpty)
+              Text(
+                'Emitido: ${s['fecha_emision']}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            if (s['fecha_inicio'] != null)
+              Text(
+                'Período: ${s['fecha_inicio']}${s['fecha_fin'] != null ? ' → ${s['fecha_fin']}' : ''}',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            // ── Observación (si está rechazado) ──
+            if (estado == 'rechazado' &&
+                s['observacion'] != null &&
+                (s['observacion'] as String).isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                      color: AppColors.danger.withOpacity(0.3)),
+                ),
+                child: Text(
+                  'Motivo rechazo: ${s['observacion']}',
+                  style: const TextStyle(
+                    color: AppColors.danger,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+            // ── Botón ver PDF ──
+            if (s['url_pdf'] != null && (s['url_pdf'] as String).isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    // Abrir URL del PDF
+                    final url = s['url_pdf'] as String;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'URL: $url',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        backgroundColor: AppColors.surfaceElevated,
+                        action: SnackBarAction(
+                          label: 'Copiar',
+                          textColor: AppColors.accent,
+                          onPressed: () {},
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.picture_as_pdf_outlined,
+                    size: 15,
+                    color: AppColors.accent,
+                  ),
+                  label: const Text(
+                    'Ver PDF',
+                    style: TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.accent),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
