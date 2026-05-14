@@ -1,131 +1,89 @@
 """
 Router: /operaciones
 Gestión completa del módulo de Operaciones / Detalle de Servicio.
-
-Tablas involucradas (bd.txt):
-  proyecto_servicio, proyecto, cliente, catalogo_servicio, proyecto_detalle,
-  proyecto_miembro, empleado, usuario,
-  procedimiento, evidencia_procedimiento,
-  requerimiento, requerimiento_detalle, material,
-  seguimiento_proyecto
 """
 from __future__ import annotations
 
-from datetime import datetime, date
-from typing import List, Optional
+import re
+import uuid as _uuid
+from datetime import date, datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
 from ..db.database import get_db
 from ..services.cloudinary_service import subir_archivo_cloudinary
 
+# Modelos ORM
+from ..models.proyecto_servicio import ProyectoServicio
+from ..models.proyecto import Proyecto
+from ..models.proyecto_detalle import ProyectoDetalle
+from ..models.proyecto_miembro import ProyectoMiembro
+from ..models.cliente import Cliente
+from ..models.empleado import Empleado
+from ..models.usuario import Usuario
+from ..models.procedimiento import Procedimiento
+from ..models.evidencia_procedimiento import EvidenciaProcedimiento
+from ..models.requerimiento import Requerimiento, RequerimientoDetalle
+from ..models.material import Material, Stock
+from ..models.seguimiento_proyecto import SeguimientoProyecto
+
+# Schemas Pydantic
+from ..schemas.operaciones import (
+    ServicioDetalleOut,
+    MiembroEquipoOut,
+    ProcedimientoOut,
+    EvidenciaOut,
+    ItemMaterialOut,
+    NotaOut,
+    ActualizarEstadoBody,
+    ActualizarProcedimientoBody,
+    SolicitarMaterialBody,
+    ActualizarReqDetalleBody,
+    AgregarNotaBody,
+)
+
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
 
 
-# ══════════════════════════════════════════════════════════════
-# SCHEMAS DE RESPUESTA
-# ══════════════════════════════════════════════════════════════
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-class EvidenciaOut(BaseModel):
-    id: str
-    url_cloudinary: str
-    descripcion: Optional[str]
-    fecha_captura: str
-
-class ProcedimientoOut(BaseModel):
-    id: str
-    nombre: str
-    descripcion: Optional[str]
-    orden: int
-    estado: str
-    evidencias: List[EvidenciaOut] = []
-
-class MiembroEquipoOut(BaseModel):
-    id: str
-    nombre: str
-    apellido: str
-    foto_url: Optional[str]
-    cargo: str
-    rol_proyecto: str
-
-class ItemMaterialOut(BaseModel):
-    id: str                  # requerimiento_detalle.id
-    requerimiento_id: str
-    nombre: str
-    unidad: str
-    cantidad: int
-    estado_req: str
-
-class NotaOut(BaseModel):
-    id: str
-    fecha: str
-    texto: str
-    autor: str
-
-class ServicioDetalleOut(BaseModel):
-    id: str
-    proyecto_id: str
-    cliente: str
-    tipo_servicio: str
-    ubicacion: str
-    fecha_str: str
-    hora_str: str
-    descripcion: str
-    estado: str
-    progreso: float
-    equipo: List[MiembroEquipoOut]
-    procedimientos: List[ProcedimientoOut]
-    materiales_asignados: List[ItemMaterialOut]
-    materiales_solicitados: List[ItemMaterialOut]
-    notas: List[NotaOut]
-
-class DashboardMetricaOut(BaseModel):
-    id: str
-    titulo: str
-    valor: int
-    colorIcono: str
-    resaltado: bool = False
-
-class DashboardServicioOut(BaseModel):
-    id: str
-    cliente: str
-    tipoServicio: str
-    ubicacion: str
-    fechaStr: str
-    horaStr: str
-    estado: str
-    alerta: bool = False
+def _parse_fecha(fecha_str: Optional[str]) -> date:
+    if not fecha_str:
+        return date.today()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        try:
+            return datetime.strptime(fecha_str, fmt).date()
+        except ValueError:
+            continue
+    raise HTTPException(status_code=400, detail="Formato de fecha inválido. Use YYYY-MM-DD o DD/MM/YYYY")
 
 
-# ══════════════════════════════════════════════════════════════
-# SCHEMAS DE ENTRADA
-# ══════════════════════════════════════════════════════════════
-
-class ActualizarEstadoBody(BaseModel):
-    estado: str
-
-class ActualizarProcedimientoBody(BaseModel):
-    estado: str
-
-class SolicitarMaterialBody(BaseModel):
-    material_id: str
-    cantidad: int
-
-class ActualizarReqDetalleBody(BaseModel):
-    cantidad: Optional[int] = None
-
-class AgregarNotaBody(BaseModel):
-    descripcion: str
+def _extract_public_id(url: str) -> str:
+    try:
+        partes = url.split("/upload/")
+        if len(partes) > 1:
+            ruta = re.sub(r"^v\d+/", "", partes[1])
+            return ruta.rsplit(".", 1)[0]
+    except Exception:
+        pass
+    return ""
 
 
-# ══════════════════════════════════════════════════════════════
-# GET /operaciones/dashboard?fecha=YYYY-MM-DD
-# Métricas del día + lista de servicios para la fecha dada
-# ══════════════════════════════════════════════════════════════
+def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Empleado:
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    if not emp:
+        raise HTTPException(status_code=403, detail="No eres empleado registrado")
+    return emp
+
+
+# ── GET /operaciones/dashboard ────────────────────────────────────────────────
 
 @router.get("/dashboard")
 def get_dashboard(
@@ -135,99 +93,92 @@ def get_dashboard(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
+    fecha_dt   = _parse_fecha(fecha)
+    hoy        = date.today()
 
-    try:
-        fecha_dt = date.fromisoformat(fecha) if fecha else date.today()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Formato de fecha inválido. Use YYYY-MM-DD")
+    # Subquery: proyectos donde el usuario es miembro activo
+    miembro_subq = (
+        db.query(ProyectoMiembro.proyecto_id)
+        .join(Empleado, Empleado.id == ProyectoMiembro.empleado_id)
+        .filter(
+            Empleado.usuario_id  == usuario_id,
+            ProyectoMiembro.activo == True,
+        )
+        .subquery()
+    )
 
-    hoy = date.today()
-
-    # ── Servicios para la fecha dada, filtrados por membresía del usuario ──
-    servicios_rows = db.execute(text("""
-        SELECT
-            ps.id,
-            ps.nombre                                           AS tipo_servicio,
-            ps.estado,
-            ps.fecha_programada,
-            c.razon_social                                      AS cliente,
-            COALESCE(pd.zona_ejecucion, p.nombre_proyecto)     AS ubicacion
-        FROM proyecto_servicio ps
-        JOIN proyecto          p   ON p.id  = ps.proyecto_id
-        JOIN cliente           c   ON c.id  = p.cliente_id
-        LEFT JOIN proyecto_detalle pd ON pd.proyecto_id = p.id
-        WHERE ps.empresa_id              = :eid
-          AND ps.fecha_programada::date  = :fecha
-          AND EXISTS (
-              SELECT 1 FROM proyecto_miembro pm
-              JOIN empleado e ON e.id = pm.empleado_id
-              WHERE pm.proyecto_id = p.id
-                AND e.usuario_id   = :uid
-                AND pm.activo      = TRUE
-          )
-        ORDER BY ps.fecha_programada ASC
-    """), {"eid": empresa_id, "uid": usuario_id, "fecha": str(fecha_dt)}).fetchall()
+    # Servicios del día seleccionado
+    rows = (
+        db.query(
+            ProyectoServicio,
+            Cliente.razon_social.label("cliente"),
+            func.coalesce(ProyectoDetalle.zona_ejecucion, Proyecto.nombre_proyecto).label("ubicacion"),
+        )
+        .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
+        .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
+        .outerjoin(ProyectoDetalle, ProyectoDetalle.proyecto_id == Proyecto.id)
+        .filter(
+            ProyectoServicio.empresa_id       == empresa_id,
+            ProyectoServicio.fecha_programada == fecha_dt,
+            ProyectoServicio.proyecto_id.in_(miembro_subq),
+        )
+        .order_by(ProyectoServicio.fecha_programada.asc())
+        .all()
+    )
 
     _estado_map = {"Pendiente": "Pendiente", "En_Proceso": "Activo", "Completado": "Completado"}
     pendientes = activos = hechos = 0
     servicios: list[dict] = []
 
-    for row in servicios_rows:
-        est_raw = row.estado or "Pendiente"
-        est_fe  = _estado_map.get(est_raw, est_raw)
-        fp      = row.fecha_programada
+    for row in rows:
+        ps       = row.ProyectoServicio
+        est_raw  = ps.estado or "Pendiente"
+        est_fe   = _estado_map.get(est_raw, est_raw)
+        fp       = ps.fecha_programada
 
         if est_raw == "Pendiente":    pendientes += 1
         elif est_raw == "En_Proceso": activos    += 1
         elif est_raw == "Completado": hechos     += 1
 
-        alerta = est_raw == "Pendiente" and fp is not None and fp.date() < hoy
+        alerta = est_raw == "Pendiente" and fp is not None and fp < hoy
 
         servicios.append({
-            "id":          row.id,
-            "cliente":     row.cliente,
-            "tipoServicio": row.tipo_servicio,
-            "ubicacion":   row.ubicacion or "",
-            "fechaStr":    fp.strftime("%d %b %Y") if fp else "Sin fecha",
-            "horaStr":     fp.strftime("%I:%M %p")  if fp else "--:--",
-            "estado":      est_fe,
-            "alerta":      alerta,
+            "id":           ps.id,
+            "cliente":      row.cliente,
+            "tipoServicio": ps.nombre,
+            "ubicacion":    row.ubicacion or "",
+            "fechaStr":     fp.strftime("%d %b %Y") if fp else "Sin fecha",
+            "horaStr":      fp.strftime("%I:%M %p") if fp else "--:--",
+            "estado":       est_fe,
+            "alerta":       alerta,
         })
 
-    # ── Conteo de hoy (siempre TODAY, sin importar la fecha seleccionada) ──
+    # Conteo de hoy (siempre TODAY)
     if fecha_dt != hoy:
-        hoy_row = db.execute(text("""
-            SELECT COUNT(DISTINCT ps.id) AS total
-            FROM proyecto_servicio ps
-            JOIN proyecto p ON p.id = ps.proyecto_id
-            WHERE ps.empresa_id             = :eid
-              AND ps.fecha_programada::date = :hoy
-              AND EXISTS (
-                  SELECT 1 FROM proyecto_miembro pm
-                  JOIN empleado e ON e.id = pm.empleado_id
-                  WHERE pm.proyecto_id = p.id
-                    AND e.usuario_id   = :uid
-                    AND pm.activo      = TRUE
-              )
-        """), {"eid": empresa_id, "uid": usuario_id, "hoy": str(hoy)}).fetchone()
-        hoy_count = int(hoy_row.total) if hoy_row else 0
+        hoy_count = (
+            db.query(func.count(ProyectoServicio.id.distinct()))
+            .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
+            .filter(
+                ProyectoServicio.empresa_id       == empresa_id,
+                ProyectoServicio.fecha_programada == hoy,
+                ProyectoServicio.proyecto_id.in_(miembro_subq),
+            )
+            .scalar() or 0
+        )
     else:
-        hoy_count = len(servicios_rows)
+        hoy_count = len(rows)
 
     metricas = [
-        {"id": "pendientes", "titulo": "Pendientes", "valor": pendientes, "colorIcono": "#f59e0b", "resaltado": False},
-        {"id": "activos",    "titulo": "En Proceso",  "valor": activos,    "colorIcono": "#3b82f6", "resaltado": activos > 0},
-        {"id": "hechos",     "titulo": "Completados", "valor": hechos,     "colorIcono": "#91d337", "resaltado": False},
-        {"id": "hoy",        "titulo": "Para Hoy",    "valor": hoy_count,  "colorIcono": "#8b5cf6", "resaltado": False},
+        {"id": "pendientes", "titulo": "Pendientes",  "valor": pendientes, "colorIcono": "#f59e0b", "resaltado": False},
+        {"id": "activos",    "titulo": "En Proceso",   "valor": activos,    "colorIcono": "#3b82f6", "resaltado": activos > 0},
+        {"id": "hechos",     "titulo": "Completados",  "valor": hechos,     "colorIcono": "#91d337", "resaltado": False},
+        {"id": "hoy",        "titulo": "Para Hoy",     "valor": hoy_count,  "colorIcono": "#8b5cf6", "resaltado": False},
     ]
 
     return {"status": "success", "data": {"metricas": metricas, "servicios": servicios}}
 
 
-# ══════════════════════════════════════════════════════════════
-# GET /operaciones/servicio/{servicio_id}
-# Endpoint principal: devuelve JSON anidado completo
-# ══════════════════════════════════════════════════════════════
+# ── GET /operaciones/servicio/{servicio_id} ───────────────────────────────────
 
 @router.get("/servicio/{servicio_id}", response_model=ServicioDetalleOut)
 def get_detalle_servicio(
@@ -238,91 +189,81 @@ def get_detalle_servicio(
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
-    # ── 1. Datos base del servicio ────────────────────────────
-    row = db.execute(text("""
-        SELECT
-            ps.id,
-            ps.proyecto_id,
-            ps.nombre                                           AS tipo_servicio,
-            ps.descripcion,
-            ps.estado,
-            ps.fecha_programada,
-            c.razon_social                                      AS cliente,
-            COALESCE(pd.zona_ejecucion, p.nombre_proyecto)     AS ubicacion
-        FROM proyecto_servicio ps
-        JOIN proyecto          p  ON p.id  = ps.proyecto_id
-        JOIN cliente           c  ON c.id  = p.cliente_id
-        LEFT JOIN proyecto_detalle pd ON pd.proyecto_id = p.id
-        WHERE ps.id        = :sid
-          AND ps.empresa_id = :eid
-        LIMIT 1
-    """), {"sid": servicio_id, "eid": empresa_id}).fetchone()
-
-    if not row:
+    # 1. Datos base
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    # Verificar que el usuario autenticado pertenece al proyecto
-    miembro = db.execute(text("""
-        SELECT 1 FROM proyecto_miembro pm
-        JOIN empleado e ON e.id = pm.empleado_id
-        WHERE pm.proyecto_id = :pid AND e.usuario_id = :uid
-        LIMIT 1
-    """), {"pid": row.proyecto_id, "uid": usuario_id}).fetchone()
+    proyecto = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+    cliente  = db.query(Cliente).filter(Cliente.id  == proyecto.cliente_id).first()
+    detalle  = db.query(ProyectoDetalle).filter(ProyectoDetalle.proyecto_id == ps.proyecto_id).first()
+    ubicacion = (detalle.zona_ejecucion if detalle and detalle.zona_ejecucion else proyecto.nombre_proyecto) or ""
 
+    # 2. Verificar membresía
+    miembro = (
+        db.query(ProyectoMiembro)
+        .join(Empleado, Empleado.id == ProyectoMiembro.empleado_id)
+        .filter(
+            ProyectoMiembro.proyecto_id == ps.proyecto_id,
+            Empleado.usuario_id         == usuario_id,
+        )
+        .first()
+    )
     if not miembro:
         raise HTTPException(status_code=403, detail="No tienes acceso a este servicio")
 
-    fecha_str = row.fecha_programada.strftime("%d %b %Y") if row.fecha_programada else "Sin fecha"
-    hora_str  = row.fecha_programada.strftime("%I:%M %p") if row.fecha_programada else "--:--"
+    fp        = ps.fecha_programada
+    fecha_str = fp.strftime("%d %b %Y") if fp else "Sin fecha"
+    hora_str  = fp.strftime("%I:%M %p") if fp else "--:--"
 
-    # ── 2. Equipo de trabajo (proyecto_miembro → empleado → usuario) ──
-    equipo_rows = db.execute(text("""
-        SELECT
-            u.id,
-            u.nombre,
-            u.apellido,
-            u.foto_url,
-            e.cargo,
-            pm.rol_proyecto
-        FROM proyecto_miembro pm
-        JOIN empleado e ON e.id  = pm.empleado_id
-        JOIN usuario  u ON u.id  = e.usuario_id
-        WHERE pm.proyecto_id = :pid
-          AND pm.activo      = TRUE
-    """), {"pid": row.proyecto_id}).fetchall()
-
+    # 3. Equipo de trabajo
+    equipo_rows = (
+        db.query(Usuario, Empleado.cargo, ProyectoMiembro.rol_proyecto)
+        .join(Empleado,       Empleado.id  == ProyectoMiembro.empleado_id)
+        .join(Usuario,        Usuario.id   == Empleado.usuario_id)
+        .filter(
+            ProyectoMiembro.proyecto_id == ps.proyecto_id,
+            ProyectoMiembro.activo      == True,
+        )
+        .all()
+    )
     equipo = [
         MiembroEquipoOut(
-            id=r.id, nombre=r.nombre, apellido=r.apellido,
-            foto_url=r.foto_url, cargo=r.cargo,
-            rol_proyecto=r.rol_proyecto or "Técnico"
+            id=r.Usuario.id,
+            nombre=r.Usuario.nombre,
+            apellido=r.Usuario.apellido,
+            foto_url=r.Usuario.foto_url,
+            cargo=r.cargo,
+            rol_proyecto=r.rol_proyecto or "Técnico",
         )
         for r in equipo_rows
     ]
 
-    # ── 3. Procedimientos + Evidencias ────────────────────────
-    proc_rows = db.execute(text("""
-        SELECT id, nombre, descripcion, orden, estado
-        FROM procedimiento
-        WHERE proyecto_servicio_id = :sid
-        ORDER BY orden ASC
-    """), {"sid": servicio_id}).fetchall()
-
-    ev_rows = db.execute(text("""
-        SELECT id, procedimiento_id, url_cloudinary, descripcion, fecha_captura
-        FROM evidencia_procedimiento
-        WHERE proyecto_servicio_id = :sid
-        ORDER BY fecha_captura ASC
-    """), {"sid": servicio_id}).fetchall()
+    # 4. Procedimientos + Evidencias
+    procs = (
+        db.query(Procedimiento)
+        .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+        .order_by(Procedimiento.orden.asc())
+        .all()
+    )
+    evidencias = (
+        db.query(EvidenciaProcedimiento)
+        .filter(EvidenciaProcedimiento.proyecto_servicio_id == servicio_id)
+        .order_by(EvidenciaProcedimiento.fecha_captura.asc())
+        .all()
+    )
 
     ev_by_proc: dict[str, list] = {}
-    for ev in ev_rows:
+    for ev in evidencias:
         ev_by_proc.setdefault(ev.procedimiento_id, []).append(
             EvidenciaOut(
                 id=ev.id,
                 url_cloudinary=ev.url_cloudinary,
                 descripcion=ev.descripcion,
-                fecha_captura=ev.fecha_captura.strftime("%I:%M %p") if ev.fecha_captura else ""
+                fecha_captura=ev.fecha_captura.strftime("%I:%M %p") if ev.fecha_captura else "",
             )
         )
 
@@ -330,82 +271,92 @@ def get_detalle_servicio(
         ProcedimientoOut(
             id=p.id, nombre=p.nombre, descripcion=p.descripcion,
             orden=p.orden, estado=p.estado,
-            evidencias=ev_by_proc.get(p.id, [])
+            evidencias=ev_by_proc.get(p.id, []),
         )
-        for p in proc_rows
+        for p in procs
     ]
 
     total     = len(procedimientos)
     completos = sum(1 for p in procedimientos if p.estado == "completado")
-    progreso  = round((completos / total * 100), 1) if total else 0
+    progreso  = round(completos / total * 100, 1) if total else 0.0
 
-    # ── 4. Materiales (requerimiento → requerimiento_detalle → material) ─
-    mat_rows = db.execute(text("""
-        SELECT
-            rd.id,
-            r.id  AS requerimiento_id,
-            r.estado,
-            m.nombre,
-            m.unidad,
-            rd.cantidad
-        FROM requerimiento r
-        JOIN requerimiento_detalle rd ON rd.requerimiento_id = r.id
-        JOIN material              m  ON m.id = rd.material_id
-        WHERE r.proyecto_servicio_id = :sid
-          AND r.empresa_id           = :eid
-          AND r.tipo                 = 'material'
-        ORDER BY r.created_at ASC
-    """), {"sid": servicio_id, "eid": empresa_id}).fetchall()
+    # 5. Materiales
+    mat_rows = (
+        db.query(
+            RequerimientoDetalle,
+            Requerimiento.id.label("req_id"),
+            Requerimiento.estado.label("req_estado"),
+            Material.nombre.label("mat_nombre"),
+            Material.unidad.label("mat_unidad"),
+        )
+        .join(Requerimiento, Requerimiento.id  == RequerimientoDetalle.requerimiento_id)
+        .join(Material,      Material.id        == RequerimientoDetalle.material_id)
+        .filter(
+            Requerimiento.proyecto_servicio_id == servicio_id,
+            Requerimiento.empresa_id           == empresa_id,
+            Requerimiento.tipo                 == "material",
+        )
+        .order_by(Requerimiento.created_at.asc())
+        .all()
+    )
 
-    mat_asignados  = []
-    mat_solicitados = []
+    mat_asignados: list[ItemMaterialOut]   = []
+    mat_solicitados: list[ItemMaterialOut] = []
 
     for m in mat_rows:
+        rd = m.RequerimientoDetalle
         item = ItemMaterialOut(
-            id=m.id, requerimiento_id=m.requerimiento_id,
-            nombre=m.nombre, unidad=m.unidad,
-            cantidad=m.cantidad, estado_req=m.estado
+            id=rd.id,
+            requerimiento_id=m.req_id,
+            nombre=m.mat_nombre,
+            unidad=m.mat_unidad,
+            cantidad=rd.cantidad,
+            estado_req=m.req_estado,
         )
-        if m.estado in ("entregado", "aprobado"):
+        if m.req_estado in ("entregado", "aprobado"):
             mat_asignados.append(item)
         else:
             mat_solicitados.append(item)
 
-    # ── 5. Notas (seguimiento_proyecto.descripcion como timeline) ──
-    nota_rows = db.execute(text("""
-        SELECT
-            sp.id,
-            sp.descripcion,
-            sp.fecha,
-            CONCAT(u.nombre, ' ', u.apellido) AS autor
-        FROM seguimiento_proyecto sp
-        JOIN empleado e ON e.id  = sp.registrado_por
-        JOIN usuario  u ON u.id  = e.usuario_id
-        WHERE sp.proyecto_id = :pid
-          AND sp.empresa_id  = :eid
-        ORDER BY sp.fecha ASC, sp.created_at ASC
-    """), {"pid": row.proyecto_id, "eid": empresa_id}).fetchall()
-
+    # 6. Notas / seguimiento
+    nota_rows = (
+        db.query(
+            SeguimientoProyecto,
+            (Usuario.nombre + " " + Usuario.apellido).label("autor"),
+        )
+        .join(Empleado, Empleado.id == SeguimientoProyecto.registrado_por)
+        .join(Usuario,  Usuario.id  == Empleado.usuario_id)
+        .filter(
+            SeguimientoProyecto.proyecto_id == ps.proyecto_id,
+            SeguimientoProyecto.empresa_id  == empresa_id,
+        )
+        .order_by(SeguimientoProyecto.fecha.asc(), SeguimientoProyecto.created_at.asc())
+        .all()
+    )
     notas = [
         NotaOut(
-            id=n.id,
-            fecha=n.fecha.strftime("%I:%M %p") if isinstance(n.fecha, datetime) else str(n.fecha),
-            texto=n.descripcion or "",
-            autor=n.autor
+            id=n.SeguimientoProyecto.id,
+            fecha=(
+                n.SeguimientoProyecto.fecha.strftime("%I:%M %p")
+                if isinstance(n.SeguimientoProyecto.fecha, datetime)
+                else str(n.SeguimientoProyecto.fecha)
+            ),
+            texto=n.SeguimientoProyecto.descripcion or "",
+            autor=n.autor,
         )
         for n in nota_rows
     ]
 
     return ServicioDetalleOut(
-        id=row.id,
-        proyecto_id=row.proyecto_id,
-        cliente=row.cliente,
-        tipo_servicio=row.tipo_servicio,
-        ubicacion=row.ubicacion or "",
+        id=ps.id,
+        proyecto_id=ps.proyecto_id,
+        cliente=cliente.razon_social,
+        tipo_servicio=ps.nombre,
+        ubicacion=ubicacion,
         fecha_str=fecha_str,
         hora_str=hora_str,
-        descripcion=row.descripcion or "",
-        estado=row.estado,
+        descripcion=ps.descripcion or "",
+        estado=ps.estado,
         progreso=progreso,
         equipo=equipo,
         procedimientos=procedimientos,
@@ -415,58 +366,59 @@ def get_detalle_servicio(
     )
 
 
-# ══════════════════════════════════════════════════════════════
-# PATCH /operaciones/servicio/{id}/estado
-# ══════════════════════════════════════════════════════════════
+# ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
 
 @router.patch("/servicio/{servicio_id}/estado")
 def actualizar_estado_servicio(
     servicio_id: str,
     body: ActualizarEstadoBody,
-    payload: dict = Depends(verificar_token),
-    db: Session = Depends(get_db),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
 ):
     estados_validos = {"Pendiente", "En_Proceso", "Completado", "Cancelado"}
     if body.estado not in estados_validos:
         raise HTTPException(status_code=422, detail="Estado inválido")
 
-    db.execute(text("""
-        UPDATE proyecto_servicio
-        SET estado = :estado, updated_at = NOW()
-        WHERE id = :sid AND empresa_id = :eid
-    """), {"estado": body.estado, "sid": servicio_id, "eid": payload["empresa_id"]})
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == payload["empresa_id"],
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    ps.estado     = body.estado
+    ps.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True, "estado": body.estado}
 
 
-# ══════════════════════════════════════════════════════════════
-# PATCH /operaciones/procedimiento/{id}/estado
-# ══════════════════════════════════════════════════════════════
+# ── PATCH /operaciones/procedimiento/{id}/estado ──────────────────────────────
 
 @router.patch("/procedimiento/{proc_id}/estado")
 def actualizar_estado_procedimiento(
     proc_id: str,
-    body: ActualizarProcedimientoBody,
-    payload: dict = Depends(verificar_token),
-    db: Session = Depends(get_db),
+    body:    ActualizarProcedimientoBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
 ):
     estados_validos = {"pendiente", "en_proceso", "completado", "bloqueado"}
     if body.estado not in estados_validos:
         raise HTTPException(status_code=422, detail="Estado inválido")
 
-    db.execute(text("""
-        UPDATE procedimiento
-        SET estado = :estado, updated_at = NOW()
-        WHERE id = :pid AND empresa_id = :eid
-    """), {"estado": body.estado, "pid": proc_id, "eid": payload["empresa_id"]})
+    proc = db.query(Procedimiento).filter(
+        Procedimiento.id         == proc_id,
+        Procedimiento.empresa_id == payload["empresa_id"],
+    ).first()
+    if not proc:
+        raise HTTPException(status_code=404, detail="Procedimiento no encontrado")
+
+    proc.estado     = body.estado
+    proc.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True, "estado": body.estado}
 
 
-# ══════════════════════════════════════════════════════════════
-# POST /operaciones/procedimiento/{id}/evidencia
-# Sube foto/archivo a Cloudinary y registra en evidencia_procedimiento
-# ══════════════════════════════════════════════════════════════
+# ── POST /operaciones/procedimiento/{id}/evidencia ────────────────────────────
 
 @router.post("/procedimiento/{proc_id}/evidencia", status_code=status.HTTP_201_CREATED)
 async def subir_evidencia(
@@ -479,119 +431,91 @@ async def subir_evidencia(
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
-    # Obtener datos del procedimiento
-    proc = db.execute(text("""
-        SELECT p.id, p.proyecto_servicio_id, ps.proyecto_id
-        FROM procedimiento p
-        JOIN proyecto_servicio ps ON ps.id = p.proyecto_servicio_id
-        WHERE p.id = :pid AND p.empresa_id = :eid
-        LIMIT 1
-    """), {"pid": proc_id, "eid": empresa_id}).fetchone()
-
+    proc = db.query(Procedimiento).filter(
+        Procedimiento.id         == proc_id,
+        Procedimiento.empresa_id == empresa_id,
+    ).first()
     if not proc:
         raise HTTPException(status_code=404, detail="Procedimiento no encontrado")
 
-    # Obtener empleado_id desde usuario
-    empleado = db.execute(text("""
-        SELECT id FROM empleado WHERE usuario_id = :uid AND empresa_id = :eid LIMIT 1
-    """), {"uid": usuario_id, "eid": empresa_id}).fetchone()
+    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
 
-    if not empleado:
-        raise HTTPException(status_code=403, detail="No eres empleado registrado")
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id == proc.proyecto_servicio_id
+    ).first()
 
-    # Subir a Cloudinary
-    contenido = await archivo.read()
-    folder    = f"evidencias/{empresa_id}/{proc.proyecto_id}"
-    resultado = subir_archivo_cloudinary(contenido, folder=folder, public_id=None)
+    folder = f"evidencias/{empresa_id}/{ps.proyecto_id}"
+    url    = await subir_archivo_cloudinary(archivo, folder)
+    pub_id = _extract_public_id(url)
 
-    ev_id = str(__import__("uuid").uuid4())
-    db.execute(text("""
-        INSERT INTO evidencia_procedimiento
-            (id, procedimiento_id, proyecto_servicio_id, proyecto_id,
-             empresa_id, subido_por, url_cloudinary, public_id_cloudinary,
-             etapa, descripcion, fecha_captura, created_at)
-        VALUES
-            (:id, :proc_id, :ps_id, :proj_id,
-             :eid, :emp_id, :url, :pub_id,
-             'durante', :desc, NOW(), NOW())
-    """), {
-        "id":      ev_id,
-        "proc_id": proc_id,
-        "ps_id":   proc.proyecto_servicio_id,
-        "proj_id": proc.proyecto_id,
-        "eid":     empresa_id,
-        "emp_id":  empleado.id,
-        "url":     resultado["secure_url"],
-        "pub_id":  resultado["public_id"],
-        "desc":    descripcion,
-    })
+    ev = EvidenciaProcedimiento(
+        id                   = str(_uuid.uuid4()),
+        procedimiento_id     = proc_id,
+        proyecto_servicio_id = proc.proyecto_servicio_id,
+        proyecto_id          = ps.proyecto_id,
+        empresa_id           = empresa_id,
+        subido_por           = empleado.id,
+        url_cloudinary       = url,
+        public_id_cloudinary = pub_id,
+        etapa                = "durante",
+        descripcion          = descripcion,
+    )
+    db.add(ev)
 
-    # Marcar procedimiento como completado
-    db.execute(text("""
-        UPDATE procedimiento SET estado = 'completado', updated_at = NOW()
-        WHERE id = :pid
-    """), {"pid": proc_id})
-
+    proc.estado     = "completado"
+    proc.updated_at = datetime.utcnow()
     db.commit()
-    return {"ok": True, "evidencia_id": ev_id, "url": resultado["secure_url"]}
+
+    return {"ok": True, "evidencia_id": ev.id, "url": url}
 
 
-# ══════════════════════════════════════════════════════════════
-# POST /operaciones/servicio/{id}/requerimiento
-# Solicitar material extra
-# ══════════════════════════════════════════════════════════════
+# ── POST /operaciones/servicio/{id}/requerimiento ─────────────────────────────
 
 @router.post("/servicio/{servicio_id}/requerimiento", status_code=status.HTTP_201_CREATED)
 def solicitar_material(
     servicio_id: str,
     body: SolicitarMaterialBody,
-    payload: dict = Depends(verificar_token),
-    db: Session = Depends(get_db),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
-    ps = db.execute(text("""
-        SELECT id, proyecto_id FROM proyecto_servicio
-        WHERE id = :sid AND empresa_id = :eid LIMIT 1
-    """), {"sid": servicio_id, "eid": empresa_id}).fetchone()
-
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    empleado = db.execute(text("""
-        SELECT id FROM empleado WHERE usuario_id = :uid AND empresa_id = :eid LIMIT 1
-    """), {"uid": usuario_id, "eid": empresa_id}).fetchone()
+    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
 
-    if not empleado:
-        raise HTTPException(status_code=403, detail="No eres empleado registrado")
+    req = Requerimiento(
+        id                   = str(_uuid.uuid4()),
+        proyecto_id          = ps.proyecto_id,
+        proyecto_servicio_id = servicio_id,
+        empresa_id           = empresa_id,
+        solicitante_id       = empleado.id,
+        tipo                 = "material",
+        estado               = "pendiente",
+        fecha                = date.today(),
+    )
+    db.add(req)
+    db.flush()
 
-    import uuid as _uuid
-    req_id = str(_uuid.uuid4())
-    rd_id  = str(_uuid.uuid4())
-
-    db.execute(text("""
-        INSERT INTO requerimiento
-            (id, proyecto_id, proyecto_servicio_id, empresa_id, solicitante_id,
-             tipo, estado, fecha, created_at)
-        VALUES
-            (:id, :proy, :ps, :eid, :sol, 'material', 'pendiente', NOW()::date, NOW())
-    """), {"id": req_id, "proy": ps.proyecto_id, "ps": servicio_id,
-           "eid": empresa_id, "sol": empleado.id})
-
-    db.execute(text("""
-        INSERT INTO requerimiento_detalle (id, requerimiento_id, material_id, cantidad)
-        VALUES (:id, :rid, :mid, :cant)
-    """), {"id": rd_id, "rid": req_id, "mid": body.material_id, "cant": body.cantidad})
-
+    rd = RequerimientoDetalle(
+        id               = str(_uuid.uuid4()),
+        requerimiento_id = req.id,
+        material_id      = body.material_id,
+        cantidad         = body.cantidad,
+    )
+    db.add(rd)
     db.commit()
-    return {"ok": True, "requerimiento_id": req_id, "detalle_id": rd_id}
+
+    return {"ok": True, "requerimiento_id": req.id, "detalle_id": rd.id}
 
 
-# ══════════════════════════════════════════════════════════════
-# PATCH /operaciones/requerimiento-detalle/{id}
-# Editar cantidad de material solicitado
-# ══════════════════════════════════════════════════════════════
+# ── PATCH /operaciones/requerimiento-detalle/{id} ─────────────────────────────
 
 @router.patch("/requerimiento-detalle/{rd_id}")
 def actualizar_requerimiento_detalle(
@@ -603,102 +527,104 @@ def actualizar_requerimiento_detalle(
     if body.cantidad is not None and body.cantidad < 1:
         raise HTTPException(status_code=422, detail="Cantidad inválida")
 
+    rd = db.query(RequerimientoDetalle).filter(RequerimientoDetalle.id == rd_id).first()
+    if not rd:
+        raise HTTPException(status_code=404, detail="Detalle no encontrado")
+
     if body.cantidad is not None:
-        db.execute(text("""
-            UPDATE requerimiento_detalle SET cantidad = :cant WHERE id = :id
-        """), {"cant": body.cantidad, "id": rd_id})
+        rd.cantidad = body.cantidad
         db.commit()
 
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════
-# POST /operaciones/servicio/{id}/nota
-# Agregar nota al timeline (seguimiento_proyecto)
-# ══════════════════════════════════════════════════════════════
+# ── POST /operaciones/servicio/{id}/nota ──────────────────────────────────────
 
 @router.post("/servicio/{servicio_id}/nota", status_code=status.HTTP_201_CREATED)
 def agregar_nota(
     servicio_id: str,
     body: AgregarNotaBody,
-    payload: dict = Depends(verificar_token),
-    db: Session = Depends(get_db),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
-    ps = db.execute(text("""
-        SELECT proyecto_id FROM proyecto_servicio
-        WHERE id = :sid AND empresa_id = :eid LIMIT 1
-    """), {"sid": servicio_id, "eid": empresa_id}).fetchone()
-
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    empleado = db.execute(text("""
-        SELECT id FROM empleado WHERE usuario_id = :uid AND empresa_id = :eid LIMIT 1
-    """), {"uid": usuario_id, "eid": empresa_id}).fetchone()
+    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
 
-    if not empleado:
-        raise HTTPException(status_code=403, detail="No eres empleado registrado")
+    total_procs = (
+        db.query(func.count(Procedimiento.id))
+        .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+        .scalar() or 0
+    )
+    completos = (
+        db.query(func.count(Procedimiento.id))
+        .filter(
+            Procedimiento.proyecto_servicio_id == servicio_id,
+            Procedimiento.estado               == "completado",
+        )
+        .scalar() or 0
+    )
+    progreso = round(completos / total_procs * 100, 2) if total_procs else 0.0
 
-    import uuid as _uuid
-    nota_id = str(_uuid.uuid4())
-
-    # Calcular progreso actual del servicio para seguimiento_proyecto
-    stats = db.execute(text("""
-        SELECT
-            COUNT(*)                                                     AS total,
-            SUM(CASE WHEN estado = 'completado' THEN 1 ELSE 0 END)     AS completos
-        FROM procedimiento WHERE proyecto_servicio_id = :sid
-    """), {"sid": servicio_id}).fetchone()
-
-    progreso = round((stats.completos or 0) / (stats.total or 1) * 100, 2)
-
-    db.execute(text("""
-        INSERT INTO seguimiento_proyecto
-            (id, proyecto_id, empresa_id, porcentaje_avance, descripcion,
-             fecha, registrado_por, created_at)
-        VALUES
-            (:id, :proy, :eid, :prog, :desc, NOW()::date, :emp, NOW())
-    """), {
-        "id":   nota_id,
-        "proy": ps.proyecto_id,
-        "eid":  empresa_id,
-        "prog": progreso,
-        "desc": body.descripcion,
-        "emp":  empleado.id if empleado else None,
-    })
+    nota = SeguimientoProyecto(
+        id                = str(_uuid.uuid4()),
+        proyecto_id       = ps.proyecto_id,
+        empresa_id        = empresa_id,
+        porcentaje_avance = progreso,
+        descripcion       = body.descripcion,
+        fecha             = date.today(),
+        registrado_por    = empleado.id,
+    )
+    db.add(nota)
     db.commit()
-    return {"ok": True, "nota_id": nota_id}
+
+    return {"ok": True, "nota_id": nota.id}
 
 
-# ══════════════════════════════════════════════════════════════
-# GET /operaciones/materiales/buscar?q=...
-# Búsqueda de inventario para el modal de solicitud
-# ══════════════════════════════════════════════════════════════
+# ── GET /operaciones/materiales/buscar ────────────────────────────────────────
 
 @router.get("/materiales/buscar")
 def buscar_materiales(
-    q: str,
-    payload: dict = Depends(verificar_token),
-    db: Session   = Depends(get_db),
+    q:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
-    rows = db.execute(text("""
-        SELECT
-            m.id,
-            m.nombre,
-            m.unidad,
-            COALESCE(SUM(s.cantidad), 0) AS stock
-        FROM material m
-        LEFT JOIN stock s ON s.material_id = m.id AND s.empresa_id = m.empresa_id
-        WHERE m.empresa_id = :eid
-          AND m.activo     = TRUE
-          AND m.nombre     ILIKE :q
-        GROUP BY m.id, m.nombre, m.unidad
-        ORDER BY m.nombre ASC
-        LIMIT 20
-    """), {"eid": empresa_id, "q": f"%{q}%"}).fetchall()
+
+    stock_sq = (
+        db.query(
+            Stock.material_id,
+            func.sum(Stock.cantidad).label("total"),
+        )
+        .filter(Stock.empresa_id == empresa_id)
+        .group_by(Stock.material_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            Material.id,
+            Material.nombre,
+            Material.unidad,
+            func.coalesce(stock_sq.c.total, 0).label("stock"),
+        )
+        .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
+        .filter(
+            Material.empresa_id == empresa_id,
+            Material.activo     == True,
+            Material.nombre.ilike(f"%{q}%"),
+        )
+        .order_by(Material.nombre.asc())
+        .limit(20)
+        .all()
+    )
 
     return [{"id": r.id, "nombre": r.nombre, "unidad": r.unidad, "stock": int(r.stock)} for r in rows]
