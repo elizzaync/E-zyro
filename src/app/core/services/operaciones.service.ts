@@ -12,7 +12,7 @@ export interface MaterialBusqueda {
 @Injectable({ providedIn: 'root' })
 export class OperacionesService {
   private http = inject(HttpClient);
-  private readonly api = 'https://e-zyro-production.up.railway.app/api';
+  private readonly api = 'https://e-zyro-production.up.railway.app';
 
   getDashboardData(): Observable<any> {
     return this.http.get(`${this.api}/operaciones/dashboard`);
