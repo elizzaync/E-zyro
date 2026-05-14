@@ -7,7 +7,6 @@ from __future__ import annotations
 import re
 import uuid as _uuid
 from datetime import date, datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from sqlalchemy import func
@@ -51,16 +50,6 @@ router = APIRouter(prefix="/operaciones", tags=["operaciones"])
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _parse_fecha(fecha_str: Optional[str]) -> date:
-    if not fecha_str:
-        return date.today()
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
-        try:
-            return datetime.strptime(fecha_str, fmt).date()
-        except ValueError:
-            continue
-    raise HTTPException(status_code=400, detail="Formato de fecha inválido. Use YYYY-MM-DD o DD/MM/YYYY")
-
 
 def _extract_public_id(url: str) -> str:
     try:
@@ -87,13 +76,11 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
 
 @router.get("/dashboard")
 def get_dashboard(
-    fecha: Optional[str] = None,
     payload: dict = Depends(verificar_token),
     db: Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
-    fecha_dt   = _parse_fecha(fecha)
     hoy        = date.today()
 
     # Subquery: proyectos donde el usuario es miembro activo
@@ -101,16 +88,17 @@ def get_dashboard(
         db.query(ProyectoMiembro.proyecto_id)
         .join(Empleado, Empleado.id == ProyectoMiembro.empleado_id)
         .filter(
-            Empleado.usuario_id  == usuario_id,
+            Empleado.usuario_id    == usuario_id,
             ProyectoMiembro.activo == True,
         )
         .subquery()
     )
 
-    # Servicios del día seleccionado
+    # Todos los servicios donde el técnico es miembro activo (sin filtro de fecha)
     rows = (
         db.query(
             ProyectoServicio,
+            Proyecto.fecha_inicio.label("fecha_proyecto"),
             Cliente.razon_social.label("cliente"),
             func.coalesce(ProyectoDetalle.zona_ejecucion, Proyecto.nombre_proyecto).label("ubicacion"),
         )
@@ -118,55 +106,50 @@ def get_dashboard(
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
         .outerjoin(ProyectoDetalle, ProyectoDetalle.proyecto_id == Proyecto.id)
         .filter(
-            ProyectoServicio.empresa_id       == empresa_id,
-            ProyectoServicio.fecha_programada == fecha_dt,
+            ProyectoServicio.empresa_id == empresa_id,
             ProyectoServicio.proyecto_id.in_(miembro_subq),
         )
-        .order_by(ProyectoServicio.fecha_programada.asc())
+        .order_by(Proyecto.fecha_inicio.asc(), ProyectoServicio.orden.asc())
         .all()
     )
 
     _estado_map = {"Pendiente": "Pendiente", "En_Proceso": "Activo", "Completado": "Completado"}
-    pendientes = activos = hechos = 0
+    pendientes = activos = hechos = hoy_count = 0
     servicios: list[dict] = []
 
     for row in rows:
-        ps       = row.ProyectoServicio
-        est_raw  = ps.estado or "Pendiente"
-        est_fe   = _estado_map.get(est_raw, est_raw)
-        fp       = ps.fecha_programada
+        ps         = row.ProyectoServicio
+        est_raw    = ps.estado or "Pendiente"
+        est_fe     = _estado_map.get(est_raw, est_raw)
+        fecha_proy = row.fecha_proyecto
+        hora_svc   = ps.fecha_programada
 
         if est_raw == "Pendiente":    pendientes += 1
         elif est_raw == "En_Proceso": activos    += 1
         elif est_raw == "Completado": hechos     += 1
 
-        alerta = est_raw == "Pendiente" and fp is not None and fp < hoy
+        if fecha_proy == hoy:
+            hoy_count += 1
+
+        # Semáforo de prioridad
+        if est_raw == "Completado":
+            estado_color = "verde"
+        elif fecha_proy is not None and fecha_proy < hoy:
+            estado_color = "rojo"
+        else:
+            estado_color = "amarillo"
 
         servicios.append({
             "id":           ps.id,
             "cliente":      row.cliente,
             "tipoServicio": ps.nombre,
             "ubicacion":    row.ubicacion or "",
-            "fechaStr":     fp.strftime("%d %b %Y") if fp else "Sin fecha",
-            "horaStr":      fp.strftime("%I:%M %p") if fp else "--:--",
+            "fechaStr":     fecha_proy.strftime("%d %b %Y") if fecha_proy else "Sin fecha",
+            "horaStr":      hora_svc.strftime("%I:%M %p") if hora_svc else "--:--",
             "estado":       est_fe,
-            "alerta":       alerta,
+            "alerta":       est_raw != "Completado" and fecha_proy is not None and fecha_proy < hoy,
+            "estadoColor":  estado_color,
         })
-
-    # Conteo de hoy (siempre TODAY)
-    if fecha_dt != hoy:
-        hoy_count = (
-            db.query(func.count(ProyectoServicio.id.distinct()))
-            .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
-            .filter(
-                ProyectoServicio.empresa_id       == empresa_id,
-                ProyectoServicio.fecha_programada == hoy,
-                ProyectoServicio.proyecto_id.in_(miembro_subq),
-            )
-            .scalar() or 0
-        )
-    else:
-        hoy_count = len(rows)
 
     metricas = [
         {"id": "pendientes", "titulo": "Pendientes",  "valor": pendientes, "colorIcono": "#f59e0b", "resaltado": False},
@@ -230,13 +213,15 @@ def get_detalle_servicio(
         )
         .all()
     )
+
+    # 🔥 FIX PYDANTIC: Blindaje en Equipo (Evita crash por usuarios sin apellido o foto)
     equipo = [
         MiembroEquipoOut(
-            id=r.Usuario.id,
-            nombre=r.Usuario.nombre,
-            apellido=r.Usuario.apellido,
-            foto_url=r.Usuario.foto_url,
-            cargo=r.cargo,
+            id=str(r.Usuario.id),
+            nombre=r.Usuario.nombre or "",
+            apellido=r.Usuario.apellido or "",
+            foto_url=r.Usuario.foto_url or "",
+            cargo=r.cargo or "Sin Cargo",
             rol_proyecto=r.rol_proyecto or "Técnico",
         )
         for r in equipo_rows
@@ -258,19 +243,24 @@ def get_detalle_servicio(
 
     ev_by_proc: dict[str, list] = {}
     for ev in evidencias:
+        # 🔥 FIX PYDANTIC: Blindaje en Evidencias
         ev_by_proc.setdefault(ev.procedimiento_id, []).append(
             EvidenciaOut(
-                id=ev.id,
-                url_cloudinary=ev.url_cloudinary,
-                descripcion=ev.descripcion,
+                id=str(ev.id),
+                url_cloudinary=ev.url_cloudinary or "",
+                descripcion=ev.descripcion or "",
                 fecha_captura=ev.fecha_captura.strftime("%I:%M %p") if ev.fecha_captura else "",
             )
         )
 
+    # 🔥 FIX PYDANTIC: Blindaje en Procedimientos
     procedimientos = [
         ProcedimientoOut(
-            id=p.id, nombre=p.nombre, descripcion=p.descripcion,
-            orden=p.orden, estado=p.estado,
+            id=str(p.id),
+            nombre=p.nombre or "",
+            descripcion=p.descripcion or "",
+            orden=p.orden or 0,
+            estado=p.estado or "pendiente",
             evidencias=ev_by_proc.get(p.id, []),
         )
         for p in procs
@@ -305,13 +295,14 @@ def get_detalle_servicio(
 
     for m in mat_rows:
         rd = m.RequerimientoDetalle
+        # 🔥 FIX PYDANTIC: Blindaje en Materiales
         item = ItemMaterialOut(
-            id=rd.id,
-            requerimiento_id=m.req_id,
-            nombre=m.mat_nombre,
-            unidad=m.mat_unidad,
-            cantidad=rd.cantidad,
-            estado_req=m.req_estado,
+            id=str(rd.id),
+            requerimiento_id=str(m.req_id),
+            nombre=m.mat_nombre or "Material Sin Nombre",
+            unidad=m.mat_unidad or "Und",
+            cantidad=rd.cantidad or 0,
+            estado_req=m.req_estado or "pendiente",
         )
         if m.req_estado in ("entregado", "aprobado"):
             mat_asignados.append(item)
@@ -333,30 +324,33 @@ def get_detalle_servicio(
         .order_by(SeguimientoProyecto.fecha.asc(), SeguimientoProyecto.created_at.asc())
         .all()
     )
+
+    # 🔥 FIX PYDANTIC: Blindaje en Notas
     notas = [
         NotaOut(
-            id=n.SeguimientoProyecto.id,
+            id=str(n.SeguimientoProyecto.id),
             fecha=(
                 n.SeguimientoProyecto.fecha.strftime("%I:%M %p")
                 if isinstance(n.SeguimientoProyecto.fecha, datetime)
                 else str(n.SeguimientoProyecto.fecha)
             ),
             texto=n.SeguimientoProyecto.descripcion or "",
-            autor=n.autor,
+            autor=n.autor or "Usuario Desconocido",
         )
         for n in nota_rows
     ]
 
+    # 🔥 FIX PYDANTIC PRINCIPAL: Servicio Detalle Out
     return ServicioDetalleOut(
-        id=ps.id,
-        proyecto_id=ps.proyecto_id,
-        cliente=cliente.razon_social,
-        tipo_servicio=ps.nombre,
-        ubicacion=ubicacion,
-        fecha_str=fecha_str,
-        hora_str=hora_str,
+        id=str(ps.id),
+        proyecto_id=str(ps.proyecto_id),
+        cliente=cliente.razon_social if cliente and cliente.razon_social else "Cliente Sin Nombre",
+        tipo_servicio=ps.nombre or "Servicio Técnico",
+        ubicacion=ubicacion or "",
+        fecha_str=fecha_str or "",
+        hora_str=hora_str or "",
         descripcion=ps.descripcion or "",
-        estado=ps.estado,
+        estado=ps.estado or "Pendiente",
         progreso=progreso,
         equipo=equipo,
         procedimientos=procedimientos,
@@ -364,7 +358,6 @@ def get_detalle_servicio(
         materiales_solicitados=mat_solicitados,
         notas=notas,
     )
-
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
 
