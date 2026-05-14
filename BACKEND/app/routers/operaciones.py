@@ -234,13 +234,15 @@ def get_detalle_servicio(
         )
         .all()
     )
+
+    # 🔥 FIX PYDANTIC: Blindaje en Equipo (Evita crash por usuarios sin apellido o foto)
     equipo = [
         MiembroEquipoOut(
-            id=r.Usuario.id,
-            nombre=r.Usuario.nombre,
-            apellido=r.Usuario.apellido,
-            foto_url=r.Usuario.foto_url,
-            cargo=r.cargo,
+            id=str(r.Usuario.id),
+            nombre=r.Usuario.nombre or "",
+            apellido=r.Usuario.apellido or "",
+            foto_url=r.Usuario.foto_url or "",
+            cargo=r.cargo or "Sin Cargo",
             rol_proyecto=r.rol_proyecto or "Técnico",
         )
         for r in equipo_rows
@@ -262,19 +264,24 @@ def get_detalle_servicio(
 
     ev_by_proc: dict[str, list] = {}
     for ev in evidencias:
+        # 🔥 FIX PYDANTIC: Blindaje en Evidencias
         ev_by_proc.setdefault(ev.procedimiento_id, []).append(
             EvidenciaOut(
-                id=ev.id,
-                url_cloudinary=ev.url_cloudinary,
-                descripcion=ev.descripcion,
+                id=str(ev.id),
+                url_cloudinary=ev.url_cloudinary or "",
+                descripcion=ev.descripcion or "",
                 fecha_captura=ev.fecha_captura.strftime("%I:%M %p") if ev.fecha_captura else "",
             )
         )
 
+    # 🔥 FIX PYDANTIC: Blindaje en Procedimientos
     procedimientos = [
         ProcedimientoOut(
-            id=p.id, nombre=p.nombre, descripcion=p.descripcion,
-            orden=p.orden, estado=p.estado,
+            id=str(p.id),
+            nombre=p.nombre or "",
+            descripcion=p.descripcion or "",
+            orden=p.orden or 0,
+            estado=p.estado or "pendiente",
             evidencias=ev_by_proc.get(p.id, []),
         )
         for p in procs
@@ -309,13 +316,14 @@ def get_detalle_servicio(
 
     for m in mat_rows:
         rd = m.RequerimientoDetalle
+        # 🔥 FIX PYDANTIC: Blindaje en Materiales
         item = ItemMaterialOut(
-            id=rd.id,
-            requerimiento_id=m.req_id,
-            nombre=m.mat_nombre,
-            unidad=m.mat_unidad,
-            cantidad=rd.cantidad,
-            estado_req=m.req_estado,
+            id=str(rd.id),
+            requerimiento_id=str(m.req_id),
+            nombre=m.mat_nombre or "Material Sin Nombre",
+            unidad=m.mat_unidad or "Und",
+            cantidad=rd.cantidad or 0,
+            estado_req=m.req_estado or "pendiente",
         )
         if m.req_estado in ("entregado", "aprobado"):
             mat_asignados.append(item)
@@ -337,30 +345,33 @@ def get_detalle_servicio(
         .order_by(SeguimientoProyecto.fecha.asc(), SeguimientoProyecto.created_at.asc())
         .all()
     )
+
+    # 🔥 FIX PYDANTIC: Blindaje en Notas
     notas = [
         NotaOut(
-            id=n.SeguimientoProyecto.id,
+            id=str(n.SeguimientoProyecto.id),
             fecha=(
                 n.SeguimientoProyecto.fecha.strftime("%I:%M %p")
                 if isinstance(n.SeguimientoProyecto.fecha, datetime)
                 else str(n.SeguimientoProyecto.fecha)
             ),
             texto=n.SeguimientoProyecto.descripcion or "",
-            autor=n.autor,
+            autor=n.autor or "Usuario Desconocido",
         )
         for n in nota_rows
     ]
 
+    # 🔥 FIX PYDANTIC PRINCIPAL: Servicio Detalle Out
     return ServicioDetalleOut(
-        id=ps.id,
-        proyecto_id=ps.proyecto_id,
-        cliente=cliente.razon_social,
-        tipo_servicio=ps.nombre,
-        ubicacion=ubicacion,
-        fecha_str=fecha_str,
-        hora_str=hora_str,
+        id=str(ps.id),
+        proyecto_id=str(ps.proyecto_id),
+        cliente=cliente.razon_social if cliente and cliente.razon_social else "Cliente Sin Nombre",
+        tipo_servicio=ps.nombre or "Servicio Técnico",
+        ubicacion=ubicacion or "",
+        fecha_str=fecha_str or "",
+        hora_str=hora_str or "",
         descripcion=ps.descripcion or "",
-        estado=ps.estado,
+        estado=ps.estado or "Pendiente",
         progreso=progreso,
         equipo=equipo,
         procedimientos=procedimientos,
@@ -368,7 +379,6 @@ def get_detalle_servicio(
         materiales_solicitados=mat_solicitados,
         notas=notas,
     )
-
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
 
