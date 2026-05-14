@@ -72,18 +72,18 @@ def eliminar_imagen_cloudinary(url: str):
 
 def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
     """
-    Sube un PDF a Cloudinary y devuelve su secure_url pública.
-    Los PDFs subidos con resource_type="image" y type="upload" (default)
-    son accesibles públicamente; no se necesita URL firmada.
+    Sube un PDF a Cloudinary como recurso raw y devuelve su secure_url.
+    resource_type="raw" evita el procesamiento interno del SDK que referencia
+    la variable full_public_id causando NameError en ciertas versiones.
     """
     try:
         import io
-        pid = public_id.removesuffix(".pdf")
+        # Asegurar que el public_id termine en .pdf para que la URL sea descargable
+        pid = public_id.removesuffix(".pdf") + ".pdf"
         upload_result = cloudinary.uploader.upload(
             io.BytesIO(pdf_bytes),
             public_id=pid,
-            resource_type="image",
-            format="pdf",
+            resource_type="raw",
             overwrite=True,
             invalidate=True,
         )
