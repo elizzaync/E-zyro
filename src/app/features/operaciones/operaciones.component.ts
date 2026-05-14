@@ -33,7 +33,7 @@ export class OperacionesComponent implements OnInit {
   ngOnInit(): void {
     this.route.queryParams.pipe(take(1)).subscribe(params => {
       if (params['fecha']) this.fechaFiltro = params['fecha'];
-      this.cargarDashboard();
+      this.cargarDashboard(this.fechaFiltro);
     });
   }
 
