@@ -3,28 +3,7 @@ import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
 import logging
 import re
-from fastapi import UploadFile
-async def subir_archivo_cloudinary(file: UploadFile, folder: str = "operaciones_evidencias") -> str:
-    """
-    Recibe un UploadFile de FastAPI, lee sus bytes y lo sube a Cloudinary.
-    Devuelve la URL segura de la imagen.
-    """
-    try:
-        # Leemos los bytes físicos de la imagen subida
-        contents = await file.read()
 
-        # Subimos los bytes a Cloudinary
-        upload_result = cloudinary.uploader.upload(
-            contents,
-            folder=folder,
-            resource_type="auto"  # Detecta automáticamente si es imagen/png/jpg
-        )
-
-        return upload_result.get("secure_url")
-
-    except Exception as e:
-        logging.error(f"Error subiendo archivo físico a Cloudinary: {str(e)}")
-        raise Exception(f"Fallo al procesar el archivo en la nube: {str(e)}")
 def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_perfil: bool = False) -> str:
     """
     Sube una imagen optimizada a Cloudinary.

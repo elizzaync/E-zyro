@@ -70,6 +70,24 @@ def obtener_mi_firma(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/historial-firmas")
+def obtener_historial_firmas(
+    current_user: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    try:
+        usuario_id = current_user.get("id")
+        historial = db.query(HistorialFirma).filter(
+            HistorialFirma.usuario_id == usuario_id
+        ).all()
+        return {
+            "status": "success", 
+            "data": [{"url_firma": h.url_cloudinary} for h in historial]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/enviar-solicitud")
 async def enviar_solicitud(
     # ── Archivo PDF generado en el cliente (pdf-lib) ──────────────
@@ -121,7 +139,7 @@ async def enviar_solicitud(
                     public_id_cloudinary = firma_existente.public_id_cloudinary,
                 ))
                 firma_existente.url_cloudinary       = firma_url
-                firma_existente.public_id_cloudinary = full_public_id
+                firma_existente.public_id_cloudinary = firma_public_id
                 firma_existente.primera_vez          = False
                 firma_existente.updated_at           = datetime.utcnow()
             else:
@@ -129,7 +147,7 @@ async def enviar_solicitud(
                     usuario_id           = usuario_id,
                     empresa_id           = empresa_id,
                     url_cloudinary       = firma_url,
-                    public_id_cloudinary = full_public_id,
+                    public_id_cloudinary = firma_public_id,
                     primera_vez          = True,
                 )
                 db.add(nueva_firma)
