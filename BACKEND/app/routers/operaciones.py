@@ -107,10 +107,13 @@ def get_dashboard(
         .subquery()
     )
 
-    # Servicios del día seleccionado
+    # Servicios del día seleccionado.
+    # Se filtra por Proyecto.fecha_inicio para quedar sincronizado con el
+    # calendario (dashboard.py), que también usa ese campo para marcar días.
     rows = (
         db.query(
             ProyectoServicio,
+            Proyecto.fecha_inicio.label("fecha_proyecto"),
             Cliente.razon_social.label("cliente"),
             func.coalesce(ProyectoDetalle.zona_ejecucion, Proyecto.nombre_proyecto).label("ubicacion"),
         )
@@ -118,11 +121,11 @@ def get_dashboard(
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
         .outerjoin(ProyectoDetalle, ProyectoDetalle.proyecto_id == Proyecto.id)
         .filter(
-            ProyectoServicio.empresa_id       == empresa_id,
-            ProyectoServicio.fecha_programada == fecha_dt,
+            ProyectoServicio.empresa_id      == empresa_id,
+            Proyecto.fecha_inicio            == fecha_dt,
             ProyectoServicio.proyecto_id.in_(miembro_subq),
         )
-        .order_by(ProyectoServicio.fecha_programada.asc())
+        .order_by(Proyecto.fecha_inicio.asc(), ProyectoServicio.orden.asc())
         .all()
     )
 
@@ -131,36 +134,37 @@ def get_dashboard(
     servicios: list[dict] = []
 
     for row in rows:
-        ps       = row.ProyectoServicio
-        est_raw  = ps.estado or "Pendiente"
-        est_fe   = _estado_map.get(est_raw, est_raw)
-        fp       = ps.fecha_programada
+        ps          = row.ProyectoServicio
+        est_raw     = ps.estado or "Pendiente"
+        est_fe      = _estado_map.get(est_raw, est_raw)
+        fecha_proy  = row.fecha_proyecto          # Proyecto.fecha_inicio — misma que el calendario
+        hora_svc    = ps.fecha_programada          # fecha_programada solo para extraer la hora
 
         if est_raw == "Pendiente":    pendientes += 1
         elif est_raw == "En_Proceso": activos    += 1
         elif est_raw == "Completado": hechos     += 1
 
-        alerta = est_raw == "Pendiente" and fp is not None and fp < hoy
+        alerta = est_raw == "Pendiente" and fecha_proy is not None and fecha_proy < hoy
 
         servicios.append({
             "id":           ps.id,
             "cliente":      row.cliente,
             "tipoServicio": ps.nombre,
             "ubicacion":    row.ubicacion or "",
-            "fechaStr":     fp.strftime("%d %b %Y") if fp else "Sin fecha",
-            "horaStr":      fp.strftime("%I:%M %p") if fp else "--:--",
+            "fechaStr":     fecha_proy.strftime("%d %b %Y") if fecha_proy else "Sin fecha",
+            "horaStr":      hora_svc.strftime("%I:%M %p") if hora_svc else "--:--",
             "estado":       est_fe,
             "alerta":       alerta,
         })
 
-    # Conteo de hoy (siempre TODAY)
+    # Conteo de hoy (siempre TODAY) — también por Proyecto.fecha_inicio
     if fecha_dt != hoy:
         hoy_count = (
             db.query(func.count(ProyectoServicio.id.distinct()))
             .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
             .filter(
-                ProyectoServicio.empresa_id       == empresa_id,
-                ProyectoServicio.fecha_programada == hoy,
+                ProyectoServicio.empresa_id      == empresa_id,
+                Proyecto.fecha_inicio            == hoy,
                 ProyectoServicio.proyecto_id.in_(miembro_subq),
             )
             .scalar() or 0
