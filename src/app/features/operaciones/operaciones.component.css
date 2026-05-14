@@ -1,40 +1,145 @@
-/* Header actions wrapper */
-.header-actions { display: flex; align-items: center; gap: 12px; }
+/* ── Reset de fuente: elimina cualquier serif heredado ── */
+:host {
+  display: block;
+  font-family: 'Inter', sans-serif !important;
+}
 
-/* Date filter input */
+/* ── Layout principal ── */
+.operaciones-layout {
+  font-family: 'Inter', sans-serif !important;
+  padding: 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ── Cabecera: título a la izquierda, controles a la derecha ── */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.page-title {
+  margin: 0 0 4px 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+  letter-spacing: -0.5px;
+}
+
+.page-subtitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted, #64748b);
+}
+
+/* ── Controles del header (fecha + botón) ── */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ── Input de fecha ── */
 .input-fecha {
-  height: 42px; padding: 0 14px; border-radius: 10px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
   border: 1px solid var(--border-color, #cbd5e1);
-  background: var(--card-bg, #fff); color: var(--text-main, #0f172a);
-  font-size: 14px; font-weight: 500; cursor: pointer; outline: none;
-  transition: border-color .2s;
+  background: var(--card-bg, #fff);
+  color: var(--text-main, #0f172a);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
 }
-.input-fecha:focus { border-color: var(--brand-green, #91d337); }
-:host-context([data-theme="dark"]) .input-fecha {
-  background: #0b1425; border-color: #334155; color: #f8fafc;
-  color-scheme: dark;
+.input-fecha:focus {
+  border-color: var(--brand-green, #91d337);
 }
 
-/* Botón de Calendario */
+/* ── Botón Calendario ── */
 .btn-outline-calendar {
-  display: flex; align-items: center; gap: 8px;
-  background: transparent; border: 1px solid var(--border-color, #cbd5e1);
-  padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 14px;
-  color: var(--text-main, #0f172a); cursor: pointer; transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border-color, #cbd5e1);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-main, #0f172a);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
-.btn-outline-calendar:hover { background: var(--hover-bg, #f1f5f9); border-color: var(--brand-green, #91d337); color: var(--brand-green, #91d337); }
-:host-context([data-theme="dark"]) .btn-outline-calendar { border-color: #334155; color: #f8fafc; }
-:host-context([data-theme="dark"]) .btn-outline-calendar:hover { background: #1e293b; border-color: var(--brand-green); color: var(--brand-green); }
+.btn-outline-calendar:hover {
+  background: var(--hover-bg, #f1f5f9);
+  border-color: var(--brand-green, #91d337);
+  color: var(--brand-green, #91d337);
+}
 
-/* Loader Reutilizado */
+/* ── Secciones internas ── */
+.cards-section { width: 100%; }
+.lista-section  { width: 100%; }
+
+/* ── Loader ── */
 .historial-loading {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px; padding: 100px 0; color: var(--text-muted, #64748b); font-size: 15px; font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 100px 0;
+  color: var(--text-muted, #64748b);
+  font-size: 15px;
+  font-weight: 600;
 }
 .spinner {
-  width: 40px; height: 40px; border: 4px solid var(--border-color, #e2e8f0);
-  border-top-color: var(--brand-green, #91d337); border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color, #e2e8f0);
+  border-top-color: var(--brand-green, #91d337);
+  border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-:host-context([data-theme="dark"]) .spinner { border-color: #334155; }
+
+/* ══════════════════════════════════════════════
+   MODO OSCURO
+══════════════════════════════════════════════ */
+:host-context([data-theme="dark"]) .page-title    { color: #f8fafc; }
+:host-context([data-theme="dark"]) .page-subtitle { color: #94a3b8; }
+
+:host-context([data-theme="dark"]) .input-fecha {
+  background: #0b1425;
+  border-color: #334155;
+  color: #f8fafc;
+  color-scheme: dark;
+}
+:host-context([data-theme="dark"]) .input-fecha:focus {
+  border-color: var(--brand-green, #91d337);
+}
+
+:host-context([data-theme="dark"]) .btn-outline-calendar {
+  border-color: #334155;
+  color: #f8fafc;
+}
+:host-context([data-theme="dark"]) .btn-outline-calendar:hover {
+  background: #1e293b;
+  border-color: var(--brand-green, #91d337);
+  color: var(--brand-green, #91d337);
+}
+
+:host-context([data-theme="dark"]) .spinner {
+  border-color: #334155;
+  border-top-color: var(--brand-green, #91d337);
+}
