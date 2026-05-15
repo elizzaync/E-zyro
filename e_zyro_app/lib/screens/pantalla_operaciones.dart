@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
 import '../utils/api_provider.dart';
-import '../widgets/stat_card.dart';
+import 'pantalla_servicios.dart';
 
 class OperationsScreen extends StatefulWidget {
   const OperationsScreen({super.key});
@@ -13,10 +13,10 @@ class OperationsScreen extends StatefulWidget {
 
 class _OperationsScreenState extends State<OperationsScreen> {
   ProyectoService? _service;
-  List<ProyectoServicio> _proyectos = [];
+  ProyectosConKpis? _data;
   bool _isLoading = true;
   String _selectedFilter = 'Todos';
-  final List<String> _filters = ['Todos', 'Pendiente', 'Activo', 'Completado'];
+  final List<String> _filters = ['Todos', 'Pendiente', 'En Proceso', 'Completado'];
 
   @override
   void initState() {
@@ -32,32 +32,23 @@ class _OperationsScreenState extends State<OperationsScreen> {
   Future<void> _loadData() async {
     if (_service == null) return;
     setState(() => _isLoading = true);
-    final data = await _service!.getMisServicios();
+    final data = await _service!.getProyectos();
     if (!mounted) return;
     setState(() {
-      _proyectos = data;
+      _data = data;
       _isLoading = false;
     });
   }
 
-  List<ProyectoServicio> get _filtered => _selectedFilter == 'Todos'
-      ? _proyectos
-      : _proyectos.where((p) => p.estado == _selectedFilter).toList();
-
-  int _count(String estado) =>
-      _proyectos.where((p) => p.estado == estado).length;
-
-  void _openDetail(ProyectoServicio item) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _ServiceDetailSheet(item: item),
-    );
+  List<ProyectoItem> get _filtered {
+    final list = _data?.proyectos ?? [];
+    if (_selectedFilter == 'Todos') return list;
+    return list.where((p) => p.estado == _selectedFilter).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final kpis = _data?.kpis;
     final filtered = _filtered;
 
     return SafeArea(
@@ -69,55 +60,71 @@ class _OperationsScreenState extends State<OperationsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── Encabezado ─────────────────────────────────────────
                 const Text(
-                  'Mis Proyectos',
+                  'Operaciones',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
-                const Text(
-                  'Servicios asignados',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                Text(
+                  kpis != null
+                      ? '${kpis.totalProyectos} proyectos asignados'
+                      : 'Cargando...',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
                 const SizedBox(height: 20),
 
-                // ── Estadísticas ────────────────────────────────────────
-                Row(
-                  children: [
-                    Expanded(
-                      child: StatCard(
-                        label: 'Pendientes',
-                        value: '${_count("Pendiente")}',
-                        iconData: Icons.access_time,
-                        color: const Color(0xFFF3F3F3),
-                        iconColor: Colors.grey,
+                // ── KPI Cards 2x2 ──────────────────────────────────────────
+                if (kpis != null) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _KpiCard(
+                          label: 'Proyectos\nAsignados',
+                          value: '${kpis.totalProyectos}',
+                          icon: Icons.work_outline,
+                          iconColor: const Color(0xFF6366F1),
+                          bgColor: const Color(0xFFEEF2FF),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: StatCard(
-                        label: 'Activos',
-                        value: '${_count("Activo")}',
-                        iconData: Icons.build_outlined,
-                        color: const Color(0xFFFFF3CD),
-                        iconColor: const Color(0xFFF59E0B),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _KpiCard(
+                          label: 'Servicios\nCompletados',
+                          value: '${kpis.serviciosCompletados}',
+                          icon: Icons.check_circle_outline,
+                          iconColor: const Color(0xFF8FD11B),
+                          bgColor: const Color(0xFFEFFAE0),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: StatCard(
-                        label: 'Hechos',
-                        value: '${_count("Completado")}',
-                        iconData: Icons.check_circle_outline,
-                        color: const Color(0xFFEFFAE0),
-                        iconColor: const Color(0xFF8FD11B),
-                        isHighlighted: true,
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _KpiCard(
+                          label: 'Servicios\nPendientes',
+                          value: '${kpis.serviciosPendientes}',
+                          icon: Icons.schedule_outlined,
+                          iconColor: const Color(0xFFF59E0B),
+                          bgColor: const Color(0xFFFFF8E1),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _KpiCard(
+                          label: 'Tasa de\nAvance',
+                          value: '${kpis.tasaAvance}%',
+                          icon: Icons.bar_chart_outlined,
+                          iconColor: const Color(0xFF8B5CF6),
+                          bgColor: const Color(0xFFF3E8FF),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                ],
 
-                // ── Filtros ─────────────────────────────────────────────
+                // ── Filtros ────────────────────────────────────────────────
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -125,8 +132,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                         .map((f) => _FilterChip(
                               label: f,
                               isSelected: _selectedFilter == f,
-                              onTap: () =>
-                                  setState(() => _selectedFilter = f),
+                              onTap: () => setState(() => _selectedFilter = f),
                             ))
                         .toList(),
                   ),
@@ -136,7 +142,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
             ),
           ),
 
-          // ── Lista ──────────────────────────────────────────────────────
+          // ── Lista de proyectos ─────────────────────────────────────────────
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -146,56 +152,30 @@ class _OperationsScreenState extends State<OperationsScreen> {
                     ),
                   )
                 : filtered.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.work_outline,
-                              size: 56,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _proyectos.isEmpty
-                                  ? 'No tienes servicios asignados'
-                                  : 'Sin servicios en "$_selectedFilter"',
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 14),
-                            ),
-                            if (_proyectos.isEmpty) ...[
-                              const SizedBox(height: 16),
-                              OutlinedButton(
-                                onPressed: _loadData,
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(
-                                      color: Color(0xFF8FD11B)),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius.circular(12)),
-                                ),
-                                child: const Text(
-                                  'Actualizar',
-                                  style:
-                                      TextStyle(color: Color(0xFF8FD11B)),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
+                    ? _EmptyState(
+                        hasData: (_data?.proyectos ?? []).isNotEmpty,
+                        filter: _selectedFilter,
+                        onRefresh: _loadData,
                       )
                     : RefreshIndicator(
                         onRefresh: _loadData,
                         color: const Color(0xFF8FD11B),
                         child: ListView.separated(
-                          padding:
-                              const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           itemCount: filtered.length,
                           separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _ServiceCard(
-                            item: filtered[i],
-                            onTap: () => _openDetail(filtered[i]),
+                              const SizedBox(height: 12),
+                          itemBuilder: (_, i) => _ProyectoCard(
+                            proyecto: filtered[i],
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ServiciosScreen(
+                                  proyecto: filtered[i],
+                                  service: _service!,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -206,22 +186,96 @@ class _OperationsScreenState extends State<OperationsScreen> {
   }
 }
 
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+
+class _KpiCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color iconColor;
+  final Color bgColor;
+
+  const _KpiCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+    required this.bgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(14),
+        border: isDark
+            ? Border.all(
+                color: const Color(0xFF8FD11B).withValues(alpha: 0.25))
+            : null,
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                )
+              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDark ? iconColor.withValues(alpha: 0.15) : bgColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Chip de filtro ───────────────────────────────────────────────────────────
+
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _FilterChip(
-      {required this.label,
-      required this.isSelected,
-      required this.onTap});
+      {required this.label, required this.isSelected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
     const green = Color(0xFF8FD11B);
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -253,23 +307,26 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-// ─── Tarjeta de servicio ──────────────────────────────────────────────────────
-class _ServiceCard extends StatelessWidget {
-  final ProyectoServicio item;
+// ─── Tarjeta de proyecto ──────────────────────────────────────────────────────
+
+class _ProyectoCard extends StatelessWidget {
+  final ProyectoItem proyecto;
   final VoidCallback onTap;
 
-  const _ServiceCard({required this.item, required this.onTap});
+  const _ProyectoCard({required this.proyecto, required this.onTap});
 
-  Color get _statusColor => switch (item.estado) {
-        'Activo' => const Color(0xFFF59E0B),
+  Color get _statusColor => switch (proyecto.estado) {
+        'En Proceso' => const Color(0xFF3B82F6),
         'Completado' => const Color(0xFF8FD11B),
-        _ => Colors.grey,
+        'Cancelado' => Colors.red,
+        _ => const Color(0xFFF59E0B),
       };
 
-  Color get _statusBg => switch (item.estado) {
-        'Activo' => const Color(0xFFFFF3CD),
+  Color get _statusBg => switch (proyecto.estado) {
+        'En Proceso' => const Color(0xFFEFF6FF),
         'Completado' => const Color(0xFFEFFAE0),
-        _ => const Color(0xFFF3F3F3),
+        'Cancelado' => const Color(0xFFFFEBEB),
+        _ => const Color(0xFFFFF8E1),
       };
 
   @override
@@ -286,106 +343,152 @@ class _ServiceCard extends StatelessWidget {
           color: surface,
           borderRadius: BorderRadius.circular(14),
           border: isDark
-              ? Border.all(
-                  color: green.withValues(alpha: 0.45), width: 1.0)
+              ? Border.all(color: green.withValues(alpha: 0.35), width: 1.0)
               : null,
           boxShadow: isDark
               ? [
                   BoxShadow(
-                      color: green.withValues(alpha: 0.10),
-                      blurRadius: 12,
-                      spreadRadius: 1)
+                    color: green.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    spreadRadius: 1,
+                  )
                 ]
               : [
                   BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
                 ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── OT + estado ────────────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                Text(
+                  proyecto.ordenTrabajo.isNotEmpty
+                      ? proyecto.ordenTrabajo
+                      : 'Sin OT',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? _statusColor.withValues(alpha: 0.15)
+                        : _statusBg,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    proyecto.estado,
+                    style: TextStyle(
+                      color: _statusColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // ── Nombre del proyecto ────────────────────────────────────────
+            Text(
+              proyecto.nombreProyecto,
+              style: const TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+
+            // ── Cliente ────────────────────────────────────────────────────
+            Row(
+              children: [
+                const Icon(Icons.business_outlined,
+                    size: 13, color: Colors.grey),
+                const SizedBox(width: 5),
                 Expanded(
                   child: Text(
-                    item.empresa,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15),
+                    proyecto.cliente,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (item.urgente)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 6),
-                        child: Icon(Icons.error_outline,
-                            color: Colors.red, size: 18),
-                      ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? _statusColor.withValues(alpha: 0.15)
-                            : _statusBg,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        item.estado,
-                        style: TextStyle(
-                          color: _statusColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              item.tipoServicio,
-              style: TextStyle(
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.8),
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 3),
+
+            // ── Jefe ───────────────────────────────────────────────────────
             Row(
               children: [
-                const Icon(Icons.location_on_outlined,
+                const Icon(Icons.person_outline,
                     size: 13, color: Colors.grey),
-                const SizedBox(width: 4),
+                const SizedBox(width: 5),
                 Expanded(
-                  child: Text(item.ubicacion,
-                      style:
-                          const TextStyle(color: Colors.grey, fontSize: 12),
-                      overflow: TextOverflow.ellipsis),
+                  child: Text(
+                    proyecto.jefeNombre,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
-            if (item.fechaFin != null || item.fechaInicio != null) ...[
-              const SizedBox(height: 4),
+            const SizedBox(height: 10),
+
+            // ── Progreso de servicios ──────────────────────────────────────
+            Row(
+              children: [
+                Text(
+                  '${proyecto.serviciosCompletados} de ${proyecto.totalServicios} servicio${proyecto.totalServicios != 1 ? 's' : ''}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                ),
+                const Spacer(),
+                Text(
+                  '${(proyecto.progreso * 100).round()}%',
+                  style: TextStyle(
+                    color: proyecto.progreso >= 1
+                        ? green
+                        : const Color(0xFFF59E0B),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: proyecto.progreso,
+                backgroundColor: isDark
+                    ? Colors.grey.shade800
+                    : Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  proyecto.progreso >= 1 ? green : const Color(0xFFF59E0B),
+                ),
+                minHeight: 5,
+              ),
+            ),
+
+            // ── Fecha ──────────────────────────────────────────────────────
+            if (proyecto.fechaInicio != null) ...[
+              const SizedBox(height: 10),
               Row(
                 children: [
                   const Icon(Icons.calendar_today_outlined,
-                      size: 13, color: Colors.grey),
-                  const SizedBox(width: 4),
+                      size: 12, color: Colors.grey),
+                  const SizedBox(width: 5),
                   Text(
-                    item.fechaFin != null
-                        ? 'Hasta ${item.fechaFin}'
-                        : 'Desde ${item.fechaInicio}',
+                    proyecto.fechaInicio!,
                     style:
-                        const TextStyle(color: Colors.grey, fontSize: 12),
+                        const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                   const Spacer(),
                   const Icon(Icons.chevron_right,
@@ -393,7 +496,7 @@ class _ServiceCard extends StatelessWidget {
                 ],
               ),
             ] else ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               const Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -408,189 +511,45 @@ class _ServiceCard extends StatelessWidget {
   }
 }
 
-// ─── Bottom sheet: Detalle de proyecto ───────────────────────────────────────
-class _ServiceDetailSheet extends StatelessWidget {
-  final ProyectoServicio item;
-  const _ServiceDetailSheet({required this.item});
+// ─── Estado vacío ─────────────────────────────────────────────────────────────
 
-  Color get _statusColor => switch (item.estado) {
-        'Activo' => const Color(0xFFF59E0B),
-        'Completado' => const Color(0xFF8FD11B),
-        _ => Colors.grey,
-      };
+class _EmptyState extends StatelessWidget {
+  final bool hasData;
+  final String filter;
+  final VoidCallback onRefresh;
+
+  const _EmptyState(
+      {required this.hasData,
+      required this.filter,
+      required this.onRefresh});
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
-    const green = Color(0xFF8FD11B);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.work_outline, size: 56, color: Colors.grey.shade400),
+          const SizedBox(height: 12),
+          Text(
+            hasData
+                ? 'Sin proyectos en "$filter"'
+                : 'No tienes proyectos asignados',
+            style: const TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+          if (!hasData) ...[
+            const SizedBox(height: 16),
+            OutlinedButton(
+              onPressed: onRefresh,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF8FD11B)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-            ),
-            const SizedBox(height: 20),
-
-            // Header
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.empresa,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 3),
-                      Text(item.tipoServicio,
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 14)),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _statusColor
-                        .withValues(alpha: isDark ? 0.15 : 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: _statusColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    item.estado,
-                    style: TextStyle(
-                        color: _statusColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Detalles
-            _DetailRow(Icons.location_on_outlined, 'Ubicación',
-                item.ubicacion),
-            if (item.supervisor != null && item.supervisor!.isNotEmpty)
-              _DetailRow(Icons.person_outline, 'Supervisor / Jefe',
-                  item.supervisor!),
-            if (item.fechaInicio != null)
-              _DetailRow(Icons.play_arrow_outlined, 'Inicio',
-                  item.fechaInicio!),
-            if (item.fechaFin != null)
-              _DetailRow(Icons.flag_outlined, 'Plazo', item.fechaFin!),
-            if (item.telefono != null && item.telefono!.isNotEmpty)
-              _DetailRow(Icons.phone_outlined, 'Contacto', item.telefono!),
-            if (item.urgente) ...[
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: Colors.red.withValues(alpha: 0.25)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.warning_amber_rounded,
-                        color: Colors.red, size: 16),
-                    SizedBox(width: 8),
-                    Text('Requiere atención urgente',
-                        style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-
-            // Acción
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: green,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('Entendido',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
+              child: const Text('Actualizar',
+                  style: TextStyle(color: Color(0xFF8FD11B))),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  const _DetailRow(this.icon, this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF8FD11B).withValues(alpha: 0.12)
-                  : const Color(0xFFEFFAE0),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 16, color: const Color(0xFF8FD11B)),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style:
-                        const TextStyle(fontSize: 11, color: Colors.grey)),
-                const SizedBox(height: 2),
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
         ],
       ),
     );
