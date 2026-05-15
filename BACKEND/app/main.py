@@ -14,16 +14,41 @@ from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 
 # Importar todos los modelos para que Base los registre antes de create_all
 from app.models import (  # noqa: F401
-    auditoria, catalogo_servicio, categoria_habilidad, cliente,
-    dispositivo_push, empleado, empleado_habilidad, empresa, habilidad,
-    notificacion, orden_mantenimiento, permiso, proyecto, proyecto_detalle,
-    proyecto_miembro, proyecto_servicio, recuperacion_password,
-    registro_asistencia, rol, rol_permiso, sesion_usuario,
-    solicitud_laboral, usuario, usuario_permiso, usuario_rol,
-    contrato, documento_laboral, firma_digital,
-    historial_firma, documento_firmado,
-    foto_biometrica, foto_asistencia, geolocalizacion_asistencia,
-    procedimiento, evidencia_procedimiento, requerimiento, material, seguimiento_proyecto,
+    # Core
+    empresa, plan_suscripcion, suscripcion,
+    # Usuarios y roles
+    usuario, rol, permiso, rol_permiso, usuario_rol, usuario_permiso,
+    recuperacion_password, sesion_usuario, auditoria,
+    # Clientes
+    cliente, contrato_comercial, usuario_cliente,
+    # Empleados
+    empleado, contrato, documento_laboral, solicitud_laboral,
+    turno, grupo_trabajo,
+    categoria_habilidad, habilidad, empleado_habilidad,
+    firma_digital, historial_firma, documento_firmado,
+    foto_biometrica, dispositivo_push, notificacion,
+    # Proyectos
+    proyecto, proyecto_detalle, proyecto_miembro, proyecto_servicio,
+    catalogo_servicio, fase, seguimiento_proyecto,
+    proyecto_equipo, proyecto_grupo, mensaje_chat, programacion_campo,
+    # Asistencia
+    registro_asistencia, foto_asistencia, geolocalizacion_asistencia,
+    # Operaciones / servicios
+    procedimiento, evidencia_procedimiento,
+    requerimiento, requerimiento_entrega,
+    # Inventario: material.py contiene Stock; categoria_material.py y almacen.py son dependencias
+    categoria_material, almacen, material, movimiento_inventario,
+    # Compras
+    proveedor, orden_compra, recepcion_compra,
+    # Equipos y mantenimiento
+    tipo_equipo, equipo, plan_mantenimiento,
+    orden_mantenimiento, evidencia_mantenimiento, informe_tecnico,
+    # Caja chica
+    caja_chica,
+    # Evaluación (contiene CriterioEvaluacion, Evaluacion, DetalleEvaluacion, CalificacionCliente)
+    evaluacion,
+    # Documentación
+    carpeta_documental, plano, recordatorio,
 )
 
 

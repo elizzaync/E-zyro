@@ -13,7 +13,7 @@ class Material(Base):
 
     id           = Column(String(36), primary_key=True, default=_uuid)
     empresa_id   = Column(String(36), ForeignKey("empresa.id"), nullable=False)
-    categoria_id = Column(String(36))
+    categoria_id = Column(String(36), ForeignKey("categoria_material.id"), nullable=True)
     nombre       = Column(String(200), nullable=False)
     codigo       = Column(String(50))
     unidad       = Column(String(30),  nullable=False)
@@ -27,7 +27,7 @@ class Stock(Base):
 
     material_id     = Column(String(36), ForeignKey("material.id"),  primary_key=True)
     empresa_id      = Column(String(36), ForeignKey("empresa.id"),   primary_key=True)
-    almacen_id      = Column(String(36),                             primary_key=True)
+    almacen_id      = Column(String(36), ForeignKey("almacen.id"),   primary_key=True)
     cantidad        = Column(Integer, nullable=False, default=0)
     cantidad_minima = Column(Integer, nullable=False, default=0)
     updated_at      = Column(DateTime, nullable=False, default=datetime.utcnow)

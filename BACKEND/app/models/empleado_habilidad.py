@@ -1,7 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, Date, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, String, Boolean, Date, DateTime, ForeignKey
 from app.db.database import Base
 
 def generate_uuid():
@@ -18,4 +17,4 @@ class EmpleadoHabilidad(Base):
     verificado         = Column(Boolean, nullable=False, default=False)
     verificado_por     = Column(String(36), ForeignKey("empleado.id"), nullable=True)
     fecha_verificacion = Column(Date, nullable=True)
-    created_at         = Column(String, default=lambda: datetime.utcnow().isoformat())
+    created_at         = Column(DateTime, nullable=False, default=datetime.utcnow)
