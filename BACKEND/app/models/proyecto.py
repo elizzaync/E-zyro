@@ -11,9 +11,9 @@ class Proyecto(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     empresa_id = Column(String(36), ForeignKey("empresa.id"), nullable=False)
-    cliente_id = Column(String(36), nullable=False)
+    cliente_id = Column(String(36), ForeignKey("cliente.id"), nullable=False)
 
-    contrato_comercial_id = Column(String(36))
+    contrato_comercial_id = Column(String(36), ForeignKey("contrato_comercial.id"), nullable=True)
 
     orden_trabajo = Column(String(50), nullable=False)
     jefe_operaciones_id = Column(String(36), ForeignKey("empleado.id"), nullable=False)
