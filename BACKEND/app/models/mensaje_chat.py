@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from app.db.database import Base
 
 def _uuid():
@@ -13,7 +14,7 @@ class MensajeChat(Base):
     proyecto_id     = Column(String(36), ForeignKey("proyecto.id"),      nullable=False)
     empresa_id      = Column(String(36), ForeignKey("empresa.id"),       nullable=False)
     remitente_id    = Column(String(36), ForeignKey("usuario.id"),       nullable=False)
-    destinatario_id = Column(String(36), ForeignKey("usuario.id"),       nullable=True)
+    destinatario_id = Column(PGUUID(as_uuid=True), ForeignKey("usuario.id"), nullable=True)
     padre_id        = Column(String(36), ForeignKey("mensaje_chat.id"),  nullable=True)
     contenido       = Column(Text,       nullable=False)
     fecha           = Column(DateTime,   nullable=False)

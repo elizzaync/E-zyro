@@ -66,7 +66,7 @@ def _run_migrations():
         ))
         conn.execute(text(
             "ALTER TABLE mensaje_chat "
-            "ADD COLUMN IF NOT EXISTS destinatario_id VARCHAR(36) "
+            "ADD COLUMN IF NOT EXISTS destinatario_id UUID "
             "REFERENCES usuario(id)"
         ))
         conn.commit()

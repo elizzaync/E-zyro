@@ -108,7 +108,7 @@ def _guardar_mensaje(
             proyecto_id     = proyecto_id,
             empresa_id      = empresa_id,
             remitente_id    = remitente_id,
-            destinatario_id = destinatario_id,
+            destinatario_id = uuid.UUID(destinatario_id) if destinatario_id else None,
             padre_id        = padre_id,
             contenido       = contenido,
             fecha           = datetime.utcnow(),
