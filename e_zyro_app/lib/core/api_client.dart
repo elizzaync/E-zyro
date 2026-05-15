@@ -32,6 +32,23 @@ class ApiClient {
         .timeout(timeout ?? AppConstants.defaultTimeout);
   }
 
+  Future<http.Response> put(
+    String path, [
+    Object? body,
+  ]) async {
+    final token = _token;
+    if (token.isEmpty) {
+      throw Exception('No auth token found. Please login again.');
+    }
+    return http
+        .put(
+          Uri.parse('${AppConstants.baseUrl}$path'),
+          headers: _authHeaders,
+          body: body != null ? jsonEncode(body) : null,
+        )
+        .timeout(AppConstants.defaultTimeout);
+  }
+
   Future<http.Response> post(
     String path,
     Object body, {
