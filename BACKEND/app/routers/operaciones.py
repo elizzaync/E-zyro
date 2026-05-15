@@ -9,7 +9,9 @@ import uuid as _uuid
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from sqlalchemy import func
+from typing import List
+
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
@@ -43,6 +45,8 @@ from ..schemas.operaciones import (
     SolicitarMaterialBody,
     ActualizarReqDetalleBody,
     AgregarNotaBody,
+    ProyectoListOut,
+    ProyectoServicioListOut,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -70,6 +74,128 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
     if not emp:
         raise HTTPException(status_code=403, detail="No eres empleado registrado")
     return emp
+
+
+# ── GET /operaciones/proyectos ────────────────────────────────────────────────
+
+@router.get("/proyectos", response_model=List[ProyectoListOut])
+def get_proyectos(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+
+    miembro_sq = (
+        db.query(ProyectoMiembro.proyecto_id)
+        .filter(ProyectoMiembro.empleado_id == empleado.id)
+        .subquery()
+    )
+
+    svc_count_sq = (
+        db.query(
+            ProyectoServicio.proyecto_id,
+            func.count(ProyectoServicio.id).label("total"),
+        )
+        .group_by(ProyectoServicio.proyecto_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            Proyecto,
+            Cliente.razon_social.label("cliente"),
+            func.coalesce(svc_count_sq.c.total, 0).label("total_servicios"),
+        )
+        .join(Cliente, Cliente.id == Proyecto.cliente_id)
+        .outerjoin(svc_count_sq, svc_count_sq.c.proyecto_id == Proyecto.id)
+        .filter(
+            Proyecto.empresa_id == empresa_id,
+            or_(
+                Proyecto.jefe_operaciones_id == empleado.id,
+                Proyecto.id.in_(miembro_sq),
+            ),
+        )
+        .order_by(Proyecto.created_at.desc())
+        .all()
+    )
+
+    return [
+        ProyectoListOut(
+            id=str(p.Proyecto.id),
+            orden_trabajo=p.Proyecto.orden_trabajo or "",
+            nombre_proyecto=p.Proyecto.nombre_proyecto or "",
+            estado=p.Proyecto.estado or "Pendiente",
+            fecha_inicio=p.Proyecto.fecha_inicio.strftime("%d %b %Y") if p.Proyecto.fecha_inicio else None,
+            cliente=p.cliente or "Sin Cliente",
+            total_servicios=int(p.total_servicios),
+        )
+        for p in rows
+    ]
+
+
+# ── GET /operaciones/proyecto/{proyecto_id}/servicios ─────────────────────────
+
+@router.get("/proyecto/{proyecto_id}/servicios", response_model=List[ProyectoServicioListOut])
+def get_servicios_proyecto(
+    proyecto_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+
+    proyecto = db.query(Proyecto).filter(
+        Proyecto.id         == proyecto_id,
+        Proyecto.empresa_id == empresa_id,
+    ).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    es_jefe    = proyecto.jefe_operaciones_id == empleado.id
+    es_miembro = db.query(ProyectoMiembro).filter(
+        ProyectoMiembro.proyecto_id == proyecto_id,
+        ProyectoMiembro.empleado_id == empleado.id,
+    ).first() is not None
+
+    if not es_jefe and not es_miembro:
+        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+
+    servicios = (
+        db.query(ProyectoServicio)
+        .filter(
+            ProyectoServicio.proyecto_id == proyecto_id,
+            ProyectoServicio.empresa_id  == empresa_id,
+        )
+        .order_by(ProyectoServicio.orden.asc())
+        .all()
+    )
+
+    hoy = date.today()
+    result = []
+    for ps in servicios:
+        if ps.estado == "Completado":
+            estado_color = "verde"
+        elif ps.fecha_programada is not None and ps.fecha_programada < hoy:
+            estado_color = "rojo"
+        else:
+            estado_color = "amarillo"
+
+        result.append(ProyectoServicioListOut(
+            id=str(ps.id),
+            nombre=ps.nombre or "",
+            descripcion=ps.descripcion,
+            estado=ps.estado or "Pendiente",
+            orden=ps.orden or 1,
+            fecha_programada=ps.fecha_programada.strftime("%d %b %Y") if ps.fecha_programada else None,
+            estado_color=estado_color,
+        ))
+
+    return result
 
 
 # ── GET /operaciones/dashboard ────────────────────────────────────────────────
@@ -185,17 +311,21 @@ def get_detalle_servicio(
     detalle  = db.query(ProyectoDetalle).filter(ProyectoDetalle.proyecto_id == ps.proyecto_id).first()
     ubicacion = (detalle.zona_ejecucion if detalle and detalle.zona_ejecucion else proyecto.nombre_proyecto) or ""
 
-    # 2. Verificar membresía
-    miembro = (
-        db.query(ProyectoMiembro)
-        .join(Empleado, Empleado.id == ProyectoMiembro.empleado_id)
-        .filter(
-            ProyectoMiembro.proyecto_id == ps.proyecto_id,
-            Empleado.usuario_id         == usuario_id,
-        )
-        .first()
-    )
-    if not miembro:
+    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones
+    empleado_actual = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    if not empleado_actual:
+        raise HTTPException(status_code=403, detail="No eres empleado registrado")
+
+    es_jefe    = proyecto.jefe_operaciones_id == empleado_actual.id
+    es_miembro = db.query(ProyectoMiembro).filter(
+        ProyectoMiembro.proyecto_id == ps.proyecto_id,
+        ProyectoMiembro.empleado_id == empleado_actual.id,
+    ).first() is not None
+
+    if not es_jefe and not es_miembro:
         raise HTTPException(status_code=403, detail="No tienes acceso a este servicio")
 
     fp        = ps.fecha_programada
@@ -204,9 +334,14 @@ def get_detalle_servicio(
 
     # 3. Equipo de trabajo
     equipo_rows = (
-        db.query(Usuario, Empleado.cargo, ProyectoMiembro.rol_proyecto)
-        .join(Empleado,       Empleado.id  == ProyectoMiembro.empleado_id)
-        .join(Usuario,        Usuario.id   == Empleado.usuario_id)
+        db.query(
+            Usuario,
+            Empleado.cargo,
+            Empleado.id.label("empleado_id"),
+            ProyectoMiembro.rol_proyecto,
+        )
+        .join(Empleado, Empleado.id == ProyectoMiembro.empleado_id)
+        .join(Usuario,  Usuario.id  == Empleado.usuario_id)
         .filter(
             ProyectoMiembro.proyecto_id == ps.proyecto_id,
             ProyectoMiembro.activo      == True,
@@ -214,7 +349,8 @@ def get_detalle_servicio(
         .all()
     )
 
-    # 🔥 FIX PYDANTIC: Blindaje en Equipo (Evita crash por usuarios sin apellido o foto)
+    miembro_empleado_ids = {r.empleado_id for r in equipo_rows}
+
     equipo = [
         MiembroEquipoOut(
             id=str(r.Usuario.id),
@@ -226,6 +362,21 @@ def get_detalle_servicio(
         )
         for r in equipo_rows
     ]
+
+    # Añadir jefe de operaciones si no está ya en ProyectoMiembro
+    if proyecto.jefe_operaciones_id not in miembro_empleado_ids:
+        jefe_emp = db.query(Empleado).filter(Empleado.id == proyecto.jefe_operaciones_id).first()
+        if jefe_emp:
+            jefe_usr = db.query(Usuario).filter(Usuario.id == jefe_emp.usuario_id).first()
+            if jefe_usr:
+                equipo.insert(0, MiembroEquipoOut(
+                    id=str(jefe_usr.id),
+                    nombre=jefe_usr.nombre or "",
+                    apellido=jefe_usr.apellido or "",
+                    foto_url=jefe_usr.foto_url or "",
+                    cargo=jefe_emp.cargo or "Sin Cargo",
+                    rol_proyecto="Jefe de Operaciones",
+                ))
 
     # 4. Procedimientos + Evidencias
     procs = (

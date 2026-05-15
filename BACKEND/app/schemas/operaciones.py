@@ -64,6 +64,26 @@ class ServicioDetalleOut(BaseModel):
     notas: List[NotaOut]
 
 
+class ProyectoListOut(BaseModel):
+    id: str
+    orden_trabajo: str
+    nombre_proyecto: str
+    estado: str
+    fecha_inicio: Optional[str]
+    cliente: str
+    total_servicios: int
+
+
+class ProyectoServicioListOut(BaseModel):
+    id: str
+    nombre: str
+    descripcion: Optional[str]
+    estado: str
+    orden: int
+    fecha_programada: Optional[str]
+    estado_color: str
+
+
 class DashboardMetricaOut(BaseModel):
     id: str
     titulo: str
