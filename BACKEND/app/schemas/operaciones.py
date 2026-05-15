@@ -72,6 +72,20 @@ class ProyectoListOut(BaseModel):
     fecha_inicio: Optional[str]
     cliente: str
     total_servicios: int
+    servicios_completados: int
+    jefe_nombre: str
+
+
+class KpisProyectosOut(BaseModel):
+    total_proyectos: int
+    servicios_completados: int
+    servicios_pendientes: int
+    tasa_avance: int
+
+
+class ProyectosConKpisOut(BaseModel):
+    kpis: KpisProyectosOut
+    proyectos: List[ProyectoListOut]
 
 
 class ProyectoServicioListOut(BaseModel):

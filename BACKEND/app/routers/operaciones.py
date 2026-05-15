@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, s
 from typing import List
 
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from ..core.security import verificar_token
 from ..db.database import get_db
@@ -47,6 +47,8 @@ from ..schemas.operaciones import (
     AgregarNotaBody,
     ProyectoListOut,
     ProyectoServicioListOut,
+    KpisProyectosOut,
+    ProyectosConKpisOut,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -78,7 +80,7 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
 
 # ── GET /operaciones/proyectos ────────────────────────────────────────────────
 
-@router.get("/proyectos", response_model=List[ProyectoListOut])
+@router.get("/proyectos", response_model=ProyectosConKpisOut)
 def get_proyectos(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
@@ -94,7 +96,8 @@ def get_proyectos(
         .subquery()
     )
 
-    svc_count_sq = (
+    # Subquery: total de servicios por proyecto
+    svc_total_sq = (
         db.query(
             ProyectoServicio.proyecto_id,
             func.count(ProyectoServicio.id).label("total"),
@@ -103,14 +106,34 @@ def get_proyectos(
         .subquery()
     )
 
+    # Subquery: servicios completados por proyecto
+    svc_comp_sq = (
+        db.query(
+            ProyectoServicio.proyecto_id,
+            func.count(ProyectoServicio.id).label("completados"),
+        )
+        .filter(ProyectoServicio.estado == "Completado")
+        .group_by(ProyectoServicio.proyecto_id)
+        .subquery()
+    )
+
+    # Alias para acceder al empleado y usuario del jefe sin colisionar con el empleado logueado
+    JefeEmpleado = aliased(Empleado)
+    JefeUsuario  = aliased(Usuario)
+
     rows = (
         db.query(
             Proyecto,
             Cliente.razon_social.label("cliente"),
-            func.coalesce(svc_count_sq.c.total, 0).label("total_servicios"),
+            func.coalesce(svc_total_sq.c.total,       0).label("total_servicios"),
+            func.coalesce(svc_comp_sq.c.completados,  0).label("servicios_completados"),
+            (JefeUsuario.nombre + " " + JefeUsuario.apellido).label("jefe_nombre"),
         )
-        .join(Cliente, Cliente.id == Proyecto.cliente_id)
-        .outerjoin(svc_count_sq, svc_count_sq.c.proyecto_id == Proyecto.id)
+        .join(Cliente,        Cliente.id        == Proyecto.cliente_id)
+        .outerjoin(svc_total_sq, svc_total_sq.c.proyecto_id == Proyecto.id)
+        .outerjoin(svc_comp_sq,  svc_comp_sq.c.proyecto_id  == Proyecto.id)
+        .outerjoin(JefeEmpleado, JefeEmpleado.id == Proyecto.jefe_operaciones_id)
+        .outerjoin(JefeUsuario,  JefeUsuario.id  == JefeEmpleado.usuario_id)
         .filter(
             Proyecto.empresa_id == empresa_id,
             or_(
@@ -122,7 +145,7 @@ def get_proyectos(
         .all()
     )
 
-    return [
+    proyectos = [
         ProyectoListOut(
             id=str(p.Proyecto.id),
             orden_trabajo=p.Proyecto.orden_trabajo or "",
@@ -131,9 +154,24 @@ def get_proyectos(
             fecha_inicio=p.Proyecto.fecha_inicio.strftime("%d %b %Y") if p.Proyecto.fecha_inicio else None,
             cliente=p.cliente or "Sin Cliente",
             total_servicios=int(p.total_servicios),
+            servicios_completados=int(p.servicios_completados),
+            jefe_nombre=p.jefe_nombre or "Sin asignar",
         )
         for p in rows
     ]
+
+    total_svc  = sum(p.total_servicios for p in proyectos)
+    total_comp = sum(p.servicios_completados for p in proyectos)
+
+    return ProyectosConKpisOut(
+        kpis=KpisProyectosOut(
+            total_proyectos=len(proyectos),
+            servicios_completados=total_comp,
+            servicios_pendientes=total_svc - total_comp,
+            tasa_avance=round(total_comp / total_svc * 100) if total_svc else 0,
+        ),
+        proyectos=proyectos,
+    )
 
 
 # ── GET /operaciones/proyecto/{proyecto_id}/servicios ─────────────────────────
