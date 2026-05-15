@@ -77,8 +77,10 @@ class ApiClient {
     } else if (r.statusCode == 401 || r.statusCode == 403) {
       mensaje = 'Sesión expirada. Vuelve a iniciar sesión.';
     } else if (r.statusCode >= 500) {
-      mensaje =
-          'Error interno del servidor (${r.statusCode}). Intenta nuevamente.';
+      final detail = _extractDetail(r.body, '');
+      mensaje = detail.isNotEmpty
+          ? detail
+          : 'Error interno del servidor (${r.statusCode}). Intenta nuevamente.';
     } else {
       mensaje = _extractDetail(r.body, '$fallback (${r.statusCode})');
     }

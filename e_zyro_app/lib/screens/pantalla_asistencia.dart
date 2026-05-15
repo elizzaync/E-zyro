@@ -1707,7 +1707,16 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          CameraPreview(_ctrl!),
+          SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _ctrl!.value.previewSize?.height ?? 100,
+                height: _ctrl!.value.previewSize?.width ?? 100,
+                child: CameraPreview(_ctrl!),
+              ),
+            ),
+          ),
           Positioned(
             top: 0, left: 0,
             child: SafeArea(
