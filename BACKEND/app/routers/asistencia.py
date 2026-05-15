@@ -8,8 +8,7 @@ from datetime import date, datetime, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-import requests as _req
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import cast, Date
 from sqlalchemy.orm import Session
@@ -97,21 +96,6 @@ def _decode_face(b64: str):
     except Exception:
         return None
 
-
-def _url_to_face(url: str):
-    """
-    Descarga imagen desde Cloudinary y verifica que tenga un rostro.
-    Lanza HTTPException 503 si la descarga falla.
-    """
-    try:
-        resp = _req.get(url, timeout=30)
-        resp.raise_for_status()
-    except Exception as exc:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"No se pudo descargar la foto biométrica base: {exc}",
-        )
-    return True if _detect_face_cv2(resp.content) else None
 
 
 def _comparar(enc_base, enc_selfie) -> tuple[float, str]:
@@ -256,16 +240,9 @@ def marcar_asistencia(
             422, f"Tipo '{tipo}' inválido. Valores: {sorted(tipos_validos)}"
         )
 
-    # 4 ── Encoding de la foto base (descargada desde Cloudinary)
-    enc_base = _url_to_face(foto_base.url_cloudinary)
-    if enc_base is None:
-        raise HTTPException(
-            503,
-            "No se pudo extraer el rostro de tu foto biométrica base. "
-            "Contacta a administración para re-registrar tu foto.",
-        )
-
-    # 5 ── Encoding de la selfie recibida
+    # 4 ── Verificar que la selfie tenga un rostro detectable
+    # La foto base ya fue validada al subirla; descargarla aquí en cada marcación
+    # generaba un 503 cuando Cloudinary tardaba o fallaba la red en Railway.
     enc_selfie = _decode_face(body.imagen_selfie)
     if enc_selfie is None:
         raise HTTPException(
@@ -274,8 +251,8 @@ def marcar_asistencia(
             "Asegúrate de estar bien iluminado y mirar directamente a la cámara.",
         )
 
-    # 6 ── Comparación facial
-    score, resultado_ia = _comparar(enc_base, enc_selfie)
+    # 5 ── Comparación facial
+    score, resultado_ia = _comparar(True, enc_selfie)
     aprobado = resultado_ia == "aprobado"
     
     # Forzar la hora local de Lima quitando la zona horaria (haciéndola naive).
