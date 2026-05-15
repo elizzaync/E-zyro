@@ -1,5 +1,6 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { DashboardService } from '../../../../core/services/dashboard.service';
@@ -8,7 +9,7 @@ import { ToastService } from '../../../../core/services/toast.service';
 @Component({
   selector: 'app-calendar-widget',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SpinnerComponent],
   templateUrl: './calendar-widget.component.html',
   styleUrls: ['./calendar-widget.component.css']
 })

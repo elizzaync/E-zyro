@@ -5,6 +5,7 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
 // ============================================================
 // INTERFACES — alineadas 1:1 con bd.txt
@@ -82,7 +83,7 @@ export interface ServicioDetalle {
 @Component({
   selector: 'app-operaciones-detalle',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, SpinnerComponent],
   templateUrl: './operaciones-detalle.component.html',
   styleUrls: ['./operaciones-detalle.component.css']
 })

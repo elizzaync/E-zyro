@@ -68,7 +68,7 @@
 
       @if (cargandoServicio) {
       <div class="servicio-loading">
-        <div class="loading-spinner"></div>
+        <app-spinner [size]="32"></app-spinner>
         <p>Cargando servicio...</p>
       </div>
       } @else if (servicioModoNota) {

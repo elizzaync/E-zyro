@@ -8,6 +8,7 @@ import {
 import { PermisoHistorialComponent } from './components/permiso-historial/permiso-historial.component';
 import { Solicitud } from './components/permiso-tramite-card/permiso-tramite-card.component';
 import { ToastService } from '../../core/services/toast.service';
+import { SpinnerComponent } from '../../shared/components/spinner/spinner.component';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { PermisosService } from '../../core/services/permisos.service';
 
@@ -19,6 +20,7 @@ import { PermisosService } from '../../core/services/permisos.service';
     PermisoFormComponent,
     PermisoPdfPreviewComponent,
     PermisoHistorialComponent,
+    SpinnerComponent,
   ],
   templateUrl: './permisos.component.html',
   styleUrls: ['./permisos.component.css'],

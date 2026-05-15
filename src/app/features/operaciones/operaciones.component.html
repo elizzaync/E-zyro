@@ -18,10 +18,63 @@
   </div>
   }
 
+  <!-- KPI CARDS (solo cuando hay datos) -->
+  @if (!isLoading && !errorMessage) {
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--blue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ kpis.total_proyectos }}</span>
+        <span class="kpi-label">Proyectos Asignados</span>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--green">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ kpis.servicios_completados }}</span>
+        <span class="kpi-label">Servicios Completados</span>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--amber">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ kpis.servicios_pendientes }}</span>
+        <span class="kpi-label">Servicios Pendientes</span>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--purple">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+      </div>
+      <div class="kpi-body">
+        <span class="kpi-value">{{ kpis.tasa_avance }}%</span>
+        <span class="kpi-label">Tasa de Avance Global</span>
+      </div>
+    </div>
+  </div>
+  }
+
   <!-- LOADING -->
   @if (isLoading) {
   <div class="historial-loading">
-    <div class="spinner"></div>
+    <app-spinner></app-spinner>
     <span>Sincronizando proyectos...</span>
   </div>
 
@@ -61,7 +114,26 @@
         {{ proyecto.cliente }}
       </p>
 
-      <!-- Footer: fecha + conteo servicios -->
+      <!-- Jefe de Operaciones -->
+      <p class="pc-jefe">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2a5 5 0 015 5 5 5 0 01-5 5 5 5 0 01-5-5 5 5 0 015-5m0 12c5.33 0 8 2.67 8 4v2H4v-2c0-1.33 2.67-4 8-4z"/>
+        </svg>
+        {{ proyecto.jefe_nombre }}
+      </p>
+
+      <!-- Barra de progreso -->
+      <div class="pc-progress-wrap">
+        <div class="pc-progress-header">
+          <span class="pc-progress-label">{{ proyecto.servicios_completados }} de {{ proyecto.total_servicios }} servicio{{ proyecto.total_servicios !== 1 ? 's' : '' }}</span>
+          <span class="pc-progress-pct">{{ porcentaje(proyecto) }}%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" [style.width.%]="porcentaje(proyecto)"></div>
+        </div>
+      </div>
+
+      <!-- Footer: fecha -->
       <div class="pc-footer">
         <div class="pc-fecha">
           @if (proyecto.fecha_inicio) {
@@ -75,13 +147,6 @@
           } @else {
           <span class="sin-fecha">Sin fecha de inicio</span>
           }
-        </div>
-        <div class="pc-servicios">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 11 12 14 22 4"/>
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-          </svg>
-          {{ proyecto.total_servicios }} servicio{{ proyecto.total_servicios !== 1 ? 's' : '' }}
         </div>
       </div>
 

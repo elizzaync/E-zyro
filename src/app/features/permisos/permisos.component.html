@@ -37,7 +37,7 @@
 
         @if (generandoPdf) {
           <div class="pdf-loading-overlay">
-            <div class="pdf-loading-spinner"></div>
+            <app-spinner></app-spinner>
             <span>Enviando solicitud…</span>
           </div>
         }
@@ -49,7 +49,7 @@
   @if (tabActiva === 'historial') {
     @if (cargandoHistorial) {
       <div class="historial-loading">
-        <div class="pdf-loading-spinner"></div>
+        <app-spinner></app-spinner>
         <span>Cargando tus trámites…</span>
       </div>
     } @else {

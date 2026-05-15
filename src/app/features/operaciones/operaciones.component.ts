@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { OperacionesService } from '../../core/services/operaciones.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AlertComponent } from '../../shared/components/login/alert.component';
+import { SpinnerComponent } from '../../shared/components/spinner/spinner.component';
 
 export interface ProyectoOperacion {
   id: string;
@@ -13,12 +14,21 @@ export interface ProyectoOperacion {
   fecha_inicio: string | null;
   cliente: string;
   total_servicios: number;
+  servicios_completados: number;
+  jefe_nombre: string;
+}
+
+interface KpisOperaciones {
+  total_proyectos: number;
+  servicios_completados: number;
+  servicios_pendientes: number;
+  tasa_avance: number;
 }
 
 @Component({
   selector: 'app-operaciones',
   standalone: true,
-  imports: [CommonModule, AlertComponent],
+  imports: [CommonModule, AlertComponent, SpinnerComponent],
   templateUrl: './operaciones.component.html',
   styleUrls: ['./operaciones.component.css']
 })
@@ -28,6 +38,7 @@ export class OperacionesComponent implements OnInit {
   private router = inject(Router);
 
   proyectos: ProyectoOperacion[] = [];
+  kpis: KpisOperaciones = { total_proyectos: 0, servicios_completados: 0, servicios_pendientes: 0, tasa_avance: 0 };
   isLoading    = true;
   errorMessage: string | null = null;
 
@@ -38,7 +49,8 @@ export class OperacionesComponent implements OnInit {
     this.errorMessage = null;
     this.svc.getProyectos().subscribe({
       next: (res: any) => {
-        this.proyectos = res;
+        this.kpis      = res.kpis     ?? this.kpis;
+        this.proyectos = res.proyectos ?? [];
         this.isLoading = false;
       },
       error: (err: any) => {
@@ -48,6 +60,11 @@ export class OperacionesComponent implements OnInit {
         this.isLoading = false;
       }
     });
+  }
+
+  porcentaje(p: ProyectoOperacion): number {
+    if (!p.total_servicios) return 0;
+    return Math.round(p.servicios_completados / p.total_servicios * 100);
   }
 
   irAProyecto(id: string): void {

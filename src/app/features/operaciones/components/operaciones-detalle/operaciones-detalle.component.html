@@ -1,29 +1,26 @@
 @if (cargando) {
-  <div class="loading-state">
-    <div class="spinner"></div>
-    <span>Cargando detalles del servicio…</span>
-  </div>
+<div class="loading-state">
+  <app-spinner variant="ring"></app-spinner>
+  <span>Cargando detalles del servicio…</span>
+</div>
 }
 
 @if (error && !cargando) {
-  <div class="error-state">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <circle cx="12" cy="12" r="10"></circle>
-      <line x1="12" y1="8" x2="12" y2="12"></line>
-      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-    </svg>
-    <h3>No se pudo cargar el servicio</h3>
-    <p>{{ errorMsg }}</p>
-    <button class="btn-outline-green" (click)="cargarDetalle()">Reintentar</button>
-  </div>
+<div class="error-state">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="12" y1="8" x2="12" y2="12"></line>
+    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+  </svg>
+  <h3>No se pudo cargar el servicio</h3>
+  <p>{{ errorMsg }}</p>
+  <button class="btn-outline-green" (click)="cargarDetalle()">Reintentar</button>
+</div>
 }
 
 @if (!cargando && !error && servicio) {
 <div class="detalle-layout fade-in">
 
-  <!-- ══════════════════════════════════════════════
-       CABECERA
-  ══════════════════════════════════════════════ -->
   <header class="detalle-header">
     <button class="btn-back" (click)="volver()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -57,15 +54,10 @@
     </div>
   </header>
 
-  <!-- ══════════════════════════════════════════════
-       GRID PRINCIPAL 2 COLUMNAS
-  ══════════════════════════════════════════════ -->
   <div class="detalle-grid">
 
-    <!-- ─────────── COLUMNA IZQUIERDA ─────────── -->
     <div class="col-left">
 
-      <!-- EQUIPO DE TRABAJO -->
       <section class="section-card">
         <h3 class="section-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -77,16 +69,16 @@
           Equipo de Trabajo
         </h3>
         @if (servicio.equipo.length === 0) {
-          <p class="empty-msg">Sin miembros asignados.</p>
+        <p class="empty-msg">Sin miembros asignados.</p>
         } @else {
         <div class="equipo-grid">
           @for (miembro of servicio.equipo; track miembro.id; let i = $index) {
           <div class="miembro-card">
             <div class="avatar" [style.background]="getColorAvatar(i)">
               @if (miembro.fotoUrl) {
-                <img [src]="miembro.fotoUrl" [alt]="miembro.nombre">
+              <img [src]="miembro.fotoUrl" [alt]="miembro.nombre">
               } @else {
-                {{ getIniciales(miembro) }}
+              {{ getIniciales(miembro) }}
               }
             </div>
             <div class="miembro-info">
@@ -100,13 +92,11 @@
         }
       </section>
 
-      <!-- DESCRIPCIÓN -->
       <section class="section-card">
         <h3 class="section-title">Descripción del Problema</h3>
         <p class="desc-text">{{ servicio.descripcion || 'Sin descripción.' }}</p>
       </section>
 
-      <!-- TAREAS DEL SERVICIO -->
       <section class="section-card">
         <div class="tareas-header">
           <h3 class="section-title mb-0">Tareas del Servicio</h3>
@@ -117,11 +107,11 @@
         </div>
         <div class="progreso-bar">
           <div class="progreso-fill" [style.width.%]="servicio.progreso"
-               [class.progreso-full]="servicio.progreso === 100"></div>
+            [class.progreso-full]="servicio.progreso === 100"></div>
         </div>
 
         @if (servicio.procedimientos.length === 0) {
-          <p class="empty-msg">Sin tareas registradas para este servicio.</p>
+        <p class="empty-msg">Sin tareas registradas para este servicio.</p>
         } @else {
         <div class="lista-tareas">
           @for (proc of servicio.procedimientos; track proc.id) {
@@ -160,21 +150,18 @@
         }
       </section>
 
-      <!-- MATERIALES -->
       <section class="section-card">
         <h3 class="section-title">Materiales del Servicio</h3>
 
-        <!-- Asignados -->
         <div class="materiales-bloque">
           <h4 class="sub-title">Asignados</h4>
           @if (servicio.materialesAsignados.length === 0) {
-            <p class="empty-msg">Sin materiales asignados.</p>
+          <p class="empty-msg">Sin materiales asignados.</p>
           } @else {
           <ul class="lista-materiales">
             @for (mat of servicio.materialesAsignados; track mat.id) {
-            <li class="mat-row"
-                [class.clickable]="puedeEditar(mat)"
-                (click)="puedeEditar(mat) && abrirModalEditarMat(mat)">
+            <li class="mat-row" [class.clickable]="puedeEditar(mat)"
+              (click)="puedeEditar(mat) && abrirModalEditarMat(mat)">
               <div class="mat-info">
                 <span class="mat-dot"></span>
                 <span class="mat-nombre">{{ mat.nombre }}</span>
@@ -183,7 +170,8 @@
               <div class="mat-acciones">
                 <span class="badge-estado" [ngClass]="'st-' + mat.estadoReq">{{ mat.estadoReq }}</span>
                 @if (puedeEditar(mat)) {
-                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)" title="Editar cantidad">
+                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)"
+                  title="Editar cantidad">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -197,7 +185,6 @@
           }
         </div>
 
-        <!-- Solicitados -->
         <div class="materiales-bloque mt-4">
           <h4 class="sub-title">Solicitados</h4>
           @if (servicio.materialesSolicitados.length === 0) {
@@ -205,9 +192,8 @@
           } @else {
           <ul class="lista-materiales">
             @for (mat of servicio.materialesSolicitados; track mat.id) {
-            <li class="mat-row"
-                [class.clickable]="puedeEditar(mat)"
-                (click)="puedeEditar(mat) && abrirModalEditarMat(mat)">
+            <li class="mat-row" [class.clickable]="puedeEditar(mat)"
+              (click)="puedeEditar(mat) && abrirModalEditarMat(mat)">
               <div class="mat-info">
                 <span class="mat-dot warn"></span>
                 <span class="mat-nombre">{{ mat.nombre }}</span>
@@ -216,7 +202,8 @@
               <div class="mat-acciones">
                 <span class="badge-estado" [ngClass]="'st-' + mat.estadoReq">{{ mat.estadoReq }}</span>
                 @if (puedeEditar(mat)) {
-                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)" title="Editar cantidad">
+                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)"
+                  title="Editar cantidad">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -239,31 +226,33 @@
 
       </section>
 
-    </div><!-- /col-left -->
-
-    <!-- ─────────── COLUMNA DERECHA ─────────── -->
+    </div>
     <div class="col-right">
 
-      <!-- ESTADO DEL SERVICIO -->
       <section class="section-card">
         <h3 class="section-title">Estado del Servicio</h3>
-        <div class="estado-selector">
-          <button class="btn-estado pend" [class.active]="servicio.estado === 'Pendiente'" (click)="cambiarEstado('Pendiente')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            Pendiente
-          </button>
-          <button class="btn-estado act" [class.active]="servicio.estado === 'En_Proceso'" (click)="cambiarEstado('En_Proceso')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            En Proceso
-          </button>
-          <button class="btn-estado comp" [class.active]="servicio.estado === 'Completado'" (click)="cambiarEstado('Completado')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            Completado
-          </button>
+        <div class="badge-estado-srv" [class.srv-pendiente]="servicio.estado === 'Pendiente'"
+          [class.srv-en-proceso]="servicio.estado === 'En_Proceso'"
+          [class.srv-completado]="servicio.estado === 'Completado'">
+          @if (servicio.estado === 'Pendiente') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          } @else if (servicio.estado === 'En_Proceso') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5 3 19 12 5 21 5 3" />
+          </svg>
+          } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          }
+          {{ servicio.estado === 'En_Proceso' ? 'En Proceso' : servicio.estado }}
         </div>
       </section>
 
-      <!-- PROCESOS / EVIDENCIAS -->
       <section class="section-card">
         <h3 class="section-title">Procesos / Evidencia</h3>
         @if (todasLasEvidencias.length === 0) {
@@ -298,11 +287,10 @@
         }
       </section>
 
-      <!-- NOTAS DEL SERVICIO -->
       <section class="section-card">
         <h3 class="section-title">Notas del Servicio</h3>
         @if (servicio.notas.length === 0) {
-          <p class="empty-msg">Sin notas aún. Agrega la primera.</p>
+        <p class="empty-msg">Sin notas aún. Agrega la primera.</p>
         } @else {
         <div class="timeline">
           @for (nota of servicio.notas; track nota.id) {
@@ -322,10 +310,10 @@
 
         <div class="nota-nueva">
           <input class="nota-input" [(ngModel)]="nuevaNota" placeholder="Escribe una nota…"
-                 (keydown.enter)="agregarNota()" [disabled]="enviandoNota">
+            (keydown.enter)="agregarNota()" [disabled]="enviandoNota">
           <button class="btn-nota-send" (click)="agregarNota()" [disabled]="!nuevaNota.trim() || enviandoNota">
             @if (enviandoNota) {
-            <div class="mini-spinner"></div>
+            <app-spinner [size]="16" theme="light"></app-spinner>
             } @else {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -336,54 +324,51 @@
         </div>
       </section>
 
-    </div><!-- /col-right -->
-  </div><!-- /detalle-grid -->
-
-  <!-- ══════════════════════════════════════════════
-       FOOTER FLOTANTE
-  ══════════════════════════════════════════════ -->
-  <div class="acciones-footer">
-    <div class="footer-progreso">
-      <span>Progreso: <strong>{{ servicio.progreso }}%</strong></span>
-      @if (!todasCompletadas) {
-      <span class="footer-hint">Completa todas las tareas para finalizar</span>
-      }
-    </div>
-    <div class="footer-btns">
-      <button class="btn-outline-green" (click)="abrirModalPreInforme()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-          <polyline points="14 2 14 8 20 8"></polyline>
-          <line x1="16" y1="13" x2="8" y2="13"></line>
-          <line x1="16" y1="17" x2="8" y2="17"></line>
-        </svg>
-        Pre-Informe
-      </button>
-      <button class="btn-solid-green" [disabled]="!todasCompletadas" (click)="finalizarServicio()">
-        @if (todasCompletadas) {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          Finalizar e Informe Total
-        } @else {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
-          Informe Total ({{ servicio.progreso }}%)
-        }
-      </button>
     </div>
   </div>
+</div>
+<footer class="action-footer-bar">
+  <div class="footer-info">
+    <span class="progress-label">Progreso del Servicio:</span>
+    <div class="mini-progress-track">
+      <div class="mini-progress-fill" [style.width.%]="servicio.progreso"
+        [class.progreso-full]="servicio.progreso === 100"></div>
+    </div>
+    <span class="percentage-text"><strong>{{ servicio.progreso }}%</strong></span>
+    @if (!todasCompletadas) {
+    <span class="footer-hint" style="margin-left: 12px; color: var(--text-muted); font-size: 13px;">(Completa las tareas
+      para finalizar)</span>
+    }
+  </div>
 
-</div><!-- /detalle-layout -->
-}<!-- /if servicio -->
+  <div class="footer-actions">
+    <button class="btn-preview-pdf" (click)="abrirModalPreInforme()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+        <polyline points="14 2 14 8 20 8"></polyline>
+        <line x1="16" y1="13" x2="8" y2="13"></line>
+        <line x1="16" y1="17" x2="8" y2="17"></line>
+      </svg>
+      Pre-Informe
+    </button>
+    <button class="btn-finalizar-main" [disabled]="!todasCompletadas" (click)="finalizarServicio()">
+      @if (todasCompletadas) {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+      Finalizar e Informe Total
+      } @else {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+      Bloqueado ({{ servicio.progreso }}%)
+      }
+    </button>
+  </div>
+</footer>
 
-
-<!-- ════════════════════════════════════════════════════════════
-     MODAL 1 — SUBIR EVIDENCIA
-════════════════════════════════════════════════════════════ -->
-@if (showModalEvidencia) {
+}@if (showModalEvidencia) {
 <div class="modal-overlay" (click)="cerrarModalEvidencia()">
   <div class="modal-box modal-evidencia" (click)="$event.stopPropagation()">
 
@@ -401,8 +386,7 @@
     </div>
 
     <div class="modal-body">
-      <input #fileInput type="file" hidden accept="image/*,.pdf,.doc,.docx,.xlsx"
-             (change)="onFileSelected($event)">
+      <input #fileInput type="file" hidden accept="image/*,.pdf,.doc,.docx,.xlsx" (change)="onFileSelected($event)">
 
       @if (!archivoEvidencia) {
       <div class="dropzone" (click)="fileInput.click()">
@@ -443,7 +427,7 @@
       <div class="form-field mt-3">
         <label class="form-label">Descripción <span class="optional">(opcional)</span></label>
         <input class="form-input" type="text" [(ngModel)]="descripcionEvidencia"
-               placeholder="Ej: Vista frontal del switch defectuoso">
+          placeholder="Ej: Vista frontal del switch defectuoso">
       </div>
 
       @if (errorEvidencia) {
@@ -460,13 +444,12 @@
 
     <div class="modal-footer">
       <button class="btn-cancel" (click)="cerrarModalEvidencia()">Cancelar</button>
-      <button class="btn-primary" (click)="guardarEvidencia()"
-              [disabled]="!archivoEvidencia || subiendoEvidencia">
+      <button class="btn-primary" (click)="guardarEvidencia()" [disabled]="!archivoEvidencia || subiendoEvidencia">
         @if (subiendoEvidencia) {
-          <div class="mini-spinner"></div>
-          Subiendo…
+        <app-spinner [size]="16" theme="light"></app-spinner>
+        Subiendo…
         } @else {
-          Subir Evidencia
+        Subir Evidencia
         }
       </button>
     </div>
@@ -475,9 +458,6 @@
 }
 
 
-<!-- ════════════════════════════════════════════════════════════
-     MODAL 2 — EDITAR MATERIAL
-════════════════════════════════════════════════════════════ -->
 @if (showModalEditarMat && materialActivo) {
 <div class="modal-overlay" (click)="cerrarModalEditarMat()">
   <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
@@ -512,13 +492,12 @@
 
     <div class="modal-footer">
       <button class="btn-cancel" (click)="cerrarModalEditarMat()">Cancelar</button>
-      <button class="btn-primary" (click)="guardarEditarMat()"
-              [disabled]="editCantidad < 1 || guardandoMat">
+      <button class="btn-primary" (click)="guardarEditarMat()" [disabled]="editCantidad < 1 || guardandoMat">
         @if (guardandoMat) {
-          <div class="mini-spinner"></div>
-          Guardando…
+        <app-spinner [size]="16" theme="light"></app-spinner>
+        Guardando…
         } @else {
-          Guardar Cambios
+        Guardar Cambios
         }
       </button>
     </div>
@@ -527,9 +506,6 @@
 }
 
 
-<!-- ════════════════════════════════════════════════════════════
-     MODAL 3 — SOLICITAR MATERIAL
-════════════════════════════════════════════════════════════ -->
 @if (showModalSolicitar) {
 <div class="modal-overlay" (click)="cerrarModalSolicitar()">
   <div class="modal-box modal-md" (click)="$event.stopPropagation()">
@@ -556,9 +532,9 @@
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
           <input class="form-input with-icon" type="text" [(ngModel)]="busquedaMaterial"
-                 (ngModelChange)="buscarMateriales()" placeholder="Ej: Cable UTP, Switch…">
+            (ngModelChange)="buscarMateriales()" placeholder="Ej: Cable UTP, Switch…">
           @if (buscandoMaterial) {
-          <div class="search-spinner"></div>
+          <span class="search-spinner-wrap"><app-spinner [size]="16"></app-spinner></span>
           }
         </div>
         @if (resultadosBusqueda.length > 0) {
@@ -577,7 +553,8 @@
       <div class="mat-elegido">
         <div class="me-info">
           <span class="me-nombre">{{ materialElegido.nombre }}</span>
-          <span class="me-stock">Stock disponible: <strong>{{ materialElegido.stock }}</strong> {{ materialElegido.unidad }}</span>
+          <span class="me-stock">Stock disponible: <strong>{{ materialElegido.stock }}</strong> {{
+            materialElegido.unidad }}</span>
         </div>
         <button class="file-remove" (click)="materialElegido = null; busquedaMaterial = ''">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -591,19 +568,19 @@
       <div class="form-field mt-3">
         <label class="form-label">Cantidad a solicitar</label>
         <input class="form-input" type="number" [(ngModel)]="cantidadSolicitar" min="1"
-               [max]="materialElegido?.stock ?? 9999">
+          [max]="materialElegido?.stock ?? 9999">
       </div>
     </div>
 
     <div class="modal-footer">
       <button class="btn-cancel" (click)="cerrarModalSolicitar()">Cancelar</button>
       <button class="btn-primary" (click)="solicitarMaterial()"
-              [disabled]="!materialElegido || cantidadSolicitar < 1 || solicitando">
+        [disabled]="!materialElegido || cantidadSolicitar < 1 || solicitando">
         @if (solicitando) {
-          <div class="mini-spinner"></div>
-          Solicitando…
+        <app-spinner [size]="16" theme="light"></app-spinner>
+        Solicitando…
         } @else {
-          Solicitar Material
+        Solicitar Material
         }
       </button>
     </div>
@@ -612,9 +589,6 @@
 }
 
 
-<!-- ════════════════════════════════════════════════════════════
-     MODAL 4 — PRE-INFORME PDF
-════════════════════════════════════════════════════════════ -->
 @if (showModalPDF) {
 <div class="modal-overlay" (click)="cerrarModalPDF()">
   <div class="modal-box modal-pdf" (click)="$event.stopPropagation()">
@@ -635,7 +609,7 @@
     <div class="modal-body pdf-body">
       @if (pdfCargando) {
       <div class="pdf-loading">
-        <div class="pdf-spinner"></div>
+        <app-spinner [size]="48"></app-spinner>
         <p>Generando pre-informe con <strong>pdf-lib</strong>…</p>
       </div>
       } @else if (pdfBlobUrl) {

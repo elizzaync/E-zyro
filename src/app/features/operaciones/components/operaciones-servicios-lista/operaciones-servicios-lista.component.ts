@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 
@@ -16,7 +17,7 @@ export interface ServicioProyecto {
 @Component({
   selector: 'app-operaciones-servicios-lista',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, SpinnerComponent],
   templateUrl: './operaciones-servicios-lista.component.html',
   styleUrls: ['./operaciones-servicios-lista.component.css']
 })

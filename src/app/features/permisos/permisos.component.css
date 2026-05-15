@@ -79,19 +79,6 @@
   to { opacity: 1; }
 }
 
-.pdf-loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid var(--border-color, #e2e8f0);
-  border-top-color: var(--brand-green, #91d337);
-  border-radius: 50%;
-  animation: spin-pdf 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
-}
-
-@keyframes spin-pdf {
-  to { transform: rotate(360deg); }
-}
-
 /* ── SCROLL WRAPPER DEL FORMULARIO ───────────────────────────── */
 .form-scroll-wrapper {
   max-height: calc(100vh - 165px);

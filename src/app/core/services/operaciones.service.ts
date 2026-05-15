@@ -18,8 +18,8 @@ export class OperacionesService {
     return this.http.get(`${this.api}/operaciones/dashboard`);
   }
 
-  getProyectos(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.api}/operaciones/proyectos`);
+  getProyectos(): Observable<any> {
+    return this.http.get<any>(`${this.api}/operaciones/proyectos`);
   }
 
   getServiciosPorProyecto(proyectoId: string): Observable<any[]> {
