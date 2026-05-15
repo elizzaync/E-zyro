@@ -1,0 +1,10 @@
+# Subcarpetas con sus propios repos git
+E-zyro-Backend/
+E-zyro-app/
+E-zyro-frontend/
+
+# Archivos de trabajo local
+.claude/
+evidencias/
+E-zyro.code-workspace
+sync-all-repos.bat
