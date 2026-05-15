@@ -12,19 +12,17 @@ def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_pe
         if not base64_data.startswith("data:"):
             base64_data = f"data:image/jpeg;base64,{base64_data}"
 
-        # Simplificamos las transformaciones a un solo string o diccionario claro
-        # Esto evita errores de orden alfabético en la firma
         params = {
             "folder": folder,
             "public_id": public_id,
             "overwrite": True,
             "invalidate": True,
-            # Usar un string de transformación es más seguro para la firma
-            "transformation": "f_auto,q_auto:good" 
         }
 
         if is_perfil:
-            params["transformation"] = "c_fill,g_face,w_400,h_400,f_auto,q_auto:good"
+            params["transformation"] = [
+                {"crop": "fill", "gravity": "face", "width": 400, "height": 400, "quality": "auto:good"}
+            ]
 
         # IMPORTANTE: Asegúrate de usar el uploader que tiene la configuración
         upload_result = cloudinary.uploader.upload(
