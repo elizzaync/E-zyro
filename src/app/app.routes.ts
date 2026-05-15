@@ -11,6 +11,7 @@ import { CentroAyudaComponent } from './features/centro-ayuda/centro-ayuda.compo
 import { DocumentacionComponent } from './features/documentacion/documentacion.component';
 import { OperacionesComponent } from './features/operaciones/operaciones.component';
 import { OperacionesDetalleComponent } from './features/operaciones/components/operaciones-detalle/operaciones-detalle.component';
+import { OperacionesServiciosListaComponent } from './features/operaciones/components/operaciones-servicios-lista/operaciones-servicios-lista.component';
 export const routes: Routes = [
   {
     path: '',
@@ -67,9 +68,15 @@ export const routes: Routes = [
     canActivate: [authGuard]
 },
 {
-    path: 'operaciones/detalle/:id',
+    path: 'operaciones/proyecto/:id',
+    component: OperacionesServiciosListaComponent,
+    title: 'Servicios del Proyecto | E-System Tic',
+    canActivate: [authGuard]
+},
+{
+    path: 'operaciones/servicio/:id',
     component: OperacionesDetalleComponent,
-    title: 'Detalle de Operación | E-System Tic',
+    title: 'Detalle de Servicio | E-System Tic',
     canActivate: [authGuard]
 },
   {

@@ -39,7 +39,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     fechaCreacion: '',
     fotoUrl: ''
   };
-// ... tu perfilData ...
 
   perfilDataBackup: any = null; // Variable para guardar los datos originales
 

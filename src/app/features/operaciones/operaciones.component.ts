@@ -1,51 +1,48 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { OperacionesCardsComponent, MetricaOperacion } from './components/operaciones-cards/operaciones-cards.component';
-import { OperacionesServiciosComponent, ServicioOperacion } from './components/operaciones-servicios/operaciones-servicios.component';
 import { OperacionesService } from '../../core/services/operaciones.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AlertComponent } from '../../shared/components/login/alert.component';
 
+export interface ProyectoOperacion {
+  id: string;
+  orden_trabajo: string;
+  nombre_proyecto: string;
+  estado: string;
+  fecha_inicio: string | null;
+  cliente: string;
+  total_servicios: number;
+}
+
 @Component({
   selector: 'app-operaciones',
   standalone: true,
-  imports: [CommonModule, OperacionesCardsComponent, OperacionesServiciosComponent, AlertComponent],
+  imports: [CommonModule, AlertComponent],
   templateUrl: './operaciones.component.html',
   styleUrls: ['./operaciones.component.css']
 })
 export class OperacionesComponent implements OnInit {
-
   private svc    = inject(OperacionesService);
   private toast  = inject(ToastService);
   private router = inject(Router);
 
-  datosTarjetas:  MetricaOperacion[]  = [];
-  listaServicios: ServicioOperacion[] = [];
-
+  proyectos: ProyectoOperacion[] = [];
   isLoading    = true;
   errorMessage: string | null = null;
 
-  ngOnInit(): void {
-    this.cargarDashboard();
-  }
+  ngOnInit(): void { this.cargarProyectos(); }
 
-  cargarDashboard(): void {
-    this.isLoading    = true;
+  cargarProyectos(): void {
+    this.isLoading = true;
     this.errorMessage = null;
-
-    this.svc.getDashboardData().subscribe({
+    this.svc.getProyectos().subscribe({
       next: (res: any) => {
-        if (res.status === 'success') {
-          this.datosTarjetas  = res.data.metricas;
-          this.listaServicios = res.data.servicios;
-        } else {
-          this.errorMessage = 'No se pudieron cargar los datos operativos.';
-        }
+        this.proyectos = res;
         this.isLoading = false;
       },
       error: (err: any) => {
-        console.error('Error cargando operaciones:', err);
+        console.error('Error cargando proyectos:', err);
         this.errorMessage = 'Error de conexión con el servidor. Intenta nuevamente.';
         this.toast.mostrar('Error de conexión', 'error');
         this.isLoading = false;
@@ -53,7 +50,26 @@ export class OperacionesComponent implements OnInit {
     });
   }
 
-  irAlCalendario(): void {
-    this.router.navigate(['/home']);
+  irAProyecto(id: string): void {
+    this.router.navigate(['/operaciones/proyecto', id]);
+  }
+
+  estadoClass(estado: string): string {
+    const map: Record<string, string> = {
+      'Pendiente':  'estado-pendiente',
+      'En_Proceso': 'estado-en-proceso',
+      'En_Pausa':   'estado-en-pausa',
+      'Completado': 'estado-completado',
+      'Cancelado':  'estado-cancelado',
+    };
+    return map[estado] ?? 'estado-pendiente';
+  }
+
+  estadoLabel(estado: string): string {
+    const map: Record<string, string> = {
+      'En_Proceso': 'En Proceso',
+      'En_Pausa':   'En Pausa',
+    };
+    return map[estado] ?? estado;
   }
 }

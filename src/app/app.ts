@@ -5,7 +5,6 @@ import { CommonModule } from '@angular/common';
 import { ToastComponent } from './shared/components/toast/toast.component';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { AuthService } from './core/services/auth.service';
-// 👇 Importamos el nuevo Chatbot
 import { ChatbotComponent } from './shared/components/chatbot/chatbot.component';
 
 @Component({

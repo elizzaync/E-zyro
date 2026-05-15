@@ -1,0 +1,99 @@
+<div class="lista-layout fade-in">
+
+  <!-- HEADER -->
+  <div class="header-section">
+    <button class="btn-volver" (click)="volver()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Proyectos
+    </button>
+    <div class="header-titles">
+      <h2 class="page-title">Servicios del Proyecto</h2>
+      <p class="page-subtitle">{{ serviciosFiltrados.length }} servicio{{ serviciosFiltrados.length !== 1 ? 's' : '' }} encontrados</p>
+    </div>
+  </div>
+
+  <!-- ERROR -->
+  @if (errorMessage) {
+  <div class="error-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    {{ errorMessage }}
+  </div>
+  }
+
+  <!-- LOADING -->
+  @if (isLoading) {
+  <div class="historial-loading">
+    <div class="spinner"></div>
+    <span>Cargando servicios...</span>
+  </div>
+  } @else {
+
+  <!-- FILTROS -->
+  <div class="filtros-wrapper">
+    @for (filtro of filtros; track filtro) {
+    <button class="filtro-btn" [class.active]="filtroActual === filtro" (click)="setFiltro(filtro)">
+      {{ filtro === 'En_Proceso' ? 'En Proceso' : filtro }}
+    </button>
+    }
+  </div>
+
+  <!-- EMPTY STATE -->
+  @if (serviciosFiltrados.length === 0) {
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+    </svg>
+    <h3>Sin servicios</h3>
+    <p>No hay servicios con el filtro seleccionado.</p>
+  </div>
+  } @else {
+
+  <!-- GRID DE SERVICIOS -->
+  <div class="servicios-grid">
+    @for (servicio of serviciosFiltrados; track servicio.id) {
+    <div class="servicio-card" [class]="'semaforo-' + servicio.estado_color" (click)="irAlServicio(servicio.id)">
+
+      <div class="sc-top">
+        <span class="sc-orden">#{{ servicio.orden }}</span>
+        <span class="sc-badge" [class]="'badge-' + servicio.estado.toLowerCase().replace('_', '-')">
+          {{ estadoLabel(servicio.estado) }}
+        </span>
+      </div>
+
+      <h4 class="sc-nombre">{{ servicio.nombre }}</h4>
+
+      @if (servicio.descripcion) {
+      <p class="sc-descripcion">{{ servicio.descripcion }}</p>
+      }
+
+      <div class="sc-footer">
+        @if (servicio.fecha_programada) {
+        <div class="sc-fecha">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          {{ servicio.fecha_programada }}
+        </div>
+        } @else {
+        <span class="sin-fecha">Sin fecha programada</span>
+        }
+        <div class="semaforo-dot" [class]="'dot-' + servicio.estado_color" [title]="servicio.estado_color === 'verde' ? 'Completado' : servicio.estado_color === 'rojo' ? 'Vencido' : 'En plazo'"></div>
+      </div>
+
+    </div>
+    }
+  </div>
+
+  }
+  }
+
+</div>

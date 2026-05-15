@@ -77,10 +77,16 @@ export class PermisosComponent implements OnInit {
     this.permisosService.getMiFirma().subscribe({
       next: (res: any) => {
         if (res.status === 'success' && res.data?.url_firma) {
-          this.firmaGuardadaUrl = res.data.url_firma;
+          this.firmaGuardadaUrl = this._bustCache(res.data.url_firma);
         }
       },
     });
+  }
+
+  /** Añade un timestamp a la URL para forzar al navegador a ignorar la caché. */
+  private _bustCache(url: string): string {
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}v=${Date.now()}`;
   }
 
   private cargarHistorial(): void {
@@ -186,7 +192,7 @@ export class PermisosComponent implements OnInit {
             this.permisosService.getMiFirma().subscribe({
               next: (r: any) => {
                 if (r.status === 'success' && r.data?.url_firma) {
-                  this.firmaGuardadaUrl = r.data.url_firma;
+                  this.firmaGuardadaUrl = this._bustCache(r.data.url_firma);
                 }
               },
             });
