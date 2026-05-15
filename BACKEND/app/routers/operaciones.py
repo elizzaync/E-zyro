@@ -432,12 +432,12 @@ def get_detalle_servicio(
 
     ev_by_proc: dict[str, list] = {}
     for ev in evidencias:
-        # 🔥 FIX PYDANTIC: Blindaje en Evidencias
         ev_by_proc.setdefault(ev.procedimiento_id, []).append(
             EvidenciaOut(
                 id=str(ev.id),
                 url_cloudinary=ev.url_cloudinary or "",
                 descripcion=ev.descripcion or "",
+                etapa=ev.etapa,
                 fecha_captura=ev.fecha_captura.strftime("%I:%M %p") if ev.fecha_captura else "",
             )
         )
@@ -602,14 +602,24 @@ def actualizar_estado_procedimiento(
 
 # ── POST /operaciones/procedimiento/{id}/evidencia ────────────────────────────
 
+_ETAPAS_VALIDAS = {"antes", "durante", "despues"}
+
+
 @router.post("/procedimiento/{proc_id}/evidencia", status_code=status.HTTP_201_CREATED)
 async def subir_evidencia(
     proc_id:     str,
     archivo:     UploadFile = File(...),
+    etapa:       str        = Form(...),
     descripcion: str        = Form(default=""),
     payload:     dict       = Depends(verificar_token),
     db:          Session    = Depends(get_db),
 ):
+    if etapa not in _ETAPAS_VALIDAS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"etapa debe ser uno de: {', '.join(sorted(_ETAPAS_VALIDAS))}",
+        )
+
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -639,7 +649,7 @@ async def subir_evidencia(
         subido_por           = empleado.id,
         url_cloudinary       = url,
         public_id_cloudinary = pub_id,
-        etapa                = "durante",
+        etapa                = etapa,
         descripcion          = descripcion,
     )
     db.add(ev)
@@ -648,7 +658,7 @@ async def subir_evidencia(
     proc.updated_at = datetime.utcnow()
     db.commit()
 
-    return {"ok": True, "evidencia_id": ev.id, "url": url}
+    return {"ok": True, "evidencia_id": ev.id, "url": url, "etapa": etapa}
 
 
 # ── POST /operaciones/servicio/{id}/requerimiento ─────────────────────────────

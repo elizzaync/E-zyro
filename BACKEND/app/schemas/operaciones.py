@@ -9,6 +9,7 @@ class EvidenciaOut(BaseModel):
     id: str
     url_cloudinary: str
     descripcion: Optional[str]
+    etapa: Optional[str]
     fecha_captura: str
 
 

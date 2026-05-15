@@ -10,6 +10,7 @@ from app.routers import asistencia   as asistencia_router
 from app.routers import proyectos    as proyectos_router
 from app.routers import comunicados  as comunicados_router
 from app.routers import operaciones  as operaciones_router
+from app.routers import chat_ws      as chat_ws_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 
 # Importar todos los modelos para que Base los registre antes de create_all
@@ -63,6 +64,11 @@ def _run_migrations():
             "ALTER TABLE solicitud_laboral "
             "ADD COLUMN IF NOT EXISTS public_id_pdf VARCHAR(255)"
         ))
+        conn.execute(text(
+            "ALTER TABLE mensaje_chat "
+            "ADD COLUMN IF NOT EXISTS destinatario_id VARCHAR(36) "
+            "REFERENCES usuario(id)"
+        ))
         conn.commit()
 
 
@@ -92,6 +98,7 @@ app.include_router(asistencia_router.router)
 app.include_router(proyectos_router.router)
 app.include_router(comunicados_router.router)
 app.include_router(operaciones_router.router)
+app.include_router(chat_ws_router.router)
 
 
 @app.get("/")

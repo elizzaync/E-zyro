@@ -9,14 +9,15 @@ def _uuid():
 class MensajeChat(Base):
     __tablename__ = "mensaje_chat"
 
-    id           = Column(String(36), primary_key=True, default=_uuid)
-    proyecto_id  = Column(String(36), ForeignKey("proyecto.id"), nullable=False)
-    empresa_id   = Column(String(36), ForeignKey("empresa.id"), nullable=False)
-    remitente_id = Column(String(36), ForeignKey("usuario.id"), nullable=False)
-    padre_id     = Column(String(36), ForeignKey("mensaje_chat.id"), nullable=True)
-    contenido    = Column(Text, nullable=False)
-    fecha        = Column(DateTime, nullable=False)
-    created_at   = Column(DateTime, nullable=False, default=datetime.utcnow)
+    id              = Column(String(36), primary_key=True, default=_uuid)
+    proyecto_id     = Column(String(36), ForeignKey("proyecto.id"),      nullable=False)
+    empresa_id      = Column(String(36), ForeignKey("empresa.id"),       nullable=False)
+    remitente_id    = Column(String(36), ForeignKey("usuario.id"),       nullable=False)
+    destinatario_id = Column(String(36), ForeignKey("usuario.id"),       nullable=True)
+    padre_id        = Column(String(36), ForeignKey("mensaje_chat.id"),  nullable=True)
+    contenido       = Column(Text,       nullable=False)
+    fecha           = Column(DateTime,   nullable=False)
+    created_at      = Column(DateTime,   nullable=False, default=datetime.utcnow)
 
 
 class AdjuntoMensaje(Base):
