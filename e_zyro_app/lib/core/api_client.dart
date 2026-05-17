@@ -67,6 +67,18 @@ class ApiClient {
         .timeout(timeout ?? AppConstants.defaultTimeout);
   }
 
+  /// POST with an explicit Bearer token (token refresh — token may be expired).
+  Future<http.Response> postRefresh(String path, String token) => http
+      .post(
+        Uri.parse('${AppConstants.baseUrl}$path'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      )
+      .timeout(AppConstants.defaultTimeout);
+
   /// POST without Bearer token (login, password recovery).
   Future<http.Response> postPublic(String path, Object body) => http
       .post(

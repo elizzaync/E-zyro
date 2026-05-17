@@ -1,3 +1,5 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,9 +15,15 @@ import 'screens/pantalla_recuperacion_password.dart';
 import 'screens/pantalla_asistencia.dart';
 import 'screens/pantalla_calendario.dart';
 import 'services/notification_service.dart';
+import 'services/fcm_flutter_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase debe inicializarse antes de runApp y antes del background handler
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('dark_mode') ?? false;
   themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
@@ -57,6 +65,9 @@ ThemeData _buildTheme(Brightness brightness) {
 class ESystemApp extends StatelessWidget {
   const ESystemApp({super.key});
 
+  /// NavigatorKey global — lo usa FcmFlutterService para navegar al tocar push.
+  static final navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
@@ -64,6 +75,7 @@ class ESystemApp extends StatelessWidget {
       builder: (_, mode, _) => MaterialApp(
         title: 'E-System TIC',
         debugShowCheckedModeBanner: false,
+        navigatorKey: ESystemApp.navigatorKey,
         themeMode: mode,
         theme: _buildTheme(Brightness.light),
         darkTheme: _buildTheme(Brightness.dark),

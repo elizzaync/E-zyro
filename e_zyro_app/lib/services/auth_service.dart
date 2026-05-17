@@ -116,9 +116,37 @@ class AuthService {
     }
   }
 
+  // ── Token refresh (biometric flow) ───────────────────────────────────────
+
+  /// Renueva el token almacenado sin requerir contraseña.
+  /// Lanza excepción si el token es inválido o tiene más de 30 días de vencido.
+  Future<void> refreshToken() async {
+    final currentToken = _prefs.getString('auth_token');
+    if (currentToken == null) throw Exception('Sin sesión activa');
+
+    final r = await _client.postRefresh('/auth/refresh', currentToken);
+    if (r.statusCode == 200) {
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      final newToken = body['data']['token'] as String;
+      await _prefs.setString('auth_token', newToken);
+    } else {
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      throw Exception(body['detail'] ?? 'No se pudo renovar la sesión');
+    }
+  }
+
   // ── Session ───────────────────────────────────────────────────────────────
 
-  Future<void> logout() async {
+  Future<void> logout({String? fcmToken}) async {
+    // Desregistrar el dispositivo antes de limpiar el token de auth
+    if (fcmToken != null) {
+      try {
+        await _client.post('/notificaciones/dispositivos/desregistrar', {
+          'token_push': fcmToken,
+          'plataforma': _prefs.getString('device_platform') ?? 'android',
+        });
+      } catch (_) {}
+    }
     await _prefs.remove('auth_token');
     await _prefs.remove('user_name');
     await _prefs.remove('user_rol');

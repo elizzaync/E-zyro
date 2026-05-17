@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/api_client.dart';
+import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
+import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import 'pantalla_recuperacion_password.dart';
 
@@ -20,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   AuthService? _authService;
   BiometricService? _bioService;
+  SharedPreferences? _prefs;
 
   bool _hasSession = false;
   bool _bioAvailable = false;
@@ -58,6 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _authService = authSvc;
       _bioService = bioSvc;
+      _prefs = prefs;
       _hasSession = hasSession;
       _bioAvailable = bioAvailable;
       _bioEnabled = bioEnabled;
@@ -70,14 +75,42 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // ── FCM: inicializar tras login exitoso ───────────────────────────────────
+
+  Future<void> _initFcm() async {
+    if (_prefs == null) return;
+    await FcmFlutterService.initialize(
+      client: ApiClient(_prefs!),
+      navKey: ESystemApp.navigatorKey,
+    );
+  }
+
   // ── Autenticación biométrica ───────────────────────────────────────────────
 
   Future<void> _authenticateWithBiometric() async {
-    if (_bioService == null) return;
+    if (_bioService == null || _authService == null) return;
     final success = await _bioService!.authenticate();
     if (!mounted) return;
-    if (success) {
+    if (!success) return;
+
+    // Renovar el token antes de ir al home — puede estar vencido tras dormir.
+    try {
+      await _authService!.refreshToken();
+      if (!mounted) return;
+      _initFcm(); // fire-and-forget: no bloqueamos la navegación
       Navigator.pushReplacementNamed(context, '/');
+    } catch (_) {
+      // Token demasiado antiguo (>30 días): forzar re-login con contraseña.
+      if (!mounted) return;
+      await _authService!.logout();
+      setState(() {
+        _hasSession = false;
+        _showPasswordForm = true;
+      });
+      _showSnack(
+        'Tu sesión expiró. Ingresa tu contraseña para continuar.',
+        Colors.orange,
+      );
     }
   }
 
@@ -110,6 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Ofrecer habilitar biométrica por primera vez
         _showBiometricSetupSheet();
       } else {
+        _initFcm(); // fire-and-forget
         Navigator.pushReplacementNamed(context, '/');
       }
     } catch (e) {
@@ -129,7 +163,10 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (_) => _BiometricPolicySheet(
         onAccepted: () async {
           await _bioService?.enable();
-          if (mounted) Navigator.pushReplacementNamed(context, '/');
+          if (mounted) {
+            _initFcm();
+            Navigator.pushReplacementNamed(context, '/');
+          }
         },
         onDeclined: () {
           Navigator.pushReplacementNamed(context, '/');
