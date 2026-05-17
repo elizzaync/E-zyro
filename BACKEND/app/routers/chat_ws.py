@@ -132,6 +132,39 @@ def _nombre_usuario(usuario_id: str) -> str:
         db.close()
 
 
+def _cargar_historial(proyecto_id: str, empresa_id: str, limit: int = 50) -> list:
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(MensajeChat, Usuario)
+            .join(Usuario, MensajeChat.remitente_id == Usuario.id)
+            .filter(
+                MensajeChat.proyecto_id == proyecto_id,
+                MensajeChat.empresa_id == empresa_id,
+            )
+            .order_by(MensajeChat.fecha.desc())
+            .limit(limit)
+            .all()
+        )
+        rows.reverse()
+        return [
+            {
+                "tipo":             "mensaje",
+                "id":               msg.id,
+                "remitente_id":     msg.remitente_id,
+                "remitente_nombre": f"{u.nombre} {u.apellido}".strip(),
+                "contenido":        msg.contenido,
+                "destinatario_id":  str(msg.destinatario_id) if msg.destinatario_id else None,
+                "padre_id":         msg.padre_id,
+                "es_dm":            msg.destinatario_id is not None,
+                "fecha":            msg.fecha.isoformat(),
+            }
+            for msg, u in rows
+        ]
+    finally:
+        db.close()
+
+
 # ── Endpoint WebSocket ────────────────────────────────────────────────────────
 
 @router.websocket("/ws/chat/{proyecto_id}")
@@ -148,7 +181,7 @@ async def ws_chat(ws: WebSocket, proyecto_id: str, token: str = ""):
 
     Payload de SALIDA (JSON string):
     {
-      "tipo":            "mensaje" | "error",
+      "tipo":            "mensaje" | "historial" | "error",
       "id":              "<uuid>",
       "remitente_id":    "<uuid>",
       "remitente_nombre":"Nombre Apellido",
@@ -177,6 +210,10 @@ async def ws_chat(ws: WebSocket, proyecto_id: str, token: str = ""):
 
     await manager.conectar(ws, proyecto_id, usuario_id)
     nombre = _nombre_usuario(usuario_id)
+
+    # Enviar historial al usuario recién conectado
+    historial = _cargar_historial(proyecto_id, empresa_id)
+    await ws.send_text(json.dumps({"tipo": "historial", "mensajes": historial}, ensure_ascii=False))
 
     try:
         while True:
