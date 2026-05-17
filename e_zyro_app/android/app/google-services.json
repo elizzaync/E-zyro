@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "418335746143",
+    "project_id": "e-zyro",
+    "storage_bucket": "e-zyro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:418335746143:android:34d6e5d1362ff3ce35d3ea",
+        "android_client_info": {
+          "package_name": "com.example.e_zyro_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6Jlw3ZE7zlEbsEyNYZzRLt_POQzWQQcM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
