@@ -6,6 +6,7 @@ import '../services/comunicado_service.dart';
 import '../services/dashboard_service.dart';
 import '../services/asistencia_service.dart';
 import '../services/proyecto_service.dart';
+import '../services/requerimiento_service.dart';
 
 Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
@@ -35,4 +36,9 @@ Future<ProyectoService> getProyectoService() async {
 Future<ComunicadoService> getComunicadoService() async {
   final prefs = await SharedPreferences.getInstance();
   return ComunicadoService(ApiClient(prefs));
+}
+
+Future<RequerimientoService> getRequerimientoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return RequerimientoService(ApiClient(prefs));
 }

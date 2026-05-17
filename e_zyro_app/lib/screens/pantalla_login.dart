@@ -169,6 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         },
         onDeclined: () {
+          _initFcm();
           Navigator.pushReplacementNamed(context, '/');
         },
       ),
