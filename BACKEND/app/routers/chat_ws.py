@@ -64,7 +64,7 @@ class ConnectionManager:
 
     async def _enviar(self, ws: WebSocket, payload: dict) -> None:
         try:
-            await ws.send_text(json.dumps(payload, ensure_ascii=False))
+            await ws.send_text(json.dumps(payload, default=str, ensure_ascii=False))
         except Exception:
             pass
 
@@ -195,7 +195,7 @@ async def ws_chat(ws: WebSocket, proyecto_id: str, token: str = ""):
     payload = _decode_token(token)
     if payload is None:
         await ws.accept()
-        await ws.send_text(json.dumps({"tipo": "error", "detalle": "Token inválido o expirado"}))
+        await ws.send_text(json.dumps({"tipo": "error", "detalle": "Token inválido o expirado"}, default=str))
         await ws.close(code=4001)
         return
 
@@ -204,7 +204,7 @@ async def ws_chat(ws: WebSocket, proyecto_id: str, token: str = ""):
 
     if not usuario_id or not empresa_id:
         await ws.accept()
-        await ws.send_text(json.dumps({"tipo": "error", "detalle": "Token sin claims requeridos"}))
+        await ws.send_text(json.dumps({"tipo": "error", "detalle": "Token sin claims requeridos"}, default=str))
         await ws.close(code=4001)
         return
 
@@ -213,7 +213,7 @@ async def ws_chat(ws: WebSocket, proyecto_id: str, token: str = ""):
 
     # Enviar historial al usuario recién conectado
     historial = _cargar_historial(proyecto_id, empresa_id)
-    await ws.send_text(json.dumps({"tipo": "historial", "mensajes": historial}, ensure_ascii=False))
+    await ws.send_text(json.dumps({"tipo": "historial", "mensajes": historial}, default=str, ensure_ascii=False))
 
     try:
         while True:
@@ -222,7 +222,7 @@ async def ws_chat(ws: WebSocket, proyecto_id: str, token: str = ""):
             try:
                 data = json.loads(raw)
             except (json.JSONDecodeError, ValueError):
-                await ws.send_text(json.dumps({"tipo": "error", "detalle": "JSON inválido"}))
+                await ws.send_text(json.dumps({"tipo": "error", "detalle": "JSON inválido"}, default=str))
                 continue
 
             contenido       = str(data.get("contenido", "")).strip()
