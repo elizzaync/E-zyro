@@ -5,12 +5,13 @@ from sqlalchemy import text
 
 from app.db.database import engine, Base
 from app.routers import auth, dashboard
-from app.routers import permisos     as permisos_router
-from app.routers import asistencia   as asistencia_router
-from app.routers import proyectos    as proyectos_router
-from app.routers import comunicados  as comunicados_router
-from app.routers import operaciones  as operaciones_router
-from app.routers import chat_ws      as chat_ws_router
+from app.routers import permisos        as permisos_router
+from app.routers import asistencia      as asistencia_router
+from app.routers import proyectos       as proyectos_router
+from app.routers import comunicados     as comunicados_router
+from app.routers import operaciones     as operaciones_router
+from app.routers import chat_ws         as chat_ws_router
+from app.routers import notificaciones  as notificaciones_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 
 # Importar todos los modelos para que Base los registre antes de create_all
@@ -99,6 +100,7 @@ app.include_router(proyectos_router.router)
 app.include_router(comunicados_router.router)
 app.include_router(operaciones_router.router)
 app.include_router(chat_ws_router.router)
+app.include_router(notificaciones_router.router)
 
 
 @app.get("/")

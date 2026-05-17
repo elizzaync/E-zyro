@@ -9,18 +9,11 @@ from app.models.dispositivo_push import DispositivoPush
 
 # ── Inicialización segura de Firebase (solo una vez) ──────────────────────────
 def _inicializar_firebase():
-    """
-    Inicializa Firebase Admin SDK.
-    - Producción (Railway): usa la variable de entorno FIREBASE_JSON
-    - Desarrollo (local):   usa el archivo firebase-credentials.json
-    Se protege contra doble inicialización con el chequeo de _apps.
-    """
     if firebase_admin._apps:
-        return   # ← ya está inicializado, salimos sin hacer nada
+        return
 
     try:
         firebase_json_str = os.environ.get("FIREBASE_JSON")
-
         if firebase_json_str:
             cred_dict = json.loads(firebase_json_str)
             cred = credentials.Certificate(cred_dict)
@@ -28,32 +21,50 @@ def _inicializar_firebase():
         else:
             cred = credentials.Certificate("firebase-credentials.json")
             print("🔧 Firebase inicializado usando Archivo Local (Desarrollo)")
-
         firebase_admin.initialize_app(cred)
-
     except Exception as e:
         print(f"⚠️  Error al inicializar Firebase Admin: {e}")
 
 
-# Se llama una sola vez al importar el módulo
 _inicializar_firebase()
 
 
 # ── Función genérica de envío ──────────────────────────────────────────────────
-def enviar_push_a_usuario(usuario_id: str, titulo: str, mensaje: str, db: Session) -> bool:
+def enviar_push_a_usuario(
+    usuario_id: str,
+    titulo: str,
+    mensaje: str,
+    db: Session,
+    tipo: str = "general",
+    referencia_id: str = "",
+    referencia_tabla: str = "",
+) -> bool:
     """
-    Busca los tokens activos del usuario y le envía una notificación Push.
-    Retorna True si al menos un push fue enviado.
+    Busca los tokens activos del usuario y envía una notificación push.
+
+    Parámetros de data para el cliente Flutter:
+      tipo            → categoria de la notificación (general|comunicado|servicio|recordatorio)
+      referencia_id   → UUID del objeto relacionado (opcional)
+      referencia_tabla→ nombre de la tabla relacionada (opcional)
+
+    Retorna True si al menos un push fue enviado correctamente.
     """
     try:
         dispositivos = db.query(DispositivoPush).filter(
             DispositivoPush.usuario_id == usuario_id,
-            DispositivoPush.activo == True
+            DispositivoPush.activo == True,
         ).all()
 
         if not dispositivos:
             print(f"⚠️  Sin dispositivos registrados para el usuario {usuario_id}")
             return False
+
+        # Payload de datos que Flutter recibe al tocar la notificación
+        data_payload = {
+            "tipo": tipo,
+            "ref_id": referencia_id or "",
+            "ref_tabla": referencia_tabla or "",
+        }
 
         enviados = 0
         for disp in dispositivos:
@@ -61,17 +72,34 @@ def enviar_push_a_usuario(usuario_id: str, titulo: str, mensaje: str, db: Sessio
                 message = messaging.Message(
                     notification=messaging.Notification(
                         title=titulo,
-                        body=mensaje
+                        body=mensaje,
                     ),
-                    token=disp.token_push
+                    data=data_payload,
+                    token=disp.token_push,
+                    # Android: prioridad alta para que llegue en background
+                    android=messaging.AndroidConfig(
+                        priority="high",
+                        notification=messaging.AndroidNotification(
+                            channel_id="esystemtic_general",
+                            sound="default",
+                        ),
+                    ),
+                    # iOS: sonido y badge
+                    apns=messaging.APNSConfig(
+                        payload=messaging.APNSPayload(
+                            aps=messaging.Aps(
+                                sound="default",
+                                badge=1,
+                            )
+                        )
+                    ),
                 )
                 response = messaging.send(message)
                 print(f"✅ Push enviado a {disp.plataforma} [{disp.token_push[:20]}...]: {response}")
                 enviados += 1
 
             except messaging.UnregisteredError:
-                # El token ya no es válido → lo desactivamos para no volver a usarlo
-                print(f"🗑️  Token inválido detectado, desactivando: {disp.token_push[:20]}...")
+                print(f"🗑️  Token inválido, desactivando: {disp.token_push[:20]}...")
                 disp.activo = False
                 db.commit()
 
@@ -85,64 +113,49 @@ def enviar_push_a_usuario(usuario_id: str, titulo: str, mensaje: str, db: Sessio
         return False
 
 
-# ── Notificación de asignación de servicio a técnico ──────────────────────────
+# ── Notificación de asignación de servicio ────────────────────────────────────
 def notificar_asignacion_servicio(
     usuario_id_tecnico: str,
     nombre_tecnico: str,
     nombre_servicio: str,
     nombre_cliente: str,
     fecha_servicio: str,
-    db: Session
+    db: Session,
+    proyecto_id: str = "",
 ) -> bool:
-    """
-    Notifica a un técnico que le acaban de asignar un nuevo servicio.
-
-    Ejemplo de uso en tu router de proyectos/servicios:
-    -------------------------------------------------------
-    from app.services.fcm_service import notificar_asignacion_servicio
-
-    notificar_asignacion_servicio(
-        usuario_id_tecnico = tecnico.usuario_id,
-        nombre_tecnico     = tecnico.nombre,
-        nombre_servicio    = catalogo.nombre,
-        nombre_cliente     = cliente.razon_social,
-        fecha_servicio     = proyecto.fecha_inicio.strftime("%d/%m/%Y"),
-        db                 = db
-    )
-    -------------------------------------------------------
-    """
     titulo  = "🔧 Nuevo Servicio Asignado"
     mensaje = (
         f"Hola {nombre_tecnico}, tienes un nuevo servicio: "
         f"{nombre_servicio} para {nombre_cliente} el {fecha_servicio}."
     )
-
     print(f"[FCM] Notificando asignación al técnico {usuario_id_tecnico}")
     return enviar_push_a_usuario(
         usuario_id=usuario_id_tecnico,
         titulo=titulo,
         mensaje=mensaje,
-        db=db
+        tipo="servicio",
+        referencia_id=proyecto_id,
+        referencia_tabla="proyecto",
+        db=db,
     )
 
 
-# ── Notificación de recordatorio de calendario ─────────────────────────────────
+# ── Notificación de recordatorio de calendario ────────────────────────────────
 def notificar_recordatorio_calendario(
     usuario_id: str,
     texto_nota: str,
-    cuando: str,       # "hoy" o "mañana"
-    db: Session
+    cuando: str,
+    db: Session,
+    recordatorio_id: str = "",
 ) -> bool:
-    """
-    Envía un recordatorio de una nota de calendario al usuario.
-    Usado tanto por el scheduler como manualmente.
-    """
     titulo  = "📅 Recordatorio de Calendario"
     mensaje = f"Tienes un evento {cuando}: {texto_nota}"
-
     return enviar_push_a_usuario(
         usuario_id=usuario_id,
         titulo=titulo,
         mensaje=mensaje,
-        db=db
+        tipo="recordatorio",
+        referencia_id=recordatorio_id,
+        referencia_tabla="recordatorio",
+        db=db,
     )
