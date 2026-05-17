@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/auth_models.dart';
@@ -6,6 +8,14 @@ import '../models/auth_models.dart';
 class AuthService {
   final ApiClient _client;
   final SharedPreferences _prefs;
+
+  static const _secure = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+  );
+
+  static const _tokenKey = 'auth_token';
+
   AuthService(this._client, this._prefs);
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -21,7 +31,11 @@ class AuthService {
       );
       if (r.statusCode == 200) {
         final res = LoginResponse.fromJson(jsonDecode(r.body));
-        await _prefs.setString('auth_token', res.data.token);
+        // SharedPreferences: acceso síncrono para ApiClient
+        await _prefs.setString(_tokenKey, res.data.token);
+        // SecureStorage: almacenamiento cifrado (Android Keystore / iOS Keychain)
+        await _secure.write(key: _tokenKey, value: res.data.token);
+
         await _prefs.setString('user_name', res.data.nombreCompleto);
         await _prefs.setString('user_rol', res.data.rol);
         if (res.data.fotoUrl.isNotEmpty) {
@@ -31,12 +45,13 @@ class AuthService {
       } else if (r.statusCode == 401) {
         throw Exception('Usuario o contraseña incorrectos');
       } else {
-        throw Exception('Error en el servidor: ${r.statusCode}');
+        throw Exception('Error de autenticación. Intenta nuevamente.');
       }
     } on Exception {
       rethrow;
     } catch (e) {
-      throw Exception(e.toString());
+      if (kDebugMode) debugPrint('[Auth] Error login: $e');
+      throw Exception('Error al conectar. Verifica tu conexión.');
     }
   }
 
@@ -50,8 +65,6 @@ class AuthService {
       );
       if (r.statusCode == 200) {
         return ApiResponse.fromJson(jsonDecode(r.body), null);
-      } else if (r.statusCode == 404) {
-        throw Exception('Este correo no está registrado en el sistema.');
       } else {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         throw Exception(body['detail'] ?? 'Error al solicitar el código');
@@ -59,7 +72,7 @@ class AuthService {
     } on Exception {
       rethrow;
     } catch (e) {
-      throw Exception(e.toString());
+      throw Exception('Error al conectar. Verifica tu conexión.');
     }
   }
 
@@ -79,15 +92,13 @@ class AuthService {
         throw Exception(body['detail'] ?? 'Código inválido o expirado');
       } else if (r.statusCode == 403) {
         throw Exception('Código bloqueado por superar límite de intentos.');
-      } else if (r.statusCode == 404) {
-        throw Exception('Usuario no encontrado.');
       } else {
-        throw Exception('Error del servidor: ${r.statusCode}');
+        throw Exception('Error al verificar el código. Intenta nuevamente.');
       }
     } on Exception {
       rethrow;
     } catch (e) {
-      throw Exception(e.toString());
+      throw Exception('Error al conectar. Verifica tu conexión.');
     }
   }
 
@@ -107,28 +118,27 @@ class AuthService {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         throw Exception(body['detail'] ?? 'Error al cambiar contraseña');
       } else {
-        throw Exception('Error del servidor: ${r.statusCode}');
+        throw Exception('Error al procesar la solicitud. Intenta nuevamente.');
       }
     } on Exception {
       rethrow;
     } catch (e) {
-      throw Exception(e.toString());
+      throw Exception('Error al conectar. Verifica tu conexión.');
     }
   }
 
   // ── Token refresh (biometric flow) ───────────────────────────────────────
 
-  /// Renueva el token almacenado sin requerir contraseña.
-  /// Lanza excepción si el token es inválido o tiene más de 30 días de vencido.
   Future<void> refreshToken() async {
-    final currentToken = _prefs.getString('auth_token');
+    final currentToken = _prefs.getString(_tokenKey);
     if (currentToken == null) throw Exception('Sin sesión activa');
 
     final r = await _client.postRefresh('/auth/refresh', currentToken);
     if (r.statusCode == 200) {
-      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      final body    = jsonDecode(r.body) as Map<String, dynamic>;
       final newToken = body['data']['token'] as String;
-      await _prefs.setString('auth_token', newToken);
+      await _prefs.setString(_tokenKey, newToken);
+      await _secure.write(key: _tokenKey, value: newToken);
     } else {
       final body = jsonDecode(r.body) as Map<String, dynamic>;
       throw Exception(body['detail'] ?? 'No se pudo renovar la sesión');
@@ -138,7 +148,6 @@ class AuthService {
   // ── Session ───────────────────────────────────────────────────────────────
 
   Future<void> logout({String? fcmToken}) async {
-    // Desregistrar el dispositivo antes de limpiar el token de auth
     if (fcmToken != null) {
       try {
         await _client.post('/notificaciones/dispositivos/desregistrar', {
@@ -147,13 +156,26 @@ class AuthService {
         });
       } catch (_) {}
     }
-    await _prefs.remove('auth_token');
+    await _prefs.remove(_tokenKey);
     await _prefs.remove('user_name');
     await _prefs.remove('user_rol');
     await _prefs.remove('user_foto_url');
+    await _secure.delete(key: _tokenKey);
   }
 
-  bool get isAuthenticated => _prefs.getString('auth_token') != null;
+  /// Restaura el token desde SecureStorage hacia SharedPreferences si es necesario.
+  /// Llamar desde el splash screen antes de leer el token.
+  static Future<void> restoreTokenIfNeeded(SharedPreferences prefs) async {
+    if (prefs.getString(_tokenKey) != null) return;
+    try {
+      final secureToken = await _secure.read(key: _tokenKey);
+      if (secureToken != null) {
+        await prefs.setString(_tokenKey, secureToken);
+      }
+    } catch (_) {}
+  }
+
+  bool get isAuthenticated => _prefs.getString(_tokenKey) != null;
   String? get userName => _prefs.getString('user_name');
   String? get userRol => _prefs.getString('user_rol');
 }

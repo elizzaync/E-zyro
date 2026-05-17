@@ -30,6 +30,12 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _bioEnabled = false;
   bool _showPasswordForm = false; // fallback desde modo bio
 
+  // Rate limiting: máximo 5 intentos, bloqueo 60 segundos
+  int _loginAttempts = 0;
+  DateTime? _lockoutUntil;
+  static const _maxAttempts = 5;
+  static const _lockoutDuration = Duration(seconds: 60);
+
   // Modo bio: sesión activa + bio habilitada + dispositivo capaz
   bool get _isBioMode =>
       _hasSession && _bioEnabled && _bioAvailable && !_showPasswordForm;
@@ -116,8 +122,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ── Login con contraseña ───────────────────────────────────────────────────
 
+  bool get _isLockedOut {
+    if (_lockoutUntil == null) return false;
+    return DateTime.now().isBefore(_lockoutUntil!);
+  }
+
+  String get _lockoutMessage {
+    if (_lockoutUntil == null) return '';
+    final remaining = _lockoutUntil!.difference(DateTime.now()).inSeconds;
+    return 'Demasiados intentos. Espera $remaining segundos.';
+  }
+
   Future<void> _handleLogin() async {
     if (_authService == null || _isLoading) return;
+
+    if (_isLockedOut) {
+      _showSnack(_lockoutMessage, Colors.red);
+      return;
+    }
 
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
@@ -133,24 +155,49 @@ class _LoginScreenState extends State<LoginScreen> {
       await _authService!.login(username: username, password: password);
       if (!mounted) return;
 
-      // Recargar estado de bio (puede haber cambiado)
+      _loginAttempts = 0; // reset on success
+
       final bioAvailable = await (_bioService?.isAvailable() ?? Future.value(false));
       final bioEnabled = _bioService?.isEnabled ?? false;
 
       if (!mounted) return;
 
       if (bioAvailable && !bioEnabled) {
-        // Ofrecer habilitar biométrica por primera vez
         _showBiometricSetupSheet();
       } else {
-        _initFcm(); // fire-and-forget
+        _initFcm();
         Navigator.pushReplacementNamed(context, '/');
       }
     } catch (e) {
       if (!mounted) return;
-      _showSnack(e.toString().replaceAll('Exception: ', ''), Colors.red);
+      _loginAttempts++;
+      if (_loginAttempts >= _maxAttempts) {
+        setState(() {
+          _lockoutUntil = DateTime.now().add(_lockoutDuration);
+          _loginAttempts = 0;
+        });
+        _showSnack('Demasiados intentos. Espera $_lockoutDuration segundos.', Colors.red);
+      } else {
+        final msg = e.toString().replaceAll('Exception: ', '');
+        // Sanitizar mensajes de error del servidor para no exponer detalles internos
+        final safeMsg = _sanitizeError(msg);
+        _showSnack(safeMsg, Colors.red);
+      }
       setState(() => _isLoading = false);
     }
+  }
+
+  String _sanitizeError(String raw) {
+    if (raw.contains('incorrectos') || raw.contains('contraseña')) {
+      return 'Usuario o contraseña incorrectos';
+    }
+    if (raw.contains('500') || raw.contains('servidor')) {
+      return 'Error del servidor. Intenta nuevamente.';
+    }
+    if (raw.contains('timeout') || raw.contains('conexión') || raw.contains('SocketException')) {
+      return 'Sin conexión a internet. Verifica tu red.';
+    }
+    return 'Error al iniciar sesión. Intenta nuevamente.';
   }
 
   // ── Hoja de política biométrica ────────────────────────────────────────────

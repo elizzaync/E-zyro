@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../main.dart';
+import '../services/auth_service.dart';
 import '../services/fcm_flutter_service.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -22,6 +23,8 @@ class _SplashScreenState extends State<SplashScreen> {
     await Future.delayed(const Duration(seconds: 3));
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
+    // Restaurar token desde SecureStorage si SharedPreferences fue borrado
+    await AuthService.restoreTokenIfNeeded(prefs);
     final hasToken = prefs.getString('auth_token') != null;
     final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
     if (!mounted) return;

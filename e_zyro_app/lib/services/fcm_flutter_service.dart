@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/api_client.dart';
 import 'notification_service.dart';
@@ -44,7 +45,7 @@ class FcmFlutterService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('[FCM] Permiso de notificaciones denegado por el usuario.');
+      if (kDebugMode) debugPrint('[FCM] Permiso denegado.');
       return;
     }
 
@@ -74,7 +75,7 @@ class FcmFlutterService {
     // 7. Refrescar token cuando FCM lo rota
     _messaging.onTokenRefresh.listen(_registerDevice);
 
-    debugPrint('[FCM] Servicio inicializado correctamente.');
+    if (kDebugMode) debugPrint('[FCM] Servicio inicializado.');
   }
 
   // ── Mensajes en primer plano ──────────────────────────────────────────────
@@ -117,9 +118,9 @@ class FcmFlutterService {
         'token_push': token,
         'plataforma': Platform.isAndroid ? 'android' : 'ios',
       });
-      debugPrint('[FCM] Token registrado en backend.');
+      if (kDebugMode) debugPrint('[FCM] Token registrado.');
     } catch (e) {
-      debugPrint('[FCM] Error registrando token: $e');
+      if (kDebugMode) debugPrint('[FCM] Error al registrar token.');
     }
   }
 
@@ -132,9 +133,9 @@ class FcmFlutterService {
         'token_push': token,
         'plataforma': Platform.isAndroid ? 'android' : 'ios',
       });
-      debugPrint('[FCM] Token desregistrado del backend.');
+      if (kDebugMode) debugPrint('[FCM] Token desregistrado.');
     } catch (e) {
-      debugPrint('[FCM] Error desregistrando token: $e');
+      if (kDebugMode) debugPrint('[FCM] Error al desregistrar token.');
     }
   }
 

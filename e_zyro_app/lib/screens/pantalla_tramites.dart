@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
@@ -139,7 +140,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
         }
       }
     } catch (e) {
-      debugPrint('Error al cargar firma: $e');
+      if (kDebugMode) debugPrint('[Tramites] Error al cargar firma.');
     }
   }
 
@@ -171,7 +172,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
         });
       }
     } catch (e) {
-      debugPrint('Error cargando solicitudes: $e');
+      if (kDebugMode) debugPrint('[Tramites] Error al cargar solicitudes.');
     } finally {
       if (mounted) setState(() => _cargandoSolicitudes = false);
     }
