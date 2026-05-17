@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/api_client.dart';
+import '../main.dart';
+import '../services/fcm_flutter_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -22,6 +25,15 @@ class _SplashScreenState extends State<SplashScreen> {
     final hasToken = prefs.getString('auth_token') != null;
     final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
     if (!mounted) return;
+
+    // Cuando ya hay sesión y no se pasa por login, inicializar FCM aquí.
+    if (hasToken && !bioEnabled) {
+      FcmFlutterService.initialize(
+        client: ApiClient(prefs),
+        navKey: ESystemApp.navigatorKey,
+      );
+    }
+
     // Si biométrica habilitada → pasar siempre por login para verificación.
     // Si no → acceso directo al home cuando ya hay sesión.
     Navigator.pushReplacementNamed(
