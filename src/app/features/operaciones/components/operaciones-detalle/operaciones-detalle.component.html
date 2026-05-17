@@ -56,6 +56,7 @@
 
   <div class="detalle-grid">
 
+    <!-- ═══════════════ COLUMNA IZQUIERDA ═══════════════ -->
     <div class="col-left">
 
       <section class="section-card">
@@ -223,10 +224,11 @@
             Solicitar Material Extra
           </button>
         </div>
-
       </section>
 
     </div>
+
+    <!-- ═══════════════ COLUMNA DERECHA ═══════════════ -->
     <div class="col-right">
 
       <section class="section-card">
@@ -287,39 +289,62 @@
         }
       </section>
 
-      <section class="section-card">
-        <h3 class="section-title">Notas del Servicio</h3>
-        @if (servicio.notas.length === 0) {
-        <p class="empty-msg">Sin notas aún. Agrega la primera.</p>
-        } @else {
-        <div class="timeline">
-          @for (nota of servicio.notas; track nota.id) {
-          <div class="timeline-item">
-            <div class="tl-dot"></div>
-            <div class="tl-content">
-              <div class="tl-meta">
-                <span class="tl-time">{{ nota.fecha }}</span>
-                <span class="tl-autor">{{ nota.autor }}</span>
-              </div>
-              <p class="tl-text">{{ nota.texto }}</p>
+      <!-- ── CHAT EN TIEMPO REAL (embebido) ── -->
+      <section class="section-card inline-chat-container">
+        <h3 class="section-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          Chat del Equipo
+        </h3>
+
+        <div class="inline-chat-messages" #chatScroll>
+          @if (chatMensajes.length === 0) {
+          <div class="chat-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Sin mensajes aún. Inicia la conversación.</span>
+          </div>
+          } @else {
+          @for (msg of chatMensajes; track $index) {
+          <div class="chat-row" [class.chat-row-own]="msg.nombre_remitente === _nombreUsuario">
+            @if (msg.nombre_remitente !== _nombreUsuario) {
+            <div class="chat-avatar-sm">{{ msg.nombre_remitente[0].toUpperCase() }}</div>
+            }
+            <div class="chat-bubble" [class.chat-bubble-own]="msg.nombre_remitente === _nombreUsuario"
+              [class.chat-bubble-other]="msg.nombre_remitente !== _nombreUsuario">
+              @if (msg.nombre_remitente !== _nombreUsuario) {
+              <span class="chat-sender">{{ msg.nombre_remitente }}</span>
+              }
+              <p class="chat-text">{{ msg.contenido }}</p>
+              @if (msg.destinatario_id) {
+              <span class="chat-private-tag">privado</span>
+              }
+              <span class="chat-time">{{ msg.fecha | date:'HH:mm' }}</span>
             </div>
           </div>
           }
+          }
         </div>
-        }
 
-        <div class="nota-nueva">
-          <input class="nota-input" [(ngModel)]="nuevaNota" placeholder="Escribe una nota…"
-            (keydown.enter)="agregarNota()" [disabled]="enviandoNota">
-          <button class="btn-nota-send" (click)="agregarNota()" [disabled]="!nuevaNota.trim() || enviandoNota">
-            @if (enviandoNota) {
-            <app-spinner [size]="16" theme="light"></app-spinner>
-            } @else {
+        <div class="chat-input-area">
+          @if (soyJefeOperaciones) {
+          <select class="chat-select" [(ngModel)]="chatDestinatario">
+            <option [ngValue]="null">Todos (Equipo)</option>
+            @for (miembro of servicio.equipo; track miembro.id) {
+            <option [ngValue]="miembro.id">{{ miembro.nombre }} {{ miembro.apellido }}</option>
+            }
+          </select>
+          }
+          <input class="chat-input" type="text" [(ngModel)]="nuevoMensajeChat"
+            placeholder="Escribe un mensaje…" (keydown.enter)="enviarMensajeChat()">
+          <button class="chat-send-btn" (click)="enviarMensajeChat()"
+            [disabled]="!nuevoMensajeChat.trim()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
             </svg>
-            }
           </button>
         </div>
       </section>
@@ -327,6 +352,7 @@
     </div>
   </div>
 </div>
+
 <footer class="action-footer-bar">
   <div class="footer-info">
     <span class="progress-label">Progreso del Servicio:</span>
@@ -368,7 +394,13 @@
   </div>
 </footer>
 
-}@if (showModalEvidencia) {
+}
+
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL 1 — EVIDENCIA POR ETAPAS
+══════════════════════════════════════════════════════════ -->
+@if (showModalEvidencia) {
 <div class="modal-overlay" (click)="cerrarModalEvidencia()">
   <div class="modal-box modal-evidencia" (click)="$event.stopPropagation()">
 
@@ -386,48 +418,67 @@
     </div>
 
     <div class="modal-body">
-      <input #fileInput type="file" hidden accept="image/*,.pdf,.doc,.docx,.xlsx" (change)="onFileSelected($event)">
+      <div class="slots-container">
+        @for (etapa of etapasLista; track etapa) {
+        <div class="ev-slot"
+          [class.slot-tiene-archivo]="!!slotsEvidencia[etapa].file"
+          [class.slot-subido]="!!getEvExistente(etapa)">
+          <input #fileSlotInput type="file" hidden accept="image/*"
+            (change)="onFileSlotSelected($event, etapa)">
 
-      @if (!archivoEvidencia) {
-      <div class="dropzone" (click)="fileInput.click()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-        <p class="dz-title">Arrastra y suelta aquí</p>
-        <p class="dz-hint">o haz clic para explorar tus archivos</p>
-        <span class="dz-types">JPG · PNG · PDF · DOCX · XLSX — máx. 10 MB</span>
-      </div>
-      } @else {
-      <div class="file-preview">
-        @if (archivoPreview) {
-        <img [src]="archivoPreview" class="preview-img" alt="Vista previa">
-        } @else {
-        <div class="file-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-          </svg>
+          <div class="slot-header">
+            <span class="slot-tag">{{ etapa }}</span>
+            @if (slotsEvidencia[etapa].file) {
+            <button class="slot-remove" (click)="slotsEvidencia[etapa].file = null; slotsEvidencia[etapa].preview = null">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            } @else if (getEvExistente(etapa)) {
+            <span class="slot-ok-badge">✓</span>
+            }
+          </div>
+
+          @if (getEvExistente(etapa); as evEx) {
+          <img [src]="evEx.urlCloudinary" class="slot-preview slot-preview-done" alt="Evidencia {{ etapa }}">
+          <span class="slot-done-label">{{ evEx.fechaCaptura }}</span>
+          } @else if (slotsEvidencia[etapa].preview) {
+          <img [src]="slotsEvidencia[etapa].preview" class="slot-preview" alt="Vista previa">
+          } @else if (slotsEvidencia[etapa].file) {
+          <div class="slot-file-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>{{ slotsEvidencia[etapa].file!.name }}</span>
+          </div>
+          } @else {
+          <div class="slot-dropzone" (click)="fileSlotInput.click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Subir foto</span>
+          </div>
+          }
+
+          @if (slotsEvidencia[etapa].file) {
+          <button class="btn-primary slot-upload-btn"
+            [disabled]="subiendoEvidencia"
+            (click)="guardarEvidenciaPorEtapa(etapa)">
+            @if (subiendoEvidencia) {
+            <app-spinner variant="ring" [size]="14" theme="light"></app-spinner>
+            } @else {
+            Subir
+            }
+          </button>
+          } @else if (!getEvExistente(etapa)) {
+          <button class="btn-slot-pick" (click)="fileSlotInput.click()">Seleccionar</button>
+          }
         </div>
         }
-        <div class="file-info">
-          <span class="file-name">{{ archivoEvidencia.name }}</span>
-          <span class="file-size">{{ (archivoEvidencia.size / 1024).toFixed(1) }} KB</span>
-        </div>
-        <button class="file-remove" (click)="archivoEvidencia = null; archivoPreview = null">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
-      </div>
-      }
-
-      <div class="form-field mt-3">
-        <label class="form-label">Descripción <span class="optional">(opcional)</span></label>
-        <input class="form-input" type="text" [(ngModel)]="descripcionEvidencia"
-          placeholder="Ej: Vista frontal del switch defectuoso">
       </div>
 
       @if (errorEvidencia) {
@@ -443,21 +494,16 @@
     </div>
 
     <div class="modal-footer">
-      <button class="btn-cancel" (click)="cerrarModalEvidencia()">Cancelar</button>
-      <button class="btn-primary" (click)="guardarEvidencia()" [disabled]="!archivoEvidencia || subiendoEvidencia">
-        @if (subiendoEvidencia) {
-        <app-spinner [size]="16" theme="light"></app-spinner>
-        Subiendo…
-        } @else {
-        Subir Evidencia
-        }
-      </button>
+      <button class="btn-cancel" (click)="cerrarModalEvidencia()">Cerrar</button>
     </div>
   </div>
 </div>
 }
 
 
+<!-- ══════════════════════════════════════════════════════════
+     MODAL 2 — EDITAR MATERIAL
+══════════════════════════════════════════════════════════ -->
 @if (showModalEditarMat && materialActivo) {
 <div class="modal-overlay" (click)="cerrarModalEditarMat()">
   <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
@@ -506,6 +552,9 @@
 }
 
 
+<!-- ══════════════════════════════════════════════════════════
+     MODAL 3 — SOLICITAR MATERIAL
+══════════════════════════════════════════════════════════ -->
 @if (showModalSolicitar) {
 <div class="modal-overlay" (click)="cerrarModalSolicitar()">
   <div class="modal-box modal-md" (click)="$event.stopPropagation()">
@@ -589,6 +638,9 @@
 }
 
 
+<!-- ══════════════════════════════════════════════════════════
+     MODAL 4 — PRE-INFORME PDF
+══════════════════════════════════════════════════════════ -->
 @if (showModalPDF) {
 <div class="modal-overlay" (click)="cerrarModalPDF()">
   <div class="modal-box modal-pdf" (click)="$event.stopPropagation()">

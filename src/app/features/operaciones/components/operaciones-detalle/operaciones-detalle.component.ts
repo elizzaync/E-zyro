@@ -1,17 +1,14 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewChecked, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
+import { Subscription } from 'rxjs';
 
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
-// ============================================================
-// INTERFACES — alineadas 1:1 con bd.txt
-// ============================================================
-
-/** proyecto_miembro JOIN empleado JOIN usuario */
 export interface MiembroEquipo {
   id: string;
   nombre: string;
@@ -21,15 +18,23 @@ export interface MiembroEquipo {
   rolProyecto: string;
 }
 
-/** evidencia_procedimiento */
 export interface EvidenciaProcedimiento {
   id: string;
   urlCloudinary: string;
   descripcion?: string;
   fechaCaptura: string;
+  etapa: 'antes' | 'durante' | 'despues';
 }
 
-/** procedimiento */
+export interface MensajeChat {
+  id?: string;
+  contenido: string;
+  remitente_id?: string;
+  nombre_remitente: string;
+  fecha: string | Date;
+  destinatario_id?: string | null;
+}
+
 export interface Procedimiento {
   id: string;
   nombre: string;
@@ -39,7 +44,6 @@ export interface Procedimiento {
   evidencias: EvidenciaProcedimiento[];
 }
 
-/** requerimiento_detalle JOIN material */
 export interface ItemMaterial {
   id: string;
   requerimientoId: string;
@@ -49,15 +53,6 @@ export interface ItemMaterial {
   estadoReq: 'pendiente' | 'aprobado' | 'rechazado' | 'entregado' | 'anulado';
 }
 
-/** seguimiento_proyecto */
-export interface NotaServicio {
-  id: string;
-  fecha: string;
-  texto: string;
-  autor: string;
-}
-
-/** Respuesta consolidada del endpoint GET /operaciones/servicio/:id */
 export interface ServicioDetalle {
   id: string;
   proyectoId: string;
@@ -73,12 +68,7 @@ export interface ServicioDetalle {
   procedimientos: Procedimiento[];
   materialesAsignados: ItemMaterial[];
   materialesSolicitados: ItemMaterial[];
-  notas: NotaServicio[];
 }
-
-// ============================================================
-// COMPONENTE
-// ============================================================
 
 @Component({
   selector: 'app-operaciones-detalle',
@@ -87,11 +77,13 @@ export interface ServicioDetalle {
   templateUrl: './operaciones-detalle.component.html',
   styleUrls: ['./operaciones-detalle.component.css']
 })
-export class OperacionesDetalleComponent implements OnInit, OnDestroy {
+export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterViewChecked {
   private route     = inject(ActivatedRoute);
   private location  = inject(Location);
   private sanitizer = inject(DomSanitizer);
   private svc       = inject(OperacionesService);
+
+  @ViewChild('chatScroll') private chatScrollEl!: ElementRef<HTMLDivElement>;
 
   servicioId: string | null = null;
   servicio: ServicioDetalle | null = null;
@@ -99,14 +91,24 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
   error    = false;
   errorMsg = '';
 
-  // ── Modal 1: Evidencia ─────────────────────────────────────
+  // ── Modal 1: Evidencia por etapas ─────────────────────────
   showModalEvidencia   = false;
   procedimientoActivo: Procedimiento | null = null;
-  archivoEvidencia: File | null = null;
-  archivoPreview: string | null = null;
-  descripcionEvidencia = '';
   subiendoEvidencia    = false;
   errorEvidencia       = '';
+
+  etapasLista: ('antes' | 'durante' | 'despues')[] = ['antes', 'durante', 'despues'];
+  etapaActiva: 'antes' | 'durante' | 'despues' = 'antes';
+
+  slotsEvidencia: {
+    antes:   { file: File | null; preview: string | null };
+    durante: { file: File | null; preview: string | null };
+    despues: { file: File | null; preview: string | null };
+  } = {
+    antes:   { file: null, preview: null },
+    durante: { file: null, preview: null },
+    despues: { file: null, preview: null }
+  };
 
   // ── Modal 2: Editar Material ───────────────────────────────
   showModalEditarMat = false;
@@ -129,14 +131,19 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
   pdfCargando   = false;
   pdfBlobUrl    = '';
 
-  // ── Nota nueva ─────────────────────────────────────────────
-  nuevaNota    = '';
-  enviandoNota = false;
+  // ── Chat en tiempo real ────────────────────────────────────
+  chatMensajes: MensajeChat[]     = [];
+  nuevoMensajeChat                = '';
+  chatDestinatario: string | null = null;
+  soyJefeOperaciones              = false;
 
-  // Nombre del usuario logueado para las notas
-  private _nombreUsuario: string = 'Yo';
+  private chatSocket$: WebSocketSubject<unknown> | null = null;
+  private chatSub?: Subscription;
+  private _scrollPending = false;
 
-  // ==========================================================
+  _nombreUsuario = 'Yo';
+  private _usuarioId: string | null = null;
+
   ngOnInit(): void {
     this.servicioId = this.route.snapshot.paramMap.get('id');
     const stored = localStorage.getItem('ezyro_user');
@@ -144,13 +151,27 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
       try {
         const u = JSON.parse(stored);
         if (u?.nombre_completo) this._nombreUsuario = u.nombre_completo;
+        if (u?.id)              this._usuarioId     = u.id;
+        if (u?.rol === 'jefe_operaciones' || u?.rol === 'administrador') {
+          this.soyJefeOperaciones = true;
+        }
       } catch { /* ignore */ }
     }
     this.cargarDetalle();
   }
 
+  ngAfterViewChecked(): void {
+    if (this._scrollPending && this.chatScrollEl?.nativeElement) {
+      const el = this.chatScrollEl.nativeElement;
+      el.scrollTop = el.scrollHeight;
+      this._scrollPending = false;
+    }
+  }
+
   ngOnDestroy(): void {
     if (this.pdfBlobUrl) URL.revokeObjectURL(this.pdfBlobUrl);
+    this.chatSub?.unsubscribe();
+    this.chatSocket$?.complete();
   }
 
   volver(): void { this.location.back(); }
@@ -162,7 +183,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
     this.cargando = true;
     this.error    = false;
     if (!this.servicioId) {
-      this.error   = true;
+      this.error    = true;
       this.errorMsg = 'ID de servicio inválido.';
       this.cargando = false;
       return;
@@ -171,6 +192,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
       next: (raw: any) => {
         this.servicio = this._mapServicio(raw);
         this.cargando = false;
+        this._conectarChat(this.servicio.proyectoId);
       },
       error: (err: any) => {
         this.error    = true;
@@ -180,19 +202,61 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Mapea la respuesta snake_case del backend a las interfaces camelCase del componente. */
+  private _conectarChat(projectId: string): void {
+    const token = localStorage.getItem('ezyro_token') ?? '';
+    this.chatSub?.unsubscribe();
+    this.chatSocket$?.complete();
+
+    this.chatSocket$ = webSocket<unknown>(
+      `wss://e-zyro-production.up.railway.app/ws/chat/${projectId}?token=${token}`
+    );
+
+    this.chatSub = this.chatSocket$.subscribe({
+      next: (msg: any) => {
+        this.chatMensajes.push({
+          id:               msg.id,
+          contenido:        msg.contenido ?? '',
+          remitente_id:     msg.remitente_id,
+          nombre_remitente: msg.remitente_nombre ?? msg.nombre_remitente ?? 'Equipo',
+          fecha:            msg.fecha ?? new Date().toISOString(),
+          destinatario_id:  msg.destinatario_id ?? null
+        });
+        this._scrollPending = true;
+      },
+      error: () => { /* conexión cerrada — no acción requerida */ }
+    });
+  }
+
+  enviarMensajeChat(): void {
+    const texto = this.nuevoMensajeChat.trim();
+    if (!texto || !this.chatSocket$) return;
+
+    this.chatSocket$.next({ contenido: texto, destinatario_id: this.chatDestinatario ?? null });
+
+    this.chatMensajes.push({
+      contenido:        texto,
+      nombre_remitente: this._nombreUsuario,
+      remitente_id:     this._usuarioId ?? undefined,
+      fecha:            new Date().toISOString(),
+      destinatario_id:  this.chatDestinatario ?? null
+    });
+
+    this.nuevoMensajeChat = '';
+    this._scrollPending   = true;
+  }
+
   private _mapServicio(raw: any): ServicioDetalle {
     return {
-      id:          raw.id,
-      proyectoId:  raw.proyecto_id,
-      cliente:     raw.cliente,
+      id:           raw.id,
+      proyectoId:   raw.proyecto_id,
+      cliente:      raw.cliente,
       tipoServicio: raw.tipo_servicio,
-      ubicacion:   raw.ubicacion,
-      fechaStr:    raw.fecha_str,
-      horaStr:     raw.hora_str,
-      descripcion: raw.descripcion,
-      estado:      raw.estado,
-      progreso:    raw.progreso,
+      ubicacion:    raw.ubicacion,
+      fechaStr:     raw.fecha_str,
+      horaStr:      raw.hora_str,
+      descripcion:  raw.descripcion,
+      estado:       raw.estado,
+      progreso:     raw.progreso,
       equipo: (raw.equipo ?? []).map((m: any) => ({
         id:          m.id,
         nombre:      m.nombre,
@@ -211,28 +275,23 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
           id:            e.id,
           urlCloudinary: e.url_cloudinary,
           descripcion:   e.descripcion,
-          fechaCaptura:  e.fecha_captura
+          fechaCaptura:  e.fecha_captura,
+          etapa:         (e.etapa as 'antes' | 'durante' | 'despues') ?? 'antes'
         }))
       })),
-      materialesAsignados:  this._mapMateriales(raw.materiales_asignados),
+      materialesAsignados:   this._mapMateriales(raw.materiales_asignados),
       materialesSolicitados: this._mapMateriales(raw.materiales_solicitados),
-      notas: (raw.notas ?? []).map((n: any) => ({
-        id:    n.id,
-        fecha: n.fecha,
-        texto: n.texto,
-        autor: n.autor
-      }))
     };
   }
 
   private _mapMateriales(list: any[]): ItemMaterial[] {
     return (list ?? []).map((m: any) => ({
-      id:             m.id,
+      id:              m.id,
       requerimientoId: m.requerimiento_id,
-      nombre:         m.nombre,
-      unidad:         m.unidad,
-      cantidad:       m.cantidad,
-      estadoReq:      m.estado_req
+      nombre:          m.nombre,
+      unidad:          m.unidad,
+      cantidad:        m.cantidad,
+      estadoReq:       m.estado_req
     }));
   }
 
@@ -281,31 +340,35 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
     return this.servicio.procedimientos.flatMap(p => p.evidencias);
   }
 
-  // Helpers de avatar
   getIniciales(m: MiembroEquipo): string {
     return (m.nombre[0] + m.apellido[0]).toUpperCase();
   }
+
   getColorAvatar(i: number): string {
-    const c = ['#91d337','#3b82f6','#8b5cf6','#f59e0b','#06b6d4','#ec4899'];
+    const c = ['#91d337', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899'];
     return c[i % c.length];
   }
 
-  // ==========================================================
-  // REGLA DE NEGOCIO: solo editar si NO está entregado/aprobado
-  // ==========================================================
   puedeEditar(mat: ItemMaterial): boolean {
     return mat.estadoReq !== 'entregado' && mat.estadoReq !== 'aprobado';
   }
 
   // ==========================================================
-  // MODAL 1 — EVIDENCIA
+  // MODAL 1 — EVIDENCIA (slots por etapa)
   // ==========================================================
+  getEvExistente(etapa: 'antes' | 'durante' | 'despues'): EvidenciaProcedimiento | undefined {
+    return this.procedimientoActivo?.evidencias.find(e => e.etapa === etapa);
+  }
+
   abrirModalEvidencia(proc: Procedimiento): void {
     this.procedimientoActivo  = proc;
-    this.archivoEvidencia     = null;
-    this.archivoPreview       = null;
-    this.descripcionEvidencia = '';
-    this.errorEvidencia       = '';
+    this.slotsEvidencia       = {
+      antes:   { file: null, preview: null },
+      durante: { file: null, preview: null },
+      despues: { file: null, preview: null }
+    };
+    this.etapaActiva        = 'antes';
+    this.errorEvidencia     = '';
     this.showModalEvidencia   = true;
   }
 
@@ -314,42 +377,41 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
     this.procedimientoActivo = null;
   }
 
-  onFileSelected(event: Event): void {
+  onFileSlotSelected(event: Event, etapa: 'antes' | 'durante' | 'despues'): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    this.archivoEvidencia = file;
-    this.errorEvidencia   = '';
+    this.slotsEvidencia[etapa].file    = file;
+    this.slotsEvidencia[etapa].preview = null;
     if (file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = e => (this.archivoPreview = e.target?.result as string);
+      reader.onload = e => (this.slotsEvidencia[etapa].preview = e.target?.result as string);
       reader.readAsDataURL(file);
-    } else {
-      this.archivoPreview = null;
     }
   }
 
-  guardarEvidencia(): void {
-    if (!this.archivoEvidencia || !this.procedimientoActivo) return;
+  guardarEvidenciaPorEtapa(etapa: 'antes' | 'durante' | 'despues'): void {
+    const slot = this.slotsEvidencia[etapa];
+    if (!slot.file || !this.procedimientoActivo) return;
     this.subiendoEvidencia = true;
     this.errorEvidencia    = '';
 
     const formData = new FormData();
-    formData.append('archivo',     this.archivoEvidencia);
-    formData.append('descripcion', this.descripcionEvidencia);
+    formData.append('archivo', slot.file);
+    formData.append('etapa',   etapa);
 
     this.svc.subirEvidencia(this.procedimientoActivo.id, formData).subscribe({
       next: (res: any) => {
         const ev: EvidenciaProcedimiento = {
           id:            res.evidencia_id,
           urlCloudinary: res.url,
-          descripcion:   this.descripcionEvidencia || this.archivoEvidencia!.name,
-          fechaCaptura:  new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+          fechaCaptura:  new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          etapa
         };
         this.procedimientoActivo!.evidencias.push(ev);
         this.procedimientoActivo!.estado = 'completado';
         this.recalcularProgreso();
-        this.subiendoEvidencia = false;
-        this.cerrarModalEvidencia();
+        this.slotsEvidencia[etapa] = { file: null, preview: null };
+        this.subiendoEvidencia     = false;
       },
       error: (err: any) => {
         this.subiendoEvidencia = false;
@@ -427,12 +489,12 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (res: any) => {
         this.servicio!.materialesSolicitados.push({
-          id:             res.detalle_id,
+          id:              res.detalle_id,
           requerimientoId: res.requerimiento_id,
-          nombre:         this.materialElegido!.nombre,
-          unidad:         this.materialElegido!.unidad,
-          cantidad:       this.cantidadSolicitar,
-          estadoReq:      'pendiente'
+          nombre:          this.materialElegido!.nombre,
+          unidad:          this.materialElegido!.unidad,
+          cantidad:        this.cantidadSolicitar,
+          estadoReq:       'pendiente'
         });
         this.solicitando = false;
         this.cerrarModalSolicitar();
@@ -462,7 +524,6 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
       const MUTED   = rgb(0.40, 0.45, 0.55);
       const WHITE   = rgb(1, 1, 1);
 
-      // Header bar
       page.drawRectangle({ x: 0, y: H - 64, width: W, height: 64, color: GREEN });
       page.drawText('PRE-INFORME DE SERVICIO', { x: 40, y: H - 35, size: 16, font: bold, color: WHITE });
       page.drawText(
@@ -566,29 +627,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy {
   }
 
   // ==========================================================
-  // NOTAS
-  // ==========================================================
-  agregarNota(): void {
-    if (!this.nuevaNota.trim() || !this.servicio || this.enviandoNota) return;
-    const texto = this.nuevaNota.trim();
-    this.enviandoNota = true;
-    this.svc.agregarNota(this.servicio.id, { descripcion: texto }).subscribe({
-      next: (res: any) => {
-        this.servicio!.notas.push({
-          id:    res.nota_id,
-          fecha: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          texto,
-          autor: this._nombreUsuario
-        });
-        this.enviandoNota = false;
-      },
-      error: () => { this.enviandoNota = false; }
-    });
-    this.nuevaNota = '';
-  }
-
-  // ==========================================================
-  // INFORME TOTAL (habilitado sólo al 100%)
+  // INFORME TOTAL
   // ==========================================================
   async finalizarServicio(): Promise<void> {
     if (!this.todasCompletadas || !this.servicio) return;
