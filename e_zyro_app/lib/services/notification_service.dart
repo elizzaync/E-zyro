@@ -24,11 +24,16 @@ class NotificationService {
     await _plugin.initialize(
       const InitializationSettings(android: android, iOS: ios),
     );
-    // Request Android 13+ runtime permission
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    // Crear el canal explícitamente para que Android lo reconozca desde el inicio
+    await androidPlugin?.createNotificationChannel(const AndroidNotificationChannel(
+      'esystemtic_general',
+      'E-System TIC',
+      description: 'Notificaciones generales de E-System TIC',
+      importance: Importance.high,
+    ));
+    await androidPlugin?.requestNotificationsPermission();
     _initialized = true;
   }
 

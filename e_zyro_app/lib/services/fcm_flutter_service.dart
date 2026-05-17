@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,12 @@ class FcmFlutterService {
   static final _messaging = FirebaseMessaging.instance;
   static GlobalKey<NavigatorState>? _navKey;
   static ApiClient? _client;
+
+  static final _messageController = StreamController<RemoteMessage>.broadcast();
+
+  /// Stream que emite cada mensaje FCM recibido en primer plano.
+  /// Suscríbete para recargar datos en tiempo real.
+  static Stream<RemoteMessage> get messageStream => _messageController.stream;
 
   // ── Inicialización principal ──────────────────────────────────────────────
 
@@ -73,6 +80,7 @@ class FcmFlutterService {
   // ── Mensajes en primer plano ──────────────────────────────────────────────
 
   static Future<void> _onForegroundMessage(RemoteMessage message) async {
+    _messageController.add(message);
     final n = message.notification;
     if (n == null) return;
     await NotificationService.show(

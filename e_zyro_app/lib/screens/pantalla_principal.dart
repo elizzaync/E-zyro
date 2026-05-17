@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/dashboard_service.dart';
+import '../services/fcm_flutter_service.dart';
 import '../models/dashboard_models.dart';
 import '../widgets/stat_card.dart';
 import '../utils/app_notifiers.dart';
@@ -27,10 +30,21 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ProximoServicio> _servicios = [];
   List<NotificacionDashboard> _notificaciones = [];
 
+  StreamSubscription<RemoteMessage>? _fcmSub;
+
   @override
   void initState() {
     super.initState();
     _init();
+    _fcmSub = FcmFlutterService.messageStream.listen((_) {
+      if (mounted) _loadData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _fcmSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _init() async {
