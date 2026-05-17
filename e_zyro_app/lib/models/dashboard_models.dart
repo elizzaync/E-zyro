@@ -120,6 +120,67 @@ class NotificacionDashboard {
       );
 }
 
+/// Modelo completo para la pantalla de gestión de notificaciones.
+/// Usa el endpoint GET /notificaciones que devuelve todos los campos.
+class NotificacionItem {
+  final String id;
+  final String tipo;
+  final String? categoria;
+  final String titulo;
+  final String mensaje;
+  final bool leido;
+  final String? referenciaTabla;
+  final String? referenciaId;
+  final DateTime createdAt;
+
+  const NotificacionItem({
+    required this.id,
+    required this.tipo,
+    this.categoria,
+    required this.titulo,
+    required this.mensaje,
+    required this.leido,
+    this.referenciaTabla,
+    this.referenciaId,
+    required this.createdAt,
+  });
+
+  factory NotificacionItem.fromJson(Map<String, dynamic> json) =>
+      NotificacionItem(
+        id:               json['id']?.toString() ?? '',
+        tipo:             json['tipo'] ?? 'general',
+        categoria:        json['categoria']?.toString(),
+        titulo:           json['titulo'] ?? '',
+        mensaje:          json['mensaje'] ?? '',
+        leido:            json['leido'] as bool? ?? false,
+        referenciaTabla:  json['referencia_tabla']?.toString(),
+        referenciaId:     json['referencia_id']?.toString(),
+        createdAt:        DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
+      );
+
+  NotificacionItem copyWith({bool? leido}) => NotificacionItem(
+    id:              id,
+    tipo:            tipo,
+    categoria:       categoria,
+    titulo:          titulo,
+    mensaje:         mensaje,
+    leido:           leido ?? this.leido,
+    referenciaTabla: referenciaTabla,
+    referenciaId:    referenciaId,
+    createdAt:       createdAt,
+  );
+
+  String get tiempoRelativo {
+    final diff = DateTime.now().difference(createdAt);
+    if (diff.inMinutes < 1) return 'Ahora mismo';
+    if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'Hace ${diff.inHours} h';
+    if (diff.inDays == 1) return 'Ayer';
+    if (diff.inDays < 7) return 'Hace ${diff.inDays} días';
+    return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+  }
+}
+
 // ─── Calendario ───────────────────────────────────────────────────────────────
 
 class CalendarioData {

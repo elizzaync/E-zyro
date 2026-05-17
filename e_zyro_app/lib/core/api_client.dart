@@ -79,6 +79,16 @@ class ApiClient {
       )
       .timeout(AppConstants.defaultTimeout);
 
+  Future<http.Response> delete(String path) async {
+    final token = _token;
+    if (token.isEmpty) {
+      throw Exception('No auth token found. Please login again.');
+    }
+    return http
+        .delete(Uri.parse('${AppConstants.baseUrl}$path'), headers: _authHeaders)
+        .timeout(AppConstants.defaultTimeout);
+  }
+
   /// POST without Bearer token (login, password recovery).
   Future<http.Response> postPublic(String path, Object body) => http
       .post(

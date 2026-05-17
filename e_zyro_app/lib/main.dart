@@ -14,6 +14,7 @@ import 'screens/pantalla_login.dart';
 import 'screens/pantalla_recuperacion_password.dart';
 import 'screens/pantalla_asistencia.dart';
 import 'screens/pantalla_calendario.dart';
+import 'screens/pantalla_notificaciones.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_flutter_service.dart';
 
@@ -91,6 +92,7 @@ class ESystemApp extends StatelessWidget {
           '/personal': (context) => const MainShell(initialIndex: 3),
           '/more': (context) => const MainShell(initialIndex: 4),
           '/calendario': (context) => const CalendarioScreen(),
+          '/notificaciones': (context) => const NotificacionesScreen(),
           '/asistencia': (context) => Scaffold(
             appBar: AppBar(
               leading: const BackButton(),

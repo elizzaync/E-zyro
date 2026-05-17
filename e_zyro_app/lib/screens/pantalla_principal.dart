@@ -392,15 +392,54 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── Notificaciones ──────────────────────────────────────────────────────────
+  void _abrirNotificaciones() {
+    Navigator.pushNamed(context, '/notificaciones').then((_) => _loadData());
+  }
+
   Widget _buildNotificationsHeader() {
-    return const Row(
+    final count = _notificaciones.length;
+    return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
+        const Text(
           'Notificaciones',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        Icon(Icons.notifications_none, color: Colors.grey),
+        GestureDetector(
+          onTap: _abrirNotificaciones,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(
+                Icons.notifications_none_rounded,
+                color: Colors.grey,
+                size: 26,
+              ),
+              if (count > 0)
+                Positioned(
+                  top: -5,
+                  right: -5,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
+                    child: Text(
+                      count > 9 ? '9+' : '$count',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -408,47 +447,143 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Widget> _buildNotificationsList() {
     if (_notificaciones.isEmpty) {
       return [
-        const Center(
-          child: Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              'Sin notificaciones recientes',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+        GestureDetector(
+          onTap: _abrirNotificaciones,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: _neonDecoration(radius: 12),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded,
+                    color: Colors.grey.shade400, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  'Sin notificaciones recientes',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                ),
+              ],
             ),
           ),
         ),
       ];
     }
-    return _notificaciones
-        .map(
-          (n) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _buildNotificationItem(title: n.titulo, subtitle: n.tiempo),
+
+    final preview = _notificaciones.take(3).toList();
+    final hasMore = _notificaciones.length > 3;
+
+    return [
+      ...preview.map(
+        (n) => Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: _buildNotificationItem(n),
+        ),
+      ),
+      if (hasMore)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: GestureDetector(
+            onTap: _abrirNotificaciones,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Ver todas las notificaciones',
+                  style: TextStyle(
+                    color: Color(0xFF8FD11B),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(width: 4),
+                Icon(Icons.arrow_forward_ios_rounded,
+                    color: Color(0xFF8FD11B), size: 12),
+              ],
+            ),
           ),
         )
-        .toList();
+      else if (_notificaciones.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 8),
+          child: GestureDetector(
+            onTap: _abrirNotificaciones,
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Gestionar notificaciones',
+                  style: TextStyle(
+                    color: Color(0xFF8FD11B),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(width: 4),
+                Icon(Icons.arrow_forward_ios_rounded,
+                    color: Color(0xFF8FD11B), size: 12),
+              ],
+            ),
+          ),
+        ),
+    ];
   }
 
-  Widget _buildNotificationItem({
-    required String title,
-    required String subtitle,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _neonDecoration(radius: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            subtitle,
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-        ],
+  Widget _buildNotificationItem(NotificacionDashboard n) {
+    final (color, icon) = switch (n.tipo) {
+      'servicio'     => (const Color(0xFF3B82F6), Icons.build_rounded),
+      'comunicado'   => (const Color(0xFFF59E0B), Icons.campaign_rounded),
+      'recordatorio' => (const Color(0xFF8B5CF6), Icons.event_note_rounded),
+      _              => (const Color(0xFF8FD11B), Icons.notifications_rounded),
+    };
+
+    return GestureDetector(
+      onTap: _abrirNotificaciones,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: _neonDecoration(radius: 12),
+        child: Row(
+          children: [
+            // Icono circular con color por tipo
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 12),
+            // Texto
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    n.titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    n.tiempo,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            // Punto no leído (en home todas son no leídas)
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+          ],
+        ),
       ),
     );
   }
