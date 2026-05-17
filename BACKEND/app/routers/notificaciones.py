@@ -197,6 +197,42 @@ def marcar_leida(
     return {"status": "success"}
 
 
+# ── Eliminar notificaciones ───────────────────────────────────────────────────
+
+@router.delete("/eliminar-leidas")
+def eliminar_leidas(
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Elimina permanentemente todas las notificaciones ya leídas del usuario."""
+    usuario_id = payload["id"]
+    db.query(Notificacion).filter(
+        Notificacion.usuario_id == usuario_id,
+        Notificacion.leido == True,
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"status": "success"}
+
+
+@router.delete("/{notificacion_id}")
+def eliminar_notificacion(
+    notificacion_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Elimina una notificación concreta del usuario autenticado."""
+    usuario_id = payload["id"]
+    n = db.query(Notificacion).filter(
+        Notificacion.id == notificacion_id,
+        Notificacion.usuario_id == usuario_id,
+    ).first()
+    if not n:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    db.delete(n)
+    db.commit()
+    return {"status": "success"}
+
+
 # ── Inyección de prueba ────────────────────────────────────────────────────────
 
 @router.post("/test/inyectar")
@@ -205,16 +241,10 @@ def inyectar_notificacion(
     payload: dict = Depends(verificar_token),
     db: Session = Depends(get_db),
 ):
-    """
-    [TEST / ADMIN]  Crea una notificación en BD y dispara el push FCM.
-    Si usuario_id no se especifica, se envía al propio usuario autenticado.
-
-    Ejemplo con curl:
-      curl -X POST https://<host>/notificaciones/test/inyectar \\
-           -H "Authorization: Bearer <token>" \\
-           -H "Content-Type: application/json" \\
-           -d '{"titulo":"Hola","mensaje":"Test push","tipo":"general"}'
-    """
+    """[ADMIN ONLY] Inyecta una notificación de prueba. Solo disponible para administradores."""
+    rol = payload.get("rol", "")
+    if rol.lower() not in ("admin", "administrador", "superadmin"):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Solo administradores.")
     destinatario_id = body.usuario_id or payload["id"]
     empresa_id = payload.get("empresa_id", "")
 

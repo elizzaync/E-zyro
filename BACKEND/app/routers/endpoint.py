@@ -11,13 +11,16 @@ Ejecutar:
 import base64
 import io
 import logging
+import os
+import secrets
 from datetime import datetime
 
 import face_recognition
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
 
 # ─────────────────────────────────────────────
@@ -36,6 +39,19 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────
+#  AUTENTICACIÓN POR API KEY
+# ─────────────────────────────────────────────
+_API_KEY = os.environ.get("FACIAL_API_KEY", "")
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _require_api_key(key: str | None = Security(_api_key_header)) -> None:
+    if not _API_KEY:
+        raise RuntimeError("FACIAL_API_KEY no configurada en el servidor.")
+    if not key or not secrets.compare_digest(key, _API_KEY):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key inválida o ausente.")
 
 # ─────────────────────────────────────────────
 #  APP
@@ -144,8 +160,9 @@ def _verificar(img_base: np.ndarray, img_selfie: np.ndarray) -> dict:
     "/verificar-asistencia",
     response_model=RespuestaVerificacion,
     summary="Verificar identidad facial y marcar asistencia",
+    dependencies=[Depends(_require_api_key)],
 )
-def verificar_asistencia(solicitud: SolicitudVerificacion):  # FIX: sync — face_recognition bloquea el event loop en async
+def verificar_asistencia(solicitud: SolicitudVerificacion):  # sync — face_recognition bloquea el event loop en async
     """
     Recibe dos imágenes en base64:
     - **imagen_base**: foto de referencia del empleado.
@@ -162,7 +179,7 @@ def verificar_asistencia(solicitud: SolicitudVerificacion):  # FIX: sync — fac
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(e),
+            detail="Una o ambas imágenes son inválidas o no contienen un rostro.",
         )
 
     # 2 ── Verificación facial
@@ -172,7 +189,7 @@ def verificar_asistencia(solicitud: SolicitudVerificacion):  # FIX: sync — fac
         logger.error(f"Error en verificación: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error interno durante la verificación: {str(e)}",
+            detail="Error interno durante la verificación.",
         )
 
     logger.info(f"Resultado: {resultado['status']} | score: {resultado['score']} | {solicitud.metadata}")

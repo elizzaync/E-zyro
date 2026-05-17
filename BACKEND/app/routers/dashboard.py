@@ -85,7 +85,7 @@ def guardar_token_push(datos: TokenPush, current_user: dict = Depends(verificar_
         return {"status": "success", "mensaje": "Token sincronizado"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/resumen")
@@ -153,7 +153,7 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error resumen: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/proximos-servicios")
@@ -349,8 +349,12 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
             }
         }
     except Exception as e:
+<<<<<<< HEAD
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+=======
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+>>>>>>> 5db7c4afc46538225452e1b4d90bfe1fecec8bc9
 
 
 @router.post("/calendario/nota")
@@ -419,7 +423,7 @@ def guardar_nota_calendario(nota: NotaCalendario, current_user: dict = Depends(v
         return {"status": "success"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/notificaciones")
@@ -457,8 +461,7 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
                             "tiempo":  tiempo_str,
                             "tipo":    n.tipo
                         })
-                except Exception as e:
-                    print(f"Error de fecha en notificacion: {e}")
+                except Exception:
                     continue
             else:
                 tiempo_formato = n.created_at.strftime("%d/%m %H:%M") if n.created_at else ""
@@ -471,8 +474,7 @@ def obtener_notificaciones(current_user: dict = Depends(verificar_token), db: Se
                 })
 
         return {"status": "success", "data": data}
-    except Exception as e:
-        print(f"Error notificaciones: {e}")
+    except Exception:
         raise HTTPException(status_code=500, detail="Error al cargar notificaciones")
 
 
@@ -568,8 +570,12 @@ def obtener_detalle_servicio_dia(fecha: str, current_user: dict = Depends(verifi
 
         return {"status": "success", "data": resultado}
     except Exception as e:
+<<<<<<< HEAD
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+=======
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+>>>>>>> 5db7c4afc46538225452e1b4d90bfe1fecec8bc9
 
 
 @router.post("/proyectos/asignar-tecnico")
@@ -627,7 +633,7 @@ def asignar_tecnico_grupo(datos: AsignacionMiembro, current_user: dict = Depends
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.put("/notificaciones/{noti_id}/ignorar")
@@ -883,7 +889,7 @@ def obtener_estadisticas_perfil(current_user: dict = Depends(verificar_token), d
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al cargar estadísticas: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/perfil/asistencia")
@@ -988,7 +994,7 @@ def obtener_asistencia_perfil(current_user: dict = Depends(verificar_token), db:
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error asistencia: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/perfil/contratos")
@@ -1030,7 +1036,7 @@ def obtener_contratos(current_user: dict = Depends(verificar_token), db: Session
             })
         return {"status": "success", "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al cargar contratos: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/perfil/boletas")
@@ -1060,7 +1066,7 @@ def obtener_boletas(current_user: dict = Depends(verificar_token), db: Session =
             })
         return {"status": "success", "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al cargar documentos: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/perfil/permisos")
@@ -1125,7 +1131,7 @@ def obtener_permisos_laborales(current_user: dict = Depends(verificar_token), db
             })
         return {"status": "success", "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al cargar permisos: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.put("/perfil")
