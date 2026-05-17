@@ -205,16 +205,10 @@ def inyectar_notificacion(
     payload: dict = Depends(verificar_token),
     db: Session = Depends(get_db),
 ):
-    """
-    [TEST / ADMIN]  Crea una notificación en BD y dispara el push FCM.
-    Si usuario_id no se especifica, se envía al propio usuario autenticado.
-
-    Ejemplo con curl:
-      curl -X POST https://<host>/notificaciones/test/inyectar \\
-           -H "Authorization: Bearer <token>" \\
-           -H "Content-Type: application/json" \\
-           -d '{"titulo":"Hola","mensaje":"Test push","tipo":"general"}'
-    """
+    """[ADMIN ONLY] Inyecta una notificación de prueba. Solo disponible para administradores."""
+    rol = payload.get("rol", "")
+    if rol.lower() not in ("admin", "administrador", "superadmin"):
+        raise HTTPException(status_code=403, detail="Acceso denegado. Solo administradores.")
     destinatario_id = body.usuario_id or payload["id"]
     empresa_id = payload.get("empresa_id", "")
 

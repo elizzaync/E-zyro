@@ -142,8 +142,9 @@ async def solicitar_codigo(payload: PasswordResetRequest, request: Request, db: 
     user_agent = request.headers.get("user-agent", "Desconocido")
 
     usuario = db.query(Usuario).filter(Usuario.email == payload.email).first()
+    # Anti-enumeración: no revelar si el correo existe o no
     if not usuario:
-        raise HTTPException(status_code=404, detail="Este correo no está registrado en el sistema.")
+        return {"status": "success", "mensaje": "Si el correo está registrado, recibirás un código de verificación."}
     # Generar código de 6 dígitos de forma segura
     codigo_plano = str(random.SystemRandom().randint(100000, 999999))
     # Guardar en BD (Encriptado)
@@ -171,11 +172,8 @@ async def solicitar_codigo(payload: PasswordResetRequest, request: Request, db: 
     # Envío de correo
     try:
         await enviar_correo_otp(payload.email, codigo_plano)
-        print(f"CORREO ENVIADO CORRECTAMENTE A {payload.email}", flush=True)
-    except Exception as e:
-        error_msg = f"ERROR FATAL DE CORREO: {str(e)}"
-        print(error_msg, flush=True)
-        raise HTTPException(status_code=500, detail=error_msg)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Error al enviar el código. Intenta nuevamente.")
     return {"status": "success", "mensaje": "Código de seguridad enviado al correo."}
 # =========================================================================
 # 2. VERIFICAR CÓDIGO
@@ -187,7 +185,7 @@ async def verificar_codigo(payload: PasswordVerifyCode, request: Request, db: Se
 
     usuario = db.query(Usuario).filter(Usuario.email == payload.email).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+        raise HTTPException(status_code=400, detail="Código inválido o expirado.")
     # Buscar el último código activo pedido por este usuario
     registro_otp = db.query(RecuperacionPassword).filter(
         RecuperacionPassword.usuario_id == usuario.id,
@@ -230,7 +228,7 @@ async def actualizar_password(payload: PasswordResetConfirm, request: Request, d
     user_agent = request.headers.get("user-agent", "Desconocido")
     usuario = db.query(Usuario).filter(Usuario.email == payload.email).first()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+        raise HTTPException(status_code=400, detail="La solicitud de cambio es inválida o ha expirado.")
     registro_otp = db.query(RecuperacionPassword).filter(
         RecuperacionPassword.usuario_id == usuario.id,
         RecuperacionPassword.usado == False
@@ -268,10 +266,11 @@ async def actualizar_password(payload: PasswordResetConfirm, request: Request, d
 @router.post("/refresh")
 def refresh_token(
     credentials: HTTPAuthorizationCredentials = Security(_http_bearer),
+    db: Session = Depends(get_db),
 ):
+    import time
     token = credentials.credentials
     try:
-        # Decodifica sin verificar expiración para permitir renovación
         payload = jwt.decode(
             token,
             SECRET_KEY,
@@ -281,8 +280,6 @@ def refresh_token(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
-    # Solo permitir renovación dentro de los 30 días posteriores al vencimiento
-    import time
     exp = payload.get("exp", 0)
     if (time.time() - exp) > (30 * 24 * 3600):
         raise HTTPException(
@@ -290,8 +287,26 @@ def refresh_token(
             detail="Sesión expirada. Inicia sesión con tu contraseña para continuar.",
         )
 
-    # Emitir nuevo token con el mismo payload (sin "exp" viejo)
+    # Validar que la sesión siga activa en BD (evita reutilización de tokens revocados)
+    token_hash  = hashlib.sha256(token.encode()).hexdigest()
+    usuario_id  = payload.get("id")
+    sesion = db.query(SesionUsuario).filter(
+        SesionUsuario.usuario_id == usuario_id,
+        SesionUsuario.token_hash == token_hash,
+        SesionUsuario.activa     == True,
+    ).first()
+    if not sesion:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesión inválida o cerrada. Inicia sesión nuevamente.",
+        )
+
     new_payload = {k: v for k, v in payload.items() if k != "exp"}
-    new_token = crear_token_acceso(new_payload)
+    new_token   = crear_token_acceso(new_payload)
+
+    # Actualizar hash en BD con el nuevo token
+    sesion.token_hash       = hashlib.sha256(new_token.encode()).hexdigest()
+    sesion.fecha_expiracion = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    db.commit()
 
     return {"status": "success", "data": {"token": new_token}}

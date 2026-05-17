@@ -7,7 +7,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480
+ACCESS_TOKEN_EXPIRE_MINUTES = 120  # 2 horas (reducido de 8 h para limitar ventana de ataque)
 security = HTTPBearer()
 def crear_token_acceso(data: dict):
     to_encode = data.copy()

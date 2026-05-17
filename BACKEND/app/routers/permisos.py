@@ -90,7 +90,7 @@ def mis_solicitudes(
 
         return {"status": "success", "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.post("/guardar-firma")
@@ -142,7 +142,7 @@ async def guardar_firma(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/mi-firma")
@@ -159,7 +159,7 @@ def obtener_mi_firma(
             return {"status": "success", "data": None}
         return {"status": "success", "data": {"url_firma": firma.url_cloudinary}}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.get("/historial-firmas")
@@ -177,7 +177,7 @@ def obtener_historial_firmas(
             "data": [{"url_firma": h.url_cloudinary} for h in historial]
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
 @router.post("/enviar-solicitud")
@@ -315,4 +315,4 @@ async def enviar_solicitud(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
