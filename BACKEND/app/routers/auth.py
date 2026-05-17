@@ -23,8 +23,9 @@ from app.models.auditoria import Auditoria
 from app.models.recuperacion_password import RecuperacionPassword
 from app.models.sesion_usuario import SesionUsuario
 from app.db.database import get_db
-from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 from app.core.email import enviar_correo_otp
+from jose import jwt, JWTError
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 _http_bearer = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -261,3 +262,36 @@ async def actualizar_password(payload: PasswordResetConfirm, request: Request, d
     db.commit()
 
     return {"status": "success", "mensaje": "Tu contraseña ha sido actualizada de forma segura."}
+# =========================================================================
+# REFRESH TOKEN (para acceso biométrico sin re-login)
+# =========================================================================
+@router.post("/refresh")
+def refresh_token(
+    credentials: HTTPAuthorizationCredentials = Security(_http_bearer),
+):
+    token = credentials.credentials
+    try:
+        # Decodifica sin verificar expiración para permitir renovación
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"verify_exp": False},
+        )
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+
+    # Solo permitir renovación dentro de los 30 días posteriores al vencimiento
+    import time
+    exp = payload.get("exp", 0)
+    if (time.time() - exp) > (30 * 24 * 3600):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesión expirada. Inicia sesión con tu contraseña para continuar.",
+        )
+
+    # Emitir nuevo token con el mismo payload (sin "exp" viejo)
+    new_payload = {k: v for k, v in payload.items() if k != "exp"}
+    new_token = crear_token_acceso(new_payload)
+
+    return {"status": "success", "data": {"token": new_token}}
