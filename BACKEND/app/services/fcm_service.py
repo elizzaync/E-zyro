@@ -1,10 +1,13 @@
 # app/services/fcm_service.py
+import logging
 import os
 import json
 import firebase_admin
 from firebase_admin import credentials, messaging
 from sqlalchemy.orm import Session
 from app.models.dispositivo_push import DispositivoPush
+
+logger = logging.getLogger(__name__)
 
 
 # ── Inicialización segura de Firebase (solo una vez) ──────────────────────────
@@ -17,13 +20,13 @@ def _inicializar_firebase():
         if firebase_json_str:
             cred_dict = json.loads(firebase_json_str)
             cred = credentials.Certificate(cred_dict)
-            print("🔧 Firebase inicializado usando Variable de Entorno (Producción)")
+            logger.info("Firebase inicializado usando Variable de Entorno.")
         else:
             cred = credentials.Certificate("firebase-credentials.json")
-            print("🔧 Firebase inicializado usando Archivo Local (Desarrollo)")
+            logger.info("Firebase inicializado usando Archivo Local.")
         firebase_admin.initialize_app(cred)
     except Exception as e:
-        print(f"⚠️  Error al inicializar Firebase Admin: {e}")
+        logger.error("Error al inicializar Firebase Admin: %s", type(e).__name__)
 
 
 _inicializar_firebase()
@@ -56,7 +59,7 @@ def enviar_push_a_usuario(
         ).all()
 
         if not dispositivos:
-            print(f"⚠️  Sin dispositivos registrados para el usuario {usuario_id}")
+            logger.warning("Sin dispositivos registrados para usuario.")
             return False
 
         # Payload de datos que Flutter recibe al tocar la notificación
@@ -94,22 +97,22 @@ def enviar_push_a_usuario(
                         )
                     ),
                 )
-                response = messaging.send(message)
-                print(f"✅ Push enviado a {disp.plataforma} [{disp.token_push[:20]}...]: {response}")
+                messaging.send(message)
+                logger.info("Push enviado a %s.", disp.plataforma)
                 enviados += 1
 
             except messaging.UnregisteredError:
-                print(f"🗑️  Token inválido, desactivando: {disp.token_push[:20]}...")
+                logger.warning("Token inválido, desactivando.")
                 disp.activo = False
                 db.commit()
 
             except Exception as e:
-                print(f"❌ Error enviando push al token {disp.token_push[:20]}...: {e}")
+                logger.error("Error enviando push: %s", type(e).__name__)
 
         return enviados > 0
 
     except Exception as e:
-        print(f"❌ Error general en FCM: {e}")
+        logger.error("Error general en FCM: %s", type(e).__name__)
         return False
 
 
@@ -128,7 +131,7 @@ def notificar_asignacion_servicio(
         f"Hola {nombre_tecnico}, tienes un nuevo servicio: "
         f"{nombre_servicio} para {nombre_cliente} el {fecha_servicio}."
     )
-    print(f"[FCM] Notificando asignación al técnico {usuario_id_tecnico}")
+    logger.info("Notificando asignación de servicio.")
     return enviar_push_a_usuario(
         usuario_id=usuario_id_tecnico,
         titulo=titulo,
