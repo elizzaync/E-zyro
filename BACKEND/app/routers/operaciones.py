@@ -30,7 +30,6 @@ from ..models.procedimiento import Procedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.material import Material, Stock
-from ..models.seguimiento_proyecto import SeguimientoProyecto
 
 # Schemas Pydantic
 from ..schemas.operaciones import (
@@ -39,12 +38,10 @@ from ..schemas.operaciones import (
     ProcedimientoOut,
     EvidenciaOut,
     ItemMaterialOut,
-    NotaOut,
     ActualizarEstadoBody,
     ActualizarProcedimientoBody,
     SolicitarMaterialBody,
     ActualizarReqDetalleBody,
-    AgregarNotaBody,
     ProyectoListOut,
     ProyectoServicioListOut,
     KpisProyectosOut,
@@ -498,38 +495,6 @@ def get_detalle_servicio(
         else:
             mat_solicitados.append(item)
 
-    # 6. Notas / seguimiento
-    nota_rows = (
-        db.query(
-            SeguimientoProyecto,
-            (Usuario.nombre + " " + Usuario.apellido).label("autor"),
-        )
-        .join(Empleado, Empleado.id == SeguimientoProyecto.registrado_por)
-        .join(Usuario,  Usuario.id  == Empleado.usuario_id)
-        .filter(
-            SeguimientoProyecto.proyecto_id == ps.proyecto_id,
-            SeguimientoProyecto.empresa_id  == empresa_id,
-        )
-        .order_by(SeguimientoProyecto.fecha.asc(), SeguimientoProyecto.created_at.asc())
-        .all()
-    )
-
-    # 🔥 FIX PYDANTIC: Blindaje en Notas
-    notas = [
-        NotaOut(
-            id=str(n.SeguimientoProyecto.id),
-            fecha=(
-                n.SeguimientoProyecto.fecha.strftime("%I:%M %p")
-                if isinstance(n.SeguimientoProyecto.fecha, datetime)
-                else str(n.SeguimientoProyecto.fecha)
-            ),
-            texto=n.SeguimientoProyecto.descripcion or "",
-            autor=n.autor or "Usuario Desconocido",
-        )
-        for n in nota_rows
-    ]
-
-    # 🔥 FIX PYDANTIC PRINCIPAL: Servicio Detalle Out
     return ServicioDetalleOut(
         id=str(ps.id),
         proyecto_id=str(ps.proyecto_id),
@@ -545,7 +510,6 @@ def get_detalle_servicio(
         procedimientos=procedimientos,
         materiales_asignados=mat_asignados,
         materiales_solicitados=mat_solicitados,
-        notas=notas,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -728,57 +692,6 @@ def actualizar_requerimiento_detalle(
         db.commit()
 
     return {"ok": True}
-
-
-# ── POST /operaciones/servicio/{id}/nota ──────────────────────────────────────
-
-@router.post("/servicio/{servicio_id}/nota", status_code=status.HTTP_201_CREATED)
-def agregar_nota(
-    servicio_id: str,
-    body: AgregarNotaBody,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-    usuario_id = payload["id"]
-
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-
-    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
-
-    total_procs = (
-        db.query(func.count(Procedimiento.id))
-        .filter(Procedimiento.proyecto_servicio_id == servicio_id)
-        .scalar() or 0
-    )
-    completos = (
-        db.query(func.count(Procedimiento.id))
-        .filter(
-            Procedimiento.proyecto_servicio_id == servicio_id,
-            Procedimiento.estado               == "completado",
-        )
-        .scalar() or 0
-    )
-    progreso = round(completos / total_procs * 100, 2) if total_procs else 0.0
-
-    nota = SeguimientoProyecto(
-        id                = str(_uuid.uuid4()),
-        proyecto_id       = ps.proyecto_id,
-        empresa_id        = empresa_id,
-        porcentaje_avance = progreso,
-        descripcion       = body.descripcion,
-        fecha             = date.today(),
-        registrado_por    = empleado.id,
-    )
-    db.add(nota)
-    db.commit()
-
-    return {"ok": True, "nota_id": nota.id}
 
 
 # ── GET /operaciones/materiales/buscar ────────────────────────────────────────

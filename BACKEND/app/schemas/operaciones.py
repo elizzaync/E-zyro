@@ -40,13 +40,6 @@ class ItemMaterialOut(BaseModel):
     estado_req: str
 
 
-class NotaOut(BaseModel):
-    id: str
-    fecha: str
-    texto: str
-    autor: str
-
-
 class ServicioDetalleOut(BaseModel):
     id: str
     proyecto_id: str
@@ -62,7 +55,6 @@ class ServicioDetalleOut(BaseModel):
     procedimientos: List[ProcedimientoOut]
     materiales_asignados: List[ItemMaterialOut]
     materiales_solicitados: List[ItemMaterialOut]
-    notas: List[NotaOut]
 
 
 class ProyectoListOut(BaseModel):
@@ -137,5 +129,3 @@ class ActualizarReqDetalleBody(BaseModel):
     cantidad: Optional[int] = None
 
 
-class AgregarNotaBody(BaseModel):
-    descripcion: str
