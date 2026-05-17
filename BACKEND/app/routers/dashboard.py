@@ -349,12 +349,8 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
             }
         }
     except Exception as e:
-<<<<<<< HEAD
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-=======
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
->>>>>>> 5db7c4afc46538225452e1b4d90bfe1fecec8bc9
 
 
 @router.post("/calendario/nota")
@@ -570,12 +566,8 @@ def obtener_detalle_servicio_dia(fecha: str, current_user: dict = Depends(verifi
 
         return {"status": "success", "data": resultado}
     except Exception as e:
-<<<<<<< HEAD
         import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-=======
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
->>>>>>> 5db7c4afc46538225452e1b4d90bfe1fecec8bc9
 
 
 @router.post("/proyectos/asignar-tecnico")
