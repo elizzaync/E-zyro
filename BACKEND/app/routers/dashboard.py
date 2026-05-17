@@ -260,67 +260,96 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
     try:
         empresa_id = current_user.get("empresa_id")
         usuario_id = current_user.get("id")
-        hoy = date.today()
-        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+        hoy        = date.today()
+        empleado   = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
-        filtros_base = [
-            Proyecto.empresa_id == empresa_id,
-            Proyecto.estado.in_(['En_Proceso', 'Pendiente'])
-        ]
+        # ── IDs de proyectos accesibles por el usuario ──────────────────────
+        filtros_proy = [Proyecto.empresa_id == empresa_id]
         if empleado:
-            filtros_base.append(or_(
+            filtros_proy.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
-                Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
+                Proyecto.id.in_(
+                    db.query(ProyectoMiembro.proyecto_id)
+                    .filter(ProyectoMiembro.empleado_id == empleado.id)
+                )
             ))
+        proyecto_ids = [p.id for p in db.query(Proyecto.id).filter(*filtros_proy).all()]
 
-        proyectos_usuario = db.query(Proyecto).filter(*filtros_base).all()
-        dias_con_servicio = [p.fecha_inicio.strftime("%Y-%m-%d") for p in proyectos_usuario if p.fecha_inicio]
+        # ── Servicios (ProyectoServicio) con fecha_programada ───────────────
+        servicios_db = []
+        if proyecto_ids:
+            servicios_db = db.query(ProyectoServicio).filter(
+                ProyectoServicio.proyecto_id.in_(proyecto_ids),
+                ProyectoServicio.empresa_id == empresa_id,
+                ProyectoServicio.fecha_programada.isnot(None)
+            ).all()
 
-        meses_abrev = ["", "ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
+        dias_con_servicio = list(set(
+            s.fecha_programada.strftime("%Y-%m-%d")
+            for s in servicios_db if s.fecha_programada
+        ))
 
-        proximos_proyectos = db.query(Proyecto, Cliente, CatalogoServicio).join(
-            Cliente, Proyecto.cliente_id == Cliente.id
-        ).join(
-            ProyectoServicio, Proyecto.id == ProyectoServicio.proyecto_id
-        ).join(
-            CatalogoServicio, ProyectoServicio.catalogo_servicio_id == CatalogoServicio.id
-        ).filter(
-            Proyecto.fecha_inicio >= hoy,
-            *filtros_base
-        ).order_by(asc(Proyecto.fecha_inicio)).limit(2).all()
+        servicios_calendario = [
+            {
+                "id":               s.id,
+                "proyecto_id":      s.proyecto_id,
+                "nombre":           s.nombre,
+                "fecha_programada": s.fecha_programada.strftime("%Y-%m-%d"),
+                "estado":           s.estado
+            }
+            for s in servicios_db if s.fecha_programada
+        ]
 
+        # ── Próximos eventos (los 2 servicios más cercanos) ─────────────────
+        meses_abrev   = ["", "ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
+                         "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"]
         proximos_eventos = []
-        for p, c, cat in proximos_proyectos:
-            if p.fecha_inicio:
+        if proyecto_ids:
+            proximos_rows = db.query(ProyectoServicio, Proyecto, Cliente, CatalogoServicio).join(
+                Proyecto,        ProyectoServicio.proyecto_id              == Proyecto.id
+            ).join(
+                Cliente,         Proyecto.cliente_id                       == Cliente.id
+            ).join(
+                CatalogoServicio, ProyectoServicio.catalogo_servicio_id   == CatalogoServicio.id
+            ).filter(
+                ProyectoServicio.proyecto_id.in_(proyecto_ids),
+                ProyectoServicio.empresa_id             == empresa_id,
+                ProyectoServicio.fecha_programada       >= hoy,
+                ProyectoServicio.fecha_programada.isnot(None),
+                ProyectoServicio.estado.in_(["Pendiente", "En_Proceso"])
+            ).order_by(asc(ProyectoServicio.fecha_programada)).limit(2).all()
+
+            for s, p, c, cat in proximos_rows:
                 proximos_eventos.append({
-                    "dia": str(p.fecha_inicio.day),
-                    "mes": meses_abrev[p.fecha_inicio.month],
+                    "dia":     str(s.fecha_programada.day),
+                    "mes":     meses_abrev[s.fecha_programada.month],
                     "empresa": c.razon_social,
-                    "tipo": cat.nombre,
-                    "hora": p.orden_trabajo,
-                    "activo": p.fecha_inicio == hoy
+                    "tipo":    cat.nombre,
+                    "hora":    s.nombre,
+                    "activo":  s.fecha_programada == hoy
                 })
 
-        notas_db = db.query(Notificacion).filter(
-            Notificacion.usuario_id == usuario_id,
-            Notificacion.categoria == 'Nota Calendario'
-        ).all()
-
+        # ── Notas del calendario ─────────────────────────────────────────────
         notas = {}
-        for n in notas_db:
+        for n in db.query(Notificacion).filter(
+            Notificacion.usuario_id == usuario_id,
+            Notificacion.categoria  == 'Nota Calendario'
+        ).all():
             if n.fecha_envio:
-                fecha_str = n.fecha_envio.strftime("%Y-%m-%d") if hasattr(n.fecha_envio, 'strftime') else str(n.fecha_envio)[:10]
-                notas[fecha_str] = n.mensaje
+                k = n.fecha_envio.strftime("%Y-%m-%d") if hasattr(n.fecha_envio, 'strftime') else str(n.fecha_envio)[:10]
+                notas[k] = n.mensaje
 
         return {
             "status": "success",
             "data": {
-                "proximosEventos": proximos_eventos,
-                "notas": notas,
-                "diasConServicio": dias_con_servicio
+                "proximosEventos":     proximos_eventos,
+                "notas":               notas,
+                "diasConServicio":     dias_con_servicio,   # retrocompat
+                "servicios":           servicios_calendario  # fuente rica
             }
         }
     except Exception as e:
+        import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -455,43 +484,46 @@ class AsignacionMiembro(BaseModel):
 
 @router.get("/calendario/servicio/{fecha}")
 def obtener_detalle_servicio_dia(fecha: str, current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    """Devuelve los proyectos asignados al usuario para una fecha dada, con equipo y jefe."""
+    """Devuelve los ProyectoServicio (servicios operativos) con fecha_programada == fecha dada."""
     try:
         usuario_id = current_user.get("id")
         empresa_id = current_user.get("empresa_id")
         fecha_obj  = datetime.strptime(fecha, "%Y-%m-%d").date()
+        empleado   = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
-        empleado = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
-
-        filtros = [
-            Proyecto.empresa_id == empresa_id,
-            Proyecto.fecha_inicio == fecha_obj,
-            Proyecto.estado.in_(["En_Proceso", "Pendiente", "Completado"])
-        ]
+        # IDs de proyectos accesibles
+        filtros_proy = [Proyecto.empresa_id == empresa_id]
         if empleado:
-            filtros.append(or_(
+            filtros_proy.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
                 Proyecto.id.in_(
-                    db.query(ProyectoMiembro.proyecto_id).filter(
-                        ProyectoMiembro.empleado_id == empleado.id,
-                        ProyectoMiembro.activo == True
-                    )
+                    db.query(ProyectoMiembro.proyecto_id)
+                    .filter(ProyectoMiembro.empleado_id == empleado.id)
                 )
             ))
+        proyecto_ids = [r.id for r in db.query(Proyecto.id).filter(*filtros_proy).all()]
 
-        proyectos = db.query(Proyecto, Cliente, CatalogoServicio).join(
-            Cliente, Proyecto.cliente_id == Cliente.id
-        ).join(
-            ProyectoServicio, Proyecto.id == ProyectoServicio.proyecto_id
-        ).join(
-            CatalogoServicio, ProyectoServicio.catalogo_servicio_id == CatalogoServicio.id
-        ).filter(*filtros).all()
+        if not proyecto_ids:
+            return {"status": "success", "data": []}
 
-        if not proyectos:
+        # Servicios cuya fecha_programada coincide
+        rows = db.query(ProyectoServicio, Proyecto, Cliente, CatalogoServicio).join(
+            Proyecto,         ProyectoServicio.proyecto_id            == Proyecto.id
+        ).join(
+            Cliente,          Proyecto.cliente_id                     == Cliente.id
+        ).join(
+            CatalogoServicio, ProyectoServicio.catalogo_servicio_id  == CatalogoServicio.id
+        ).filter(
+            ProyectoServicio.proyecto_id.in_(proyecto_ids),
+            ProyectoServicio.empresa_id      == empresa_id,
+            ProyectoServicio.fecha_programada == fecha_obj
+        ).all()
+
+        if not rows:
             return {"status": "success", "data": []}
 
         resultado = []
-        for p, c, cat in proyectos:
+        for s, p, c, cat in rows:
             # Jefe de operaciones
             jefe_data = None
             if p.jefe_operaciones_id:
@@ -500,45 +532,43 @@ def obtener_detalle_servicio_dia(fecha: str, current_user: dict = Depends(verifi
                     jefe_usr = db.query(Usuario).filter(Usuario.id == jefe_emp.usuario_id).first()
                     jefe_data = {
                         "nombre": f"{jefe_usr.nombre} {jefe_usr.apellido}" if jefe_usr else "—",
-                        "cargo": jefe_emp.cargo
+                        "cargo":  jefe_emp.cargo
                     }
 
-            # Equipo de trabajo
+            # Equipo del proyecto
             equipo_rows = db.query(ProyectoMiembro, Empleado, Usuario).join(
                 Empleado, ProyectoMiembro.empleado_id == Empleado.id
             ).join(
-                Usuario, Empleado.usuario_id == Usuario.id
+                Usuario,  Empleado.usuario_id          == Usuario.id
             ).filter(
                 ProyectoMiembro.proyecto_id == p.id,
-                ProyectoMiembro.activo == True
+                ProyectoMiembro.activo      == True
             ).all()
 
             equipo = [
                 {
-                    "nombre": f"{u.nombre} {u.apellido}",
-                    "cargo": e.cargo,
+                    "nombre":       f"{u.nombre} {u.apellido}",
+                    "cargo":        e.cargo,
                     "rol_proyecto": m.rol_proyecto or "Técnico"
                 }
                 for m, e, u in equipo_rows
             ]
 
-            estado_map = {
-                "En_Proceso": "En Proceso", "Pendiente": "Pendiente", "Completado": "Completado"
-            }
             resultado.append({
-                "id":             p.id,
-                "nombre":         p.nombre_proyecto,
-                "orden_trabajo":  p.orden_trabajo,
-                "estado":         estado_map.get(p.estado, p.estado),
-                "servicio":       cat.nombre,
-                "cliente":        c.razon_social,
-                "fecha":          fecha,
+                "id":               s.id,          # ProyectoServicio.id → /operaciones/servicio/:id
+                "nombre":           s.nombre,
+                "orden_trabajo":    p.orden_trabajo,
+                "estado":           s.estado,
+                "servicio":         cat.nombre,
+                "cliente":          c.razon_social,
+                "fecha":            fecha,
                 "jefe_operaciones": jefe_data,
-                "equipo":         equipo
+                "equipo":           equipo
             })
 
         return {"status": "success", "data": resultado}
     except Exception as e:
+        import traceback; traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
