@@ -72,7 +72,8 @@
     </div>
     <div class="banner-completado-text">
       <strong>Servicio Concluido</strong>
-      <span>Este servicio ha sido finalizado. Todos los campos están en modo solo lectura y no permiten modificaciones.</span>
+      <span>Este servicio ha sido finalizado. Todos los campos están en modo solo lectura y no permiten
+        modificaciones.</span>
     </div>
   </div>
   }
@@ -141,7 +142,8 @@
         <div class="lista-tareas">
           @for (proc of servicio.procedimientos; track proc.id) {
           <div class="tarea-item" [class.completada]="proc.estado === 'completado'">
-            <button class="tarea-check" (click)="toggleProcedimiento(proc)" [disabled]="servicio.estado === 'Completado'" [attr.aria-label]="'Toggle ' + proc.nombre">
+            <button class="tarea-check" (click)="toggleProcedimiento(proc)"
+              [disabled]="servicio.estado === 'Completado'" [attr.aria-label]="'Toggle ' + proc.nombre">
               @if (proc.estado === 'completado') {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -160,7 +162,8 @@
               </span>
               }
             </div>
-            <button class="btn-evidencia" (click)="abrirModalEvidencia(proc)" [disabled]="servicio.estado === 'Completado'" title="Agregar evidencia">
+            <button class="btn-evidencia" (click)="abrirModalEvidencia(proc)"
+              [disabled]="servicio.estado === 'Completado'" title="Agregar evidencia">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                 <circle cx="12" cy="13" r="4"></circle>
@@ -240,13 +243,79 @@
             }
           </ul>
           }
-          <button class="btn-outline-dashed mt-3" (click)="abrirModalSolicitar()">
+          <button class="btn-outline-dashed mt-3" (click)="abrirModalSolicitar()"
+            [disabled]="servicio.estado === 'Completado'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            Solicitar Material Extra
+            Buscar Material
           </button>
+
+          @if (materialesBorrador.length > 0) {
+          <div class="bloque-borrador mt-4 fade-in">
+            <div class="banner-warning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                </path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+              <div>
+                <strong>¡Atención Equipo!</strong>
+                <p>Solo un técnico debe consolidar y enviar los materiales para evitar duplicidad. Verifiquen con los
+                  demás antes de confirmar.</p>
+              </div>
+            </div>
+
+            <ul class="lista-borrador">
+              @for (item of materialesBorrador; track $index) {
+              <li class="borrador-item" [class.item-nuevo]="item.esNuevo">
+                <div class="bi-main-content">
+                  <div class="bi-header">
+                    <span class="bi-nombre">{{ item.nombre }}</span>
+                    @if (item.esNuevo) {
+                    <span class="badge-compra">COMPRA EXTERNA</span>
+                    }
+                  </div>
+                  <div class="bi-meta">
+                    <span class="bi-cant">× {{ item.cantidad }} {{ item.unidad }}</span>
+                  </div>
+                  @if (item.esNuevo && item.especificacion) {
+                  <p class="bi-especificacion">{{ item.especificacion }}</p>
+                  }
+                  <div class="bi-footer-info">
+                    <span class="bi-avatar">{{ item.agregadoPor | slice:0:1 | uppercase }}</span>
+                    <span class="bi-agregado-por">Añadido por {{ item.agregadoPor }}</span>
+                  </div>
+                </div>
+                <button class="btn-borrar-item" (click)="removerDelBorrador($index)" title="Quitar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </li>
+              }
+            </ul>
+
+            <div class="consenso-box">
+              <label class="checkbox-label">
+                <input type="checkbox" [(ngModel)]="consensoEquipo">
+                Confirmo que el equipo está de acuerdo con esta solicitud en lote
+              </label>
+            </div>
+
+            <button class="btn-solid-green w-100" (click)="enviarSolicitudLote()"
+              [disabled]="!consensoEquipo || enviandoLote">
+              @if (enviandoLote) {
+              <app-spinner [size]="16" theme="light"></app-spinner> Enviando a Logística...
+              } @else {
+              Enviar {{ materialesBorrador.length }} ítems a Logística
+              }
+            </button>
+          </div>
+          }
         </div>
       </section>
 
@@ -357,9 +426,8 @@
             }
           </select>
           }
-          <input class="chat-input" type="text" [(ngModel)]="nuevoMensajeChat"
-            placeholder="Escribe un mensaje…" (keydown.enter)="enviarMensajeChat()"
-            [disabled]="servicio.estado === 'Completado'">
+          <input class="chat-input" type="text" [(ngModel)]="nuevoMensajeChat" placeholder="Escribe un mensaje…"
+            (keydown.enter)="enviarMensajeChat()" [disabled]="servicio.estado === 'Completado'">
           <button class="chat-send-btn" (click)="enviarMensajeChat()"
             [disabled]="!nuevoMensajeChat.trim() || servicio.estado === 'Completado'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -399,6 +467,7 @@
       </svg>
       Pre-Informe
     </button>
+    @if (soyJefeOperaciones) {
     <button class="btn-finalizar-main" [disabled]="!todasCompletadas" (click)="finalizarServicio()">
       @if (todasCompletadas) {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -413,6 +482,29 @@
       Bloqueado ({{ servicio.progreso }}%)
       }
     </button>
+    } @else {
+    <button class="btn-finalizar-main" disabled style="cursor: not-allowed; opacity: 0.85;">
+      @if (todasCompletadas) {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+      Esperando Cierre de Jefatura
+      } @else {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2v4"></path>
+        <path d="M12 18v4"></path>
+        <path d="M4.93 4.93l2.83 2.83"></path>
+        <path d="M16.24 16.24l2.83 2.83"></path>
+        <path d="M2 12h4"></path>
+        <path d="M18 12h4"></path>
+        <path d="M4.93 19.07l2.83-2.83"></path>
+        <path d="M16.24 7.76l2.83-2.83"></path>
+      </svg>
+      En Ejecución ({{ servicio.progreso }}%)
+      }
+    </button>
+    }
   </div>
 </footer>
 }
@@ -443,16 +535,15 @@
     <div class="modal-body">
       <div class="slots-container">
         @for (etapa of etapasLista; track etapa) {
-        <div class="ev-slot"
-          [class.slot-tiene-archivo]="!!slotsEvidencia[etapa].file"
+        <div class="ev-slot" [class.slot-tiene-archivo]="!!slotsEvidencia[etapa].file"
           [class.slot-subido]="!!getEvExistente(etapa)">
-          <input #fileSlotInput type="file" hidden accept="image/*"
-            (change)="onFileSlotSelected($event, etapa)">
+          <input #fileSlotInput type="file" hidden accept="image/*" (change)="onFileSlotSelected($event, etapa)">
 
           <div class="slot-header">
             <span class="slot-tag">{{ etapa }}</span>
             @if (slotsEvidencia[etapa].file) {
-            <button class="slot-remove" (click)="slotsEvidencia[etapa].file = null; slotsEvidencia[etapa].preview = null">
+            <button class="slot-remove"
+              (click)="slotsEvidencia[etapa].file = null; slotsEvidencia[etapa].preview = null">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -488,8 +579,7 @@
           }
 
           @if (slotsEvidencia[etapa].file) {
-          <button class="btn-primary slot-upload-btn"
-            [disabled]="subiendoEvidencia"
+          <button class="btn-primary slot-upload-btn" [disabled]="subiendoEvidencia"
             (click)="guardarEvidenciaPorEtapa(etapa)">
             @if (subiendoEvidencia) {
             <app-spinner variant="ring" [size]="14" theme="light"></app-spinner>
@@ -576,7 +666,7 @@
 
 
 <!-- ══════════════════════════════════════════════════════════
-     MODAL 3 — SOLICITAR MATERIAL
+     MODAL 3 — SOLICITAR MATERIAL (Catálogo + Compra Externa)
 ══════════════════════════════════════════════════════════ -->
 @if (showModalSolicitar) {
 <div class="modal-overlay" (click)="cerrarModalSolicitar()">
@@ -585,7 +675,10 @@
     <div class="modal-header">
       <div>
         <h3 class="modal-title">Solicitar Material Extra</h3>
-        <p class="modal-subtitle">Busca un ítem del inventario y especifica la cantidad</p>
+        <p class="modal-subtitle">
+          @if (!modoCompraExterna) { Busca un ítem del inventario y especifica la cantidad }
+          @else { Solicita un material no disponible en el catálogo }
+        </p>
       </div>
       <button class="modal-close" (click)="cerrarModalSolicitar()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -596,6 +689,28 @@
     </div>
 
     <div class="modal-body">
+
+      <!-- ── Pestañas ── -->
+      <div class="modal-tabs">
+        <button class="tab-btn" [class.active]="!modoCompraExterna" (click)="modoCompraExterna = false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
+            <path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" />
+          </svg>
+          Catálogo (Stock)
+        </button>
+        <button class="tab-btn" [class.active]="modoCompraExterna" (click)="modoCompraExterna = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="21" r="1" />
+            <circle cx="20" cy="21" r="1" />
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+          </svg>
+          Compra Externa
+        </button>
+      </div>
+
+      <!-- ── Pestaña: Catálogo ── -->
+      @if (!modoCompraExterna) {
       <div class="form-field search-wrap">
         <label class="form-label">Buscar en inventario</label>
         <div class="search-input-wrap">
@@ -642,19 +757,84 @@
         <input class="form-input" type="number" [(ngModel)]="cantidadSolicitar" min="1"
           [max]="materialElegido?.stock ?? 9999">
       </div>
+      }
+
+      <!-- ── Pestaña: Compra Externa ── -->
+      @if (modoCompraExterna) {
+      <div class="banner-compra-externa">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        <div>
+          <strong>Solicitud de Compra Externa</strong>
+          <p>Este ítem no está en el inventario. Se generará una orden de compra para Logística. Incluye
+            especificaciones técnicas exactas (modelo, código de parte, marca) para proceder.</p>
+        </div>
+      </div>
+
+      <div class="form-field mt-3">
+        <label class="form-label">Nombre exacto del repuesto / material <span class="form-required">*</span></label>
+        <input class="form-input" type="text" [(ngModel)]="manualNombre"
+          placeholder="Ej: Rodamiento SKF 6205-2RS, Cable THHN 12AWG…">
+      </div>
+
+      <div class="form-row-2 mt-3">
+        <div class="form-field">
+          <label class="form-label">Cantidad <span class="form-required">*</span></label>
+          <input class="form-input" type="number" [(ngModel)]="manualCantidad" min="1">
+        </div>
+        <div class="form-field">
+          <label class="form-label">Unidad</label>
+          <select class="form-input" [(ngModel)]="manualUnidad">
+            <option>Unidades</option>
+            <option>Metros</option>
+            <option>Litros</option>
+            <option>Kilogramos</option>
+            <option>Cajas</option>
+            <option>Rollos</option>
+            <option>Juego</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-field mt-3">
+        <label class="form-label">Especificaciones Técnicas / Justificación <span class="form-required">*</span></label>
+        <textarea class="form-input form-textarea" [(ngModel)]="manualEspecificacion" rows="3"
+          placeholder="Describe el modelo exacto, código de parte, para qué equipo es y por qué no está en stock…"></textarea>
+      </div>
+      }
+
     </div>
 
     <div class="modal-footer">
-      <button class="btn-cancel" (click)="cerrarModalSolicitar()">Cancelar</button>
-      <button class="btn-primary" (click)="solicitarMaterial()"
-        [disabled]="!materialElegido || cantidadSolicitar < 1 || solicitando">
-        @if (solicitando) {
-        <app-spinner [size]="16" theme="light"></app-spinner>
-        Solicitando…
+      <button class="btn-cancel" (click)="cerrarModalSolicitar()">
+        @if (materialesBorrador.length > 0) {
+        Cerrar ({{ materialesBorrador.length }} en borrador)
         } @else {
-        Solicitar Material
+        Cancelar
         }
       </button>
+      @if (!modoCompraExterna) {
+      <button class="btn-primary" (click)="solicitarMaterial()" [disabled]="!materialElegido || cantidadSolicitar < 1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Añadir al Borrador
+      </button>
+      } @else {
+      <button class="btn-primary btn-compra-externa" (click)="solicitarMaterialManual()"
+        [disabled]="!manualNombre.trim() || !manualEspecificacion.trim() || manualCantidad < 1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="9" cy="21" r="1" />
+          <circle cx="20" cy="21" r="1" />
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+        </svg>
+        Solicitar Compra Externa
+      </button>
+      }
     </div>
   </div>
 </div>

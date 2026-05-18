@@ -1,219 +1,272 @@
-<div class="cron-layout">
+<div class="gantt-layout">
 
-  <!-- ═══ CABECERA ═══════════════════════════════════════════════════ -->
-  <div class="cron-topbar">
+  <!-- ═══ TOPBAR ═══════════════════════════════════════════════════════ -->
+  <div class="gantt-topbar">
     <button class="btn-volver" (click)="volver()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <polyline points="15 18 9 12 15 6"></polyline>
+        <polyline points="15 18 9 12 15 6" />
       </svg>
       Servicios
     </button>
 
     @if (proyecto) {
-    <div class="cron-topbar-info">
-      <span class="cron-tag">
+    <div class="gantt-topbar-info">
+      <div class="gantt-tag">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="4" width="18" height="18" rx="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
-        Cronograma
-      </span>
-      <h2 class="cron-topbar-title">{{ proyecto.nombre_proyecto }}</h2>
-      <p class="cron-topbar-sub">{{ proyecto.cliente }} · {{ proyecto.orden_trabajo }}</p>
-    </div>
-    }
-  </div>
-
-  <!-- ═══ ESTADOS ════════════════════════════════════════════════════ -->
-  @if (isLoading) {
-  <div class="cron-state">
-    <app-spinner [size]="40"></app-spinner>
-    <p>Cargando cronograma...</p>
-  </div>
-  } @else if (errorMessage) {
-  <div class="cron-error">{{ errorMessage }}</div>
-  } @else if (proyecto) {
-
-  <!-- ═══ TARJETA RESUMEN DEL PROYECTO ═══════════════════════════════ -->
-  <div class="project-card">
-    <div class="pc-header">
-      <div class="pc-ot-badge">{{ proyecto.orden_trabajo }}</div>
-      <div class="pc-name-block">
-        <h3 class="pc-name">{{ proyecto.nombre_proyecto }}</h3>
-        <p class="pc-client">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/>
-          </svg>
-          {{ proyecto.cliente }}
-        </p>
+        Diagrama de Gantt
       </div>
-      <span class="est-badge" [class]="estadoClass(proyecto.estado)">
-        {{ estadoLabel(proyecto.estado) }}
-      </span>
+      <h2 class="gantt-topbar-title">{{ proyecto.nombre_proyecto }}</h2>
+      <p class="gantt-topbar-sub">{{ proyecto.cliente }} · {{ proyecto.orden_trabajo }}</p>
     </div>
 
-    <div class="pc-period">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="4" width="18" height="18" rx="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-      </svg>
-      {{ formatDate(proyecto.fecha_inicio) }}
-      <span class="period-arrow">→</span>
-      {{ formatDate(proyecto.fecha_fin_estimada) }}
-    </div>
-
-    <div class="pc-progress-block">
-      <div class="pc-progress-label">
-        <span>Avance del proyecto</span>
-        <strong>{{ progresoPorcentaje }}%</strong>
-      </div>
-      <div class="pc-progress-track">
-        <div class="pc-progress-fill" [style.width.%]="progresoPorcentaje"></div>
-      </div>
-      <p class="pc-progress-detail">
-        {{ proyecto.servicios_completados }} de {{ proyecto.total_servicios }} servicio{{ proyecto.total_servicios !== 1 ? 's' : '' }} completado{{ proyecto.servicios_completados !== 1 ? 's' : '' }}
-      </p>
-    </div>
-  </div>
-
-  <!-- ═══ TIMELINE VERTICAL ══════════════════════════════════════════ -->
-  <div class="timeline-section-label">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 6 12 12 16 14"/>
-    </svg>
-    {{ servicios.length }} servicio{{ servicios.length !== 1 ? 's' : '' }} programado{{ servicios.length !== 1 ? 's' : '' }}
-  </div>
-
-  @if (servicios.length === 0) {
-  <div class="timeline-empty">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-    </svg>
-    <p>Este proyecto no tiene servicios registrados aún.</p>
-  </div>
-  } @else {
-
-  <div class="timeline">
-    @for (srv of servicios; track srv.id; let last = $last) {
-    <div class="tl-item">
-
-      <!-- Columna izquierda: dot + línea conectora -->
-      <div class="tl-gutter">
-        <div class="tl-dot" [class]="estadoClass(srv.estado)"></div>
-        @if (!last) { <div class="tl-line"></div> }
-      </div>
-
-      <!-- Columna derecha: tarjeta del servicio -->
-      <div class="tl-content">
-        <div class="service-card" [class.sc-expanded]="srv.expandido">
-
-          <!-- Cabecera clickeable -->
-          <div class="sc-header" (click)="toggleServicio(srv)">
-            <div class="sc-date-pill">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="4" width="18" height="18" rx="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              {{ formatDate(srv.fecha_programada) }}
-            </div>
-
-            <div class="sc-main">
-              <div class="sc-title-row">
-                <h3 class="sc-nombre">{{ srv.nombre }}</h3>
-                <span class="est-badge sm" [class]="estadoClass(srv.estado)">
-                  {{ estadoLabel(srv.estado) }}
-                </span>
-              </div>
-              @if (srv.descripcion) {
-              <p class="sc-desc">{{ srv.descripcion }}</p>
-              }
-            </div>
-
-            <span class="sc-chevron" [class.open]="srv.expandido">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </span>
-          </div>
-
-          <!-- Procedimientos desplegables -->
-          @if (srv.expandido || srv.cargandoProcedimientos) {
-          <div class="sc-body">
-            <div class="sc-divider"></div>
-
-            @if (srv.cargandoProcedimientos) {
-            <div class="proc-loading">
-              <app-spinner [size]="18"></app-spinner>
-              <span>Cargando tareas...</span>
-            </div>
-            } @else if (!srv.procedimientos?.length) {
-            <p class="proc-empty">Sin tareas registradas para este servicio.</p>
-            } @else {
-
-            <div class="proc-list-header">
-              <span>Tareas ({{ srv.procedimientos!.length }})</span>
-            </div>
-
-            @for (proc of srv.procedimientos; track proc.id) {
-            <div class="proc-row" [class]="procEstadoClass(proc.estado)">
-              <div class="proc-icon">
-                @if (proc.estado === 'completado') {
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-                } @else if (proc.estado === 'en_proceso') {
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="9"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                } @else {
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="9"></circle>
-                </svg>
-                }
-              </div>
-
-              <div class="proc-info">
-                <span class="proc-num">{{ proc.orden }}.</span>
-                <span class="proc-nombre">{{ proc.nombre }}</span>
-                @if (proc.descripcion) {
-                <span class="proc-desc">{{ proc.descripcion }}</span>
-                }
-              </div>
-
-              <button class="btn-evidencia"
-                      (click)="navegarAEvidencia($event, srv.id, proc.id)"
-                      title="Ir al detalle del servicio y abrir evidencia de esta tarea">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-                Subir Evidencia
-              </button>
-            </div>
-            }
-            }
-          </div>
-          }
-
+    <div class="gantt-summary">
+      <div class="gantt-summary-stats">
+        <div class="stat-chip">
+          <span class="stat-val">{{ proyecto.total_servicios }}</span>
+          <span class="stat-lab">Servicios</span>
+        </div>
+        <div class="stat-chip">
+          <span class="stat-val">{{ proyecto.servicios_completados }}</span>
+          <span class="stat-lab">Completados</span>
+        </div>
+        <div class="stat-chip accent">
+          <span class="stat-val">{{ progresoPorcentaje }}%</span>
+          <span class="stat-lab">Progreso</span>
         </div>
       </div>
+      <div class="gantt-progress-track">
+        <div class="gantt-progress-fill" [style.width.%]="progresoPorcentaje"></div>
+      </div>
     </div>
     }
-
-    <!-- Marcador de fin del timeline -->
-    <div class="tl-end">
-      <div class="tl-end-dot"></div>
-    </div>
-
   </div>
-  }
+
+  <!-- ═══ ESTADOS ══════════════════════════════════════════════════════ -->
+  @if (isLoading) {
+  <div class="gantt-state">
+    <app-spinner [size]="40"></app-spinner>
+    <p>Construyendo cronograma...</p>
+  </div>
+  } @else if (errorMessage) {
+  <div class="gantt-error">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+    {{ errorMessage }}
+  </div>
+  } @else if (proyecto) {
+
+  <!-- ═══ GANTT CHART ════════════════════════════════════════════════ -->
+  <div class="gantt-outer">
+    <div class="gantt-inner">
+
+      <!-- Cabecera de meses -->
+      <div class="gantt-header-row">
+        <div class="gantt-label-col gantt-label-header">
+          <span class="gh-title">Actividades</span>
+          <span class="gh-period">
+            {{ formatDate(proyecto.fecha_inicio) }} → {{ formatDate(proyecto.fecha_fin_estimada) }}
+          </span>
+        </div>
+        <div class="gantt-chart-col gantt-chart-header">
+          @for (m of monthHeaders; track m.label) {
+          <div class="gantt-month" [style.left.%]="m.left" [style.width.%]="m.width">
+            {{ m.label }}
+          </div>
+          }
+          @if (todayLeft >= 0) {
+          <div class="gantt-today-tick" [style.left.%]="todayLeft">
+            <span class="today-label">Hoy</span>
+          </div>
+          }
+        </div>
+      </div>
+
+      <!-- Filas de datos -->
+      <div class="gantt-rows">
+
+        @if (servicios.length === 0) {
+        <div class="gantt-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+            <path
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          <p>Este proyecto no tiene servicios programados aún.</p>
+        </div>
+        }
+
+        @for (row of flatRows; track row.id) {
+        <div [class]="getRowClass(row)">
+
+          <!-- Columna de etiqueta -->
+          <div class="gantt-label-col" [class.clickable]="row.isExpandable"
+            (click)="row.isExpandable ? toggleServicio(getSrvById(row.id)) : null">
+            <div class="row-indent" [style.padding-left.px]="16 + row.level * 20">
+
+              <!-- Chevron expandir/colapsar -->
+              @if (row.isExpandable) {
+              <span class="row-chevron" [class.open]="row.isExpanded">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
+              }
+
+              <!-- Icono de tipo -->
+              @if (row.type === 'proyecto') {
+              <span class="row-icon project-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+                  <path d="M3 6a2 2 0 012-2h14a2 2 0 012 2v2H3V6zm0 4h18v9a2 2 0 01-2 2H5a2 2 0 01-2-2v-9z" />
+                </svg>
+              </span>
+              } @else if (row.type === 'procedimiento' && !row.isEmpty && !row.isLoading) {
+              <span [class]="'row-icon proc-icon ' + procEstadoClass(row.estado)">
+                @if (row.estado === 'completado') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="9" height="9">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                } @else {
+                <svg viewBox="0 0 24 24" fill="currentColor" width="7" height="7">
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+                }
+              </span>
+              } @else if (row.type === 'servicio') {
+              <span class="row-svc-dot" [class]="estadoClass(row.estado)"></span>
+              }
+
+              <!-- Texto -->
+              <div class="row-text">
+                @if (row.isLoading && row.type === 'procedimiento') {
+                <span class="row-loading">
+                  <app-spinner [size]="13"></app-spinner>
+                  Cargando tareas...
+                </span>
+                } @else if (row.isEmpty) {
+                <span class="row-empty">Sin tareas registradas</span>
+                } @else {
+                <span class="row-name">{{ row.nombre }}</span>
+                @if (row.descripcion && row.type !== 'procedimiento') {
+                <span class="row-desc">{{ row.descripcion }}</span>
+                }
+                }
+              </div>
+
+              <!-- Badge de estado (proyecto y servicio) -->
+              @if (!row.isEmpty && !row.isLoading && row.type !== 'procedimiento') {
+              <span class="row-badge" [class]="estadoClass(row.estado)">
+                {{ estadoLabel(row.estado) }}
+              </span>
+              }
+
+            </div>
+          </div>
+
+          <!-- Columna de gráfico -->
+          <div class="gantt-chart-col">
+
+            <!-- Líneas de cuadrícula (separadores de meses) -->
+            @for (m of monthHeaders; track m.label) {
+            <div class="grid-line" [style.left.%]="m.left + m.width"></div>
+            }
+
+            <!-- Línea de hoy -->
+            @if (todayLeft >= 0) {
+            <div class="gantt-today-line" [style.left.%]="todayLeft"></div>
+            }
+
+            <!-- Barra Gantt -->
+            @if (!row.isLoading && !row.isEmpty && row.barWidth > 0) {
+            <div class="bar-wrapper" [style.left.%]="row.barLeft" [style.width.%]="row.barWidth"
+              (mouseenter)="hoveredBar = row.id" (mouseleave)="hoveredBar = null">
+
+              <div [class]="getBarClass(row)" (click)="row.type === 'procedimiento' && row.servicioId && row.procedimientoId && row.servicioEstado !== 'Completado'
+                            ? navegarATarea($event, row.servicioId!, row.procedimientoId!)
+                            : $event.stopPropagation()">
+                @if (row.type === 'servicio' && row.barWidth > 12) {
+                <span class="bar-inner-label">{{ row.nombre }}</span>
+                }
+                @if (row.type === 'procedimiento' && row.procedimientoId) {
+                <span class="bar-proc-arrow">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="9" height="9">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </span>
+                }
+              </div>
+
+              <!-- Tooltip -->
+              @if (hoveredBar === row.id) {
+              <div class="gantt-tooltip" [class.tooltip-flip]="row.barLeft > 58">
+                <div class="tt-title">{{ row.nombre }}</div>
+                @if (row.fechaInicioLabel) {
+                <div class="tt-dates">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {{ row.fechaInicioLabel }}
+                  @if (row.fechaFinLabel && row.fechaFinLabel !== '—') {
+                  → {{ row.fechaFinLabel }}
+                  }
+                </div>
+                }
+                @if (row.descripcion && row.type === 'procedimiento') {
+                <div class="tt-desc">{{ row.descripcion }}</div>
+                }
+                @if (row.type === 'procedimiento' && row.procedimientoId && row.servicioEstado !== 'Completado') {
+                <div class="tt-action">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Click para subir evidencias
+                </div>
+                }
+              </div>
+              }
+
+            </div>
+            }
+
+          </div>
+        </div>
+        }
+
+      </div><!-- /gantt-rows -->
+    </div><!-- /gantt-inner -->
+  </div><!-- /gantt-outer -->
+
+  <!-- Leyenda -->
+  <div class="gantt-legend">
+    <span class="legend-item">
+      <span class="legend-swatch" style="background:rgba(145,211,55,.45)"></span>Proyecto
+    </span>
+    <span class="legend-item">
+      <span class="legend-swatch" style="background:rgba(245,158,11,.45)"></span>Pendiente
+    </span>
+    <span class="legend-item">
+      <span class="legend-swatch" style="background:rgba(59,130,246,.45)"></span>En Proceso
+    </span>
+    <span class="legend-item">
+      <span class="legend-swatch" style="background:rgba(145,211,55,.55)"></span>Completado
+    </span>
+    @if (todayLeft >= 0) {
+    <span class="legend-item">
+      <span class="legend-swatch today-swatch"></span>Hoy
+    </span>
+    }
+  </div>
 
   }<!-- /else proyecto -->
 

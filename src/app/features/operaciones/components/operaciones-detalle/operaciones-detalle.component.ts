@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { environment } from '../../../../../environments/environment';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { Subscription } from 'rxjs';
+import { Subscription, forkJoin } from 'rxjs';
 
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
@@ -98,7 +98,18 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   procedimientoActivo: Procedimiento | null = null;
   subiendoEvidencia    = false;
   errorEvidencia       = '';
-
+// ── Borrador de Materiales (Carrito) ───────────────────────
+  materialesBorrador: Array<{
+    material_id: string | null;
+    nombre: string;
+    unidad: string;
+    cantidad: number;
+    esNuevo: boolean;
+    agregadoPor: string;
+    especificacion?: string;
+  }> = [];
+  consensoEquipo = false;
+  enviandoLote   = false;
   etapasLista: ('antes' | 'durante' | 'despues')[] = ['antes', 'durante', 'despues'];
   etapaActiva: 'antes' | 'durante' | 'despues' = 'antes';
 
@@ -127,6 +138,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   cantidadSolicitar   = 1;
   buscandoMaterial    = false;
   solicitando         = false;
+
+  // ── Modal 3: Compra Externa (pestaña dual) ─────────────────
+  modoCompraExterna    = false;
+  manualNombre         = '';
+  manualCantidad       = 1;
+  manualUnidad         = 'Unidades';
+  manualEspecificacion = '';
 
   // ── Modal 4: Pre-Informe PDF ───────────────────────────────
   showModalPDF  = false;
@@ -180,6 +198,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 
   ngOnDestroy(): void {
     if (this.pdfBlobUrl) URL.revokeObjectURL(this.pdfBlobUrl);
+    document.body.style.overflow = '';
     this.chatSub?.unsubscribe();
     this.chatSocket$?.complete();
   }
@@ -494,11 +513,16 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   // MODAL 3 — SOLICITAR MATERIAL
   // ==========================================================
   abrirModalSolicitar(): void {
-    this.busquedaMaterial   = '';
-    this.resultadosBusqueda = [];
-    this.materialElegido    = null;
-    this.cantidadSolicitar  = 1;
-    this.showModalSolicitar = true;
+    this.busquedaMaterial    = '';
+    this.resultadosBusqueda  = [];
+    this.materialElegido     = null;
+    this.cantidadSolicitar   = 1;
+    this.modoCompraExterna   = false;
+    this.manualNombre        = '';
+    this.manualCantidad      = 1;
+    this.manualUnidad        = 'Unidades';
+    this.manualEspecificacion = '';
+    this.showModalSolicitar  = true;
   }
 
   cerrarModalSolicitar(): void { this.showModalSolicitar = false; }
@@ -520,127 +544,477 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   }
 
   solicitarMaterial(): void {
-    if (!this.materialElegido || !this.servicio || this.solicitando) return;
-    this.solicitando = true;
-    this.svc.solicitarMaterial(this.servicio.id, {
+    if (!this.materialElegido || !this.servicio) return;
+
+    this.materialesBorrador.push({
       material_id: this.materialElegido.id,
-      cantidad:    this.cantidadSolicitar
-    }).subscribe({
-      next: (res: any) => {
-        this.servicio!.materialesSolicitados.push({
-          id:              res.detalle_id,
-          requerimientoId: res.requerimiento_id,
-          nombre:          this.materialElegido!.nombre,
-          unidad:          this.materialElegido!.unidad,
-          cantidad:        this.cantidadSolicitar,
-          estadoReq:       'pendiente'
-        });
-        this.solicitando = false;
-        this.cerrarModalSolicitar();
-      },
-      error: () => { this.solicitando = false; }
+      nombre:      this.materialElegido.nombre,
+      unidad:      this.materialElegido.unidad,
+      cantidad:    this.cantidadSolicitar,
+      esNuevo:     false,
+      agregadoPor: this._nombreUsuario
     });
+    this.materialElegido    = null;
+    this.busquedaMaterial   = '';
+    this.resultadosBusqueda = [];
+    this.cantidadSolicitar  = 1;
   }
 
+  solicitarMaterialManual(): void {
+    if (!this.manualNombre.trim() || !this.manualEspecificacion.trim() || this.manualCantidad < 1) return;
+
+    this.materialesBorrador.push({
+      material_id:    null,
+      nombre:         this.manualNombre.trim(),
+      unidad:         this.manualUnidad,
+      cantidad:       this.manualCantidad,
+      esNuevo:        true,
+      agregadoPor:    this._nombreUsuario,
+      especificacion: this.manualEspecificacion.trim()
+    });
+
+    this.manualNombre        = '';
+    this.manualCantidad      = 1;
+    this.manualUnidad        = 'Unidades';
+    this.manualEspecificacion = '';
+  }
+
+  // Nuevo: Quita un ítem de la lista temporal
+  removerDelBorrador(index: number): void {
+    this.materialesBorrador.splice(index, 1);
+    if (this.materialesBorrador.length === 0) {
+      this.consensoEquipo = false;
+    }
+  }
+
+  // Nuevo: Envía todos los materiales de golpe a la BD
+  enviarSolicitudLote(): void {
+    if (!this.servicio || this.materialesBorrador.length === 0) return;
+    this.enviandoLote = true;
+
+    // Preparamos todas las peticiones a la API
+    const peticiones = this.materialesBorrador.map(item =>
+      this.svc.solicitarMaterial(this.servicio!.id, {
+        material_id:    item.material_id,
+        cantidad:       item.cantidad,
+        nombre:         item.nombre,
+        unidad:         item.unidad,
+        especificacion: item.especificacion
+      })
+    );
+
+    // forkJoin ejecuta todas las peticiones en paralelo
+    forkJoin(peticiones).subscribe({
+      next: (respuestas: any[]) => {
+        // Por cada respuesta, pasamos el ítem del borrador a la lista oficial
+        respuestas.forEach((res, index) => {
+          const item = this.materialesBorrador[index];
+          this.servicio!.materialesSolicitados.push({
+            id:              res.detalle_id,
+            requerimientoId: res.requerimiento_id,
+            nombre:          item.nombre,
+            unidad:          item.unidad,
+            cantidad:        item.cantidad,
+            estadoReq:       'pendiente'
+          });
+        });
+
+        // Limpiamos el carrito
+        this.materialesBorrador = [];
+        this.consensoEquipo     = false;
+        this.enviandoLote       = false;
+      },
+      error: () => {
+        this.enviandoLote = false;
+        alert('Hubo un error de conexión al enviar el lote a Logística.');
+      }
+    });
+  }
   // ==========================================================
   // MODAL 4 — PRE-INFORME PDF  (pdf-lib)
   // ==========================================================
   async abrirModalPreInforme(): Promise<void> {
     this.showModalPDF = true;
     this.pdfCargando  = true;
+    document.body.style.overflow = 'hidden';
     if (this.pdfBlobUrl) { URL.revokeObjectURL(this.pdfBlobUrl); this.pdfBlobUrl = ''; }
 
     try {
       const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
+
+      // ── Descarga segura de imagen (Cloudinary) ───────────────────────────
+      const descargarImagenBytes = async (url: string): Promise<ArrayBuffer | null> => {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          return await res.arrayBuffer();
+        } catch { return null; }
+      };
+
+      // ── Paleta corporativa minimalista ────────────────────────────────────
+      const PW = 595, PH = 842, ML = 44, MR = 44;
+      const BODY_W = PW - ML - MR; // 507 px útiles
+
+      const INK    = rgb(0.09, 0.12, 0.18);    // #171f2e  texto principal
+      const MUTED  = rgb(0.40, 0.46, 0.56);    // #667690  texto secundario
+      const RULE   = rgb(0.88, 0.90, 0.93);    // #e2e6ed  líneas/bordes sutiles
+      const HDR_BG = rgb(0.96, 0.97, 0.98);    // #f5f7f8  fondo cab. tabla
+      const ACCENT = rgb(0.569, 0.827, 0.216); // #91d337  verde marca (solo acentos)
+
       const doc     = await PDFDocument.create();
       const regular = await doc.embedFont(StandardFonts.Helvetica);
       const bold    = await doc.embedFont(StandardFonts.HelveticaBold);
-      const page    = doc.addPage([595, 842]);
-      const W       = page.getWidth();
-      const H       = page.getHeight();
-      const GREEN   = rgb(0.357, 0.827, 0.216);
-      const DARK    = rgb(0.06, 0.09, 0.13);
-      const MUTED   = rgb(0.40, 0.45, 0.55);
-      const WHITE   = rgb(1, 1, 1);
 
-      page.drawRectangle({ x: 0, y: H - 64, width: W, height: 64, color: GREEN });
-      page.drawText('PRE-INFORME DE SERVICIO', { x: 40, y: H - 35, size: 16, font: bold, color: WHITE });
-      page.drawText(
-        `Generado: ${new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })}`,
-        { x: 40, y: H - 54, size: 8, font: regular, color: rgb(0.92, 0.97, 0.87) }
-      );
+      let page = doc.addPage([PW, PH]);
+      let y    = 0;
 
-      let y = H - 84;
+      // ── Pie de página institucional ──────────────────────────────────────
+      const drawFooter = () => {
+        page.drawLine({
+          start: { x: ML, y: 46 }, end: { x: PW - MR, y: 46 },
+          thickness: 0.5, color: RULE
+        });
+        page.drawText(
+          'E-System TIC Perú S.A.C. — Documento Técnico Confidencial · Sujeto a Control de Gestión',
+          { x: ML, y: 33, size: 7, font: regular, color: MUTED }
+        );
+        const pg = `${doc.getPageCount()}`;
+        page.drawText(pg, {
+          x: PW - MR - regular.widthOfTextAtSize(pg, 7),
+          y: 33, size: 7, font: regular, color: MUTED
+        });
+      };
 
+      // ── Cabecera de primera página (tipografía limpia, sin rectángulos) ──
+      const drawFirstHeader = () => {
+        page.drawText('INFORME TÉCNICO DE CONFORMIDAD DE SERVICIO', {
+          x: ML, y: PH - 42, size: 14, font: bold, color: INK
+        });
+        page.drawText('E-System TIC  ·  Gestión de Operaciones de Campo', {
+          x: ML, y: PH - 59, size: 8.5, font: regular, color: MUTED
+        });
+        // Línea verde de identidad de marca — único uso del color ACCENT en cabecera
+        page.drawLine({
+          start: { x: ML, y: PH - 67 }, end: { x: PW - MR, y: PH - 67 },
+          thickness: 1.5, color: ACCENT
+        });
+        y = PH - 88;
+      };
+
+      // ── Cabecera de página de continuación ───────────────────────────────
+      const drawContinuationHeader = () => {
+        page.drawText('INFORME TÉCNICO DE CONFORMIDAD DE SERVICIO — CONT.', {
+          x: ML, y: PH - 34, size: 8.5, font: bold, color: INK
+        });
+        page.drawLine({
+          start: { x: ML, y: PH - 43 }, end: { x: PW - MR, y: PH - 43 },
+          thickness: 0.5, color: RULE
+        });
+        y = PH - 62;
+      };
+
+      // ── Auto-paginación (umbral estricto de 90 px) ───────────────────────
+      const checkPage = (need = 90) => {
+        if (y - need < 60) {
+          drawFooter();
+          page = doc.addPage([PW, PH]);
+          drawContinuationHeader();
+        }
+      };
+
+      // ── Separador de sección (label muted + regla sutil) ─────────────────
       const drawSection = (title: string) => {
-        y -= 6;
-        page.drawRectangle({ x: 36, y: y - 2, width: W - 72, height: 20, color: rgb(0.93, 0.97, 0.90), borderColor: GREEN, borderWidth: 0.5 });
-        page.drawText(title, { x: 40, y: y + 3, size: 9, font: bold, color: GREEN });
-        y -= 24;
+        checkPage(50);
+        y -= 14;
+        page.drawText(title.toUpperCase(), {
+          x: ML, y, size: 7.5, font: bold, color: MUTED
+        });
+        y -= 7;
+        page.drawLine({
+          start: { x: ML, y }, end: { x: PW - MR, y },
+          thickness: 0.5, color: RULE
+        });
+        y -= 14;
       };
 
-      const drawRow = (label: string, value: string) => {
-        page.drawText(label, { x: 40,  y, size: 9, font: bold,    color: DARK });
-        page.drawText(value, { x: 165, y, size: 9, font: regular, color: MUTED });
-        y -= 16;
+      // ── Regla horizontal completa en coordenada y actual ─────────────────
+      const hRule = () => {
+        page.drawLine({
+          start: { x: ML, y }, end: { x: PW - MR, y },
+          thickness: 0.5, color: RULE
+        });
       };
 
-      if (this.servicio) {
-        drawSection('INFORMACIÓN DEL SERVICIO');
-        drawRow('Cliente:',          this.servicio.cliente);
-        drawRow('Tipo de Servicio:', this.servicio.tipoServicio);
-        drawRow('Ubicación:',        this.servicio.ubicacion);
-        drawRow('Fecha / Hora:',     `${this.servicio.fechaStr}  ${this.servicio.horaStr}`);
-        drawRow('Estado actual:',    this.servicio.estado.replace('_', ' '));
-        drawRow('Progreso:',         `${this.servicio.progreso}%`);
-        y -= 4;
-
-        drawSection('DESCRIPCIÓN DEL PROBLEMA');
-        const words = this.servicio.descripcion.split(' ');
+      // ── Word-wrap seguro con checkPage automático ─────────────────────────
+      const drawWrapped = (text: string, x0: number, maxW: number, sz: number, fnt: any, clr: any) => {
+        const words = (text || '').split(' ');
         let line = '';
         for (const w of words) {
-          if (regular.widthOfTextAtSize(line + w + ' ', 9) < W - 80) {
+          if (fnt.widthOfTextAtSize(line + w + ' ', sz) < maxW) {
             line += w + ' ';
           } else {
-            page.drawText(line.trim(), { x: 40, y, size: 9, font: regular, color: DARK });
-            y -= 14; line = w + ' ';
+            if (line.trim()) {
+              checkPage(sz + 6);
+              page.drawText(line.trim(), { x: x0, y, size: sz, font: fnt, color: clr });
+              y -= sz + 6;
+            }
+            line = w + ' ';
           }
         }
-        if (line.trim()) { page.drawText(line.trim(), { x: 40, y, size: 9, font: regular, color: DARK }); y -= 14; }
-        y -= 4;
-
-        drawSection('TAREAS DEL SERVICIO');
-        for (const p of this.servicio.procedimientos) {
-          const done = p.estado === 'completado';
-          page.drawText(done ? '✓' : '○', { x: 42, y, size: 10, font: done ? bold : regular, color: done ? GREEN : MUTED });
-          page.drawText(`${p.orden}. ${p.nombre}`, { x: 58, y, size: 9, font: done ? bold : regular, color: done ? DARK : MUTED });
-          if (p.evidencias.length) {
-            page.drawText(`[${p.evidencias.length} evidencia(s)]`, { x: W - 110, y, size: 8, font: regular, color: GREEN });
-          }
-          y -= 15;
+        if (line.trim()) {
+          checkPage(sz + 6);
+          page.drawText(line.trim(), { x: x0, y, size: sz, font: fnt, color: clr });
+          y -= sz + 6;
         }
-        y -= 4;
+      };
 
-        drawSection('MATERIALES ASIGNADOS');
-        for (const m of this.servicio.materialesAsignados) {
-          page.drawText(`• ${m.nombre}`, { x: 42, y, size: 9, font: regular, color: DARK });
-          page.drawText(`x${m.cantidad}`, { x: W - 140, y, size: 9, font: bold, color: MUTED });
-          page.drawText(m.estadoReq.toUpperCase(), { x: W - 100, y, size: 8, font: bold, color: m.estadoReq === 'entregado' ? GREEN : MUTED });
-          y -= 15;
+      // ════════════════════════════════════════════════════════════════════
+      // RENDER
+      // ════════════════════════════════════════════════════════════════════
+      drawFirstHeader();
+
+      if (!this.servicio) throw new Error('Sin datos.');
+      const s = this.servicio;
+
+      const emitDate = new Date().toLocaleDateString('es-PE', {
+        day: '2-digit', month: 'long', year: 'numeric'
+      });
+      const otLabel = `OT-${s.id.slice(0, 8).toUpperCase()}`;
+
+      // ── Bloque de metadatos en dos columnas alineadas ────────────────────
+      const C1 = ML;
+      const C2 = ML + Math.floor(BODY_W / 2) + 8;
+
+      const metaRow = (lbl1: string, val1: string, lbl2: string, val2: string) => {
+        checkPage(30);
+        page.drawText(lbl1, { x: C1, y,      size: 7.5, font: regular, color: MUTED });
+        page.drawText(lbl2, { x: C2, y,      size: 7.5, font: regular, color: MUTED });
+        y -= 12;
+        const v1 = val1.length > 38 ? val1.slice(0, 36) + '…' : val1;
+        const v2 = val2.length > 38 ? val2.slice(0, 36) + '…' : val2;
+        page.drawText(v1, { x: C1, y, size: 9, font: bold, color: INK });
+        page.drawText(v2, { x: C2, y, size: 9, font: bold, color: INK });
+        y -= 19;
+      };
+
+      metaRow('Orden de Trabajo',  otLabel,                        'Fecha de Emisión',    emitDate);
+      metaRow('Cliente',           s.cliente,                      'Hora Programada',     s.horaStr  || '—');
+      metaRow('Tipo de Servicio',  s.tipoServicio,                 'Estado del Servicio', s.estado.replace(/_/g, ' '));
+      metaRow('Ubicación',         s.ubicacion,                    'Fecha del Servicio',  s.fechaStr || '—');
+
+      // Técnico responsable del informe (cuenta logueada)
+      checkPage(30);
+      page.drawText('Técnico Responsable del Informe', { x: C1, y, size: 7.5, font: regular, color: MUTED });
+      y -= 12;
+      page.drawText(this._nombreUsuario, { x: C1, y, size: 9, font: bold, color: INK });
+      y -= 19;
+
+      y -= 4;
+      hRule();
+      y -= 13;
+
+      // Indicador de progreso (texto plano, sin barra de color)
+      const progStr = `Progreso de Ejecución: ${s.progreso}%${s.progreso === 100 ? '  —  COMPLETADO' : ''}`;
+      page.drawText(progStr, {
+        x: ML, y, size: 8.5, font: bold,
+        color: s.progreso === 100 ? ACCENT : INK
+      });
+      y -= 22;
+
+      // ── 1. Descripción del problema ──────────────────────────────────────
+      drawSection('1. Descripción del Problema Técnico');
+      drawWrapped(s.descripcion || 'Sin descripción.', ML, BODY_W, 9, regular, INK);
+      y -= 4;
+
+      // ── 2. Procedimientos y estado de ejecución ──────────────────────────
+      drawSection('2. Procedimientos y Estado de Ejecución');
+
+      // Altura de fila fija — garantiza que rect, texto y línea comparten los mismos límites
+      const ROW_H = 20;
+      // Baseline del texto a 6 px del borde inferior del row: centrado visual para font ≤ 8 pt
+      const ty = (topY: number) => topY - ROW_H + 6;
+
+      // Borde superior de la caja de tabla
+      checkPage(ROW_H * 3);
+      page.drawLine({ start: { x: ML, y }, end: { x: ML + BODY_W, y }, thickness: 0.5, color: RULE });
+      // Fondo de cabecera — mismo x y width que las líneas
+      page.drawRectangle({ x: ML, y: y - ROW_H, width: BODY_W, height: ROW_H, color: HDR_BG });
+      page.drawText('N°',           { x: ML + 4,        y: ty(y), size: 7.5, font: bold, color: MUTED });
+      page.drawText('Procedimiento',{ x: ML + 28,       y: ty(y), size: 7.5, font: bold, color: MUTED });
+      page.drawText('Estado',       { x: PW - MR - 106, y: ty(y), size: 7.5, font: bold, color: MUTED });
+      page.drawText('Evid.',        { x: PW - MR - 22,  y: ty(y), size: 7.5, font: bold, color: MUTED });
+      y -= ROW_H;
+      // Borde inferior de cabecera / divisor de primera fila
+      page.drawLine({ start: { x: ML, y }, end: { x: ML + BODY_W, y }, thickness: 0.5, color: RULE });
+
+      for (const p of s.procedimientos) {
+        const done = p.estado === 'completado';
+        checkPage(p.descripcion ? ROW_H * 3 : ROW_H + 5);
+
+        page.drawText(`${p.orden}`, { x: ML + 4,  y: ty(y), size: 8, font: regular, color: MUTED });
+        const nomT = p.nombre.length > 58 ? p.nombre.slice(0, 55) + '…' : p.nombre;
+        page.drawText(nomT, { x: ML + 28, y: ty(y), size: 8, font: done ? bold : regular, color: done ? INK : MUTED });
+
+        const stLabel = done
+          ? '[ Completado ]'
+          : p.estado === 'en_proceso' ? '[ En Proceso ]' : '[ Pendiente ]';
+        page.drawText(stLabel, {
+          x: PW - MR - 106, y: ty(y), size: 7.5, font: bold,
+          color: done ? ACCENT : MUTED
+        });
+
+        if (p.evidencias.length)
+          page.drawText(`${p.evidencias.length}`, {
+            x: PW - MR - 12, y: ty(y), size: 8, font: bold, color: ACCENT
+          });
+
+        y -= ROW_H;
+        page.drawLine({ start: { x: ML, y }, end: { x: ML + BODY_W, y }, thickness: 0.5, color: RULE });
+
+        // Sub-fila de descripción (altura variable por word-wrap)
+        if (p.descripcion) {
+          checkPage(ROW_H);
+          y -= 5;
+          drawWrapped(p.descripcion, ML + 28, BODY_W - 120, 7.5, regular, MUTED);
+          page.drawLine({ start: { x: ML, y }, end: { x: ML + BODY_W, y }, thickness: 0.5, color: RULE });
         }
-        y -= 4;
-
-        drawSection('EQUIPO DE TRABAJO');
-        for (const m of this.servicio.equipo) {
-          page.drawText(`• ${m.nombre} ${m.apellido}`, { x: 42, y, size: 9, font: bold, color: DARK });
-          page.drawText(`${m.cargo}  ·  ${m.rolProyecto}`, { x: 165, y, size: 8, font: regular, color: MUTED });
-          y -= 15;
-        }
-
-        page.drawLine({ start: { x: 40, y: 44 }, end: { x: W - 40, y: 44 }, thickness: 0.4, color: rgb(0.8, 0.8, 0.8) });
-        page.drawText('E-System TIC — Panel de Gestión Técnica', { x: 40, y: 30, size: 8, font: regular, color: MUTED });
-        page.drawText('Pre-informe preliminar · sujeto a revisión y firma final del cliente.', { x: 40, y: 18, size: 7, font: regular, color: MUTED });
       }
+      y -= 8;
+
+      // ── 3. Liquidación de materiales ─────────────────────────────────────
+      drawSection('3. Liquidación de Materiales Utilizados');
+
+      const renderMatTable = (items: ItemMaterial[]) => {
+        if (!items.length) return;
+        // Borde superior — mismo x/width que rect y líneas de fila
+        checkPage(ROW_H * 3);
+        page.drawLine({ start: { x: ML, y }, end: { x: ML + BODY_W, y }, thickness: 0.5, color: RULE });
+        page.drawRectangle({ x: ML, y: y - ROW_H, width: BODY_W, height: ROW_H, color: HDR_BG });
+        page.drawText('Ref.',        { x: ML + 4,        y: ty(y), size: 7.5, font: bold, color: MUTED });
+        page.drawText('Descripción', { x: ML + 56,       y: ty(y), size: 7.5, font: bold, color: MUTED });
+        page.drawText('Cant.',       { x: PW - MR - 104, y: ty(y), size: 7.5, font: bold, color: MUTED });
+        page.drawText('Unidad',      { x: PW - MR - 72,  y: ty(y), size: 7.5, font: bold, color: MUTED });
+        page.drawText('Estado',      { x: PW - MR - 38,  y: ty(y), size: 7.5, font: bold, color: MUTED });
+        y -= ROW_H;
+        page.drawLine({ start: { x: ML, y }, end: { x: ML + BODY_W, y }, thickness: 0.5, color: RULE });
+
+        for (const m of items) {
+          checkPage(ROW_H + 5);
+          const ref  = (m.requerimientoId ?? '').slice(0, 8).toUpperCase() || '—';
+          const nom  = m.nombre.length > 42 ? m.nombre.slice(0, 39) + '…' : m.nombre;
+          const stC  = m.estadoReq === 'entregado' ? ACCENT : MUTED;
+          const stLb = m.estadoReq.charAt(0).toUpperCase() + m.estadoReq.slice(1);
+          page.drawText(ref,            { x: ML + 4,        y: ty(y), size: 7.5, font: regular, color: MUTED });
+          page.drawText(nom,            { x: ML + 56,       y: ty(y), size: 8,   font: regular, color: INK  });
+          page.drawText(`${m.cantidad}`,{ x: PW - MR - 104, y: ty(y), size: 8,   font: bold,    color: INK  });
+          page.drawText(m.unidad,       { x: PW - MR - 72,  y: ty(y), size: 7.5, font: regular, color: MUTED });
+          page.drawText(stLb,           { x: PW - MR - 38,  y: ty(y), size: 7.5, font: bold,    color: stC  });
+          y -= ROW_H;
+          page.drawLine({ start: { x: ML, y }, end: { x: ML + BODY_W, y }, thickness: 0.5, color: RULE });
+        }
+      };
+
+      if (s.materialesAsignados.length > 0) {
+        checkPage(26);
+        page.drawText('Materiales Asignados Originalmente',
+          { x: ML, y, size: 8.5, font: bold, color: INK });
+        y -= 14;
+        renderMatTable(s.materialesAsignados);
+        y -= 8;
+      }
+
+      const matsExtra = s.materialesSolicitados.filter(m => ['aprobado', 'entregado'].includes(m.estadoReq));
+      if (matsExtra.length > 0) {
+        checkPage(26);
+        page.drawText('Materiales Extra Aprobados  (Solicitudes / Compra Externa)',
+          { x: ML, y, size: 8.5, font: bold, color: INK });
+        y -= 14;
+        renderMatTable(matsExtra);
+        y -= 8;
+      }
+
+      // ── 4. Registro fotográfico de evidencias ────────────────────────────
+      const procConEv = s.procedimientos.filter(p => p.evidencias.length > 0);
+      if (procConEv.length > 0) {
+        drawSection('4. Registro Fotográfico de Evidencias');
+
+        const IW = 155, IH = 115, IGAP = 11, COLS = 3;
+        const etLabel: Record<string, string> = {
+          antes: 'Antes', durante: 'Durante', despues: 'Después'
+        };
+
+        for (const proc of procConEv) {
+          checkPage(36);
+          page.drawText(`Procedimiento ${proc.orden}:  ${proc.nombre}`,
+            { x: ML, y, size: 8.5, font: bold, color: INK });
+          y -= 5;
+          hRule();
+          y -= 14;
+
+          const ordered = (['antes', 'durante', 'despues'] as const)
+            .flatMap(etapa => proc.evidencias.filter(e => e.etapa === etapa));
+
+          let col     = 0;
+          let rowTopY = y;
+
+          for (const ev of ordered) {
+            if (col === COLS) {
+              col = 0;
+              y = rowTopY - IH - 28;
+              rowTopY = y;
+            }
+            checkPage(IH + 40);
+            if (col === 0) rowTopY = y;
+
+            const ix = ML + col * (IW + IGAP);
+            const iy = y - IH;
+
+            // Marco limpio y delgado — sin fondo de color encendido
+            page.drawRectangle({
+              x: ix, y: iy, width: IW, height: IH,
+              color: HDR_BG, borderColor: RULE, borderWidth: 0.5
+            });
+
+            const imgBytes = await descargarImagenBytes(ev.urlCloudinary);
+            if (imgBytes) {
+              try {
+                let img: any;
+                try   { img = await doc.embedPng(imgBytes); }
+                catch { img = await doc.embedJpg(imgBytes); }
+                const dims = img.scaleToFit(IW - 2, IH - 2);
+                page.drawImage(img, {
+                  x: ix + 1 + (IW - 2 - dims.width)  / 2,
+                  y: iy + 1 + (IH - 2 - dims.height) / 2,
+                  width: dims.width, height: dims.height
+                });
+              } catch {
+                page.drawText('No se pudo cargar la imagen',
+                  { x: ix + 10, y: iy + IH / 2, size: 7, font: regular, color: MUTED });
+              }
+            } else {
+              page.drawText('Imagen no disponible',
+                { x: ix + 18, y: iy + IH / 2, size: 7, font: regular, color: MUTED });
+            }
+
+            // Etiqueta inferior: texto plano sin fondo de color
+            page.drawText(etLabel[ev.etapa] ?? ev.etapa,
+              { x: ix, y: iy - 13, size: 7.5, font: bold, color: INK });
+            if (ev.fechaCaptura) {
+              const capStr = ev.fechaCaptura;
+              page.drawText(capStr, {
+                x: ix + IW - regular.widthOfTextAtSize(capStr, 7) - 1,
+                y: iy - 13, size: 7, font: regular, color: MUTED
+              });
+            }
+            col++;
+          }
+
+          y = rowTopY - IH - 30;
+          y -= 10;
+        }
+      }
+
+      drawFooter();
 
       const bytes = await doc.save();
       const blob  = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
@@ -655,7 +1029,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     return this.sanitizer.bypassSecurityTrustResourceUrl(this.pdfBlobUrl);
   }
 
-  cerrarModalPDF(): void { this.showModalPDF = false; }
+  cerrarModalPDF(): void { this.showModalPDF = false; document.body.style.overflow = ''; }
 
   descargarPDF(): void {
     if (!this.pdfBlobUrl || !this.servicio) return;
@@ -668,8 +1042,15 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   // ==========================================================
   // INFORME TOTAL
   // ==========================================================
-  async finalizarServicio(): Promise<void> {
+async finalizarServicio(): Promise<void> {
+    // 1. Candado de seguridad: Solo Jefatura puede finalizar
+    if (!this.soyJefeOperaciones) {
+      alert('Acceso denegado: Solo el Jefe de Operaciones puede finalizar y cerrar este servicio.');
+      return;
+    }
+
     if (!this.todasCompletadas || !this.servicio) return;
+
     this.svc.actualizarEstado(this.servicio.id, 'Completado').subscribe({
       next: () => { this.servicio!.estado = 'Completado'; }
     });
