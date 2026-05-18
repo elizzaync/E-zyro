@@ -34,6 +34,15 @@
       <div class="header-titles">
         <h2 class="cliente-nombre">{{ servicio.cliente }}</h2>
         <span class="badge-tipo">{{ servicio.tipoServicio }}</span>
+        <button class="btn-equipos-intervenidos" title="Ver equipos intervenidos en este servicio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          Equipos Intervenidos
+        </button>
       </div>
       <div class="header-meta">
         <div class="meta-item">
@@ -53,6 +62,20 @@
       </div>
     </div>
   </header>
+
+  @if (servicio.estado === 'Completado') {
+  <div class="banner-completado">
+    <div class="banner-completado-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+    <div class="banner-completado-text">
+      <strong>Servicio Concluido</strong>
+      <span>Este servicio ha sido finalizado. Todos los campos están en modo solo lectura y no permiten modificaciones.</span>
+    </div>
+  </div>
+  }
 
   <div class="detalle-grid">
 
@@ -106,6 +129,7 @@
             <span class="progreso-label">completado</span>
           </div>
         </div>
+
         <div class="progreso-bar">
           <div class="progreso-fill" [style.width.%]="servicio.progreso"
             [class.progreso-full]="servicio.progreso === 100"></div>
@@ -117,7 +141,7 @@
         <div class="lista-tareas">
           @for (proc of servicio.procedimientos; track proc.id) {
           <div class="tarea-item" [class.completada]="proc.estado === 'completado'">
-            <button class="tarea-check" (click)="toggleProcedimiento(proc)" [attr.aria-label]="'Toggle ' + proc.nombre">
+            <button class="tarea-check" (click)="toggleProcedimiento(proc)" [disabled]="servicio.estado === 'Completado'" [attr.aria-label]="'Toggle ' + proc.nombre">
               @if (proc.estado === 'completado') {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -136,7 +160,7 @@
               </span>
               }
             </div>
-            <button class="btn-evidencia" (click)="abrirModalEvidencia(proc)" title="Agregar evidencia">
+            <button class="btn-evidencia" (click)="abrirModalEvidencia(proc)" [disabled]="servicio.estado === 'Completado'" title="Agregar evidencia">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                 <circle cx="12" cy="13" r="4"></circle>
@@ -308,27 +332,23 @@
           </div>
           } @else {
           @for (msg of chatMensajes; track $index) {
-          <div class="chat-row" [class.chat-row-own]="msg.nombre_remitente === _nombreUsuario">
-            @if (msg.nombre_remitente !== _nombreUsuario) {
-            <div class="chat-avatar-sm">{{ msg.nombre_remitente[0].toUpperCase() }}</div>
+          <div class="message-wrapper" [class.mine]="msg.remitente_id === _idUsuario">
+            @if (msg.remitente_id !== _idUsuario) {
+            <span class="msg-author">{{ msg.nombre_remitente.split(' ')[0] }}</span>
             }
-            <div class="chat-bubble" [class.chat-bubble-own]="msg.nombre_remitente === _nombreUsuario"
-              [class.chat-bubble-other]="msg.nombre_remitente !== _nombreUsuario">
-              @if (msg.nombre_remitente !== _nombreUsuario) {
-              <span class="chat-sender">{{ msg.nombre_remitente }}</span>
-              }
+            <div class="message-bubble">
               <p class="chat-text">{{ msg.contenido }}</p>
               @if (msg.destinatario_id) {
               <span class="chat-private-tag">privado</span>
               }
-              <span class="chat-time">{{ msg.fecha | date:'HH:mm' }}</span>
+              <span class="msg-time">{{ msg.fecha | date:'HH:mm' }}</span>
             </div>
           </div>
           }
           }
         </div>
 
-        <div class="chat-input-area">
+        <div class="inline-chat-input-area">
           @if (soyJefeOperaciones) {
           <select class="chat-select" [(ngModel)]="chatDestinatario">
             <option [ngValue]="null">Todos (Equipo)</option>
@@ -338,9 +358,10 @@
           </select>
           }
           <input class="chat-input" type="text" [(ngModel)]="nuevoMensajeChat"
-            placeholder="Escribe un mensaje…" (keydown.enter)="enviarMensajeChat()">
+            placeholder="Escribe un mensaje…" (keydown.enter)="enviarMensajeChat()"
+            [disabled]="servicio.estado === 'Completado'">
           <button class="chat-send-btn" (click)="enviarMensajeChat()"
-            [disabled]="!nuevoMensajeChat.trim()">
+            [disabled]="!nuevoMensajeChat.trim() || servicio.estado === 'Completado'">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -353,6 +374,7 @@
   </div>
 </div>
 
+@if (servicio.estado !== 'Completado') {
 <footer class="action-footer-bar">
   <div class="footer-info">
     <span class="progress-label">Progreso del Servicio:</span>
@@ -393,6 +415,7 @@
     </button>
   </div>
 </footer>
+}
 
 }
 

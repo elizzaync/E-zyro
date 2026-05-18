@@ -24,12 +24,30 @@
 
     <div class="days-grid">
         @for (dia of diasMes; track $index) {
-        <div class="day-cell" [class.is-today]="dia.isHoy" [class.empty]="!dia.num"
-            [class.has-note]="dia.hasEvent && !dia.isHoy" (click)="abrirModal(dia)"
-            [attr.data-tooltip]="dia.tooltipText"> @if (dia.num) {
+        <div class="day-cell"
+            [class.is-today]="dia.isHoy"
+            [class.empty]="!dia.num"
+            [class.has-note]="dia.hasNote && !dia.eventColor && !dia.isHoy"
+            [class.ev-pendiente]="dia.eventColor === 'pendiente'"
+            [class.ev-en-proceso]="dia.eventColor === 'en-proceso'"
+            [class.ev-completado]="dia.eventColor === 'completado'"
+            [class.ev-range-single]="dia.rangePos === 'single'"
+            [class.ev-range-start]="dia.rangePos === 'start'"
+            [class.ev-range-mid]="dia.rangePos === 'mid'"
+            [class.ev-range-end]="dia.rangePos === 'end'"
+            (click)="abrirModal(dia)"
+            [attr.data-tooltip]="dia.tooltipText">
+            @if (dia.num) {
+            @if (dia.rangePos === 'start' || dia.rangePos === 'mid' || dia.rangePos === 'end') {
+            <span class="range-bar"></span>
+            }
             <span class="day-number">{{ dia.num }}</span>
-            @if (dia.hasEvent && !dia.isHoy) {
-            <span class="event-dot"></span>
+            @if (dia.rangePos === 'single' && dia.hasEvent && !dia.isHoy) {
+            <span class="event-dot"
+                [class.dot-pendiente]="dia.eventColor === 'pendiente'"
+                [class.dot-en-proceso]="dia.eventColor === 'en-proceso'"
+                [class.dot-completado]="dia.eventColor === 'completado'">
+            </span>
             }
             }
         </div>

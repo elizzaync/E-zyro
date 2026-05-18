@@ -159,8 +159,14 @@ html[data-theme="dark"] .logout-btn:hover { background-color: rgba(239, 68, 68, 
 
 .notif-icon { font-size: 20px; flex-shrink: 0; line-height: 1; padding-top: 2px; }
 
-.notif-body { flex: 1; min-width: 0; }
-.notif-msg { margin: 0 0 4px 0; font-size: 13px; font-weight: 500; color: var(--text-main); line-height: 1.4; word-break: break-word; }
+.notif-body { flex: 1; min-width: 0; overflow: hidden; }
+.notif-msg {
+  margin: 0 0 4px 0;
+  font-size: 13px; font-weight: 500; color: var(--text-main);
+  white-space: normal; line-height: 1.4;
+  word-wrap: break-word; overflow-wrap: break-word; word-break: break-word;
+  display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
 .notif-time { font-size: 11px; color: var(--brand-green); font-weight: 600; }
 
 .notif-dismiss {

@@ -44,9 +44,33 @@
   color: var(--brand-green, #91d337);
 }
 
-.header-titles { display: flex; flex-direction: column; }
+.header-titles { display: flex; flex-direction: column; flex: 1; }
 .page-title { margin: 0; font-size: 26px; font-weight: 800; color: var(--text-main, #0f172a); }
 .page-subtitle { margin: 4px 0 0; font-size: 14px; font-weight: 500; color: var(--text-muted, #64748b); }
+
+.btn-cronograma {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  background: transparent;
+  border: 1.5px solid var(--brand-green, #91d337);
+  border-radius: 10px;
+  color: var(--brand-green, #5a8a20);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: center;
+  transition: all 0.2s;
+}
+.btn-cronograma svg { width: 16px; height: 16px; }
+.btn-cronograma:hover {
+  background: var(--brand-green, #91d337);
+  color: #fff;
+}
 
 /* ── ERROR ── */
 .error-banner {

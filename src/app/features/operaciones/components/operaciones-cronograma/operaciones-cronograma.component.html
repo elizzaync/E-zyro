@@ -1,0 +1,220 @@
+<div class="cron-layout">
+
+  <!-- ═══ CABECERA ═══════════════════════════════════════════════════ -->
+  <div class="cron-topbar">
+    <button class="btn-volver" (click)="volver()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Servicios
+    </button>
+
+    @if (proyecto) {
+    <div class="cron-topbar-info">
+      <span class="cron-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        Cronograma
+      </span>
+      <h2 class="cron-topbar-title">{{ proyecto.nombre_proyecto }}</h2>
+      <p class="cron-topbar-sub">{{ proyecto.cliente }} · {{ proyecto.orden_trabajo }}</p>
+    </div>
+    }
+  </div>
+
+  <!-- ═══ ESTADOS ════════════════════════════════════════════════════ -->
+  @if (isLoading) {
+  <div class="cron-state">
+    <app-spinner [size]="40"></app-spinner>
+    <p>Cargando cronograma...</p>
+  </div>
+  } @else if (errorMessage) {
+  <div class="cron-error">{{ errorMessage }}</div>
+  } @else if (proyecto) {
+
+  <!-- ═══ TARJETA RESUMEN DEL PROYECTO ═══════════════════════════════ -->
+  <div class="project-card">
+    <div class="pc-header">
+      <div class="pc-ot-badge">{{ proyecto.orden_trabajo }}</div>
+      <div class="pc-name-block">
+        <h3 class="pc-name">{{ proyecto.nombre_proyecto }}</h3>
+        <p class="pc-client">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/>
+          </svg>
+          {{ proyecto.cliente }}
+        </p>
+      </div>
+      <span class="est-badge" [class]="estadoClass(proyecto.estado)">
+        {{ estadoLabel(proyecto.estado) }}
+      </span>
+    </div>
+
+    <div class="pc-period">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      {{ formatDate(proyecto.fecha_inicio) }}
+      <span class="period-arrow">→</span>
+      {{ formatDate(proyecto.fecha_fin_estimada) }}
+    </div>
+
+    <div class="pc-progress-block">
+      <div class="pc-progress-label">
+        <span>Avance del proyecto</span>
+        <strong>{{ progresoPorcentaje }}%</strong>
+      </div>
+      <div class="pc-progress-track">
+        <div class="pc-progress-fill" [style.width.%]="progresoPorcentaje"></div>
+      </div>
+      <p class="pc-progress-detail">
+        {{ proyecto.servicios_completados }} de {{ proyecto.total_servicios }} servicio{{ proyecto.total_servicios !== 1 ? 's' : '' }} completado{{ proyecto.servicios_completados !== 1 ? 's' : '' }}
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══ TIMELINE VERTICAL ══════════════════════════════════════════ -->
+  <div class="timeline-section-label">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+    {{ servicios.length }} servicio{{ servicios.length !== 1 ? 's' : '' }} programado{{ servicios.length !== 1 ? 's' : '' }}
+  </div>
+
+  @if (servicios.length === 0) {
+  <div class="timeline-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+    </svg>
+    <p>Este proyecto no tiene servicios registrados aún.</p>
+  </div>
+  } @else {
+
+  <div class="timeline">
+    @for (srv of servicios; track srv.id; let last = $last) {
+    <div class="tl-item">
+
+      <!-- Columna izquierda: dot + línea conectora -->
+      <div class="tl-gutter">
+        <div class="tl-dot" [class]="estadoClass(srv.estado)"></div>
+        @if (!last) { <div class="tl-line"></div> }
+      </div>
+
+      <!-- Columna derecha: tarjeta del servicio -->
+      <div class="tl-content">
+        <div class="service-card" [class.sc-expanded]="srv.expandido">
+
+          <!-- Cabecera clickeable -->
+          <div class="sc-header" (click)="toggleServicio(srv)">
+            <div class="sc-date-pill">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              {{ formatDate(srv.fecha_programada) }}
+            </div>
+
+            <div class="sc-main">
+              <div class="sc-title-row">
+                <h3 class="sc-nombre">{{ srv.nombre }}</h3>
+                <span class="est-badge sm" [class]="estadoClass(srv.estado)">
+                  {{ estadoLabel(srv.estado) }}
+                </span>
+              </div>
+              @if (srv.descripcion) {
+              <p class="sc-desc">{{ srv.descripcion }}</p>
+              }
+            </div>
+
+            <span class="sc-chevron" [class.open]="srv.expandido">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </span>
+          </div>
+
+          <!-- Procedimientos desplegables -->
+          @if (srv.expandido || srv.cargandoProcedimientos) {
+          <div class="sc-body">
+            <div class="sc-divider"></div>
+
+            @if (srv.cargandoProcedimientos) {
+            <div class="proc-loading">
+              <app-spinner [size]="18"></app-spinner>
+              <span>Cargando tareas...</span>
+            </div>
+            } @else if (!srv.procedimientos?.length) {
+            <p class="proc-empty">Sin tareas registradas para este servicio.</p>
+            } @else {
+
+            <div class="proc-list-header">
+              <span>Tareas ({{ srv.procedimientos!.length }})</span>
+            </div>
+
+            @for (proc of srv.procedimientos; track proc.id) {
+            <div class="proc-row" [class]="procEstadoClass(proc.estado)">
+              <div class="proc-icon">
+                @if (proc.estado === 'completado') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                } @else if (proc.estado === 'en_proceso') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="9"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                } @else {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="9"></circle>
+                </svg>
+                }
+              </div>
+
+              <div class="proc-info">
+                <span class="proc-num">{{ proc.orden }}.</span>
+                <span class="proc-nombre">{{ proc.nombre }}</span>
+                @if (proc.descripcion) {
+                <span class="proc-desc">{{ proc.descripcion }}</span>
+                }
+              </div>
+
+              <button class="btn-evidencia"
+                      (click)="navegarAEvidencia($event, srv.id, proc.id)"
+                      title="Ir al detalle del servicio y abrir evidencia de esta tarea">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Subir Evidencia
+              </button>
+            </div>
+            }
+            }
+          </div>
+          }
+
+        </div>
+      </div>
+    </div>
+    }
+
+    <!-- Marcador de fin del timeline -->
+    <div class="tl-end">
+      <div class="tl-end-dot"></div>
+    </div>
+
+  </div>
+  }
+
+  }<!-- /else proyecto -->
+
+</div>

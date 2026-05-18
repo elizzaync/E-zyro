@@ -71,6 +71,8 @@ export class OperacionesServiciosListaComponent implements OnInit {
 
   irAlServicio(id: string): void { this.router.navigate(['/operaciones/servicio', id]); }
 
+  irAlCronograma(): void { this.router.navigate(['/operaciones/cronograma', this.proyectoId]); }
+
   estadoLabel(estado: string): string {
     const map: Record<string, string> = { 'En_Proceso': 'En Proceso' };
     return map[estado] ?? estado;

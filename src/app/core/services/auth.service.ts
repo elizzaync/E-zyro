@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, tap, catchError, of, BehaviorSubject } from 'rxjs'; // 👈 Añadido BehaviorSubject
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -10,8 +11,7 @@ export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
 
-  // Dejamos la URL base limpia hasta "auth"
-  private apiUrl = 'https://e-zyro-production.up.railway.app/auth';
+  private apiUrl = `${environment.apiUrl}/auth`;
 
   // ==========================================
   // ESTADO GLOBAL DEL MODAL DE CERRAR SESIÓN

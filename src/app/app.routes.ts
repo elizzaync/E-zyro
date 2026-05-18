@@ -12,6 +12,7 @@ import { DocumentacionComponent } from './features/documentacion/documentacion.c
 import { OperacionesComponent } from './features/operaciones/operaciones.component';
 import { OperacionesDetalleComponent } from './features/operaciones/components/operaciones-detalle/operaciones-detalle.component';
 import { OperacionesServiciosListaComponent } from './features/operaciones/components/operaciones-servicios-lista/operaciones-servicios-lista.component';
+import { OperacionesCronogramaComponent } from './features/operaciones/components/operaciones-cronograma/operaciones-cronograma.component';
 export const routes: Routes = [
   {
     path: '',
@@ -77,6 +78,12 @@ export const routes: Routes = [
     path: 'operaciones/servicio/:id',
     component: OperacionesDetalleComponent,
     title: 'Detalle de Servicio | E-System Tic',
+    canActivate: [authGuard]
+},
+{
+    path: 'operaciones/cronograma/:proyectoId',
+    component: OperacionesCronogramaComponent,
+    title: 'Cronograma | E-System Tic',
     canActivate: [authGuard]
 },
   {

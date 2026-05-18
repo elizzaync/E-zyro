@@ -1,11 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, Subject, BehaviorSubject } from 'rxjs'; // 👈 Eliminamos timer y Subscription
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private http = inject(HttpClient);
-  private apiUrl = 'https://e-zyro-production.up.railway.app/dashboard';
+  private apiUrl = `${environment.apiUrl}/dashboard`;
 
   // 👇 CANAL DE COMUNICACIÓN DE PERFIL
   private perfilActualizadoSource = new Subject<string>();

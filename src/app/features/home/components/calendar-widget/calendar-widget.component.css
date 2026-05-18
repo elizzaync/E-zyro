@@ -645,3 +645,68 @@
   visibility: visible;
   transform: translateX(-50%) translateY(-6px);
 }
+
+/* =======================================================
+   EVENTOS: PUNTOS COLOREADOS POR ESTADO (día único)
+   ======================================================= */
+.dot-pendiente  { background-color: #f59e0b; }
+.dot-en-proceso { background-color: #3b82f6; }
+.dot-completado { background-color: var(--brand-green, #91d337); }
+
+/* =======================================================
+   EVENTOS: BARRAS DE RANGO PARA PROYECTOS (multi-día)
+   ======================================================= */
+
+/* La barra vive dentro del day-cell como elemento absoluto */
+.range-bar {
+  position: absolute;
+  top: 4px; bottom: 4px;
+  left: 0; right: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 0;
+}
+
+/* Posición de la barra según lugar en el rango */
+.ev-range-start .range-bar { left: 50%;  border-radius: 14px 0 0 14px; }
+.ev-range-mid   .range-bar { border-radius: 0; }
+.ev-range-end   .range-bar { right: 50%; border-radius: 0 14px 14px 0; }
+
+/* Color de la barra según estado */
+.ev-pendiente  .range-bar { background-color: rgba(245, 158,  11, 0.16); }
+.ev-en-proceso .range-bar { background-color: rgba( 59, 130, 246, 0.16); }
+.ev-completado .range-bar { background-color: rgba(141, 211,  55, 0.16); }
+
+/* El day-number se posiciona sobre la barra */
+.ev-range-start .day-number,
+.ev-range-mid   .day-number,
+.ev-range-end   .day-number { position: relative; z-index: 1; }
+
+/* Círculo coloreado en celdas de inicio y fin del rango */
+.ev-range-start .day-number,
+.ev-range-end   .day-number {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 12px;
+}
+
+.ev-pendiente.ev-range-start  .day-number,
+.ev-pendiente.ev-range-end    .day-number  { background-color: #f59e0b; }
+.ev-en-proceso.ev-range-start .day-number,
+.ev-en-proceso.ev-range-end   .day-number  { background-color: #3b82f6; }
+.ev-completado.ev-range-start .day-number,
+.ev-completado.ev-range-end   .day-number  { background-color: var(--brand-green, #91d337); }
+
+/* Hover para celdas de rango: no usar el fondo genérico */
+.day-cell.ev-range-start:not(.empty):hover,
+.day-cell.ev-range-mid:not(.empty):hover,
+.day-cell.ev-range-end:not(.empty):hover  { background-color: transparent; }
+
+/* "Hoy" siempre gana: círculo verde, ocultar barra */
+.day-cell.is-today { border-radius: 50% !important; }
+.day-cell.is-today .range-bar { display: none; }
+.day-cell.is-today .day-number {
+  background-color: transparent !important;
+  color: #fff !important;
+  width: auto !important; height: auto !important; border-radius: 0 !important;
+}

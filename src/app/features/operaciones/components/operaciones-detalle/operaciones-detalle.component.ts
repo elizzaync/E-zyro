@@ -1,7 +1,8 @@
 import { Component, OnInit, OnDestroy, AfterViewChecked, ViewChild, ElementRef, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { environment } from '../../../../../environments/environment';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { Subscription } from 'rxjs';
@@ -79,6 +80,7 @@ export interface ServicioDetalle {
 })
 export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterViewChecked {
   private route     = inject(ActivatedRoute);
+  private router    = inject(Router);
   private location  = inject(Location);
   private sanitizer = inject(DomSanitizer);
   private svc       = inject(OperacionesService);
@@ -142,7 +144,15 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   private _scrollPending = false;
 
   _nombreUsuario = 'Yo';
-  private _usuarioId: string | null = null;
+  _usuarioId: string | null = null;
+
+  get _idUsuario(): string {
+    const stored = localStorage.getItem('ezyro_user');
+    if (stored) {
+      try { return JSON.parse(stored)?.id ?? ''; } catch { /* ignore */ }
+    }
+    return '';
+  }
 
   ngOnInit(): void {
     this.servicioId = this.route.snapshot.paramMap.get('id');
@@ -193,6 +203,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.servicio = this._mapServicio(raw);
         this.cargando = false;
         this._conectarChat(this.servicio.proyectoId);
+        this._checkDeepLink();
       },
       error: (err: any) => {
         this.error    = true;
@@ -202,47 +213,75 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     });
   }
 
+  private _mapMensaje(m: any): MensajeChat {
+    return {
+      id:               m.id,
+      contenido:        m.contenido ?? '',
+      remitente_id:     m.remitente_id,
+      nombre_remitente: m.remitente_nombre ?? m.nombre_remitente ?? 'Equipo',
+      fecha:            m.fecha ?? new Date().toISOString(),
+      destinatario_id:  m.destinatario_id ?? null
+    };
+  }
+
+  private _checkDeepLink(): void {
+    const tareaId = this.route.snapshot.queryParamMap.get('abrirTareaId');
+    if (!tareaId || !this.servicio) return;
+    const tarea = this.servicio.procedimientos.find(p => p.id === tareaId);
+    if (!tarea) return;
+    this.router.navigate([], {
+      queryParams: { abrirTareaId: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
+    setTimeout(() => this.abrirModalEvidencia(tarea), 50);
+  }
+
   private _conectarChat(projectId: string): void {
-    const token = localStorage.getItem('ezyro_token') ?? '';
+    const token  = localStorage.getItem('ezyro_token') ?? '';
+    const wsBase = environment.apiUrl.replace(/^http/, 'ws');
     this.chatSub?.unsubscribe();
     this.chatSocket$?.complete();
 
     this.chatSocket$ = webSocket<unknown>(
-      `wss://e-zyro-production.up.railway.app/ws/chat/${projectId}?token=${token}`
+      `${wsBase}/ws/chat/${projectId}?token=${token}`
     );
 
     this.chatSub = this.chatSocket$.subscribe({
       next: (msg: any) => {
-        this.chatMensajes.push({
-          id:               msg.id,
-          contenido:        msg.contenido ?? '',
-          remitente_id:     msg.remitente_id,
-          nombre_remitente: msg.remitente_nombre ?? msg.nombre_remitente ?? 'Equipo',
-          fecha:            msg.fecha ?? new Date().toISOString(),
-          destinatario_id:  msg.destinatario_id ?? null
-        });
+        if (msg.tipo === 'historial') {
+          this.chatMensajes = (msg.mensajes ?? []).map((m: any) => this._mapMensaje(m));
+          this._scrollPending = true;
+          return;
+        }
+        if (msg.tipo === 'error') return;
+        this.chatMensajes.push(this._mapMensaje(msg));
         this._scrollPending = true;
       },
-      error: () => { /* conexión cerrada — no acción requerida */ }
+      error: () => { /* conexión cerrada */ }
     });
   }
 
   enviarMensajeChat(): void {
     const texto = this.nuevoMensajeChat.trim();
     if (!texto || !this.chatSocket$) return;
-
     this.chatSocket$.next({ contenido: texto, destinatario_id: this.chatDestinatario ?? null });
-
-    this.chatMensajes.push({
-      contenido:        texto,
-      nombre_remitente: this._nombreUsuario,
-      remitente_id:     this._usuarioId ?? undefined,
-      fecha:            new Date().toISOString(),
-      destinatario_id:  this.chatDestinatario ?? null
-    });
-
     this.nuevoMensajeChat = '';
-    this._scrollPending   = true;
+    // El backend hace broadcast al remitente también, por lo que el mensaje llega por el WS
+  }
+
+  getChatInitiales(nombre: string): string {
+    const parts = nombre.trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return (parts[0]?.[0] ?? '?').toUpperCase();
+  }
+
+  getChatAvatarColor(id?: string): string {
+    const palette = ['#91d337', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#ef4444', '#14b8a6'];
+    if (!id) return '#334155';
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+    return palette[Math.abs(h) % palette.length];
   }
 
   private _mapServicio(raw: any): ServicioDetalle {

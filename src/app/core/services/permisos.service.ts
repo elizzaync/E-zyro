@@ -1,11 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PermisosService {
   private http   = inject(HttpClient);
-  private apiUrl = 'https://e-zyro-production.up.railway.app/permisos';
+  private apiUrl = `${environment.apiUrl}/permisos`;
 
   private getAuthHeader(): HttpHeaders {
     return new HttpHeaders({
