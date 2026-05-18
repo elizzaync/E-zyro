@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
 import 'pantalla_detalle_servicio.dart';
+import 'pantalla_equipos.dart';
 import 'pantalla_gantt.dart';
 
 class ServiciosScreen extends StatefulWidget {
@@ -18,14 +19,25 @@ class ServiciosScreen extends StatefulWidget {
   State<ServiciosScreen> createState() => _ServiciosScreenState();
 }
 
-class _ServiciosScreenState extends State<ServiciosScreen> {
+class _ServiciosScreenState extends State<ServiciosScreen>
+    with SingleTickerProviderStateMixin {
   List<ServicioItem> _servicios = [];
   bool _isLoading = true;
+  late TabController _tabController;
+
+  static const _green = Color(0xFF8FD11B);
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -62,7 +74,7 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
             message: 'Diagrama de Gantt',
             child: IconButton(
               icon: const Icon(Icons.view_timeline_outlined),
-              color: const Color(0xFF8FD11B),
+              color: _green,
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -75,6 +87,20 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
             ),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: _green,
+          unselectedLabelColor: Colors.grey,
+          indicatorColor: _green,
+          indicatorWeight: 2.5,
+          labelStyle: const TextStyle(
+              fontSize: 13, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: const TextStyle(fontSize: 13),
+          tabs: [
+            Tab(text: 'Servicios (${_servicios.length})'),
+            const Tab(text: 'Equipos'),
+          ],
+        ),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,64 +108,66 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
           // ── Header del proyecto ──────────────────────────────────────────
           _ProyectoHeader(proyecto: proyecto),
 
-          // ── Título sección ───────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-            child: Text(
-              'Servicios (${_servicios.length})',
-              style: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-          ),
-
-          // ── Lista de servicios ───────────────────────────────────────────
+          // ── Tabs ─────────────────────────────────────────────────────────
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF8FD11B)),
-                    ),
-                  )
-                : _servicios.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.build_outlined,
-                                size: 48,
-                                color: Colors.grey.shade400),
-                            const SizedBox(height: 12),
-                            const Text('Sin servicios en este proyecto',
-                                style: TextStyle(
-                                    color: Colors.grey, fontSize: 14)),
-                          ],
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                // ── Tab Servicios ──────────────────────────────────────────
+                _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(_green),
                         ),
                       )
-                    : RefreshIndicator(
-                        onRefresh: _load,
-                        color: const Color(0xFF8FD11B),
-                        child: ListView.separated(
-                          padding:
-                              const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          itemCount: _servicios.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (_, i) => _ServicioCard(
-                            servicio: _servicios[i],
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DetalleServicioScreen(
-                                  servicioId: _servicios[i].id,
-                                  nombreServicio: _servicios[i].nombre,
-                                  service: widget.service,
+                    : _servicios.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.build_outlined,
+                                    size: 48,
+                                    color: Colors.grey.shade400),
+                                const SizedBox(height: 12),
+                                const Text(
+                                    'Sin servicios en este proyecto',
+                                    style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            color: _green,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.fromLTRB(
+                                  20, 8, 20, 24),
+                              itemCount: _servicios.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 10),
+                              itemBuilder: (_, i) => _ServicioCard(
+                                servicio: _servicios[i],
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => DetalleServicioScreen(
+                                      servicioId: _servicios[i].id,
+                                      nombreServicio:
+                                          _servicios[i].nombre,
+                                      service: widget.service,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      ),
+
+                // ── Tab Equipos ────────────────────────────────────────────
+                EquiposTab(proyectoId: proyecto.id),
+              ],
+            ),
           ),
         ],
       ),

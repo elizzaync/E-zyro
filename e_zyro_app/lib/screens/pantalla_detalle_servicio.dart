@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
+import 'pantalla_chat.dart';
 
 class DetalleServicioScreen extends StatefulWidget {
   final String servicioId;
@@ -27,7 +28,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _load();
   }
 
@@ -76,7 +77,11 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
             )
           : _detalle == null
           ? _ErrorView(onRetry: _load)
-          : _DetalleContent(detalle: _detalle!, tabController: _tabController),
+          : _DetalleContent(
+              detalle: _detalle!,
+              tabController: _tabController,
+              servicioId: widget.servicioId,
+            ),
     );
   }
 }
@@ -86,8 +91,13 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
 class _DetalleContent extends StatelessWidget {
   final ServicioDetalle detalle;
   final TabController tabController;
+  final String servicioId;
 
-  const _DetalleContent({required this.detalle, required this.tabController});
+  const _DetalleContent({
+    required this.detalle,
+    required this.tabController,
+    required this.servicioId,
+  });
 
   Color get _statusColor => switch (detalle.estado) {
     'Completado' => const Color(0xFF8FD11B),
@@ -245,6 +255,10 @@ class _DetalleContent extends StatelessWidget {
                   'Materiales (${detalle.materialesAsignados.length + detalle.materialesSolicitados.length})',
             ),
             Tab(text: 'Notas (${detalle.notas.length})'),
+            const Tab(
+              icon: Icon(Icons.chat_bubble_outline, size: 16),
+              text: 'Chat',
+            ),
           ],
         ),
 
@@ -260,6 +274,7 @@ class _DetalleContent extends StatelessWidget {
                 solicitados: detalle.materialesSolicitados,
               ),
               _NotasTab(notas: detalle.notas),
+              ChatTab(room: 'servicio/$servicioId'),
             ],
           ),
         ),
