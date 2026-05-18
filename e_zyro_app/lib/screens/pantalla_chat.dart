@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,7 +10,15 @@ class ChatTab extends StatefulWidget {
   /// room puede ser "{proyectoId}" o "servicio/{servicioId}"
   final String room;
 
-  const ChatTab({super.key, required this.room});
+  /// Mapa de userId → fotoUrl para mostrar avatares del equipo.
+  /// El backend no envía la foto en el WS, así que se resuelve localmente.
+  final Map<String, String> fotosPorId;
+
+  const ChatTab({
+    super.key,
+    required this.room,
+    this.fotosPorId = const {},
+  });
 
   @override
   State<ChatTab> createState() => _ChatTabState();
@@ -24,9 +33,11 @@ class _ChatTabState extends State<ChatTab>
 
   bool _isConnected = false;
   bool _showFab = false;
-  String _myName = '';
+  String _myId = '';   // UUID del usuario actual (del JWT)
+  String _myName = ''; // nombre para fallback
 
   StreamSubscription<MensajeChat>? _msgSub;
+  StreamSubscription<List<MensajeChat>>? _histSub;
   StreamSubscription<bool>? _connSub;
 
   static const _green = Color(0xFF8FD11B);
@@ -46,12 +57,24 @@ class _ChatTabState extends State<ChatTab>
     final prefs = await SharedPreferences.getInstance();
     _myName = prefs.getString('user_name') ?? '';
     final token = prefs.getString('auth_token') ?? '';
+    _myId = _extractIdFromToken(token);
 
     _connSub = _service.connectionStatus.listen((connected) {
       if (!mounted) return;
       setState(() => _isConnected = connected);
     });
 
+    // Historial: reemplaza la lista completa de una vez
+    _histSub = _service.historial.listen((msgs) {
+      if (!mounted) return;
+      setState(() {
+        _mensajes.clear();
+        _mensajes.addAll(msgs);
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    });
+
+    // Mensajes nuevos en tiempo real
     _msgSub = _service.mensajes.listen((msg) {
       if (!mounted) return;
       setState(() => _mensajes.add(msg));
@@ -59,6 +82,24 @@ class _ChatTabState extends State<ChatTab>
     });
 
     _service.connect(widget.room, token);
+  }
+
+  /// Extrae el campo 'id' del payload JWT sin verificar firma.
+  String _extractIdFromToken(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return '';
+      final payload = parts[1];
+      final padded = payload.padRight(
+        (payload.length + 3) & ~3,
+        '=',
+      );
+      final decoded = utf8.decode(base64.decode(padded));
+      final json = jsonDecode(decoded) as Map<String, dynamic>;
+      return json['id'] as String? ?? json['sub'] as String? ?? '';
+    } catch (_) {
+      return '';
+    }
   }
 
   void _onScroll() {
@@ -113,6 +154,7 @@ class _ChatTabState extends State<ChatTab>
     WidgetsBinding.instance.removeObserver(this);
     _scrollCtrl.removeListener(_onScroll);
     _msgSub?.cancel();
+    _histSub?.cancel();
     _connSub?.cancel();
     _service.dispose();
     _inputCtrl.dispose();
@@ -147,7 +189,9 @@ class _ChatTabState extends State<ChatTab>
                       itemBuilder: (_, i) {
                         final msg = _mensajes[i];
                         final isMine = msg.tipo == TipoMensaje.mensaje &&
-                            msg.autor == _myName;
+                            (_myId.isNotEmpty
+                                ? msg.remitenteId == _myId
+                                : msg.autor == _myName);
 
                         // Show author header only on first message of a group
                         final showAuthor = !isMine &&
@@ -162,6 +206,13 @@ class _ChatTabState extends State<ChatTab>
                             !_sameDay(
                                 _mensajes[i - 1].fecha, msg.fecha);
 
+                        // Resuelve la foto: primero del WS, luego del mapa de equipo
+                        final fotoUrl = (msg.fotoUrl?.isNotEmpty == true)
+                            ? msg.fotoUrl
+                            : (msg.remitenteId != null
+                                ? widget.fotosPorId[msg.remitenteId!]
+                                : null);
+
                         return Column(
                           children: [
                             if (showDate)
@@ -171,6 +222,7 @@ class _ChatTabState extends State<ChatTab>
                               isMine: isMine,
                               showAuthor: showAuthor,
                               isDark: isDark,
+                              fotoUrl: fotoUrl,
                             ),
                           ],
                         );
@@ -330,12 +382,14 @@ class _MessageBubble extends StatelessWidget {
   final bool isMine;
   final bool showAuthor;
   final bool isDark;
+  final String? fotoUrl;
 
   const _MessageBubble({
     required this.msg,
     required this.isMine,
     required this.showAuthor,
     required this.isDark,
+    this.fotoUrl,
   });
 
   static const _green = Color(0xFF8FD11B);
@@ -382,7 +436,7 @@ class _MessageBubble extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 6, bottom: 2),
               child: showAuthor
-                  ? _Avatar(name: msg.autor)
+                  ? _Avatar(name: msg.autor, fotoUrl: fotoUrl)
                   : const SizedBox(width: 28),
             ),
 
@@ -475,11 +529,12 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-// ─── Avatar con inicial ───────────────────────────────────────────────────────
+// ─── Avatar con foto o inicial ────────────────────────────────────────────────
 
 class _Avatar extends StatelessWidget {
   final String name;
-  const _Avatar({required this.name});
+  final String? fotoUrl;
+  const _Avatar({required this.name, this.fotoUrl});
 
   Color get _color {
     const palette = [
@@ -497,6 +552,14 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (fotoUrl != null && fotoUrl!.isNotEmpty) {
+      return CircleAvatar(
+        radius: 14,
+        backgroundColor: _color.withValues(alpha: 0.15),
+        backgroundImage: NetworkImage(fotoUrl!),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return CircleAvatar(
       radius: 14,

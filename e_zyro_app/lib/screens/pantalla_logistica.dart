@@ -5,6 +5,7 @@ import '../models/proyecto_models.dart';
 import '../services/requerimiento_service.dart';
 import '../services/proyecto_service.dart';
 import '../utils/api_provider.dart';
+import '../widgets/topo_background.dart';
 
 // ── Private carrito entry ─────────────────────────────────────────────────────
 class _CarritoEntry {
@@ -172,7 +173,15 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
         ? Theme.of(context).colorScheme.surfaceContainerHighest
         : Colors.grey.shade200;
 
-    return SafeArea(
+    return TopoBackground(
+      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
+      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      count: 18,
+      amp: 10,
+      stroke: 0.40,
+      speed: 0.5,
+      child: SafeArea(
       child: Stack(
         children: [
           Column(
@@ -303,7 +312,7 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   Widget _buildCatalogo() {

@@ -10,8 +10,15 @@ class NotificacionService {
     final q = soloNoLeidas ? '?solo_no_leidas=true' : '';
     final r = await _client.get('/notificaciones$q');
     if (r.statusCode == 200) {
-      final data = jsonDecode(r.body) as List;
-      return data
+      final body = jsonDecode(r.body);
+      // El backend puede devolver un array directo o un objeto envuelto
+      final List raw = body is List
+          ? body
+          : (body['data'] as List? ??
+              body['notificaciones'] as List? ??
+              body['items'] as List? ??
+              []);
+      return raw
           .map((e) => NotificacionItem.fromJson(e as Map<String, dynamic>))
           .toList();
     }

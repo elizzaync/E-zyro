@@ -5,12 +5,14 @@ import 'pantalla_chat.dart';
 
 class DetalleServicioScreen extends StatefulWidget {
   final String servicioId;
+  final String proyectoId;
   final String nombreServicio;
   final ProyectoService service;
 
   const DetalleServicioScreen({
     super.key,
     required this.servicioId,
+    required this.proyectoId,
     required this.nombreServicio,
     required this.service,
   });
@@ -80,7 +82,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
           : _DetalleContent(
               detalle: _detalle!,
               tabController: _tabController,
-              servicioId: widget.servicioId,
+              proyectoId: widget.proyectoId,
             ),
     );
   }
@@ -91,12 +93,12 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
 class _DetalleContent extends StatelessWidget {
   final ServicioDetalle detalle;
   final TabController tabController;
-  final String servicioId;
+  final String proyectoId;
 
   const _DetalleContent({
     required this.detalle,
     required this.tabController,
-    required this.servicioId,
+    required this.proyectoId,
   });
 
   Color get _statusColor => switch (detalle.estado) {
@@ -274,7 +276,13 @@ class _DetalleContent extends StatelessWidget {
                 solicitados: detalle.materialesSolicitados,
               ),
               _NotasTab(notas: detalle.notas),
-              ChatTab(room: 'servicio/$servicioId'),
+              ChatTab(
+                room: proyectoId,
+                fotosPorId: {
+                  for (final m in detalle.equipo)
+                    if (m.fotoUrl.isNotEmpty) m.id: m.fotoUrl,
+                },
+              ),
             ],
           ),
         ),

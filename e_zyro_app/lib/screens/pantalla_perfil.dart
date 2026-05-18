@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
 import '../models/asistencia_models.dart';
 import '../utils/api_provider.dart';
+import '../widgets/topo_background.dart';
 
 class PersonalScreen extends StatefulWidget {
   const PersonalScreen({super.key});
@@ -36,48 +37,58 @@ class _PersonalScreenState extends State<PersonalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Personal',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: List.generate(
-                    _tabs.length,
-                    (i) => _TabButton(
-                      label: _tabs[i],
-                      isSelected: _selectedTab == i,
-                      onTap: () {
-                        setState(() => _selectedTab = i);
-                        personalSubTabNotifier.value = i;
-                      },
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return TopoBackground(
+      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
+      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      count: 18,
+      amp: 10,
+      stroke: 0.40,
+      speed: 0.5,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Personal',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: List.generate(
+                      _tabs.length,
+                      (i) => _TabButton(
+                        label: _tabs[i],
+                        isSelected: _selectedTab == i,
+                        onTap: () {
+                          setState(() => _selectedTab = i);
+                          personalSubTabNotifier.value = i;
+                        },
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-              ],
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _selectedTab,
-              children: const [
-                _ProfileTab(),
-                _AsistenciaHistorialTab(),
-                _DocumentsTab(),
-              ],
+            Expanded(
+              child: IndexedStack(
+                index: _selectedTab,
+                children: const [
+                  _ProfileTab(),
+                  _AsistenciaHistorialTab(),
+                  _DocumentsTab(),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

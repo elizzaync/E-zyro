@@ -9,6 +9,7 @@ class ChatService {
   StreamSubscription? _sub;
 
   final _mensajesCtrl = StreamController<MensajeChat>.broadcast();
+  final _historialCtrl = StreamController<List<MensajeChat>>.broadcast();
   final _connectedCtrl = StreamController<bool>.broadcast();
 
   bool _isConnected = false;
@@ -21,6 +22,7 @@ class ChatService {
   String? _token;
 
   Stream<MensajeChat> get mensajes => _mensajesCtrl.stream;
+  Stream<List<MensajeChat>> get historial => _historialCtrl.stream;
   Stream<bool> get connectionStatus => _connectedCtrl.stream;
   bool get isConnected => _isConnected;
 
@@ -46,8 +48,7 @@ class ChatService {
         .replaceFirst('https://', 'wss://')
         .replaceFirst('http://', 'ws://');
 
-    final uri =
-        Uri.parse('$wsBase/ws/chat/$_room?token=$_token');
+    final uri = Uri.parse('$wsBase/ws/chat/$_room?token=$_token');
 
     try {
       _channel = WebSocketChannel.connect(uri);
@@ -67,6 +68,18 @@ class ChatService {
     if (_disposed) return;
     try {
       final decoded = jsonDecode(raw as String) as Map<String, dynamic>;
+
+      // El backend envía un paquete inicial con el historial completo
+      if (decoded['tipo'] == 'historial') {
+        final lista = (decoded['mensajes'] as List? ?? [])
+            .map((m) => MensajeChat.fromJson(m as Map<String, dynamic>))
+            .toList();
+        if (!_historialCtrl.isClosed) _historialCtrl.add(lista);
+        return;
+      }
+
+      if (decoded['tipo'] == 'error') return;
+
       final msg = MensajeChat.fromJson(decoded);
       if (!_mensajesCtrl.isClosed) _mensajesCtrl.add(msg);
     } catch (_) {}
@@ -79,8 +92,7 @@ class ChatService {
       final delay = _delays[_reconnectAttempts];
       _reconnectAttempts++;
       _reconnectTimer?.cancel();
-      _reconnectTimer =
-          Timer(Duration(seconds: delay), _doConnect);
+      _reconnectTimer = Timer(Duration(seconds: delay), _doConnect);
     }
   }
 
@@ -90,11 +102,14 @@ class ChatService {
     if (!_connectedCtrl.isClosed) _connectedCtrl.add(value);
   }
 
-  void send(String texto) {
+  void send(String texto, {String? destinatarioId}) {
     final t = texto.trim();
     if (!_isConnected || _channel == null || t.isEmpty) return;
     try {
-      _channel!.sink.add(jsonEncode({'texto': t}));
+      _channel!.sink.add(jsonEncode({
+        'contenido': t,
+        'destinatario_id': destinatarioId,
+      }));
     } catch (_) {}
   }
 
@@ -112,6 +127,7 @@ class ChatService {
       _channel?.sink.close();
     } catch (_) {}
     _mensajesCtrl.close();
+    _historialCtrl.close();
     _connectedCtrl.close();
   }
 }

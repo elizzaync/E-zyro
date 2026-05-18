@@ -107,6 +107,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
       }
     });
     _cargarFirmaGuardada();
+    _cargarMisSolicitudes();
   }
 
   @override

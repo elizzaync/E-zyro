@@ -4,15 +4,21 @@ class MensajeChat {
   final String? id;
   final TipoMensaje tipo;
   final String autor;
+  final String? remitenteId;
+  final String? fotoUrl;
   final String texto;
   final DateTime fecha;
+  final String? destinatarioId;
 
   const MensajeChat({
     this.id,
     required this.tipo,
     required this.autor,
+    this.remitenteId,
+    this.fotoUrl,
     required this.texto,
     required this.fecha,
+    this.destinatarioId,
   });
 
   factory MensajeChat.fromJson(Map<String, dynamic> j) {
@@ -28,14 +34,26 @@ class MensajeChat {
       fecha = DateTime.now();
     }
 
+    final rawFoto = (j['foto_url'] ??
+            j['remitente_foto_url'] ??
+            j['foto_remitente'] ??
+            j['avatar_url']) as String?;
+
     return MensajeChat(
       id: j['id'] as String?,
       tipo: tipo,
-      // Accept 'autor' or 'nombre' field names
-      autor: (j['autor'] ?? j['nombre'] ?? 'Usuario') as String,
-      // Accept 'texto' or 'message' field names
-      texto: (j['texto'] ?? j['message'] ?? '') as String,
+      // Backend envía 'nombre_remitente' o 'remitente_nombre'; fallback a 'autor'/'nombre'
+      autor: (j['nombre_remitente'] ??
+              j['remitente_nombre'] ??
+              j['autor'] ??
+              j['nombre'] ??
+              'Usuario') as String,
+      remitenteId: j['remitente_id'] as String?,
+      fotoUrl: (rawFoto != null && rawFoto.isNotEmpty) ? rawFoto : null,
+      // Backend envía 'contenido'; fallback a 'texto'/'message'
+      texto: (j['contenido'] ?? j['texto'] ?? j['message'] ?? '') as String,
       fecha: fecha,
+      destinatarioId: j['destinatario_id'] as String?,
     );
   }
 

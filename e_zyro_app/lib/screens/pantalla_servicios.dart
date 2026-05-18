@@ -154,6 +154,7 @@ class _ServiciosScreenState extends State<ServiciosScreen>
                                   MaterialPageRoute(
                                     builder: (_) => DetalleServicioScreen(
                                       servicioId: _servicios[i].id,
+                                      proyectoId: widget.proyecto.id,
                                       nombreServicio:
                                           _servicios[i].nombre,
                                       service: widget.service,
