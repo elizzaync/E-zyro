@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -22,17 +21,18 @@ class FcmFlutterService {
   static final _messageController = StreamController<RemoteMessage>.broadcast();
 
   /// Stream que emite cada mensaje FCM recibido en primer plano.
-  /// Suscríbete para recargar datos en tiempo real.
   static Stream<RemoteMessage> get messageStream => _messageController.stream;
 
   // ── Inicialización principal ──────────────────────────────────────────────
 
   /// Llama a esto UNA VEZ después de iniciar sesión exitosamente.
-  /// [navKey] debe ser el mismo que se pasa al MaterialApp.
   static Future<void> initialize({
     required ApiClient client,
     required GlobalKey<NavigatorState> navKey,
   }) async {
+    // FCM no está soportado en web ni en Windows desktop
+    if (kIsWeb || (!_isMobile)) return;
+
     _client = client;
     _navKey = navKey;
 
@@ -50,7 +50,7 @@ class FcmFlutterService {
     }
 
     // 2. Configurar APNs en iOS (obligatorio antes de getToken en iOS)
-    if (Platform.isIOS) {
+    if (_isIOS) {
       await _messaging.setForegroundNotificationPresentationOptions(
         alert: true,
         badge: true,
@@ -116,29 +116,42 @@ class FcmFlutterService {
     try {
       await _client!.post('/notificaciones/dispositivos/registrar', {
         'token_push': token,
-        'plataforma': Platform.isAndroid ? 'android' : 'ios',
+        'plataforma': _platform,
       });
       if (kDebugMode) debugPrint('[FCM] Token registrado.');
-    } catch (e) {
+    } catch (_) {
       if (kDebugMode) debugPrint('[FCM] Error al registrar token.');
     }
   }
 
   /// Llama a esto al hacer logout para desactivar el token en el backend.
   static Future<void> unregisterDevice(ApiClient client) async {
+    if (kIsWeb || !_isMobile) return;
     try {
       final token = await _messaging.getToken();
       if (token == null) return;
       await client.post('/notificaciones/dispositivos/desregistrar', {
         'token_push': token,
-        'plataforma': Platform.isAndroid ? 'android' : 'ios',
+        'plataforma': _platform,
       });
       if (kDebugMode) debugPrint('[FCM] Token desregistrado.');
-    } catch (e) {
+    } catch (_) {
       if (kDebugMode) debugPrint('[FCM] Error al desregistrar token.');
     }
   }
 
   /// Devuelve el token FCM actual (útil para debug/admin).
   static Future<String?> getToken() => _messaging.getToken();
+
+  // ── Helpers de plataforma (sin dart:io) ──────────────────────────────────
+
+  static bool get _isIOS =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  static bool get _isMobile =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  static String get _platform =>
+      defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
 }

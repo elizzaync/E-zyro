@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,9 +22,15 @@ import 'services/fcm_flutter_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase debe inicializarse antes de runApp y antes del background handler
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+  // Firebase: solo mobile soporta FCM. En web/Windows se inicializa sin handler.
+  try {
+    await Firebase.initializeApp();
+    if (!kIsWeb) {
+      FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+    }
+  } catch (e) {
+    if (kDebugMode) debugPrint('[Firebase] Init error: ${e.runtimeType}');
+  }
 
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('dark_mode') ?? false;

@@ -5,6 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/auth_models.dart';
 
+String get _devicePlatform {
+  if (kIsWeb) return 'web';
+  return defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
+}
+
 class AuthService {
   final ApiClient _client;
   final SharedPreferences _prefs;
@@ -31,10 +36,8 @@ class AuthService {
       );
       if (r.statusCode == 200) {
         final res = LoginResponse.fromJson(jsonDecode(r.body));
-        // SharedPreferences: acceso síncrono para ApiClient
         await _prefs.setString(_tokenKey, res.data.token);
-        // SecureStorage: almacenamiento cifrado (Android Keystore / iOS Keychain)
-        await _secure.write(key: _tokenKey, value: res.data.token);
+        if (!kIsWeb) await _secure.write(key: _tokenKey, value: res.data.token);
 
         await _prefs.setString('user_name', res.data.nombreCompleto);
         await _prefs.setString('user_rol', res.data.rol);
@@ -138,7 +141,7 @@ class AuthService {
       final body    = jsonDecode(r.body) as Map<String, dynamic>;
       final newToken = body['data']['token'] as String;
       await _prefs.setString(_tokenKey, newToken);
-      await _secure.write(key: _tokenKey, value: newToken);
+      if (!kIsWeb) await _secure.write(key: _tokenKey, value: newToken);
     } else {
       final body = jsonDecode(r.body) as Map<String, dynamic>;
       throw Exception(body['detail'] ?? 'No se pudo renovar la sesión');
@@ -152,7 +155,7 @@ class AuthService {
       try {
         await _client.post('/notificaciones/dispositivos/desregistrar', {
           'token_push': fcmToken,
-          'plataforma': _prefs.getString('device_platform') ?? 'android',
+          'plataforma': _devicePlatform,
         });
       } catch (_) {}
     }
@@ -160,12 +163,13 @@ class AuthService {
     await _prefs.remove('user_name');
     await _prefs.remove('user_rol');
     await _prefs.remove('user_foto_url');
-    await _secure.delete(key: _tokenKey);
+    if (!kIsWeb) await _secure.delete(key: _tokenKey);
   }
 
   /// Restaura el token desde SecureStorage hacia SharedPreferences si es necesario.
   /// Llamar desde el splash screen antes de leer el token.
   static Future<void> restoreTokenIfNeeded(SharedPreferences prefs) async {
+    if (kIsWeb) return; // SecureStorage no aplica en web
     if (prefs.getString(_tokenKey) != null) return;
     try {
       final secureToken = await _secure.read(key: _tokenKey);

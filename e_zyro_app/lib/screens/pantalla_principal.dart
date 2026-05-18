@@ -3,11 +3,13 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/dashboard_service.dart';
+import '../services/notificacion_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../models/dashboard_models.dart';
 import '../widgets/stat_card.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
+import 'pantalla_notificaciones.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   DashboardService? _dashboardService;
+  NotificacionService? _notificacionService;
   bool _isLoading = true;
   bool _hasError = false;
 
@@ -28,7 +31,14 @@ class _HomeScreenState extends State<HomeScreen> {
     completados: 0,
   );
   List<ProximoServicio> _servicios = [];
-  List<NotificacionDashboard> _notificaciones = [];
+  int _unreadCount = 0;
+
+  // Banner
+  bool _bannerVisible = false;
+  String _bannerTitle = '';
+  String _bannerBody = '';
+  String _bannerTipo = '';
+  Timer? _bannerTimer;
 
   StreamSubscription<RemoteMessage>? _fcmSub;
 
@@ -36,13 +46,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _init();
-    _fcmSub = FcmFlutterService.messageStream.listen((_) {
-      if (mounted) _loadData();
-    });
+    _fcmSub = FcmFlutterService.messageStream.listen(_silentRefresh);
   }
 
   @override
   void dispose() {
+    _bannerTimer?.cancel();
     _fcmSub?.cancel();
     super.dispose();
   }
@@ -51,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     _userName = prefs.getString('user_name') ?? 'Usuario';
     _dashboardService = await getDashboardService();
+    _notificacionService = await getNotificacionService();
     await _loadData();
   }
 
@@ -63,19 +73,20 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       late DashboardResumen resumen;
       late List<ProximoServicio> servicios;
-      late List<NotificacionDashboard> notifs;
+      int unread = 0;
 
       await Future.wait([
         _dashboardService!.getResumen().then((v) => resumen = v),
         _dashboardService!.getProximosServicios().then((v) => servicios = v),
-        _dashboardService!.getNotificaciones().then((v) => notifs = v),
+        if (_notificacionService != null)
+          _notificacionService!.getUnreadCount().then((v) => unread = v),
       ]);
 
       if (!mounted) return;
       setState(() {
         _resumen = resumen;
         _servicios = servicios;
-        _notificaciones = notifs;
+        _unreadCount = unread;
         _isLoading = false;
       });
     } catch (e) {
@@ -90,6 +101,160 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
+
+  Future<void> _refreshUnreadCount() async {
+    if (_notificacionService == null || !mounted) return;
+    try {
+      final count = await _notificacionService!.getUnreadCount();
+      if (!mounted) return;
+      setState(() => _unreadCount = count);
+    } catch (_) {}
+  }
+
+  Future<void> _silentRefresh(RemoteMessage msg) async {
+    await _refreshUnreadCount();
+    if (!mounted) return;
+
+    final title = msg.notification?.title ??
+        msg.data['titulo'] as String? ??
+        'Nueva notificación';
+    final body = msg.notification?.body ?? msg.data['mensaje'] as String? ?? '';
+    final tipo = msg.data['tipo'] as String? ?? '';
+
+    _bannerTimer?.cancel();
+    setState(() {
+      _bannerTitle = title;
+      _bannerBody = body;
+      _bannerTipo = tipo;
+      _bannerVisible = true;
+    });
+    _bannerTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _bannerVisible = false);
+    });
+  }
+
+  void _openNotificacionesSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.92,
+        expand: false,
+        builder: (_, controller) => NotificacionesScreen(
+          isSheet: true,
+          scrollController: controller,
+        ),
+      ),
+    ).then((_) => _refreshUnreadCount());
+  }
+
+  // ── Banner de notificación ─────────────────────────────────────────────────
+
+  static IconData _iconForTipo(String tipo) => switch (tipo) {
+        'servicio' => Icons.build_rounded,
+        'comunicado' => Icons.campaign_rounded,
+        'recordatorio' => Icons.event_note_rounded,
+        _ => Icons.notifications_rounded,
+      };
+
+  static Color _colorForTipo(String tipo) => switch (tipo) {
+        'servicio' => const Color(0xFF3B82F6),
+        'comunicado' => const Color(0xFFF59E0B),
+        'recordatorio' => const Color(0xFF8B5CF6),
+        _ => const Color(0xFF8FD11B),
+      };
+
+  Widget _buildBanner() {
+    final color = _colorForTipo(_bannerTipo);
+    return AnimatedSlide(
+      offset: _bannerVisible ? Offset.zero : const Offset(0, -1),
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: _bannerVisible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 300),
+        child: SafeArea(
+          child: GestureDetector(
+            onTap: () {
+              _bannerTimer?.cancel();
+              setState(() => _bannerVisible = false);
+              _openNotificacionesSheet();
+            },
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.18),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(_iconForTipo(_bannerTipo), color: color, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _bannerTitle,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (_bannerBody.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            _bannerBody,
+                            style: TextStyle(
+                                color: Colors.grey.shade500, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      _bannerTimer?.cancel();
+                      setState(() => _bannerVisible = false);
+                    },
+                    child: Icon(Icons.close_rounded,
+                        color: Colors.grey.shade400, size: 18),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -130,45 +295,43 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: const Color(0xFF8FD11B),
-      child: SafeArea(
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Saludo ─────────────────────────────────────────────────
-              _buildGreeting(),
-              const SizedBox(height: 24),
-
-              // ── KPIs ───────────────────────────────────────────────────
-              _buildStatsRow(),
-              const SizedBox(height: 20),
-
-              // ── Próximos Servicios ──────────────────────────────────────
-              _buildProximosServicios(),
-              const SizedBox(height: 28),
-
-              // ── Acciones Rápidas ────────────────────────────────────────
-              const Text(
-                'Acciones Rápidas',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadData,
+          color: const Color(0xFF8FD11B),
+          child: SafeArea(
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildGreeting(),
+                  const SizedBox(height: 24),
+                  _buildStatsRow(),
+                  const SizedBox(height: 20),
+                  _buildProximosServicios(),
+                  const SizedBox(height: 28),
+                  const Text(
+                    'Acciones Rápidas',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 14),
+                  _buildQuickActions(context),
+                  const SizedBox(height: 32),
+                ],
               ),
-              const SizedBox(height: 14),
-              _buildQuickActions(context),
-              const SizedBox(height: 28),
-
-              // ── Notificaciones ──────────────────────────────────────────
-              _buildNotificationsHeader(),
-              const SizedBox(height: 12),
-              ..._buildNotificationsList(),
-            ],
+            ),
           ),
         ),
-      ),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _buildBanner(),
+        ),
+      ],
     );
   }
 
@@ -179,17 +342,70 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGreeting() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'Hola, $_firstName 👋',
-          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Hola, $_firstName 👋',
+                style: const TextStyle(
+                    fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Bienvenido de nuevo',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
-        const Text(
-          'Bienvenido de nuevo',
-          style: TextStyle(fontSize: 14, color: Colors.grey),
+        GestureDetector(
+          onTap: _openNotificacionesSheet,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.07),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.notifications_none_rounded,
+                    size: 24, color: Colors.grey),
+              ),
+              if (_unreadCount > 0)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                        color: Colors.red, shape: BoxShape.circle),
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
+                    child: Text(
+                      _unreadCount > 9 ? '9+' : '$_unreadCount',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ],
     );
@@ -317,7 +533,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: estadoColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
@@ -390,203 +607,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
-
-  // ── Notificaciones ──────────────────────────────────────────────────────────
-  void _abrirNotificaciones() {
-    Navigator.pushNamed(context, '/notificaciones').then((_) => _loadData());
-  }
-
-  Widget _buildNotificationsHeader() {
-    final count = _notificaciones.length;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        const Text(
-          'Notificaciones',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        GestureDetector(
-          onTap: _abrirNotificaciones,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(
-                Icons.notifications_none_rounded,
-                color: Colors.grey,
-                size: 26,
-              ),
-              if (count > 0)
-                Positioned(
-                  top: -5,
-                  right: -5,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 17, minHeight: 17),
-                    child: Text(
-                      count > 9 ? '9+' : '$count',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Widget> _buildNotificationsList() {
-    if (_notificaciones.isEmpty) {
-      return [
-        GestureDetector(
-          onTap: _abrirNotificaciones,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: _neonDecoration(radius: 12),
-            child: Row(
-              children: [
-                Icon(Icons.check_circle_outline_rounded,
-                    color: Colors.grey.shade400, size: 20),
-                const SizedBox(width: 10),
-                Text(
-                  'Sin notificaciones recientes',
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ];
-    }
-
-    final preview = _notificaciones.take(3).toList();
-    final hasMore = _notificaciones.length > 3;
-
-    return [
-      ...preview.map(
-        (n) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: _buildNotificationItem(n),
-        ),
-      ),
-      if (hasMore)
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: GestureDetector(
-            onTap: _abrirNotificaciones,
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Ver todas las notificaciones',
-                  style: TextStyle(
-                    color: Color(0xFF8FD11B),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(width: 4),
-                Icon(Icons.arrow_forward_ios_rounded,
-                    color: Color(0xFF8FD11B), size: 12),
-              ],
-            ),
-          ),
-        )
-      else if (_notificaciones.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(top: 4, bottom: 8),
-          child: GestureDetector(
-            onTap: _abrirNotificaciones,
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Gestionar notificaciones',
-                  style: TextStyle(
-                    color: Color(0xFF8FD11B),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(width: 4),
-                Icon(Icons.arrow_forward_ios_rounded,
-                    color: Color(0xFF8FD11B), size: 12),
-              ],
-            ),
-          ),
-        ),
-    ];
-  }
-
-  Widget _buildNotificationItem(NotificacionDashboard n) {
-    final (color, icon) = switch (n.tipo) {
-      'servicio'     => (const Color(0xFF3B82F6), Icons.build_rounded),
-      'comunicado'   => (const Color(0xFFF59E0B), Icons.campaign_rounded),
-      'recordatorio' => (const Color(0xFF8B5CF6), Icons.event_note_rounded),
-      _              => (const Color(0xFF8FD11B), Icons.notifications_rounded),
-    };
-
-    return GestureDetector(
-      onTap: _abrirNotificaciones,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: _neonDecoration(radius: 12),
-        child: Row(
-          children: [
-            // Icono circular con color por tipo
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            const SizedBox(width: 12),
-            // Texto
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    n.titulo,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    n.tiempo,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            // Punto no leído (en home todas son no leídas)
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 // ─── Botón de Acción Rápida ───────────────────────────────────────────────────
@@ -628,19 +648,19 @@ class _QuickActionButton extends StatelessWidget {
                       ),
                     ]
                   : isDark
-                  ? [
-                      BoxShadow(
-                        color: green.withValues(alpha: 0.10),
-                        blurRadius: 8,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                      ? [
+                          BoxShadow(
+                            color: green.withValues(alpha: 0.10),
+                            blurRadius: 8,
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,

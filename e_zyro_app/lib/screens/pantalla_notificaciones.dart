@@ -7,7 +7,14 @@ import '../services/notificacion_service.dart';
 import '../utils/api_provider.dart';
 
 class NotificacionesScreen extends StatefulWidget {
-  const NotificacionesScreen({super.key});
+  final bool isSheet;
+  final ScrollController? scrollController;
+
+  const NotificacionesScreen({
+    super.key,
+    this.isSheet = false,
+    this.scrollController,
+  });
 
   @override
   State<NotificacionesScreen> createState() => _NotificacionesScreenState();
@@ -23,7 +30,6 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
   void initState() {
     super.initState();
     _init();
-    // Actualizar en tiempo real cuando llega un FCM en primer plano
     _fcmSub = FcmFlutterService.messageStream.listen((_) => _load());
   }
 
@@ -43,10 +49,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     try {
       final items = await _service!.getAll();
       if (!mounted) return;
-      setState(() {
-        _items = items;
-        _loading = false;
-      });
+      setState(() { _items = items; _loading = false; });
     } catch (e) {
       if (!mounted) return;
       if (e.toString().contains('expirada')) {
@@ -59,9 +62,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
 
   Future<void> _marcarLeida(NotificacionItem item) async {
     if (item.leido) return;
-    try {
-      await _service?.marcarLeida(item.id);
-    } catch (_) {}
+    try { await _service?.marcarLeida(item.id); } catch (_) {}
     if (!mounted) return;
     setState(() {
       final idx = _items.indexWhere((e) => e.id == item.id);
@@ -85,9 +86,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     try {
       await _service?.marcarTodasLeidas();
       if (!mounted) return;
-      setState(() {
-        _items = _items.map((e) => e.copyWith(leido: true)).toList();
-      });
+      setState(() => _items = _items.map((e) => e.copyWith(leido: true)).toList());
     } catch (_) {}
   }
 
@@ -104,12 +103,9 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Eliminar leídas', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text('Se eliminarán $leidas notificaciones ya leídas. Esta acción no se puede deshacer.'),
+        content: Text('Se eliminarán $leidas notificaciones leídas.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -146,102 +142,147 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     }
   }
 
-  // ── Agrupación por fecha ────────────────────────────────────────────────────
   Map<String, List<NotificacionItem>> get _grupos {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today     = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    final weekAgo = today.subtract(const Duration(days: 7));
-
-    final groups = <String, List<NotificacionItem>>{
-      'Hoy': [],
-      'Ayer': [],
-      'Esta semana': [],
-      'Antes': [],
+    final weekAgo   = today.subtract(const Duration(days: 7));
+    final groups    = <String, List<NotificacionItem>>{
+      'Hoy': [], 'Ayer': [], 'Esta semana': [], 'Antes': [],
     };
-
     for (final item in _items) {
       final d = DateTime(item.createdAt.year, item.createdAt.month, item.createdAt.day);
-      if (d == today) {
-        groups['Hoy']!.add(item);
-      } else if (d == yesterday) {
-        groups['Ayer']!.add(item);
-      } else if (d.isAfter(weekAgo)) {
-        groups['Esta semana']!.add(item);
-      } else {
-        groups['Antes']!.add(item);
-      }
+      if (d == today)           groups['Hoy']!.add(item);
+      else if (d == yesterday)  groups['Ayer']!.add(item);
+      else if (d.isAfter(weekAgo)) groups['Esta semana']!.add(item);
+      else                      groups['Antes']!.add(item);
     }
-
     groups.removeWhere((_, v) => v.isEmpty);
     return groups;
   }
 
   int get _unreadCount => _items.where((e) => !e.leido).length;
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    return widget.isSheet ? _buildSheet(context) : _buildFullScreen(context);
+  }
+
+  // Pantalla completa (ruta /notificaciones)
+  Widget _buildFullScreen(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Notificaciones',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
+            const Text('Notificaciones', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             if (_unreadCount > 0)
-              Text(
-                '$_unreadCount sin leer',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF8FD11B)),
-              ),
+              Text('$_unreadCount sin leer', style: const TextStyle(fontSize: 12, color: Color(0xFF8FD11B))),
           ],
         ),
         elevation: 0,
         backgroundColor: Colors.transparent,
-        actions: [
-          if (_unreadCount > 0)
-            IconButton(
-              icon: const Icon(Icons.done_all_rounded),
-              tooltip: 'Marcar todo como leído',
-              onPressed: _marcarTodasLeidas,
-            ),
-          IconButton(
-            icon: const Icon(Icons.delete_sweep_outlined),
-            tooltip: 'Eliminar leídas',
-            onPressed: _eliminarLeidas,
-          ),
-        ],
+        actions: _buildActions(),
       ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)),
+      body: _buildBody(),
+    );
+  }
+
+  // Modal sheet (desde la campana del home)
+  Widget _buildSheet(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
               ),
-            )
-          : _items.isEmpty
-              ? _buildEmpty()
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  color: const Color(0xFF8FD11B),
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
+            ),
+          ),
+          // Cabecera
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 8, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final entry in _grupos.entries) ...[
-                        _GroupHeader(label: entry.key),
-                        ...entry.value.map(
-                          (item) => _NotifTile(
-                            key: Key(item.id),
-                            item: item,
-                            onTap: () => _onTap(item),
-                            onDismiss: () => _eliminar(item),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 32),
+                      const Text('Notificaciones',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      if (_unreadCount > 0)
+                        Text('$_unreadCount sin leer',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF8FD11B))),
                     ],
                   ),
                 ),
+                ..._buildActions(),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Lista
+          Expanded(child: _buildBody()),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildActions() => [
+    if (_unreadCount > 0)
+      IconButton(
+        icon: const Icon(Icons.done_all_rounded),
+        tooltip: 'Marcar todo leído',
+        onPressed: _marcarTodasLeidas,
+      ),
+    IconButton(
+      icon: const Icon(Icons.delete_sweep_outlined),
+      tooltip: 'Eliminar leídas',
+      onPressed: _eliminarLeidas,
+    ),
+  ];
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)),
+        ),
+      );
+    }
+    if (_items.isEmpty) return _buildEmpty();
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: const Color(0xFF8FD11B),
+      child: ListView(
+        controller: widget.scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          for (final entry in _grupos.entries) ...[
+            _GroupHeader(label: entry.key),
+            ...entry.value.map((item) => _NotifTile(
+              key: Key(item.id),
+              item: item,
+              onTap: () => _onTap(item),
+              onDismiss: () => _eliminar(item),
+            )),
+          ],
+          const SizedBox(height: 32),
+        ],
+      ),
     );
   }
 
@@ -250,25 +291,13 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.notifications_none_rounded,
-            size: 80,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.notifications_none_rounded, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 20),
-          Text(
-            'Todo al día',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade500,
-            ),
-          ),
+          Text('Todo al día',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
           const SizedBox(height: 8),
-          Text(
-            'No tienes notificaciones pendientes',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade400),
-          ),
+          Text('No tienes notificaciones pendientes',
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
         ],
       ),
     );
@@ -286,12 +315,8 @@ class _GroupHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: Colors.grey.shade500,
-          letterSpacing: 1.0,
-        ),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+            color: Colors.grey.shade500, letterSpacing: 1.0),
       ),
     );
   }
@@ -303,12 +328,7 @@ class _NotifTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDismiss;
 
-  const _NotifTile({
-    super.key,
-    required this.item,
-    required this.onTap,
-    required this.onDismiss,
-  });
+  const _NotifTile({super.key, required this.item, required this.onTap, required this.onDismiss});
 
   static IconData _iconForTipo(String tipo) => switch (tipo) {
     'servicio'     => Icons.build_rounded,
@@ -326,7 +346,7 @@ class _NotifTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color   = _colorForTipo(item.tipo);
+    final color    = _colorForTipo(item.tipo);
     final isUnread = !item.leido;
     final surface  = Theme.of(context).colorScheme.surface;
 
@@ -355,23 +375,19 @@ class _NotifTile extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Barra lateral de color (solo en no leídas)
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   width: 3,
                   color: isUnread ? color : Colors.transparent,
                 ),
-                // Contenido principal
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Icono circular
                         Container(
-                          width: 42,
-                          height: 42,
+                          width: 42, height: 42,
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.12),
                             shape: BoxShape.circle,
@@ -379,13 +395,11 @@ class _NotifTile extends StatelessWidget {
                           child: Icon(_iconForTipo(item.tipo), color: color, size: 20),
                         ),
                         const SizedBox(width: 12),
-                        // Texto
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
                                   Expanded(
                                     child: Text(
@@ -402,41 +416,27 @@ class _NotifTile extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  Text(
-                                    item.tiempoRelativo,
-                                    style: TextStyle(
-                                      color: Colors.grey.shade400,
-                                      fontSize: 11,
-                                    ),
-                                  ),
+                                  Text(item.tiempoRelativo,
+                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
                                 ],
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 item.mensaje,
-                                style: TextStyle(
-                                  color: Colors.grey.shade500,
-                                  fontSize: 13,
-                                  height: 1.4,
-                                ),
+                                style: TextStyle(color: Colors.grey.shade500, fontSize: 13, height: 1.4),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
                         ),
-                        // Punto de no leído
                         if (isUnread) ...[
                           const SizedBox(width: 8),
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Container(
-                              width: 9,
-                              height: 9,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                              ),
+                              width: 9, height: 9,
+                              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                             ),
                           ),
                         ],

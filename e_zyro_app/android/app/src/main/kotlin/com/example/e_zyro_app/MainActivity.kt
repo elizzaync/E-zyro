@@ -1,4 +1,4 @@
-package com.example.e_zyro_app
+package com.company.e_zyro_app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

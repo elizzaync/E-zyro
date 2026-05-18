@@ -1,21 +1,22 @@
 {
   "project_info": {
-    "project_number": "418335746143",
-    "project_id": "e-zyro",
-    "storage_bucket": "e-zyro.firebasestorage.app"
+    "project_number": "603001313879",
+    "firebase_url": "https://e-system-tic-default-rtdb.firebaseio.com",
+    "project_id": "e-system-tic",
+    "storage_bucket": "e-system-tic.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:418335746143:android:34d6e5d1362ff3ce35d3ea",
+        "mobilesdk_app_id": "1:603001313879:android:003dda931dfba0d02c2112",
         "android_client_info": {
-          "package_name": "com.example.e_zyro_app"
+          "package_name": "com.company.e_zyro_app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyD6Jlw3ZE7zlEbsEyNYZzRLt_POQzWQQcM"
+          "current_key": "AIzaSyDLbtJuKV71DWz7u6tS-jhHG0eCVM0ExFM"
         }
       ],
       "services": {
