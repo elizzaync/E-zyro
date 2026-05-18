@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
 import 'pantalla_detalle_servicio.dart';
+import 'pantalla_gantt.dart';
 
 class ServiciosScreen extends StatefulWidget {
   final ProyectoItem proyecto;
@@ -56,6 +57,24 @@ class _ServiciosScreenState extends State<ServiciosScreen> {
         elevation: 0,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
+        actions: [
+          Tooltip(
+            message: 'Diagrama de Gantt',
+            child: IconButton(
+              icon: const Icon(Icons.view_timeline_outlined),
+              color: const Color(0xFF8FD11B),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => GanttScreen(
+                    proyecto: proyecto,
+                    service: widget.service,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

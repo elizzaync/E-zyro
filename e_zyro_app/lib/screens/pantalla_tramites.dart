@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -16,29 +15,30 @@ import '../templates/permiso_pdf_template.dart';
 // ─────────────────────────────────────────────
 
 class _C {
-  static const green  = Color(0xFF8FD11B);
+  static const green = Color(0xFF8FD11B);
   static const danger = Color(0xFFEF4444);
 
   final bool isDark;
   final ColorScheme cs;
 
   _C(BuildContext context)
-      : isDark = Theme.of(context).brightness == Brightness.dark,
-        cs = Theme.of(context).colorScheme;
+    : isDark = Theme.of(context).brightness == Brightness.dark,
+      cs = Theme.of(context).colorScheme;
 
-  Color get surface     => cs.surface;
-  Color get scaffoldBg  => isDark ? const Color(0xFF0F1117) : const Color(0xFFF5F5F5);
-  Color get surfaceHigh => isDark ? const Color(0xFF222636) : Colors.grey.shade100;
-  Color get border      => isDark ? green.withValues(alpha: 0.28) : Colors.grey.shade200;
-  Color get inputBg     => isDark ? const Color(0xFF141620) : Colors.white;
-  Color get textPrimary    => cs.onSurface;
-  Color get textSecondary  => cs.onSurface.withValues(alpha: 0.65);
-  Color get textMuted      => cs.onSurface.withValues(alpha: 0.40);
+  Color get surface => cs.surface;
+  Color get scaffoldBg =>
+      isDark ? const Color(0xFF0F1117) : const Color(0xFFF5F5F5);
+  Color get surfaceHigh =>
+      isDark ? const Color(0xFF222636) : Colors.grey.shade100;
+  Color get border =>
+      isDark ? green.withValues(alpha: 0.28) : Colors.grey.shade200;
+  Color get inputBg => isDark ? const Color(0xFF141620) : Colors.white;
+  Color get textPrimary => cs.onSurface;
+  Color get textSecondary => cs.onSurface.withValues(alpha: 0.65);
+  Color get textMuted => cs.onSurface.withValues(alpha: 0.40);
 
   ThemeData pickerTheme(BuildContext ctx) =>
-      Theme.of(ctx).copyWith(
-        colorScheme: cs.copyWith(primary: green),
-      );
+      Theme.of(ctx).copyWith(colorScheme: cs.copyWith(primary: green));
 }
 
 // ─────────────────────────────────────────────
@@ -64,15 +64,15 @@ class TramiteModel {
 }
 
 const List<Map<String, dynamic>> tiposPermiso = [
-  {'id': 1,  'label': '(1) Permiso personal'},
-  {'id': 2,  'label': '(2) Comisión de Trabajo'},
-  {'id': 3,  'label': '(3) Cita Essalud / Clínica'},
-  {'id': 4,  'label': '(4) Permanencia Capacitación'},
-  {'id': 5,  'label': '(5) Permanencia Extra (H)'},
-  {'id': 6,  'label': '(6) Recuperación (H)'},
-  {'id': 7,  'label': '(7) Vacaciones'},
-  {'id': 8,  'label': '(8) Día(s) Libre(s)'},
-  {'id': 9,  'label': '(9) Transferencia'},
+  {'id': 1, 'label': '(1) Permiso personal'},
+  {'id': 2, 'label': '(2) Comisión de Trabajo'},
+  {'id': 3, 'label': '(3) Cita Essalud / Clínica'},
+  {'id': 4, 'label': '(4) Permanencia Capacitación'},
+  {'id': 5, 'label': '(5) Permanencia Extra (H)'},
+  {'id': 6, 'label': '(6) Recuperación (H)'},
+  {'id': 7, 'label': '(7) Vacaciones'},
+  {'id': 8, 'label': '(8) Día(s) Libre(s)'},
+  {'id': 9, 'label': '(9) Transferencia'},
   {'id': 10, 'label': '(10) Otros'},
 ];
 
@@ -167,8 +167,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
       if (response.statusCode == 200 && mounted) {
         final data = jsonDecode(response.body);
         setState(() {
-          _misSolicitudes =
-              List<Map<String, dynamic>>.from(data['data'] ?? []);
+          _misSolicitudes = List<Map<String, dynamic>>.from(data['data'] ?? []);
         });
       }
     } catch (e) {
@@ -192,7 +191,9 @@ class _PantallaTramitesState extends State<PantallaTramites>
       request.headers['Authorization'] = 'Bearer $token';
       request.fields['firma_base64'] =
           'data:image/png;base64,${base64Encode(_firmaGuardada!)}';
-      final streamed = await request.send().timeout(const Duration(seconds: 30));
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
       final response = await http.Response.fromStream(streamed);
       if (mounted) {
         if (response.statusCode == 200) {
@@ -243,7 +244,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
       return;
     }
     final horaInicioStr = _model.horaInicio?.format(context) ?? '';
-    final horaFinStr    = _model.horaFin?.format(context) ?? '';
+    final horaFinStr = _model.horaFin?.format(context) ?? '';
     final prefs = await SharedPreferences.getInstance();
     final nombre = prefs.getString('user_name') ?? 'Usuario';
     final puesto = prefs.getString('user_rol') ?? 'Colaborador';
@@ -280,9 +281,8 @@ class _PantallaTramitesState extends State<PantallaTramites>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: _C.green),
-      ),
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: _C.green)),
     );
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -292,26 +292,39 @@ class _PantallaTramitesState extends State<PantallaTramites>
       final request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $token';
       request.fields['tipo'] = _model.tipoPemiso.toString();
-      request.fields['tipo_label'] =
-          tiposPermiso.firstWhere((t) => t['id'] == _model.tipoPemiso)['label'];
+      request.fields['tipo_label'] = tiposPermiso.firstWhere(
+        (t) => t['id'] == _model.tipoPemiso,
+      )['label'];
       if (_model.fechaInicio != null) {
-        request.fields['fecha_inicio'] =
-            DateFormat('yyyy-MM-dd').format(_model.fechaInicio!);
+        request.fields['fecha_inicio'] = DateFormat(
+          'yyyy-MM-dd',
+        ).format(_model.fechaInicio!);
       }
       if (_model.fechaFin != null) {
-        request.fields['fecha_fin'] =
-            DateFormat('yyyy-MM-dd').format(_model.fechaFin!);
+        request.fields['fecha_fin'] = DateFormat(
+          'yyyy-MM-dd',
+        ).format(_model.fechaFin!);
       }
       if (_model.horaInicio != null) {
         final now = DateTime.now();
-        final dt = DateTime(now.year, now.month, now.day,
-            _model.horaInicio!.hour, _model.horaInicio!.minute);
+        final dt = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          _model.horaInicio!.hour,
+          _model.horaInicio!.minute,
+        );
         request.fields['hora_inicio'] = DateFormat('HH:mm').format(dt);
       }
       if (_model.horaFin != null) {
         final now = DateTime.now();
-        final dt = DateTime(now.year, now.month, now.day,
-            _model.horaFin!.hour, _model.horaFin!.minute);
+        final dt = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          _model.horaFin!.hour,
+          _model.horaFin!.minute,
+        );
         request.fields['hora_fin'] = DateFormat('HH:mm').format(dt);
       }
       request.fields['motivo'] = _model.sustento;
@@ -319,12 +332,16 @@ class _PantallaTramitesState extends State<PantallaTramites>
           ? _model.fechaFin!.difference(_model.fechaInicio!).inDays + 1
           : 1;
       request.fields['total_dias'] = totalDias.toString();
-      request.files.add(http.MultipartFile.fromBytes(
-        'pdf_file', pdfBytes,
-        filename: 'solicitud_${DateTime.now().millisecondsSinceEpoch}.pdf',
-      ));
-      final streamed =
-          await request.send().timeout(const Duration(seconds: 30));
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'pdf_file',
+          pdfBytes,
+          filename: 'solicitud_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        ),
+      );
+      final streamed = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
       final response = await http.Response.fromStream(streamed);
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -346,15 +363,20 @@ class _PantallaTramitesState extends State<PantallaTramites>
   void _showError(String msg) => _showSnack(msg, _C.danger);
 
   void _showSnack(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg,
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          msg,
           style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600)),
-      backgroundColor: color,
-      behavior: SnackBarBehavior.floating,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   // ─────────────────────────────────────────
@@ -386,237 +408,255 @@ class _PantallaTramitesState extends State<PantallaTramites>
   // ── App Bar ───────────────────────────────
 
   PreferredSizeWidget _buildAppBar(_C c) => AppBar(
-        backgroundColor: c.scaffoldBg,
-        elevation: 0,
-        titleSpacing: 16,
-        foregroundColor: c.textPrimary,
-        title: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: _C.green,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: const Center(
-                child: Text('E',
-                    style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            RichText(
-              text: TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'E-System ',
-                    style: TextStyle(
-                        color: c.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14),
-                  ),
-                  const TextSpan(
-                    text: 'TIC',
-                    style: TextStyle(
-                        color: _C.green,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14),
-                  ),
-                ],
+    backgroundColor: c.scaffoldBg,
+    elevation: 0,
+    titleSpacing: 16,
+    foregroundColor: c.textPrimary,
+    title: Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: _C.green,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: const Center(
+            child: Text(
+              'E',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
               ),
             ),
-          ],
+          ),
         ),
-      );
+        const SizedBox(width: 10),
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: 'E-System ',
+                style: TextStyle(
+                  color: c.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+              const TextSpan(
+                text: 'TIC',
+                style: TextStyle(
+                  color: _C.green,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
 
   // ── Encabezado ────────────────────────────
 
   Widget _buildPageHeader(_C c) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Trámites y Permisos',
-                style: TextStyle(
-                    color: c.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text(
-              'Gestiona tus solicitudes de descanso, vacaciones y licencias.',
-              style:
-                  TextStyle(color: c.textSecondary, fontSize: 13),
-            ),
-          ],
+    padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Trámites y Permisos',
+          style: TextStyle(
+            color: c.textPrimary,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-      );
+        const SizedBox(height: 4),
+        Text(
+          'Gestiona tus solicitudes de descanso, vacaciones y licencias.',
+          style: TextStyle(color: c.textSecondary, fontSize: 13),
+        ),
+      ],
+    ),
+  );
 
   // ── TabBar ────────────────────────────────
 
   Widget _buildTabBar(_C c) => Container(
-        margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: c.border),
-        ),
-        child: TabBar(
-          controller: _tabController,
-          indicator: BoxDecoration(
-            color: _C.green,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          indicatorSize: TabBarIndicatorSize.tab,
-          labelColor: Colors.black,
-          unselectedLabelColor: c.textSecondary,
-          labelStyle:
-              const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          tabs: const [
-            Tab(text: 'Nueva Solicitud'),
-            Tab(text: 'Mis Trámites'),
-          ],
-        ),
-      );
+    margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+    decoration: BoxDecoration(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: c.border),
+    ),
+    child: TabBar(
+      controller: _tabController,
+      indicator: BoxDecoration(
+        color: _C.green,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      indicatorSize: TabBarIndicatorSize.tab,
+      labelColor: Colors.black,
+      unselectedLabelColor: c.textSecondary,
+      labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+      tabs: const [
+        Tab(text: 'Nueva Solicitud'),
+        Tab(text: 'Mis Trámites'),
+      ],
+    ),
+  );
 
   // ─────────────────────────────────────────
   //  Tab 1: Formulario
   // ─────────────────────────────────────────
 
   Widget _buildFormTab(_C c) => SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildCard(c,
-              title: 'Detalles de la Solicitud',
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildCard(
+          c,
+          title: 'Detalles de la Solicitud',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _fieldLabel(c, 'Tipo de Permiso'),
+              const SizedBox(height: 6),
+              _buildDropdown(c),
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  _fieldLabel(c, 'Tipo de Permiso'),
-                  const SizedBox(height: 6),
-                  _buildDropdown(c),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(child: _buildDateField(c, 'Fecha Inicio', true)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildDateField(c, 'Fecha Fin', false)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(child: _buildTimeField(c, 'Hora Inicio', true)),
-                      const SizedBox(width: 12),
-                      Expanded(child: _buildTimeField(c, 'Hora Fin', false)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _fieldLabel(c, 'Sustento / Motivo *'),
-                  const SizedBox(height: 6),
-                  _buildTextArea(c),
+                  Expanded(child: _buildDateField(c, 'Fecha Inicio', true)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildDateField(c, 'Fecha Fin', false)),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildFirmaSection(c),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _previsualizarSolicitud,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _C.green,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('Previsualizar y Enviar',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 15)),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: _buildTimeField(c, 'Hora Inicio', true)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _buildTimeField(c, 'Hora Fin', false)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _fieldLabel(c, 'Sustento / Motivo *'),
+              const SizedBox(height: 6),
+              _buildTextArea(c),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildFirmaSection(c),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _previsualizarSolicitud,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _C.green,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
-          ],
+            child: const Text(
+              'Previsualizar y Enviar',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+            ),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
-  Widget _buildCard(_C c, {required String title, required Widget child}) =>
-      Container(
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: c.border),
-          boxShadow: c.isDark
-              ? [
-                  BoxShadow(
-                      color: _C.green.withValues(alpha: 0.06),
-                      blurRadius: 10)
-                ]
-              : [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
+  Widget _buildCard(
+    _C c, {
+    required String title,
+    required Widget child,
+  }) => Container(
+    decoration: BoxDecoration(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: c.border),
+      boxShadow: c.isDark
+          ? [BoxShadow(color: _C.green.withValues(alpha: 0.06), blurRadius: 10)]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+    ),
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: c.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: TextStyle(
-                    color: c.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700)),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
-      );
+        const SizedBox(height: 16),
+        child,
+      ],
+    ),
+  );
 
-  Widget _fieldLabel(_C c, String text) => Text(text,
-      style: TextStyle(
-          color: c.textSecondary,
-          fontSize: 13,
-          fontWeight: FontWeight.w500));
+  Widget _fieldLabel(_C c, String text) => Text(
+    text,
+    style: TextStyle(
+      color: c.textSecondary,
+      fontSize: 13,
+      fontWeight: FontWeight.w500,
+    ),
+  );
 
   // ── Dropdown ──────────────────────────────
 
   Widget _buildDropdown(_C c) => Container(
-        decoration: BoxDecoration(
-          color: c.inputBg,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: c.border),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<int>(
-            value: _model.tipoPemiso,
-            dropdownColor: c.surfaceHigh,
-            isExpanded: true,
-            style: TextStyle(color: c.textPrimary, fontSize: 14),
-            iconEnabledColor: c.textSecondary,
-            items: tiposPermiso
-                .map((t) => DropdownMenuItem<int>(
-                      value: t['id'] as int,
-                      child: Text(t['label'] as String),
-                    ))
-                .toList(),
-            onChanged: (v) => setState(() => _model.tipoPemiso = v ?? 1),
-          ),
-        ),
-      );
+    decoration: BoxDecoration(
+      color: c.inputBg,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: c.border),
+    ),
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: DropdownButtonHideUnderline(
+      child: DropdownButton<int>(
+        value: _model.tipoPemiso,
+        dropdownColor: c.surfaceHigh,
+        isExpanded: true,
+        style: TextStyle(color: c.textPrimary, fontSize: 14),
+        iconEnabledColor: c.textSecondary,
+        items: tiposPermiso
+            .map(
+              (t) => DropdownMenuItem<int>(
+                value: t['id'] as int,
+                child: Text(t['label'] as String),
+              ),
+            )
+            .toList(),
+        onChanged: (v) => setState(() => _model.tipoPemiso = v ?? 1),
+      ),
+    ),
+  );
 
   // ── Date picker ───────────────────────────
 
   Widget _buildDateField(_C c, String label, bool isInicio) {
     final date = isInicio ? _model.fechaInicio : _model.fechaFin;
-    final text =
-        date != null ? DateFormat('dd/MM/yyyy').format(date) : 'dd/mm/aaaa';
+    final text = date != null
+        ? DateFormat('dd/MM/yyyy').format(date)
+        : 'dd/mm/aaaa';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -630,18 +670,20 @@ class _PantallaTramitesState extends State<PantallaTramites>
                 _model.fechaInicio!.isAtSameMomentAs(_model.fechaFin!)) ...[
               const SizedBox(width: 6),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: _C.green.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(4),
                   border: Border.all(color: _C.green.withValues(alpha: 0.45)),
                 ),
-                child: const Text('MISMO DÍA',
-                    style: TextStyle(
-                        color: _C.green,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700)),
+                child: const Text(
+                  'MISMO DÍA',
+                  style: TextStyle(
+                    color: _C.green,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
           ],
@@ -668,8 +710,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
             }
           },
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             decoration: BoxDecoration(
               color: c.inputBg,
               borderRadius: BorderRadius.circular(8),
@@ -678,15 +719,19 @@ class _PantallaTramitesState extends State<PantallaTramites>
             child: Row(
               children: [
                 Expanded(
-                  child: Text(text,
-                      style: TextStyle(
-                          color: date != null
-                              ? c.textPrimary
-                              : c.textMuted,
-                          fontSize: 14)),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: date != null ? c.textPrimary : c.textMuted,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-                Icon(Icons.calendar_today_outlined,
-                    size: 16, color: c.textMuted),
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 16,
+                  color: c.textMuted,
+                ),
               ],
             ),
           ),
@@ -725,8 +770,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
             }
           },
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             decoration: BoxDecoration(
               color: c.inputBg,
               borderRadius: BorderRadius.circular(8),
@@ -735,14 +779,15 @@ class _PantallaTramitesState extends State<PantallaTramites>
             child: Row(
               children: [
                 Expanded(
-                  child: Text(text,
-                      style: TextStyle(
-                          color:
-                              time != null ? c.textPrimary : c.textMuted,
-                          fontSize: 14)),
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: time != null ? c.textPrimary : c.textMuted,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-                Icon(Icons.access_time_outlined,
-                    size: 16, color: c.textMuted),
+                Icon(Icons.access_time_outlined, size: 16, color: c.textMuted),
               ],
             ),
           ),
@@ -754,263 +799,285 @@ class _PantallaTramitesState extends State<PantallaTramites>
   // ── Área de texto ─────────────────────────
 
   Widget _buildTextArea(_C c) => Container(
-        decoration: BoxDecoration(
-          color: c.inputBg,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: c.border),
-        ),
-        child: TextField(
-          maxLines: 4,
-          style: TextStyle(color: c.textPrimary, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: 'Escribe el motivo detallado de tu solicitud...',
-            hintStyle: TextStyle(color: c.textMuted, fontSize: 14),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.all(12),
-          ),
-          onChanged: (v) => _model.sustento = v,
-        ),
-      );
+    decoration: BoxDecoration(
+      color: c.inputBg,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: c.border),
+    ),
+    child: TextField(
+      maxLines: 4,
+      style: TextStyle(color: c.textPrimary, fontSize: 14),
+      decoration: InputDecoration(
+        hintText: 'Escribe el motivo detallado de tu solicitud...',
+        hintStyle: TextStyle(color: c.textMuted, fontSize: 14),
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.all(12),
+      ),
+      onChanged: (v) => _model.sustento = v,
+    ),
+  );
 
   // ─────────────────────────────────────────
   //  Sección firma digital
   // ─────────────────────────────────────────
 
   Widget _buildFirmaSection(_C c) => Container(
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: c.border),
-          boxShadow: c.isDark
-              ? [
-                  BoxShadow(
-                      color: _C.green.withValues(alpha: 0.06),
-                      blurRadius: 10)
-                ]
-              : [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
+    decoration: BoxDecoration(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: c.border),
+      boxShadow: c.isDark
+          ? [BoxShadow(color: _C.green.withValues(alpha: 0.06), blurRadius: 10)]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+    ),
+    padding: const EdgeInsets.all(18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Firma Digital Obligatoria',
+          style: TextStyle(
+            color: c.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Firma Digital Obligatoria',
-                style: TextStyle(
-                    color: c.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700)),
-            const SizedBox(height: 14),
+        const SizedBox(height: 14),
 
-            if (_firmaGuardada != null) ...[
-              // Preview de firma
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _C.green.withValues(alpha: 0.07),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: _C.green.withValues(alpha: 0.35)),
+        if (_firmaGuardada != null) ...[
+          // Preview de firma
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _C.green.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _C.green.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 90,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: Image.memory(_firmaGuardada!, fit: BoxFit.contain),
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 90,
-                      height: 50,
-                      decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(6)),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.memory(_firmaGuardada!,
-                            fit: BoxFit.contain),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Firma lista',
+                        style: TextStyle(
+                          color: c.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 2),
+                      Row(
                         children: [
-                          Text('Firma lista',
-                              style: TextStyle(
-                                  color: c.textPrimary,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13)),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(
-                                _firmaUrl != null
-                                    ? Icons.cloud_done_outlined
-                                    : Icons.cloud_off_outlined,
-                                size: 13,
-                                color: _firmaUrl != null
-                                    ? _C.green
-                                    : Colors.orange,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                _firmaUrl != null
-                                    ? 'Guardada en la nube'
-                                    : 'Pendiente de guardar',
-                                style: TextStyle(
-                                    color: _firmaUrl != null
-                                        ? _C.green
-                                        : Colors.orange,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500),
-                              ),
-                            ],
+                          Icon(
+                            _firmaUrl != null
+                                ? Icons.cloud_done_outlined
+                                : Icons.cloud_off_outlined,
+                            size: 13,
+                            color: _firmaUrl != null ? _C.green : Colors.orange,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _firmaUrl != null
+                                ? 'Guardada en la nube'
+                                : 'Pendiente de guardar',
+                            style: TextStyle(
+                              color: _firmaUrl != null
+                                  ? _C.green
+                                  : Colors.orange,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (_firmaUrl == null)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed:
-                        _guardandoFirma ? null : _guardarFirmaEnNube,
-                    icon: _guardandoFirma
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.black))
-                        : const Icon(Icons.cloud_upload_outlined,
-                            size: 16),
-                    label: Text(
-                        _guardandoFirma
-                            ? 'Guardando...'
-                            : 'Guardar firma en la nube',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 13)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _C.green,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 11),
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _abrirModalFirma(crearNueva: false),
-                      icon: const Icon(Icons.check_circle_outline,
-                          size: 15, color: _C.green),
-                      label: const Text('Ver firma',
-                          style: TextStyle(
-                              color: _C.green,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _C.green),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _abrirModalFirma(crearNueva: true),
-                      icon: Icon(Icons.draw_outlined,
-                          size: 15, color: c.textSecondary),
-                      label: Text('Nueva firma',
-                          style: TextStyle(
-                              color: c.textSecondary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: c.border),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              GestureDetector(
-                onTap: _abrirModalFirma,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 28),
-                  decoration: BoxDecoration(
-                    color: c.inputBg,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: c.border),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.draw_outlined,
-                          color: c.textMuted, size: 32),
-                      const SizedBox(height: 8),
-                      Text('Dibuja o sube tu firma aquí',
-                          style: TextStyle(
-                              color: c.textSecondary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 4),
-                      Text('Toca para abrir las opciones',
-                          style: TextStyle(
-                              color: c.textMuted, fontSize: 12)),
                     ],
                   ),
                 ),
-              ),
-            ],
-
-            const SizedBox(height: 12),
-            GestureDetector(
-              onTap: () => _abrirModalFirma(crearNueva: true),
-              child: Center(
-                child: Text('o crea una nueva',
-                    style: TextStyle(
-                        color: c.textSecondary,
-                        fontSize: 12,
-                        decoration: TextDecoration.underline)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (_firmaUrl == null)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _guardandoFirma ? null : _guardarFirmaEnNube,
+                icon: _guardandoFirma
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.black,
+                        ),
+                      )
+                    : const Icon(Icons.cloud_upload_outlined, size: 16),
+                label: Text(
+                  _guardandoFirma ? 'Guardando...' : 'Guardar firma en la nube',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _C.green,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                ),
               ),
             ),
-            if (_firmaGuardada != null) ...[
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () async {
-                  await _eliminarFirmaGuardada();
-                  if (mounted) {
-                    _showSnack('Firma eliminada', c.textSecondary);
-                  }
-                },
-                child: const Center(
-                  child: Text('Quitar firma actual',
-                      style: TextStyle(
-                          color: _C.danger,
-                          fontSize: 12,
-                          decoration: TextDecoration.underline)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _abrirModalFirma(crearNueva: false),
+                  icon: const Icon(
+                    Icons.check_circle_outline,
+                    size: 15,
+                    color: _C.green,
+                  ),
+                  label: const Text(
+                    'Ver firma',
+                    style: TextStyle(
+                      color: _C.green,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: _C.green),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _abrirModalFirma(crearNueva: true),
+                  icon: Icon(
+                    Icons.draw_outlined,
+                    size: 15,
+                    color: c.textSecondary,
+                  ),
+                  label: Text(
+                    'Nueva firma',
+                    style: TextStyle(
+                      color: c.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: c.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
                 ),
               ),
             ],
-          ],
+          ),
+        ] else ...[
+          GestureDetector(
+            onTap: _abrirModalFirma,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 28),
+              decoration: BoxDecoration(
+                color: c.inputBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: c.border),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.draw_outlined, color: c.textMuted, size: 32),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Dibuja o sube tu firma aquí',
+                    style: TextStyle(
+                      color: c.textSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Toca para abrir las opciones',
+                    style: TextStyle(color: c.textMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => _abrirModalFirma(crearNueva: true),
+          child: Center(
+            child: Text(
+              'o crea una nueva',
+              style: TextStyle(
+                color: c.textSecondary,
+                fontSize: 12,
+                decoration: TextDecoration.underline,
+              ),
+            ),
+          ),
         ),
-      );
+        if (_firmaGuardada != null) ...[
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: () async {
+              await _eliminarFirmaGuardada();
+              if (mounted) {
+                _showSnack('Firma eliminada', c.textSecondary);
+              }
+            },
+            child: const Center(
+              child: Text(
+                'Quitar firma actual',
+                style: TextStyle(
+                  color: _C.danger,
+                  fontSize: 12,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    ),
+  );
 
   // ─────────────────────────────────────────
   //  Tab 2: Mis trámites
@@ -1018,35 +1085,41 @@ class _PantallaTramitesState extends State<PantallaTramites>
 
   Widget _buildMisTramitesTab(_C c) {
     if (_cargandoSolicitudes) {
-      return const Center(
-          child: CircularProgressIndicator(color: _C.green));
+      return const Center(child: CircularProgressIndicator(color: _C.green));
     }
     if (_misSolicitudes.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.folder_open_outlined,
-                color: c.textMuted, size: 56),
+            Icon(Icons.folder_open_outlined, color: c.textMuted, size: 56),
             const SizedBox(height: 16),
-            Text('No tienes trámites registrados',
-                style: TextStyle(
-                    color: c.textSecondary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500)),
+            Text(
+              'No tienes trámites registrados',
+              style: TextStyle(
+                color: c.textSecondary,
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text('Crea tu primera solicitud en la pestaña anterior',
-                style: TextStyle(color: c.textMuted, fontSize: 13)),
+            Text(
+              'Crea tu primera solicitud en la pestaña anterior',
+              style: TextStyle(color: c.textMuted, fontSize: 13),
+            ),
             const SizedBox(height: 20),
             OutlinedButton.icon(
               onPressed: _cargarMisSolicitudes,
               icon: Icon(Icons.refresh, size: 16, color: c.textSecondary),
-              label: Text('Actualizar',
-                  style: TextStyle(color: c.textSecondary)),
+              label: Text(
+                'Actualizar',
+                style: TextStyle(color: c.textSecondary),
+              ),
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: c.border),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ],
@@ -1067,14 +1140,14 @@ class _PantallaTramitesState extends State<PantallaTramites>
   Widget _buildSolicitudCard(_C c, Map<String, dynamic> s) {
     final estado = s['estado'] as String? ?? 'pendiente';
     final Color estadoColor = switch (estado) {
-      'aprobado'  => _C.green,
+      'aprobado' => _C.green,
       'rechazado' => _C.danger,
-      _           => Colors.orange,
+      _ => Colors.orange,
     };
     final IconData estadoIcon = switch (estado) {
-      'aprobado'  => Icons.check_circle_outline,
+      'aprobado' => Icons.check_circle_outline,
       'rechazado' => Icons.cancel_outlined,
-      _           => Icons.schedule_outlined,
+      _ => Icons.schedule_outlined,
     };
 
     return Container(
@@ -1087,9 +1160,10 @@ class _PantallaTramitesState extends State<PantallaTramites>
             ? null
             : [
                 BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 6,
-                    offset: const Offset(0, 1))
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 1),
+                ),
               ],
       ),
       child: Padding(
@@ -1099,20 +1173,26 @@ class _PantallaTramitesState extends State<PantallaTramites>
           children: [
             Row(
               children: [
-                Text(s['id'] ?? '',
-                    style: TextStyle(
-                        color: c.textMuted,
-                        fontSize: 11,
-                        fontFamily: 'monospace')),
+                Text(
+                  s['id'] ?? '',
+                  style: TextStyle(
+                    color: c.textMuted,
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                  ),
+                ),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: estadoColor.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: estadoColor.withValues(alpha: 0.35)),
+                      color: estadoColor.withValues(alpha: 0.35),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1122,9 +1202,10 @@ class _PantallaTramitesState extends State<PantallaTramites>
                       Text(
                         estado[0].toUpperCase() + estado.substring(1),
                         style: TextStyle(
-                            color: estadoColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600),
+                          color: estadoColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -1132,22 +1213,25 @@ class _PantallaTramitesState extends State<PantallaTramites>
               ],
             ),
             const SizedBox(height: 8),
-            Text(s['tipo_label'] ?? s['tipo'] ?? '',
-                style: TextStyle(
-                    color: c.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700)),
+            Text(
+              s['tipo_label'] ?? s['tipo'] ?? '',
+              style: TextStyle(
+                color: c.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(height: 4),
             if (s['fecha_emision'] != null &&
                 (s['fecha_emision'] as String).isNotEmpty)
-              Text('Emitido: ${s['fecha_emision']}',
-                  style:
-                      TextStyle(color: c.textSecondary, fontSize: 12)),
+              Text(
+                'Emitido: ${s['fecha_emision']}',
+                style: TextStyle(color: c.textSecondary, fontSize: 12),
+              ),
             if (s['fecha_inicio'] != null)
               Text(
                 'Período: ${s['fecha_inicio']}${s['fecha_fin'] != null ? ' → ${s['fecha_fin']}' : ''}',
-                style:
-                    TextStyle(color: c.textSecondary, fontSize: 12),
+                style: TextStyle(color: c.textSecondary, fontSize: 12),
               ),
             if (estado == 'rechazado' &&
                 (s['observacion'] as String? ?? '').isNotEmpty) ...[
@@ -1157,12 +1241,12 @@ class _PantallaTramitesState extends State<PantallaTramites>
                 decoration: BoxDecoration(
                   color: _C.danger.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                      color: _C.danger.withValues(alpha: 0.25)),
+                  border: Border.all(color: _C.danger.withValues(alpha: 0.25)),
                 ),
-                child: Text('Motivo rechazo: ${s['observacion']}',
-                    style: const TextStyle(
-                        color: _C.danger, fontSize: 12)),
+                child: Text(
+                  'Motivo rechazo: ${s['observacion']}',
+                  style: const TextStyle(color: _C.danger, fontSize: 12),
+                ),
               ),
             ],
             if ((s['url_pdf'] as String? ?? '').isNotEmpty) ...[
@@ -1173,29 +1257,38 @@ class _PantallaTramitesState extends State<PantallaTramites>
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('URL: ${s['url_pdf']}',
-                            style: const TextStyle(fontSize: 11)),
+                        content: Text(
+                          'URL: ${s['url_pdf']}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
                         backgroundColor: c.surfaceHigh,
                         action: SnackBarAction(
-                            label: 'Copiar',
-                            textColor: _C.green,
-                            onPressed: () {}),
+                          label: 'Copiar',
+                          textColor: _C.green,
+                          onPressed: () {},
+                        ),
                       ),
                     );
                   },
-                  icon: const Icon(Icons.picture_as_pdf_outlined,
-                      size: 15, color: _C.green),
-                  label: const Text('Ver PDF',
-                      style: TextStyle(
-                          color: _C.green,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600)),
+                  icon: const Icon(
+                    Icons.picture_as_pdf_outlined,
+                    size: 15,
+                    color: _C.green,
+                  ),
+                  label: const Text(
+                    'Ver PDF',
+                    style: TextStyle(
+                      color: _C.green,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: _C.green),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
                   ),
                 ),
               ),
@@ -1250,10 +1343,12 @@ class _ModalFirmaState extends State<_ModalFirma> {
   Future<void> _confirmar() async {
     if (_lienzo) {
       if (_controller.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Dibuja tu firma primero'),
-          backgroundColor: _C.danger,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dibuja tu firma primero'),
+            backgroundColor: _C.danger,
+          ),
+        );
         return;
       }
       final bytes = await _controller.toPngBytes();
@@ -1270,11 +1365,11 @@ class _ModalFirmaState extends State<_ModalFirma> {
     return Container(
       decoration: BoxDecoration(
         color: c.surface,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1285,8 +1380,9 @@ class _ModalFirmaState extends State<_ModalFirma> {
               height: 4,
               margin: const EdgeInsets.only(top: 12, bottom: 20),
               decoration: BoxDecoration(
-                  color: c.border,
-                  borderRadius: BorderRadius.circular(2)),
+                color: c.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
 
             // Título
@@ -1294,19 +1390,20 @@ class _ModalFirmaState extends State<_ModalFirma> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const Icon(Icons.draw_outlined,
-                      color: _C.green, size: 20),
+                  const Icon(Icons.draw_outlined, color: _C.green, size: 20),
                   const SizedBox(width: 8),
-                  Text('Firma Digital',
-                      style: TextStyle(
-                          color: c.textPrimary,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700)),
+                  Text(
+                    'Firma Digital',
+                    style: TextStyle(
+                      color: c.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const Spacer(),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close,
-                        color: c.textSecondary, size: 20),
+                    icon: Icon(Icons.close, color: c.textSecondary, size: 20),
                   ),
                 ],
               ),
@@ -1319,11 +1416,17 @@ class _ModalFirmaState extends State<_ModalFirma> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    _tabBtn(c, 'Dibujar nueva',
-                        _lienzo ? null : () => setState(() => _lienzo = true)),
+                    _tabBtn(
+                      c,
+                      'Dibujar nueva',
+                      _lienzo ? null : () => setState(() => _lienzo = true),
+                    ),
                     const SizedBox(width: 10),
-                    _tabBtn(c, 'Usar guardada',
-                        !_lienzo ? null : () => setState(() => _lienzo = false)),
+                    _tabBtn(
+                      c,
+                      'Usar guardada',
+                      !_lienzo ? null : () => setState(() => _lienzo = false),
+                    ),
                   ],
                 ),
               ),
@@ -1353,13 +1456,17 @@ class _ModalFirmaState extends State<_ModalFirma> {
                         : ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: widget.firmaExistente != null
-                                ? Image.memory(widget.firmaExistente!,
+                                ? Image.memory(
+                                    widget.firmaExistente!,
                                     fit: BoxFit.contain,
-                                    width: double.infinity)
+                                    width: double.infinity,
+                                  )
                                 : Center(
-                                    child: Text('Sin firma guardada',
-                                        style: TextStyle(
-                                            color: c.textMuted))),
+                                    child: Text(
+                                      'Sin firma guardada',
+                                      style: TextStyle(color: c.textMuted),
+                                    ),
+                                  ),
                           ),
                   ),
                   const SizedBox(height: 8),
@@ -1369,11 +1476,15 @@ class _ModalFirmaState extends State<_ModalFirma> {
                       children: [
                         TextButton.icon(
                           onPressed: () => _controller.clear(),
-                          icon: Icon(Icons.refresh,
-                              size: 15, color: c.textMuted),
-                          label: Text('Limpiar',
-                              style: TextStyle(
-                                  color: c.textMuted, fontSize: 13)),
+                          icon: Icon(
+                            Icons.refresh,
+                            size: 15,
+                            color: c.textMuted,
+                          ),
+                          label: Text(
+                            'Limpiar',
+                            style: TextStyle(color: c.textMuted, fontSize: 13),
+                          ),
                         ),
                       ],
                     )
@@ -1388,8 +1499,7 @@ class _ModalFirmaState extends State<_ModalFirma> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   'Firma en el recuadro blanco con tu dedo',
-                  style:
-                      TextStyle(color: c.textMuted, fontSize: 12),
+                  style: TextStyle(color: c.textMuted, fontSize: 12),
                 ),
               ),
 
@@ -1406,14 +1516,17 @@ class _ModalFirmaState extends State<_ModalFirma> {
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(color: c.border),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 13),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                           ),
-                          child: Text('Cancelar',
-                              style: TextStyle(
-                                  color: c.textSecondary,
-                                  fontWeight: FontWeight.w600)),
+                          child: Text(
+                            'Cancelar',
+                            style: TextStyle(
+                              color: c.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1424,13 +1537,14 @@ class _ModalFirmaState extends State<_ModalFirma> {
                             backgroundColor: _C.green,
                             foregroundColor: Colors.black,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 13),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
                           ),
-                          child: const Text('Confirmar Firma',
-                              style:
-                                  TextStyle(fontWeight: FontWeight.w700)),
+                          child: const Text(
+                            'Confirmar Firma',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ),
                     ],
@@ -1440,16 +1554,21 @@ class _ModalFirmaState extends State<_ModalFirma> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: _seleccionarDeGaleria,
-                      icon: Icon(Icons.photo_library_outlined,
-                          size: 18, color: c.textPrimary),
-                      label: Text('Subir imagen desde la Galería',
-                          style: TextStyle(color: c.textPrimary)),
+                      icon: Icon(
+                        Icons.photo_library_outlined,
+                        size: 18,
+                        color: c.textPrimary,
+                      ),
+                      label: Text(
+                        'Subir imagen desde la Galería',
+                        style: TextStyle(color: c.textPrimary),
+                      ),
                       style: OutlinedButton.styleFrom(
                         side: BorderSide(color: c.border),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ),
@@ -1471,8 +1590,7 @@ class _ModalFirmaState extends State<_ModalFirma> {
         decoration: BoxDecoration(
           color: active ? _C.green : c.inputBg,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-              color: active ? _C.green : c.border),
+          border: Border.all(color: active ? _C.green : c.border),
         ),
         child: Text(
           label,
@@ -1518,8 +1636,10 @@ class _VistaPreviaPdfScreenState extends State<VistaPreviaPdfScreen> {
         backgroundColor: c.scaffoldBg,
         foregroundColor: c.textPrimary,
         elevation: 0,
-        title: Text('Vista Previa',
-            style: TextStyle(color: c.textPrimary, fontSize: 16)),
+        title: Text(
+          'Vista Previa',
+          style: TextStyle(color: c.textPrimary, fontSize: 16),
+        ),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -1541,20 +1661,26 @@ class _VistaPreviaPdfScreenState extends State<VistaPreviaPdfScreen> {
                 left: _left,
                 child: GestureDetector(
                   onPanUpdate: (details) => setState(() {
-                    _top = (_top! + details.delta.dy)
-                        .clamp(0.0, constraints.maxHeight - 60.0);
-                    _left = (_left! + details.delta.dx)
-                        .clamp(0.0, constraints.maxWidth - 210.0);
+                    _top = (_top! + details.delta.dy).clamp(
+                      0.0,
+                      constraints.maxHeight - 60.0,
+                    );
+                    _left = (_left! + details.delta.dx).clamp(
+                      0.0,
+                      constraints.maxWidth - 210.0,
+                    );
                   }),
                   child: FloatingActionButton.extended(
                     backgroundColor: _C.green,
                     onPressed: widget.onConfirm,
-                    icon: const Icon(Icons.cloud_upload,
-                        color: Colors.black),
-                    label: const Text('Confirmar y Enviar',
-                        style: TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.w700)),
+                    icon: const Icon(Icons.cloud_upload, color: Colors.black),
+                    label: const Text(
+                      'Confirmar y Enviar',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ),

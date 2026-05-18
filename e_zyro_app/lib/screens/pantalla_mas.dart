@@ -2,6 +2,7 @@ import 'package:e_zyro_app/screens/pantalla_tramites.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
+import '../widgets/topo_background.dart';
 import 'pantalla_comunicados.dart';
 import 'pantalla_editar_perfil.dart';
 
@@ -82,10 +83,19 @@ class _MoreScreenState extends State<MoreScreen> {
   @override
   Widget build(BuildContext context) {
     final surface = Theme.of(context).colorScheme.surface;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+    return TopoBackground(
+      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
+      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      count: 18,
+      amp: 10,
+      stroke: 0.40,
+      speed: 0.5,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -262,7 +272,8 @@ class _MoreScreenState extends State<MoreScreen> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   // ── Widgets privados ────────────────────────────────────────────────────────

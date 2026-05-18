@@ -29,6 +29,7 @@ class ProyectoItem {
   final String nombreProyecto;
   final String estado;
   final String? fechaInicio;
+  final String? fechaFinEstimada;
   final String cliente;
   final int totalServicios;
   final int serviciosCompletados;
@@ -40,6 +41,7 @@ class ProyectoItem {
     required this.nombreProyecto,
     required this.estado,
     this.fechaInicio,
+    this.fechaFinEstimada,
     required this.cliente,
     required this.totalServicios,
     required this.serviciosCompletados,
@@ -55,6 +57,7 @@ class ProyectoItem {
         nombreProyecto: j['nombre_proyecto'] as String? ?? '',
         estado: j['estado'] as String? ?? 'Pendiente',
         fechaInicio: j['fecha_inicio'] as String?,
+        fechaFinEstimada: j['fecha_fin_estimada'] as String?,
         cliente: j['cliente'] as String? ?? 'Sin Cliente',
         totalServicios: j['total_servicios'] as int? ?? 0,
         serviciosCompletados: j['servicios_completados'] as int? ?? 0,
@@ -87,6 +90,8 @@ class ServicioItem {
   final String estado;
   final int orden;
   final String? fechaProgramada;
+  final String? fechaInicio;
+  final String? fechaFin;
   final String estadoColor;
 
   const ServicioItem({
@@ -96,6 +101,8 @@ class ServicioItem {
     required this.estado,
     required this.orden,
     this.fechaProgramada,
+    this.fechaInicio,
+    this.fechaFin,
     required this.estadoColor,
   });
 
@@ -106,6 +113,8 @@ class ServicioItem {
         estado: j['estado'] as String? ?? 'Pendiente',
         orden: j['orden'] as int? ?? 1,
         fechaProgramada: j['fecha_programada'] as String?,
+        fechaInicio: j['fecha_inicio'] as String?,
+        fechaFin: j['fecha_fin'] as String?,
         estadoColor: j['estado_color'] as String? ?? 'amarillo',
       );
 }

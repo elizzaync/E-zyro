@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
+import '../widgets/topo_background.dart';
 import 'pantalla_recuperacion_password.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -233,10 +234,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F2),
-      body: SafeArea(
-        child: _isBioMode ? _buildBioLayout() : _buildPasswordLayout(),
+      backgroundColor: Colors.transparent,
+      body: TopoBackground(
+        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
+        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        count: 24,
+        amp: 13,
+        stroke: 0.50,
+        speed: 0.8,
+        child: SafeArea(
+          child: _isBioMode ? _buildBioLayout() : _buildPasswordLayout(),
+        ),
       ),
     );
   }
@@ -252,8 +263,13 @@ class _LoginScreenState extends State<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             _buildLogo(),
-            const SizedBox(height: 52),
-            _buildBioMode(),
+            const SizedBox(height: 40),
+            TopoGlassCard(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(28, 32, 28, 32),
+                child: _buildBioMode(),
+              ),
+            ),
           ],
         ),
       ),
@@ -264,14 +280,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildPasswordLayout() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 72),
+          const SizedBox(height: 60),
           _buildLogo(),
-          const SizedBox(height: 44),
-          _buildPasswordForm(),
+          const SizedBox(height: 36),
+          TopoGlassCard(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+              child: _buildPasswordForm(),
+            ),
+          ),
+          const SizedBox(height: 24),
         ],
       ),
     );

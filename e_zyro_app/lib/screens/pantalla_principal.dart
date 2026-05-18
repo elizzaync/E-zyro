@@ -7,6 +7,7 @@ import '../services/notificacion_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../models/dashboard_models.dart';
 import '../widgets/stat_card.dart';
+import '../widgets/topo_background.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
 import 'pantalla_notificaciones.dart';
@@ -258,6 +259,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return TopoBackground(
+      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
+      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      count: 20,
+      amp: 12,
+      stroke: 0.45,
+      speed: 0.6,
+      child: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(

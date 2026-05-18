@@ -96,13 +96,15 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
         _carrito[item.id] = _CarritoEntry(item: item, cantidad: cantidad);
       }
     });
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('${item.nombre} agregado al pedido'),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: _green,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      duration: const Duration(seconds: 2),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${item.nombre} agregado al pedido'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: _green,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   int get _carritoCount => _carrito.length;
@@ -181,8 +183,13 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Logística',
-                        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Logística',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 16),
 
                     Container(
@@ -214,12 +221,17 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                         onChanged: _onSearchChanged,
                         decoration: InputDecoration(
                           hintText: 'Buscar materiales...',
-                          prefixIcon:
-                              const Icon(Icons.search, color: Colors.grey),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Colors.grey,
+                          ),
                           suffixIcon: _searchCtrl.text.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.clear,
-                                      size: 18, color: Colors.grey),
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    size: 18,
+                                    color: Colors.grey,
+                                  ),
                                   onPressed: () {
                                     _searchCtrl.clear();
                                     _loadCatalogo();
@@ -227,14 +239,14 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                                 )
                               : null,
                           filled: true,
-                          fillColor:
-                              Theme.of(context).colorScheme.surface,
+                          fillColor: Theme.of(context).colorScheme.surface,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide.none,
                           ),
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                          ),
                         ),
                       ),
                     const SizedBox(height: 16),
@@ -243,9 +255,7 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
               ),
 
               Expanded(
-                child: _showCatalogo
-                    ? _buildCatalogo()
-                    : _buildSolicitudes(),
+                child: _showCatalogo ? _buildCatalogo() : _buildSolicitudes(),
               ),
             ],
           ),
@@ -263,8 +273,10 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                   foregroundColor: Colors.white,
                   elevation: 4,
                   icon: const Icon(Icons.shopping_cart_outlined),
-                  label: const Text('Solicitar',
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  label: const Text(
+                    'Solicitar',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
                 if (_carritoCount > 0)
                   Positioned(
@@ -273,13 +285,16 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                     child: Container(
                       padding: const EdgeInsets.all(5),
                       decoration: const BoxDecoration(
-                          color: Colors.red, shape: BoxShape.circle),
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
                       child: Text(
                         '$_carritoCount',
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold),
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -300,8 +315,11 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.inventory_2_outlined,
-                size: 48, color: Colors.grey.shade400),
+            Icon(
+              Icons.inventory_2_outlined,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
             const SizedBox(height: 12),
             Text(
               _searchCtrl.text.isNotEmpty
@@ -318,7 +336,7 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
         itemCount: _catalogoItems.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) => _CatalogoItemCard(
           item: _catalogoItems[i],
           cantidadEnCarrito: _carrito[_catalogoItems[i].id]?.cantidad ?? 0,
@@ -337,14 +355,21 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.receipt_long_outlined,
-                size: 48, color: Colors.grey.shade400),
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
             const SizedBox(height: 12),
-            const Text('Sin solicitudes registradas',
-                style: TextStyle(color: Colors.grey, fontSize: 14)),
+            const Text(
+              'Sin solicitudes registradas',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
             const SizedBox(height: 6),
-            const Text('Usa el catálogo para crear una solicitud',
-                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Text(
+              'Usa el catálogo para crear una solicitud',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
           ],
         ),
       );
@@ -354,7 +379,7 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
         itemCount: _solicitudes.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) => _MiSolicitudCard(item: _solicitudes[i]),
       ),
     );
@@ -367,10 +392,11 @@ class _ToggleTab extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _ToggleTab(
-      {required this.label,
-      required this.isSelected,
-      required this.onTap});
+  const _ToggleTab({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -381,9 +407,7 @@ class _ToggleTab extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF8FD11B)
-                : Colors.transparent,
+            color: isSelected ? const Color(0xFF8FD11B) : Colors.transparent,
             borderRadius: BorderRadius.circular(26),
           ),
           alignment: Alignment.center,
@@ -437,20 +461,21 @@ class _CatalogoItemCard extends StatelessWidget {
           color: surface,
           borderRadius: BorderRadius.circular(14),
           border: isDark
-              ? Border.all(
-                  color: green.withValues(alpha: 0.35), width: 1.0)
+              ? Border.all(color: green.withValues(alpha: 0.35), width: 1.0)
               : null,
           boxShadow: isDark
               ? [
                   BoxShadow(
-                      color: green.withValues(alpha: 0.08),
-                      blurRadius: 10)
+                    color: green.withValues(alpha: 0.08),
+                    blurRadius: 10,
+                  ),
                 ]
               : [
                   BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
         ),
         child: Row(
@@ -463,51 +488,66 @@ class _CatalogoItemCard extends StatelessWidget {
                     : const Color(0xFFEFFAE0),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.inventory_2_outlined,
-                  color: green, size: 20),
+              child: const Icon(
+                Icons.inventory_2_outlined,
+                color: green,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item.nombre,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text(
+                    item.nombre,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
                   if (item.categoria != null) ...[
                     const SizedBox(height: 2),
-                    Text(item.categoria!,
-                        style: const TextStyle(
-                            color: Colors.grey, fontSize: 11)),
+                    Text(
+                      item.categoria!,
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
                   ],
                   const SizedBox(height: 6),
                   Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: stockColor.withValues(
-                              alpha: isDark ? 0.15 : 0.10),
+                            alpha: isDark ? 0.15 : 0.10,
+                          ),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                              color:
-                                  stockColor.withValues(alpha: 0.4)),
+                            color: stockColor.withValues(alpha: 0.4),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (isLow) ...[
-                              Icon(Icons.warning_amber_outlined,
-                                  size: 10, color: stockColor),
+                              Icon(
+                                Icons.warning_amber_outlined,
+                                size: 10,
+                                color: stockColor,
+                              ),
                               const SizedBox(width: 3),
                             ],
                             Text(
                               'Stock: ${item.stock} ${item.unidad}',
                               style: TextStyle(
-                                  color: stockColor,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600),
+                                color: stockColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -516,21 +556,25 @@ class _CatalogoItemCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
-                            color: Colors.blue
-                                .withValues(alpha: isDark ? 0.15 : 0.10),
+                            color: Colors.blue.withValues(
+                              alpha: isDark ? 0.15 : 0.10,
+                            ),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                                color: Colors.blue
-                                    .withValues(alpha: 0.4)),
+                              color: Colors.blue.withValues(alpha: 0.4),
+                            ),
                           ),
                           child: Text(
                             'En pedido: $cantidadEnCarrito',
                             style: const TextStyle(
-                                color: Colors.blue,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600),
+                              color: Colors.blue,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -553,25 +597,25 @@ class _MiSolicitudCard extends StatelessWidget {
   const _MiSolicitudCard({required this.item});
 
   Color get _estadoColor => switch (item.estado) {
-        'aprobado' => const Color(0xFF8FD11B),
-        'entregado' => Colors.blue,
-        'rechazado' => Colors.red,
-        _ => Colors.orange,
-      };
+    'aprobado' => const Color(0xFF8FD11B),
+    'entregado' => Colors.blue,
+    'rechazado' => Colors.red,
+    _ => Colors.orange,
+  };
 
   String get _estadoLabel => switch (item.estado) {
-        'aprobado' => 'Aprobado',
-        'entregado' => 'Entregado',
-        'rechazado' => 'Rechazado',
-        _ => 'Pendiente',
-      };
+    'aprobado' => 'Aprobado',
+    'entregado' => 'Entregado',
+    'rechazado' => 'Rechazado',
+    _ => 'Pendiente',
+  };
 
   IconData get _estadoIcon => switch (item.estado) {
-        'aprobado' => Icons.check_circle_outline,
-        'entregado' => Icons.local_shipping_outlined,
-        'rechazado' => Icons.cancel_outlined,
-        _ => Icons.hourglass_empty_outlined,
-      };
+    'aprobado' => Icons.check_circle_outline,
+    'entregado' => Icons.local_shipping_outlined,
+    'rechazado' => Icons.cancel_outlined,
+    _ => Icons.hourglass_empty_outlined,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -589,15 +633,13 @@ class _MiSolicitudCard extends StatelessWidget {
             ? Border.all(color: green.withValues(alpha: 0.35))
             : null,
         boxShadow: isDark
-            ? [
-                BoxShadow(
-                    color: green.withValues(alpha: 0.08), blurRadius: 10)
-              ]
+            ? [BoxShadow(color: green.withValues(alpha: 0.08), blurRadius: 10)]
             : [
                 BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2))
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
               ],
       ),
       child: Column(
@@ -618,28 +660,44 @@ class _MiSolicitudCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(item.proyectoNombre,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis),
+                    Text(
+                      item.proyectoNombre,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today_outlined,
-                            size: 11, color: Colors.grey),
+                        const Icon(
+                          Icons.calendar_today_outlined,
+                          size: 11,
+                          color: Colors.grey,
+                        ),
                         const SizedBox(width: 4),
-                        Text(item.fecha,
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 11)),
+                        Text(
+                          item.fecha,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 11,
+                          ),
+                        ),
                         const SizedBox(width: 10),
-                        const Icon(Icons.layers_outlined,
-                            size: 11, color: Colors.grey),
+                        const Icon(
+                          Icons.layers_outlined,
+                          size: 11,
+                          color: Colors.grey,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${item.items.length} material${item.items.length != 1 ? 'es' : ''}',
                           style: const TextStyle(
-                              color: Colors.grey, fontSize: 11),
+                            color: Colors.grey,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
@@ -647,20 +705,19 @@ class _MiSolicitudCard extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: isDark ? 0.15 : 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: color.withValues(alpha: 0.3)),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   _estadoLabel,
                   style: TextStyle(
-                      color: color,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600),
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -669,51 +726,59 @@ class _MiSolicitudCard extends StatelessWidget {
             const SizedBox(height: 10),
             const Divider(height: 1),
             const SizedBox(height: 10),
-            ...item.items.map((d) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.circle,
-                          size: 5, color: Colors.grey),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(d.nombre,
-                            style: const TextStyle(fontSize: 12)),
+            ...item.items.map(
+              (d) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.circle, size: 5, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        d.nombre,
+                        style: const TextStyle(fontSize: 12),
                       ),
+                    ),
+                    Text(
+                      '${d.cantidad} ${d.unidad}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (d.cantidadAprobada != null) ...[
+                      const SizedBox(width: 6),
                       Text(
-                        '${d.cantidad} ${d.unidad}',
+                        '(aprobado: ${d.cantidadAprobada})',
                         style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                            fontWeight: FontWeight.w500),
-                      ),
-                      if (d.cantidadAprobada != null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '(aprobado: ${d.cantidadAprobada})',
-                          style: const TextStyle(
-                              fontSize: 10,
-                              color: Color(0xFF8FD11B)),
+                          fontSize: 10,
+                          color: Color(0xFF8FD11B),
                         ),
-                      ],
+                      ),
                     ],
-                  ),
-                )),
-            if (item.observacion != null &&
-                item.observacion!.isNotEmpty) ...[
+                  ],
+                ),
+              ),
+            ),
+            if (item.observacion != null && item.observacion!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Row(
                 children: [
-                  const Icon(Icons.notes_outlined,
-                      size: 12, color: Colors.grey),
+                  const Icon(
+                    Icons.notes_outlined,
+                    size: 12,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       item.observacion!,
                       style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic),
+                        fontSize: 11,
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -763,8 +828,7 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
     return Container(
       decoration: BoxDecoration(
         color: surface,
-        borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(
         left: 24,
@@ -800,26 +864,40 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                         : const Color(0xFFEFFAE0),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.inventory_2_outlined,
-                      color: green, size: 22),
+                  child: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: green,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.item.nombre,
-                          style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold)),
+                      Text(
+                        widget.item.nombre,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       if (widget.item.categoria != null)
-                        Text(widget.item.categoria!,
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 12)),
+                        Text(
+                          widget.item.categoria!,
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
                       if (widget.item.codigo != null)
-                        Text('Cód: ${widget.item.codigo}',
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 11)),
+                        Text(
+                          'Cód: ${widget.item.codigo}',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 11,
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -833,8 +911,7 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
               decoration: BoxDecoration(
                 color: stockColor.withValues(alpha: isDark ? 0.08 : 0.06),
                 borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: stockColor.withValues(alpha: 0.25)),
+                border: Border.all(color: stockColor.withValues(alpha: 0.25)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -842,9 +919,10 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Stock disponible',
-                          style: TextStyle(
-                              color: Colors.grey, fontSize: 12)),
+                      const Text(
+                        'Stock disponible',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
                       const SizedBox(height: 4),
                       RichText(
                         text: TextSpan(
@@ -854,15 +932,15 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurface,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                             TextSpan(
                               text: widget.item.unidad,
                               style: const TextStyle(
-                                  fontSize: 14, color: Colors.grey),
+                                fontSize: 14,
+                                color: Colors.grey,
+                              ),
                             ),
                           ],
                         ),
@@ -873,16 +951,18 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('En pedido',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 12)),
+                        const Text(
+                          'En pedido',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           '${widget.cantidadEnCarrito} ${widget.item.unidad}',
                           style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                          ),
                         ),
                       ],
                     ),
@@ -895,9 +975,10 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Cantidad:',
-                    style: TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500)),
+                const Text(
+                  'Cantidad:',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                ),
                 const SizedBox(width: 16),
                 _QtyButton(
                   icon: Icons.remove,
@@ -909,7 +990,9 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                 Text(
                   '$_cantidad',
                   style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold),
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 _QtyButton(
@@ -917,9 +1000,10 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                   onTap: () => setState(() => _cantidad++),
                 ),
                 const SizedBox(width: 8),
-                Text(widget.item.unidad,
-                    style: const TextStyle(
-                        color: Colors.grey, fontSize: 13)),
+                Text(
+                  widget.item.unidad,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -948,7 +1032,8 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
                   disabledBackgroundColor: Colors.grey.shade300,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
@@ -1011,7 +1096,7 @@ class _CarritoSheetState extends State<_CarritoSheet> {
     super.initState();
     _carrito = {
       for (final e in widget.initialCarrito.entries)
-        e.key: _CarritoEntry(item: e.value.item, cantidad: e.value.cantidad)
+        e.key: _CarritoEntry(item: e.value.item, cantidad: e.value.cantidad),
     };
   }
 
@@ -1042,17 +1127,21 @@ class _CarritoSheetState extends State<_CarritoSheet> {
 
   Future<void> _enviar() async {
     if (_proyectoId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Selecciona un proyecto para la solicitud'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Selecciona un proyecto para la solicitud'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
     if (_carrito.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Agrega al menos un material al pedido'),
-        behavior: SnackBarBehavior.floating,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Agrega al menos un material al pedido'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
@@ -1074,11 +1163,13 @@ class _CarritoSheetState extends State<_CarritoSheet> {
     if (ok) {
       Navigator.pop(context, true);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Error al enviar la solicitud. Intenta nuevamente.'),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.red,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error al enviar la solicitud. Intenta nuevamente.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -1095,8 +1186,7 @@ class _CarritoSheetState extends State<_CarritoSheet> {
       builder: (_, scrollCtrl) => Container(
         decoration: BoxDecoration(
           color: surface,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(24)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: ListView(
           controller: scrollCtrl,
@@ -1131,21 +1221,26 @@ class _CarritoSheetState extends State<_CarritoSheet> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
-                            Icons.shopping_cart_outlined,
-                            color: _green,
-                            size: 22),
+                          Icons.shopping_cart_outlined,
+                          color: _green,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Nueva Solicitud',
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold)),
-                          Text('Pedido de materiales',
-                              style: TextStyle(
-                                  color: Colors.grey, fontSize: 12)),
+                          Text(
+                            'Nueva Solicitud',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Pedido de materiales',
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
                         ],
                       ),
                     ],
@@ -1169,95 +1264,112 @@ class _CarritoSheetState extends State<_CarritoSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Materiales seleccionados',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey)),
+                    const Text(
+                      'Materiales seleccionados',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    ..._carrito.values.map((e) => _CarritoItemRow(
-                          entry: e,
-                          isDark: isDark,
-                          onDecrement: () => _updateCantidad(e.item.id, -1),
-                          onIncrement: () => _updateCantidad(e.item.id, 1),
-                          onRemove: () => _removeItem(e.item.id),
-                        )),
+                    ..._carrito.values.map(
+                      (e) => _CarritoItemRow(
+                        entry: e,
+                        isDark: isDark,
+                        onDecrement: () => _updateCantidad(e.item.id, -1),
+                        onIncrement: () => _updateCantidad(e.item.id, 1),
+                        onRemove: () => _removeItem(e.item.id),
+                      ),
+                    ),
 
                     const SizedBox(height: 20),
                     const Divider(height: 1),
                     const SizedBox(height: 20),
 
                     // Proyecto
-                    const Text('Proyecto',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey)),
+                    const Text(
+                      'Proyecto',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     widget.proyectos.isEmpty
                         ? Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                  color: Colors.grey.shade300),
+                              border: Border.all(color: Colors.grey.shade300),
                             ),
                             child: const Row(
                               children: [
                                 SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2)),
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
                                 SizedBox(width: 10),
-                                Text('Cargando proyectos...',
-                                    style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 13)),
+                                Text(
+                                  'Cargando proyectos...',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 13,
+                                  ),
+                                ),
                               ],
                             ),
                           )
                         : DropdownButtonFormField<String>(
-                            value: _proyectoId,
+                            initialValue: _proyectoId,
                             hint: const Text('Selecciona un proyecto'),
                             isExpanded: true,
                             decoration: InputDecoration(
                               filled: true,
-                              fillColor: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
+                              fillColor: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide.none,
                               ),
                               contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
                             ),
                             items: widget.proyectos
-                                .map((p) => DropdownMenuItem(
-                                      value: p.id,
-                                      child: Text(
-                                        p.nombreProyecto.isNotEmpty
-                                            ? p.nombreProyecto
-                                            : p.ordenTrabajo,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontSize: 13),
-                                      ),
-                                    ))
+                                .map(
+                                  (p) => DropdownMenuItem(
+                                    value: p.id,
+                                    child: Text(
+                                      p.nombreProyecto.isNotEmpty
+                                          ? p.nombreProyecto
+                                          : p.ordenTrabajo,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                )
                                 .toList(),
-                            onChanged: (v) =>
-                                setState(() => _proyectoId = v),
+                            onChanged: (v) => setState(() => _proyectoId = v),
                           ),
 
                     const SizedBox(height: 16),
 
                     // Observación
-                    const Text('Observación (opcional)',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey)),
+                    const Text(
+                      'Observación (opcional)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _obsCtrl,
@@ -1265,9 +1377,9 @@ class _CarritoSheetState extends State<_CarritoSheet> {
                       decoration: InputDecoration(
                         hintText: 'Notas o instrucciones adicionales...',
                         filled: true,
-                        fillColor: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
+                        fillColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -1289,19 +1401,25 @@ class _CarritoSheetState extends State<_CarritoSheet> {
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
                         child: _sending
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white))
-                            : const Text('Enviar Pedido',
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Enviar Pedido',
                                 style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 15)),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -1321,12 +1439,16 @@ class _CarritoSheetState extends State<_CarritoSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.shopping_cart_outlined,
-                size: 56, color: Colors.grey.shade300),
+            Icon(
+              Icons.shopping_cart_outlined,
+              size: 56,
+              color: Colors.grey.shade300,
+            ),
             const SizedBox(height: 16),
-            const Text('Tu pedido está vacío',
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600)),
+            const Text(
+              'Tu pedido está vacío',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
             const SizedBox(height: 8),
             const Text(
               'Regresa al catálogo y agrega materiales para crear una solicitud.',
@@ -1336,8 +1458,10 @@ class _CarritoSheetState extends State<_CarritoSheet> {
             const SizedBox(height: 24),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Volver al catálogo',
-                  style: TextStyle(color: _green)),
+              child: const Text(
+                'Volver al catálogo',
+                style: TextStyle(color: _green),
+              ),
             ),
           ],
         ),
@@ -1368,9 +1492,7 @@ class _CarritoItemRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark
-            ? green.withValues(alpha: 0.06)
-            : const Color(0xFFF9FDF0),
+        color: isDark ? green.withValues(alpha: 0.06) : const Color(0xFFF9FDF0),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: green.withValues(alpha: 0.2)),
       ),
@@ -1380,15 +1502,20 @@ class _CarritoItemRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.item.nombre,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  entry.item.nombre,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 if (entry.item.categoria != null)
-                  Text(entry.item.categoria!,
-                      style: const TextStyle(
-                          color: Colors.grey, fontSize: 11)),
+                  Text(
+                    entry.item.categoria!,
+                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
               ],
             ),
           ),
@@ -1412,7 +1539,9 @@ class _CarritoItemRow extends StatelessWidget {
                 child: Text(
                   '${entry.cantidad}',
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
               GestureDetector(
@@ -1427,9 +1556,10 @@ class _CarritoItemRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Text(entry.item.unidad,
-                  style: const TextStyle(
-                      color: Colors.grey, fontSize: 11)),
+              Text(
+                entry.item.unidad,
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
             ],
           ),
           const SizedBox(width: 8),
