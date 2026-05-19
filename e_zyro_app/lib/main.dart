@@ -19,6 +19,7 @@ import 'screens/pantalla_notificaciones.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_flutter_service.dart';
 import 'screens/pantalla_historial_equipo.dart';
+import 'screens/pantalla_auditoria.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -111,6 +112,7 @@ class ESystemApp extends StatelessWidget {
             ),
             body: const AsistenciaScreen(),
           ),
+          '/auditoria': (_) => const PantallaAuditoria(),
           '/historial-equipo': (context) {
             final args = ModalRoute.of(context)?.settings.arguments
                 as Map<String, String>?;

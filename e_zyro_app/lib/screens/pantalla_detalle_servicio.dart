@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../models/comunicado_models.dart';
 import '../services/proyecto_service.dart';
+import '../utils/app_session.dart';
 import '../services/comunicado_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
@@ -855,6 +856,7 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
   ComunicadoService? _service;
   List<ComunicadoProyecto> _comunicados = [];
   bool _loading = true;
+  bool _puedeEnviar = false;
   StreamSubscription<RemoteMessage>? _fcmSub;
 
   static const _green = Color(0xFF8FD11B);
@@ -872,6 +874,12 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
         _load();
       }
     });
+    _checkPermiso();
+  }
+
+  Future<void> _checkPermiso() async {
+    await AppSession.load();
+    if (mounted) setState(() => _puedeEnviar = AppSession.i.canEnviarComunicado);
   }
 
   @override
@@ -931,17 +939,196 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      color: _green,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: _comunicados.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _ComunicadoCard(
-          comunicado: _comunicados[i],
-          onTap: () => _marcarLeido(_comunicados[i]),
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _load,
+          color: _green,
+          child: ListView.separated(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, _puedeEnviar ? 90 : 16),
+            itemCount: _comunicados.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            itemBuilder: (_, i) => _ComunicadoCard(
+              comunicado: _comunicados[i],
+              onTap: () => _marcarLeido(_comunicados[i]),
+            ),
+          ),
         ),
+        if (_puedeEnviar)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton.extended(
+              heroTag: 'fab_comunicado_${widget.proyectoId}',
+              onPressed: _openNuevoComunicado,
+              backgroundColor: _green,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              icon: const Icon(Icons.campaign_outlined),
+              label: const Text('Nuevo',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _openNuevoComunicado() {
+    final tituloCtrl = TextEditingController();
+    final mensajeCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          bool sending = false;
+          return Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.only(
+              left: 24, right: 24, top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.campaign_outlined,
+                        color: Color(0xFFF59E0B), size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Nuevo Comunicado',
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                      Text('Enviar al proyecto',
+                          style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    ],
+                  ),
+                ]),
+                const SizedBox(height: 20),
+                const Text('Título',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: tituloCtrl,
+                  maxLength: 200,
+                  decoration: InputDecoration(
+                    hintText: 'Título del comunicado...',
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Mensaje',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: mensajeCtrl,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Escribe el comunicado...',
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.all(14),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                StatefulBuilder(
+                  builder: (_, setSend) => SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: sending ? null : () async {
+                        final titulo = tituloCtrl.text.trim();
+                        final mensaje = mensajeCtrl.text.trim();
+                        if (titulo.isEmpty || mensaje.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Completa el título y el mensaje'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                        setSend(() => sending = true);
+                        final messenger = ScaffoldMessenger.of(context);
+                        final ok = await _service?.crearComunicado(
+                          proyectoId: widget.proyectoId,
+                          titulo: titulo,
+                          mensaje: mensaje,
+                        ) ?? false;
+                        if (!mounted) return;
+                        Navigator.pop(ctx);
+                        if (ok) {
+                          _load();
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: const Text('Comunicado enviado'),
+                              backgroundColor: _green,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                          );
+                        } else {
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('Error al enviar. Intenta nuevamente.'),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _green,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: sending
+                          ? const SizedBox(width: 20, height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Enviar Comunicado',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

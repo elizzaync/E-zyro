@@ -1,8 +1,11 @@
 import 'package:e_zyro_app/screens/pantalla_tramites.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../utils/app_notifiers.dart';
+import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
+import 'pantalla_auditoria.dart';
 import 'pantalla_comunicados.dart';
 import 'pantalla_editar_perfil.dart';
 
@@ -17,6 +20,7 @@ class _MoreScreenState extends State<MoreScreen> {
   String _userName = '';
   String _userRol = '';
   String _fotoUrl = '';
+  bool _puedeVerAuditoria = false;
 
   @override
   void initState() {
@@ -26,11 +30,13 @@ class _MoreScreenState extends State<MoreScreen> {
 
   Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
+    await AppSession.load();
     if (mounted) {
       setState(() {
         _userName = prefs.getString('user_name') ?? 'Usuario';
-        _userRol = prefs.getString('user_rol') ?? '';
-        _fotoUrl = prefs.getString('user_foto_url') ?? '';
+        _userRol  = prefs.getString('user_rol') ?? '';
+        _fotoUrl  = prefs.getString('user_foto_url') ?? '';
+        _puedeVerAuditoria = AppSession.i.canVerAuditoria;
       });
     }
   }
@@ -186,6 +192,24 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
               ],
             ),
+            if (_puedeVerAuditoria) ...[
+              const SizedBox(height: 20),
+              _buildSectionTitle('Administración'),
+              const SizedBox(height: 10),
+              _buildMenuGroup(
+                surface: surface,
+                items: [
+                  _MenuItem(
+                    icon: Icons.manage_search_rounded,
+                    label: 'Registro de Auditoría',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PantallaAuditoria()),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 20),
 
             // ── Recursos ───────────────────────────────────────────────

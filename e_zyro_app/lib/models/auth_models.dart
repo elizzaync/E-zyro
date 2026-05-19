@@ -32,12 +32,14 @@ class LoginData {
   final String rol;
   final String token;
   final String fotoUrl;
+  final List<String> permisos;
 
   LoginData({
     required this.nombreCompleto,
     required this.rol,
     required this.token,
     required this.fotoUrl,
+    this.permisos = const [],
   });
 
   factory LoginData.fromJson(Map<String, dynamic> json) {
@@ -46,6 +48,7 @@ class LoginData {
       rol: json['rol'] ?? '',
       token: json['token'] ?? '',
       fotoUrl: json['foto_url'] ?? '',
+      permisos: (json['permisos'] as List?)?.cast<String>() ?? [],
     );
   }
 }

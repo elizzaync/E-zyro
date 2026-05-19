@@ -71,4 +71,51 @@ class RequerimientoService {
       return false;
     }
   }
+
+  Future<List<CategoriaItem>> getCategorias() async {
+    try {
+      final r = await _client.get('/requerimientos/categorias');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return list.map((e) => CategoriaItem.fromJson(e as Map<String, dynamic>)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<List<AlmacenItem>> getAlmacenes() async {
+    try {
+      final r = await _client.get('/requerimientos/almacenes');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return list.map((e) => AlmacenItem.fromJson(e as Map<String, dynamic>)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> crearMaterial({
+    required String nombre,
+    String? codigo,
+    required String unidad,
+    required String categoriaId,
+    String? descripcion,
+    int cantidadInicial = 0,
+    String? almacenId,
+  }) async {
+    try {
+      final r = await _client.post('/requerimientos/inventario/material', {
+        'nombre': nombre,
+        if (codigo != null && codigo.isNotEmpty) 'codigo': codigo,
+        'unidad': unidad,
+        'categoria_id': categoriaId,
+        if (descripcion != null && descripcion.isNotEmpty) 'descripcion': descripcion,
+        'cantidad_inicial': cantidadInicial,
+        if (almacenId != null) 'almacen_id': almacenId,
+      });
+      return r.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
 }

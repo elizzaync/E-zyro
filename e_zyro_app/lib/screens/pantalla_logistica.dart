@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../models/requerimiento_models.dart';
+import '../utils/app_session.dart';
 import '../models/proyecto_models.dart';
 import '../services/requerimiento_service.dart';
 import '../services/proyecto_service.dart';
@@ -57,11 +58,13 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
   Timer? _debounce;
 
   List<ProyectoItem> _proyectos = [];
+  bool _puedeGestionar = false;
 
   @override
   void initState() {
     super.initState();
     _scrollCtrl.addListener(_onScroll);
+    _checkRol();
     _fcmSub = FcmFlutterService.messageStream.listen((msg) {
       if ((msg.data['tipo'] as String?) == 'aviso_logistica') {
         if (!_showCatalogo) {
@@ -72,6 +75,11 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
       }
     });
     _init();
+  }
+
+  Future<void> _checkRol() async {
+    await AppSession.load();
+    if (mounted) setState(() => _puedeGestionar = AppSession.i.canGestInventario);
   }
 
   Future<void> _init() async {
@@ -246,6 +254,41 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
     super.dispose();
   }
 
+  Future<void> _openNuevoMaterialSheet() async {
+    if (_service == null) return;
+
+    List<CategoriaItem> categorias = [];
+    List<AlmacenItem> almacenes = [];
+    await Future.wait([
+      _service!.getCategorias().then((v) => categorias = v),
+      _service!.getAlmacenes().then((v) => almacenes = v),
+    ]);
+
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NuevoMaterialSheet(
+        categorias: categorias,
+        almacenes: almacenes,
+        service: _service!,
+        onCreado: () {
+          _loadCatalogo();
+          messenger.showSnackBar(SnackBar(
+            content: const Text('Material agregado al inventario'),
+            backgroundColor: _green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ));
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -373,44 +416,59 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
             ],
           ),
 
-          // FAB con badge
+          // FABs
           Positioned(
             right: 20,
             bottom: 20,
-            child: Stack(
-              clipBehavior: Clip.none,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                FloatingActionButton.extended(
-                  onPressed: _openCarritoSheet,
-                  backgroundColor: _green,
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  icon: const Icon(Icons.shopping_cart_outlined),
-                  label: const Text(
-                    'Solicitar',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                // FAB agregar al inventario (solo logística/admin)
+                if (_puedeGestionar && _showCatalogo) ...[
+                  FloatingActionButton(
+                    heroTag: 'fab_inventario',
+                    onPressed: () => _openNuevoMaterialSheet(),
+                    backgroundColor: Colors.white,
+                    foregroundColor: _green,
+                    elevation: 3,
+                    mini: true,
+                    tooltip: 'Agregar al inventario',
+                    child: const Icon(Icons.add_box_outlined),
                   ),
-                ),
-                if (_carritoCount > 0)
-                  Positioned(
-                    right: -4,
-                    top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '$_carritoCount',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(height: 10),
+                ],
+                // FAB solicitar materiales
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    FloatingActionButton.extended(
+                      heroTag: 'fab_solicitar',
+                      onPressed: _openCarritoSheet,
+                      backgroundColor: _green,
+                      foregroundColor: Colors.white,
+                      elevation: 4,
+                      icon: const Icon(Icons.shopping_cart_outlined),
+                      label: const Text('Solicitar',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                    if (_carritoCount > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: const BoxDecoration(
+                              color: Colors.red, shape: BoxShape.circle),
+                          child: Text('$_carritoCount',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold)),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -1789,4 +1847,205 @@ class _CarritoItemRow extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Sheet: Nuevo material en inventario ───────────────────────────────────────
+class _NuevoMaterialSheet extends StatefulWidget {
+  final List<CategoriaItem> categorias;
+  final List<AlmacenItem> almacenes;
+  final RequerimientoService service;
+  final VoidCallback onCreado;
+
+  const _NuevoMaterialSheet({
+    required this.categorias,
+    required this.almacenes,
+    required this.service,
+    required this.onCreado,
+  });
+
+  @override
+  State<_NuevoMaterialSheet> createState() => _NuevoMaterialSheetState();
+}
+
+class _NuevoMaterialSheetState extends State<_NuevoMaterialSheet> {
+  static const _green = Color(0xFF8FD11B);
+
+  final _nombreCtrl   = TextEditingController();
+  final _codigoCtrl   = TextEditingController();
+  final _descCtrl     = TextEditingController();
+  final _cantidadCtrl = TextEditingController(text: '0');
+
+  String? _categoriaId;
+  String? _almacenId;
+  String _unidad = 'Unidades';
+  bool _sending = false;
+
+  static const _unidades = [
+    'Unidades', 'Metros', 'Rollos', 'Barras', 'Pares',
+    'Sets', 'Litros', 'Kilogramos', 'Cajas',
+  ];
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _codigoCtrl.dispose();
+    _descCtrl.dispose();
+    _cantidadCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final nombre = _nombreCtrl.text.trim();
+    if (nombre.isEmpty) { _snack('Ingresa el nombre del material'); return; }
+    if (_categoriaId == null) { _snack('Selecciona una categoría'); return; }
+    final cantidad = int.tryParse(_cantidadCtrl.text) ?? 0;
+
+    setState(() => _sending = true);
+    final ok = await widget.service.crearMaterial(
+      nombre: nombre,
+      codigo: _codigoCtrl.text.trim().isEmpty ? null : _codigoCtrl.text.trim(),
+      unidad: _unidad,
+      categoriaId: _categoriaId!,
+      descripcion: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+      cantidadInicial: cantidad,
+      almacenId: _almacenId,
+    );
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (ok) {
+      Navigator.pop(context);
+      widget.onCreado();
+    } else {
+      _snack('Error al guardar. Verifica permisos.');
+    }
+  }
+
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating));
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    final inputBg = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final inputDec = InputDecoration(
+      filled: true, fillColor: inputBg,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    );
+
+    return DraggableScrollableSheet(
+      expand: false, initialChildSize: 0.85, minChildSize: 0.5, maxChildSize: 0.95,
+      builder: (_, scrollCtrl) => Container(
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: ListView(
+          controller: scrollCtrl,
+          padding: EdgeInsets.only(
+            left: 24, right: 24, top: 12,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+          ),
+          children: [
+            Center(child: Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: _green.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.add_box_outlined, color: _green, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Nuevo Material',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                Text('Agregar al inventario',
+                    style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ]),
+            ]),
+            const SizedBox(height: 24),
+            _label('Nombre *'),
+            TextField(controller: _nombreCtrl,
+                decoration: inputDec.copyWith(hintText: 'Ej: Cable THW 12 AWG')),
+            const SizedBox(height: 14),
+            _label('Código (opcional)'),
+            TextField(controller: _codigoCtrl,
+                decoration: inputDec.copyWith(hintText: 'Ej: CBL-THW-12')),
+            const SizedBox(height: 14),
+            _label('Categoría *'),
+            DropdownButtonFormField<String>(
+              value: _categoriaId,
+              hint: const Text('Selecciona categoría'),
+              decoration: inputDec,
+              items: widget.categorias.map((c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(c.nombre, style: const TextStyle(fontSize: 13)))).toList(),
+              onChanged: (v) => setState(() => _categoriaId = v),
+            ),
+            const SizedBox(height: 14),
+            _label('Unidad de medida'),
+            DropdownButtonFormField<String>(
+              value: _unidad,
+              decoration: inputDec,
+              items: _unidades.map((u) => DropdownMenuItem(
+                  value: u, child: Text(u, style: const TextStyle(fontSize: 13)))).toList(),
+              onChanged: (v) => setState(() => _unidad = v ?? 'Unidades'),
+            ),
+            const SizedBox(height: 14),
+            _label('Descripción (opcional)'),
+            TextField(controller: _descCtrl, maxLines: 2,
+                decoration: inputDec.copyWith(hintText: 'Especificaciones técnicas...')),
+            const SizedBox(height: 14),
+            _label('Cantidad inicial en stock'),
+            TextField(controller: _cantidadCtrl,
+                keyboardType: TextInputType.number,
+                decoration: inputDec.copyWith(hintText: '0')),
+            const SizedBox(height: 14),
+            if (widget.almacenes.isNotEmpty) ...[
+              _label('Almacén (opcional)'),
+              DropdownButtonFormField<String>(
+                value: _almacenId,
+                hint: const Text('Almacén principal por defecto'),
+                decoration: inputDec,
+                items: widget.almacenes.map((a) => DropdownMenuItem(
+                    value: a.id,
+                    child: Text(
+                      a.ubicacion != null ? '${a.nombre} — ${a.ubicacion}' : a.nombre,
+                      style: const TextStyle(fontSize: 12),
+                      overflow: TextOverflow.ellipsis,
+                    ))).toList(),
+                onChanged: (v) => setState(() => _almacenId = v),
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity, height: 50,
+              child: ElevatedButton(
+                onPressed: _sending ? null : _guardar,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _green, foregroundColor: Colors.white, elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _sending
+                    ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Guardar en Inventario',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(text, style: const TextStyle(
+        fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+  );
 }

@@ -4,6 +4,7 @@ import '../core/api_client.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/fcm_flutter_service.dart';
+import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -26,6 +27,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final prefs = await SharedPreferences.getInstance();
     // Restaurar token desde SecureStorage si SharedPreferences fue borrado
     await AuthService.restoreTokenIfNeeded(prefs);
+    await AppSession.load();
     final hasToken = prefs.getString('auth_token') != null;
     final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
     if (!mounted) return;

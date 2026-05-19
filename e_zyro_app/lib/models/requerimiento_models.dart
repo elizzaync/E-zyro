@@ -1,3 +1,22 @@
+class CategoriaItem {
+  final String id;
+  final String nombre;
+  const CategoriaItem({required this.id, required this.nombre});
+  factory CategoriaItem.fromJson(Map<String, dynamic> j) =>
+      CategoriaItem(id: j['id'] as String, nombre: j['nombre'] as String);
+}
+
+class AlmacenItem {
+  final String id;
+  final String nombre;
+  final String? ubicacion;
+  const AlmacenItem({required this.id, required this.nombre, this.ubicacion});
+  factory AlmacenItem.fromJson(Map<String, dynamic> j) => AlmacenItem(
+      id: j['id'] as String,
+      nombre: j['nombre'] as String,
+      ubicacion: j['ubicacion'] as String?);
+}
+
 class CatalogoItem {
   final String id;
   final String nombre;

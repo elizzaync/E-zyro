@@ -54,4 +54,25 @@ class ComunicadoService {
       await _client.put('/comunicados/$id/marcar-leido', {});
     } catch (_) {}
   }
+
+  // POST /comunicados/proyecto/{proyecto_id}/nuevo
+  Future<bool> crearComunicado({
+    required String proyectoId,
+    required String titulo,
+    required String mensaje,
+    String? adjuntoUrl,
+  }) async {
+    try {
+      final r = await _client.post(
+        '/comunicados/proyecto/$proyectoId/nuevo',
+        {
+          'titulo': titulo,
+          'mensaje': mensaje,
+          if (adjuntoUrl != null) 'adjunto_url': adjuntoUrl,
+        },
+      );
+      return r.statusCode == 201 || r.statusCode == 200;
+    } catch (_) {}
+    return false;
+  }
 }

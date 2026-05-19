@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/auth_models.dart';
+import '../utils/app_session.dart';
 
 String get _devicePlatform {
   if (kIsWeb) return 'web';
@@ -41,9 +42,11 @@ class AuthService {
 
         await _prefs.setString('user_name', res.data.nombreCompleto);
         await _prefs.setString('user_rol', res.data.rol);
+        await _prefs.setStringList('user_permisos', res.data.permisos);
         if (res.data.fotoUrl.isNotEmpty) {
           await _prefs.setString('user_foto_url', res.data.fotoUrl);
         }
+        await AppSession.load();
         return res;
       } else if (r.statusCode == 401) {
         throw Exception('Usuario o contraseña incorrectos');
@@ -162,8 +165,10 @@ class AuthService {
     await _prefs.remove(_tokenKey);
     await _prefs.remove('user_name');
     await _prefs.remove('user_rol');
+    await _prefs.remove('user_permisos');
     await _prefs.remove('user_foto_url');
     if (!kIsWeb) await _secure.delete(key: _tokenKey);
+    AppSession.clear();
   }
 
   /// Restaura el token desde SecureStorage hacia SharedPreferences si es necesario.
@@ -182,4 +187,17 @@ class AuthService {
   bool get isAuthenticated => _prefs.getString(_tokenKey) != null;
   String? get userName => _prefs.getString('user_name');
   String? get userRol => _prefs.getString('user_rol');
+  List<String> get userPermisos => _prefs.getStringList('user_permisos') ?? [];
+
+  bool hasPermiso(String permiso) {
+    final rol = (userRol ?? '').toLowerCase();
+    if (rol == 'admin' || rol == 'administrador' || rol == 'superadmin') return true;
+    return userPermisos.contains(permiso);
+  }
+
+  static bool checkPermiso(SharedPreferences prefs, String permiso) {
+    final rol = (prefs.getString('user_rol') ?? '').toLowerCase();
+    if (rol == 'admin' || rol == 'administrador' || rol == 'superadmin') return true;
+    return (prefs.getStringList('user_permisos') ?? []).contains(permiso);
+  }
 }

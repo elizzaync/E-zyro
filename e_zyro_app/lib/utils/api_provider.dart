@@ -10,6 +10,7 @@ import '../services/proyecto_service.dart';
 import '../services/requerimiento_service.dart';
 import '../services/mantenimiento_service.dart';
 import '../services/historial_service.dart';
+import '../services/auditoria_service.dart';
 
 Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
@@ -59,4 +60,9 @@ Future<MantenimientoService> getMantenimientoService() async {
 Future<HistorialService> getHistorialService() async {
   final prefs = await SharedPreferences.getInstance();
   return HistorialService(ApiClient(prefs));
+}
+
+Future<AuditoriaService> getAuditoriaService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return AuditoriaService(ApiClient(prefs));
 }
