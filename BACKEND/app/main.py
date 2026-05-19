@@ -80,6 +80,24 @@ def _run_migrations():
             "ALTER TABLE auditoria "
             "ADD COLUMN IF NOT EXISTS empresa_id VARCHAR(36)"
         ))
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='auditoria'
+                      AND column_name='datos_anteriores'
+                      AND data_type='text'
+                ) THEN
+                    ALTER TABLE auditoria
+                        ALTER COLUMN datos_anteriores
+                        TYPE JSONB USING NULLIF(datos_anteriores,'')::jsonb;
+                    ALTER TABLE auditoria
+                        ALTER COLUMN datos_nuevos
+                        TYPE JSONB USING NULLIF(datos_nuevos,'')::jsonb;
+                END IF;
+            END $$;
+        """))
         conn.commit()
 
 

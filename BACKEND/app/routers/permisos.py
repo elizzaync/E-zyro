@@ -1,6 +1,5 @@
 # app/routers/permisos.py
 import uuid
-import json
 from datetime import date, datetime
 from typing import Optional
 
@@ -272,13 +271,13 @@ async def enviar_solicitud(
             ))
 
         # ── 7. Registrar en Auditoría ─────────────────────────────────────
-        datos_nuevos = json.dumps({
+        datos_nuevos = {
             "tipo":         tipo_db,
             "tipo_label":   label_display,
             "estado":       "pendiente",
             "fecha_inicio": str(fecha_inicio_dt) if fecha_inicio_dt else None,
             "url_pdf":      pdf_url,
-        }, ensure_ascii=False)
+        }
 
         db.add(Auditoria(
             id             = str(uuid.uuid4()),

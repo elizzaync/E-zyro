@@ -70,7 +70,7 @@ def listar_auditoria(
     db: Session                = Depends(get_db),
 ):
     _verificar_permiso_auditoria(payload, db)
-    empresa_id = payload["empresa_id"]
+    empresa_id = payload.get("empresa_id")
 
     query = db.query(Auditoria).filter(Auditoria.empresa_id == empresa_id)
 

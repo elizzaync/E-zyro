@@ -214,7 +214,7 @@ def crear_comunicado_proyecto(
         accion         = "CREAR_COMUNICADO",
         modulo         = "comunicados",
         descripcion    = f"Comunicado '{body.titulo}' enviado al proyecto {proyecto_id}",
-        datos_nuevos   = json.dumps({"titulo": body.titulo, "proyecto_id": proyecto_id}),
+        datos_nuevos   = {"titulo": body.titulo, "proyecto_id": proyecto_id},
         fecha          = datetime.utcnow(),
     ))
 

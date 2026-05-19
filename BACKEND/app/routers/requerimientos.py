@@ -363,7 +363,7 @@ def crear_material(
         accion         = "INSERT",
         modulo         = "logistica",
         descripcion    = f"Material '{body.nombre}' agregado al inventario con stock {body.cantidad_inicial}",
-        datos_nuevos   = _json.dumps({"nombre": body.nombre, "unidad": body.unidad, "cantidad_inicial": body.cantidad_inicial}),
+        datos_nuevos   = {"nombre": body.nombre, "unidad": body.unidad, "cantidad_inicial": body.cantidad_inicial},
         fecha          = datetime.utcnow(),
     ))
 
