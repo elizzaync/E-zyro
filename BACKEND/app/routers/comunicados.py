@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..core.security import verificar_token
+from ..core.security import verificar_token, es_superadmin
 from ..db.database import get_db
 from ..models.auditoria import Auditoria
 from ..models.comunicado import ComunicadoProyecto, ComunicadoLeido
@@ -188,7 +188,7 @@ def crear_comunicado_proyecto(
     empleado_autor = _get_empleado(db, usuario_id, empresa_id)
 
     # Solo admin/jefe o el jefe_operaciones del proyecto puede enviar
-    es_admin = rol in ("admin", "administrador", "superadmin")
+    es_admin = es_superadmin(payload)
     es_jefe  = empleado_autor and str(proyecto.jefe_operaciones_id) == str(empleado_autor.id)
     if not es_admin and not es_jefe:
         raise HTTPException(status_code=403, detail="Sin permiso para enviar comunicados")

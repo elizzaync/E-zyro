@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..core.security import verificar_token
+from ..core.security import verificar_token, es_superadmin
 from ..db.database import get_db
 from ..models.auditoria import Auditoria
 from ..models.usuario import Usuario
@@ -36,8 +36,7 @@ class AuditoriaOut(BaseModel):
 # ── Helper: verificar permiso ver-auditorias ───────────────────────────────────
 
 def _verificar_permiso_auditoria(payload: dict, db: Session) -> None:
-    rol = (payload.get("rol") or "").lower()
-    if rol in ("admin", "administrador", "superadmin"):
+    if es_superadmin(payload):
         return
 
     usuario_id = payload.get("id")

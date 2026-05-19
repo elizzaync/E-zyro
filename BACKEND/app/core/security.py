@@ -15,6 +15,13 @@ def crear_token_acceso(data: dict):
     to_encode.update({"exp": expire})
     token_codificado = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return token_codificado
+_ROLES_ADMIN = {"superadmin", "admin", "administrador"}
+
+def es_superadmin(payload: dict) -> bool:
+    """SuperAdmin siempre tiene permiso absoluto — sin consulta a BD."""
+    return (payload.get("rol") or "").lower().strip() in _ROLES_ADMIN
+
+
 def verificar_token(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
     try:

@@ -5,14 +5,14 @@ Catálogo de materiales y gestión de solicitudes (HU-17).
 from __future__ import annotations
 
 import uuid as _uuid
-from datetime import date
+from datetime import date, datetime
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..core.security import verificar_token
+from ..core.security import verificar_token, es_superadmin
 from ..db.database import get_db
 
 from ..models.material import Material, Stock
@@ -313,7 +313,7 @@ def crear_material(
     usuario_id = payload["id"]
     rol        = (payload.get("rol") or "").lower()
 
-    es_admin     = rol in ("admin", "administrador", "superadmin")
+    es_admin     = es_superadmin(payload)
     es_logistica = rol in ("logística", "logistica")
     if not es_admin and not es_logistica:
         raise HTTPException(status_code=403, detail="Sin permiso para agregar al inventario")
@@ -364,7 +364,7 @@ def crear_material(
         modulo         = "logistica",
         descripcion    = f"Material '{body.nombre}' agregado al inventario con stock {body.cantidad_inicial}",
         datos_nuevos   = _json.dumps({"nombre": body.nombre, "unidad": body.unidad, "cantidad_inicial": body.cantidad_inicial}),
-        fecha          = __import__('datetime').datetime.utcnow(),
+        fecha          = datetime.utcnow(),
     ))
 
     db.commit()
