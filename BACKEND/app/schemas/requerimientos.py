@@ -1,17 +1,18 @@
 from __future__ import annotations
 from typing import List, Optional
+from uuid import UUID
 from pydantic import BaseModel
 
 
 class CatalogoItemOut(BaseModel):
-    id: str
+    id: UUID
     nombre: str
     codigo: Optional[str]
     unidad: str
     stock: int
     categoria: Optional[str]
-    descripcion: Optional[str] = None   # HU-15
-    imagen_url: Optional[str] = None    # HU-15
+    descripcion: Optional[str] = None
+    imagen_url: Optional[str] = None
 
 
 class SolicitudDetalleOut(BaseModel):
