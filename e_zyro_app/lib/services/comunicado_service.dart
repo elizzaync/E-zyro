@@ -32,19 +32,17 @@ class ComunicadoService {
   // GET /comunicados/proyecto/{proyecto_id}
   Future<List<ComunicadoProyecto>> getComunicadosProyecto(
       String proyectoId) async {
-    try {
-      final r = await _client.get('/comunicados/proyecto/$proyectoId');
-      if (r.statusCode == 200) {
-        final data = jsonDecode(r.body);
-        final list = data is List
-            ? data
-            : (data as Map)['comunicados'] as List? ?? [];
-        return list
-            .map((e) =>
-                ComunicadoProyecto.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-    } catch (_) {}
+    // Deja propagar sesión expirada al caller
+    final r = await _client.get('/comunicados/proyecto/$proyectoId');
+    if (r.statusCode == 200) {
+      final data = jsonDecode(r.body);
+      final list = data is List
+          ? data
+          : (data as Map)['comunicados'] as List? ?? [];
+      return list
+          .map((e) => ComunicadoProyecto.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
     return [];
   }
 

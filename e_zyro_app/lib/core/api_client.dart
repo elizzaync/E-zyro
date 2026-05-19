@@ -27,40 +27,43 @@ class ApiClient {
 
   Future<http.Response> get(String path, {Duration? timeout}) async {
     final token = _token;
-    if (token.isEmpty) {
-      throw Exception('No auth token found. Please login again.');
-    }
-    return _http
+    if (token.isEmpty) throw _sessionExpired();
+    final r = await _http
         .get(Uri.parse('${AppConstants.baseUrl}$path'), headers: _authHeaders)
         .timeout(timeout ?? AppConstants.defaultTimeout);
+    if (r.statusCode == 401) throw _sessionExpired();
+    return r;
   }
+
+  static Exception _sessionExpired() =>
+      Exception('Sesión expirada. Por favor inicia sesión nuevamente.');
 
   Future<http.Response> put(String path, [Object? body]) async {
     final token = _token;
-    if (token.isEmpty) {
-      throw Exception('No auth token found. Please login again.');
-    }
-    return _http
+    if (token.isEmpty) throw _sessionExpired();
+    final r = await _http
         .put(
           Uri.parse('${AppConstants.baseUrl}$path'),
           headers: _authHeaders,
           body: body != null ? jsonEncode(body) : null,
         )
         .timeout(AppConstants.defaultTimeout);
+    if (r.statusCode == 401) throw _sessionExpired();
+    return r;
   }
 
   Future<http.Response> patch(String path, [Object? body]) async {
     final token = _token;
-    if (token.isEmpty) {
-      throw Exception('No auth token found. Please login again.');
-    }
-    return _http
+    if (token.isEmpty) throw _sessionExpired();
+    final r = await _http
         .patch(
           Uri.parse('${AppConstants.baseUrl}$path'),
           headers: _authHeaders,
           body: body != null ? jsonEncode(body) : null,
         )
         .timeout(AppConstants.defaultTimeout);
+    if (r.statusCode == 401) throw _sessionExpired();
+    return r;
   }
 
   Future<http.Response> post(
@@ -69,16 +72,16 @@ class ApiClient {
     Duration? timeout,
   }) async {
     final token = _token;
-    if (token.isEmpty) {
-      throw Exception('No auth token found. Please login again.');
-    }
-    return _http
+    if (token.isEmpty) throw _sessionExpired();
+    final r = await _http
         .post(
           Uri.parse('${AppConstants.baseUrl}$path'),
           headers: _authHeaders,
           body: jsonEncode(body),
         )
         .timeout(timeout ?? AppConstants.defaultTimeout);
+    if (r.statusCode == 401) throw _sessionExpired();
+    return r;
   }
 
   /// POST with an explicit Bearer token (token refresh — token may be expired).

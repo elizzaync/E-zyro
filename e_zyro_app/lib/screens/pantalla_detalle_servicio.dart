@@ -90,6 +90,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               detalle: _detalle!,
               tabController: _tabController,
               proyectoId: widget.proyectoId,
+              servicioId: widget.servicioId,
             ),
     );
   }
@@ -101,11 +102,13 @@ class _DetalleContent extends StatelessWidget {
   final ServicioDetalle detalle;
   final TabController tabController;
   final String proyectoId;
+  final String servicioId;
 
   const _DetalleContent({
     required this.detalle,
     required this.tabController,
     required this.proyectoId,
+    required this.servicioId,
   });
 
   Color get _statusColor => switch (detalle.estado) {
@@ -288,7 +291,7 @@ class _DetalleContent extends StatelessWidget {
               ),
               _NotasTab(notas: detalle.notas),
               ChatTab(
-                room: proyectoId,
+                room: 'servicio/$servicioId',
                 fotosPorId: {
                   for (final m in detalle.equipo)
                     if (m.fotoUrl.isNotEmpty) m.id: m.fotoUrl,
@@ -857,6 +860,7 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
   List<ComunicadoProyecto> _comunicados = [];
   bool _loading = true;
   bool _puedeEnviar = false;
+  bool _sessionExpired = false;
   StreamSubscription<RemoteMessage>? _fcmSub;
 
   static const _green = Color(0xFF8FD11B);
@@ -895,18 +899,15 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
 
   Future<void> _load() async {
     if (_service == null) return;
-    setState(() => _loading = true);
+    setState(() { _loading = true; _sessionExpired = false; });
     try {
-      final data =
-          await _service!.getComunicadosProyecto(widget.proyectoId);
+      final data = await _service!.getComunicadosProyecto(widget.proyectoId);
       if (!mounted) return;
-      setState(() {
-        _comunicados = data;
-        _loading = false;
-      });
-    } catch (_) {
+      setState(() { _comunicados = data; _loading = false; });
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      final expired = e.toString().contains('expirada') || e.toString().contains('Sesión');
+      setState(() { _loading = false; _sessionExpired = expired; });
     }
   }
 
@@ -928,6 +929,30 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
       return const Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation(_green),
+        ),
+      );
+    }
+
+    if (_sessionExpired) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_clock_outlined, size: 44, color: Colors.orange),
+            const SizedBox(height: 10),
+            const Text('Sesión expirada',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            const SizedBox(height: 6),
+            const Text('Cierra sesión e inicia nuevamente.',
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                  context, '/login', (_) => false),
+              child: const Text('Ir al Login',
+                  style: TextStyle(color: _green, fontWeight: FontWeight.w600)),
+            ),
+          ],
         ),
       );
     }

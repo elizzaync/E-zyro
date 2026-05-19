@@ -19,6 +19,8 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
+  bool _sessionExpired = false;
+  String? _errorMsg;
   int _page = 1;
   static const _pageSize = 50;
 
@@ -68,7 +70,7 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
   Future<void> _load({bool reset = false}) async {
     if (_service == null) return;
     if (reset) {
-      setState(() { _loading = true; _page = 1; _hasMore = true; });
+      setState(() { _loading = true; _page = 1; _hasMore = true; _errorMsg = null; _sessionExpired = false; });
     }
     try {
       final data = await _service!.getAuditoria(
@@ -86,8 +88,17 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
         _page = 1;
         _loading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (!mounted) return;
+      final msg = e.toString();
+      setState(() {
+        _loading = false;
+        if (msg.contains('expirada') || msg.contains('Sesión')) {
+          _sessionExpired = true;
+        } else {
+          _errorMsg = msg;
+        }
+      });
     }
   }
 
@@ -271,7 +282,11 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
         body: _loading
             ? const Center(child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation(_green)))
-            : _items.isEmpty
+            : _sessionExpired
+                ? _buildSessionExpired()
+                : _errorMsg != null
+                    ? _buildErrorMsg(_errorMsg!)
+                    : _items.isEmpty
                 ? _buildEmpty()
                 : RefreshIndicator(
                     onRefresh: () => _load(reset: true),
@@ -295,6 +310,61 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
                       },
                     ),
                   ),
+      ),
+    );
+  }
+
+  Widget _buildSessionExpired() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_clock_outlined, size: 56, color: Colors.orange),
+            const SizedBox(height: 16),
+            const Text('Sesión expirada',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text(
+              'Tu sesión ha vencido. Cierra sesión e inicia nuevamente para continuar.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                  context, '/login', (_) => false),
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('Ir al Login'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorMsg(String msg) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          const SizedBox(height: 12),
+          Text(msg.replaceAll('Exception: ', ''),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 12),
+          TextButton(
+              onPressed: () => _load(reset: true),
+              child: const Text('Reintentar', style: TextStyle(color: _green))),
+        ],
       ),
     );
   }
