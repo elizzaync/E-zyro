@@ -5,10 +5,13 @@ Gestión completa del módulo de Operaciones / Detalle de Servicio.
 from __future__ import annotations
 
 import io
+import logging
 import re
 import uuid as _uuid
 import zipfile
 from datetime import date, datetime
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from typing import List
@@ -478,12 +481,10 @@ def get_detalle_servicio(
             func.coalesce(
                 Material.nombre,
                 RequerimientoDetalle.nombre_libre,
-                "Material Sin Nombre"
             ).label("mat_nombre"),
             func.coalesce(
                 Material.unidad,
                 RequerimientoDetalle.unidad_libre,
-                "Und"
             ).label("mat_unidad"),
         )
         .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
@@ -723,46 +724,56 @@ def get_borrador(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    empresa_id = payload["empresa_id"]
+    try:
+        empresa_id = payload["empresa_id"]
 
-    borrador = db.query(Requerimiento).filter(
-        Requerimiento.proyecto_servicio_id == servicio_id,
-        Requerimiento.empresa_id           == empresa_id,
-        Requerimiento.tipo                 == "material",
-        Requerimiento.estado               == "borrador",
-    ).first()
+        borrador = db.query(Requerimiento).filter(
+            Requerimiento.proyecto_servicio_id == servicio_id,
+            Requerimiento.empresa_id           == empresa_id,
+            Requerimiento.tipo                 == "material",
+            Requerimiento.estado               == "borrador",
+        ).first()
 
-    if not borrador:
-        return {"requerimiento_id": None, "items": []}
+        if not borrador:
+            return {"requerimiento_id": None, "items": []}
 
-    detalles = (
-        db.query(RequerimientoDetalle)
-        .filter(RequerimientoDetalle.requerimiento_id == borrador.id)
-        .all()
-    )
+        detalles = (
+            db.query(RequerimientoDetalle)
+            .filter(RequerimientoDetalle.requerimiento_id == borrador.id)
+            .all()
+        )
 
-    material_ids = [rd.material_id for rd in detalles if rd.material_id]
-    mats_map: dict = {}
-    if material_ids:
-        mats_map = {
-            m.id: m
-            for m in db.query(Material).filter(Material.id.in_(material_ids)).all()
-        }
+        material_ids = [rd.material_id for rd in detalles if rd.material_id]
+        mats_map: dict = {}
+        if material_ids:
+            mats_map = {
+                m.id: m
+                for m in db.query(Material).filter(Material.id.in_(material_ids)).all()
+            }
 
-    items = []
-    for rd in detalles:
-        mat = mats_map.get(rd.material_id) if rd.material_id else None
-        items.append({
-            "id":             rd.id,
-            "material_id":    rd.material_id,
-            "nombre":         mat.nombre if mat else (rd.nombre_libre or "Material Externo"),
-            "unidad":         mat.unidad if mat else (rd.unidad_libre or "Und"),
-            "cantidad":       rd.cantidad,
-            "es_nuevo":       rd.material_id is None,
-            "especificacion": rd.especificacion,
-        })
+        items = []
+        for rd in detalles:
+            mat = mats_map.get(rd.material_id) if rd.material_id else None
+            nombre_libre   = getattr(rd, "nombre_libre",   None)
+            unidad_libre   = getattr(rd, "unidad_libre",   None)
+            especificacion = getattr(rd, "especificacion", None)
+            items.append({
+                "id":             rd.id,
+                "material_id":    rd.material_id,
+                "nombre":         mat.nombre if mat else (nombre_libre or "Material Externo"),
+                "unidad":         mat.unidad if mat else (unidad_libre or "Und"),
+                "cantidad":       rd.cantidad,
+                "es_nuevo":       rd.material_id is None,
+                "especificacion": especificacion,
+            })
 
-    return {"requerimiento_id": borrador.id, "items": items}
+        return {"requerimiento_id": borrador.id, "items": items}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error en GET /servicio/%s/borrador: %s", servicio_id, exc)
+        raise HTTPException(status_code=500, detail=f"Error interno: {type(exc).__name__}: {exc}")
 
 
 # ── POST /operaciones/servicio/{id}/borrador/item ─────────────────────────────
