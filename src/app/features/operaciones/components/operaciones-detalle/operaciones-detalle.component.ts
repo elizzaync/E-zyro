@@ -303,6 +303,18 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     return palette[Math.abs(h) % palette.length];
   }
 
+  getChatMemberFoto(remitenteId?: string): string {
+    if (!remitenteId) return '';
+    return this.servicio?.equipo.find(m => m.id === remitenteId)?.fotoUrl ?? '';
+  }
+
+  get _fotoUsuario(): string {
+    try {
+      const stored = localStorage.getItem('ezyro_user');
+      return stored ? (JSON.parse(stored)?.foto_url ?? '') : '';
+    } catch { return ''; }
+  }
+
   private _mapServicio(raw: any): ServicioDetalle {
     return {
       id:           raw.id,

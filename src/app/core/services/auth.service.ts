@@ -30,8 +30,10 @@ export class AuthService {
           localStorage.setItem('ezyro_token', response.data.token);
 
           const userData = {
+            id:              response.data.id,
             nombre_completo: response.data.nombre_completo,
-            rol: response.data.rol
+            rol:             response.data.rol,
+            foto_url:        response.data.foto_url ?? ''
           };
           localStorage.setItem('ezyro_user', JSON.stringify(userData));
         }
