@@ -37,7 +37,7 @@ class AuditoriaOut(BaseModel):
 
 def _verificar_permiso_auditoria(payload: dict, db: Session) -> None:
     rol = (payload.get("rol") or "").lower()
-    if rol in ("admin", "administrador"):
+    if rol in ("admin", "administrador", "superadmin"):
         return
 
     usuario_id = payload.get("id")

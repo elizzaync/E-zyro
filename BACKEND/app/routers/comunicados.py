@@ -188,7 +188,7 @@ def crear_comunicado_proyecto(
     empleado_autor = _get_empleado(db, usuario_id, empresa_id)
 
     # Solo admin/jefe o el jefe_operaciones del proyecto puede enviar
-    es_admin = rol in ("admin", "administrador")
+    es_admin = rol in ("admin", "administrador", "superadmin")
     es_jefe  = empleado_autor and str(proyecto.jefe_operaciones_id) == str(empleado_autor.id)
     if not es_admin and not es_jefe:
         raise HTTPException(status_code=403, detail="Sin permiso para enviar comunicados")
