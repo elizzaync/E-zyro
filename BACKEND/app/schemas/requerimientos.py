@@ -44,3 +44,24 @@ class CrearSolicitudBody(BaseModel):
     proyecto_id: str
     items: List[ItemSolicitudBody]
     observacion: Optional[str] = None
+
+
+class CategoriaOut(BaseModel):
+    id: str
+    nombre: str
+
+
+class AlmacenOut(BaseModel):
+    id: str
+    nombre: str
+    ubicacion: Optional[str]
+
+
+class CrearMaterialBody(BaseModel):
+    nombre: str
+    codigo: Optional[str] = None
+    unidad: str
+    categoria_id: str
+    descripcion: Optional[str] = None
+    cantidad_inicial: int = 0
+    almacen_id: Optional[str] = None

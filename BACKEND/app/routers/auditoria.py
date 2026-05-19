@@ -47,7 +47,8 @@ def _verificar_permiso_auditoria(payload: dict, db: Session) -> None:
         .join(UsuarioRol, UsuarioRol.rol_id == RolPermiso.rol_id)
         .filter(
             UsuarioRol.usuario_id == usuario_id,
-            Permiso.accion == "ver-auditorias",
+            Permiso.modulo == "AUDITORIA",
+        Permiso.accion == "VER",
         )
         .first()
     )

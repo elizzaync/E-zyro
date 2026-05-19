@@ -21,12 +21,18 @@ from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.empleado import Empleado
 from ..models.proyecto import Proyecto
 
+from ..models.almacen import Almacen
+from ..models.auditoria import Auditoria
 from ..schemas.requerimientos import (
     CatalogoItemOut,
     SolicitudDetalleOut,
     MiSolicitudOut,
     CrearSolicitudBody,
+    CategoriaOut,
+    AlmacenOut,
+    CrearMaterialBody,
 )
+import json as _json
 
 router = APIRouter(prefix="/requerimientos", tags=["requerimientos"])
 
@@ -258,3 +264,108 @@ def crear_solicitud(
 
     db.commit()
     return {"ok": True, "requerimiento_id": req.id}
+
+
+# ── GET /requerimientos/categorias ────────────────────────────────────────────
+
+@router.get("/categorias", response_model=list[CategoriaOut])
+def get_categorias(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(CategoriaMaterial)
+        .filter(CategoriaMaterial.empresa_id == empresa_id)
+        .order_by(CategoriaMaterial.nombre)
+        .all()
+    )
+    return [CategoriaOut(id=str(r.id), nombre=r.nombre) for r in rows]
+
+
+# ── GET /requerimientos/almacenes ─────────────────────────────────────────────
+
+@router.get("/almacenes", response_model=list[AlmacenOut])
+def get_almacenes(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(Almacen)
+        .filter(Almacen.empresa_id == empresa_id)
+        .order_by(Almacen.nombre)
+        .all()
+    )
+    return [AlmacenOut(id=str(r.id), nombre=r.nombre, ubicacion=r.ubicacion) for r in rows]
+
+
+# ── POST /requerimientos/inventario/material ──────────────────────────────────
+# Crear un nuevo material con stock inicial — solo logística/admin
+
+@router.post("/inventario/material", status_code=status.HTTP_201_CREATED)
+def crear_material(
+    body:    CrearMaterialBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    rol        = (payload.get("rol") or "").lower()
+
+    es_admin     = rol in ("admin", "administrador", "superadmin")
+    es_logistica = rol in ("logística", "logistica")
+    if not es_admin and not es_logistica:
+        raise HTTPException(status_code=403, detail="Sin permiso para agregar al inventario")
+
+    cat = db.query(CategoriaMaterial).filter(
+        CategoriaMaterial.id         == body.categoria_id,
+        CategoriaMaterial.empresa_id == empresa_id,
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    nuevo = Material(
+        id          = str(_uuid.uuid4()),
+        empresa_id  = empresa_id,
+        categoria_id= body.categoria_id,
+        nombre      = body.nombre.strip(),
+        codigo      = body.codigo.strip() if body.codigo else None,
+        unidad      = body.unidad.strip(),
+        descripcion = body.descripcion,
+        activo      = True,
+    )
+    db.add(nuevo)
+    db.flush()
+
+    if body.cantidad_inicial > 0:
+        almacen_id = body.almacen_id
+        if not almacen_id:
+            alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
+            if alm:
+                almacen_id = str(alm.id)
+
+        if almacen_id:
+            db.add(Stock(
+                material_id    = nuevo.id,
+                empresa_id     = empresa_id,
+                almacen_id     = almacen_id,
+                cantidad       = body.cantidad_inicial,
+                cantidad_minima= 0,
+            ))
+
+    db.add(Auditoria(
+        id             = str(_uuid.uuid4()),
+        empresa_id     = empresa_id,
+        usuario_id     = usuario_id,
+        tabla_afectada = "material",
+        registro_id    = nuevo.id,
+        accion         = "INSERT",
+        modulo         = "logistica",
+        descripcion    = f"Material '{body.nombre}' agregado al inventario con stock {body.cantidad_inicial}",
+        datos_nuevos   = _json.dumps({"nombre": body.nombre, "unidad": body.unidad, "cantidad_inicial": body.cantidad_inicial}),
+        fecha          = __import__('datetime').datetime.utcnow(),
+    ))
+
+    db.commit()
+    return {"ok": True, "material_id": nuevo.id}
