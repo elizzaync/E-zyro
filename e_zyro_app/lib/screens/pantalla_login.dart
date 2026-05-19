@@ -2,11 +2,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
+import '../core/connectivity_service.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_notifiers.dart';
 import '../widgets/e_system_painters.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_recuperacion_password.dart';
@@ -90,8 +92,12 @@ class _LoginScreenState extends State<LoginScreen>
       duration: const Duration(seconds: 5),
     )..repeat();
     _initServices();
-    // Measure bolt logo position after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureLogo());
+    isOnlineNotifier.addListener(_onConnectivityChange);
+  }
+
+  void _onConnectivityChange() {
+    if (mounted) setState(() {});
   }
 
   void _measureLogo() {
@@ -110,6 +116,7 @@ class _LoginScreenState extends State<LoginScreen>
     _passwordController.dispose();
     _pulseCtrl.dispose();
     _particleCtrl.dispose();
+    isOnlineNotifier.removeListener(_onConnectivityChange);
     super.dispose();
   }
 
@@ -152,6 +159,10 @@ class _LoginScreenState extends State<LoginScreen>
     final success = await _bioService!.authenticate();
     if (!mounted) return;
     if (!success) return;
+
+    // Verificar validez del token localmente ANTES de tocar la red
+    final tokenValido = _authService!.isStoredTokenValid();
+
     try {
       await _authService!.refreshToken();
       if (!mounted) return;
@@ -159,9 +170,19 @@ class _LoginScreenState extends State<LoginScreen>
       Navigator.pushReplacementNamed(context, '/');
     } catch (_) {
       if (!mounted) return;
-      await _authService!.logout();
-      setState(() { _hasSession = false; _showPasswordForm = true; });
-      _showSnack('Tu sesión expiró. Ingresa tu contraseña.', Colors.orange);
+      if (tokenValido) {
+        // Sin red pero JWT aún vigente → entrar directamente
+        _initFcm();
+        Navigator.pushReplacementNamed(context, '/');
+      } else {
+        // Token realmente expirado — necesita conexión para renovarlo
+        await _authService!.logout();
+        setState(() { _hasSession = false; _showPasswordForm = true; });
+        _showSnack(
+          'Sesión expirada. Conéctate a internet para renovarla.',
+          Colors.orange,
+        );
+      }
     }
   }
 
@@ -534,6 +555,29 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
 
+              // ── Acceso rápido offline ─────────────────────────────────────
+              if (!isOnlineNotifier.value &&
+                  (_authService?.isStoredTokenValid() ?? false)) ...[
+                _buildOfflineQuickAccess(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.grey.shade200)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'o inicia sesión',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade400),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: Colors.grey.shade200)),
+                    ],
+                  ),
+                ),
+              ],
+
               // Volver a biométrico
               if (_hasSession && _bioEnabled)
                 Padding(
@@ -722,6 +766,57 @@ class _LoginScreenState extends State<LoginScreen>
           ),
         ),
       ),
+    );
+  }
+
+  // ── Acceso rápido cuando no hay internet pero el token es válido ─────────
+
+  Widget _buildOfflineQuickAccess() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 14, color: Colors.amber.shade700),
+            const SizedBox(width: 6),
+            Text(
+              'Sin internet · Acceso offline disponible',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.amber.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _OfflineShortcutButton(
+                icon: Icons.fingerprint,
+                label: 'Asistencia',
+                onTap: () {
+                  _initFcm();
+                  Navigator.pushReplacementNamed(context, '/asistencia');
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _OfflineShortcutButton(
+                icon: Icons.build_outlined,
+                label: 'Proyectos',
+                onTap: () {
+                  _initFcm();
+                  tabNotifier.value = 1; // tab Operaciones
+                  Navigator.pushReplacementNamed(context, '/');
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -928,6 +1023,51 @@ class _LoginScreenState extends State<LoginScreen>
             borderRadius: BorderRadius.circular(14),
             borderSide: const BorderSide(color: _kGreenBtn, width: 1.5),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Botón de acceso rápido offline
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OfflineShortcutButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _OfflineShortcutButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: _kGreenBtn.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _kGreenBtn.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: _kGreenBtn, size: 22),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: _kGreenBtn,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );

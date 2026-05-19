@@ -133,6 +133,37 @@ class AuthService {
     }
   }
 
+  // ── Validación local del JWT (sin red) ───────────────────────────────────
+
+  /// Decodifica el JWT guardado en disco y comprueba si aún no expiró.
+  /// No requiere red — solo inspecciona el campo `exp` del payload.
+  bool isStoredTokenValid() {
+    try {
+      final token = _prefs.getString(_tokenKey);
+      if (token == null) return false;
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+
+      // Base64url → base64 estándar con padding correcto
+      var payload = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+      switch (payload.length % 4) {
+        case 2: payload += '=='; break;
+        case 3: payload += '='; break;
+      }
+
+      final data = jsonDecode(
+        utf8.decode(base64Decode(payload)),
+      ) as Map<String, dynamic>;
+
+      final exp = data['exp'] as int?;
+      if (exp == null) return false;
+      final expiry = DateTime.fromMillisecondsSinceEpoch(exp * 1000, isUtc: true);
+      return DateTime.now().toUtc().isBefore(expiry);
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Token refresh (biometric flow) ───────────────────────────────────────
 
   Future<void> refreshToken() async {

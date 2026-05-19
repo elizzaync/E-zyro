@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mantenimiento_models.dart';
+import 'asistencia_service.dart';
 import 'mantenimiento_service.dart';
 
 class SyncService {
   static const _queueKey = 'evidencias_pendientes';
+
+  // ── Cola de evidencias de mantenimiento (SharedPreferences) ───────────────
 
   Future<List<EvidenciaPendiente>> getQueue() async {
     final prefs = await SharedPreferences.getInstance();
@@ -38,11 +41,11 @@ class SyncService {
   }
 
   Future<bool> isOnline() async {
-    final result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await Connectivity().checkConnectivity();
+    return !results.contains(ConnectivityResult.none) && results.isNotEmpty;
   }
 
-  /// Uploads all pending items. Returns number of successfully uploaded items.
+  /// Sube todas las evidencias de mantenimiento pendientes.
   Future<int> processQueue(MantenimientoService service) async {
     if (!await isOnline()) return 0;
     final queue = await getQueue();
@@ -68,5 +71,32 @@ class SyncService {
       }
     }
     return uploaded;
+  }
+
+  // ── Cola de asistencias offline (SQLite) ──────────────────────────────────
+
+  bool _syncingAsistencias = false;
+
+  /// Sincroniza registros de asistencia pendientes con el servidor.
+  /// No bloquea la UI: se llama fire-and-forget o desde el listener de red.
+  Future<int> procesarColaAsistencias(AsistenciaService asistenciaService) async {
+    if (_syncingAsistencias) return 0; // evitar ejecuciones concurrentes
+    if (!await isOnline()) return 0;
+
+    _syncingAsistencias = true;
+    try {
+      return await asistenciaService.sincronizarPendientes();
+    } finally {
+      _syncingAsistencias = false;
+    }
+  }
+
+  /// Ejecuta ambas colas secuencialmente cuando se recupera la red.
+  Future<void> procesarTodo({
+    required MantenimientoService mantenimientoService,
+    required AsistenciaService asistenciaService,
+  }) async {
+    await processQueue(mantenimientoService);
+    await procesarColaAsistencias(asistenciaService);
   }
 }

@@ -8,3 +8,7 @@ final tabNotifier = ValueNotifier<int>(0);
 
 /// Controla la sub-pestaña activa dentro de PersonalScreen (0=Perfil, 1=Asistencia, 2=Documentos).
 final personalSubTabNotifier = ValueNotifier<int>(0);
+
+/// Cantidad de registros de asistencia pendientes de sincronización.
+/// Lo actualiza AsistenciaService al marcar offline y al terminar cada sync.
+final pendientesAsistenciaNotifier = ValueNotifier<int>(0);

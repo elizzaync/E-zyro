@@ -6,8 +6,10 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/asistencia_models.dart';
+import '../repositories/asistencia_local_repo.dart';
 import '../services/asistencia_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_notifiers.dart';
 
 class AsistenciaScreen extends StatefulWidget {
   const AsistenciaScreen({super.key});
@@ -35,6 +37,10 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   EstadoHoy? _estadoHoy;
   List<RegistroAsistencia> _historial = [];
   bool _cargandoInicial = true;
+
+  // Registros offline pendientes de sincronización
+  int _pendientesSinc = 0;
+  final _localRepo = AsistenciaLocalRepo();
 
   // ── Getters derivados ──────────────────────────────────────────────────────
   bool get _tieneFotoBase => _estadoHoy?.tieneFotoBase ?? false;
@@ -70,6 +76,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       const Duration(seconds: 1),
       (_) { if (mounted) setState(() => _now = DateTime.now()); },
     );
+    // Escuchar el notifier global para actualizar el badge cuando el sync externo termine
+    pendientesAsistenciaNotifier.addListener(_onPendientesChanged);
     _init();
     _fetchLocation();
   }
@@ -77,7 +85,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   @override
   void dispose() {
     _clockTimer?.cancel();
+    pendientesAsistenciaNotifier.removeListener(_onPendientesChanged);
     super.dispose();
+  }
+
+  void _onPendientesChanged() {
+    if (mounted) setState(() => _pendientesSinc = pendientesAsistenciaNotifier.value);
   }
 
   Future<void> _init() async {
@@ -85,6 +98,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     final svc = await getAsistenciaService();
     if (mounted) setState(() { _service = svc; _userName = prefs.getString('user_name') ?? 'Usuario'; });
     await _cargarDatos(svc);
+    await _refreshPendientes();
+  }
+
+  Future<void> _refreshPendientes() async {
+    final count = await _localRepo.contarPendientes();
+    if (mounted) setState(() => _pendientesSinc = count);
   }
 
   Future<void> _cargarDatos(AsistenciaService svc) async {
@@ -255,15 +274,19 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   void _onMarkCompleted(MarcarResponse result) {
     _showResultDialog(result);
+    _refreshPendientes();
     if (_service != null) _cargarDatos(_service!);
   }
 
   // ── Diálogo de resultado ───────────────────────────────────────────────────
   void _showResultDialog(MarcarResponse r) {
+    final esPendiente  = r.status == 'PENDIENTE_SYNC';
     final aprobado     = r.status == 'APROBADO';
     final esRevision   = r.resultadoIa == 'revision_manual';
     const green        = Color(0xFF8FD11B);
-    final statusColor  = aprobado ? green : (esRevision ? Colors.orange : Colors.red);
+    final statusColor  = esPendiente
+        ? Colors.amber.shade600
+        : (aprobado ? green : (esRevision ? Colors.orange : Colors.red));
 
     showDialog(
       context: context,
@@ -286,13 +309,17 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   boxShadow: [BoxShadow(color: statusColor.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4)],
                 ),
                 child: Icon(
-                  aprobado ? Icons.check_rounded : (esRevision ? Icons.hourglass_top_rounded : Icons.close_rounded),
+                  esPendiente
+                      ? Icons.cloud_off_rounded
+                      : (aprobado ? Icons.check_rounded : (esRevision ? Icons.hourglass_top_rounded : Icons.close_rounded)),
                   color: Colors.white, size: 50,
                 ),
               ),
               const SizedBox(height: 20),
               Text(
-                aprobado ? '¡APROBADO!' : (esRevision ? 'EN REVISIÓN' : 'RECHAZADO'),
+                esPendiente
+                    ? 'GUARDADO OFFLINE'
+                    : (aprobado ? '¡APROBADO!' : (esRevision ? 'EN REVISIÓN' : 'RECHAZADO')),
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: statusColor),
               ),
               const SizedBox(height: 6),
@@ -388,6 +415,10 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               _buildHeader(),
               const SizedBox(height: 16),
               _buildLocationCard(),
+              if (_pendientesSinc > 0) ...[
+                const SizedBox(height: 12),
+                _buildPendingBanner(),
+              ],
               const SizedBox(height: 16),
               _buildStatusHoy(),
               const SizedBox(height: 20),
@@ -766,6 +797,34 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           Text(
             subtitle.isNotEmpty ? subtitle : 'Pendiente',
             style: const TextStyle(fontSize: 10, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Banner: registros offline pendientes ──────────────────────────────────
+  Widget _buildPendingBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade300),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_sync_outlined, color: Colors.amber.shade700, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$_pendientesSinc ${_pendientesSinc == 1 ? 'registro pendiente' : 'registros pendientes'} de sincronización',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.amber.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

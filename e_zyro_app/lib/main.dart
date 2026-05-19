@@ -4,7 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'core/api_client.dart';
+import 'core/connectivity_service.dart';
+import 'services/asistencia_service.dart';
 import 'utils/app_notifiers.dart';
+import 'widgets/offline_overlay.dart';
 import 'screens/pantalla_splash.dart';
 import 'screens/pantalla_principal.dart';
 import 'screens/pantalla_operaciones.dart';
@@ -39,6 +43,7 @@ void main() async {
   themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
   await initializeDateFormatting('es_ES', null);
   await NotificationService.initialize();
+  await ConnectivityService.instance.initialize();
   runApp(const ESystemApp());
 }
 
@@ -138,12 +143,14 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late int _currentIndex;
 
-  final List<Widget> _screens = const [
-    HomeScreen(),
+  // Operaciones (índice 1) funciona offline con datos en memoria.
+  // El resto requiere red → OfflineOverlay los bloquea automáticamente.
+  static const List<Widget> _screens = [
+    OfflineOverlay(child: HomeScreen()),
     OperationsScreen(),
-    LogisticsScreen(),
-    PersonalScreen(),
-    MoreScreen(),
+    OfflineOverlay(child: LogisticsScreen()),
+    OfflineOverlay(child: PersonalScreen()),
+    OfflineOverlay(child: MoreScreen()),
   ];
 
   @override
@@ -151,11 +158,14 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     _currentIndex = widget.initialIndex;
     tabNotifier.addListener(_onTabChanged);
+    // Disparar sync de asistencias al volver a tener red
+    isOnlineNotifier.addListener(_onConnectivityChanged);
   }
 
   @override
   void dispose() {
     tabNotifier.removeListener(_onTabChanged);
+    isOnlineNotifier.removeListener(_onConnectivityChanged);
     super.dispose();
   }
 
@@ -165,17 +175,64 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  void _onTabTapped(int index) {
+  void _onConnectivityChanged() {
+    if (!mounted) return;
+    if (isOnlineNotifier.value) {
+      // Volvió la red → disparar sync de asistencias en background
+      _triggerAsistenciaSync();
+    }
+  }
+
+  Future<void> _triggerAsistenciaSync() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final svc = AsistenciaService(ApiClient(prefs));
+      await svc.sincronizarPendientes();
+    } catch (_) {}
+  }
+
+  void _onTabTappedWithOfflineCheck(int index) {
+    // Informar al usuario si intenta acceder a una tab bloqueada sin red
+    if (!isOnlineNotifier.value && index != 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Sin conexión. Solo Operaciones disponible offline.',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFFF59E0B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
     tabNotifier.value = index;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: IndexedStack(index: _currentIndex, children: _screens),
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: _onTabTapped,
+        onTap: _onTabTappedWithOfflineCheck,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF8FD11B),
         unselectedItemColor: Colors.grey,
