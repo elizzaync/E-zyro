@@ -20,6 +20,7 @@ class Requerimiento(Base):
     tipo                 = Column(String(30), nullable=False, default="material")
     estado               = Column(String(20), nullable=False, default="pendiente")
     observacion          = Column(String(500))
+    observacion_logistico = Column(String(500), nullable=True)  # HU-16
     fecha                = Column(Date, nullable=False, default=date.today)
     aprobado_por         = Column(String(36), ForeignKey("empleado.id"))
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)

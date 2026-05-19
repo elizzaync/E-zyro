@@ -10,6 +10,8 @@ class CatalogoItemOut(BaseModel):
     unidad: str
     stock: int
     categoria: Optional[str]
+    descripcion: Optional[str] = None   # HU-15
+    imagen_url: Optional[str] = None    # HU-15
 
 
 class SolicitudDetalleOut(BaseModel):
@@ -26,6 +28,7 @@ class MiSolicitudOut(BaseModel):
     estado: str
     fecha: str
     observacion: Optional[str]
+    observacion_logistico: Optional[str] = None  # HU-16
     proyecto_nombre: str
     items: List[SolicitudDetalleOut]
 

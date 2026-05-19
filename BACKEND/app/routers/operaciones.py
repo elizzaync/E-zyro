@@ -4,8 +4,10 @@ Gestión completa del módulo de Operaciones / Detalle de Servicio.
 """
 from __future__ import annotations
 
+import io
 import re
 import uuid as _uuid
+import zipfile
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
@@ -16,7 +18,8 @@ from sqlalchemy.orm import Session, aliased
 
 from ..core.security import verificar_token
 from ..db.database import get_db
-from ..services.cloudinary_service import subir_archivo_cloudinary
+import requests as _requests
+from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary
 
 # Modelos ORM
 from ..models.proyecto_servicio import ProyectoServicio
@@ -30,6 +33,11 @@ from ..models.procedimiento import Procedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.material import Material, Stock
+from ..models.equipo import Equipo
+from ..models.tipo_equipo import TipoEquipo
+from ..models.orden_mantenimiento import OrdenMantenimiento
+from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
+from ..models.informe_tecnico import InformeTecnico
 
 # Schemas Pydantic
 from ..schemas.operaciones import (
@@ -46,6 +54,9 @@ from ..schemas.operaciones import (
     ProyectoServicioListOut,
     KpisProyectosOut,
     ProyectosConKpisOut,
+    EquipoItemOut,
+    MantenimientoHistorialOut,
+    FotoEvidenciaOut,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -733,3 +744,354 @@ def buscar_materiales(
     )
 
     return [{"id": r.id, "nombre": r.nombre, "unidad": r.unidad, "stock": int(r.stock)} for r in rows]
+
+
+# ── GET /operaciones/proyecto/{proyecto_id}/equipos ───────────────────────────
+# HU-18: Lista de equipos del proyecto con tipo y progreso
+
+@router.get("/proyecto/{proyecto_id}/equipos", response_model=List[EquipoItemOut])
+def get_equipos_proyecto(
+    proyecto_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    rows = (
+        db.query(Equipo, TipoEquipo.nombre.label("tipo_nombre"))
+        .outerjoin(TipoEquipo, TipoEquipo.id == Equipo.tipo_equipo_id)
+        .filter(
+            Equipo.proyecto_id == proyecto_id,
+            Equipo.empresa_id  == empresa_id,
+        )
+        .all()
+    )
+
+    return [
+        EquipoItemOut(
+            id=r.Equipo.id,
+            nombre=r.Equipo.nombre,
+            descripcion=r.Equipo.modelo,
+            ubicacion=r.Equipo.ubicacion,
+            estado=r.Equipo.estado,
+            tipo=r.tipo_nombre,
+            progreso_porcentaje=None,
+        )
+        for r in rows
+    ]
+
+
+# ── POST /operaciones/mantenimientos/{equipo_id}/finalizar ────────────────────
+# HU-18: Cierra la orden activa, genera PDF y lo sube a Cloudinary
+
+@router.post("/mantenimientos/{equipo_id}/finalizar", status_code=status.HTTP_200_OK)
+def finalizar_mantenimiento(
+    equipo_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+
+    equipo = db.query(Equipo).filter(
+        Equipo.id == equipo_id,
+        Equipo.empresa_id == empresa_id,
+    ).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    orden = (
+        db.query(OrdenMantenimiento)
+        .filter(
+            OrdenMantenimiento.equipo_id  == equipo_id,
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
+        )
+        .order_by(OrdenMantenimiento.created_at.desc())
+        .first()
+    )
+
+    if not orden:
+        orden = OrdenMantenimiento(
+            id=str(_uuid.uuid4()),
+            equipo_id=equipo_id,
+            empresa_id=empresa_id,
+            tecnico_id=empleado.id,
+            tipo="preventivo",
+            estado="completado",
+            fecha=date.today(),
+            fecha_inicio=datetime.utcnow(),
+            fecha_fin=datetime.utcnow(),
+        )
+        db.add(orden)
+        db.flush()
+    else:
+        orden.estado    = "completado"
+        orden.fecha_fin = datetime.utcnow()
+        if not orden.tecnico_id:
+            orden.tecnico_id = empleado.id
+
+    equipo.estado = "operativo"
+    db.flush()
+
+    evidencias = (
+        db.query(EvidenciaMantenimiento)
+        .filter(EvidenciaMantenimiento.orden_id == orden.id)
+        .order_by(EvidenciaMantenimiento.fecha_captura.asc())
+        .all()
+    )
+
+    pdf_bytes = _generar_pdf_mantenimiento(
+        equipo_nombre=equipo.nombre,
+        orden_id=orden.id,
+        fecha=orden.fecha_fin or datetime.utcnow(),
+        tecnico_nombre=f"{empleado.nombre} {empleado.apellido}".strip(),
+        evidencias=evidencias,
+    )
+
+    pdf_url = None
+    pdf_public_id = f"e_zyro/{empresa_id}/informes/informe_{orden.id}"
+    try:
+        pdf_url = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)
+    except Exception:
+        pass
+
+    if pdf_url:
+        informe = InformeTecnico(
+            id=str(_uuid.uuid4()),
+            orden_id=orden.id,
+            empresa_id=empresa_id,
+            titulo=f"Informe de Mantenimiento — {equipo.nombre}",
+            contenido=f"Mantenimiento completado el {orden.fecha_fin.strftime('%d/%m/%Y')}",
+            url_archivo=pdf_url,
+            public_id_cloudinary=pdf_public_id,
+            generado_por=empleado.id,
+            fecha=date.today(),
+        )
+        db.add(informe)
+
+    db.commit()
+    return {
+        "ok": True,
+        "orden_id": orden.id,
+        "pdf_url": pdf_url,
+    }
+
+
+def _generar_pdf_mantenimiento(
+    equipo_nombre: str,
+    orden_id: str,
+    fecha: datetime,
+    tecnico_nombre: str,
+    evidencias: list,
+) -> bytes:
+    from reportlab.pdfgen import canvas as rl_canvas
+    from reportlab.lib.pagesizes import A4
+
+    buf = io.BytesIO()
+    c = rl_canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, h - 60, "INFORME TÉCNICO DE MANTENIMIENTO")
+
+    c.setFont("Helvetica", 11)
+    c.drawString(50, h - 90,  f"Equipo:   {equipo_nombre}")
+    c.drawString(50, h - 110, f"Técnico:  {tecnico_nombre}")
+    c.drawString(50, h - 130, f"Fecha:    {fecha.strftime('%d/%m/%Y %H:%M')}")
+    c.drawString(50, h - 150, f"Orden ID: {orden_id[:8]}...")
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, h - 190, "Evidencias fotográficas:")
+
+    y = h - 215
+    c.setFont("Helvetica", 10)
+    for ev in evidencias:
+        etapa    = ev.etapa.upper() if ev.etapa else ""
+        fecha_ev = ev.fecha_captura.strftime("%d/%m/%Y %H:%M") if ev.fecha_captura else ""
+        c.drawString(60, y, f"• [{etapa}] {fecha_ev} — {ev.url_cloudinary[:60]}...")
+        y -= 16
+        if y < 80:
+            c.showPage()
+            y = h - 60
+
+    c.setFont("Helvetica-Oblique", 9)
+    c.drawString(50, 40, "Generado automáticamente por E-Zyro · Sistema de Gestión de Servicios")
+
+    c.save()
+    buf.seek(0)
+    return buf.read()
+
+
+# ── GET /operaciones/equipos/{equipo_id}/historial ────────────────────────────
+# HU-19: Lista de mantenimientos previos del equipo
+
+@router.get("/equipos/{equipo_id}/historial", response_model=List[MantenimientoHistorialOut])
+def get_historial_equipo(
+    equipo_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    equipo = db.query(Equipo).filter(
+        Equipo.id == equipo_id,
+        Equipo.empresa_id == empresa_id,
+    ).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    ordenes = (
+        db.query(OrdenMantenimiento)
+        .filter(
+            OrdenMantenimiento.equipo_id  == equipo_id,
+            OrdenMantenimiento.empresa_id == empresa_id,
+        )
+        .order_by(OrdenMantenimiento.created_at.desc())
+        .all()
+    )
+
+    if not ordenes:
+        return []
+
+    orden_ids   = [o.id for o in ordenes]
+    tecnico_ids = list({o.tecnico_id for o in ordenes if o.tecnico_id})
+
+    tecnicos_map: dict[str, str] = {}
+    if tecnico_ids:
+        tecnicos = db.query(Empleado).filter(Empleado.id.in_(tecnico_ids)).all()
+        tecnicos_map = {e.id: f"{e.nombre} {e.apellido}".strip() for e in tecnicos}
+
+    evidencias_rows = (
+        db.query(EvidenciaMantenimiento)
+        .filter(EvidenciaMantenimiento.orden_id.in_(orden_ids))
+        .order_by(EvidenciaMantenimiento.fecha_captura.asc())
+        .all()
+    )
+    evidencias_by_orden: dict[str, list] = {}
+    for ev in evidencias_rows:
+        evidencias_by_orden.setdefault(ev.orden_id, []).append(ev)
+
+    informes_rows = (
+        db.query(InformeTecnico)
+        .filter(InformeTecnico.orden_id.in_(orden_ids))
+        .all()
+    )
+    informes_map: dict[str, InformeTecnico] = {i.orden_id: i for i in informes_rows}
+
+    proyecto_nombre = "Sin proyecto"
+    if equipo.proyecto_id:
+        proy = db.query(Proyecto).filter(Proyecto.id == equipo.proyecto_id).first()
+        if proy:
+            proyecto_nombre = proy.nombre_proyecto or proy.orden_trabajo or "Proyecto"
+
+    result = []
+    for orden in ordenes:
+        fotos = [
+            FotoEvidenciaOut(
+                url=ev.url_cloudinary,
+                tipo=ev.etapa or "antes",
+                fecha=ev.fecha_captura.strftime("%d/%m/%Y %H:%M") if ev.fecha_captura else None,
+            )
+            for ev in evidencias_by_orden.get(orden.id, [])
+        ]
+        informe = informes_map.get(orden.id)
+        result.append(MantenimientoHistorialOut(
+            id=orden.id,
+            fecha=orden.fecha.strftime("%d/%m/%Y") if orden.fecha else "",
+            tecnico_nombre=tecnicos_map.get(orden.tecnico_id or "", "Sin técnico"),
+            proyecto_nombre=proyecto_nombre,
+            estado=orden.estado or "completado",
+            fotos=fotos,
+            informe_pdf_url=informe.url_archivo if informe else None,
+            evidencias_zip_url=None,
+        ))
+
+    return result
+
+
+# ── GET /operaciones/mantenimientos/{mantenimiento_id}/informe-pdf ─────────────
+# HU-19: URL del PDF del informe técnico
+
+@router.get("/mantenimientos/{mantenimiento_id}/informe-pdf")
+def get_informe_pdf(
+    mantenimiento_id: str,
+    payload:  dict    = Depends(verificar_token),
+    db:       Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    informe = (
+        db.query(InformeTecnico)
+        .filter(
+            InformeTecnico.orden_id   == mantenimiento_id,
+            InformeTecnico.empresa_id == empresa_id,
+        )
+        .first()
+    )
+
+    if not informe or not informe.url_archivo:
+        raise HTTPException(status_code=404, detail="Informe PDF no disponible")
+
+    return {"url": informe.url_archivo}
+
+
+# ── GET /operaciones/mantenimientos/{mantenimiento_id}/evidencias-zip ──────────
+# HU-19: Genera un ZIP con todas las evidencias y sube a Cloudinary
+
+@router.get("/mantenimientos/{mantenimiento_id}/evidencias-zip")
+def get_evidencias_zip(
+    mantenimiento_id: str,
+    payload:  dict    = Depends(verificar_token),
+    db:       Session = Depends(get_db),
+):
+    import cloudinary.uploader
+
+    empresa_id = payload["empresa_id"]
+
+    orden = db.query(OrdenMantenimiento).filter(
+        OrdenMantenimiento.id         == mantenimiento_id,
+        OrdenMantenimiento.empresa_id == empresa_id,
+    ).first()
+    if not orden:
+        raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    evidencias = (
+        db.query(EvidenciaMantenimiento)
+        .filter(EvidenciaMantenimiento.orden_id == mantenimiento_id)
+        .all()
+    )
+    if not evidencias:
+        raise HTTPException(status_code=404, detail="Sin evidencias para esta orden")
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for i, ev in enumerate(evidencias):
+            try:
+                resp = _requests.get(ev.url_cloudinary, timeout=10)
+                if resp.status_code == 200:
+                    ext = ev.url_cloudinary.rsplit(".", 1)[-1].split("?")[0] or "jpg"
+                    zf.writestr(f"{ev.etapa or 'foto'}_{i+1:02d}.{ext}", resp.content)
+            except Exception:
+                continue
+
+    zip_buf.seek(0)
+    zip_bytes = zip_buf.read()
+
+    if not zip_bytes:
+        raise HTTPException(status_code=500, detail="No se pudo generar el ZIP")
+
+    try:
+        public_id = f"e_zyro/{empresa_id}/evidencias_zip/evidencias_{mantenimiento_id}.zip"
+        resultado = cloudinary.uploader.upload(
+            io.BytesIO(zip_bytes),
+            public_id=public_id,
+            resource_type="raw",
+            overwrite=True,
+            invalidate=True,
+        )
+        return {"url": resultado.get("secure_url")}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al subir ZIP")

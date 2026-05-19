@@ -45,11 +45,18 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
 
 @router.get("/catalogo", response_model=List[CatalogoItemOut])
 def get_catalogo(
-    q: str = "",
-    payload: dict = Depends(verificar_token),
-    db: Session = Depends(get_db),
+    q:         str = "",
+    categoria: str = "",     # HU-15: filtro por categoría
+    page:      int = 1,      # HU-15: página (base 1)
+    page_size: int = 30,     # HU-15: items por página
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
+
+    page_size = min(max(page_size, 1), 100)
+    page      = max(page, 1)
+    offset    = (page - 1) * page_size
 
     stock_sq = (
         db.query(
@@ -67,6 +74,7 @@ def get_catalogo(
             Material.nombre,
             Material.codigo,
             Material.unidad,
+            Material.descripcion,
             CategoriaMaterial.nombre.label("categoria"),
             func.coalesce(stock_sq.c.total, 0).label("stock"),
         )
@@ -79,9 +87,21 @@ def get_catalogo(
     )
 
     if q:
-        query = query.filter(Material.nombre.ilike(f"%{q}%"))
+        query = query.filter(
+            (Material.nombre.ilike(f"%{q}%")) |
+            (Material.codigo.ilike(f"%{q}%"))
+        )
 
-    rows = query.order_by(Material.nombre.asc()).limit(50).all()
+    if categoria:
+        query = query.filter(CategoriaMaterial.nombre.ilike(f"%{categoria}%"))
+
+    rows = (
+        query
+        .order_by(Material.nombre.asc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
 
     return [
         CatalogoItemOut(
@@ -91,6 +111,8 @@ def get_catalogo(
             unidad=r.unidad,
             stock=int(r.stock),
             categoria=r.categoria,
+            descripcion=r.descripcion,
+            imagen_url=None,
         )
         for r in rows
     ]
@@ -171,6 +193,7 @@ def get_mis_solicitudes(
             estado=req.estado or "pendiente",
             fecha=req.fecha.strftime("%d %b %Y") if req.fecha else "",
             observacion=req.observacion,
+            observacion_logistico=req.observacion_logistico,  # HU-16
             proyecto_nombre=proyecto_nombre,
             items=items,
         ))

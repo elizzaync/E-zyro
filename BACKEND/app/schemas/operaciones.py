@@ -110,6 +110,38 @@ class DashboardServicioOut(BaseModel):
     alerta: bool = False
 
 
+# ── HU-18: Equipos con tipo y progreso ───────────────────────────────────────
+
+class EquipoItemOut(BaseModel):
+    id: str
+    nombre: str
+    descripcion: Optional[str]
+    ubicacion: Optional[str]
+    estado: str
+    tipo: Optional[str] = None
+    progreso_porcentaje: Optional[float] = None
+
+
+# ── HU-19: Historial de mantenimientos ───────────────────────────────────────
+
+class FotoEvidenciaOut(BaseModel):
+    url: str
+    tipo: str
+    paso: Optional[str] = None
+    fecha: Optional[str] = None
+
+
+class MantenimientoHistorialOut(BaseModel):
+    id: str
+    fecha: str
+    tecnico_nombre: str
+    proyecto_nombre: str
+    estado: str
+    fotos: List[FotoEvidenciaOut] = []
+    informe_pdf_url: Optional[str] = None
+    evidencias_zip_url: Optional[str] = None
+
+
 # ── Entrada ───────────────────────────────────────────────────
 
 class ActualizarEstadoBody(BaseModel):
