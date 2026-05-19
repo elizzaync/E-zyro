@@ -107,8 +107,14 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     cantidad: number;
     esNuevo: boolean;
     agregadoPor: string;
+    agregadoPorFoto: string;
     especificacion?: string;
   }> = [];
+  // ── Edición inline de borrador ─────────────────────────────
+  editandoIndice:     number | null = null;
+  editCantBorrador:   number        = 1;
+  editNombreBorrador: string        = '';
+  editEspecBorrador:  string        = '';
   consensoEquipo  = false;
   enviandoLote    = false;
   cargandoBorrador = false;
@@ -164,7 +170,8 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   private _scrollPending = false;
 
   _nombreUsuario = 'Yo';
-  _usuarioId: string | null = null;
+  _usuarioId:   string | null = null;
+  _usuarioFoto  = '';
 
   get _idUsuario(): string {
     const stored = localStorage.getItem('ezyro_user');
@@ -197,6 +204,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         const u = JSON.parse(stored);
         if (u?.nombre_completo) this._nombreUsuario = u.nombre_completo;
         if (u?.id)              this._usuarioId     = u.id;
+        if (u?.foto_url)        this._usuarioFoto   = u.foto_url;
         if (u?.rol === 'jefe_operaciones' || u?.rol === 'administrador') {
           this.soyJefeOperaciones = true;
         }
@@ -260,14 +268,15 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.svc.getBorrador(this.servicioId).subscribe({
       next: (data: any) => {
         this.materialesBorrador = (data.items ?? []).map((item: any) => ({
-          id:             item.id,
-          material_id:    item.material_id,
-          nombre:         item.nombre,
-          unidad:         item.unidad,
-          cantidad:       item.cantidad,
-          esNuevo:        item.es_nuevo,
-          agregadoPor:    '',
-          especificacion: item.especificacion,
+          id:              item.id,
+          material_id:     item.material_id,
+          nombre:          item.nombre,
+          unidad:          item.unidad,
+          cantidad:        item.cantidad,
+          esNuevo:         item.es_nuevo,
+          agregadoPor:     item.agregado_por_nombre || '',
+          agregadoPorFoto: item.agregado_por_foto   || '',
+          especificacion:  item.especificacion,
         }));
         this.cargandoBorrador = false;
       },
@@ -614,13 +623,14 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     }).subscribe({
       next: (res: any) => {
         this.materialesBorrador.push({
-          id:          res.detalle_id,
-          material_id: mat.id,
-          nombre:      mat.nombre,
-          unidad:      mat.unidad,
-          cantidad:    this.cantidadSolicitar,
-          esNuevo:     false,
-          agregadoPor: this._nombreUsuario,
+          id:              res.detalle_id,
+          material_id:     mat.id,
+          nombre:          mat.nombre,
+          unidad:          mat.unidad,
+          cantidad:        this.cantidadSolicitar,
+          esNuevo:         false,
+          agregadoPor:     this._nombreUsuario,
+          agregadoPorFoto: this._usuarioFoto,
         });
         this.materialElegido    = null;
         this.busquedaMaterial   = '';
@@ -646,14 +656,15 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     }).subscribe({
       next: (res: any) => {
         this.materialesBorrador.push({
-          id:             res.detalle_id,
-          material_id:    null,
+          id:              res.detalle_id,
+          material_id:     null,
           nombre,
-          unidad:         this.manualUnidad,
-          cantidad:       this.manualCantidad,
-          esNuevo:        true,
-          agregadoPor:    this._nombreUsuario,
-          especificacion: espec,
+          unidad:          this.manualUnidad,
+          cantidad:        this.manualCantidad,
+          esNuevo:         true,
+          agregadoPor:     this._nombreUsuario,
+          agregadoPorFoto: this._usuarioFoto,
+          especificacion:  espec,
         });
         this.manualNombre         = '';
         this.manualCantidad       = 1;
@@ -662,6 +673,38 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.solicitando          = false;
       },
       error: () => { this.solicitando = false; }
+    });
+  }
+
+  editarItemBorrador(index: number): void {
+    const item = this.materialesBorrador[index];
+    this.editandoIndice     = index;
+    this.editCantBorrador   = item.cantidad;
+    this.editNombreBorrador = item.nombre;
+    this.editEspecBorrador  = item.especificacion ?? '';
+  }
+
+  cancelarEdicionBorrador(): void {
+    this.editandoIndice = null;
+  }
+
+  guardarEdicionBorrador(index: number): void {
+    const item = this.materialesBorrador[index];
+    if (this.editCantBorrador < 1) return;
+    const body: any = { cantidad: this.editCantBorrador };
+    if (item.esNuevo) {
+      body.nombre         = this.editNombreBorrador.trim() || item.nombre;
+      body.especificacion = this.editEspecBorrador.trim();
+    }
+    this.svc.actualizarRequerimientoDetalle(item.id, body).subscribe({
+      next: () => {
+        item.cantidad = this.editCantBorrador;
+        if (item.esNuevo) {
+          item.nombre         = body.nombre;
+          item.especificacion = body.especificacion;
+        }
+        this.editandoIndice = null;
+      }
     });
   }
 

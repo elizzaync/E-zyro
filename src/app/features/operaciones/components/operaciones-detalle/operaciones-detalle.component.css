@@ -1270,6 +1270,9 @@
 .bi-footer-info  { display: flex; align-items: center; gap: 7px; margin-top: 2px; }
 .bi-agregado-por { font-size: 11px; color: var(--text-muted, #94a3b8); font-weight: 500; }
 
+/* ── Acciones del ítem (lápiz + X) ── */
+.bi-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+
 .btn-borrar-item {
   background: rgba(239, 68, 68, .1); color: #ef4444; border: none;
   width: 26px; height: 26px; border-radius: 6px; cursor: pointer;
@@ -1277,6 +1280,44 @@
 }
 .btn-borrar-item:hover { background: rgba(239, 68, 68, .2); }
 .btn-borrar-item svg { width: 12px; height: 12px; }
+
+.btn-editar-item {
+  background: rgba(59,130,246,.1); color: #3b82f6; border: none;
+  width: 26px; height: 26px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: .2s;
+}
+.btn-editar-item:hover { background: rgba(59,130,246,.2); }
+.btn-editar-item svg { width: 12px; height: 12px; }
+
+/* ── Avatar foto ── */
+.bi-avatar-img {
+  width: 20px; height: 20px; border-radius: 50%;
+  object-fit: cover; flex-shrink: 0;
+}
+
+/* ── Formulario edición inline ── */
+.bi-edit-form { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 4px 0; }
+.bi-edit-row  { display: flex; align-items: center; gap: 8px; }
+.bi-edit-label { font-size: 11px; font-weight: 600; color: var(--text-muted, #94a3b8); min-width: 80px; }
+.bi-edit-input {
+  flex: 1; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border, #e2e8f0);
+  font-size: 12px; background: var(--bg-main, #fff); color: var(--text-main, #0f172a);
+  outline: none; transition: border-color .2s;
+}
+.bi-edit-input:focus { border-color: var(--brand-green, #91d337); }
+.bi-edit-cant { max-width: 70px; }
+.bi-edit-unidad { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.bi-edit-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+.btn-edit-save {
+  padding: 4px 14px; border-radius: 6px; border: none; cursor: pointer;
+  background: var(--brand-green, #91d337); color: #fff; font-size: 11px; font-weight: 700; transition: .2s;
+}
+.btn-edit-save:hover { opacity: .85; }
+.btn-edit-cancel {
+  padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border, #e2e8f0); cursor: pointer;
+  background: transparent; color: var(--text-muted, #94a3b8); font-size: 11px; font-weight: 600; transition: .2s;
+}
+.btn-edit-cancel:hover { background: var(--bg-alt, #f8fafc); }
 
 .consenso-box { margin-bottom: 14px; }
 .checkbox-label {
@@ -1383,3 +1424,6 @@
 
 :host-context([data-theme="dark"]) .badge-compra       { background: rgba(124,58,237,.15); color: #a78bfa; border-color: rgba(124,58,237,.3); }
 :host-context([data-theme="dark"]) .bi-especificacion  { color: #94a3b8; background: rgba(139,92,246,.07); border-left-color: rgba(139,92,246,.25); }
+:host-context([data-theme="dark"]) .bi-edit-input      { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+:host-context([data-theme="dark"]) .btn-edit-cancel    { border-color: #334155; color: #94a3b8; }
+:host-context([data-theme="dark"]) .btn-edit-cancel:hover { background: #1e293b; }

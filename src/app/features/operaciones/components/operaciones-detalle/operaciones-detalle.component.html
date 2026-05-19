@@ -271,6 +271,34 @@
             <ul class="lista-borrador">
               @for (item of materialesBorrador; track $index) {
               <li class="borrador-item" [class.item-nuevo]="item.esNuevo">
+
+                @if (editandoIndice === $index) {
+                <!-- ── MODO EDICIÓN ── -->
+                <div class="bi-edit-form">
+                  @if (item.esNuevo) {
+                  <div class="bi-edit-row">
+                    <label class="bi-edit-label">Nombre</label>
+                    <input class="bi-edit-input" [(ngModel)]="editNombreBorrador" placeholder="Nombre del material">
+                  </div>
+                  }
+                  <div class="bi-edit-row">
+                    <label class="bi-edit-label">Cantidad</label>
+                    <input class="bi-edit-input bi-edit-cant" type="number" min="1" [(ngModel)]="editCantBorrador">
+                    <span class="bi-edit-unidad">{{ item.unidad }}</span>
+                  </div>
+                  @if (item.esNuevo) {
+                  <div class="bi-edit-row">
+                    <label class="bi-edit-label">Especificación</label>
+                    <input class="bi-edit-input" [(ngModel)]="editEspecBorrador" placeholder="Especificación (opcional)">
+                  </div>
+                  }
+                  <div class="bi-edit-actions">
+                    <button class="btn-edit-save" (click)="guardarEdicionBorrador($index)">Guardar</button>
+                    <button class="btn-edit-cancel" (click)="cancelarEdicionBorrador()">Cancelar</button>
+                  </div>
+                </div>
+                } @else {
+                <!-- ── MODO VISTA ── -->
                 <div class="bi-main-content">
                   <div class="bi-header">
                     <span class="bi-nombre">{{ item.nombre }}</span>
@@ -285,16 +313,30 @@
                   <p class="bi-especificacion">{{ item.especificacion }}</p>
                   }
                   <div class="bi-footer-info">
+                    @if (item.agregadoPorFoto) {
+                    <img class="bi-avatar-img" [src]="item.agregadoPorFoto" [alt]="item.agregadoPor">
+                    } @else {
                     <span class="bi-avatar">{{ item.agregadoPor | slice:0:1 | uppercase }}</span>
-                    <span class="bi-agregado-por">Añadido por {{ item.agregadoPor }}</span>
+                    }
+                    <span class="bi-agregado-por">Añadido por {{ item.agregadoPor || 'Equipo' }}</span>
                   </div>
                 </div>
-                <button class="btn-borrar-item" (click)="removerDelBorrador($index)" title="Quitar">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
+                <div class="bi-actions">
+                  <button class="btn-editar-item" (click)="editarItemBorrador($index)" title="Editar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+                  <button class="btn-borrar-item" (click)="removerDelBorrador($index)" title="Quitar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <line x1="18" y1="6" x2="6" y2="18"></line>
+                      <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                  </button>
+                </div>
+                }
+
               </li>
               }
             </ul>
