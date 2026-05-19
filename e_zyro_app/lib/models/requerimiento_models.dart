@@ -5,6 +5,8 @@ class CatalogoItem {
   final String unidad;
   final int stock;
   final String? categoria;
+  final String? descripcion;
+  final String? imagenUrl;
 
   const CatalogoItem({
     required this.id,
@@ -13,6 +15,8 @@ class CatalogoItem {
     required this.unidad,
     required this.stock,
     this.categoria,
+    this.descripcion,
+    this.imagenUrl,
   });
 
   factory CatalogoItem.fromJson(Map<String, dynamic> json) => CatalogoItem(
@@ -22,6 +26,8 @@ class CatalogoItem {
         unidad: json['unidad'] as String,
         stock: (json['stock'] as num).toInt(),
         categoria: json['categoria'] as String?,
+        descripcion: json['descripcion'] as String?,
+        imagenUrl: json['imagen_url'] as String?,
       );
 }
 
@@ -59,6 +65,7 @@ class MiSolicitud {
   final String estado;
   final String fecha;
   final String? observacion;
+  final String? observacionLogistico;
   final String proyectoNombre;
   final List<SolicitudDetalle> items;
 
@@ -67,6 +74,7 @@ class MiSolicitud {
     required this.estado,
     required this.fecha,
     this.observacion,
+    this.observacionLogistico,
     required this.proyectoNombre,
     required this.items,
   });
@@ -76,6 +84,7 @@ class MiSolicitud {
         estado: json['estado'] as String,
         fecha: json['fecha'] as String,
         observacion: json['observacion'] as String?,
+        observacionLogistico: json['observacion_logistico'] as String?,
         proyectoNombre: json['proyecto_nombre'] as String,
         items: (json['items'] as List? ?? [])
             .map((e) => SolicitudDetalle.fromJson(e as Map<String, dynamic>))

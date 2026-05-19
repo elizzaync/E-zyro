@@ -18,6 +18,7 @@ import 'screens/pantalla_calendario.dart';
 import 'screens/pantalla_notificaciones.dart';
 import 'services/notification_service.dart';
 import 'services/fcm_flutter_service.dart';
+import 'screens/pantalla_historial_equipo.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -110,6 +111,14 @@ class ESystemApp extends StatelessWidget {
             ),
             body: const AsistenciaScreen(),
           ),
+          '/historial-equipo': (context) {
+            final args = ModalRoute.of(context)?.settings.arguments
+                as Map<String, String>?;
+            return PantallaHistorialEquipo(
+              equipoId: args?['equipoId'] ?? '',
+              equipoNombre: args?['equipoNombre'] ?? 'Equipo',
+            );
+          },
         },
       ),
     );

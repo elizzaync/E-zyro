@@ -22,6 +22,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   Map<String, FotosMaquina> _progress = {}; // pasoId → FotosMaquina
   bool _isLoading = true;
   bool _isSyncing = false;
+  bool _isFinalizing = false;
   int _pendingCount = 0;
   MantenimientoService? _service;
   final _sync = SyncService();
@@ -167,6 +168,36 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         .length;
   }
 
+  // HU-18: Finalizar mantenimiento y generar informe PDF
+  Future<void> _finalizar() async {
+    if (_isFinalizing || _service == null) return;
+    setState(() => _isFinalizing = true);
+    try {
+      final ok = await _service!.finalizarMantenimiento(widget.equipo.id);
+      if (!mounted) return;
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Mantenimiento finalizado. Informe en generación.'),
+            backgroundColor: _green,
+          ),
+        );
+        Navigator.pop(context, true);
+      } else {
+        setState(() => _isFinalizing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al finalizar. Intenta nuevamente.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isFinalizing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -228,49 +259,89 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
             )
           : _checklist == null
               ? _EmptyState(onRetry: _fetchChecklist)
-              : RefreshIndicator(
-                  onRefresh: () async {
-                    await _fetchChecklist();
-                    await _syncNow();
-                  },
-                  color: _green,
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: _ProgressHeader(
-                          completed: completed,
-                          total: total,
-                          progress: progress,
-                          isDark: isDark,
-                        ),
-                      ),
-                      SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (_, i) {
-                            final paso = _checklist!.pasos[i];
-                            final fotos =
-                                _progress[paso.id] ?? FotosMaquina();
-                            // Block step i until step i-1 is complete
-                            final isBlocked = i > 0 &&
-                                !(_progress[_checklist!.pasos[i - 1].id] ??
-                                        FotosMaquina())
-                                    .isComplete;
-                            return _PasoCard(
-                              paso: paso,
-                              fotos: fotos,
+              : Stack(
+                  children: [
+                    RefreshIndicator(
+                      onRefresh: () async {
+                        await _fetchChecklist();
+                        await _syncNow();
+                      },
+                      color: _green,
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: _ProgressHeader(
+                              completed: completed,
+                              total: total,
+                              progress: progress,
                               isDark: isDark,
-                              isBlocked: isBlocked,
-                              onCapture: (tipo) =>
-                                  _capturePhoto(paso, tipo),
-                            );
-                          },
-                          childCount: _checklist!.pasos.length,
+                            ),
+                          ),
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (_, i) {
+                                final paso = _checklist!.pasos[i];
+                                final fotos =
+                                    _progress[paso.id] ?? FotosMaquina();
+                                final isBlocked = i > 0 &&
+                                    !(_progress[_checklist!.pasos[i - 1].id] ??
+                                            FotosMaquina())
+                                        .isComplete;
+                                return _PasoCard(
+                                  paso: paso,
+                                  fotos: fotos,
+                                  isDark: isDark,
+                                  isBlocked: isBlocked,
+                                  onCapture: (tipo) =>
+                                      _capturePhoto(paso, tipo),
+                                );
+                              },
+                              childCount: _checklist!.pasos.length,
+                            ),
+                          ),
+                          SliverPadding(
+                            padding: EdgeInsets.only(
+                              bottom: progress >= 1.0 ? 88 : 32,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // HU-18: Botón visible solo cuando todo el checklist está completo
+                    if (progress >= 1.0)
+                      Positioned(
+                        left: 20,
+                        right: 20,
+                        bottom: 20,
+                        child: FilledButton.icon(
+                          onPressed: _isFinalizing ? null : _finalizar,
+                          icon: _isFinalizing
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.check_circle_outline),
+                          label: Text(
+                            _isFinalizing
+                                ? 'Finalizando...'
+                                : 'Finalizar y Generar Informe',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _green,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
                         ),
                       ),
-                      const SliverPadding(
-                          padding: EdgeInsets.only(bottom: 32)),
-                    ],
-                  ),
+                  ],
                 ),
     );
   }

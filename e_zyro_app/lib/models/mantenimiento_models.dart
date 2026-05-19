@@ -38,6 +38,8 @@ class EquipoItem {
   final String? descripcion;
   final String? ubicacion;
   final String estado; // 'pendiente' | 'en_proceso' | 'completado'
+  final String? tipo; // 'tablero' | 'ups' | 'pozo_tierra' | etc.
+  final double? progresoPorcentaje;
 
   const EquipoItem({
     required this.id,
@@ -45,6 +47,8 @@ class EquipoItem {
     this.descripcion,
     this.ubicacion,
     required this.estado,
+    this.tipo,
+    this.progresoPorcentaje,
   });
 
   factory EquipoItem.fromJson(Map<String, dynamic> j) => EquipoItem(
@@ -53,6 +57,8 @@ class EquipoItem {
         descripcion: j['descripcion'] as String?,
         ubicacion: j['ubicacion'] as String?,
         estado: j['estado'] as String? ?? 'pendiente',
+        tipo: j['tipo'] as String?,
+        progresoPorcentaje: (j['progreso_porcentaje'] as num?)?.toDouble(),
       );
 }
 

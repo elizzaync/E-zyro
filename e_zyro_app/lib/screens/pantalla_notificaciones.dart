@@ -149,15 +149,24 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
     _marcarLeida(item);
     switch (item.tipo) {
       case 'servicio':
+      case 'asignacion_proyecto':
+      case 'asignacion_servicio':
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/operations',
           (r) => r.isFirst,
         );
       case 'comunicado':
+      case 'comunicado_proyecto':
         Navigator.pushNamedAndRemoveUntil(context, '/more', (r) => r.isFirst);
       case 'recordatorio':
         Navigator.pushNamed(context, '/calendario');
+      case 'aviso_logistica':
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/logistics',
+          (r) => r.isFirst,
+        );
       default:
         break;
     }
@@ -404,15 +413,23 @@ class _NotifTile extends StatelessWidget {
 
   static IconData _iconForTipo(String tipo) => switch (tipo) {
     'servicio' => Icons.build_rounded,
+    'asignacion_proyecto' => Icons.assignment_ind_rounded,
+    'asignacion_servicio' => Icons.assignment_turned_in_rounded,
     'comunicado' => Icons.campaign_rounded,
+    'comunicado_proyecto' => Icons.announcement_rounded,
     'recordatorio' => Icons.event_note_rounded,
+    'aviso_logistica' => Icons.inventory_2_rounded,
     _ => Icons.notifications_rounded,
   };
 
   static Color _colorForTipo(String tipo) => switch (tipo) {
     'servicio' => const Color(0xFF3B82F6),
+    'asignacion_proyecto' => const Color(0xFF8FD11B),
+    'asignacion_servicio' => const Color(0xFF8FD11B),
     'comunicado' => const Color(0xFFF59E0B),
+    'comunicado_proyecto' => const Color(0xFFF59E0B),
     'recordatorio' => const Color(0xFF8B5CF6),
+    'aviso_logistica' => const Color(0xFF06B6D4),
     _ => const Color(0xFF8FD11B),
   };
 

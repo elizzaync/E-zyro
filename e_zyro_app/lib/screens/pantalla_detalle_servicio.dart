@@ -1,6 +1,12 @@
+import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
+import '../models/comunicado_models.dart';
 import '../services/proyecto_service.dart';
+import '../services/comunicado_service.dart';
+import '../services/fcm_flutter_service.dart';
+import '../utils/api_provider.dart';
 import 'pantalla_chat.dart';
 
 class DetalleServicioScreen extends StatefulWidget {
@@ -30,7 +36,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _load();
   }
 
@@ -261,6 +267,10 @@ class _DetalleContent extends StatelessWidget {
               icon: Icon(Icons.chat_bubble_outline, size: 16),
               text: 'Chat',
             ),
+            const Tab(
+              icon: Icon(Icons.campaign_outlined, size: 16),
+              text: 'Comunicados',
+            ),
           ],
         ),
 
@@ -283,6 +293,8 @@ class _DetalleContent extends StatelessWidget {
                     if (m.fotoUrl.isNotEmpty) m.id: m.fotoUrl,
                 },
               ),
+              // HU-13: Canal de difusión por proyecto
+              _ComunicadosTab(proyectoId: proyectoId),
             ],
           ),
         ),
@@ -823,6 +835,249 @@ class _EmptyTab extends StatelessWidget {
           const SizedBox(height: 12),
           Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Tab: Comunicados del Proyecto (HU-13) ────────────────────────────────────
+
+class _ComunicadosTab extends StatefulWidget {
+  final String proyectoId;
+  const _ComunicadosTab({required this.proyectoId});
+
+  @override
+  State<_ComunicadosTab> createState() => _ComunicadosTabState();
+}
+
+class _ComunicadosTabState extends State<_ComunicadosTab>
+    with AutomaticKeepAliveClientMixin {
+  ComunicadoService? _service;
+  List<ComunicadoProyecto> _comunicados = [];
+  bool _loading = true;
+  StreamSubscription<RemoteMessage>? _fcmSub;
+
+  static const _green = Color(0xFF8FD11B);
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+    _fcmSub = FcmFlutterService.messageStream.listen((msg) {
+      if ((msg.data['tipo'] as String?) == 'comunicado_proyecto' &&
+          (msg.data['proyecto_id'] as String?) == widget.proyectoId) {
+        _load();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _fcmSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _init() async {
+    _service = await getComunicadoService();
+    await _load();
+  }
+
+  Future<void> _load() async {
+    if (_service == null) return;
+    setState(() => _loading = true);
+    try {
+      final data =
+          await _service!.getComunicadosProyecto(widget.proyectoId);
+      if (!mounted) return;
+      setState(() {
+        _comunicados = data;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _marcarLeido(ComunicadoProyecto c) async {
+    if (c.leido) return;
+    await _service?.marcarLeidoProyecto(c.id);
+    if (!mounted) return;
+    setState(() {
+      final idx = _comunicados.indexWhere((e) => e.id == c.id);
+      if (idx != -1) _comunicados[idx] = _comunicados[idx].markRead();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(_green),
+        ),
+      );
+    }
+
+    if (_comunicados.isEmpty) {
+      return _EmptyTab(
+        icon: Icons.campaign_outlined,
+        label: 'Sin comunicados del proyecto',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: _green,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _comunicados.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => _ComunicadoCard(
+          comunicado: _comunicados[i],
+          onTap: () => _marcarLeido(_comunicados[i]),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComunicadoCard extends StatelessWidget {
+  final ComunicadoProyecto comunicado;
+  final VoidCallback onTap;
+
+  const _ComunicadoCard({required this.comunicado, required this.onTap});
+
+  static const _amber = Color(0xFFF59E0B);
+  static const _green = Color(0xFF8FD11B);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final isUnread = !comunicado.leido;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isUnread
+              ? _amber.withValues(alpha: isDark ? 0.08 : 0.05)
+              : surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isUnread
+                ? _amber.withValues(alpha: 0.35)
+                : isDark
+                    ? _green.withValues(alpha: 0.15)
+                    : Colors.grey.shade200,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? _amber.withValues(alpha: 0.15)
+                        : const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.campaign_outlined,
+                    color: _amber,
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        comunicado.titulo,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isUnread
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.person_outline,
+                              size: 11, color: Colors.grey),
+                          const SizedBox(width: 3),
+                          Text(
+                            comunicado.autor,
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 11),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.access_time_outlined,
+                              size: 11, color: Colors.grey),
+                          const SizedBox(width: 3),
+                          Text(
+                            comunicado.fecha,
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (isUnread)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(top: 4),
+                    decoration: const BoxDecoration(
+                      color: _amber,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              comunicado.mensaje,
+              style: const TextStyle(
+                  fontSize: 12, color: Colors.grey, height: 1.5),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (comunicado.adjuntoUrl != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.attach_file_outlined,
+                      size: 13, color: _green.withValues(alpha: 0.8)),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'Archivo adjunto disponible',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF8FD11B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

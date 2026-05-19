@@ -3,6 +3,7 @@ import '../models/mantenimiento_models.dart';
 import '../services/mantenimiento_service.dart';
 import '../utils/api_provider.dart';
 import 'pantalla_checklist.dart';
+import 'pantalla_historial_equipo.dart';
 
 class EquiposTab extends StatefulWidget {
   final String proyectoId;
@@ -90,6 +91,15 @@ class _EquiposTabState extends State<EquiposTab>
               builder: (_) => ChecklistScreen(equipo: _equipos[i]),
             ),
           ),
+          onHistorial: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PantallaHistorialEquipo(
+                equipoId: _equipos[i].id,
+                equipoNombre: _equipos[i].nombre,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -101,8 +111,13 @@ class _EquiposTabState extends State<EquiposTab>
 class _EquipoCard extends StatelessWidget {
   final EquipoItem equipo;
   final VoidCallback onTap;
+  final VoidCallback onHistorial;
 
-  const _EquipoCard({required this.equipo, required this.onTap});
+  const _EquipoCard({
+    required this.equipo,
+    required this.onTap,
+    required this.onHistorial,
+  });
 
   static const _green = Color(0xFF8FD11B);
   static const _amber = Color(0xFFF59E0B);
@@ -117,6 +132,25 @@ class _EquipoCard extends StatelessWidget {
         'completado' => 'Completado',
         'en_proceso' => 'En Proceso',
         _ => 'Pendiente',
+      };
+
+  String get _tipoLabel => switch ((equipo.tipo ?? '').toLowerCase()) {
+        'tablero' => 'Tablero Eléctrico',
+        'ups' => 'UPS',
+        'pozo_tierra' => 'Pozo a Tierra',
+        'generador' => 'Generador',
+        'transformador' => 'Transformador',
+        String t when t.isNotEmpty => t[0].toUpperCase() + t.substring(1),
+        _ => '',
+      };
+
+  IconData get _iconForTipo => switch ((equipo.tipo ?? '').toLowerCase()) {
+        'tablero' => Icons.electrical_services_outlined,
+        'ups' => Icons.battery_charging_full_outlined,
+        'pozo_tierra' => Icons.settings_input_component_outlined,
+        'generador' => Icons.energy_savings_leaf_outlined,
+        'transformador' => Icons.transform_outlined,
+        _ => Icons.precision_manufacturing_outlined,
       };
 
   @override
@@ -150,94 +184,150 @@ class _EquipoCard extends StatelessWidget {
                   )
                 ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? _estadoColor.withValues(alpha: 0.15)
-                    : _estadoColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                Icons.precision_manufacturing_outlined,
-                color: _estadoColor,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    equipo.nombre,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  if (equipo.descripcion != null &&
-                      equipo.descripcion!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        equipo.descripcion!,
-                        style: const TextStyle(
-                            color: Colors.grey, fontSize: 12),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  if (equipo.ubicacion != null &&
-                      equipo.ubicacion!.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_on_outlined,
-                              size: 11, color: Colors.grey),
-                          const SizedBox(width: 3),
-                          Expanded(
-                            child: Text(
-                              equipo.ubicacion!,
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 11),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     color: isDark
                         ? _estadoColor.withValues(alpha: 0.15)
                         : _estadoColor.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
-                    _estadoLabel,
-                    style: TextStyle(
-                      color: _estadoColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Icon(
+                    _iconForTipo,
+                    color: _estadoColor,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Icon(Icons.chevron_right,
-                    color: Colors.grey, size: 18),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        equipo.nombre,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      if (equipo.tipo != null && equipo.tipo!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            _tipoLabel,
+                            style: TextStyle(
+                                color: _estadoColor.withValues(alpha: 0.8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      if (equipo.descripcion != null &&
+                          equipo.descripcion!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Text(
+                            equipo.descripcion!,
+                            style: const TextStyle(
+                                color: Colors.grey, fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      if (equipo.ubicacion != null &&
+                          equipo.ubicacion!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.location_on_outlined,
+                                  size: 11, color: Colors.grey),
+                              const SizedBox(width: 3),
+                              Expanded(
+                                child: Text(
+                                  equipo.ubicacion!,
+                                  style: const TextStyle(
+                                      color: Colors.grey, fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? _estadoColor.withValues(alpha: 0.15)
+                            : _estadoColor.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _estadoLabel,
+                        style: TextStyle(
+                          color: _estadoColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // HU-19: Botón historial
+                    GestureDetector(
+                      onTap: onHistorial,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.history_rounded,
+                          color: Colors.grey.shade400,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
+            // HU-18: Barra de progreso si hay porcentaje disponible
+            if (equipo.progresoPorcentaje != null) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: (equipo.progresoPorcentaje! / 100).clamp(0.0, 1.0),
+                        backgroundColor: isDark
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade200,
+                        valueColor: AlwaysStoppedAnimation<Color>(_estadoColor),
+                        minHeight: 4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${equipo.progresoPorcentaje!.round()}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: _estadoColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

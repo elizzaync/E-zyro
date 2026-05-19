@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../models/requerimiento_models.dart';
 import '../models/proyecto_models.dart';
 import '../services/requerimiento_service.dart';
 import '../services/proyecto_service.dart';
+import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
 
@@ -24,6 +26,7 @@ class LogisticsScreen extends StatefulWidget {
 
 class _LogisticsScreenState extends State<LogisticsScreen> {
   static const _green = Color(0xFF8FD11B);
+  static const _pageSize = 30;
 
   RequerimientoService? _service;
   ProyectoService? _proyectoService;
@@ -32,6 +35,16 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
 
   List<CatalogoItem> _catalogoItems = [];
   bool _loadingCatalogo = false;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _currentPage = 1;
+
+  // HU-15: Filtro por categoría
+  String? _selectedCategoria;
+  List<String> _categorias = [];
+
+  // HU-16: FCM listener para aviso_logistica
+  StreamSubscription<RemoteMessage>? _fcmSub;
 
   List<MiSolicitud> _solicitudes = [];
   bool _loadingSolicitudes = false;
@@ -40,6 +53,7 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
   final Map<String, _CarritoEntry> _carrito = {};
 
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   Timer? _debounce;
 
   List<ProyectoItem> _proyectos = [];
@@ -47,6 +61,16 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
+    _fcmSub = FcmFlutterService.messageStream.listen((msg) {
+      if ((msg.data['tipo'] as String?) == 'aviso_logistica') {
+        if (!_showCatalogo) {
+          _loadSolicitudes();
+        } else {
+          _switchTab(false);
+        }
+      }
+    });
     _init();
   }
 
@@ -56,14 +80,63 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
     await _loadCatalogo();
   }
 
+  void _onScroll() {
+    if (!_showCatalogo || _loadingMore || !_hasMore || _loadingCatalogo) return;
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 200) {
+      _loadMore();
+    }
+  }
+
   Future<void> _loadCatalogo() async {
     if (_service == null) return;
-    setState(() => _loadingCatalogo = true);
-    final items = await _service!.getCatalogo(_searchCtrl.text);
+    setState(() {
+      _loadingCatalogo = true;
+      _currentPage = 1;
+      _hasMore = true;
+    });
+    final items = await _service!.getCatalogo(
+      _searchCtrl.text,
+      categoria: _selectedCategoria,
+      page: 1,
+      pageSize: _pageSize,
+    );
     if (!mounted) return;
     setState(() {
       _catalogoItems = items;
+      _hasMore = items.length >= _pageSize;
+      // Extract categories on initial full load (no filters active)
+      if (_selectedCategoria == null &&
+          _searchCtrl.text.isEmpty &&
+          _categorias.isEmpty) {
+        final cats = items
+            .map((e) => e.categoria)
+            .whereType<String>()
+            .toSet()
+            .toList()
+          ..sort();
+        _categorias = cats;
+      }
       _loadingCatalogo = false;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_service == null || _loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _currentPage + 1;
+    final items = await _service!.getCatalogo(
+      _searchCtrl.text,
+      categoria: _selectedCategoria,
+      page: nextPage,
+      pageSize: _pageSize,
+    );
+    if (!mounted) return;
+    setState(() {
+      _catalogoItems.addAll(items);
+      _currentPage = nextPage;
+      _hasMore = items.length >= _pageSize;
+      _loadingMore = false;
     });
   }
 
@@ -87,6 +160,11 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
   void _switchTab(bool toCatalogo) {
     setState(() => _showCatalogo = toCatalogo);
     if (!toCatalogo && !_solicitudesLoaded) _loadSolicitudes();
+  }
+
+  void _selectCategoria(String? cat) {
+    setState(() => _selectedCategoria = cat);
+    _loadCatalogo();
   }
 
   void _addToCarrito(CatalogoItem item, int cantidad) {
@@ -162,7 +240,9 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     _debounce?.cancel();
+    _fcmSub?.cancel();
     super.dispose();
   }
 
@@ -224,7 +304,7 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    if (_showCatalogo)
+                    if (_showCatalogo) ...[
                       TextField(
                         controller: _searchCtrl,
                         onChanged: _onSearchChanged,
@@ -258,6 +338,30 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                           ),
                         ),
                       ),
+                      if (_categorias.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 34,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              _CategoriaChip(
+                                label: 'Todos',
+                                selected: _selectedCategoria == null,
+                                onTap: () => _selectCategoria(null),
+                              ),
+                              ..._categorias.map(
+                                (cat) => _CategoriaChip(
+                                  label: cat,
+                                  selected: _selectedCategoria == cat,
+                                  onTap: () => _selectCategoria(cat),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -343,14 +447,29 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
     return RefreshIndicator(
       onRefresh: _loadCatalogo,
       child: ListView.separated(
+        controller: _scrollCtrl,
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-        itemCount: _catalogoItems.length,
+        itemCount: _catalogoItems.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _CatalogoItemCard(
-          item: _catalogoItems[i],
-          cantidadEnCarrito: _carrito[_catalogoItems[i].id]?.cantidad ?? 0,
-          onTap: () => _openItemDetail(_catalogoItems[i]),
-        ),
+        itemBuilder: (_, i) {
+          if (i == _catalogoItems.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
+          return _CatalogoItemCard(
+            item: _catalogoItems[i],
+            cantidadEnCarrito: _carrito[_catalogoItems[i].id]?.cantidad ?? 0,
+            onTap: () => _openItemDetail(_catalogoItems[i]),
+          );
+        },
       ),
     );
   }
@@ -390,6 +509,47 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
         itemCount: _solicitudes.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) => _MiSolicitudCard(item: _solicitudes[i]),
+      ),
+    );
+  }
+}
+
+// ── Chip de categoría ─────────────────────────────────────────────────────────
+class _CategoriaChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _CategoriaChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const green = Color(0xFF8FD11B);
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        margin: const EdgeInsets.only(right: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? green : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? green : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : Colors.grey.shade600,
+          ),
+        ),
       ),
     );
   }
@@ -450,7 +610,7 @@ class _CatalogoItemCard extends StatelessWidget {
 
   Color get _stockColor {
     if (item.stock == 0) return Colors.red;
-    if (item.stock < 5) return Colors.orange;
+    if (item.stock <= 10) return const Color(0xFFF59E0B);
     return const Color(0xFF8FD11B);
   }
 
@@ -460,7 +620,7 @@ class _CatalogoItemCard extends StatelessWidget {
     final surface = Theme.of(context).colorScheme.surface;
     const green = Color(0xFF8FD11B);
     final stockColor = _stockColor;
-    final isLow = item.stock < 5;
+    final isLow = item.stock <= 10 && item.stock > 0;
 
     return GestureDetector(
       onTap: onTap,
@@ -795,6 +955,55 @@ class _MiSolicitudCard extends StatelessWidget {
                 ],
               ),
             ],
+            // HU-16: Observación del logístico (aprobación/rechazo)
+            if (item.observacionLogistico != null &&
+                item.observacionLogistico!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: item.estado == 'rechazado'
+                      ? Colors.red.withValues(alpha: 0.08)
+                      : const Color(0xFF8FD11B).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: item.estado == 'rechazado'
+                        ? Colors.red.withValues(alpha: 0.25)
+                        : const Color(0xFF8FD11B).withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      item.estado == 'rechazado'
+                          ? Icons.info_outline
+                          : Icons.check_circle_outline,
+                      size: 12,
+                      color: item.estado == 'rechazado'
+                          ? Colors.red
+                          : const Color(0xFF8FD11B),
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        item.observacionLogistico!,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: item.estado == 'rechazado'
+                              ? Colors.red.shade700
+                              : const Color(0xFF5A8A00),
+                          fontStyle: FontStyle.italic,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -823,7 +1032,7 @@ class _ItemDetailSheetState extends State<_ItemDetailSheet> {
 
   Color get _stockColor {
     if (widget.item.stock == 0) return Colors.red;
-    if (widget.item.stock < 5) return Colors.orange;
+    if (widget.item.stock <= 10) return const Color(0xFFF59E0B);
     return const Color(0xFF8FD11B);
   }
 

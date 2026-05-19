@@ -99,11 +99,16 @@ class FcmFlutterService {
 
     switch (tipo) {
       case 'comunicado':
+      case 'comunicado_proyecto':
         Navigator.of(ctx).pushNamedAndRemoveUntil('/more', (_) => false);
       case 'servicio':
+      case 'asignacion_proyecto':
+      case 'asignacion_servicio':
         Navigator.of(ctx).pushNamedAndRemoveUntil('/operations', (_) => false);
       case 'recordatorio':
         Navigator.of(ctx).pushNamedAndRemoveUntil('/calendario', (_) => false);
+      case 'aviso_logistica':
+        Navigator.of(ctx).pushNamedAndRemoveUntil('/logistics', (_) => false);
       default:
         Navigator.of(ctx).pushNamedAndRemoveUntil('/', (_) => false);
     }

@@ -6,14 +6,32 @@ class RequerimientoService {
   final ApiClient _client;
   RequerimientoService(this._client);
 
-  Future<List<CatalogoItem>> getCatalogo(String q) async {
+  // HU-15: Catálogo con filtros y paginación
+  Future<List<CatalogoItem>> getCatalogo(
+    String q, {
+    String? categoria,
+    int page = 1,
+    int pageSize = 30,
+  }) async {
     try {
-      final path = q.trim().isEmpty
-          ? '/requerimientos/catalogo'
-          : '/requerimientos/catalogo?q=${Uri.encodeComponent(q.trim())}';
-      final r = await _client.get(path);
+      final params = <String, String>{
+        if (q.trim().isNotEmpty) 'q': q.trim(),
+        if (categoria != null) 'categoria': categoria,
+        'page': page.toString(),
+        'page_size': pageSize.toString(),
+      };
+      final query = params.isEmpty
+          ? ''
+          : '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+      final r = await _client.get('/requerimientos/catalogo$query');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final body = jsonDecode(r.body);
+        final bodyMap = body is Map ? body : null;
+        final list = body is List
+            ? body
+            : bodyMap?['items'] as List? ??
+                bodyMap?['data'] as List? ??
+                [];
         return list
             .map((e) => CatalogoItem.fromJson(e as Map<String, dynamic>))
             .toList();
