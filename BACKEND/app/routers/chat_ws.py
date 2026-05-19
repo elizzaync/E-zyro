@@ -113,9 +113,9 @@ def _guardar_mensaje(
         proyecto_id = ps.proyecto_id if ps else servicio_id
 
         msg = MensajeChat(
-            id              = str(uuid.uuid4()),
-            servicio_id     = servicio_id,
-            proyecto_id     = proyecto_id,
+            id                   = str(uuid.uuid4()),
+            proyecto_servicio_id = uuid.UUID(servicio_id),
+            proyecto_id          = proyecto_id,
             empresa_id      = empresa_id,
             remitente_id    = remitente_id,
             destinatario_id = uuid.UUID(destinatario_id) if destinatario_id else None,
@@ -149,7 +149,7 @@ def _cargar_historial(servicio_id: str, limit: int = 50) -> list:
         rows = (
             db.query(MensajeChat, Usuario)
             .join(Usuario, MensajeChat.remitente_id == Usuario.id)
-            .filter(MensajeChat.servicio_id == servicio_id)
+            .filter(MensajeChat.proyecto_servicio_id == uuid.UUID(servicio_id))
             .order_by(MensajeChat.fecha.desc())
             .limit(limit)
             .all()
