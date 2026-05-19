@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, s
 from typing import List
 
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, aliased
 
 from ..core.security import verificar_token
@@ -804,22 +805,58 @@ async def agregar_item_borrador(
             fecha                = date.today(),
         )
         db.add(borrador)
-        db.flush()
+        try:
+            db.flush()
+        except (IntegrityError, ProgrammingError) as exc:
+            db.rollback()
+            orig = str(getattr(exc, "orig", exc))
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "No se pudo crear el borrador. "
+                    "Probablemente la migración 'add_borrador_estado.sql' no fue ejecutada. "
+                    f"Detalle BD: {orig}"
+                ),
+            )
 
     rd = RequerimientoDetalle(
         id               = str(_uuid.uuid4()),
         requerimiento_id = borrador.id,
         material_id      = body.material_id,
         cantidad         = body.cantidad,
-        nombre_libre     = body.nombre,
-        unidad_libre     = body.unidad,
-        especificacion   = body.especificacion,
     )
-    db.add(rd)
-    db.commit()
+    # Solo asignamos los campos libres si tienen valor, para no forzar
+    # columnas que no existan todavía en la BD (evita ProgrammingError).
+    if body.nombre:         rd.nombre_libre  = body.nombre
+    if body.unidad:         rd.unidad_libre  = body.unidad
+    if body.especificacion: rd.especificacion = body.especificacion
 
     try:
-        from ..routers.chat_ws import manager as _ws_manager
+        db.add(rd)
+        db.commit()
+    except (IntegrityError, ProgrammingError) as exc:
+        db.rollback()
+        orig = str(getattr(exc, "orig", exc))
+        if "chk_req_estado" in orig or "borrador" in orig:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "La migración 'add_borrador_estado.sql' no fue ejecutada. "
+                    "Ejecuta: psql -d <db> -f BACKEND/migrations/add_borrador_estado.sql"
+                ),
+            )
+        if "nombre_libre" in orig or "unidad_libre" in orig or "especificacion" in orig:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Columnas de compra externa no existen en la BD. "
+                    "Ejecuta la migración 'add_borrador_estado.sql'."
+                ),
+            )
+        raise HTTPException(status_code=500, detail=f"Error de BD: {orig}")
+
+    try:
+        from .chat_ws import manager as _ws_manager
         await _ws_manager.broadcast_servicio(
             servicio_id, {"tipo": "borrador_actualizado"}
         )
@@ -858,7 +895,7 @@ async def remover_item_borrador(
     db.commit()
 
     try:
-        from ..routers.chat_ws import manager as _ws_manager
+        from .chat_ws import manager as _ws_manager
         await _ws_manager.broadcast_servicio(
             servicio_id, {"tipo": "borrador_actualizado"}
         )
@@ -901,7 +938,7 @@ async def enviar_borrador(
     db.commit()
 
     try:
-        from ..routers.chat_ws import manager as _ws_manager
+        from .chat_ws import manager as _ws_manager
         await _ws_manager.broadcast_servicio(
             servicio_id, {"tipo": "borrador_actualizado"}
         )
