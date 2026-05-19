@@ -19,6 +19,8 @@ from app.schemas.auth import (
 from app.models.usuario import Usuario
 from app.models.usuario_rol import UsuarioRol
 from app.models.rol import Rol
+from app.models.rol_permiso import RolPermiso
+from app.models.permiso import Permiso
 from app.models.auditoria import Auditoria
 from app.models.recuperacion_password import RecuperacionPassword
 from app.models.sesion_usuario import SesionUsuario
@@ -62,10 +64,21 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    rol_asignado = db.query(Rol.nombre).join(
+    rol_row = db.query(Rol).join(
         UsuarioRol, UsuarioRol.rol_id == Rol.id
     ).filter(UsuarioRol.usuario_id == usuario_db.id).first()
-    nombre_rol_real = rol_asignado[0] if rol_asignado else "Sin Rol Asignado"
+    nombre_rol_real = rol_row.nombre if rol_row else "Sin Rol Asignado"
+
+    lista_permisos: list[str] = []
+    if rol_row:
+        permisos_rows = (
+            db.query(Permiso.modulo, Permiso.accion)
+            .join(RolPermiso, RolPermiso.permiso_id == Permiso.id)
+            .filter(RolPermiso.rol_id == rol_row.id)
+            .all()
+        )
+        lista_permisos = [f"{p.modulo}:{p.accion}" for p in permisos_rows]
+
     datos_para_token = {
         "sub": usuario_db.username,
         "id": str(usuario_db.id),
@@ -103,7 +116,8 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             "nombre_completo": f"{usuario_db.nombre} {usuario_db.apellido}",
             "rol": nombre_rol_real,
             "token": token_real,
-            "foto_url": usuario_db.foto_url or ""
+            "foto_url": usuario_db.foto_url or "",
+            "permisos": lista_permisos,
         }
     }
 

@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import json
 import uuid as _uuid
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
 from ..db.database import get_db
+from ..models.auditoria import Auditoria
 from ..models.comunicado import ComunicadoProyecto, ComunicadoLeido
 from ..models.empleado import Empleado
 from ..models.proyecto import Proyecto
@@ -154,3 +156,67 @@ def marcar_leido_legacy(
     payload: dict = Depends(verificar_token),
 ):
     return {"ok": True, "comunicado_id": comunicado_id}
+
+
+# ── POST /comunicados/proyecto/{proyecto_id} ──────────────────────────────────
+# Crear un nuevo comunicado — solo admin / jefe_operaciones
+
+class CrearComunicadoIn(BaseModel):
+    titulo: str = Field(..., max_length=200)
+    mensaje: str
+    adjunto_url: Optional[str] = None
+
+
+@router.post("/proyecto/{proyecto_id}/nuevo", status_code=status.HTTP_201_CREATED)
+def crear_comunicado_proyecto(
+    proyecto_id: str,
+    body: CrearComunicadoIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    rol        = (payload.get("rol") or "").lower()
+
+    proyecto = db.query(Proyecto).filter(
+        Proyecto.id == proyecto_id,
+        Proyecto.empresa_id == empresa_id,
+    ).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    empleado_autor = _get_empleado(db, usuario_id, empresa_id)
+
+    # Solo admin/jefe o el jefe_operaciones del proyecto puede enviar
+    es_admin = rol in ("admin", "administrador")
+    es_jefe  = empleado_autor and str(proyecto.jefe_operaciones_id) == str(empleado_autor.id)
+    if not es_admin and not es_jefe:
+        raise HTTPException(status_code=403, detail="Sin permiso para enviar comunicados")
+
+    comunicado = ComunicadoProyecto(
+        id          = _uuid.uuid4(),
+        empresa_id  = _uuid.UUID(empresa_id),
+        proyecto_id = _uuid.UUID(proyecto_id),
+        autor_id    = _uuid.UUID(str(empleado_autor.id)) if empleado_autor else None,
+        titulo      = body.titulo,
+        mensaje     = body.mensaje,
+        adjunto_url = body.adjunto_url,
+        created_at  = datetime.utcnow(),
+    )
+    db.add(comunicado)
+
+    db.add(Auditoria(
+        id             = str(_uuid.uuid4()),
+        empresa_id     = empresa_id,
+        usuario_id     = usuario_id,
+        tabla_afectada = "comunicado_proyecto",
+        registro_id    = str(comunicado.id),
+        accion         = "CREAR_COMUNICADO",
+        modulo         = "comunicados",
+        descripcion    = f"Comunicado '{body.titulo}' enviado al proyecto {proyecto_id}",
+        datos_nuevos   = json.dumps({"titulo": body.titulo, "proyecto_id": proyecto_id}),
+        fecha          = datetime.utcnow(),
+    ))
+
+    db.commit()
+    return {"ok": True, "id": str(comunicado.id)}

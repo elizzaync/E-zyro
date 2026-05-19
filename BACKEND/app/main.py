@@ -13,6 +13,7 @@ from app.routers import operaciones     as operaciones_router
 from app.routers import chat_ws         as chat_ws_router
 from app.routers import notificaciones  as notificaciones_router
 from app.routers import requerimientos  as requerimientos_router
+from app.routers import auditoria       as auditoria_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 
 # Importar todos los modelos para que Base los registre antes de create_all
@@ -43,6 +44,8 @@ from app.models import (  # noqa: F401
     categoria_material, almacen, material, movimiento_inventario,
     # Compras
     proveedor, orden_compra, recepcion_compra,
+    # Comunicados
+    comunicado,
     # Equipos y mantenimiento
     tipo_equipo, equipo, plan_mantenimiento,
     orden_mantenimiento, evidencia_mantenimiento, informe_tecnico,
@@ -103,6 +106,7 @@ app.include_router(operaciones_router.router)
 app.include_router(chat_ws_router.router)
 app.include_router(notificaciones_router.router)
 app.include_router(requerimientos_router.router)
+app.include_router(auditoria_router.router)
 
 
 @app.get("/")
