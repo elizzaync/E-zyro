@@ -100,7 +100,8 @@ class _LoginScreenState extends State<LoginScreen>
     final center = box.localToGlobal(
       Offset(box.size.width / 2, box.size.height / 2),
     );
-    setState(() => _logoCenter = center);
+    // Solo actualiza si la posición cambió, para evitar rebuilds infinitos
+    if (center != _logoCenter) setState(() => _logoCenter = center);
   }
 
   @override
@@ -255,9 +256,12 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Remedir el logo cada vez que el layout cambia
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureLogo());
+
     final screenH = MediaQuery.of(context).size.height;
-    // Cap the card to 46% so the brand section is always dominant
-    final cardMaxH = screenH * 0.46;
+    // Card ocupa exactamente 55% — la sección de marca queda en el 45% superior
+    final cardH = screenH * 0.55;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -277,11 +281,11 @@ class _LoginScreenState extends State<LoginScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Área de marca — ocupa el espacio sobrante (encoge con teclado)
+                  // Área de marca — ocupa el espacio restante
                   Flexible(child: _buildBrandSection()),
-                  // Card blanca inferior — altura limitada al 46% de pantalla
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: cardMaxH),
+                  // Card blanca inferior — altura fija al 55% de pantalla
+                  SizedBox(
+                    height: cardH,
                     child: _isBioMode ? _buildBioCard() : _buildFormCard(),
                   ),
                 ],
@@ -315,7 +319,50 @@ class _LoginScreenState extends State<LoginScreen>
   // ── Sección de marca (sobre el fondo verde) ───────────────────────────────
 
   Widget _buildBrandSection() {
-    return LayoutBuilder(builder: (_, constraints) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        // ── Amanecer desde la esquina superior izquierda ────────────────────
+        // Capa 1: sol — núcleo brillante en la esquina sup-izq
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-1.35, -1.4),
+                  radius: 2.2,
+                  colors: [
+                    const Color(0xFFDDFF00).withValues(alpha: 0.72),
+                    const Color(0xFF9AE600).withValues(alpha: 0.45),
+                    const Color(0xFF55C000).withValues(alpha: 0.18),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.22, 0.50, 1.0],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // Capa 2: aureola difusa que extiende la luz hacia el centro
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-1.1, -1.0),
+                  radius: 1.7,
+                  colors: [
+                    const Color(0xFFBBFF00).withValues(alpha: 0.30),
+                    const Color(0xFF6DC800).withValues(alpha: 0.12),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
+                ),
+              ),
+            ),
+          ),
+        ),
+        LayoutBuilder(builder: (_, constraints) {
       final compact = constraints.maxHeight < 220;
       return Padding(
         padding: EdgeInsets.fromLTRB(24, compact ? 12 : 20, 24, compact ? 8 : 16),
@@ -326,12 +373,28 @@ class _LoginScreenState extends State<LoginScreen>
             // ── Fila logo + nombre ────────────────────────────────────────
             Row(
               children: [
-                BoltLogo(
+                Container(
                   key: _logoKey,
-                  size: 40,
-                  radius: 10,
-                  background: const Color(0xFF163800),
-                  glyph: _kAccent,
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _kAccent.withValues(alpha: 0.40),
+                        blurRadius: 16,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/estelogo.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Column(
@@ -404,7 +467,9 @@ class _LoginScreenState extends State<LoginScreen>
           ],
         ),
       );
-    });
+    }),       // fin LayoutBuilder — hijo del Stack
+      ],
+    );        // fin Stack
   }
 
   Widget _buildStat(String value, String label) {
