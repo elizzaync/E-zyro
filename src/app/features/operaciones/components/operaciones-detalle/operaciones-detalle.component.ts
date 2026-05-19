@@ -172,6 +172,21 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     return '';
   }
 
+  esMiMensaje(msg: MensajeChat): boolean {
+    if (!msg) return false;
+
+    // Verificación primaria: por ID de usuario (fuente de verdad)
+    const miId = this._usuarioId ?? this._idUsuario;
+    if (miId && msg.remitente_id === miId) return true;
+
+    // Verificación secundaria: por nombre completo (fallback para sesiones antiguas sin id cacheado)
+    if (msg.nombre_remitente && this._nombreUsuario && this._nombreUsuario !== 'Yo') {
+      return msg.nombre_remitente.toLowerCase() === this._nombreUsuario.toLowerCase();
+    }
+
+    return false;
+  }
+
   ngOnInit(): void {
     this.servicioId = this.route.snapshot.paramMap.get('id');
     const stored = localStorage.getItem('ezyro_user');
@@ -221,7 +236,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
       next: (raw: any) => {
         this.servicio = this._mapServicio(raw);
         this.cargando = false;
-        this._conectarChat(this.servicio.proyectoId);
+        this._conectarChat(this.servicio.id);
         this._checkDeepLink();
       },
       error: (err: any) => {
@@ -256,14 +271,14 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     setTimeout(() => this.abrirModalEvidencia(tarea), 50);
   }
 
-  private _conectarChat(projectId: string): void {
+  private _conectarChat(servicioId: string): void {
     const token  = localStorage.getItem('ezyro_token') ?? '';
     const wsBase = environment.apiUrl.replace(/^http/, 'ws');
     this.chatSub?.unsubscribe();
     this.chatSocket$?.complete();
 
     this.chatSocket$ = webSocket<unknown>(
-      `${wsBase}/ws/chat/${projectId}?token=${token}`
+      `${wsBase}/ws/chat/servicio/${servicioId}?token=${token}`
     );
 
     this.chatSub = this.chatSocket$.subscribe({
