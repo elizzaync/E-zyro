@@ -59,4 +59,20 @@ export class OperacionesService {
   agregarNota(psId: string, body: { descripcion: string }): Observable<any> {
     return this.http.post(`${this.api}/operaciones/servicio/${psId}/nota`, body);
   }
+
+  getBorrador(psId: string): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/servicio/${psId}/borrador`);
+  }
+
+  agregarItemBorrador(psId: string, body: object): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/servicio/${psId}/borrador/item`, body);
+  }
+
+  removerItemBorrador(rdId: string): Observable<any> {
+    return this.http.delete(`${this.api}/operaciones/borrador-detalle/${rdId}`);
+  }
+
+  enviarBorrador(psId: string): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/servicio/${psId}/borrador/enviar`, {});
+  }
 }

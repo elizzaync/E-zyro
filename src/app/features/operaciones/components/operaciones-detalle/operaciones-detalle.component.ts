@@ -5,7 +5,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { environment } from '../../../../../environments/environment';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
-import { Subscription, forkJoin } from 'rxjs';
+import { Subscription } from 'rxjs';
 
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
@@ -98,8 +98,9 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   procedimientoActivo: Procedimiento | null = null;
   subiendoEvidencia    = false;
   errorEvidencia       = '';
-// ── Borrador de Materiales (Carrito) ───────────────────────
+// ── Borrador de Materiales (persistente en BD) ─────────────
   materialesBorrador: Array<{
+    id: string;
     material_id: string | null;
     nombre: string;
     unidad: string;
@@ -108,8 +109,9 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     agregadoPor: string;
     especificacion?: string;
   }> = [];
-  consensoEquipo = false;
-  enviandoLote   = false;
+  consensoEquipo  = false;
+  enviandoLote    = false;
+  cargandoBorrador = false;
   etapasLista: ('antes' | 'durante' | 'despues')[] = ['antes', 'durante', 'despues'];
   etapaActiva: 'antes' | 'durante' | 'despues' = 'antes';
 
@@ -242,12 +244,34 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.cargando = false;
         this._conectarChat(this.servicio.id);
         this._checkDeepLink();
+        this.cargarBorrador();
       },
       error: (err: any) => {
         this.error    = true;
         this.errorMsg = err?.error?.detail ?? 'No se pudo cargar el detalle del servicio.';
         this.cargando = false;
       }
+    });
+  }
+
+  cargarBorrador(): void {
+    if (!this.servicioId) return;
+    this.cargandoBorrador = true;
+    this.svc.getBorrador(this.servicioId).subscribe({
+      next: (data: any) => {
+        this.materialesBorrador = (data.items ?? []).map((item: any) => ({
+          id:             item.id,
+          material_id:    item.material_id,
+          nombre:         item.nombre,
+          unidad:         item.unidad,
+          cantidad:       item.cantidad,
+          esNuevo:        item.es_nuevo,
+          agregadoPor:    '',
+          especificacion: item.especificacion,
+        }));
+        this.cargandoBorrador = false;
+      },
+      error: () => { this.cargandoBorrador = false; }
     });
   }
 
@@ -293,6 +317,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
           return;
         }
         if (msg.tipo === 'error') return;
+        if (msg.tipo === 'borrador_actualizado') {
+          this.cargarBorrador();
+          return;
+        }
         this.chatMensajes.push(this._mapMensaje(msg));
         this._scrollPending = true;
       },
@@ -575,89 +603,91 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   }
 
   solicitarMaterial(): void {
-    if (!this.materialElegido || !this.servicio) return;
-
-    this.materialesBorrador.push({
-      material_id: this.materialElegido.id,
-      nombre:      this.materialElegido.nombre,
-      unidad:      this.materialElegido.unidad,
+    if (!this.materialElegido || !this.servicioId) return;
+    this.solicitando = true;
+    const mat = this.materialElegido;
+    this.svc.agregarItemBorrador(this.servicioId, {
+      material_id: mat.id,
+      nombre:      mat.nombre,
+      unidad:      mat.unidad,
       cantidad:    this.cantidadSolicitar,
-      esNuevo:     false,
-      agregadoPor: this._nombreUsuario
+    }).subscribe({
+      next: (res: any) => {
+        this.materialesBorrador.push({
+          id:          res.detalle_id,
+          material_id: mat.id,
+          nombre:      mat.nombre,
+          unidad:      mat.unidad,
+          cantidad:    this.cantidadSolicitar,
+          esNuevo:     false,
+          agregadoPor: this._nombreUsuario,
+        });
+        this.materialElegido    = null;
+        this.busquedaMaterial   = '';
+        this.resultadosBusqueda = [];
+        this.cantidadSolicitar  = 1;
+        this.solicitando        = false;
+      },
+      error: () => { this.solicitando = false; }
     });
-    this.materialElegido    = null;
-    this.busquedaMaterial   = '';
-    this.resultadosBusqueda = [];
-    this.cantidadSolicitar  = 1;
   }
 
   solicitarMaterialManual(): void {
-    if (!this.manualNombre.trim() || !this.manualEspecificacion.trim() || this.manualCantidad < 1) return;
-
-    this.materialesBorrador.push({
+    if (!this.manualNombre.trim() || !this.manualEspecificacion.trim() || this.manualCantidad < 1 || !this.servicioId) return;
+    this.solicitando = true;
+    const nombre = this.manualNombre.trim();
+    const espec  = this.manualEspecificacion.trim();
+    this.svc.agregarItemBorrador(this.servicioId, {
       material_id:    null,
-      nombre:         this.manualNombre.trim(),
+      nombre,
       unidad:         this.manualUnidad,
       cantidad:       this.manualCantidad,
-      esNuevo:        true,
-      agregadoPor:    this._nombreUsuario,
-      especificacion: this.manualEspecificacion.trim()
+      especificacion: espec,
+    }).subscribe({
+      next: (res: any) => {
+        this.materialesBorrador.push({
+          id:             res.detalle_id,
+          material_id:    null,
+          nombre,
+          unidad:         this.manualUnidad,
+          cantidad:       this.manualCantidad,
+          esNuevo:        true,
+          agregadoPor:    this._nombreUsuario,
+          especificacion: espec,
+        });
+        this.manualNombre         = '';
+        this.manualCantidad       = 1;
+        this.manualUnidad         = 'Unidades';
+        this.manualEspecificacion = '';
+        this.solicitando          = false;
+      },
+      error: () => { this.solicitando = false; }
     });
-
-    this.manualNombre        = '';
-    this.manualCantidad      = 1;
-    this.manualUnidad        = 'Unidades';
-    this.manualEspecificacion = '';
   }
 
-  // Nuevo: Quita un ítem de la lista temporal
   removerDelBorrador(index: number): void {
-    this.materialesBorrador.splice(index, 1);
-    if (this.materialesBorrador.length === 0) {
-      this.consensoEquipo = false;
-    }
+    const item = this.materialesBorrador[index];
+    this.svc.removerItemBorrador(item.id).subscribe({
+      next: () => {
+        this.materialesBorrador.splice(index, 1);
+        if (this.materialesBorrador.length === 0) this.consensoEquipo = false;
+      }
+    });
   }
 
-  // Nuevo: Envía todos los materiales de golpe a la BD
   enviarSolicitudLote(): void {
     if (!this.servicio || this.materialesBorrador.length === 0) return;
     this.enviandoLote = true;
-
-    // Preparamos todas las peticiones a la API
-    const peticiones = this.materialesBorrador.map(item =>
-      this.svc.solicitarMaterial(this.servicio!.id, {
-        material_id:    item.material_id,
-        cantidad:       item.cantidad,
-        nombre:         item.nombre,
-        unidad:         item.unidad,
-        especificacion: item.especificacion
-      })
-    );
-
-    // forkJoin ejecuta todas las peticiones en paralelo
-    forkJoin(peticiones).subscribe({
-      next: (respuestas: any[]) => {
-        // Por cada respuesta, pasamos el ítem del borrador a la lista oficial
-        respuestas.forEach((res, index) => {
-          const item = this.materialesBorrador[index];
-          this.servicio!.materialesSolicitados.push({
-            id:              res.detalle_id,
-            requerimientoId: res.requerimiento_id,
-            nombre:          item.nombre,
-            unidad:          item.unidad,
-            cantidad:        item.cantidad,
-            estadoReq:       'pendiente'
-          });
-        });
-
-        // Limpiamos el carrito
+    this.svc.enviarBorrador(this.servicio.id).subscribe({
+      next: () => {
         this.materialesBorrador = [];
         this.consensoEquipo     = false;
         this.enviandoLote       = false;
+        this.cargarDetalle();
       },
       error: () => {
         this.enviandoLote = false;
-        alert('Hubo un error de conexión al enviar el lote a Logística.');
+        alert('Hubo un error al enviar el borrador a Logística.');
       }
     });
   }
