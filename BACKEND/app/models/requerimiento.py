@@ -39,3 +39,4 @@ class RequerimientoDetalle(Base):
     nombre_libre      = Column(String(255))   # nombre cuando material_id es None (compra externa)
     unidad_libre      = Column(String(50))
     especificacion    = Column(String(500))
+    agregado_por_id   = Column(String(36))    # empleado.id que agregó este ítem al borrador

@@ -158,7 +158,9 @@ class SolicitarMaterialBody(BaseModel):
 
 
 class ActualizarReqDetalleBody(BaseModel):
-    cantidad: Optional[int] = None
+    cantidad:       Optional[int] = None
+    nombre:         Optional[str] = None
+    especificacion: Optional[str] = None
 
 
 class AgregarBorradorBody(BaseModel):

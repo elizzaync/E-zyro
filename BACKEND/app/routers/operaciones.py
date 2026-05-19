@@ -709,8 +709,17 @@ def actualizar_requerimiento_detalle(
     if not rd:
         raise HTTPException(status_code=404, detail="Detalle no encontrado")
 
+    changed = False
     if body.cantidad is not None:
         rd.cantidad = body.cantidad
+        changed = True
+    if body.nombre is not None:
+        rd.nombre_libre = body.nombre
+        changed = True
+    if body.especificacion is not None:
+        rd.especificacion = body.especificacion
+        changed = True
+    if changed:
         db.commit()
 
     return {"ok": True}
@@ -751,20 +760,40 @@ def get_borrador(
                 for m in db.query(Material).filter(Material.id.in_(material_ids)).all()
             }
 
+        # Build a map of empleado_id → (nombre_completo, foto_url)
+        emp_ids = list({getattr(rd, "agregado_por_id", None) for rd in detalles} - {None})
+        emp_info: dict = {}
+        if emp_ids:
+            rows = (
+                db.query(Empleado.id, Usuario.nombre, Usuario.apellido, Usuario.foto_url)
+                .join(Usuario, Usuario.id == Empleado.usuario_id)
+                .filter(Empleado.id.in_(emp_ids))
+                .all()
+            )
+            for row in rows:
+                emp_info[row[0]] = {
+                    "nombre": f"{row[1]} {row[2]}".strip(),
+                    "foto":   row[3] or "",
+                }
+
         items = []
         for rd in detalles:
-            mat = mats_map.get(rd.material_id) if rd.material_id else None
-            nombre_libre   = getattr(rd, "nombre_libre",   None)
-            unidad_libre   = getattr(rd, "unidad_libre",   None)
-            especificacion = getattr(rd, "especificacion", None)
+            mat              = mats_map.get(rd.material_id) if rd.material_id else None
+            nombre_libre     = getattr(rd, "nombre_libre",     None)
+            unidad_libre     = getattr(rd, "unidad_libre",     None)
+            especificacion   = getattr(rd, "especificacion",   None)
+            agregado_por_id  = getattr(rd, "agregado_por_id",  None)
+            autor            = emp_info.get(agregado_por_id, {}) if agregado_por_id else {}
             items.append({
-                "id":             rd.id,
-                "material_id":    rd.material_id,
-                "nombre":         mat.nombre if mat else (nombre_libre or "Material Externo"),
-                "unidad":         mat.unidad if mat else (unidad_libre or "Und"),
-                "cantidad":       rd.cantidad,
-                "es_nuevo":       rd.material_id is None,
-                "especificacion": especificacion,
+                "id":                  rd.id,
+                "material_id":         rd.material_id,
+                "nombre":              mat.nombre if mat else (nombre_libre or "Material Externo"),
+                "unidad":              mat.unidad if mat else (unidad_libre or "Und"),
+                "cantidad":            rd.cantidad,
+                "es_nuevo":            rd.material_id is None,
+                "especificacion":      especificacion,
+                "agregado_por_nombre": autor.get("nombre", ""),
+                "agregado_por_foto":   autor.get("foto",   ""),
             })
 
         return {"requerimiento_id": borrador.id, "items": items}
@@ -836,11 +865,10 @@ async def agregar_item_borrador(
         material_id      = body.material_id,
         cantidad         = body.cantidad,
     )
-    # Solo asignamos los campos libres si tienen valor, para no forzar
-    # columnas que no existan todavía en la BD (evita ProgrammingError).
-    if body.nombre:         rd.nombre_libre  = body.nombre
-    if body.unidad:         rd.unidad_libre  = body.unidad
-    if body.especificacion: rd.especificacion = body.especificacion
+    if body.nombre:         rd.nombre_libre      = body.nombre
+    if body.unidad:         rd.unidad_libre      = body.unidad
+    if body.especificacion: rd.especificacion    = body.especificacion
+    rd.agregado_por_id = empleado.id
 
     try:
         db.add(rd)
