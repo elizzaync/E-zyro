@@ -11,11 +11,16 @@ class MensajeChat(Base):
     __tablename__ = "mensaje_chat"
 
     id              = Column(String(36), primary_key=True, default=_uuid)
-    proyecto_id     = Column(String(36), ForeignKey("proyecto.id"),      nullable=False)
-    empresa_id      = Column(String(36), ForeignKey("empresa.id"),       nullable=False)
-    remitente_id    = Column(String(36), ForeignKey("usuario.id"),       nullable=False)
+    # servicio_id aísla el chat por servicio específico (proyecto_servicio.id).
+    # Migración requerida: ALTER TABLE mensaje_chat ADD COLUMN servicio_id VARCHAR(36)
+    #                      REFERENCES proyecto_servicio(id);
+    #                      CREATE INDEX ix_mensaje_chat_servicio_id ON mensaje_chat(servicio_id);
+    servicio_id     = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=True,  index=True)
+    proyecto_id     = Column(String(36), ForeignKey("proyecto.id"),          nullable=False)
+    empresa_id      = Column(String(36), ForeignKey("empresa.id"),           nullable=False)
+    remitente_id    = Column(String(36), ForeignKey("usuario.id"),           nullable=False)
     destinatario_id = Column(PGUUID(as_uuid=True), ForeignKey("usuario.id"), nullable=True)
-    padre_id        = Column(String(36), ForeignKey("mensaje_chat.id"),  nullable=True)
+    padre_id        = Column(String(36), ForeignKey("mensaje_chat.id"),      nullable=True)
     contenido       = Column(Text,       nullable=False)
     fecha           = Column(DateTime,   nullable=False)
     created_at      = Column(DateTime,   nullable=False, default=datetime.utcnow)
