@@ -76,6 +76,10 @@ def _run_migrations():
             "ADD COLUMN IF NOT EXISTS destinatario_id UUID "
             "REFERENCES usuario(id)"
         ))
+        conn.execute(text(
+            "ALTER TABLE auditoria "
+            "ADD COLUMN IF NOT EXISTS empresa_id VARCHAR(36)"
+        ))
         conn.commit()
 
 
@@ -93,7 +97,7 @@ app = FastAPI(title="API E-zyro", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
