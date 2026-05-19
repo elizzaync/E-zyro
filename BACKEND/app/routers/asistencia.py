@@ -53,6 +53,7 @@ class MarcarRequest(BaseModel):
     proyecto_id:          Optional[str]   = None
     proyecto_servicio_id: Optional[str]   = None
     timestamp:            Optional[str]   = None  # ISO 8601 timestamp del cliente
+    uuid_cliente:         Optional[str]   = None  # UUID v4 generado en dispositivo (idempotencia)
 
 
 class MarcarResponse(BaseModel):
@@ -210,6 +211,30 @@ def marcar_asistencia(
     usuario_id = payload["id"]
     empresa_id = payload["empresa_id"]
 
+    # 0 ── Idempotencia: si ya existe un registro con este uuid_cliente, devolver el existente
+    if body.uuid_cliente:
+        existente = db.query(RegistroAsistencia).filter(
+            RegistroAsistencia.empresa_id == empresa_id,
+            RegistroAsistencia.uuid_cliente == body.uuid_cliente,
+        ).first()
+        if existente:
+            fa_ex = db.query(FotoAsistencia).filter(
+                FotoAsistencia.registro_id == existente.id
+            ).first()
+            score_ex = round(float(fa_ex.similitud_ia) * 100, 2) if (fa_ex and fa_ex.similitud_ia) else 85.0
+            resultado_ex = fa_ex.resultado if fa_ex else "aprobado"
+            logger.info("Idempotencia: uuid_cliente=%s ya existe, devolviendo registro existente", body.uuid_cliente)
+            return MarcarResponse(
+                registro_id=str(existente.id),
+                status="APROBADO" if existente.estado == "validado" else "RECHAZADO",
+                score=score_ex,
+                motivo=existente.observacion or "",
+                timestamp=existente.fecha_hora.isoformat(),
+                gps_guardado=False,
+                foto_url=fa_ex.url_cloudinary if fa_ex else None,
+                resultado_ia=resultado_ex,
+            )
+
     # 1 ── Empleado
     empleado = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id,
@@ -302,6 +327,7 @@ def marcar_asistencia(
         fecha_hora=ahora,
         estado="validado" if aprobado else "pendiente",
         observacion=motivo,
+        uuid_cliente=body.uuid_cliente,
     )
     db.add(registro)
     db.flush()

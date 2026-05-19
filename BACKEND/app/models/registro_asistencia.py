@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, UniqueConstraint
 from app.db.database import Base
 
 def generate_uuid():
@@ -21,3 +21,9 @@ class RegistroAsistencia(Base):
     validado_por         = Column(String(36), nullable=True)
     fecha_validacion     = Column(DateTime, nullable=True)
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # UUID generado en el dispositivo — garantiza idempotencia en reintentos offline
+    uuid_cliente         = Column(String(36), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("empresa_id", "uuid_cliente", name="uq_asistencia_empresa_uuid_cliente"),
+    )
