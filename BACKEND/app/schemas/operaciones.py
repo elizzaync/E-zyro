@@ -161,3 +161,11 @@ class ActualizarReqDetalleBody(BaseModel):
     cantidad: Optional[int] = None
 
 
+class AgregarBorradorBody(BaseModel):
+    material_id:    Optional[str] = None
+    nombre:         Optional[str] = None
+    unidad:         Optional[str] = None
+    cantidad:       int
+    especificacion: Optional[str] = None
+
+

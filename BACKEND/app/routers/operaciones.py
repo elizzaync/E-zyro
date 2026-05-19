@@ -50,6 +50,7 @@ from ..schemas.operaciones import (
     ActualizarProcedimientoBody,
     SolicitarMaterialBody,
     ActualizarReqDetalleBody,
+    AgregarBorradorBody,
     ProyectoListOut,
     ProyectoServicioListOut,
     KpisProyectosOut,
@@ -467,21 +468,30 @@ def get_detalle_servicio(
     completos = sum(1 for p in procedimientos if p.estado == "completado")
     progreso  = round(completos / total * 100, 1) if total else 0.0
 
-    # 5. Materiales
+    # 5. Materiales (excluye borradores; soporta compras externas con material_id=NULL)
     mat_rows = (
         db.query(
             RequerimientoDetalle,
             Requerimiento.id.label("req_id"),
             Requerimiento.estado.label("req_estado"),
-            Material.nombre.label("mat_nombre"),
-            Material.unidad.label("mat_unidad"),
+            func.coalesce(
+                Material.nombre,
+                RequerimientoDetalle.nombre_libre,
+                "Material Sin Nombre"
+            ).label("mat_nombre"),
+            func.coalesce(
+                Material.unidad,
+                RequerimientoDetalle.unidad_libre,
+                "Und"
+            ).label("mat_unidad"),
         )
-        .join(Requerimiento, Requerimiento.id  == RequerimientoDetalle.requerimiento_id)
-        .join(Material,      Material.id        == RequerimientoDetalle.material_id)
+        .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
+        .outerjoin(Material, Material.id      == RequerimientoDetalle.material_id)
         .filter(
             Requerimiento.proyecto_servicio_id == servicio_id,
             Requerimiento.empresa_id           == empresa_id,
             Requerimiento.tipo                 == "material",
+            Requerimiento.estado               != "borrador",
         )
         .order_by(Requerimiento.created_at.asc())
         .all()
@@ -492,7 +502,6 @@ def get_detalle_servicio(
 
     for m in mat_rows:
         rd = m.RequerimientoDetalle
-        # 🔥 FIX PYDANTIC: Blindaje en Materiales
         item = ItemMaterialOut(
             id=str(rd.id),
             requerimiento_id=str(m.req_id),
@@ -703,6 +712,203 @@ def actualizar_requerimiento_detalle(
         db.commit()
 
     return {"ok": True}
+
+
+# ── GET /operaciones/servicio/{id}/borrador ───────────────────────────────────
+
+@router.get("/servicio/{servicio_id}/borrador")
+def get_borrador(
+    servicio_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    borrador = db.query(Requerimiento).filter(
+        Requerimiento.proyecto_servicio_id == servicio_id,
+        Requerimiento.empresa_id           == empresa_id,
+        Requerimiento.tipo                 == "material",
+        Requerimiento.estado               == "borrador",
+    ).first()
+
+    if not borrador:
+        return {"requerimiento_id": None, "items": []}
+
+    detalles = (
+        db.query(RequerimientoDetalle)
+        .filter(RequerimientoDetalle.requerimiento_id == borrador.id)
+        .all()
+    )
+
+    material_ids = [rd.material_id for rd in detalles if rd.material_id]
+    mats_map: dict = {}
+    if material_ids:
+        mats_map = {
+            m.id: m
+            for m in db.query(Material).filter(Material.id.in_(material_ids)).all()
+        }
+
+    items = []
+    for rd in detalles:
+        mat = mats_map.get(rd.material_id) if rd.material_id else None
+        items.append({
+            "id":             rd.id,
+            "material_id":    rd.material_id,
+            "nombre":         mat.nombre if mat else (rd.nombre_libre or "Material Externo"),
+            "unidad":         mat.unidad if mat else (rd.unidad_libre or "Und"),
+            "cantidad":       rd.cantidad,
+            "es_nuevo":       rd.material_id is None,
+            "especificacion": rd.especificacion,
+        })
+
+    return {"requerimiento_id": borrador.id, "items": items}
+
+
+# ── POST /operaciones/servicio/{id}/borrador/item ─────────────────────────────
+
+@router.post("/servicio/{servicio_id}/borrador/item", status_code=status.HTTP_201_CREATED)
+async def agregar_item_borrador(
+    servicio_id: str,
+    body: AgregarBorradorBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+
+    borrador = db.query(Requerimiento).filter(
+        Requerimiento.proyecto_servicio_id == servicio_id,
+        Requerimiento.empresa_id           == empresa_id,
+        Requerimiento.tipo                 == "material",
+        Requerimiento.estado               == "borrador",
+    ).first()
+
+    if not borrador:
+        borrador = Requerimiento(
+            id                   = str(_uuid.uuid4()),
+            proyecto_id          = ps.proyecto_id,
+            proyecto_servicio_id = servicio_id,
+            empresa_id           = empresa_id,
+            solicitante_id       = empleado.id,
+            tipo                 = "material",
+            estado               = "borrador",
+            fecha                = date.today(),
+        )
+        db.add(borrador)
+        db.flush()
+
+    rd = RequerimientoDetalle(
+        id               = str(_uuid.uuid4()),
+        requerimiento_id = borrador.id,
+        material_id      = body.material_id,
+        cantidad         = body.cantidad,
+        nombre_libre     = body.nombre,
+        unidad_libre     = body.unidad,
+        especificacion   = body.especificacion,
+    )
+    db.add(rd)
+    db.commit()
+
+    try:
+        from ..routers.chat_ws import manager as _ws_manager
+        await _ws_manager.broadcast_servicio(
+            servicio_id, {"tipo": "borrador_actualizado"}
+        )
+    except Exception:
+        pass
+
+    return {"ok": True, "requerimiento_id": borrador.id, "detalle_id": rd.id}
+
+
+# ── DELETE /operaciones/borrador-detalle/{rd_id} ──────────────────────────────
+
+@router.delete("/borrador-detalle/{rd_id}")
+async def remover_item_borrador(
+    rd_id:   str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    rd = db.query(RequerimientoDetalle).filter(
+        RequerimientoDetalle.id == rd_id
+    ).first()
+    if not rd:
+        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id         == rd.requerimiento_id,
+        Requerimiento.empresa_id == empresa_id,
+        Requerimiento.estado     == "borrador",
+    ).first()
+    if not req:
+        raise HTTPException(status_code=403, detail="Solo se pueden remover ítems del borrador")
+
+    servicio_id = req.proyecto_servicio_id
+    db.delete(rd)
+    db.commit()
+
+    try:
+        from ..routers.chat_ws import manager as _ws_manager
+        await _ws_manager.broadcast_servicio(
+            servicio_id, {"tipo": "borrador_actualizado"}
+        )
+    except Exception:
+        pass
+
+    return {"ok": True}
+
+
+# ── POST /operaciones/servicio/{id}/borrador/enviar ───────────────────────────
+
+@router.post("/servicio/{servicio_id}/borrador/enviar")
+async def enviar_borrador(
+    servicio_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    borrador = db.query(Requerimiento).filter(
+        Requerimiento.proyecto_servicio_id == servicio_id,
+        Requerimiento.empresa_id           == empresa_id,
+        Requerimiento.tipo                 == "material",
+        Requerimiento.estado               == "borrador",
+    ).first()
+    if not borrador:
+        raise HTTPException(status_code=404, detail="No hay borrador activo para este servicio")
+
+    total_items = (
+        db.query(RequerimientoDetalle)
+        .filter(RequerimientoDetalle.requerimiento_id == borrador.id)
+        .count()
+    )
+    if total_items == 0:
+        raise HTTPException(status_code=422, detail="El borrador está vacío")
+
+    borrador.estado     = "pendiente"
+    borrador.fecha      = date.today()
+    borrador.updated_at = datetime.utcnow()
+    db.commit()
+
+    try:
+        from ..routers.chat_ws import manager as _ws_manager
+        await _ws_manager.broadcast_servicio(
+            servicio_id, {"tipo": "borrador_actualizado"}
+        )
+    except Exception:
+        pass
+
+    return {"ok": True, "requerimiento_id": borrador.id}
 
 
 # ── GET /operaciones/materiales/buscar ────────────────────────────────────────

@@ -32,7 +32,10 @@ class RequerimientoDetalle(Base):
 
     id                = Column(String(36), primary_key=True, default=_uuid)
     requerimiento_id  = Column(String(36), ForeignKey("requerimiento.id"), nullable=False)
-    material_id       = Column(String(36), ForeignKey("material.id"),      nullable=False)
+    material_id       = Column(String(36), ForeignKey("material.id"),      nullable=True)
     cantidad          = Column(Integer, nullable=False)
     cantidad_aprobada = Column(Integer)
     observacion       = Column(String(255))
+    nombre_libre      = Column(String(255))   # nombre cuando material_id es None (compra externa)
+    unidad_libre      = Column(String(50))
+    especificacion    = Column(String(500))
