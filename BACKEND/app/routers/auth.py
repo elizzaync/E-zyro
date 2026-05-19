@@ -113,11 +113,12 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         "status": "success",
         "mensaje": "Autenticación exitosa",
         "data": {
+            "id":              str(usuario_db.id),
             "nombre_completo": f"{usuario_db.nombre} {usuario_db.apellido}",
-            "rol": nombre_rol_real,
-            "token": token_real,
-            "foto_url": usuario_db.foto_url or "",
-            "permisos": lista_permisos,
+            "rol":             nombre_rol_real,
+            "token":           token_real,
+            "foto_url":        usuario_db.foto_url or "",
+            "permisos":        lista_permisos,
         }
     }
 
