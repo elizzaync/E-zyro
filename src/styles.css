@@ -139,3 +139,57 @@ html, body {
 @media (prefers-color-scheme: dark) {
   :host-context(html:not([data-theme="light"])) .modal-dialog-pro { box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 0 1px var(--card-border); }
 }
+
+/* =========================================================
+   VARIABLES GLOBALES DE ANIMACIÓN
+   ========================================================= */
+:root {
+  --anim-speed: 0.3s;
+  --anim-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* =========================================================
+   FONDO GLOBAL: CIRCUITOS PCB (stroke-dashoffset)
+   ========================================================= */
+.bg-variant-9 {
+  background: #fafdfc;
+  position: relative;
+  min-height: 100vh;
+  z-index: 0;
+}
+.bg-variant-9 > svg.pcb {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none; /* CRÍTICO: Para no bloquear clics */
+}
+.bg-variant-9 .trace {
+  fill: none; stroke: #22c55e; stroke-width: 1.2; opacity: .35;
+  stroke-dasharray: 600; stroke-dashoffset: 600;
+  animation: bg9-draw 6s ease-out infinite;
+}
+.bg-variant-9 .trace.b { stroke: #0f172a; opacity: .12; animation-duration: 8s; animation-delay: -1.5s; }
+.bg-variant-9 .trace.c { animation-duration: 7s; animation-delay: -3s; }
+.bg-variant-9 .trace.d { animation-duration: 9s; animation-delay: -4.2s; }
+.bg-variant-9 .pad { fill: #22c55e; opacity: .55; }
+
+@keyframes bg9-draw {
+  0%   { stroke-dashoffset: 600; opacity: 0; }
+  20%  { opacity: .35; }
+  60%  { stroke-dashoffset: 0;   opacity: .35; }
+  100% { stroke-dashoffset: -600; opacity: 0; }
+}
+
+/* =========================================================
+   SISTEMA GLOBAL DE ANIMACIONES (DRY)
+   ========================================================= */
+/* fill-mode: both → el elemento empieza en el fotograma 'from' aunque haya delay */
+.fade-in  { animation: fadeIn  var(--anim-speed) var(--anim-easing) both; }
+.slide-up { animation: slideUp var(--anim-speed) var(--anim-easing) both; }
+.scale-in { animation: scaleIn var(--anim-speed) var(--anim-easing) both; }
+
+@keyframes fadeIn  { from { opacity: 0; }                              to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.95); }      to { opacity: 1; transform: scale(1); } }

@@ -1,0 +1,154 @@
+:host { display: block; }
+
+/* ── TARJETA ── */
+.tarjeta {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.tarjeta:hover {
+  box-shadow: 0 4px 16px var(--shadow-color, rgba(17,24,39,0.08));
+}
+.tarjeta.expandido {
+  border-color: rgba(141, 198, 63, 0.4);
+  box-shadow: 0 4px 20px rgba(141, 198, 63, 0.1);
+}
+
+/* ── CABECERA DEL ACORDEÓN ── */
+.tarjeta-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+.tarjeta-header:hover { background: var(--hover-bg, #f3f4f6); }
+
+/* Icono de estado */
+.tarjeta-estado-icono {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.tarjeta-estado-icono svg { width: 16px; height: 16px; }
+
+.icono-completado  { background: rgba(34, 197, 94, 0.12);  color: #22c55e; }
+.icono-en_proceso  { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.icono-pendiente   { background: rgba(148,163,184, 0.12);  color: #94a3b8; }
+
+/* Nombre y tag */
+.tarjeta-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tarjeta-nombre {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tarjeta-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted, #94a3b8);
+  letter-spacing: 0.4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Badge semafórico */
+.tarjeta-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badge-completado { background: rgba(34,197,94,0.12);   color: #16a34a; }
+.badge-en_proceso { background: rgba(59,130,246,0.12);  color: #2563eb; }
+.badge-pendiente  { background: rgba(148,163,184,0.12); color: #64748b; }
+
+/* Progreso mini */
+.tarjeta-progreso {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted, #94a3b8);
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+}
+
+/* Chevron */
+.chevron {
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted, #94a3b8);
+  flex-shrink: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.chevron.rotado { transform: rotate(180deg); }
+
+/* ── CUERPO COLAPSABLE (animación por max-height) ── */
+.tarjeta-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.tarjeta-body.visible {
+  max-height: 4000px; /* suficiente para cualquier cantidad de procedimientos */
+}
+
+.tarjeta-body-inner {
+  padding: 0 18px 20px;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}
+
+/* Ubicación */
+.equipo-ubicacion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  padding: 12px 0 16px;
+}
+.equipo-ubicacion svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+/* ── DARK MODE ── */
+:host-context([data-theme="dark"]) .tarjeta { background: #1e293b; border-color: #334155; }
+:host-context([data-theme="dark"]) .tarjeta.expandido { border-color: rgba(141,198,63,0.35); }
+:host-context([data-theme="dark"]) .tarjeta-header:hover { background: #0f172a; }
+:host-context([data-theme="dark"]) .tarjeta-nombre  { color: #f1f5f9; }
+:host-context([data-theme="dark"]) .tarjeta-body-inner { border-top-color: #334155; }
+:host-context([data-theme="dark"]) .badge-completado { background: rgba(34,197,94,0.15);  color: #4ade80; }
+:host-context([data-theme="dark"]) .badge-en_proceso { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .tarjeta { background: #1e293b; border-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .tarjeta-header:hover { background: #0f172a; }
+  :host-context(html:not([data-theme="light"])) .tarjeta-nombre { color: #f1f5f9; }
+  :host-context(html:not([data-theme="light"])) .tarjeta-body-inner { border-top-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .badge-completado { background: rgba(34,197,94,0.15); color: #4ade80; }
+  :host-context(html:not([data-theme="light"])) .badge-en_proceso { background: rgba(59,130,246,0.15); color: #60a5fa; }
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 480px) {
+  .tarjeta-header  { padding: 12px 14px; gap: 10px; }
+  .tarjeta-badge   { display: none; }       /* en móvil muy pequeño quita el badge */
+  .tarjeta-progreso { display: none; }
+}

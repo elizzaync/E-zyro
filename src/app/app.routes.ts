@@ -13,6 +13,7 @@ import { OperacionesComponent } from './features/operaciones/operaciones.compone
 import { OperacionesDetalleComponent } from './features/operaciones/components/operaciones-detalle/operaciones-detalle.component';
 import { OperacionesServiciosListaComponent } from './features/operaciones/components/operaciones-servicios-lista/operaciones-servicios-lista.component';
 import { OperacionesCronogramaComponent } from './features/operaciones/components/operaciones-cronograma/operaciones-cronograma.component';
+import { EquiposIntervenidosComponent } from './features/operaciones/components/equipos-intervenidos/equipos-intervenidos.component';
 export const routes: Routes = [
   {
     path: '',
@@ -84,6 +85,12 @@ export const routes: Routes = [
     path: 'operaciones/cronograma/:proyectoId',
     component: OperacionesCronogramaComponent,
     title: 'Cronograma | E-System Tic',
+    canActivate: [authGuard]
+},
+{
+    path: 'operaciones/servicio/:id/equipos',
+    component: EquiposIntervenidosComponent,
+    title: 'Equipos Intervenidos | E-System Tic',
     canActivate: [authGuard]
 },
   {

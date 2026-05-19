@@ -1,0 +1,166 @@
+:host { display: block; }
+
+/* ── TARJETA CONTENEDORA DEL GRUPO ── */
+.grupo-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 2px 16px var(--shadow-color, rgba(17,24,39,0.06));
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  transition: box-shadow 0.2s;
+}
+
+/* ── CABECERA ── */
+.grupo-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.grupo-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.grupo-icono {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: rgba(141, 198, 63, 0.12);
+  color: var(--brand-green, #8dc63f);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.grupo-icono svg { width: 22px; height: 22px; }
+
+.grupo-meta { min-width: 0; }
+.grupo-nombre {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-main, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.grupo-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+}
+
+/* ── BOTONES DE ACCIÓN ── */
+.grupo-acciones {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1.5px solid var(--border-color, #e5e7eb);
+  background: var(--card-bg, #fff);
+  color: var(--text-muted, #6b7280);
+  transition: all 0.2s;
+  position: relative;
+}
+.btn-accion svg:not(.lock-icon) { width: 15px; height: 15px; flex-shrink: 0; }
+.btn-accion:hover:not(:disabled) {
+  border-color: var(--brand-green, #8dc63f);
+  color: var(--brand-green, #8dc63f);
+  background: rgba(141, 198, 63, 0.07);
+}
+
+.btn-certificado:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.07);
+}
+
+/* Estado bloqueado: visualmente "dormido" */
+.btn-accion.bloqueado {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+.lock-icon { width: 12px !important; height: 12px !important; }
+
+/* ── BARRA DE PROGRESO ── */
+.progreso-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progreso-barra-bg {
+  flex: 1;
+  height: 8px;
+  background: var(--border-color, #e5e7eb);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progreso-barra-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 4px;
+}
+
+.progreso-label {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.3s;
+}
+
+/* ── LISTA DE EQUIPOS ── */
+.grupo-equipos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── DARK MODE ── */
+:host-context([data-theme="dark"]) .grupo-card {
+  background: #0f172a;
+  border-color: #1e293b;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.3), 0 0 0 1px #1e293b;
+}
+:host-context([data-theme="dark"]) .grupo-nombre { color: #f8fafc; }
+:host-context([data-theme="dark"]) .btn-accion   { background: #1e293b; border-color: #334155; color: #94a3b8; }
+:host-context([data-theme="dark"]) .progreso-barra-bg { background: #1e293b; }
+
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .grupo-card { background: #0f172a; border-color: #1e293b; box-shadow: 0 2px 20px rgba(0,0,0,0.3); }
+  :host-context(html:not([data-theme="light"])) .grupo-nombre { color: #f8fafc; }
+  :host-context(html:not([data-theme="light"])) .btn-accion   { background: #1e293b; border-color: #334155; color: #94a3b8; }
+  :host-context(html:not([data-theme="light"])) .progreso-barra-bg { background: #1e293b; }
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 600px) {
+  .grupo-card   { padding: 18px 16px; }
+  .grupo-header { flex-direction: column; }
+  .grupo-acciones { width: 100%; }
+  .btn-accion   { flex: 1; justify-content: center; }
+  .grupo-nombre { white-space: normal; font-size: 15px; }
+}

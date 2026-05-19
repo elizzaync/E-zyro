@@ -36,6 +36,9 @@
 .right-column {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  overflow: hidden; /* CLAVE: con overflow≠visible el grid usa automatic-min=0 para este item,
+                       el row queda acotado por la columna izquierda, no por el contenido largo */
 }
 
 /* --- TABS ESTILO APPLE/VERCEL (Alineadas a la izquierda) --- */

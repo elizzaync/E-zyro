@@ -220,6 +220,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 
   volver(): void { this.location.back(); }
 
+  irAEquiposIntervenidos(): void {
+    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos']);
+  }
+
   // ==========================================================
   // CARGA DE DATOS
   // ==========================================================

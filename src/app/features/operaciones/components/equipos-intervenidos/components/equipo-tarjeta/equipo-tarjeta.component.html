@@ -1,0 +1,79 @@
+<div class="tarjeta slide-up" [class.expandido]="expandido">
+
+  <!-- CABECERA DEL ACORDEÓN (siempre visible) -->
+  <div class="tarjeta-header" (click)="toggleExpand()" role="button" [attr.aria-expanded]="expandido">
+
+    <!-- Icono de estado -->
+    <div class="tarjeta-estado-icono" [ngClass]="'icono-' + equipo.estado">
+      @switch (equipo.estado) {
+        @case ('completado') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        }
+        @case ('en_proceso') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        }
+        @default {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        }
+      }
+    </div>
+
+    <!-- Nombre y tag -->
+    <div class="tarjeta-meta">
+      <span class="tarjeta-nombre">{{ equipo.nombre }}</span>
+      @if (equipo.tag) {
+      <span class="tarjeta-tag">{{ equipo.tag }}</span>
+      }
+    </div>
+
+    <!-- Badge semafórico -->
+    <span class="tarjeta-badge" [ngClass]="'badge-' + equipo.estado">
+      {{ estadoLabel(equipo.estado) }}
+    </span>
+
+    <!-- Progreso mini -->
+    <span class="tarjeta-progreso">{{ progresoEquipo }}%</span>
+
+    <!-- Chevron animado -->
+    <svg class="chevron" [class.rotado]="expandido" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  </div>
+
+  <!-- CUERPO COLAPSABLE -->
+  <div class="tarjeta-body" [class.visible]="expandido">
+    <div class="tarjeta-body-inner">
+
+      @if (equipo.ubicacion) {
+      <div class="equipo-ubicacion">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+        {{ equipo.ubicacion }}
+      </div>
+      }
+
+      <!-- TIMELINE DE PROCEDIMIENTOS -->
+      <div class="procedimientos-timeline">
+        @for (proc of equipo.procedimientos; track proc.id; let last = $last) {
+        <app-procedimiento-item
+          [procedimiento]="proc"
+          [esUltimo]="last">
+        </app-procedimiento-item>
+        }
+      </div>
+
+    </div>
+  </div>
+
+</div>

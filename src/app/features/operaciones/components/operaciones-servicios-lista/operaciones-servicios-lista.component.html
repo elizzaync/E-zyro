@@ -56,6 +56,21 @@
     }
   </div>
 
+  <!-- LEYENDA SEMAFÓRICA -->
+  <div class="service-legend">
+    <svg class="legend-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span class="legend-label">Estado:</span>
+    <span class="legend-item"><span class="legend-dot ld-gray"></span>Pendiente</span>
+    <span class="legend-sep">·</span>
+    <span class="legend-item"><span class="legend-dot ld-blue"></span>En Proceso</span>
+    <span class="legend-sep">·</span>
+    <span class="legend-item"><span class="legend-dot ld-green"></span>Completado</span>
+    <span class="legend-sep">·</span>
+    <span class="legend-item"><span class="legend-dot ld-red"></span>Vencido</span>
+  </div>
+
   <!-- EMPTY STATE -->
   @if (serviciosFiltrados.length === 0) {
   <div class="empty-state">
@@ -69,9 +84,13 @@
 
   <!-- GRID DE SERVICIOS -->
   <div class="servicios-grid">
-    @for (servicio of serviciosFiltrados; track servicio.id) {
-    <div class="servicio-card" [class]="'semaforo-' + servicio.estado_color" (click)="irAlServicio(servicio.id)">
+    @for (servicio of serviciosFiltrados; track servicio.id; let i = $index) {
+    <div class="servicio-card slide-up"
+         [class]="'semaforo-' + servicio.estado_color"
+         [style.animation-delay]="(i * 60) + 'ms'"
+         (click)="irAlServicio(servicio.id)">
 
+      <!-- FILA SUPERIOR: número de orden + badge -->
       <div class="sc-top">
         <span class="sc-orden">#{{ servicio.orden }}</span>
         <span class="sc-badge" [class]="'badge-' + servicio.estado.toLowerCase().replace('_', '-')">
@@ -79,12 +98,78 @@
         </span>
       </div>
 
-      <h4 class="sc-nombre">{{ servicio.nombre }}</h4>
+      <!-- NOMBRE DEL SERVICIO -->
+      <h4 class="sc-nombre">
+        <svg class="sc-nombre-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          <line x1="9" y1="12" x2="15" y2="12"/>
+          <line x1="9" y1="16" x2="13" y2="16"/>
+        </svg>
+        {{ servicio.nombre }}
+      </h4>
 
       @if (servicio.descripcion) {
       <p class="sc-descripcion">{{ servicio.descripcion }}</p>
       }
 
+      <!-- STEPPER DE ETAPAS -->
+      <div [class]="'sc-stepper sc-stepper--' + servicio.estado.toLowerCase().replace('_', '-')">
+
+        <!-- Paso 1: Pendiente -->
+        <div class="step"
+             [class.done]="servicio.estado === 'En_Proceso' || servicio.estado === 'Completado'"
+             [class.current]="servicio.estado === 'Pendiente'">
+          <div class="step-node">
+            @if (servicio.estado === 'En_Proceso' || servicio.estado === 'Completado') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            } @else {
+              <span>1</span>
+            }
+          </div>
+          <span class="step-label">Pendiente</span>
+        </div>
+
+        <div class="step-line"
+             [class.active]="servicio.estado === 'En_Proceso' || servicio.estado === 'Completado'">
+        </div>
+
+        <!-- Paso 2: En Proceso -->
+        <div class="step"
+             [class.done]="servicio.estado === 'Completado'"
+             [class.current]="servicio.estado === 'En_Proceso'">
+          <div class="step-node">
+            @if (servicio.estado === 'Completado') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            } @else {
+              <span>2</span>
+            }
+          </div>
+          <span class="step-label">En Proceso</span>
+        </div>
+
+        <div class="step-line" [class.active]="servicio.estado === 'Completado'"></div>
+
+        <!-- Paso 3: Completado -->
+        <div class="step" [class.done]="servicio.estado === 'Completado'">
+          <div class="step-node">
+            @if (servicio.estado === 'Completado') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            } @else {
+              <span>3</span>
+            }
+          </div>
+          <span class="step-label">Completado</span>
+        </div>
+
+      </div>
+
+      <!-- FOOTER: fecha + dot semáforo -->
       <div class="sc-footer">
         @if (servicio.fecha_programada) {
         <div class="sc-fecha">
@@ -99,7 +184,10 @@
         } @else {
         <span class="sin-fecha">Sin fecha programada</span>
         }
-        <div class="semaforo-dot" [class]="'dot-' + servicio.estado_color" [title]="servicio.estado_color === 'verde' ? 'Completado' : servicio.estado_color === 'rojo' ? 'Vencido' : 'En plazo'"></div>
+        <div class="semaforo-dot"
+             [class]="'dot-' + servicio.estado_color"
+             [title]="servicio.estado_color === 'verde' ? 'Completado' : servicio.estado_color === 'rojo' ? 'Vencido' : 'En plazo'">
+        </div>
       </div>
 
     </div>

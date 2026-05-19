@@ -1,0 +1,80 @@
+<div class="proc-item">
+
+  <!-- INDICADOR VERTICAL (dot + línea conectora) -->
+  <div class="proc-indicador">
+    <div class="proc-dot" [ngClass]="'dot-' + procedimiento.estado">
+      @switch (procedimiento.estado) {
+        @case ('completado') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        }
+        @case ('en_proceso') {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+          </svg>
+        }
+        @default {
+          <span class="dot-num">{{ procedimiento.orden }}</span>
+        }
+      }
+    </div>
+    @if (!esUltimo) {
+    <div class="proc-linea" [class.done]="procedimiento.estado === 'completado'"></div>
+    }
+  </div>
+
+  <!-- CONTENIDO DEL PASO -->
+  <div class="proc-contenido">
+
+    <!-- Fila: paso + badge -->
+    <div class="proc-top">
+      <span class="proc-paso">Paso {{ procedimiento.orden }}</span>
+      <span class="proc-badge" [ngClass]="'badge-' + procedimiento.estado">
+        {{ estadoLabel(procedimiento.estado) }}
+      </span>
+    </div>
+
+    <!-- Nombre del procedimiento -->
+    <p class="proc-nombre">{{ procedimiento.nombre }}</p>
+
+    @if (procedimiento.descripcion) {
+    <p class="proc-desc">{{ procedimiento.descripcion }}</p>
+    }
+
+    <!-- ── ZONA DE EVIDENCIA FOTOGRÁFICA ── -->
+    <label class="evidencia-zona" [class.tiene-foto]="procedimiento.fotoUrl">
+
+      @if (procedimiento.fotoUrl) {
+        <!-- Thumbnail si ya hay foto -->
+        <img class="evidencia-thumb" [src]="procedimiento.fotoUrl" alt="Foto de evidencia">
+        <div class="evidencia-overlay">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          <span>Cambiar foto</span>
+        </div>
+      } @else {
+        <!-- Placeholder cuando no hay foto -->
+        <div class="evidencia-placeholder">
+          <svg class="cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          <span class="evidencia-text">Subir evidencia</span>
+          <span class="evidencia-sub">Toca para tomar o elegir foto</span>
+        </div>
+      }
+
+      <!-- Input invisible que cubre toda la zona -->
+      <input
+        type="file"
+        accept="image/*"
+        capture="environment"
+        class="evidencia-input"
+        (change)="onFileSelected($event)">
+    </label>
+
+  </div>
+</div>

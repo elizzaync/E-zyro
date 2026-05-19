@@ -1,0 +1,48 @@
+<div class="ei-layout">
+
+  <!-- CABECERA DE PÁGINA -->
+  <div class="ei-page-header">
+    <button class="btn-volver" (click)="volver()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Volver
+    </button>
+    <div class="ei-page-titles">
+      <h2 class="ei-title">Equipos Intervenidos</h2>
+      <p class="ei-subtitle">Registro de trabajo físico y evidencia fotográfica</p>
+    </div>
+  </div>
+
+  <!-- ESTADO: CARGANDO -->
+  @if (cargando) {
+  <div class="ei-loading">
+    <app-spinner></app-spinner>
+    <span>Cargando equipos...</span>
+  </div>
+  } @else if (grupos.length === 0) {
+
+  <!-- ESTADO: VACÍO -->
+  <div class="ei-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+    </svg>
+    <h3>Sin equipos registrados</h3>
+    <p>No hay equipos asignados a este servicio.</p>
+  </div>
+
+  } @else {
+
+  <!-- GRUPOS DE TIPO DE EQUIPO -->
+  @for (grupo of grupos; track grupo.id; let i = $index) {
+  <app-tipo-equipo-grupo
+    class="slide-up"
+    [style.animation-delay]="(i * 100) + 'ms'"
+    [grupo]="grupo"
+    [progreso]="progresoGrupo(grupo)">
+  </app-tipo-equipo-grupo>
+  }
+
+  }
+
+</div>

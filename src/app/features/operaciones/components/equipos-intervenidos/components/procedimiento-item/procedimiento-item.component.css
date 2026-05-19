@@ -1,0 +1,231 @@
+:host { display: block; }
+
+/* ── ITEM RAÍZ ── */
+.proc-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+/* ─────────────────────────────────────
+   INDICADOR VERTICAL (dot + línea)
+───────────────────────────────────── */
+.proc-indicador {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  padding-top: 14px;
+}
+
+.proc-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  transition: background 0.25s, border-color 0.25s;
+  z-index: 1;
+}
+.proc-dot svg { width: 14px; height: 14px; }
+
+.dot-completado {
+  background: #22c55e;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(34,197,94,0.15);
+}
+.dot-en_proceso {
+  background: #3b82f6;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(59,130,246,0.15);
+}
+.dot-pendiente {
+  background: var(--card-bg, #fff);
+  color: var(--text-muted, #94a3b8);
+  border: 2px solid var(--border-color, #e5e7eb);
+}
+.dot-num { font-size: 12px; }
+
+/* Línea conectora */
+.proc-linea {
+  flex: 1;
+  width: 2px;
+  min-height: 32px;
+  background-image: linear-gradient(to bottom, #cbd5e1 50%, transparent 50%);
+  background-size: 2px 8px;
+  margin: 4px 0;
+  transition: background-image 0.3s;
+}
+.proc-linea.done {
+  background-image: none;
+  background-color: #22c55e;
+  opacity: 0.5;
+}
+
+/* ─────────────────────────────────────
+   CONTENIDO DEL PASO
+───────────────────────────────────── */
+.proc-contenido {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0 28px;
+}
+
+.proc-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.proc-paso {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.proc-badge {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.badge-completado { background: rgba(34,197,94,0.12);   color: #16a34a; }
+.badge-en_proceso { background: rgba(59,130,246,0.12);  color: #2563eb; }
+.badge-pendiente  { background: rgba(148,163,184,0.12); color: #64748b; }
+
+.proc-nombre {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main, #111827);
+  line-height: 1.4;
+}
+.proc-desc {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────────────
+   ZONA DE EVIDENCIA (botón grande táctil)
+───────────────────────────────────── */
+.evidencia-zona {
+  display: block;
+  position: relative;
+  width: 100%;
+  min-height: 72px;
+  border-radius: 12px;
+  border: 2px dashed var(--border-color, #cbd5e1);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.2s, background 0.2s;
+  background: var(--input-bg, #f9fafb);
+  margin-top: 8px;
+}
+.evidencia-zona:hover:not(.tiene-foto) {
+  border-color: var(--brand-green, #8dc63f);
+  background: rgba(141, 198, 63, 0.05);
+}
+.evidencia-zona.tiene-foto {
+  border-style: solid;
+  border-color: rgba(34, 197, 94, 0.4);
+  min-height: 160px;
+}
+
+/* Input invisible que cubre toda la zona → la zona entera es clickeable */
+.evidencia-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* Placeholder (sin foto) */
+.evidencia-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 16px;
+  min-height: 72px;
+  pointer-events: none;
+}
+.cam-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--text-muted, #94a3b8);
+}
+.evidencia-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+}
+.evidencia-sub {
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  text-align: center;
+}
+
+/* Thumbnail (con foto) */
+.evidencia-thumb {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Overlay "Cambiar foto" que aparece sobre el thumbnail en hover */
+.evidencia-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 1;
+}
+.evidencia-overlay svg { width: 24px; height: 24px; }
+.evidencia-zona.tiene-foto:hover .evidencia-overlay { opacity: 1; }
+
+/* ── DARK MODE ── */
+:host-context([data-theme="dark"]) .proc-nombre       { color: #f1f5f9; }
+:host-context([data-theme="dark"]) .dot-pendiente      { background: #1e293b; border-color: #334155; }
+:host-context([data-theme="dark"]) .evidencia-zona     { background: #1e293b; border-color: #334155; }
+:host-context([data-theme="dark"]) .evidencia-zona:hover:not(.tiene-foto) { border-color: var(--brand-green, #8dc63f); background: rgba(141,198,63,0.06); }
+:host-context([data-theme="dark"]) .badge-completado   { background: rgba(34,197,94,0.15); color: #4ade80; }
+:host-context([data-theme="dark"]) .badge-en_proceso   { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .proc-nombre      { color: #f1f5f9; }
+  :host-context(html:not([data-theme="light"])) .dot-pendiente     { background: #1e293b; border-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .evidencia-zona    { background: #1e293b; border-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .badge-completado  { background: rgba(34,197,94,0.15); color: #4ade80; }
+  :host-context(html:not([data-theme="light"])) .badge-en_proceso  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+}
+
+/* ── RESPONSIVE — grandes zonas táctiles en móvil ── */
+@media (max-width: 600px) {
+  .evidencia-zona       { min-height: 88px; }
+  .evidencia-zona.tiene-foto { min-height: 200px; }
+  .evidencia-thumb      { height: 200px; }
+  .proc-nombre          { font-size: 13.5px; }
+}

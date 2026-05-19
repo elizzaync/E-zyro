@@ -1,3 +1,10 @@
+/* ── HOST: estira el elemento hasta llenar .right-column ── */
+:host {
+  display: block;  /* block para que height:100% del hijo funcione */
+  flex: 1;         /* ocupa todo el espacio libre del flex-parent   */
+  min-height: 0;   /* permite colapsar en flex sin desbordar        */
+}
+
 /* --- CONTENEDOR PRINCIPAL --- */
 .activity-card {
   background-color: #ffffff;
@@ -6,20 +13,23 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
   font-family: 'Inter', 'Segoe UI', sans-serif;
   transition: all 0.3s ease;
-  /* Estirarse hasta la altura de la columna (= tope con Capacitaciones) */
   height: 100%;
+  max-height: calc(100vh - 160px); /* tope: ocupa hasta el borde inferior visible */
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
 }
 
-/* --- CABECERA --- */
+/* --- CABECERA — sticky dentro del flex-column de .activity-card --- */
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0; /* nunca se comprime aunque el timeline sea muy largo */
 }
 
 .card-title {
@@ -59,14 +69,20 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding-right: 4px;
+  padding-top: 16px;
+  padding-right: 8px;   /* espacio entre contenido y barra de scroll */
+  padding-bottom: 4px;
+  margin-right: -4px;   /* desplaza el scrollbar hasta el borde de la tarjeta */
 }
 
-/* Scroll suave estilo minimalista */
-.timeline::-webkit-scrollbar { width: 4px; }
+/* ── Scrollbar Premium ── */
+.timeline::-webkit-scrollbar { width: 6px; }
 .timeline::-webkit-scrollbar-track { background: transparent; }
-.timeline::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
-.timeline::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+.timeline::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+.timeline::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
 
 /* Estado cargando también ocupa el espacio restante */
 .act-loading {
@@ -79,8 +95,7 @@
 
 .timeline-item {
   display: flex;
-  gap: 16px;
-  min-height: 70px; /* Asegura espacio para la línea conectora */
+  gap: 14px;
 }
 
 /* --- INDICADOR (Icono + Línea) --- */
@@ -121,21 +136,23 @@
 
 /* --- CONTENIDO --- */
 .timeline-content {
-  padding-top: 6px;
-  padding-bottom: 20px;
+  padding-top: 4px;
+  padding-bottom: 28px; /* espacio entre el timestamp y el siguiente ítem */
+  min-width: 0;         /* evita que texto largo desborde el flex */
 }
 
 .act-title {
-  margin: 0 0 6px 0;
-  font-size: 14.5px;
+  margin: 0 0 5px 0;
+  font-size: 13.5px;
   font-weight: 600;
   color: #334155;
-  line-height: 1.4;
+  line-height: 1.45;
+  word-break: break-word; /* evita que títulos largos rompan el layout */
 }
 
 .act-time {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 12px;
   color: #94a3b8;
   font-weight: 500;
 }
@@ -146,9 +163,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #94a3b8;
+  color: #b0bec5;
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 /* Estado vacío */
@@ -182,12 +199,13 @@
 /* =========================================
    🔥 MODO OSCURO — Toggle manual 🔥
    ========================================= */
-:host-context([data-theme="dark"]) .activity-card { background-color: #1e293b; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); }
-:host-context([data-theme="dark"]) .card-title { color: #f8fafc; }
+:host-context([data-theme="dark"]) .activity-card  { background-color: #1e293b; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); }
+:host-context([data-theme="dark"]) .card-header    { border-bottom-color: #1e293b; }
+:host-context([data-theme="dark"]) .card-title     { color: #f8fafc; }
 :host-context([data-theme="dark"]) .action-btn:hover { background-color: #334155; color: #f8fafc; }
-:host-context([data-theme="dark"]) .act-title { color: #e2e8f0; }
-:host-context([data-theme="dark"]) .act-time { color: #64748b; }
-:host-context([data-theme="dark"]) .timeline-line { background-image: linear-gradient(to bottom, #334155 50%, transparent 50%); }
+:host-context([data-theme="dark"]) .act-title      { color: #e2e8f0; }
+:host-context([data-theme="dark"]) .act-time       { color: #64748b; }
+:host-context([data-theme="dark"]) .timeline-line  { background-image: linear-gradient(to bottom, #334155 50%, transparent 50%); }
 :host-context([data-theme="dark"]) .icon-wrapper.success    { background-color: rgba(141, 198, 63, 0.15); color: #8dc63f; }
 :host-context([data-theme="dark"]) .icon-wrapper.update     { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; }
 :host-context([data-theme="dark"]) .icon-wrapper.danger     { background-color: rgba(239, 68, 68, 0.15);  color: #f87171; }
@@ -198,7 +216,8 @@
   background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
   background-size: 200% 100%;
 }
-:host-context([data-theme="dark"]) .timeline::-webkit-scrollbar-thumb { background: #334155; }
+:host-context([data-theme="dark"]) .timeline::-webkit-scrollbar-thumb       { background-color: #334155; }
+:host-context([data-theme="dark"]) .timeline::-webkit-scrollbar-thumb:hover { background-color: #475569; }
 
 /* 🌙 MODO OSCURO — Sistema (prefers-color-scheme sin toggle) 🌙 */
 @media (prefers-color-scheme: dark) {
@@ -218,5 +237,7 @@
     background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
     background-size: 200% 100%;
   }
-  :host-context(html:not([data-theme="light"])) .timeline::-webkit-scrollbar-thumb { background: #334155; }
+  :host-context(html:not([data-theme="light"])) .card-header    { border-bottom-color: #1e293b; }
+  :host-context(html:not([data-theme="light"])) .timeline::-webkit-scrollbar-thumb       { background-color: #334155; }
+  :host-context(html:not([data-theme="light"])) .timeline::-webkit-scrollbar-thumb:hover { background-color: #475569; }
 }
