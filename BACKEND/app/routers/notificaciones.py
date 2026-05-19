@@ -15,6 +15,16 @@ from app.models.dispositivo_push import DispositivoPush
 from app.models.notificacion import Notificacion
 from app.services.fcm_service import enviar_push_a_usuario
 
+
+def _uid(val: str | None) -> uuid.UUID | None:
+    """Convierte string a UUID para filtros sobre columnas uuid nativas."""
+    if not val:
+        return None
+    try:
+        return uuid.UUID(str(val))
+    except (ValueError, AttributeError):
+        return None
+
 router = APIRouter(prefix="/notificaciones", tags=["Notificaciones"])
 ZONA = ZoneInfo("America/Lima")
 
@@ -64,10 +74,11 @@ def registrar_dispositivo(
     para que no se envíen duplicados.
     """
     usuario_id = payload["id"]
+    uid = _uid(usuario_id)
 
     # Desactivar tokens anteriores de la misma plataforma
     db.query(DispositivoPush).filter(
-        DispositivoPush.usuario_id == usuario_id,
+        DispositivoPush.usuario_id == uid,
         DispositivoPush.plataforma == body.plataforma,
         DispositivoPush.token_push != body.token_push,
         DispositivoPush.activo == True,
@@ -75,7 +86,7 @@ def registrar_dispositivo(
 
     # Upsert: buscar por (usuario_id, token_push)
     existing = db.query(DispositivoPush).filter(
-        DispositivoPush.usuario_id == usuario_id,
+        DispositivoPush.usuario_id == uid,
         DispositivoPush.token_push == body.token_push,
     ).first()
 
@@ -103,9 +114,9 @@ def desregistrar_dispositivo(
     db: Session = Depends(get_db),
 ):
     """Desactiva el token FCM al hacer logout."""
-    usuario_id = payload["id"]
+    uid = _uid(payload["id"])
     db.query(DispositivoPush).filter(
-        DispositivoPush.usuario_id == usuario_id,
+        DispositivoPush.usuario_id == uid,
         DispositivoPush.token_push == body.token_push,
     ).update({"activo": False, "updated_at": datetime.now(ZONA)})
     db.commit()
@@ -127,22 +138,25 @@ def listar_notificaciones(
     - limite → máximo de registros (default 50)
     """
     usuario_id = payload["id"]
-    q = db.query(Notificacion).filter(Notificacion.usuario_id == usuario_id)
+    uid = _uid(usuario_id)
+    if uid is None:
+        return []
+    q = db.query(Notificacion).filter(Notificacion.usuario_id == uid)
     if solo_no_leidas:
         q = q.filter(Notificacion.leido == False)
     notificaciones = q.order_by(Notificacion.created_at.desc()).limit(limite).all()
 
     return [
         NotificacionResponse(
-            id=n.id,
-            tipo=n.tipo,
-            categoria=n.categoria,
-            titulo=n.titulo,
-            mensaje=n.mensaje,
-            leido=n.leido,
-            enviado=n.enviado,
-            referencia_tabla=n.referencia_tabla,
-            referencia_id=n.referencia_id,
+            id=str(n.id),
+            tipo=str(n.tipo),
+            categoria=str(n.categoria) if n.categoria else None,
+            titulo=str(n.titulo),
+            mensaje=str(n.mensaje),
+            leido=bool(n.leido),
+            enviado=bool(n.enviado),
+            referencia_tabla=str(n.referencia_tabla) if n.referencia_tabla else None,
+            referencia_id=str(n.referencia_id) if n.referencia_id else None,
             created_at=n.created_at.isoformat() if n.created_at else "",
         )
         for n in notificaciones
@@ -155,9 +169,11 @@ def contar_no_leidas(
     db: Session = Depends(get_db),
 ):
     """Badge counter: número de notificaciones no leídas."""
-    usuario_id = payload["id"]
+    uid = _uid(payload["id"])
+    if uid is None:
+        return {"total": 0}
     total = db.query(Notificacion).filter(
-        Notificacion.usuario_id == usuario_id,
+        Notificacion.usuario_id == uid,
         Notificacion.leido == False,
     ).count()
     return {"total": total}
@@ -169,12 +185,13 @@ def marcar_todas_leidas(
     db: Session = Depends(get_db),
 ):
     """Marca todas las notificaciones del usuario como leídas."""
-    usuario_id = payload["id"]
-    db.query(Notificacion).filter(
-        Notificacion.usuario_id == usuario_id,
-        Notificacion.leido == False,
-    ).update({"leido": True})
-    db.commit()
+    uid = _uid(payload["id"])
+    if uid:
+        db.query(Notificacion).filter(
+            Notificacion.usuario_id == uid,
+            Notificacion.leido == False,
+        ).update({"leido": True})
+        db.commit()
     return {"status": "success"}
 
 
@@ -185,10 +202,10 @@ def marcar_leida(
     db: Session = Depends(get_db),
 ):
     """Marca una notificación concreta como leída."""
-    usuario_id = payload["id"]
+    uid = _uid(payload["id"])
     n = db.query(Notificacion).filter(
-        Notificacion.id == notificacion_id,
-        Notificacion.usuario_id == usuario_id,
+        Notificacion.id == _uid(notificacion_id),
+        Notificacion.usuario_id == uid,
     ).first()
     if not n:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
@@ -205,11 +222,12 @@ def eliminar_leidas(
     db: Session = Depends(get_db),
 ):
     """Elimina permanentemente todas las notificaciones ya leídas del usuario."""
-    usuario_id = payload["id"]
-    db.query(Notificacion).filter(
-        Notificacion.usuario_id == usuario_id,
-        Notificacion.leido == True,
-    ).delete(synchronize_session=False)
+    uid = _uid(payload["id"])
+    if uid:
+        db.query(Notificacion).filter(
+            Notificacion.usuario_id == uid,
+            Notificacion.leido == True,
+        ).delete(synchronize_session=False)
     db.commit()
     return {"status": "success"}
 
@@ -221,10 +239,10 @@ def eliminar_notificacion(
     db: Session = Depends(get_db),
 ):
     """Elimina una notificación concreta del usuario autenticado."""
-    usuario_id = payload["id"]
+    uid = _uid(payload["id"])
     n = db.query(Notificacion).filter(
-        Notificacion.id == notificacion_id,
-        Notificacion.usuario_id == usuario_id,
+        Notificacion.id == _uid(notificacion_id),
+        Notificacion.usuario_id == uid,
     ).first()
     if not n:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")

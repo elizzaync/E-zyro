@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid as _uuid_mod
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -14,6 +15,16 @@ from ..models.usuario import Usuario
 from ..models.usuario_rol import UsuarioRol
 from ..models.rol_permiso import RolPermiso
 from ..models.permiso import Permiso
+
+
+def _to_uuid(val: str | None) -> _uuid_mod.UUID | None:
+    """Convierte string a uuid.UUID para filtros — evita 'uuid = varchar' en PostgreSQL."""
+    if not val:
+        return None
+    try:
+        return _uuid_mod.UUID(str(val))
+    except (ValueError, AttributeError):
+        return None
 
 router = APIRouter(prefix="/auditoria", tags=["auditoria"])
 
@@ -72,14 +83,22 @@ def listar_auditoria(
     _verificar_permiso_auditoria(payload, db)
     empresa_id = payload.get("empresa_id")
 
-    query = db.query(Auditoria).filter(Auditoria.empresa_id == empresa_id)
+    # Castear a uuid.UUID para que psycopg2 use el adaptador correcto
+    # (las columnas en BD son tipo uuid nativo, no varchar)
+    emp_uuid = _to_uuid(empresa_id)
+    if emp_uuid is None:
+        return []
+
+    query = db.query(Auditoria).filter(Auditoria.empresa_id == emp_uuid)
 
     if modulo:
         query = query.filter(Auditoria.modulo.ilike(f"%{modulo}%"))
     if accion:
         query = query.filter(Auditoria.accion.ilike(f"%{accion}%"))
     if usuario_id:
-        query = query.filter(Auditoria.usuario_id == usuario_id)
+        uid = _to_uuid(usuario_id)
+        if uid:
+            query = query.filter(Auditoria.usuario_id == uid)
     if fecha_desde:
         try:
             query = query.filter(Auditoria.fecha >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
@@ -101,23 +120,25 @@ def listar_auditoria(
         .all()
     )
 
-    uid_set = {a.usuario_id for a in auditorias if a.usuario_id}
+    # usuario_id devuelto por psycopg2 puede ser uuid.UUID — normalizar a str
+    uid_set = {str(a.usuario_id) for a in auditorias if a.usuario_id}
     usuarios_map: dict[str, str] = {}
     if uid_set:
-        rows = db.query(Usuario).filter(Usuario.id.in_(uid_set)).all()
+        uid_uuids = [_to_uuid(u) for u in uid_set if _to_uuid(u)]
+        rows = db.query(Usuario).filter(Usuario.id.in_(uid_uuids)).all()
         usuarios_map = {str(u.id): f"{u.nombre} {u.apellido}".strip() for u in rows}
 
     return [
         AuditoriaOut(
             id=str(a.id),
-            usuario_id=a.usuario_id,
-            usuario_nombre=usuarios_map.get(a.usuario_id or "", None),
-            tabla_afectada=a.tabla_afectada,
-            registro_id=a.registro_id,
-            accion=a.accion,
-            modulo=a.modulo,
-            descripcion=a.descripcion,
-            ip=a.ip,
+            usuario_id=str(a.usuario_id) if a.usuario_id else None,
+            usuario_nombre=usuarios_map.get(str(a.usuario_id) if a.usuario_id else "", None),
+            tabla_afectada=str(a.tabla_afectada),
+            registro_id=str(a.registro_id) if a.registro_id else None,
+            accion=str(a.accion),
+            modulo=str(a.modulo) if a.modulo else None,
+            descripcion=str(a.descripcion) if a.descripcion else None,
+            ip=str(a.ip) if a.ip else None,
             fecha=a.fecha.strftime("%d/%m/%Y %H:%M:%S") if a.fecha else "",
         )
         for a in auditorias
