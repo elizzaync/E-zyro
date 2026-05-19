@@ -15,6 +15,8 @@ from app.routers import notificaciones  as notificaciones_router
 from app.routers import requerimientos  as requerimientos_router
 from app.routers import auditoria       as auditoria_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
+from app.core.audit_context import AuditContextMiddleware
+import app.core.audit_listener  # noqa: F401 — registra el listener al importar
 
 # Importar todos los modelos para que Base los registre antes de create_all
 from app.models import (  # noqa: F401
@@ -95,6 +97,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AuditContextMiddleware)
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
