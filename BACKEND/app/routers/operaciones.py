@@ -705,9 +705,19 @@ def actualizar_requerimiento_detalle(
     if body.cantidad is not None and body.cantidad < 1:
         raise HTTPException(status_code=422, detail="Cantidad inválida")
 
+    empresa_id = payload["empresa_id"]
+
     rd = db.query(RequerimientoDetalle).filter(RequerimientoDetalle.id == rd_id).first()
     if not rd:
         raise HTTPException(status_code=404, detail="Detalle no encontrado")
+
+    # Verificar que el requerimiento pertenece a la empresa del token
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id         == rd.requerimiento_id,
+        Requerimiento.empresa_id == empresa_id,
+    ).first()
+    if not req:
+        raise HTTPException(status_code=403, detail="Acceso denegado")
 
     changed = False
     if body.cantidad is not None:
@@ -915,19 +925,23 @@ async def remover_item_borrador(
 ):
     empresa_id = payload["empresa_id"]
 
-    rd = db.query(RequerimientoDetalle).filter(
-        RequerimientoDetalle.id == rd_id
-    ).first()
+    # Verificar ownership en una sola query con JOIN para evitar information disclosure
+    rd = (
+        db.query(RequerimientoDetalle)
+        .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
+        .filter(
+            RequerimientoDetalle.id  == rd_id,
+            Requerimiento.empresa_id == empresa_id,
+            Requerimiento.estado     == "borrador",
+        )
+        .first()
+    )
     if not rd:
         raise HTTPException(status_code=404, detail="Ítem no encontrado")
 
     req = db.query(Requerimiento).filter(
-        Requerimiento.id         == rd.requerimiento_id,
-        Requerimiento.empresa_id == empresa_id,
-        Requerimiento.estado     == "borrador",
+        Requerimiento.id == rd.requerimiento_id
     ).first()
-    if not req:
-        raise HTTPException(status_code=403, detail="Solo se pueden remover ítems del borrador")
 
     servicio_id = req.proyecto_servicio_id
     db.delete(rd)

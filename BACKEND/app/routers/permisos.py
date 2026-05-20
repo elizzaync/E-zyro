@@ -224,7 +224,12 @@ async def enviar_solicitud(
         fecha_fin_dt    = parse_date(fecha_fin)
 
         # ── 3. Subir PDF a Cloudinary (resource_type raw)
-        pdf_bytes     = await pdf_file.read()
+        content_type = (pdf_file.content_type or "").split(";")[0].strip().lower()
+        if content_type not in {"application/pdf", "application/octet-stream"}:
+            raise HTTPException(status_code=422, detail="Solo se aceptan archivos PDF")
+        pdf_bytes = await pdf_file.read()
+        if len(pdf_bytes) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="El PDF supera el límite de 10 MB")
         pdf_uid       = uuid.uuid4().hex[:12]
         pdf_public_id = f"e-zyro/permisos/permiso_{str(empleado.id)}_{pdf_uid}"
         pdf_url       = subir_pdf_bytes_cloudinary(pdf_bytes, pdf_public_id)

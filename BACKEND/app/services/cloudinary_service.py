@@ -87,14 +87,35 @@ def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
         raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")
 
 
+_ALLOWED_EVIDENCE_TYPES = {
+    "image/jpeg", "image/jpg", "image/png", "image/webp",
+    "image/gif", "application/pdf",
+}
+_MAX_EVIDENCE_BYTES = 20 * 1024 * 1024  # 20 MB
+
+
 async def subir_archivo_cloudinary(archivo, folder: str) -> str:
     """
     Sube un UploadFile de FastAPI a Cloudinary.
-    Usa resource_type='auto' para aceptar imágenes y documentos.
+    Acepta imágenes y PDFs hasta 20 MB.
     """
     import io
+    from fastapi import HTTPException
+
+    content_type = (archivo.content_type or "").split(";")[0].strip().lower()
+    if content_type not in _ALLOWED_EVIDENCE_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Tipo de archivo no permitido: {content_type}. "
+                   "Se aceptan imágenes (jpg, png, webp, gif) y PDF.",
+        )
+
     try:
         contenido = await archivo.read()
+
+        if len(contenido) > _MAX_EVIDENCE_BYTES:
+            raise HTTPException(status_code=413, detail="El archivo supera el límite de 20 MB")
+
         upload_result = cloudinary.uploader.upload(
             io.BytesIO(contenido),
             folder=folder,
@@ -102,6 +123,8 @@ async def subir_archivo_cloudinary(archivo, folder: str) -> str:
             overwrite=False,
         )
         return upload_result.get("secure_url", "")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error subiendo archivo a Cloudinary: {str(e)}")
         raise Exception(f"Fallo al subir archivo a Cloudinary: {str(e)}")
