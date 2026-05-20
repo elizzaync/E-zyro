@@ -112,7 +112,21 @@ export class AuthService {
   // ==========================================
   isAuthenticated(): boolean {
     const token = localStorage.getItem('ezyro_token');
-    return !!token;
+    if (!token) return false;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      // Rechaza tokens expirados (exp está en segundos UNIX)
+      if (payload?.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+        this.logout();
+        return false;
+      }
+      return true;
+    } catch {
+      // Token malformado → limpiar y redirigir
+      localStorage.removeItem('ezyro_token');
+      localStorage.removeItem('ezyro_user');
+      return false;
+    }
   }
 
   getToken(): string | null {

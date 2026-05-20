@@ -1,6 +1,6 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://e-zyro-production.up.railway.app',
+  apiUrl: 'https://api.mystic-byte.com/',
   firebaseConfig: {
     apiKey: "AIzaSyApBrdBJkIRUoqEkMJCiEuVg4saZ_y0iVE",
     authDomain: "e-system-tic.firebaseapp.com",

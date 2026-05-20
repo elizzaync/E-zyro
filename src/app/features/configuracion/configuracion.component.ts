@@ -81,10 +81,7 @@ export class ConfiguracionComponent implements OnInit {
   }
 
   ejecutarCerrarSesion() {
-    this.showLogoutModal = false;
-    document.body.style.overflow = '';
-    document.documentElement.removeAttribute('data-theme');
-    this.authService.logout();
+    this.authService.ejecutarCerrarSesion();
   }
 
 }

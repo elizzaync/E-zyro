@@ -1,4 +1,4 @@
-import { Injectable, inject, NgZone } from '@angular/core';
+import { Injectable, inject, NgZone, isDevMode } from '@angular/core';
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { environment } from '../../../environments/environment';
@@ -37,7 +37,7 @@ export class FcmService {
 
     onMessage(messaging, (payload) => {
       this.ngZone.run(() => {
-        console.log('🔥 Mensaje recibido en primer plano: ', payload);
+        if (isDevMode()) console.log('🔥 Mensaje recibido en primer plano: ', payload);
 
         const titulo = payload.notification?.title || 'Nueva Alerta';
         const cuerpo = payload.notification?.body || '';
