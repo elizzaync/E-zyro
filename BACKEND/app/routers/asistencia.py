@@ -54,6 +54,7 @@ class MarcarRequest(BaseModel):
     proyecto_servicio_id: Optional[str]   = None
     timestamp:            Optional[str]   = None  # ISO 8601 timestamp del cliente
     uuid_cliente:         Optional[str]   = None  # UUID v4 generado en dispositivo (idempotencia)
+    fuente_tiempo:        Optional[str]   = None  # ntp_monotonic | ntp_device | device_only | sospechoso
 
 
 class MarcarResponse(BaseModel):
@@ -266,30 +267,74 @@ def marcar_asistencia(
         )
 
     # 4 ── Verificar que la selfie tenga un rostro detectable
-    # La foto base ya fue validada al subirla; descargarla aquí en cada marcación
-    # generaba un 503 cuando Cloudinary tardaba o fallaba la red en Railway.
-    enc_selfie = _decode_face(body.imagen_selfie)
-    if enc_selfie is None:
-        raise HTTPException(
-            422,
-            "No se detectó ningún rostro en la selfie. "
-            "Asegúrate de estar bien iluminado y mirar directamente a la cámara.",
-        )
+    # Excepción: registros sincronizados offline (uuid_cliente presente, imagen vacía)
+    # se aprueban por JWT + GPS; se marcan como sin_evidencia_offline para revisión.
+    es_sync_sin_selfie = bool(body.uuid_cliente) and not (body.imagen_selfie or "").strip()
 
-    # 5 ── Comparación facial
-    score, resultado_ia = _comparar(True, enc_selfie)
-    aprobado = resultado_ia == "aprobado"
+    if es_sync_sin_selfie:
+        score, resultado_ia = 0.0, "sin_evidencia_offline"
+        aprobado = True  # identidad ya verificada vía JWT al momento de marcar
+    else:
+        enc_selfie = _decode_face(body.imagen_selfie)
+        if enc_selfie is None:
+            raise HTTPException(
+                422,
+                "No se detectó ningún rostro en la selfie. "
+                "Asegúrate de estar bien iluminado y mirar directamente a la cámara.",
+            )
+        # 5 ── Comparación facial
+        score, resultado_ia = _comparar(True, enc_selfie)
+        aprobado = resultado_ia == "aprobado"
+
+    # ── Validación de la fuente de tiempo ────────────────────────────────────
+    fuente = (body.fuente_tiempo or "device_only").strip().lower()
+
+    if fuente == "sospechoso":
+        # El reloj del dispositivo retrocedió desde el último sync NTP.
+        # Registrar como pendiente de revisión obligatoria.
+        resultado_ia = "revision_manual"
+        aprobado = True
+        motivo = f"ALERTA: Posible manipulación de reloj detectada. {motivo}"
+
+    elif fuente == "device_only":
+        # Sin referencia NTP: el timestamp proviene solo del reloj del dispositivo.
+        # Marcar para revisión, pero no rechazar.
+        delta_horas = abs((timestamp_servidor - ahora).total_seconds()) / 3600
+        if delta_horas > 1:  # más de 1 hora de diferencia → sospechoso
+            resultado_ia = "revision_manual"
+            aprobado = True
+            motivo = f"Tiempo no verificado por NTP (δ={delta_horas:.1f}h). Requiere revisión. {motivo}"
+
+    else:
+        # ntp_monotonic o ntp_device: fuente confiable.
+        # Solo aplicar delta como red de seguridad extra (umbral más alto: 24h).
+        delta_horas = abs((timestamp_servidor - ahora).total_seconds()) / 3600
+        if delta_horas > 24:
+            resultado_ia = "revision_manual"
+            aprobado = True
+            motivo = f"Delta tiempo inusual ({delta_horas:.1f}h). Revisión recomendada."
     
-    # Forzar la hora local de Lima quitando la zona horaria (haciéndola naive).
-    # Así PostgreSQL en Railway guarda literalmente este número sin intentar convertirlo a UTC.
-    ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+    # Usar timestamp del dispositivo si viene en el payload (registros offline-first).
+    # Si no, usar la hora del servidor. Siempre almacenar como hora Lima sin tzinfo.
+    if body.timestamp:
+        try:
+            ts_raw = datetime.fromisoformat(body.timestamp.replace("Z", "+00:00"))
+            ahora = ts_raw.astimezone(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        except (ValueError, AttributeError):
+            ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+    else:
+        ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+
+    # Auditoría: guardar cuándo llegó al servidor para detectar deltas sospechosos
+    timestamp_servidor = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
 
     _motivos = {
-        "aprobado":        f"Identidad verificada · Similitud {score:.1f}%",
-        "revision_manual": f"Similitud baja ({score:.1f}%) · Requiere revisión del supervisor",
-        "rechazado":       f"Identidad no verificada · Similitud insuficiente ({score:.1f}%)",
+        "aprobado":              f"Identidad verificada · Similitud {score:.1f}%",
+        "revision_manual":       f"Similitud baja ({score:.1f}%) · Requiere revisión del supervisor",
+        "rechazado":             f"Identidad no verificada · Similitud insuficiente ({score:.1f}%)",
+        "sin_evidencia_offline": "Registro sincronizado offline · Sin selfie · Verificado por JWT+GPS",
     }
-    motivo = _motivos[resultado_ia]
+    motivo = _motivos.get(resultado_ia, motivo if 'motivo' in dir() else "")
 
     # 7 ── Subir selfie a Cloudinary (fallo no bloquea el registro)
     selfie_url:       Optional[str] = None
