@@ -30,7 +30,7 @@ yarn-error.log
 .history/*
 
 # Environment files with secrets — NEVER commit these
-src/environments/environment*.ts
+src/environments/*
 
 # Miscellaneous
 /.angular/cache
