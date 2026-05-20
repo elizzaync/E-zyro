@@ -164,7 +164,7 @@ def get_mis_solicitudes(
             Material.nombre.label("mat_nombre"),
             Material.unidad.label("mat_unidad"),
         )
-        .join(Material, Material.id == RequerimientoDetalle.material_id)
+        .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
         .filter(RequerimientoDetalle.requerimiento_id.in_(req_ids))
         .all()
     )
@@ -185,11 +185,14 @@ def get_mis_solicitudes(
         items = [
             SolicitudDetalleOut(
                 id=str(d.RequerimientoDetalle.id),
-                material_id=str(d.RequerimientoDetalle.material_id),
-                nombre=d.mat_nombre or "",
-                unidad=d.mat_unidad or "",
+                material_id=str(d.RequerimientoDetalle.material_id) if d.RequerimientoDetalle.material_id else None,
+                nombre=d.mat_nombre or d.RequerimientoDetalle.nombre_libre or "",
+                unidad=d.mat_unidad or d.RequerimientoDetalle.unidad_libre or "",
                 cantidad=d.RequerimientoDetalle.cantidad or 0,
                 cantidad_aprobada=d.RequerimientoDetalle.cantidad_aprobada,
+                nombre_libre=d.RequerimientoDetalle.nombre_libre,
+                unidad_libre=d.RequerimientoDetalle.unidad_libre,
+                especificacion=d.RequerimientoDetalle.especificacion,
             )
             for d in detalles_by_req.get(req.id, [])
         ]
@@ -233,13 +236,17 @@ def crear_solicitud(
     for item in body.items:
         if item.cantidad < 1:
             raise HTTPException(status_code=422, detail="Cantidad debe ser mayor a 0")
-        mat = db.query(Material).filter(
-            Material.id         == item.material_id,
-            Material.empresa_id == empresa_id,
-            Material.activo     == True,
-        ).first()
-        if not mat:
-            raise HTTPException(status_code=404, detail="Material no encontrado")
+        if item.material_id:
+            mat = db.query(Material).filter(
+                Material.id         == item.material_id,
+                Material.empresa_id == empresa_id,
+                Material.activo     == True,
+            ).first()
+            if not mat:
+                raise HTTPException(status_code=404, detail="Material no encontrado")
+        else:
+            if not item.nombre_libre or not item.unidad_libre:
+                raise HTTPException(status_code=422, detail="Material manual requiere nombre_libre y unidad_libre")
 
     req = Requerimiento(
         id             = str(_uuid.uuid4()),
@@ -260,6 +267,9 @@ def crear_solicitud(
             requerimiento_id = req.id,
             material_id      = item.material_id,
             cantidad         = item.cantidad,
+            nombre_libre     = item.nombre_libre,
+            unidad_libre     = item.unidad_libre,
+            especificacion   = item.especificacion,
         ))
 
     db.commit()

@@ -17,11 +17,14 @@ class CatalogoItemOut(BaseModel):
 
 class SolicitudDetalleOut(BaseModel):
     id: str
-    material_id: str
+    material_id: Optional[str] = None
     nombre: str
     unidad: str
     cantidad: int
     cantidad_aprobada: Optional[int]
+    nombre_libre: Optional[str] = None
+    unidad_libre: Optional[str] = None
+    especificacion: Optional[str] = None
 
 
 class MiSolicitudOut(BaseModel):
@@ -37,8 +40,11 @@ class MiSolicitudOut(BaseModel):
 # ── Entrada ───────────────────────────────────────────────────
 
 class ItemSolicitudBody(BaseModel):
-    material_id: str
+    material_id: Optional[str] = None
     cantidad: int
+    nombre_libre: Optional[str] = None
+    unidad_libre: Optional[str] = None
+    especificacion: Optional[str] = None
 
 
 class CrearSolicitudBody(BaseModel):
