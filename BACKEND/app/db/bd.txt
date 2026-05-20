@@ -1,7 +1,8 @@
 -- ============================================================
 -- SISTEMA DE GESTIÓN DE SERVICIOS DE CAMPO
--- PostgreSQL DDL - 82 Tablas
+-- PostgreSQL DDL - 87 Tablas
 -- Generado por: Claude Sonnet 4.6
+-- Última actualización: 2026-05-20 (sincronizado con modelos Python)
 -- ============================================================
 
 -- Extensión para UUID
@@ -95,6 +96,7 @@ CREATE TABLE sesion_usuario (
     user_agent       VARCHAR(255),
     activa           BOOLEAN      NOT NULL DEFAULT TRUE,
     fecha_expiracion TIMESTAMP    NOT NULL,
+    fecha_cierre     TIMESTAMP,                          -- registra cuándo se cerró la sesión
     created_at       TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
@@ -214,6 +216,8 @@ CREATE TABLE solicitud_laboral (
     aprobado_por     UUID,
     fecha_aprobacion TIMESTAMP,
     observacion      VARCHAR(500),
+    url_pdf          VARCHAR(500),                       -- documento de la solicitud en Cloudinary
+    public_id_pdf    VARCHAR(255),
     created_at       TIMESTAMP    NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMP,
     CONSTRAINT chk_solicitud_estado CHECK (estado IN ('pendiente','aprobada','rechazada','anulada')),
@@ -370,6 +374,7 @@ CREATE TABLE foto_biometrica (
 );
 
 -- N3: Agregados proyecto_id y proyecto_servicio_id para contexto operativo
+-- uuid_cliente: UUID generado en el dispositivo móvil para idempotencia en registros offline
 CREATE TABLE registro_asistencia (
     id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     empresa_id           UUID        NOT NULL,
@@ -382,9 +387,11 @@ CREATE TABLE registro_asistencia (
     observacion          VARCHAR(500),
     validado_por         UUID,
     fecha_validacion     TIMESTAMP,
+    uuid_cliente         VARCHAR(36),                    -- idempotencia offline: UUID generado en móvil
     created_at           TIMESTAMP   NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_asistencia_tipo   CHECK (tipo IN ('entrada','salida','entrada_almuerzo','salida_almuerzo')),
-    CONSTRAINT chk_asistencia_estado CHECK (estado IN ('pendiente','validado','rechazado','justificado'))
+    CONSTRAINT chk_asistencia_estado CHECK (estado IN ('pendiente','validado','rechazado','justificado')),
+    UNIQUE (empresa_id, uuid_cliente)
 );
 
 CREATE TABLE geolocalizacion_asistencia (
@@ -840,31 +847,38 @@ CREATE TABLE proyecto_miembro (
 );
 
 -- G3: Agregados tipo, proyecto_servicio_id, procedimiento_id para trazabilidad
+-- 'borrador' en estado: requerimiento colaborativo creado por equipo antes de enviarse a logística
 CREATE TABLE requerimiento (
-    id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    proyecto_id          UUID        NOT NULL,
-    proyecto_servicio_id UUID,
-    procedimiento_id     UUID,
-    empresa_id           UUID        NOT NULL,
-    solicitante_id       UUID        NOT NULL,
-    tipo                 VARCHAR(30) NOT NULL,
-    estado               VARCHAR(20) NOT NULL DEFAULT 'pendiente',
-    observacion          VARCHAR(500),
-    fecha                DATE        NOT NULL,
-    aprobado_por         UUID,
-    created_at           TIMESTAMP   NOT NULL DEFAULT NOW(),
-    updated_at           TIMESTAMP,
+    id                    UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    proyecto_id           UUID        NOT NULL,
+    proyecto_servicio_id  UUID,
+    procedimiento_id      UUID,
+    empresa_id            UUID        NOT NULL,
+    solicitante_id        UUID        NOT NULL,
+    tipo                  VARCHAR(30) NOT NULL,
+    estado                VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    observacion           VARCHAR(500),
+    observacion_logistico VARCHAR(500),                  -- HU-16: nota del logístico al aprobar/rechazar
+    fecha                 DATE        NOT NULL,
+    aprobado_por          UUID,
+    created_at            TIMESTAMP   NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMP,
     CONSTRAINT chk_req_tipo   CHECK (tipo IN ('material','herramienta','equipo_especial')),
-    CONSTRAINT chk_req_estado CHECK (estado IN ('pendiente','aprobado','rechazado','entregado','anulado'))
+    CONSTRAINT chk_req_estado CHECK (estado IN ('borrador','pendiente','aprobado','rechazado','entregado','anulado'))
 );
 
+-- material_id nullable: permite compras externas (nombre_libre) donde no existe material en inventario
 CREATE TABLE requerimiento_detalle (
     id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     requerimiento_id  UUID NOT NULL,
-    material_id       UUID NOT NULL,
+    material_id       UUID,                              -- NULL cuando es compra externa
     cantidad          INT  NOT NULL,
     cantidad_aprobada INT,
     observacion       VARCHAR(255),
+    nombre_libre      VARCHAR(255),                     -- nombre del material externo (sin material_id)
+    unidad_libre      VARCHAR(50),                      -- unidad del material externo
+    especificacion    VARCHAR(500),                     -- especificación técnica adicional
+    agregado_por_id   VARCHAR(36),                      -- empleado.id que agregó este ítem al borrador
     CONSTRAINT chk_rd_cant CHECK (cantidad > 0)
 );
 
@@ -970,15 +984,19 @@ CREATE TABLE programacion_empleado (
 );
 
 -- G5: Agregado padre_id para hilos de respuesta
+-- proyecto_servicio_id: permite chat a nivel de servicio (sala WebSocket)
+-- destinatario_id: para mensajes directos (privados) dentro del proyecto
 CREATE TABLE mensaje_chat (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    proyecto_id UUID      NOT NULL,
-    empresa_id  UUID      NOT NULL,
-    remitente_id UUID     NOT NULL,
-    padre_id    UUID,
-    contenido   TEXT      NOT NULL,
-    fecha       TIMESTAMP NOT NULL,
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+    id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    proyecto_servicio_id UUID,                           -- sala de chat a nivel de servicio
+    proyecto_id          UUID      NOT NULL,
+    empresa_id           UUID      NOT NULL,
+    remitente_id         UUID      NOT NULL,
+    destinatario_id      UUID,                           -- NULL = mensaje grupal; set = mensaje directo
+    padre_id             UUID,
+    contenido            TEXT      NOT NULL,
+    fecha                TIMESTAMP NOT NULL,
+    created_at           TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- G5: Múltiples adjuntos por mensaje
@@ -999,6 +1017,27 @@ CREATE TABLE lectura_mensaje (
     usuario_id UUID      NOT NULL,
     leido_at   TIMESTAMP NOT NULL DEFAULT NOW(),
     PRIMARY KEY (mensaje_id, usuario_id)
+);
+
+-- Comunicados formales del jefe de operaciones al equipo del proyecto
+CREATE TABLE comunicado_proyecto (
+    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    empresa_id        UUID         NOT NULL,
+    proyecto_id       UUID         NOT NULL,
+    autor_id          UUID,                               -- empleado que publicó el comunicado
+    titulo            VARCHAR(200) NOT NULL,
+    mensaje           TEXT         NOT NULL,
+    adjunto_url       VARCHAR(500),
+    adjunto_public_id VARCHAR(255),
+    created_at        TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+-- Control de lectura de comunicados por empleado
+CREATE TABLE comunicado_leido (
+    comunicado_id UUID      NOT NULL,
+    empleado_id   UUID      NOT NULL,
+    leido_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (comunicado_id, empleado_id)
 );
 
 -- ============================================================
@@ -1253,7 +1292,7 @@ ALTER TABLE requerimiento        ADD CONSTRAINT fk_req_empresa          FOREIGN 
 ALTER TABLE requerimiento        ADD CONSTRAINT fk_req_solicitante      FOREIGN KEY (solicitante_id)     REFERENCES empleado(id);
 ALTER TABLE requerimiento        ADD CONSTRAINT fk_req_aprobado         FOREIGN KEY (aprobado_por)       REFERENCES empleado(id);
 ALTER TABLE requerimiento_detalle ADD CONSTRAINT fk_reqdet_req          FOREIGN KEY (requerimiento_id)   REFERENCES requerimiento(id) ON DELETE CASCADE;
-ALTER TABLE requerimiento_detalle ADD CONSTRAINT fk_reqdet_material     FOREIGN KEY (material_id)        REFERENCES material(id);
+ALTER TABLE requerimiento_detalle ADD CONSTRAINT fk_reqdet_material     FOREIGN KEY (material_id)        REFERENCES material(id);        -- nullable: NULL para compras externas
 ALTER TABLE requerimiento_entrega ADD CONSTRAINT fk_re_requerimiento    FOREIGN KEY (requerimiento_id)   REFERENCES requerimiento(id);
 ALTER TABLE requerimiento_entrega ADD CONSTRAINT fk_re_empresa          FOREIGN KEY (empresa_id)         REFERENCES empresa(id);
 ALTER TABLE requerimiento_entrega ADD CONSTRAINT fk_re_entregado        FOREIGN KEY (entregado_por_id)   REFERENCES empleado(id);
@@ -1277,19 +1316,26 @@ ALTER TABLE version_plano      ADD CONSTRAINT fk_vplano_empresa     FOREIGN KEY 
 ALTER TABLE version_plano      ADD CONSTRAINT fk_vplano_subido      FOREIGN KEY (subido_por)  REFERENCES usuario(id);
 
 -- COMUNICACIÓN
-ALTER TABLE programacion_campo    ADD CONSTRAINT fk_pc_empresa       FOREIGN KEY (empresa_id)     REFERENCES empresa(id);
-ALTER TABLE programacion_campo    ADD CONSTRAINT fk_pc_proyecto      FOREIGN KEY (proyecto_id)    REFERENCES proyecto(id);
-ALTER TABLE programacion_campo    ADD CONSTRAINT fk_pc_registrado    FOREIGN KEY (registrado_por) REFERENCES empleado(id);
-ALTER TABLE programacion_empleado ADD CONSTRAINT fk_pe_programacion  FOREIGN KEY (programacion_id) REFERENCES programacion_campo(id);
-ALTER TABLE programacion_empleado ADD CONSTRAINT fk_pe_empleado      FOREIGN KEY (empleado_id)    REFERENCES empleado(id);
-ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_empresa        FOREIGN KEY (empresa_id)     REFERENCES empresa(id);
-ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_proyecto       FOREIGN KEY (proyecto_id)    REFERENCES proyecto(id);
-ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_remitente      FOREIGN KEY (remitente_id)   REFERENCES usuario(id);
-ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_padre          FOREIGN KEY (padre_id)       REFERENCES mensaje_chat(id);
-ALTER TABLE adjunto_mensaje       ADD CONSTRAINT fk_am_mensaje        FOREIGN KEY (mensaje_id)     REFERENCES mensaje_chat(id) ON DELETE CASCADE;
-ALTER TABLE adjunto_mensaje       ADD CONSTRAINT fk_am_empresa        FOREIGN KEY (empresa_id)     REFERENCES empresa(id);
-ALTER TABLE lectura_mensaje       ADD CONSTRAINT fk_lm_mensaje        FOREIGN KEY (mensaje_id)     REFERENCES mensaje_chat(id) ON DELETE CASCADE;
-ALTER TABLE lectura_mensaje       ADD CONSTRAINT fk_lm_usuario        FOREIGN KEY (usuario_id)     REFERENCES usuario(id);
+ALTER TABLE programacion_campo    ADD CONSTRAINT fk_pc_empresa       FOREIGN KEY (empresa_id)          REFERENCES empresa(id);
+ALTER TABLE programacion_campo    ADD CONSTRAINT fk_pc_proyecto      FOREIGN KEY (proyecto_id)         REFERENCES proyecto(id);
+ALTER TABLE programacion_campo    ADD CONSTRAINT fk_pc_registrado    FOREIGN KEY (registrado_por)      REFERENCES empleado(id);
+ALTER TABLE programacion_empleado ADD CONSTRAINT fk_pe_programacion  FOREIGN KEY (programacion_id)     REFERENCES programacion_campo(id);
+ALTER TABLE programacion_empleado ADD CONSTRAINT fk_pe_empleado      FOREIGN KEY (empleado_id)         REFERENCES empleado(id);
+ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_empresa        FOREIGN KEY (empresa_id)          REFERENCES empresa(id);
+ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_proyecto       FOREIGN KEY (proyecto_id)         REFERENCES proyecto(id);
+ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_ps             FOREIGN KEY (proyecto_servicio_id) REFERENCES proyecto_servicio(id);
+ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_remitente      FOREIGN KEY (remitente_id)        REFERENCES usuario(id);
+ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_destinatario   FOREIGN KEY (destinatario_id)     REFERENCES usuario(id);
+ALTER TABLE mensaje_chat          ADD CONSTRAINT fk_mc_padre          FOREIGN KEY (padre_id)            REFERENCES mensaje_chat(id);
+ALTER TABLE adjunto_mensaje       ADD CONSTRAINT fk_am_mensaje        FOREIGN KEY (mensaje_id)          REFERENCES mensaje_chat(id) ON DELETE CASCADE;
+ALTER TABLE adjunto_mensaje       ADD CONSTRAINT fk_am_empresa        FOREIGN KEY (empresa_id)          REFERENCES empresa(id);
+ALTER TABLE lectura_mensaje       ADD CONSTRAINT fk_lm_mensaje        FOREIGN KEY (mensaje_id)          REFERENCES mensaje_chat(id) ON DELETE CASCADE;
+ALTER TABLE lectura_mensaje       ADD CONSTRAINT fk_lm_usuario        FOREIGN KEY (usuario_id)          REFERENCES usuario(id);
+ALTER TABLE comunicado_proyecto   ADD CONSTRAINT fk_com_empresa       FOREIGN KEY (empresa_id)          REFERENCES empresa(id);
+ALTER TABLE comunicado_proyecto   ADD CONSTRAINT fk_com_proyecto      FOREIGN KEY (proyecto_id)         REFERENCES proyecto(id);
+ALTER TABLE comunicado_proyecto   ADD CONSTRAINT fk_com_autor         FOREIGN KEY (autor_id)            REFERENCES empleado(id);
+ALTER TABLE comunicado_leido      ADD CONSTRAINT fk_cl_comunicado     FOREIGN KEY (comunicado_id)       REFERENCES comunicado_proyecto(id) ON DELETE CASCADE;
+ALTER TABLE comunicado_leido      ADD CONSTRAINT fk_cl_empleado       FOREIGN KEY (empleado_id)         REFERENCES empleado(id);
 
 -- FINANZAS
 ALTER TABLE caja_chica             ADD CONSTRAINT fk_caja_empresa     FOREIGN KEY (empresa_id)    REFERENCES empresa(id);
@@ -1336,6 +1382,18 @@ CREATE INDEX idx_stock_almacen             ON stock(almacen_id);
 CREATE INDEX idx_requerimiento_proyecto    ON requerimiento(proyecto_id);
 CREATE INDEX idx_requerimiento_estado      ON requerimiento(empresa_id, estado);
 CREATE INDEX idx_requerimiento_solicitante ON requerimiento(solicitante_id);
+CREATE INDEX idx_requerimiento_ps          ON requerimiento(proyecto_servicio_id);
+CREATE INDEX idx_requerimiento_detalle_req ON requerimiento_detalle(requerimiento_id);
+
+-- Asistencia offline
+CREATE UNIQUE INDEX idx_asistencia_uuid_cliente ON registro_asistencia(empresa_id, uuid_cliente) WHERE uuid_cliente IS NOT NULL;
+
+-- Chat por servicio
+CREATE INDEX idx_mensaje_chat_ps           ON mensaje_chat(proyecto_servicio_id, fecha DESC);
+
+-- Comunicados
+CREATE INDEX idx_comunicado_proyecto       ON comunicado_proyecto(proyecto_id, created_at DESC);
+CREATE INDEX idx_comunicado_leido_emp      ON comunicado_leido(empleado_id);
 
 -- Auditoría (alta frecuencia de INSERT)
 CREATE INDEX idx_auditoria_empresa_fecha   ON auditoria(empresa_id, fecha DESC);
@@ -1353,6 +1411,17 @@ CREATE INDEX idx_lectura_mensaje_usuario   ON lectura_mensaje(usuario_id);
 CREATE INDEX idx_contrato_comercial_cliente ON contrato_comercial(cliente_id, estado);
 
 -- ============================================================
--- FIN DEL SCRIPT - 82 TABLAS
+-- FIN DEL SCRIPT - 87 TABLAS
+-- Última actualización: 2026-05-20
+-- Cambios vs versión anterior:
+--   + comunicado_proyecto      (nueva)
+--   + comunicado_leido         (nueva)
+--   ~ sesion_usuario           : + fecha_cierre
+--   ~ solicitud_laboral        : + url_pdf, public_id_pdf
+--   ~ registro_asistencia      : + uuid_cliente, UNIQUE(empresa_id, uuid_cliente)
+--   ~ mensaje_chat             : + proyecto_servicio_id, + destinatario_id
+--   ~ requerimiento            : + observacion_logistico, chk_req_estado += 'borrador'
+--   ~ requerimiento_detalle    : material_id → nullable, + nombre_libre, unidad_libre,
+--                                especificacion, agregado_por_id
 -- ============================================================
 
