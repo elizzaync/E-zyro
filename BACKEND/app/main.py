@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy import text
+import time
 
 from app.db.database import engine, Base
 from app.routers import auth, dashboard
@@ -103,8 +104,16 @@ def _run_migrations():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    _run_migrations()
+    for intento in range(10):
+        try:
+            Base.metadata.create_all(bind=engine)
+            _run_migrations()
+            break
+        except Exception as e:
+            if intento == 9:
+                raise
+            print(f"DB no disponible (intento {intento + 1}/10), reintentando en 3s... {e}")
+            time.sleep(3)
     iniciar_scheduler()
     yield
     detener_scheduler()
