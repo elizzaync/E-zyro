@@ -22,6 +22,7 @@ import app.core.audit_listener  # noqa: F401 — registra el listener al importa
 # Importar todos los modelos para que Base los registre antes de create_all
 from app.models import (  # noqa: F401
     # Core
+    #corex
     empresa, plan_suscripcion, suscripcion,
     # Usuarios y roles
     usuario, rol, permiso, rol_permiso, usuario_rol, usuario_permiso,
