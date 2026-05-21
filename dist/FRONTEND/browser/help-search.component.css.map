@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["src/app/features/centro-ayuda/components/help-search/help-search.component.css"],
+  "sourcesContent": [".search-container { display: flex; justify-content: center; margin: 40px 0; }\r\n.search-box {\r\n    position: relative; width: 100%; max-width: 600px;\r\n}\r\n.search-box input {\r\n    width: 100%; height: 56px; padding: 0 20px 0 50px;\r\n    border-radius: 12px; border: 1px solid var(--border-color);\r\n    background-color: var(--card-bg); color: var(--text-main);\r\n    font-size: 15px; font-family: inherit; outline: none;\r\n    box-shadow: 0 4px 15px var(--shadow-color);\r\n    transition: all 0.3s ease; box-sizing: border-box;\r\n}\r\n.search-box input:focus { border-color: var(--brand-green); box-shadow: 0 0 0 4px rgba(141, 198, 63, 0.15); }\r\n.search-icon {\r\n    position: absolute; left: 18px; top: 50%; transform: translateY(-50%);\r\n    width: 20px; height: 20px; color: var(--text-muted);\r\n}"],
+  "mappings": ";AAAA,CAAC;AAAmB,WAAS;AAAM,mBAAiB;AAAQ,UAAQ,KAAK;AAAG;AAC5E,CAAC;AACG,YAAU;AAAU,SAAO;AAAM,aAAW;AAChD;AACA,CAHC,WAGW;AACR,SAAO;AAAM,UAAQ;AAAM,WAAS,EAAE,KAAK,EAAE;AAC7C,iBAAe;AAAM,UAAQ,IAAI,MAAM,IAAI;AAC3C,oBAAkB,IAAI;AAAY,SAAO,IAAI;AAC7C,aAAW;AAAM,eAAa;AAAS,WAAS;AAChD,cAAY,EAAE,IAAI,KAAK,IAAI;AAC3B,cAAY,IAAI,KAAK;AAAM,cAAY;AAC3C;AACA,CAXC,WAWW,KAAK;AAAS,gBAAc,IAAI;AAAgB,cAAY,EAAE,EAAE,EAAE,IAAI,KAAK,GAAG,EAAE,GAAG,EAAE,EAAE,EAAE;AAAO;AAC5G,CAAC;AACG,YAAU;AAAU,QAAM;AAAM,OAAK;AAAK,aAAW,WAAW;AAChE,SAAO;AAAM,UAAQ;AAAM,SAAO,IAAI;AAC1C;",
+  "names": []
+}
