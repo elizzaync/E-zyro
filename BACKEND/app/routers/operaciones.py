@@ -862,9 +862,8 @@ async def agregar_item_borrador(
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
     # ── Lookup de empleado ────────────────────────────────────────────────────
-    # Los administradores pueden no tener fila en la tabla 'empleado'.
-    # En ese caso permitimos la operación y dejamos solicitante_id = None
-    # (columna ahora nullable tras migración fix_solicitante_nullable_2026_05_22).
+    # Los administradores pueden no tener fila en 'empleado'.
+    # Usamos _get_empleado_optional para no lanzar 403.
     empleado = _get_empleado_optional(db, usuario_id, empresa_id)
 
     if not empleado and not is_admin:
@@ -874,8 +873,33 @@ async def agregar_item_borrador(
                    "Contacta al administrador para que vincule tu cuenta.",
         )
 
-    solicitante_id = empleado.id if empleado else None
-    agregado_por_id = empleado.id if empleado else None
+    # ── solicitante_id: nunca NULL (evita NotNullViolation sin migración) ─────
+    # Si el usuario es admin sin empleado, usamos el jefe_operaciones del proyecto
+    # como solicitante referencial. La columna sigue siendo NOT NULL en la BD.
+    agregado_por_id = empleado.id if empleado else None   # requerimiento_detalle: ya nullable
+
+    if empleado:
+        solicitante_id: str = empleado.id
+    else:
+        # Admin sin empleado → buscamos al jefe del proyecto como fallback
+        proyecto_obj = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+        jefe_emp_id  = proyecto_obj.jefe_operaciones_id if proyecto_obj else None
+
+        if not jefe_emp_id:
+            # Último recurso: primer empleado activo de la empresa
+            primer_emp = db.query(Empleado).filter(
+                Empleado.empresa_id == empresa_id,
+                Empleado.activo     == True,
+            ).first()
+            jefe_emp_id = primer_emp.id if primer_emp else None
+
+        if not jefe_emp_id:
+            raise HTTPException(
+                status_code=422,
+                detail="La empresa no tiene empleados registrados. "
+                       "Crea al menos un empleado antes de gestionar borradores.",
+            )
+        solicitante_id = jefe_emp_id
 
     # ── Borrador existente o nuevo ────────────────────────────────────────────
     borrador = db.query(Requerimiento).filter(
@@ -891,7 +915,7 @@ async def agregar_item_borrador(
             proyecto_id          = ps.proyecto_id,
             proyecto_servicio_id = servicio_id,
             empresa_id           = empresa_id,
-            solicitante_id       = solicitante_id,   # None para admins sin empleado
+            solicitante_id       = solicitante_id,   # siempre un empleado.id válido
             tipo                 = "material",
             estado               = "borrador",
             fecha                = date.today(),
@@ -906,8 +930,7 @@ async def agregar_item_borrador(
                 status_code=500,
                 detail=(
                     "No se pudo crear el borrador. "
-                    "Verifica que las migraciones estén aplicadas "
-                    "(add_borrador_estado.sql y fix_solicitante_nullable_2026_05_22.sql). "
+                    "Verifica que la migración 'sync_schema_2026_05_20.sql' esté aplicada. "
                     f"Detalle BD: {orig}"
                 ),
             )

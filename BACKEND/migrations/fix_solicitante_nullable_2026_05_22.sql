@@ -1,14 +1,16 @@
 -- ============================================================
--- MIGRACIÓN: fix_solicitante_nullable_2026_05_22.sql
--- Propósito: permite crear borradores de requerimiento cuando
---            el usuario es Administrador sin registro de empleado.
--- Es idempotente: el DO block comprueba antes de alterar.
+-- MIGRACIÓN COMPLEMENTARIA: fix_solicitante_nullable_2026_05_22.sql
+-- Propósito: hace nullable requerimiento.solicitante_id para
+--            admins sin registro de empleado.
+--
+-- ESTADO: OPCIONAL — el backend ya resuelve esto via fallback
+--         (jefe_operaciones_id del proyecto). Aplica si quieres
+--         limpiar la restricción a nivel de BD.
+-- Es idempotente: verifica antes de alterar.
 -- ============================================================
 
 BEGIN;
 
--- 1. Quitar la restricción NOT NULL de requerimiento.solicitante_id
---    (los administradores no tienen fila en la tabla empleado)
 DO $$
 BEGIN
     IF EXISTS (
