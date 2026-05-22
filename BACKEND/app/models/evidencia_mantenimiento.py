@@ -12,6 +12,7 @@ class EvidenciaMantenimiento(Base):
     id                   = Column(String(36), primary_key=True, default=_uuid)
     orden_id             = Column(String(36), ForeignKey("orden_mantenimiento.id"), nullable=False)
     empresa_id           = Column(String(36), ForeignKey("empresa.id"), nullable=False)
+    paso_id              = Column(String(36), ForeignKey("paso_mantenimiento.id"), nullable=True)
     etapa                = Column(String(20), nullable=False)   # antes|durante|despues
     url_cloudinary       = Column(String(500), nullable=False)
     public_id_cloudinary = Column(String(255), nullable=False)

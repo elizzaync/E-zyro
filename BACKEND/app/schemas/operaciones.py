@@ -171,3 +171,24 @@ class AgregarBorradorBody(BaseModel):
     especificacion: Optional[str] = None
 
 
+# ── HU-MANT: Checklist de equipo (pasos + evidencias) ────────────────────────
+
+class PasoChecklistOut(BaseModel):
+    id: str
+    nombre: str
+    descripcion: str = ""
+    orden: int
+    estado: str
+    fotos_urls: List[str] = []
+
+
+class ChecklistEquipoOut(BaseModel):
+    equipo_id: str
+    equipo_nombre: str
+    pasos: List[PasoChecklistOut] = []
+
+
+class PatchMantenimientoBody(BaseModel):
+    status: str  # 'pendiente' | 'en_proceso' | 'completado'
+
+

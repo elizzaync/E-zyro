@@ -53,6 +53,7 @@ from app.models import (  # noqa: F401
     # Equipos y mantenimiento
     tipo_equipo, equipo, plan_mantenimiento,
     orden_mantenimiento, evidencia_mantenimiento, informe_tecnico,
+    paso_mantenimiento,
     # Caja chica
     caja_chica,
     # Evaluación (contiene CriterioEvaluacion, Evaluacion, DetalleEvaluacion, CalificacionCliente)
@@ -81,6 +82,25 @@ def _run_migrations():
         conn.execute(text(
             "ALTER TABLE auditoria "
             "ADD COLUMN IF NOT EXISTS empresa_id VARCHAR(36)"
+        ))
+        # ── HU-MANT: tabla paso_mantenimiento (checklist técnico por equipo) ──
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS paso_mantenimiento (
+                id          VARCHAR(36) PRIMARY KEY,
+                equipo_id   VARCHAR(36) NOT NULL REFERENCES equipo(id),
+                empresa_id  VARCHAR(36) NOT NULL REFERENCES empresa(id),
+                nombre      VARCHAR(200) NOT NULL,
+                descripcion TEXT,
+                orden       INTEGER NOT NULL DEFAULT 1,
+                estado      VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                created_at  TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at  TIMESTAMP
+            )
+        """))
+        conn.execute(text(
+            "ALTER TABLE evidencia_mantenimiento "
+            "ADD COLUMN IF NOT EXISTS paso_id VARCHAR(36) "
+            "REFERENCES paso_mantenimiento(id)"
         ))
         conn.execute(text("""
             DO $$
