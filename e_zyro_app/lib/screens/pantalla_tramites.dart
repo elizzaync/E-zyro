@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
+import '../core/app_constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
@@ -121,10 +122,9 @@ class _PantallaTramitesState extends State<PantallaTramites>
   Future<void> _cargarFirmaGuardada() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token') ?? '';
-    const baseUrl = 'https://e-zyro-production.up.railway.app';
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/permisos/mi-firma'),
+        Uri.parse('${AppConstants.baseUrl}/permisos/mi-firma'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) {
@@ -160,9 +160,8 @@ class _PantallaTramitesState extends State<PantallaTramites>
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token') ?? '';
-      const baseUrl = 'https://e-zyro-production.up.railway.app';
       final response = await http.get(
-        Uri.parse('$baseUrl/permisos/mis-solicitudes'),
+        Uri.parse('${AppConstants.baseUrl}/permisos/mis-solicitudes'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200 && mounted) {
@@ -184,10 +183,9 @@ class _PantallaTramitesState extends State<PantallaTramites>
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token') ?? '';
-      const baseUrl = 'https://e-zyro-production.up.railway.app';
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/permisos/guardar-firma'),
+        Uri.parse('${AppConstants.baseUrl}/permisos/guardar-firma'),
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.fields['firma_base64'] =
@@ -288,8 +286,7 @@ class _PantallaTramitesState extends State<PantallaTramites>
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token') ?? '';
-      const baseUrl = 'https://e-zyro-production.up.railway.app';
-      final uri = Uri.parse('$baseUrl/permisos/enviar-solicitud');
+      final uri = Uri.parse('${AppConstants.baseUrl}/permisos/enviar-solicitud');
       final request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $token';
       request.fields['tipo'] = _model.tipoPemiso.toString();
