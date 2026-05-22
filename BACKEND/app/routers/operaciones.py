@@ -204,8 +204,7 @@ def get_servicios_proyecto(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
-
-    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+    rol        = payload.get("rol", "")
 
     proyecto = db.query(Proyecto).filter(
         Proyecto.id         == proyecto_id,
@@ -214,14 +213,16 @@ def get_servicios_proyecto(
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    es_jefe    = proyecto.jefe_operaciones_id == empleado.id
-    es_miembro = db.query(ProyectoMiembro).filter(
-        ProyectoMiembro.proyecto_id == proyecto_id,
-        ProyectoMiembro.empleado_id == empleado.id,
-    ).first() is not None
+    if rol != "Administrador":
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        es_jefe    = proyecto.jefe_operaciones_id == empleado.id
+        es_miembro = db.query(ProyectoMiembro).filter(
+            ProyectoMiembro.proyecto_id == proyecto_id,
+            ProyectoMiembro.empleado_id == empleado.id,
+        ).first() is not None
 
-    if not es_jefe and not es_miembro:
-        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+        if not es_jefe and not es_miembro:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
 
     servicios = (
         db.query(ProyectoServicio)
@@ -369,22 +370,23 @@ def get_detalle_servicio(
     detalle  = db.query(ProyectoDetalle).filter(ProyectoDetalle.proyecto_id == ps.proyecto_id).first()
     ubicacion = (detalle.zona_ejecucion if detalle and detalle.zona_ejecucion else proyecto.nombre_proyecto) or ""
 
-    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones
-    empleado_actual = db.query(Empleado).filter(
-        Empleado.usuario_id == usuario_id,
-        Empleado.empresa_id == empresa_id,
-    ).first()
-    if not empleado_actual:
-        raise HTTPException(status_code=403, detail="No eres empleado registrado")
+    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass)
+    if payload.get("rol", "") != "Administrador":
+        empleado_actual = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if not empleado_actual:
+            raise HTTPException(status_code=403, detail="No eres empleado registrado")
 
-    es_jefe    = proyecto.jefe_operaciones_id == empleado_actual.id
-    es_miembro = db.query(ProyectoMiembro).filter(
-        ProyectoMiembro.proyecto_id == ps.proyecto_id,
-        ProyectoMiembro.empleado_id == empleado_actual.id,
-    ).first() is not None
+        es_jefe    = proyecto.jefe_operaciones_id == empleado_actual.id
+        es_miembro = db.query(ProyectoMiembro).filter(
+            ProyectoMiembro.proyecto_id == ps.proyecto_id,
+            ProyectoMiembro.empleado_id == empleado_actual.id,
+        ).first() is not None
 
-    if not es_jefe and not es_miembro:
-        raise HTTPException(status_code=403, detail="No tienes acceso a este servicio")
+        if not es_jefe and not es_miembro:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este servicio")
 
     fp        = ps.fecha_programada
     fecha_str = fp.strftime("%d %b %Y") if fp else "Sin fecha"
