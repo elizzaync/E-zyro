@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -7,7 +8,9 @@ class LocalDb {
 
   Database? _db;
 
-  Future<Database> get database async {
+  /// Returns null on web (sqflite not supported); use guards before calling.
+  Future<Database?> get database async {
+    if (kIsWeb) return null;
     _db ??= await _open();
     return _db!;
   }

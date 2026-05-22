@@ -7,15 +7,17 @@ class AsistenciaLocalRepo {
 
   Future<void> insertarPendiente(RegistroAsistenciaLocal r) async {
     final db = await LocalDb.instance.database;
+    if (db == null) return;
     await db.insert(
       _table,
       r.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.ignore, // dedupe por UUID PK
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 
   Future<List<RegistroAsistenciaLocal>> obtenerPendientes({int limit = 50}) async {
     final db = await LocalDb.instance.database;
+    if (db == null) return [];
     final rows = await db.query(
       _table,
       where: 'estado_sync IN (?, ?)',
@@ -28,6 +30,7 @@ class AsistenciaLocalRepo {
 
   Future<int> contarPendientes() async {
     final db = await LocalDb.instance.database;
+    if (db == null) return 0;
     final result = await db.rawQuery(
       'SELECT COUNT(*) as c FROM $_table WHERE estado_sync IN (?, ?)',
       [EstadoSync.pendiente.index, EstadoSync.fallido.index],
@@ -37,6 +40,7 @@ class AsistenciaLocalRepo {
 
   Future<void> marcarEnviando(String uuid) async {
     final db = await LocalDb.instance.database;
+    if (db == null) return;
     await db.update(
       _table,
       {'estado_sync': EstadoSync.enviando.index},
@@ -47,6 +51,7 @@ class AsistenciaLocalRepo {
 
   Future<void> marcarEnviado(String uuid) async {
     final db = await LocalDb.instance.database;
+    if (db == null) return;
     await db.update(
       _table,
       {'estado_sync': EstadoSync.enviado.index},
@@ -57,6 +62,7 @@ class AsistenciaLocalRepo {
 
   Future<void> registrarFallo(String uuid) async {
     final db = await LocalDb.instance.database;
+    if (db == null) return;
     await db.rawUpdate('''
       UPDATE $_table
       SET estado_sync = ?, retry_count = retry_count + 1, last_attempt_at = ?
@@ -64,9 +70,9 @@ class AsistenciaLocalRepo {
     ''', [EstadoSync.fallido.index, DateTime.now().toIso8601String(), uuid]);
   }
 
-  // Limpieza de registros enviados con más de 30 días
   Future<void> limpiarEnviados() async {
     final db = await LocalDb.instance.database;
+    if (db == null) return;
     final cutoff = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
     await db.delete(
       _table,
