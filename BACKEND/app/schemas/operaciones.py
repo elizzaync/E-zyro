@@ -63,6 +63,7 @@ class ProyectoListOut(BaseModel):
     nombre_proyecto: str
     estado: str
     fecha_inicio: Optional[str]
+    fecha_fin_estimada: Optional[str] = None   # para Gantt / cronograma
     cliente: str
     total_servicios: int
     servicios_completados: int
@@ -88,6 +89,7 @@ class ProyectoServicioListOut(BaseModel):
     estado: str
     orden: int
     fecha_programada: Optional[str]
+    fecha_fin: Optional[str] = None            # fecha real de cierre, para Gantt
     estado_color: str
 
 

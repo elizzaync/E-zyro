@@ -95,6 +95,16 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
     return emp
 
 
+def _get_empleado_optional(db: Session, usuario_id: str, empresa_id: str) -> "Empleado | None":
+    """Como _get_empleado_or_403 pero no lanza excepción.
+    Úsalo en endpoints donde los administradores (sin fila en 'empleado')
+    también deben poder operar.  Quien llama decide qué hacer con None."""
+    return db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+
+
 # ── GET /operaciones/proyectos ────────────────────────────────────────────────
 
 @router.get("/proyectos", response_model=ProyectosConKpisOut)
@@ -176,6 +186,7 @@ def get_proyectos(
             nombre_proyecto=p.Proyecto.nombre_proyecto or "",
             estado=p.Proyecto.estado or "Pendiente",
             fecha_inicio=p.Proyecto.fecha_inicio.strftime("%d %b %Y") if p.Proyecto.fecha_inicio else None,
+            fecha_fin_estimada=p.Proyecto.fecha_fin_estimada.strftime("%d %b %Y") if p.Proyecto.fecha_fin_estimada else None,
             cliente=p.cliente or "Sin Cliente",
             total_servicios=int(p.total_servicios),
             servicios_completados=int(p.servicios_completados),
@@ -255,6 +266,7 @@ def get_servicios_proyecto(
             estado=ps.estado or "Pendiente",
             orden=ps.orden or 1,
             fecha_programada=ps.fecha_programada.strftime("%d %b %Y") if ps.fecha_programada else None,
+            fecha_fin=ps.fecha_fin.strftime("%d %b %Y") if ps.fecha_fin else None,
             estado_color=estado_color,
         ))
 
@@ -839,6 +851,8 @@ async def agregar_item_borrador(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
+    rol        = (payload.get("rol") or "").strip().lower()
+    is_admin   = rol in {"administrador", "admin", "superadmin"}
 
     ps = db.query(ProyectoServicio).filter(
         ProyectoServicio.id         == servicio_id,
@@ -847,8 +861,23 @@ async def agregar_item_borrador(
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+    # ── Lookup de empleado ────────────────────────────────────────────────────
+    # Los administradores pueden no tener fila en la tabla 'empleado'.
+    # En ese caso permitimos la operación y dejamos solicitante_id = None
+    # (columna ahora nullable tras migración fix_solicitante_nullable_2026_05_22).
+    empleado = _get_empleado_optional(db, usuario_id, empresa_id)
 
+    if not empleado and not is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="No eres empleado registrado en esta empresa. "
+                   "Contacta al administrador para que vincule tu cuenta.",
+        )
+
+    solicitante_id = empleado.id if empleado else None
+    agregado_por_id = empleado.id if empleado else None
+
+    # ── Borrador existente o nuevo ────────────────────────────────────────────
     borrador = db.query(Requerimiento).filter(
         Requerimiento.proyecto_servicio_id == servicio_id,
         Requerimiento.empresa_id           == empresa_id,
@@ -862,7 +891,7 @@ async def agregar_item_borrador(
             proyecto_id          = ps.proyecto_id,
             proyecto_servicio_id = servicio_id,
             empresa_id           = empresa_id,
-            solicitante_id       = empleado.id,
+            solicitante_id       = solicitante_id,   # None para admins sin empleado
             tipo                 = "material",
             estado               = "borrador",
             fecha                = date.today(),
@@ -877,7 +906,8 @@ async def agregar_item_borrador(
                 status_code=500,
                 detail=(
                     "No se pudo crear el borrador. "
-                    "Probablemente la migración 'add_borrador_estado.sql' no fue ejecutada. "
+                    "Verifica que las migraciones estén aplicadas "
+                    "(add_borrador_estado.sql y fix_solicitante_nullable_2026_05_22.sql). "
                     f"Detalle BD: {orig}"
                 ),
             )
@@ -888,10 +918,10 @@ async def agregar_item_borrador(
         material_id      = body.material_id,
         cantidad         = body.cantidad,
     )
-    if body.nombre:         rd.nombre_libre      = body.nombre
-    if body.unidad:         rd.unidad_libre      = body.unidad
-    if body.especificacion: rd.especificacion    = body.especificacion
-    rd.agregado_por_id = empleado.id
+    if body.nombre:         rd.nombre_libre   = body.nombre
+    if body.unidad:         rd.unidad_libre   = body.unidad
+    if body.especificacion: rd.especificacion = body.especificacion
+    rd.agregado_por_id = agregado_por_id   # None cuando admin sin empleado
 
     try:
         db.add(rd)

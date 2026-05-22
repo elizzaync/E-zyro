@@ -16,7 +16,7 @@ class Requerimiento(Base):
     proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"))
     procedimiento_id     = Column(String(36), ForeignKey("procedimiento.id"))
     empresa_id           = Column(String(36), ForeignKey("empresa.id"),            nullable=False)
-    solicitante_id       = Column(String(36), ForeignKey("empleado.id"),           nullable=False)
+    solicitante_id       = Column(String(36), ForeignKey("empleado.id"),           nullable=True)   # nullable: admins sin registro de empleado
     tipo                 = Column(String(30), nullable=False, default="material")
     estado               = Column(String(20), nullable=False, default="pendiente")
     observacion          = Column(String(500))
