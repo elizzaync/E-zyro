@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 import calendar
+import traceback
 
 from pydantic import BaseModel
 from app.db.database import get_db
@@ -659,7 +660,21 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
         ).filter(Usuario.id == usuario_id).first()
 
         if not resultado:
-            raise HTTPException(status_code=404, detail="Perfil no encontrado")
+            # Diagnostico: distinguir POR QUE no hay fila. Con INNER JOIN,
+            # un usuario sin fila en 'empleado' o con empresa_id invalido
+            # tambien cae aqui (no es necesariamente "usuario inexistente").
+            existe_usuario = db.query(Usuario.id).filter(
+                Usuario.id == usuario_id
+            ).first()
+            if not existe_usuario:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Usuario del token no existe en la base de datos"
+                )
+            raise HTTPException(
+                status_code=404,
+                detail="Perfil incompleto: el usuario no tiene empleado o empresa asociada"
+            )
 
         usuario, empleado, empresa = resultado
 
@@ -698,8 +713,17 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                 }
             }
         }
+    except HTTPException:
+        # Dejar pasar 404/401/etc. tal cual — no disfrazarlos de 500.
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Error al cargar perfil")
+        # Blindaje: imprimir el traceback COMPLETO en los logs de Railway
+        # y devolver el mensaje real para no quedar a ciegas.
+        print("=" * 70)
+        print("[ERROR /perfil] Traceback completo:")
+        traceback.print_exc()
+        print("=" * 70)
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
 # Tablas y acciones que nunca se exponen al usuario por seguridad
