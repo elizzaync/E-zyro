@@ -653,27 +653,21 @@ def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_to
 def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         usuario_id = current_user.get("id")
-        resultado  = db.query(Usuario, Empleado, Empresa).join(
+        # OUTER JOIN: un usuario sin fila en 'empleado' (ej. admin) o sin
+        # empresa valida igual debe poder cargar su perfil. empleado y
+        # empresa pueden venir como None -> se manejan abajo con defaults.
+        resultado  = db.query(Usuario, Empleado, Empresa).outerjoin(
             Empleado, Empleado.usuario_id == Usuario.id
-        ).join(
+        ).outerjoin(
             Empresa, Empresa.id == Usuario.empresa_id
         ).filter(Usuario.id == usuario_id).first()
 
         if not resultado:
-            # Diagnostico: distinguir POR QUE no hay fila. Con INNER JOIN,
-            # un usuario sin fila en 'empleado' o con empresa_id invalido
-            # tambien cae aqui (no es necesariamente "usuario inexistente").
-            existe_usuario = db.query(Usuario.id).filter(
-                Usuario.id == usuario_id
-            ).first()
-            if not existe_usuario:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Usuario del token no existe en la base de datos"
-                )
+            # Con outerjoin, esto solo ocurre si el usuario del token
+            # realmente no existe en la tabla usuario.
             raise HTTPException(
                 status_code=404,
-                detail="Perfil incompleto: el usuario no tiene empleado o empresa asociada"
+                detail="Usuario del token no existe en la base de datos"
             )
 
         usuario, empleado, empresa = resultado
@@ -686,7 +680,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
         meses     = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         fecha_txt = ""
-        fecha_ref = empleado.fecha_ingreso or usuario.created_at
+        fecha_ref = (empleado.fecha_ingreso if empleado else None) or usuario.created_at
         if fecha_ref:
             fecha_txt = f"{fecha_ref.day} de {meses[fecha_ref.month]}, {fecha_ref.year}"
 
@@ -700,15 +694,15 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "correo":         usuario.email,
                     "telefono":       usuario.telefono or "",
                     "fotoUrl":        usuario.foto_url or "",
-                    "rol":            empleado.cargo,
-                    "area":           empleado.area or "",
+                    "rol":            (empleado.cargo if empleado else "Administrador"),
+                    "area":           (empleado.area if empleado else "") or "",
                     "fechaCreacion":  fecha_txt,
                     "permisos_modulo": modulos_permitidos
                 },
                 "empresa": {
-                    "id":        empresa.id,
-                    "nombre":    empresa.razon_social,
-                    "ruc":       empresa.ruc,
+                    "id":        empresa.id if empresa else None,
+                    "nombre":    empresa.razon_social if empresa else "Sin empresa",
+                    "ruc":       empresa.ruc if empresa else "",
                     "ubicacion": "Sede Principal"
                 }
             }
