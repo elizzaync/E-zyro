@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
 import 'package:printing/printing.dart';
+import '../core/app_constants.dart';
 import '../templates/permiso_pdf_template.dart';
 
 // ─────────────────────────────────────────────
