@@ -100,14 +100,7 @@ def get_proyectos(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
-
-    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
-
-    miembro_sq = (
-        db.query(ProyectoMiembro.proyecto_id)
-        .filter(ProyectoMiembro.empleado_id == empleado.id)
-        .subquery()
-    )
+    rol        = payload.get("rol", "")
 
     # Subquery: total de servicios por proyecto
     svc_total_sq = (
@@ -134,7 +127,7 @@ def get_proyectos(
     JefeEmpleado = aliased(Empleado)
     JefeUsuario  = aliased(Usuario)
 
-    rows = (
+    base_q = (
         db.query(
             Proyecto,
             Cliente.razon_social.label("cliente"),
@@ -147,16 +140,30 @@ def get_proyectos(
         .outerjoin(svc_comp_sq,  svc_comp_sq.c.proyecto_id  == Proyecto.id)
         .outerjoin(JefeEmpleado, JefeEmpleado.id == Proyecto.jefe_operaciones_id)
         .outerjoin(JefeUsuario,  JefeUsuario.id  == JefeEmpleado.usuario_id)
-        .filter(
-            Proyecto.empresa_id == empresa_id,
-            or_(
-                Proyecto.jefe_operaciones_id == empleado.id,
-                Proyecto.id.in_(miembro_sq),
-            ),
-        )
-        .order_by(Proyecto.created_at.desc())
-        .all()
+        .filter(Proyecto.empresa_id == empresa_id)
     )
+
+    if rol == "Administrador":
+        # Admin ve todos los proyectos de la empresa sin restricción de membresía
+        rows = base_q.order_by(Proyecto.created_at.desc()).all()
+    else:
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        miembro_sq = (
+            db.query(ProyectoMiembro.proyecto_id)
+            .filter(ProyectoMiembro.empleado_id == empleado.id)
+            .subquery()
+        )
+        rows = (
+            base_q
+            .filter(
+                or_(
+                    Proyecto.jefe_operaciones_id == empleado.id,
+                    Proyecto.id.in_(miembro_sq),
+                )
+            )
+            .order_by(Proyecto.created_at.desc())
+            .all()
+        )
 
     proyectos = [
         ProyectoListOut(
