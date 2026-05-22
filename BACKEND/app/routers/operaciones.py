@@ -1078,7 +1078,7 @@ def get_equipos_proyecto(
 
     return [
         EquipoItemOut(
-            id=r.Equipo.id,
+            id=str(r.Equipo.id),
             nombre=r.Equipo.nombre,
             descripcion=r.Equipo.modelo,
             ubicacion=r.Equipo.ubicacion,
@@ -1308,7 +1308,7 @@ def get_historial_equipo(
         ]
         informe = informes_map.get(orden.id)
         result.append(MantenimientoHistorialOut(
-            id=orden.id,
+            id=str(orden.id),
             fecha=orden.fecha.strftime("%d/%m/%Y") if orden.fecha else "",
             tecnico_nombre=tecnicos_map.get(orden.tecnico_id or "", "Sin técnico"),
             proyecto_nombre=proyecto_nombre,
@@ -1513,11 +1513,11 @@ def get_checklist_equipo(
         fotos_by_paso.setdefault(ev.paso_id, []).append(ev.url_cloudinary)
 
     return ChecklistEquipoOut(
-        equipo_id=equipo.id,
+        equipo_id=str(equipo.id),
         equipo_nombre=equipo.nombre or "",
         pasos=[
             PasoChecklistOut(
-                id=p.id,
+                id=str(p.id),
                 nombre=p.nombre or "",
                 descripcion=p.descripcion or "",
                 orden=p.orden or 1,

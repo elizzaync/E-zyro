@@ -84,11 +84,14 @@ def _run_migrations():
             "ADD COLUMN IF NOT EXISTS empresa_id VARCHAR(36)"
         ))
         # ── HU-MANT: tabla paso_mantenimiento (checklist técnico por equipo) ──
+        # NOTA: los IDs en este esquema son `uuid` (vienen del backup original).
+        # Las FKs DEBEN ser uuid para no romper. SQLAlchemy mapea el campo Python
+        # `String(36)` <-> postgres `uuid` de forma transparente.
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS paso_mantenimiento (
-                id          VARCHAR(36) PRIMARY KEY,
-                equipo_id   VARCHAR(36) NOT NULL REFERENCES equipo(id),
-                empresa_id  VARCHAR(36) NOT NULL REFERENCES empresa(id),
+                id          uuid PRIMARY KEY,
+                equipo_id   uuid NOT NULL REFERENCES equipo(id),
+                empresa_id  uuid NOT NULL REFERENCES empresa(id),
                 nombre      VARCHAR(200) NOT NULL,
                 descripcion TEXT,
                 orden       INTEGER NOT NULL DEFAULT 1,
@@ -99,7 +102,7 @@ def _run_migrations():
         """))
         conn.execute(text(
             "ALTER TABLE evidencia_mantenimiento "
-            "ADD COLUMN IF NOT EXISTS paso_id VARCHAR(36) "
+            "ADD COLUMN IF NOT EXISTS paso_id uuid "
             "REFERENCES paso_mantenimiento(id)"
         ))
         conn.execute(text("""
