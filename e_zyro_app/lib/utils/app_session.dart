@@ -50,5 +50,10 @@ class AppSession {
   bool get isTecnico    => _rol == 'técnico de campo' || _rol == 'tecnico de campo';
   bool get isSupervisor => _rol == 'supervisor de campo';
 
+  bool get isJefeOperaciones => _esJefeOp;
+
+  /// Solo Jefatura de Operaciones (o Admin) puede finalizar/cerrar un servicio.
+  bool get canFinalizarServicio => isAdmin || _esJefeOp;
+
   String get rol => _rol;
 }

@@ -73,11 +73,11 @@ class MantenimientoService {
     }
   }
 
-  // HU-18: POST /mantenimientos/{equipo_id}/finalizar — genera informe PDF
+  // HU-18: POST /operaciones/mantenimientos/{equipo_id}/finalizar — genera informe PDF
   Future<bool> finalizarMantenimiento(String equipoId) async {
     try {
       final r = await _client.post(
-        '/mantenimientos/$equipoId/finalizar',
+        '/operaciones/mantenimientos/$equipoId/finalizar',
         {},
       );
       return r.statusCode == 200 || r.statusCode == 201;

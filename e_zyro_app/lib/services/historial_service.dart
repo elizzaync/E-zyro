@@ -7,11 +7,11 @@ class HistorialService {
   final ApiClient _client;
   HistorialService(this._client);
 
-  // GET /equipos/{equipo_id}/historial
+  // GET /operaciones/equipos/{equipo_id}/historial
   Future<List<MantenimientoHistorial>> getHistorialEquipo(
       String equipoId) async {
     try {
-      final r = await _client.get('/equipos/$equipoId/historial');
+      final r = await _client.get('/operaciones/equipos/$equipoId/historial');
       if (r.statusCode == 200) {
         final body = jsonDecode(r.body);
         final bodyMap = body is Map ? body : null;
@@ -29,12 +29,12 @@ class HistorialService {
     return [];
   }
 
-  // GET /mantenimientos/{mantenimiento_id}/informe-pdf
+  // GET /operaciones/mantenimientos/{mantenimiento_id}/informe-pdf
   // Returns the PDF URL or null
   Future<String?> getInformePdfUrl(String mantenimientoId) async {
     try {
-      final r =
-          await _client.get('/mantenimientos/$mantenimientoId/informe-pdf');
+      final r = await _client
+          .get('/operaciones/mantenimientos/$mantenimientoId/informe-pdf');
       if (r.statusCode == 200) {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         return body['url'] as String? ??
@@ -45,12 +45,12 @@ class HistorialService {
     return null;
   }
 
-  // GET /mantenimientos/{mantenimiento_id}/evidencias-zip
+  // GET /operaciones/mantenimientos/{mantenimiento_id}/evidencias-zip
   // Returns the ZIP URL or null
   Future<String?> getEvidenciasZipUrl(String mantenimientoId) async {
     try {
-      final r =
-          await _client.get('/mantenimientos/$mantenimientoId/evidencias-zip');
+      final r = await _client
+          .get('/operaciones/mantenimientos/$mantenimientoId/evidencias-zip');
       if (r.statusCode == 200) {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         return body['url'] as String? ??

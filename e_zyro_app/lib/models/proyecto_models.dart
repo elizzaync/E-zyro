@@ -126,19 +126,24 @@ class EvidenciaDetalle {
   final String urlCloudinary;
   final String descripcion;
   final String fechaCaptura;
+  final String etapa; // 'antes' | 'durante' | 'despues' (puede venir vacío)
 
   const EvidenciaDetalle({
     required this.id,
     required this.urlCloudinary,
     required this.descripcion,
     required this.fechaCaptura,
+    this.etapa = '',
   });
+
+  String get etapaLower => etapa.toLowerCase();
 
   factory EvidenciaDetalle.fromJson(Map<String, dynamic> j) => EvidenciaDetalle(
         id: j['id'] as String? ?? '',
         urlCloudinary: j['url_cloudinary'] as String? ?? '',
         descripcion: j['descripcion'] as String? ?? '',
         fechaCaptura: j['fecha_captura'] as String? ?? '',
+        etapa: j['etapa'] as String? ?? '',
       );
 }
 
@@ -231,6 +236,94 @@ class ItemMaterial {
         unidad: j['unidad'] as String? ?? 'Und',
         cantidad: j['cantidad'] as int? ?? 0,
         estadoReq: j['estado_req'] as String? ?? 'pendiente',
+      );
+}
+
+// ── Material del catálogo (búsqueda en almacén) ───────────────────────────────
+
+class MaterialBusqueda {
+  final String id;
+  final String nombre;
+  final String unidad;
+  final int stock;
+
+  const MaterialBusqueda({
+    required this.id,
+    required this.nombre,
+    required this.unidad,
+    required this.stock,
+  });
+
+  factory MaterialBusqueda.fromJson(Map<String, dynamic> j) => MaterialBusqueda(
+        id: j['id'] as String? ?? '',
+        nombre: j['nombre'] as String? ?? '',
+        unidad: j['unidad'] as String? ?? 'Und',
+        stock: j['stock'] as int? ?? 0,
+      );
+}
+
+// ── Item del borrador de materiales (persistente en BD) ───────────────────────
+
+class BorradorItem {
+  final String id; // requerimiento_detalle.id
+  final String? materialId;
+  final String nombre;
+  final String unidad;
+  final int cantidad;
+  final bool esNuevo; // compra externa (material_id == null)
+  final String? especificacion;
+  final String agregadoPorNombre;
+  final String agregadoPorFoto;
+
+  const BorradorItem({
+    required this.id,
+    this.materialId,
+    required this.nombre,
+    required this.unidad,
+    required this.cantidad,
+    required this.esNuevo,
+    this.especificacion,
+    this.agregadoPorNombre = '',
+    this.agregadoPorFoto = '',
+  });
+
+  factory BorradorItem.fromJson(Map<String, dynamic> j) => BorradorItem(
+        id: j['id'] as String? ?? '',
+        materialId: j['material_id'] as String?,
+        nombre: j['nombre'] as String? ?? '',
+        unidad: j['unidad'] as String? ?? 'Und',
+        cantidad: j['cantidad'] as int? ?? 1,
+        esNuevo: j['es_nuevo'] as bool? ?? (j['material_id'] == null),
+        especificacion: j['especificacion'] as String?,
+        agregadoPorNombre: j['agregado_por_nombre'] as String? ?? '',
+        agregadoPorFoto: j['agregado_por_foto'] as String? ?? '',
+      );
+
+  BorradorItem copyWith({int? cantidad, String? nombre, String? especificacion}) =>
+      BorradorItem(
+        id: id,
+        materialId: materialId,
+        nombre: nombre ?? this.nombre,
+        unidad: unidad,
+        cantidad: cantidad ?? this.cantidad,
+        esNuevo: esNuevo,
+        especificacion: especificacion ?? this.especificacion,
+        agregadoPorNombre: agregadoPorNombre,
+        agregadoPorFoto: agregadoPorFoto,
+      );
+}
+
+class Borrador {
+  final String? requerimientoId;
+  final List<BorradorItem> items;
+
+  const Borrador({this.requerimientoId, required this.items});
+
+  factory Borrador.fromJson(Map<String, dynamic> j) => Borrador(
+        requerimientoId: j['requerimiento_id'] as String?,
+        items: (j['items'] as List? ?? [])
+            .map((e) => BorradorItem.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }
 
