@@ -163,7 +163,16 @@
             }
             <div class="lider-info">
               <span class="lider-nombre">{{ usuarioActual.nombre }}</span>
-              <span class="lider-rol">Jefe de Operaciones — Asignado automáticamente</span>
+              @if (currentUserEmpleadoId) {
+                <span class="lider-rol lider-rol--confirmed">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  Tú eres el Líder — asignado automáticamente
+                </span>
+              } @else {
+                <span class="lider-rol">Jefe de Operaciones — Asignado automáticamente</span>
+              }
             </div>
             <span class="lider-badge">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -469,7 +478,8 @@
                   Responsable *
                 </label>
                 <select formControlName="responsable_id" class="field-select"
-                        [class.invalid]="getTareaCtrl(i, 'responsable_id')?.invalid && getTareaCtrl(i, 'responsable_id')?.touched">
+                        [class.invalid]="getTareaCtrl(i, 'responsable_id')?.invalid && getTareaCtrl(i, 'responsable_id')?.touched"
+                        (change)="validarCruceHorario(i)">
                   <option value="" disabled>— Seleccionar del equipo —</option>
                   @for (m of equipoSeleccionado; track m.id) {
                     <option [value]="m.id">{{ m.nombre }} {{ m.apellido }} · {{ m.cargo }}</option>
@@ -494,7 +504,8 @@
                   Fecha de Inicio *
                 </label>
                 <input type="date" formControlName="fecha_inicio" class="field-input"
-                       [class.invalid]="getTareaCtrl(i, 'fecha_inicio')?.invalid && getTareaCtrl(i, 'fecha_inicio')?.touched">
+                       [class.invalid]="getTareaCtrl(i, 'fecha_inicio')?.invalid && getTareaCtrl(i, 'fecha_inicio')?.touched"
+                       (change)="validarCruceHorario(i)">
                 @if (getTareaCtrl(i, 'fecha_inicio')?.invalid && getTareaCtrl(i, 'fecha_inicio')?.touched) {
                   <span class="field-error">La fecha de inicio es requerida.</span>
                 }
@@ -512,7 +523,8 @@
                   Fecha de Fin *
                 </label>
                 <input type="date" formControlName="fecha_fin" class="field-input"
-                       [class.invalid]="getTareaCtrl(i, 'fecha_fin')?.invalid && getTareaCtrl(i, 'fecha_fin')?.touched">
+                       [class.invalid]="getTareaCtrl(i, 'fecha_fin')?.invalid && getTareaCtrl(i, 'fecha_fin')?.touched"
+                       (change)="validarCruceHorario(i)">
                 @if (getTareaCtrl(i, 'fecha_fin')?.invalid && getTareaCtrl(i, 'fecha_fin')?.touched) {
                   <span class="field-error">La fecha de fin es requerida.</span>
                 }
@@ -522,6 +534,25 @@
               </div>
 
             </div><!-- /task-fields -->
+
+            <!-- HU-13: Advertencia de cruce de horario (no bloquea, solo advierte) -->
+            @if (cruceEstados[i]?.validando) {
+              <div class="cruce-validando">
+                <svg class="cruce-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 12a9 9 0 11-6.219-8.56"/>
+                </svg>
+                Verificando disponibilidad del técnico…
+              </div>
+            } @else if (cruceEstados[i]?.conflicto) {
+              <div class="cruce-warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span>{{ cruceEstados[i].mensaje }}</span>
+              </div>
+            }
 
             <!-- Botón remover -->
             @if (procedimientosArray.length > 1) {

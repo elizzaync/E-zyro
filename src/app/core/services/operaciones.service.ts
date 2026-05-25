@@ -82,10 +82,27 @@ export class OperacionesService {
 
   /**
    * Obtiene la lista de técnicos disponibles para asignar a un servicio.
+   * Incluye `grupo_actual` (nombre del grupo al que pertenecen, o null).
    * GET /operaciones/personal/tecnicos
    */
-  getPersonalTecnicos(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.api}/operaciones/personal/tecnicos`);
+  getPersonalTecnicos(): Observable<any> {
+    return this.http.get<any>(`${this.api}/operaciones/personal/tecnicos`);
+  }
+
+  /**
+   * Valida si un técnico tiene tareas en conflicto con un rango de fechas.
+   * POST /operaciones/personal/validar-horario
+   */
+  validarHorario(body: {
+    empleado_id: string;
+    fecha_inicio: string;
+    fecha_fin: string;
+    excluir_servicio_id?: string;
+  }): Observable<{ conflicto: boolean; detalle?: any }> {
+    return this.http.post<{ conflicto: boolean; detalle?: any }>(
+      `${this.api}/operaciones/personal/validar-horario`,
+      body
+    );
   }
 
   /**
@@ -97,6 +114,7 @@ export class OperacionesService {
    */
   configurarServicio(psId: string, payload: {
     equipo: string[];
+    lider_id?: string;
     procedimientos: {
       id?: string;
       nombre: string;

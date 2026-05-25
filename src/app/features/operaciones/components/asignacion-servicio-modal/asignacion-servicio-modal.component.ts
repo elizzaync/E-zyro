@@ -14,11 +14,14 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 
 export interface TecnicoDisponible {
   id: string;
+  usuarioId: string;
   nombre: string;
   apellido: string;
   cargo: string;
   fotoUrl: string;
   grupoNombre?: string | null;
+  /** Nombre del grupo actual al que pertenece (HU-13 — alerta de conflicto). */
+  grupoActual?: string | null;
 }
 
 export interface GrupoDisponible {
@@ -44,6 +47,13 @@ export interface ServicioResumen {
   cliente: string;
   ubicacion: string;
   fechaStr: string;
+}
+
+/** Resultado de validación de cruce para una tarea */
+export interface CruceState {
+  validando: boolean;
+  conflicto: boolean;
+  mensaje: string;
 }
 
 // ─── Componente ──────────────────────────────────────────────────────────────
@@ -84,6 +94,10 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   cargandoTecnicos  = false;
   errorCargaTecnicos = false;   // true cuando el API de técnicos falla
 
+  // ── Validación de cruces de horario (Paso 3) ─────────────────────────────
+  /** Estado de validación de cruce por índice de tarea. */
+  cruceEstados: CruceState[] = [];
+
   // UI
   seccionActiva: 1 | 2 | 3 = 1;
   guardando  = false;
@@ -95,6 +109,20 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
 
   get procedimientosArray(): FormArray {
     return this.form.get('procedimientos') as FormArray;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // COMPUTED — Auto-liderazgo
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Devuelve el empleado.id del usuario actualmente logueado.
+   * Lo busca por `usuarioId` en la lista de técnicos cargados desde el API.
+   * Retorna '' si el usuario no figura como empleado activo de la empresa.
+   */
+  get currentUserEmpleadoId(): string {
+    if (!this.usuarioActual.id) return '';
+    return this.todosTecnicos.find(t => t.usuarioId === this.usuarioActual.id)?.id ?? '';
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -177,11 +205,13 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
         const rawTecnicos = Array.isArray(res) ? res : (res?.tecnicos ?? []);
         this.todosTecnicos = rawTecnicos.map((t: any) => ({
           id:          String(t.id ?? ''),
+          usuarioId:   String(t.usuario_id ?? ''),
           nombre:      String(t.nombre   ?? ''),
           apellido:    String(t.apellido ?? ''),
           cargo:       String(t.cargo    ?? 'Técnico'),
           fotoUrl:     String(t.foto_url ?? ''),
           grupoNombre: t.grupo_nombre ?? null,
+          grupoActual: t.grupo_actual ?? t.grupo_nombre ?? null,   // HU-13
         }));
 
         // ── Grupos con miembros ──────────────────────────────────────────────
@@ -192,11 +222,13 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
           jefeNombre: String(g.jefe_nombre ?? ''),
           miembros:   (g.miembros ?? []).map((m: any) => ({
             id:          String(m.id ?? ''),
+            usuarioId:   String(m.usuario_id ?? ''),
             nombre:      String(m.nombre   ?? ''),
             apellido:    String(m.apellido ?? ''),
             cargo:       String(m.cargo    ?? 'Técnico'),
             fotoUrl:     String(m.foto_url ?? ''),
             grupoNombre: String(g.nombre ?? ''),
+            grupoActual: String(g.nombre ?? ''),
           })),
         }));
 
@@ -214,11 +246,13 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   private _precargarEquipo(equipo: any[]): void {
     this.equipoSeleccionado = equipo.map((m: any) => ({
       id:          String(m.id ?? ''),
+      usuarioId:   String(m.usuario_id ?? ''),
       nombre:      String(m.nombre   ?? ''),
       apellido:    String(m.apellido ?? ''),
       cargo:       String(m.cargo    ?? 'Técnico'),
       fotoUrl:     String(m.foto_url ?? ''),
       grupoNombre: m.grupo_nombre ?? null,
+      grupoActual: m.grupo_actual ?? m.grupo_nombre ?? null,
     }));
     // Remueve los técnicos precargados de la columna izquierda
     this.filtrarTecnicos();
@@ -227,6 +261,7 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   private _precargarProcedimientos(procs: any[]): void {
     // Limpia el array y recarga
     while (this.procedimientosArray.length) { this.procedimientosArray.removeAt(0); }
+    this.cruceEstados = [];
 
     if (!procs.length) { this._agregarTareaVacia(); return; }
 
@@ -239,6 +274,7 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
         fecha_inicio:   [this._isoDate(p.fecha_inicio_tarea ?? p.fecha_inicio), Validators.required],
         fecha_fin:      [this._isoDate(p.fecha_limite ?? p.fecha_fin),           Validators.required]
       }));
+      this.cruceEstados.push({ validando: false, conflicto: false, mensaje: '' });
     });
   }
 
@@ -250,6 +286,7 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
       fecha_inicio:   ['', Validators.required],
       fecha_fin:      ['', Validators.required]
     }));
+    this.cruceEstados.push({ validando: false, conflicto: false, mensaje: '' });
   }
 
   private _isoDate(d: string | null | undefined): string {
@@ -285,19 +322,28 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Mueve un técnico de la columna izquierda a la derecha.
-   * Si ya está seleccionado (no debería verse en izquierda), lo ignora silenciosamente.
+   * HU-13 — Alerta de grupo de trabajo.
+   * Si el técnico pertenece a un grupo activo, pide confirmación antes de añadirlo.
+   * Solo si el usuario acepta, lo mueve al panel derecho.
    */
   seleccionarTecnico(t: TecnicoDisponible): void {
     if (this.estaSeleccionado(t.id)) return;
+
+    // ── Alerta de grupo: el técnico ya pertenece a un grupo de trabajo ───────
+    if (t.grupoActual) {
+      const confirmar = window.confirm(
+        `⚠ Este usuario ya pertenece al grupo "${t.grupoActual}".\n` +
+        `¿Quieres añadirlo a este servicio de todas formas?`
+      );
+      if (!confirmar) return;
+    }
+
     this.equipoSeleccionado = [...this.equipoSeleccionado, t];
     this.filtrarTecnicos();
   }
 
   /**
    * Alias mantenido para compatibilidad con bindings de plantilla previos.
-   * En el nuevo flujo la izquierda solo muestra NO-seleccionados, así que
-   * un click siempre agrega (nunca quita).
    */
   toggleTecnico(t: TecnicoDisponible): void {
     this.seleccionarTecnico(t);
@@ -320,9 +366,13 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
    */
   removerTecnico(id: string): void {
     this.equipoSeleccionado = this.equipoSeleccionado.filter(e => e.id !== id);
-    this.procedimientosArray.controls.forEach(ctrl => {
+    this.procedimientosArray.controls.forEach((ctrl, i) => {
       if (ctrl.get('responsable_id')?.value === id) {
         ctrl.get('responsable_id')?.setValue('');
+        // Limpiar advertencia de cruce para esa tarea
+        if (this.cruceEstados[i]) {
+          this.cruceEstados[i] = { validando: false, conflicto: false, mensaje: '' };
+        }
       }
     });
     this.filtrarTecnicos();
@@ -342,6 +392,8 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     this.procedimientosArray.controls.forEach(ctrl => {
       ctrl.get('responsable_id')?.setValue('');
     });
+    // Resetear todas las advertencias de cruce
+    this.cruceEstados = this.cruceEstados.map(() => ({ validando: false, conflicto: false, mensaje: '' }));
     this.filtrarTecnicos();
   }
 
@@ -354,6 +406,59 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // VALIDACIÓN DE CRUCE DE HORARIOS (HU-13 — Paso 3)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Llama al backend para verificar si el técnico asignado a la tarea `i`
+   * tiene conflicto de horario con las fechas seleccionadas.
+   * Se activa con (change) en responsable_id, fecha_inicio y fecha_fin.
+   */
+  validarCruceHorario(i: number): void {
+    const ctrl = this.procedimientosArray.at(i);
+    const responsableId = ctrl.get('responsable_id')?.value as string;
+    const fechaInicio   = ctrl.get('fecha_inicio')?.value   as string;
+    const fechaFin      = ctrl.get('fecha_fin')?.value       as string;
+
+    // Solo validar cuando los tres campos están completos
+    if (!responsableId || !fechaInicio || !fechaFin) {
+      if (this.cruceEstados[i]) {
+        this.cruceEstados[i] = { validando: false, conflicto: false, mensaje: '' };
+      }
+      return;
+    }
+
+    // Marcar como "validando"
+    this.cruceEstados[i] = { validando: true, conflicto: false, mensaje: '' };
+
+    this.svc.validarHorario({
+      empleado_id:          responsableId,
+      fecha_inicio:         fechaInicio,
+      fecha_fin:            fechaFin,
+      excluir_servicio_id:  this.servicioId,   // no reportar conflictos del mismo servicio
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        if (res.conflicto && res.detalle) {
+          this.cruceEstados[i] = {
+            validando: false,
+            conflicto: true,
+            mensaje:
+              `⚠ El técnico ya tiene la tarea "${res.detalle.tarea}" en ` +
+              `"${res.detalle.servicio_nombre}" (${res.detalle.fecha_inicio} → ` +
+              `${res.detalle.fecha_fin}).`,
+          };
+        } else {
+          this.cruceEstados[i] = { validando: false, conflicto: false, mensaje: '' };
+        }
+      },
+      error: () => {
+        // No bloquear al usuario si el endpoint falla
+        this.cruceEstados[i] = { validando: false, conflicto: false, mensaje: '' };
+      },
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // TAREAS (FormArray)
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -362,6 +467,7 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   removerTarea(i: number): void {
     if (this.procedimientosArray.length > 1) {
       this.procedimientosArray.removeAt(i);
+      this.cruceEstados.splice(i, 1);
     }
   }
 
@@ -431,7 +537,9 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     this.guardando = true;
 
     const payload = {
-      equipo: this.equipoSeleccionado.map(e => e.id),
+      equipo:  this.equipoSeleccionado.map(e => e.id),
+      // HU-13: Auto-liderazgo — enviar el empleado.id del usuario actual
+      lider_id: this.currentUserEmpleadoId || undefined,
       procedimientos: this.procedimientosArray.value.map((p: TareaForm) => ({
         ...(p.id ? { id: p.id } : {}),
         nombre:         p.nombre,
