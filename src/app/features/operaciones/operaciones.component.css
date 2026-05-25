@@ -274,3 +274,69 @@
   .operaciones-layout { padding: 24px 20px; }
   .proyectos-grid     { grid-template-columns: 1fr; }
 }
+
+/* ══════════════════════════════════════════════════════════
+   Botón Nuevo Proyecto + Editar proyecto
+══════════════════════════════════════════════════════════ */
+.btn-nuevo-proyecto {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 22px;
+  background: var(--brand-green, #91d337);
+  border: none;
+  border-radius: 12px;
+  color: #0f172a;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  box-shadow: 0 4px 16px rgba(145, 211, 55, 0.35);
+}
+.btn-nuevo-proyecto svg { width: 16px; height: 16px; }
+.btn-nuevo-proyecto:hover {
+  background: #7ec22d;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(145, 211, 55, 0.45);
+}
+
+/* Botón editar (icono solo en la tarjeta) */
+.btn-editar-proyecto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(100, 116, 139, 0.08);
+  border: 1px solid rgba(100, 116, 139, 0.18);
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-editar-proyecto svg { width: 14px; height: 14px; }
+.btn-editar-proyecto:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+}
+
+:host-context([data-theme="dark"]) .btn-nuevo-proyecto { color: #0f172a; }
+:host-context([data-theme="dark"]) .btn-editar-proyecto {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.1);
+  color: #94a3b8;
+}
+:host-context([data-theme="dark"]) .btn-editar-proyecto:hover {
+  background: rgba(59,130,246,0.15);
+  color: #60a5fa;
+}
+
+@media (max-width: 600px) {
+  .btn-nuevo-proyecto { padding: 9px 16px; font-size: 13px; }
+}

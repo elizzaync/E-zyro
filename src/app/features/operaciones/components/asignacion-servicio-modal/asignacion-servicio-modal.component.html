@@ -1,0 +1,499 @@
+<!-- ═══════════════════════════════════════════════════════════════
+     OVERLAY + MODAL — HU-13: Asignación de Personal y Avisos
+═══════════════════════════════════════════════════════════════ -->
+<div class="asm-overlay" (click)="cerrar()" role="dialog" aria-modal="true" aria-label="Configurar servicio">
+
+  <div class="asm-container" (click)="$event.stopPropagation()">
+
+    <!-- ══════════════ HEADER ══════════════ -->
+    <header class="asm-header">
+      <div class="asm-header-left">
+        <div class="asm-header-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="asm-title">
+            {{ mode === 'crear' ? 'Configurar Servicio' : 'Editar Asignación' }}
+          </h2>
+          <p class="asm-subtitle">HU-13 · Asignación de Personal y Cronograma de Tareas</p>
+        </div>
+      </div>
+
+      <button class="asm-close-btn" (click)="cerrar()" aria-label="Cerrar modal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- ══════════════ WIZARD STEPS ══════════════ -->
+    <nav class="asm-steps">
+      <!-- Paso 1 -->
+      <button class="asm-step" [class.active]="seccionActiva === 1"
+              [class.done]="pasoCompleto1 && seccionActiva > 1"
+              (click)="irSeccion(1)">
+        <span class="step-bubble">
+          @if (pasoCompleto1 && seccionActiva > 1) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          } @else { 1 }
+        </span>
+        <span class="step-label">Liderazgo</span>
+      </button>
+
+      <span class="step-line" [class.filled]="seccionActiva >= 2"></span>
+
+      <!-- Paso 2 -->
+      <button class="asm-step" [class.active]="seccionActiva === 2"
+              [class.done]="pasoCompleto2 && seccionActiva > 2"
+              (click)="irSeccion(2)">
+        <span class="step-bubble">
+          @if (pasoCompleto2 && seccionActiva > 2) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          } @else { 2 }
+        </span>
+        <span class="step-label">Equipo Técnico</span>
+      </button>
+
+      <span class="step-line" [class.filled]="seccionActiva >= 3"></span>
+
+      <!-- Paso 3 -->
+      <button class="asm-step" [class.active]="seccionActiva === 3"
+              [class.done]="pasoCompleto3 && seccionActiva > 3"
+              (click)="irSeccion(3)">
+        <span class="step-bubble">3</span>
+        <span class="step-label">Cronograma</span>
+      </button>
+    </nav>
+
+    <!-- ══════════════ BODY ══════════════ -->
+    <div class="asm-body">
+
+      <!-- ─────────────────────────────────────────
+           SECCIÓN 1 — Liderazgo y Contexto
+      ───────────────────────────────────────── -->
+      @if (seccionActiva === 1) {
+      <div class="asm-section fade-in-section">
+
+        <p class="section-intro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Confirma el servicio a configurar. Tú serás asignado automáticamente como Líder Responsable.
+        </p>
+
+        <!-- Servicio info card -->
+        @if (cargandoServicio) {
+          <div class="loading-placeholder">
+            <app-spinner></app-spinner>
+            <span>Cargando datos del servicio…</span>
+          </div>
+        } @else if (servicio) {
+          <div class="service-info-card">
+            <div class="sic-header">
+              <div class="sic-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+              </div>
+              <div class="sic-main">
+                <h3 class="sic-nombre">{{ servicio.nombre }}</h3>
+                <span class="sic-badge" [class]="estadoBadgeClass(servicio.estado)">
+                  {{ estadoLabel(servicio.estado) }}
+                </span>
+              </div>
+            </div>
+
+            <div class="sic-meta-grid">
+              <div class="sic-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 3H8v4h8V3z"/>
+                </svg>
+                <span class="sic-meta-label">Cliente</span>
+                <span class="sic-meta-val">{{ servicio.cliente }}</span>
+              </div>
+              <div class="sic-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+                </svg>
+                <span class="sic-meta-label">Ubicación</span>
+                <span class="sic-meta-val">{{ servicio.ubicacion }}</span>
+              </div>
+              <div class="sic-meta-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <span class="sic-meta-label">Fecha</span>
+                <span class="sic-meta-val">{{ servicio.fechaStr }}</span>
+              </div>
+              @if (servicio.descripcion) {
+              <div class="sic-meta-item sic-descripcion">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/>
+                </svg>
+                <span class="sic-meta-label">Descripción</span>
+                <span class="sic-meta-val">{{ servicio.descripcion }}</span>
+              </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Líder / Responsable badge -->
+        <div class="lider-block">
+          <div class="lider-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Responsable / Líder del Servicio
+          </div>
+          <div class="lider-card">
+            @if (usuarioActual.fotoUrl) {
+              <img class="lider-avatar" [src]="usuarioActual.fotoUrl" [alt]="usuarioActual.nombre">
+            } @else {
+              <div class="lider-avatar lider-avatar-fallback">
+                {{ getInicialesUser() }}
+              </div>
+            }
+            <div class="lider-info">
+              <span class="lider-nombre">{{ usuarioActual.nombre }}</span>
+              <span class="lider-rol">Jefe de Operaciones — Asignado automáticamente</span>
+            </div>
+            <span class="lider-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Líder
+            </span>
+          </div>
+        </div>
+
+      </div>
+      }
+
+      <!-- ─────────────────────────────────────────
+           SECCIÓN 2 — Equipo Técnico
+      ───────────────────────────────────────── -->
+      @if (seccionActiva === 2) {
+      <div class="asm-section fade-in-section">
+
+        <p class="section-intro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Busca y selecciona los técnicos que ejecutarán este servicio.
+          Los técnicos agregados podrán ser asignados como responsables de tareas.
+        </p>
+
+        <!-- Buscador -->
+        <div class="search-wrapper">
+          <div class="search-input-box" [class.active]="mostrarDropdown">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              class="search-input"
+              placeholder="Buscar técnico por nombre o cargo…"
+              [(ngModel)]="busquedaTecnico"
+              (input)="filtrarTecnicos()"
+              (focus)="mostrarDropdown = true"
+              (blur)="ocultarDropdown()"
+              autocomplete="off"
+            >
+            @if (cargandoTecnicos) {
+              <app-spinner></app-spinner>
+            }
+          </div>
+
+          <!-- Dropdown de resultados -->
+          @if (mostrarDropdown && tecnicosFiltrados.length > 0) {
+          <div class="technician-dropdown">
+            @for (t of tecnicosFiltrados; track t.id) {
+            <button class="tech-option"
+                    [class.already-selected]="estaSeleccionado(t.id)"
+                    (mousedown)="seleccionarTecnico(t)">
+              <div class="tech-opt-avatar" [style.background]="getColorAvatar(t.id)">
+                @if (t.fotoUrl) { <img [src]="t.fotoUrl" [alt]="t.nombre"> }
+                @else { {{ getIniciales(t) }} }
+              </div>
+              <div class="tech-opt-info">
+                <span class="tech-opt-nombre">{{ t.nombre }} {{ t.apellido }}</span>
+                <span class="tech-opt-cargo">{{ t.cargo }}</span>
+              </div>
+              @if (estaSeleccionado(t.id)) {
+              <svg class="tech-opt-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              }
+            </button>
+            }
+          </div>
+          }
+
+          @if (mostrarDropdown && tecnicosFiltrados.length === 0 && !cargandoTecnicos) {
+          <div class="technician-dropdown empty-dropdown">
+            <span>No se encontraron técnicos con ese criterio.</span>
+          </div>
+          }
+        </div>
+
+        <!-- Chips del equipo seleccionado -->
+        @if (equipoSeleccionado.length > 0) {
+        <div class="team-chips-section">
+          <div class="team-chips-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span>Equipo asignado</span>
+            <span class="team-count">{{ equipoSeleccionado.length }} técnico{{ equipoSeleccionado.length !== 1 ? 's' : '' }}</span>
+          </div>
+          <div class="team-chips-grid">
+            @for (t of equipoSeleccionado; track t.id; let i = $index) {
+            <div class="team-chip">
+              <div class="chip-avatar" [style.background]="getColorAvatar(t.id)">
+                @if (t.fotoUrl) { <img [src]="t.fotoUrl" [alt]="t.nombre"> }
+                @else { {{ getIniciales(t) }} }
+              </div>
+              <div class="chip-info">
+                <span class="chip-nombre">{{ t.nombre }} {{ t.apellido }}</span>
+                <span class="chip-cargo">{{ t.cargo }}</span>
+              </div>
+              <button class="chip-remove" (click)="removerTecnico(t.id)" title="Quitar del equipo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            }
+          </div>
+        </div>
+        }
+
+        @if (equipoSeleccionado.length === 0 && !cargandoTecnicos) {
+        <div class="empty-team-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          </svg>
+          <p>Aún no has seleccionado ningún técnico.<br>Usa el buscador de arriba para agregar al equipo.</p>
+        </div>
+        }
+
+      </div>
+      }
+
+      <!-- ─────────────────────────────────────────
+           SECCIÓN 3 — Cronograma de Tareas
+      ───────────────────────────────────────── -->
+      @if (seccionActiva === 3) {
+      <div class="asm-section fade-in-section" [formGroup]="form">
+
+        <p class="section-intro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="14" x2="8" y2="14" stroke-width="3" stroke-linecap="round"/>
+            <line x1="12" y1="14" x2="16" y2="14"/>
+          </svg>
+          Agrega las tareas/procedimientos del servicio. Las fechas alimentarán directamente el Diagrama de Gantt.
+        </p>
+
+        <div formArrayName="procedimientos" class="tasks-list">
+          @for (tarea of procedimientosArray.controls; track tarea; let i = $index) {
+          <div class="task-card" [formGroupName]="i">
+
+            <!-- Badge de orden -->
+            <div class="task-order-badge">Tarea {{ i + 1 }}</div>
+
+            <div class="task-fields">
+
+              <!-- Nombre de la tarea -->
+              <div class="field-group full-width">
+                <label class="field-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                  </svg>
+                  Nombre de la Tarea / Procedimiento *
+                </label>
+                <input type="text" formControlName="nombre" class="field-input"
+                       placeholder="Ej: Inspección del panel eléctrico principal"
+                       [class.invalid]="getTareaCtrl(i, 'nombre')?.invalid && getTareaCtrl(i, 'nombre')?.touched">
+                @if (getTareaCtrl(i, 'nombre')?.invalid && getTareaCtrl(i, 'nombre')?.touched) {
+                  <span class="field-error">El nombre de la tarea es requerido.</span>
+                }
+              </div>
+
+              <!-- Responsable -->
+              <div class="field-group">
+                <label class="field-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  Responsable *
+                </label>
+                <select formControlName="responsable_id" class="field-select"
+                        [class.invalid]="getTareaCtrl(i, 'responsable_id')?.invalid && getTareaCtrl(i, 'responsable_id')?.touched">
+                  <option value="" disabled>— Seleccionar del equipo —</option>
+                  @for (m of equipoSeleccionado; track m.id) {
+                    <option [value]="m.id">{{ m.nombre }} {{ m.apellido }} · {{ m.cargo }}</option>
+                  }
+                </select>
+                @if (getTareaCtrl(i, 'responsable_id')?.invalid && getTareaCtrl(i, 'responsable_id')?.touched) {
+                  <span class="field-error">Selecciona un responsable del equipo.</span>
+                }
+                @if (equipoSeleccionado.length === 0) {
+                  <span class="field-warn">⚠ Agrega técnicos en la sección anterior para seleccionar un responsable.</span>
+                }
+              </div>
+
+              <!-- Fecha de Inicio -->
+              <div class="field-group">
+                <label class="field-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  Fecha de Inicio *
+                </label>
+                <input type="date" formControlName="fecha_inicio" class="field-input"
+                       [class.invalid]="getTareaCtrl(i, 'fecha_inicio')?.invalid && getTareaCtrl(i, 'fecha_inicio')?.touched">
+                @if (getTareaCtrl(i, 'fecha_inicio')?.invalid && getTareaCtrl(i, 'fecha_inicio')?.touched) {
+                  <span class="field-error">La fecha de inicio es requerida.</span>
+                }
+              </div>
+
+              <!-- Fecha de Fin -->
+              <div class="field-group">
+                <label class="field-label">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                    <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                    <line x1="12" y1="14" x2="16" y2="14"/><line x1="12" y1="18" x2="14" y2="18"/>
+                  </svg>
+                  Fecha de Fin *
+                </label>
+                <input type="date" formControlName="fecha_fin" class="field-input"
+                       [class.invalid]="getTareaCtrl(i, 'fecha_fin')?.invalid && getTareaCtrl(i, 'fecha_fin')?.touched">
+                @if (getTareaCtrl(i, 'fecha_fin')?.invalid && getTareaCtrl(i, 'fecha_fin')?.touched) {
+                  <span class="field-error">La fecha de fin es requerida.</span>
+                }
+                @if (getTareaCtrl(i, 'fecha_fin')?.errors?.['rangeError']) {
+                  <span class="field-error">La fecha de fin no puede ser antes de la de inicio.</span>
+                }
+              </div>
+
+            </div><!-- /task-fields -->
+
+            <!-- Botón remover -->
+            @if (procedimientosArray.length > 1) {
+            <button class="task-remove-btn" (click)="removerTarea(i)" title="Eliminar esta tarea">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6"/><path d="M14 11v6"/>
+                <path d="M9 6V4h6v2"/>
+              </svg>
+              Eliminar
+            </button>
+            }
+
+          </div><!-- /task-card -->
+          }
+        </div><!-- /tasks-list -->
+
+        <!-- Botón añadir tarea -->
+        <button class="btn-add-task" (click)="agregarTarea()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="16"/>
+            <line x1="8" y1="12" x2="16" y2="12"/>
+          </svg>
+          Añadir Tarea al Cronograma
+        </button>
+
+        <!-- Aviso Gantt -->
+        <div class="gantt-hint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="14" x2="8" y2="14" stroke-width="3" stroke-linecap="round"/>
+            <line x1="12" y1="14" x2="16" y2="14"/>
+          </svg>
+          Las fechas definidas aquí alimentarán automáticamente el <strong>Diagrama de Gantt</strong> del proyecto.
+        </div>
+
+      </div>
+      }
+
+    </div><!-- /asm-body -->
+
+    <!-- ══════════════ FOOTER ══════════════ -->
+    <footer class="asm-footer">
+
+      <!-- Mensaje de error -->
+      @if (errorMsg) {
+      <div class="footer-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        {{ errorMsg }}
+      </div>
+      }
+
+      <div class="footer-actions">
+        <!-- Cancelar -->
+        <button class="btn-cancel" (click)="cerrar()">Cancelar</button>
+
+        <!-- Anterior -->
+        @if (seccionActiva > 1) {
+        <button class="btn-secondary" (click)="anterior()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Anterior
+        </button>
+        }
+
+        <!-- Siguiente / Guardar -->
+        @if (seccionActiva < 3) {
+        <button class="btn-primary" (click)="siguiente()">
+          Siguiente
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+        } @else {
+        <button class="btn-save" [disabled]="guardando" (click)="guardar()">
+          @if (guardando) {
+            <app-spinner></app-spinner>
+            Guardando…
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            {{ mode === 'crear' ? 'Guardar y Configurar' : 'Actualizar Asignación' }}
+          }
+        </button>
+        }
+      </div>
+
+    </footer>
+
+  </div><!-- /asm-container -->
+</div><!-- /asm-overlay -->

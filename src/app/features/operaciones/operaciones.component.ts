@@ -5,6 +5,7 @@ import { OperacionesService } from '../../core/services/operaciones.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AlertComponent } from '../../shared/components/login/alert.component';
 import { SpinnerComponent } from '../../shared/components/spinner/spinner.component';
+import { CrearProyectoModalComponent } from './components/crear-proyecto-modal/crear-proyecto-modal.component';
 
 export interface ProyectoOperacion {
   id: string;
@@ -29,7 +30,7 @@ interface KpisOperaciones {
 @Component({
   selector: 'app-operaciones',
   standalone: true,
-  imports: [CommonModule, AlertComponent, SpinnerComponent],
+  imports: [CommonModule, AlertComponent, SpinnerComponent, CrearProyectoModalComponent],
   templateUrl: './operaciones.component.html',
   styleUrls: ['./operaciones.component.css']
 })
@@ -42,6 +43,11 @@ export class OperacionesComponent implements OnInit {
   kpis: KpisOperaciones = { total_proyectos: 0, servicios_completados: 0, servicios_pendientes: 0, tasa_avance: 0 };
   isLoading    = true;
   errorMessage: string | null = null;
+
+  // ── Modal Crear / Editar Proyecto ─────────────────────────────────────
+  showCrearProyectoModal = false;
+  cpmMode: 'crear' | 'editar' = 'crear';
+  cpmProyectoId: string | null = null;
 
   ngOnInit(): void { this.cargarProyectos(); }
 
@@ -89,5 +95,33 @@ export class OperacionesComponent implements OnInit {
       'En_Pausa':   'En Pausa',
     };
     return map[estado] ?? estado;
+  }
+
+  // ── Modal Crear / Editar Proyecto ─────────────────────────────────────
+
+  abrirCrearProyecto(): void {
+    this.cpmMode = 'crear';
+    this.cpmProyectoId = null;
+    this.showCrearProyectoModal = true;
+  }
+
+  abrirEditarProyecto(event: Event, id: string): void {
+    event.stopPropagation();
+    this.cpmMode = 'editar';
+    this.cpmProyectoId = id;
+    this.showCrearProyectoModal = true;
+  }
+
+  onCrearProyectoClosed(result: { guardado: boolean; proyectoId?: string }): void {
+    this.showCrearProyectoModal = false;
+    this.cpmProyectoId = null;
+    if (result.guardado) {
+      const msg = this.cpmMode === 'crear' ? 'Proyecto creado exitosamente' : 'Proyecto actualizado exitosamente';
+      this.toast.mostrar(msg, 'success');
+      this.cargarProyectos();
+      if (this.cpmMode === 'crear' && result.proyectoId) {
+        this.router.navigate(['/operaciones/proyecto', result.proyectoId]);
+      }
+    }
   }
 }

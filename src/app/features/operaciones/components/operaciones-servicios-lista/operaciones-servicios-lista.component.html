@@ -12,19 +12,29 @@
       <h2 class="page-title">Servicios del Proyecto</h2>
       <p class="page-subtitle">{{ serviciosFiltrados.length }} servicio{{ serviciosFiltrados.length !== 1 ? 's' : '' }} encontrados</p>
     </div>
-    <button class="btn-cronograma" (click)="irAlCronograma()" title="Ver cronograma del proyecto">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="4" width="18" height="18" rx="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-        <line x1="8" y1="14" x2="8" y2="14" stroke-width="3" stroke-linecap="round"/>
-        <line x1="12" y1="14" x2="16" y2="14" stroke-width="2"/>
-        <line x1="8" y1="18" x2="8" y2="18" stroke-width="3" stroke-linecap="round"/>
-        <line x1="12" y1="18" x2="14" y2="18" stroke-width="2"/>
-      </svg>
-      Ver Cronograma
-    </button>
+    <!-- Acciones de cabecera -->
+    <div class="header-actions">
+      <button class="btn-nuevo-servicio" (click)="abrirCrearServicio()" title="Agregar nuevo servicio al proyecto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Nuevo Servicio
+      </button>
+      <button class="btn-cronograma" (click)="irAlCronograma()" title="Ver cronograma del proyecto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+          <line x1="8" y1="14" x2="8" y2="14" stroke-width="3" stroke-linecap="round"/>
+          <line x1="12" y1="14" x2="16" y2="14" stroke-width="2"/>
+          <line x1="8" y1="18" x2="8" y2="18" stroke-width="3" stroke-linecap="round"/>
+          <line x1="12" y1="18" x2="14" y2="18" stroke-width="2"/>
+        </svg>
+        Ver Cronograma
+      </button>
+    </div>
   </div>
 
   <!-- ERROR -->
@@ -90,12 +100,42 @@
          [style.animation-delay]="(i * 60) + 'ms'"
          (click)="irAlServicio(servicio.id)">
 
-      <!-- FILA SUPERIOR: número de orden + badge -->
+      <!-- FILA SUPERIOR: número de orden + badge + botón asignación -->
       <div class="sc-top">
         <span class="sc-orden">#{{ servicio.orden }}</span>
         <span class="sc-badge" [class]="'badge-' + servicio.estado.toLowerCase().replace('_', '-')">
           {{ estadoLabel(servicio.estado) }}
         </span>
+
+        <!-- ── Botón Editar Servicio ── -->
+        <button
+          class="btn-editar-srv"
+          (click)="abrirEditarServicio($event, servicio)"
+          title="Editar datos del servicio"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+
+        <!-- ── HU-13: Botón Asignar Personal ── -->
+        @if (puedeAsignar(servicio)) {
+        <button
+          class="btn-asignar"
+          [class.btn-asignar--editar]="servicio.estado !== 'Pendiente'"
+          (click)="abrirModalAsignacion($event, servicio)"
+          [title]="servicio.estado === 'Pendiente' ? 'Configurar: Asignar equipo y cronograma' : 'Editar asignación de equipo y tareas'"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/>
+            <line x1="16" y1="11" x2="22" y2="11"/>
+          </svg>
+          {{ servicio.estado === 'Pendiente' ? 'Asignar' : 'Editar' }}
+        </button>
+        }
       </div>
 
       <!-- NOMBRE DEL SERVICIO -->
@@ -198,3 +238,26 @@
   }
 
 </div>
+
+<!-- ══════════════════════════════════════════════════════
+     HU-13: MODAL DE ASIGNACIÓN DE PERSONAL Y CRONOGRAMA
+══════════════════════════════════════════════════════ -->
+@if (showAsignacionModal && modalServicioId) {
+  <app-asignacion-servicio-modal
+    [servicioId]="modalServicioId"
+    [mode]="modalMode"
+    (closed)="onModalClosed($event)"
+  ></app-asignacion-servicio-modal>
+}
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL CREAR / EDITAR SERVICIO
+══════════════════════════════════════════════════════ -->
+@if (showCrearServicioModal && proyectoId) {
+  <app-crear-servicio-modal
+    [proyectoId]="proyectoId"
+    [mode]="csmMode"
+    [servicioId]="csmServicioId"
+    (closed)="onCrearServicioClosed($event)"
+  ></app-crear-servicio-modal>
+}

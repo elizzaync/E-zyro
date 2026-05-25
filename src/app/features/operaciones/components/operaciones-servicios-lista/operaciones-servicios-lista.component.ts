@@ -3,6 +3,9 @@ import { CommonModule } from '@angular/common';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { ToastService } from '../../../../core/services/toast.service';
+import { AsignacionServicioModalComponent } from '../asignacion-servicio-modal/asignacion-servicio-modal.component';
+import { CrearServicioModalComponent } from '../crear-servicio-modal/crear-servicio-modal.component';
 
 export interface ServicioProyecto {
   id: string;
@@ -17,7 +20,7 @@ export interface ServicioProyecto {
 @Component({
   selector: 'app-operaciones-servicios-lista',
   standalone: true,
-  imports: [CommonModule, SpinnerComponent],
+  imports: [CommonModule, SpinnerComponent, AsignacionServicioModalComponent, CrearServicioModalComponent],
   templateUrl: './operaciones-servicios-lista.component.html',
   styleUrls: ['./operaciones-servicios-lista.component.css']
 })
@@ -25,6 +28,7 @@ export class OperacionesServiciosListaComponent implements OnInit {
   private route  = inject(ActivatedRoute);
   private router = inject(Router);
   private svc    = inject(OperacionesService);
+  private toast  = inject(ToastService);
 
   proyectoId: string | null = null;
   servicios: ServicioProyecto[] = [];
@@ -33,6 +37,16 @@ export class OperacionesServiciosListaComponent implements OnInit {
 
   filtros      = ['Todos', 'Pendiente', 'En_Proceso', 'Completado'];
   filtroActual = 'Todos';
+
+  // ── Modal de asignación (HU-13) ──────────────────────────────────────
+  showAsignacionModal = false;
+  modalServicioId: string | null = null;
+  modalMode: 'crear' | 'editar' = 'crear';
+
+  // ── Modal Crear / Editar Servicio ─────────────────────────────────────
+  showCrearServicioModal = false;
+  csmMode: 'crear' | 'editar' = 'crear';
+  csmServicioId: string | null = null;
 
   get serviciosFiltrados(): ServicioProyecto[] {
     if (this.filtroActual === 'Todos') return this.servicios;
@@ -76,5 +90,58 @@ export class OperacionesServiciosListaComponent implements OnInit {
   estadoLabel(estado: string): string {
     const map: Record<string, string> = { 'En_Proceso': 'En Proceso' };
     return map[estado] ?? estado;
+  }
+
+  // ── HU-13: Métodos del modal ─────────────────────────────────────────
+
+  /**
+   * Abre el modal de asignación.
+   * @param servicio  El servicio al que se aplica la asignación.
+   * @param event     El evento del click para detener la propagación (no abrir detalle).
+   */
+  abrirModalAsignacion(event: Event, servicio: ServicioProyecto): void {
+    event.stopPropagation();           // Evita navegar al detalle del servicio
+    this.modalServicioId = servicio.id;
+    this.modalMode = servicio.estado === 'Pendiente' ? 'crear' : 'editar';
+    this.showAsignacionModal = true;
+  }
+
+  onModalClosed(result: { guardado: boolean }): void {
+    this.showAsignacionModal = false;
+    if (result.guardado) {
+      this.toast.mostrar('Servicio configurado exitosamente', 'success');
+      this.cargarServicios();
+    }
+    this.modalServicioId = null;
+  }
+
+  /** Visible para todos — solo oculto en estados terminales */
+  puedeAsignar(servicio: ServicioProyecto): boolean {
+    return servicio.estado !== 'Completado' && servicio.estado !== 'Cancelado';
+  }
+
+  // ── Crear / Editar Servicio ───────────────────────────────────────────
+
+  abrirCrearServicio(): void {
+    this.csmMode = 'crear';
+    this.csmServicioId = null;
+    this.showCrearServicioModal = true;
+  }
+
+  abrirEditarServicio(event: Event, servicio: ServicioProyecto): void {
+    event.stopPropagation();
+    this.csmMode = 'editar';
+    this.csmServicioId = servicio.id;
+    this.showCrearServicioModal = true;
+  }
+
+  onCrearServicioClosed(result: { guardado: boolean }): void {
+    this.showCrearServicioModal = false;
+    this.csmServicioId = null;
+    if (result.guardado) {
+      const msg = this.csmMode === 'crear' ? 'Servicio creado exitosamente' : 'Servicio actualizado exitosamente';
+      this.toast.mostrar(msg, 'success');
+      this.cargarServicios();
+    }
   }
 }

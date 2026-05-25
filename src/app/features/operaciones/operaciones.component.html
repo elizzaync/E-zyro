@@ -9,6 +9,15 @@
         @else { Cargando proyectos... }
       </p>
     </div>
+
+    <!-- Botón Nuevo Proyecto -->
+    <button class="btn-nuevo-proyecto" (click)="abrirCrearProyecto()" title="Crear nuevo proyecto">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nuevo Proyecto
+    </button>
   </div>
 
   <!-- ERROR -->
@@ -94,12 +103,22 @@
     @for (proyecto of proyectos; track proyecto.id) {
     <div class="proyecto-card" (click)="irAProyecto(proyecto.id)">
 
-      <!-- Orden de trabajo + Estado -->
+      <!-- Orden de trabajo + Estado + Editar -->
       <div class="pc-top">
         <span class="pc-orden">{{ proyecto.orden_trabajo }}</span>
         <span class="pc-estado" [ngClass]="estadoClass(proyecto.estado)">
           {{ estadoLabel(proyecto.estado) }}
         </span>
+        <button
+          class="btn-editar-proyecto"
+          (click)="abrirEditarProyecto($event, proyecto.id)"
+          title="Editar proyecto"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
       </div>
 
       <!-- Nombre del proyecto -->
@@ -163,3 +182,14 @@
   }
 
 </div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL CREAR / EDITAR PROYECTO
+══════════════════════════════════════════════════════ -->
+@if (showCrearProyectoModal) {
+  <app-crear-proyecto-modal
+    [mode]="cpmMode"
+    [proyectoId]="cpmProyectoId"
+    (closed)="onCrearProyectoClosed($event)"
+  ></app-crear-proyecto-modal>
+}

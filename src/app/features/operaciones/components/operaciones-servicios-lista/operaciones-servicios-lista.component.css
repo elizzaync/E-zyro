@@ -402,3 +402,123 @@
   .servicios-grid { grid-template-columns: 1fr; }
   .service-legend { width: 100%; box-sizing: border-box; }
 }
+
+/* ══════════════════════════════════════════════════════════
+   HU-13: Botón de Asignación de Personal
+══════════════════════════════════════════════════════════ */
+.btn-asignar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  /* Modo crear: verde marca */
+  background: rgba(145, 211, 55, 0.12);
+  border: 1.5px solid rgba(145, 211, 55, 0.35);
+  color: #5a8a20;
+}
+.btn-asignar svg { width: 14px; height: 14px; }
+
+.btn-asignar:hover {
+  background: #91d337;
+  border-color: #91d337;
+  color: #0f172a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(145, 211, 55, 0.35);
+}
+
+/* Modo editar: azul */
+.btn-asignar--editar {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #2563eb;
+}
+.btn-asignar--editar:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+
+/* Dark mode override para los temas oscuros del sistema */
+[data-theme="dark"] .btn-asignar {
+  color: #91d337;
+}
+[data-theme="dark"] .btn-asignar--editar {
+  color: #60a5fa;
+}
+
+/* ══════════════════════════════════════════════════════════
+   Acciones de cabecera + Botón Nuevo Servicio
+══════════════════════════════════════════════════════════ */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.btn-nuevo-servicio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: var(--brand-green, #91d337);
+  border: none;
+  border-radius: 10px;
+  color: #0f172a;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px rgba(145, 211, 55, 0.35);
+}
+.btn-nuevo-servicio svg { width: 15px; height: 15px; }
+.btn-nuevo-servicio:hover {
+  background: #7ec22d;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(145, 211, 55, 0.45);
+}
+
+/* ── Botón editar servicio (icono solo) ── */
+.btn-editar-srv {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 7px;
+  background: rgba(100, 116, 139, 0.08);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.btn-editar-srv svg { width: 13px; height: 13px; }
+.btn-editar-srv:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+}
+
+[data-theme="dark"] .btn-nuevo-servicio { color: #0f172a; }
+[data-theme="dark"] .btn-editar-srv { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); color: #94a3b8; }
+[data-theme="dark"] .btn-editar-srv:hover { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+@media (max-width: 600px) {
+  .header-actions { flex-wrap: wrap; }
+  .btn-nuevo-servicio { padding: 8px 14px; font-size: 12px; }
+}

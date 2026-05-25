@@ -75,4 +75,80 @@ export class OperacionesService {
   enviarBorrador(psId: string): Observable<any> {
     return this.http.post(`${this.api}/operaciones/servicio/${psId}/borrador/enviar`, {});
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // HU-13: Asignación de Personal y Avisos
+  // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Obtiene la lista de técnicos disponibles para asignar a un servicio.
+   * GET /operaciones/personal/tecnicos
+   */
+  getPersonalTecnicos(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/operaciones/personal/tecnicos`);
+  }
+
+  /**
+   * Configura un servicio: asigna el equipo técnico y crea/actualiza el
+   * cronograma de procedimientos con sus fechas (para el Diagrama de Gantt).
+   *
+   * POST /operaciones/servicio/{psId}/configurar
+   * Body: { equipo: string[], procedimientos: TareaPayload[] }
+   */
+  configurarServicio(psId: string, payload: {
+    equipo: string[];
+    procedimientos: {
+      id?: string;
+      nombre: string;
+      responsable_id: string;
+      fecha_inicio: string;
+      fecha_fin: string;
+    }[];
+  }): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/servicio/${psId}/configurar`, payload);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Proyectos CRUD
+  // ─────────────────────────────────────────────────────────────────────
+
+  getDetalleProyecto(proyectoId: string): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/proyecto/${proyectoId}`);
+  }
+
+  crearProyecto(payload: object): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/proyectos`, payload);
+  }
+
+  actualizarProyecto(proyectoId: string, payload: object): Observable<any> {
+    return this.http.patch(`${this.api}/operaciones/proyecto/${proyectoId}`, payload);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Clientes
+  // ─────────────────────────────────────────────────────────────────────
+
+  getClientes(): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/clientes`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Catálogo de servicios
+  // ─────────────────────────────────────────────────────────────────────
+
+  getCatalogoServicios(): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/catalogo-servicios`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Servicios (proyecto_servicio) CRUD
+  // ─────────────────────────────────────────────────────────────────────
+
+  crearServicio(proyectoId: string, payload: object): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/proyecto/${proyectoId}/servicios`, payload);
+  }
+
+  actualizarServicio(servicioId: string, payload: object): Observable<any> {
+    return this.http.patch(`${this.api}/operaciones/servicio/${servicioId}`, payload);
+  }
 }
