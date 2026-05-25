@@ -199,17 +199,30 @@
 
           <!-- COLUMNA IZQUIERDA: Técnicos disponibles -->
           <div class="picker-left">
+
+            <!-- Header con contador dinámico -->
             <div class="picker-col-header">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
               Técnicos disponibles
-              @if (!cargandoTecnicos) {
-                <span class="picker-count-badge">{{ tecnicosFiltrados.length }}</span>
+              @if (!cargandoTecnicos && !errorCargaTecnicos) {
+                @if (busquedaTecnico && tecnicosFiltrados.length !== totalDisponibles) {
+                  <!-- Filtrando: "X de Y" -->
+                  <span class="picker-count-badge">
+                    {{ tecnicosFiltrados.length }} de {{ totalDisponibles }}
+                  </span>
+                } @else {
+                  <span class="picker-count-badge">{{ totalDisponibles }}</span>
+                }
               }
             </div>
 
-            <!-- Buscador -->
+            <!-- Buscador — solo visible cuando hay técnicos cargados -->
+            @if (!errorCargaTecnicos) {
             <div class="picker-search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -223,34 +236,70 @@
                 autocomplete="off"
               >
               @if (busquedaTecnico) {
-                <button class="picker-search-clear" (click)="busquedaTecnico=''; filtrarTecnicos()" title="Limpiar">
+                <button class="picker-search-clear"
+                        (click)="busquedaTecnico=''; filtrarTecnicos()"
+                        title="Limpiar filtro">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                   </svg>
                 </button>
               }
             </div>
+            }
 
             <!-- Lista de técnicos -->
             <div class="picker-list">
+
+              <!-- Estado: cargando -->
               @if (cargandoTecnicos) {
                 <div class="picker-loading">
                   <app-spinner></app-spinner>
                   <span>Cargando personal…</span>
                 </div>
-              } @else if (tecnicosFiltrados.length === 0) {
+
+              <!-- Estado: error de API -->
+              } @else if (errorCargaTecnicos) {
+                <div class="picker-api-error">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span>No se pudo cargar el personal.</span>
+                  <button class="picker-retry-btn" (click)="reintentarCargaTecnicos()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="1 4 1 10 7 10"/>
+                      <path d="M3.51 15a9 9 0 1 0 .49-3.5"/>
+                    </svg>
+                    Reintentar
+                  </button>
+                </div>
+
+              <!-- Estado: sin resultados de búsqueda -->
+              } @else if (tecnicosFiltrados.length === 0 && busquedaTecnico) {
                 <div class="picker-empty">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                   </svg>
-                  <span>Sin resultados para "{{ busquedaTecnico }}"</span>
+                  <span>Sin resultados para "<strong>{{ busquedaTecnico }}</strong>"</span>
                 </div>
+
+              <!-- Estado: todos ya fueron seleccionados -->
+              } @else if (totalDisponibles === 0 && !cargandoTecnicos) {
+                <div class="picker-empty">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <span>Todo el equipo ya fue seleccionado.</span>
+                </div>
+
+              <!-- Lista normal -->
               } @else {
                 @for (t of tecnicosFiltrados; track t.id) {
                 <button
                   class="picker-tech-row"
-                  [class.selected]="estaSeleccionado(t.id)"
-                  (click)="toggleTecnico(t)"
+                  (click)="seleccionarTecnico(t)"
+                  title="Añadir al equipo"
                 >
                   <div class="picker-tech-avatar" [style.background]="getColorAvatar(t.id)">
                     @if (t.fotoUrl) { <img [src]="t.fotoUrl" [alt]="t.nombre"> }
@@ -260,27 +309,25 @@
                     <span class="picker-tech-nombre">{{ t.nombre }} {{ t.apellido }}</span>
                     <span class="picker-tech-meta">
                       {{ t.cargo }}
-                      @if (t.grupoNombre) { <span class="picker-tech-grupo">· {{ t.grupoNombre }}</span> }
+                      @if (t.grupoNombre) {
+                        <span class="picker-tech-grupo">· {{ t.grupoNombre }}</span>
+                      }
                     </span>
                   </div>
+                  <!-- Ícono "+" siempre: los seleccionados ya no aparecen aquí -->
                   <div class="picker-tech-toggle">
-                    @if (estaSeleccionado(t.id)) {
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    } @else {
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                    }
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
                   </div>
                 </button>
                 }
               }
-            </div>
 
-            <!-- Grupos para agregar en bloque -->
-            @if (!cargandoTecnicos && grupos.length > 0 && !busquedaTecnico) {
+            </div><!-- /picker-list -->
+
+            <!-- Grupos para agregar en bloque (solo cuando no hay búsqueda activa) -->
+            @if (!cargandoTecnicos && !errorCargaTecnicos && grupos.length > 0 && !busquedaTecnico) {
             <div class="groups-section">
               <div class="groups-header">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -299,10 +346,12 @@
               >
                 <div class="group-row-info">
                   <span class="group-row-nombre">{{ g.nombre }}</span>
-                  <span class="group-row-meta">Jefe: {{ g.jefeNombre }} · {{ g.miembros.length }} miembro{{ g.miembros.length !== 1 ? 's' : '' }}</span>
+                  <span class="group-row-meta">
+                    Jefe: {{ g.jefeNombre }} · {{ g.miembros.length }} miembro{{ g.miembros.length !== 1 ? 's' : '' }}
+                  </span>
                 </div>
                 <span class="group-row-badge">
-                  @if (grupoTotalmenteSeleccionado(g)) { ✓ Completo } @else { + Agregar todos }
+                  @if (grupoTotalmenteSeleccionado(g)) { ✓ Completo } @else { + Todos }
                 </span>
               </button>
               }

@@ -74,14 +74,15 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   servicio: ServicioResumen | null = null;
   cargandoServicio = false;
 
-  // Técnicos
-  todosTecnicos: TecnicoDisponible[]    = [];
+  // Técnicos — source of truth (never mutated after load)
+  todosTecnicos: TecnicoDisponible[]     = [];
+  // Renderizado en la columna izquierda (disponibles minus seleccionados, filtrado por búsqueda)
   tecnicosFiltrados: TecnicoDisponible[] = [];
   equipoSeleccionado: TecnicoDisponible[] = [];
   grupos: GrupoDisponible[] = [];
-  busquedaTecnico  = '';
-  mostrarDropdown  = false;   // kept for backward compat, unused in new UI
-  cargandoTecnicos = false;
+  busquedaTecnico   = '';
+  cargandoTecnicos  = false;
+  errorCargaTecnicos = false;   // true cuando el API de técnicos falla
 
   // UI
   seccionActiva: 1 | 2 | 3 = 1;
@@ -167,50 +168,60 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   }
 
   private _cargarTecnicos(): void {
-    this.cargandoTecnicos = true;
+    this.cargandoTecnicos   = true;
+    this.errorCargaTecnicos = false;
+
     this.svc.getPersonalTecnicos().pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
-        const rawTecnicos = Array.isArray(res) ? res : res.tecnicos ?? [];
+        // ── Técnicos planos ──────────────────────────────────────────────────
+        const rawTecnicos = Array.isArray(res) ? res : (res?.tecnicos ?? []);
         this.todosTecnicos = rawTecnicos.map((t: any) => ({
-          id:          t.id,
-          nombre:      t.nombre,
-          apellido:    t.apellido,
-          cargo:       t.cargo       ?? 'Técnico',
-          fotoUrl:     t.foto_url    ?? '',
+          id:          String(t.id ?? ''),
+          nombre:      String(t.nombre   ?? ''),
+          apellido:    String(t.apellido ?? ''),
+          cargo:       String(t.cargo    ?? 'Técnico'),
+          fotoUrl:     String(t.foto_url ?? ''),
           grupoNombre: t.grupo_nombre ?? null,
         }));
-        this.tecnicosFiltrados = [...this.todosTecnicos];
 
-        // Cargar grupos con sus miembros
-        const rawGrupos = Array.isArray(res) ? [] : res.grupos ?? [];
+        // ── Grupos con miembros ──────────────────────────────────────────────
+        const rawGrupos = Array.isArray(res) ? [] : (res?.grupos ?? []);
         this.grupos = rawGrupos.map((g: any) => ({
-          id:          g.id,
-          nombre:      g.nombre,
-          jefeNombre:  g.jefe_nombre ?? '',
-          miembros:    (g.miembros ?? []).map((m: any) => ({
-            id:          m.id,
-            nombre:      m.nombre,
-            apellido:    m.apellido,
-            cargo:       m.cargo    ?? 'Técnico',
-            fotoUrl:     m.foto_url ?? '',
-            grupoNombre: g.nombre,
-          }))
+          id:         String(g.id ?? ''),
+          nombre:     String(g.nombre ?? ''),
+          jefeNombre: String(g.jefe_nombre ?? ''),
+          miembros:   (g.miembros ?? []).map((m: any) => ({
+            id:          String(m.id ?? ''),
+            nombre:      String(m.nombre   ?? ''),
+            apellido:    String(m.apellido ?? ''),
+            cargo:       String(m.cargo    ?? 'Técnico'),
+            fotoUrl:     String(m.foto_url ?? ''),
+            grupoNombre: String(g.nombre ?? ''),
+          })),
         }));
 
         this.cargandoTecnicos = false;
+        // Recalcula la lista disponible (excluye los ya seleccionados en modo editar)
+        this.filtrarTecnicos();
       },
-      error: () => { this.cargandoTecnicos = false; }
+      error: () => {
+        this.cargandoTecnicos   = false;
+        this.errorCargaTecnicos = true;
+      },
     });
   }
 
   private _precargarEquipo(equipo: any[]): void {
     this.equipoSeleccionado = equipo.map((m: any) => ({
-      id:      m.id,
-      nombre:  m.nombre,
-      apellido: m.apellido,
-      cargo:   m.cargo    ?? 'Técnico',
-      fotoUrl: m.foto_url ?? ''
+      id:          String(m.id ?? ''),
+      nombre:      String(m.nombre   ?? ''),
+      apellido:    String(m.apellido ?? ''),
+      cargo:       String(m.cargo    ?? 'Técnico'),
+      fotoUrl:     String(m.foto_url ?? ''),
+      grupoNombre: m.grupo_nombre ?? null,
     }));
+    // Remueve los técnicos precargados de la columna izquierda
+    this.filtrarTecnicos();
   }
 
   private _precargarProcedimientos(procs: any[]): void {
@@ -250,47 +261,71 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   // TÉCNICOS
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Recalcula la columna izquierda.
+   * Fuente: todosTecnicos MENOS los ya en equipoSeleccionado, luego filtra por búsqueda.
+   * Debe llamarse después de CUALQUIER cambio en equipoSeleccionado o busquedaTecnico.
+   */
   filtrarTecnicos(): void {
+    // Pool disponible = todos los técnicos que aún no están seleccionados
+    const disponibles = this.todosTecnicos.filter(t => !this.estaSeleccionado(t.id));
     const q = this.busquedaTecnico.toLowerCase().trim();
     this.tecnicosFiltrados = q
-      ? this.todosTecnicos.filter(t =>
+      ? disponibles.filter(t =>
           `${t.nombre} ${t.apellido}`.toLowerCase().includes(q) ||
           t.cargo.toLowerCase().includes(q) ||
           (t.grupoNombre ?? '').toLowerCase().includes(q)
         )
-      : [...this.todosTecnicos];
+      : [...disponibles];
   }
 
-  toggleTecnico(t: TecnicoDisponible): void {
-    if (this.estaSeleccionado(t.id)) {
-      this.removerTecnico(t.id);
-    } else {
-      this.equipoSeleccionado.push(t);
-    }
+  /** Total de técnicos disponibles (sin filtro de búsqueda, sin seleccionados). */
+  get totalDisponibles(): number {
+    return this.todosTecnicos.filter(t => !this.estaSeleccionado(t.id)).length;
   }
 
+  /**
+   * Mueve un técnico de la columna izquierda a la derecha.
+   * Si ya está seleccionado (no debería verse en izquierda), lo ignora silenciosamente.
+   */
   seleccionarTecnico(t: TecnicoDisponible): void {
-    if (!this.estaSeleccionado(t.id)) {
-      this.equipoSeleccionado.push(t);
-    }
+    if (this.estaSeleccionado(t.id)) return;
+    this.equipoSeleccionado = [...this.equipoSeleccionado, t];
+    this.filtrarTecnicos();
   }
 
+  /**
+   * Alias mantenido para compatibilidad con bindings de plantilla previos.
+   * En el nuevo flujo la izquierda solo muestra NO-seleccionados, así que
+   * un click siempre agrega (nunca quita).
+   */
+  toggleTecnico(t: TecnicoDisponible): void {
+    this.seleccionarTecnico(t);
+  }
+
+  /** Agrega todos los miembros de un grupo que todavía no estén seleccionados. */
   agregarGrupo(grupo: GrupoDisponible): void {
+    let cambio = false;
     grupo.miembros.forEach(m => {
       if (!this.estaSeleccionado(m.id)) {
-        this.equipoSeleccionado.push(m);
+        this.equipoSeleccionado = [...this.equipoSeleccionado, m];
+        cambio = true;
       }
     });
+    if (cambio) this.filtrarTecnicos();
   }
 
+  /**
+   * Devuelve un técnico a la columna izquierda y limpia su asignación en el cronograma.
+   */
   removerTecnico(id: string): void {
     this.equipoSeleccionado = this.equipoSeleccionado.filter(e => e.id !== id);
-    // Limpia responsables huérfanos en el FormArray
     this.procedimientosArray.controls.forEach(ctrl => {
       if (ctrl.get('responsable_id')?.value === id) {
         ctrl.get('responsable_id')?.setValue('');
       }
     });
+    this.filtrarTecnicos();
   }
 
   estaSeleccionado(id: string): boolean {
@@ -301,16 +336,21 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     return grupo.miembros.length > 0 && grupo.miembros.every(m => this.estaSeleccionado(m.id));
   }
 
+  /** Vacía el equipo y devuelve a todos los técnicos a la columna izquierda. */
   limpiarEquipo(): void {
     this.equipoSeleccionado = [];
-    // Limpia todos los responsables en el cronograma
     this.procedimientosArray.controls.forEach(ctrl => {
       ctrl.get('responsable_id')?.setValue('');
     });
+    this.filtrarTecnicos();
   }
 
-  ocultarDropdown(): void {
-    setTimeout(() => { this.mostrarDropdown = false; }, 180);
+  /** Reintentar carga de técnicos tras un error de red. */
+  reintentarCargaTecnicos(): void {
+    this.todosTecnicos     = [];
+    this.tecnicosFiltrados = [];
+    this.grupos            = [];
+    this._cargarTecnicos();
   }
 
   // ─────────────────────────────────────────────────────────────────────────

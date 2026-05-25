@@ -460,6 +460,32 @@
   text-align: center;
 }
 .picker-empty svg { width: 28px; height: 28px; opacity: .35; }
+.picker-empty strong { color: var(--asm-muted); }
+
+/* Error state: API failed */
+.picker-api-error {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 28px 16px;
+  text-align: center;
+  color: #f87171;
+  font-size: 12px;
+}
+.picker-api-error svg { width: 32px; height: 32px; opacity: .7; }
+
+.picker-retry-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px;
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.3);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: 'Inter', sans-serif;
+}
+.picker-retry-btn svg { width: 13px; height: 13px; }
+.picker-retry-btn:hover { background: rgba(239,68,68,.2); border-color: #ef4444; }
 
 /* Each technician row */
 .picker-tech-row {
