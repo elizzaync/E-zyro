@@ -1230,11 +1230,18 @@ def finalizar_mantenimiento(
         .all()
     )
 
+    # Empleado no tiene nombre/apellido — consultamos Usuario para el PDF
+    tecnico_usr = db.query(Usuario).filter(Usuario.id == empleado.usuario_id).first()
+    tecnico_nombre = (
+        f"{tecnico_usr.nombre or ''} {tecnico_usr.apellido or ''}".strip()
+        if tecnico_usr else "Técnico"
+    )
+
     pdf_bytes = _generar_pdf_mantenimiento(
         equipo_nombre=equipo.nombre,
         orden_id=orden.id,
         fecha=orden.fecha_fin or datetime.utcnow(),
-        tecnico_nombre=f"{empleado.nombre} {empleado.apellido}".strip(),
+        tecnico_nombre=tecnico_nombre,
         evidencias=evidencias,
     )
 
@@ -1348,8 +1355,18 @@ def get_historial_equipo(
 
     tecnicos_map: dict[str, str] = {}
     if tecnico_ids:
-        tecnicos = db.query(Empleado).filter(Empleado.id.in_(tecnico_ids)).all()
-        tecnicos_map = {e.id: f"{e.nombre} {e.apellido}".strip() for e in tecnicos}
+        # Empleado no tiene nombre/apellido — JOIN con Usuario es obligatorio
+        tec_rows = (
+            db.query(Empleado, Usuario)
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.id.in_(tecnico_ids))
+            .all()
+        )
+        tecnicos_map = {
+            str(emp.id): f"{usr.nombre or ''} {usr.apellido or ''}".strip() or "Técnico"
+            for emp, usr in tec_rows
+            if emp is not None
+        }
 
     evidencias_rows = (
         db.query(EvidenciaMantenimiento)

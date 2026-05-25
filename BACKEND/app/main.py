@@ -105,14 +105,11 @@ def _run_migrations():
             "ADD COLUMN IF NOT EXISTS paso_id uuid "
             "REFERENCES paso_mantenimiento(id)"
         ))
-        # ── Procedimiento: columnas de planificación / Gantt ─────────────────
+        # ── CRUD Operaciones 2026-05-25 ──────────────────────────────────────
+        # Columna para fecha de inicio de tarea en el cronograma (Gantt)
         conn.execute(text(
             "ALTER TABLE procedimiento "
             "ADD COLUMN IF NOT EXISTS fecha_inicio_tarea DATE"
-        ))
-        conn.execute(text(
-            "ALTER TABLE procedimiento "
-            "ADD COLUMN IF NOT EXISTS fecha_limite DATE"
         ))
         conn.execute(text("""
             DO $$
