@@ -43,6 +43,9 @@ from ..models.orden_mantenimiento import OrdenMantenimiento
 from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
 from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
+from ..models.catalogo_servicio import CatalogoServicio
+from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
+from ..models.seguimiento_proyecto import SeguimientoProyecto
 
 # Schemas Pydantic
 from ..schemas.operaciones import (
@@ -66,6 +69,19 @@ from ..schemas.operaciones import (
     ChecklistEquipoOut,
     PasoChecklistOut,
     PatchMantenimientoBody,
+    # CRUD nuevos
+    ClienteOut,
+    CatalogoServicioOut,
+    TecnicoOut,
+    GrupoConMiembrosOut,
+    PersonalTecnicosOut,
+    ProyectoEditOut,
+    CrearProyectoBody,
+    ActualizarProyectoBody,
+    CrearServicioBody,
+    ActualizarServicioBody,
+    ConfigurarServicioBody,
+    AgregarNotaBody,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -429,7 +445,7 @@ def get_detalle_servicio(
 
     equipo = [
         MiembroEquipoOut(
-            id=str(r.Usuario.id),
+            id=str(r.empleado_id),   # empleado.id — requerido por el modal de configurar
             nombre=r.Usuario.nombre or "",
             apellido=r.Usuario.apellido or "",
             foto_url=r.Usuario.foto_url or "",
@@ -446,7 +462,7 @@ def get_detalle_servicio(
             jefe_usr = db.query(Usuario).filter(Usuario.id == jefe_emp.usuario_id).first()
             if jefe_usr:
                 equipo.insert(0, MiembroEquipoOut(
-                    id=str(jefe_usr.id),
+                    id=str(jefe_emp.id),  # empleado.id
                     nombre=jefe_usr.nombre or "",
                     apellido=jefe_usr.apellido or "",
                     foto_url=jefe_usr.foto_url or "",
@@ -489,6 +505,9 @@ def get_detalle_servicio(
             orden=p.orden or 0,
             estado=p.estado or "pendiente",
             evidencias=ev_by_proc.get(p.id, []),
+            responsable_id=str(p.responsable_id) if p.responsable_id else None,
+            fecha_inicio_tarea=p.fecha_inicio_tarea.isoformat() if getattr(p, 'fecha_inicio_tarea', None) else None,
+            fecha_limite=p.fecha_limite.isoformat() if p.fecha_limite else None,
         )
         for p in procs
     ]
@@ -547,6 +566,7 @@ def get_detalle_servicio(
         proyecto_id=str(ps.proyecto_id),
         cliente=cliente.razon_social if cliente and cliente.razon_social else "Cliente Sin Nombre",
         tipo_servicio=ps.nombre or "Servicio Técnico",
+        nombre=ps.nombre or "Servicio Técnico",
         ubicacion=ubicacion or "",
         fecha_str=fecha_str or "",
         hora_str=hora_str or "",
@@ -557,6 +577,11 @@ def get_detalle_servicio(
         procedimientos=procedimientos,
         materiales_asignados=mat_asignados,
         materiales_solicitados=mat_solicitados,
+        # Campos extra para modal de edición
+        catalogo_servicio_id=str(ps.catalogo_servicio_id) if ps.catalogo_servicio_id else None,
+        fecha_programada=ps.fecha_programada.isoformat() if ps.fecha_programada else None,
+        fecha_inicio=ps.fecha_inicio.isoformat() if ps.fecha_inicio else None,
+        fecha_fin=ps.fecha_fin.isoformat() if ps.fecha_fin else None,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -1758,3 +1783,660 @@ def patch_mantenimiento_equipo(
     db.commit()
 
     return {"ok": True, "equipo_id": equipo_id, "status": body.status}
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# CRUD COMPLETO: Clientes · Catálogo · Personal · Proyectos · Servicios
+# ════════════════════════════════════════════════════════════════════════════
+
+def _parse_date(val: "str | None"):
+    """Convierte 'YYYY-MM-DD' o 'YYYY-MM-DDTHH:MM:SS' a date. None si vacío."""
+    if not val:
+        return None
+    try:
+        return date.fromisoformat(val.split("T")[0])
+    except (ValueError, AttributeError):
+        return None
+
+
+def _get_jefe_empleado(db: Session, usuario_id: str, empresa_id: str) -> "Empleado | None":
+    """Devuelve el empleado del usuario logueado, o el primer empleado activo si no tiene."""
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    if emp:
+        return emp
+    # Fallback: primer empleado activo de la empresa (para admins sin fila empleado)
+    return db.query(Empleado).filter(
+        Empleado.empresa_id == empresa_id,
+        Empleado.activo     == True,
+    ).order_by(Empleado.created_at.asc()).first()
+
+
+# ── GET /operaciones/clientes ─────────────────────────────────────────────────
+
+@router.get("/clientes", response_model=list[ClienteOut])
+def get_clientes(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Lista de clientes activos de la empresa (para el modal de nuevo proyecto)."""
+    empresa_id = payload["empresa_id"]
+    clientes = (
+        db.query(Cliente)
+        .filter(Cliente.empresa_id == empresa_id, Cliente.activo == True)
+        .order_by(Cliente.razon_social.asc())
+        .all()
+    )
+    return [ClienteOut(id=str(c.id), razon_social=c.razon_social, ruc=c.ruc) for c in clientes]
+
+
+# ── GET /operaciones/catalogo-servicios ───────────────────────────────────────
+
+@router.get("/catalogo-servicios", response_model=list[CatalogoServicioOut])
+def get_catalogo_servicios(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Lista de servicios activos del catálogo de la empresa."""
+    empresa_id = payload["empresa_id"]
+    items = (
+        db.query(CatalogoServicio)
+        .filter(CatalogoServicio.empresa_id == empresa_id, CatalogoServicio.activo == True)
+        .order_by(CatalogoServicio.nombre.asc())
+        .all()
+    )
+    return [
+        CatalogoServicioOut(
+            id=str(c.id),
+            nombre=c.nombre,
+            tipo_trabajo=c.tipo_trabajo or "",
+            descripcion=c.descripcion,
+        )
+        for c in items
+    ]
+
+
+# ── GET /operaciones/personal/tecnicos ────────────────────────────────────────
+
+@router.get("/personal/tecnicos", response_model=PersonalTecnicosOut)
+def get_personal_tecnicos(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Devuelve todos los técnicos activos de la empresa, con su grupo de trabajo.
+    También retorna los grupos formados con sus miembros, para asignación masiva.
+    """
+    empresa_id = payload["empresa_id"]
+
+    # ── 1. Todos los empleados activos con su usuario ─────────────────────────
+    emp_rows = (
+        db.query(Empleado, Usuario)
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(
+            Empleado.empresa_id == empresa_id,
+            Empleado.activo     == True,
+        )
+        .order_by(Usuario.nombre.asc(), Usuario.apellido.asc())
+        .all()
+    )
+
+    # ── 2. Grupos de trabajo activos ──────────────────────────────────────────
+    grupos_db = (
+        db.query(GrupoTrabajo)
+        .filter(GrupoTrabajo.empresa_id == empresa_id, GrupoTrabajo.activo == True)
+        .order_by(GrupoTrabajo.nombre.asc())
+        .all()
+    )
+
+    # ── 3. Miembros activos por grupo ─────────────────────────────────────────
+    miembros_db = (
+        db.query(GrupoMiembro)
+        .filter(
+            GrupoMiembro.grupo_id.in_([g.id for g in grupos_db]),
+            GrupoMiembro.activo == True,
+        )
+        .all()
+    )
+    # empleado_id → grupo_id map (un empleado puede estar en varios grupos; tomamos el primero)
+    emp_a_grupo: dict[str, str] = {}
+    for m in miembros_db:
+        if m.empleado_id not in emp_a_grupo:
+            emp_a_grupo[m.empleado_id] = m.grupo_id
+
+    # grupo_id → nombre map
+    grupo_nombre_map: dict[str, str] = {g.id: g.nombre for g in grupos_db}
+
+    # ── 4. Construir lista de técnicos ────────────────────────────────────────
+    tecnicos: list[TecnicoOut] = []
+    emp_map: dict[str, TecnicoOut] = {}   # empleado.id → TecnicoOut
+
+    for emp, usr in emp_rows:
+        grupo_id   = emp_a_grupo.get(emp.id)
+        tec = TecnicoOut(
+            id=str(emp.id),
+            usuario_id=str(usr.id),
+            nombre=usr.nombre or "",
+            apellido=usr.apellido or "",
+            cargo=emp.cargo or "Técnico",
+            foto_url=usr.foto_url,
+            grupo_id=grupo_id,
+            grupo_nombre=grupo_nombre_map.get(grupo_id) if grupo_id else None,
+        )
+        tecnicos.append(tec)
+        emp_map[emp.id] = tec
+
+    # ── 5. Construir grupos con miembros ──────────────────────────────────────
+    # Para el jefe de cada grupo necesitamos su nombre
+    jefe_ids = list({g.jefe_id for g in grupos_db if g.jefe_id})
+    jefe_map: dict[str, str] = {}
+    if jefe_ids:
+        jeferows = (
+            db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.id.in_(jefe_ids))
+            .all()
+        )
+        jefe_map = {r[0]: f"{r[1]} {r[2]}".strip() for r in jeferows}
+
+    # Miembros por grupo
+    miembros_by_grupo: dict[str, list[str]] = {}
+    for m in miembros_db:
+        miembros_by_grupo.setdefault(m.grupo_id, []).append(m.empleado_id)
+
+    grupos_out: list[GrupoConMiembrosOut] = []
+    for g in grupos_db:
+        miembro_tecnicos = [
+            emp_map[eid]
+            for eid in miembros_by_grupo.get(g.id, [])
+            if eid in emp_map
+        ]
+        grupos_out.append(GrupoConMiembrosOut(
+            id=str(g.id),
+            nombre=g.nombre,
+            descripcion=g.descripcion,
+            jefe_nombre=jefe_map.get(g.jefe_id, "Sin asignar"),
+            miembros=miembro_tecnicos,
+        ))
+
+    return PersonalTecnicosOut(tecnicos=tecnicos, grupos=grupos_out)
+
+
+# ── GET /operaciones/proyecto/{proyecto_id} ───────────────────────────────────
+
+@router.get("/proyecto/{proyecto_id}", response_model=ProyectoEditOut)
+def get_detalle_proyecto(
+    proyecto_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Devuelve los datos de un proyecto para el modal de edición."""
+    empresa_id = payload["empresa_id"]
+
+    proyecto = db.query(Proyecto).filter(
+        Proyecto.id         == proyecto_id,
+        Proyecto.empresa_id == empresa_id,
+    ).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    detalle = db.query(ProyectoDetalle).filter(
+        ProyectoDetalle.proyecto_id == proyecto_id
+    ).first()
+
+    # Nombre del jefe de operaciones
+    jefe_nombre = None
+    if proyecto.jefe_operaciones_id:
+        jefe_emp = db.query(Empleado).filter(Empleado.id == proyecto.jefe_operaciones_id).first()
+        if jefe_emp:
+            jefe_usr = db.query(Usuario).filter(Usuario.id == jefe_emp.usuario_id).first()
+            if jefe_usr:
+                jefe_nombre = f"{jefe_usr.nombre} {jefe_usr.apellido}".strip()
+
+    return ProyectoEditOut(
+        id=str(proyecto.id),
+        nombre_proyecto=proyecto.nombre_proyecto or "",
+        cliente_id=str(proyecto.cliente_id) if proyecto.cliente_id else "",
+        orden_trabajo=proyecto.orden_trabajo or "",
+        estado=proyecto.estado or "Pendiente",
+        fecha_inicio=proyecto.fecha_inicio.isoformat() if proyecto.fecha_inicio else None,
+        fecha_fin_estimada=proyecto.fecha_fin_estimada.isoformat() if proyecto.fecha_fin_estimada else None,
+        zona_ejecucion=detalle.zona_ejecucion if detalle else None,
+        alcance=detalle.alcance if detalle else None,
+        jefe_nombre=jefe_nombre,
+    )
+
+
+# ── POST /operaciones/proyectos ───────────────────────────────────────────────
+
+@router.post("/proyectos", status_code=status.HTTP_201_CREATED)
+def crear_proyecto(
+    body:    CrearProyectoBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Crea un nuevo proyecto y su detalle."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    # Verificar que el cliente pertenece a la empresa
+    cliente = db.query(Cliente).filter(
+        Cliente.id         == body.cliente_id,
+        Cliente.empresa_id == empresa_id,
+    ).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    # Determinar jefe de operaciones (empleado logueado o primer empleado disponible)
+    jefe = _get_jefe_empleado(db, usuario_id, empresa_id)
+    if not jefe:
+        raise HTTPException(
+            status_code=422,
+            detail="No hay empleados registrados en la empresa. "
+                   "Crea al menos un empleado antes de crear proyectos.",
+        )
+
+    # Verificar orden de trabajo único dentro de la empresa
+    existe = db.query(Proyecto).filter(
+        Proyecto.empresa_id    == empresa_id,
+        Proyecto.orden_trabajo == body.orden_trabajo,
+    ).first()
+    if existe:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ya existe un proyecto con la orden de trabajo '{body.orden_trabajo}'.",
+        )
+
+    proyecto_id = str(_uuid.uuid4())
+    ahora = datetime.utcnow()
+
+    nuevo = Proyecto(
+        id                  = proyecto_id,
+        empresa_id          = empresa_id,
+        cliente_id          = body.cliente_id,
+        orden_trabajo       = body.orden_trabajo,
+        jefe_operaciones_id = jefe.id,
+        nombre_proyecto     = body.nombre_proyecto,
+        estado              = body.estado or "Pendiente",
+        fecha_inicio        = _parse_date(body.fecha_inicio),
+        fecha_fin_estimada  = _parse_date(body.fecha_fin_estimada),
+        created_at          = ahora,
+    )
+    db.add(nuevo)
+    db.flush()
+
+    # Detalle del proyecto (zona + alcance)
+    if body.zona_ejecucion or body.alcance:
+        det = ProyectoDetalle(
+            proyecto_id    = proyecto_id,
+            empresa_id     = empresa_id,
+            zona_ejecucion = body.zona_ejecucion or None,
+            alcance        = body.alcance or "",
+        )
+        db.add(det)
+
+    # Agregar al jefe como miembro del proyecto
+    db.add(ProyectoMiembro(
+        id               = str(_uuid.uuid4()),
+        proyecto_id      = proyecto_id,
+        empleado_id      = jefe.id,
+        rol_proyecto     = "Jefe de Operaciones",
+        fecha_asignacion = ahora.date(),
+        activo           = True,
+    ))
+
+    db.commit()
+    return {"ok": True, "id": proyecto_id}
+
+
+# ── PATCH /operaciones/proyecto/{proyecto_id} ─────────────────────────────────
+
+@router.patch("/proyecto/{proyecto_id}")
+def actualizar_proyecto(
+    proyecto_id: str,
+    body:        ActualizarProyectoBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Actualiza los campos de un proyecto y su detalle."""
+    empresa_id = payload["empresa_id"]
+
+    proyecto = db.query(Proyecto).filter(
+        Proyecto.id         == proyecto_id,
+        Proyecto.empresa_id == empresa_id,
+    ).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    # Verificar unicidad de orden_trabajo si cambió
+    if body.orden_trabajo and body.orden_trabajo != proyecto.orden_trabajo:
+        existe = db.query(Proyecto).filter(
+            Proyecto.empresa_id    == empresa_id,
+            Proyecto.orden_trabajo == body.orden_trabajo,
+            Proyecto.id            != proyecto_id,
+        ).first()
+        if existe:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Ya existe un proyecto con la orden de trabajo '{body.orden_trabajo}'.",
+            )
+
+    # Verificar cliente si cambió
+    if body.cliente_id and body.cliente_id != str(proyecto.cliente_id):
+        cliente = db.query(Cliente).filter(
+            Cliente.id         == body.cliente_id,
+            Cliente.empresa_id == empresa_id,
+        ).first()
+        if not cliente:
+            raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    # Actualizar campos del proyecto
+    if body.nombre_proyecto is not None:
+        proyecto.nombre_proyecto = body.nombre_proyecto
+    if body.cliente_id is not None:
+        proyecto.cliente_id = body.cliente_id
+    if body.orden_trabajo is not None:
+        proyecto.orden_trabajo = body.orden_trabajo
+    if body.estado is not None:
+        proyecto.estado = body.estado
+    if body.fecha_inicio is not None:
+        proyecto.fecha_inicio = _parse_date(body.fecha_inicio)
+    if body.fecha_fin_estimada is not None:
+        proyecto.fecha_fin_estimada = _parse_date(body.fecha_fin_estimada)
+    proyecto.updated_at = datetime.utcnow()
+
+    # Actualizar o crear ProyectoDetalle
+    if body.zona_ejecucion is not None or body.alcance is not None:
+        det = db.query(ProyectoDetalle).filter(
+            ProyectoDetalle.proyecto_id == proyecto_id
+        ).first()
+        if det:
+            if body.zona_ejecucion is not None:
+                det.zona_ejecucion = body.zona_ejecucion or None
+            if body.alcance is not None:
+                det.alcance = body.alcance or ""
+            det.updated_at = datetime.utcnow()
+        else:
+            db.add(ProyectoDetalle(
+                proyecto_id    = proyecto_id,
+                empresa_id     = empresa_id,
+                zona_ejecucion = body.zona_ejecucion or None,
+                alcance        = body.alcance or "",
+            ))
+
+    db.commit()
+    return {"ok": True}
+
+
+# ── POST /operaciones/proyecto/{proyecto_id}/servicios ────────────────────────
+
+@router.post("/proyecto/{proyecto_id}/servicios", status_code=status.HTTP_201_CREATED)
+def crear_servicio(
+    proyecto_id: str,
+    body:        CrearServicioBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Agrega un nuevo servicio a un proyecto existente."""
+    empresa_id = payload["empresa_id"]
+
+    proyecto = db.query(Proyecto).filter(
+        Proyecto.id         == proyecto_id,
+        Proyecto.empresa_id == empresa_id,
+    ).first()
+    if not proyecto:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+
+    # Verificar que el catálogo pertenece a la empresa
+    catalogo = db.query(CatalogoServicio).filter(
+        CatalogoServicio.id         == body.catalogo_servicio_id,
+        CatalogoServicio.empresa_id == empresa_id,
+    ).first()
+    if not catalogo:
+        raise HTTPException(status_code=404, detail="Catálogo de servicio no encontrado")
+
+    # Calcular el siguiente número de orden
+    max_orden = (
+        db.query(func.max(ProyectoServicio.orden))
+        .filter(
+            ProyectoServicio.proyecto_id == proyecto_id,
+            ProyectoServicio.empresa_id  == empresa_id,
+        )
+        .scalar()
+    ) or 0
+
+    servicio_id = str(_uuid.uuid4())
+    nuevo = ProyectoServicio(
+        id                   = servicio_id,
+        proyecto_id          = proyecto_id,
+        empresa_id           = empresa_id,
+        catalogo_servicio_id = body.catalogo_servicio_id,
+        nombre               = body.nombre,
+        descripcion          = body.descripcion or None,
+        estado               = body.estado or "Pendiente",
+        orden                = max_orden + 1,
+        fecha_programada     = _parse_date(body.fecha_programada),
+        fecha_inicio         = _parse_date(body.fecha_inicio),
+        fecha_fin            = _parse_date(body.fecha_fin),
+        created_at           = datetime.utcnow(),
+    )
+    db.add(nuevo)
+    db.commit()
+    return {"ok": True, "id": servicio_id}
+
+
+# ── PATCH /operaciones/servicio/{servicio_id} ─────────────────────────────────
+
+@router.patch("/servicio/{servicio_id}")
+def actualizar_servicio(
+    servicio_id: str,
+    body:        ActualizarServicioBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Actualiza los metadatos de un servicio (nombre, catálogo, fechas, estado, descripción)."""
+    empresa_id = payload["empresa_id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    # Verificar catálogo si cambió
+    if body.catalogo_servicio_id and body.catalogo_servicio_id != str(ps.catalogo_servicio_id):
+        catalogo = db.query(CatalogoServicio).filter(
+            CatalogoServicio.id         == body.catalogo_servicio_id,
+            CatalogoServicio.empresa_id == empresa_id,
+        ).first()
+        if not catalogo:
+            raise HTTPException(status_code=404, detail="Catálogo de servicio no encontrado")
+        ps.catalogo_servicio_id = body.catalogo_servicio_id
+
+    if body.nombre is not None:
+        ps.nombre = body.nombre
+    if body.descripcion is not None:
+        ps.descripcion = body.descripcion or None
+    if body.estado is not None:
+        ps.estado = body.estado
+    if body.fecha_programada is not None:
+        ps.fecha_programada = _parse_date(body.fecha_programada)
+    if body.fecha_inicio is not None:
+        ps.fecha_inicio = _parse_date(body.fecha_inicio)
+    if body.fecha_fin is not None:
+        ps.fecha_fin = _parse_date(body.fecha_fin)
+
+    ps.updated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}
+
+
+# ── POST /operaciones/servicio/{servicio_id}/configurar ───────────────────────
+
+@router.post("/servicio/{servicio_id}/configurar")
+def configurar_servicio(
+    servicio_id: str,
+    body:        ConfigurarServicioBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """
+    Configura un servicio:
+    - Asigna / actualiza el equipo técnico (ProyectoMiembro).
+    - Reemplaza el cronograma de procedimientos (Procedimiento).
+    """
+    empresa_id = payload["empresa_id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    proyecto_id = ps.proyecto_id
+
+    # ── 1. Equipo técnico ─────────────────────────────────────────────────────
+    equipo_ids = list(set(body.equipo))  # deduplicar
+
+    # Validar que todos los empleados existen y pertenecen a la empresa
+    if equipo_ids:
+        count = db.query(func.count(Empleado.id)).filter(
+            Empleado.id.in_(equipo_ids),
+            Empleado.empresa_id == empresa_id,
+        ).scalar()
+        if count != len(equipo_ids):
+            raise HTTPException(
+                status_code=422,
+                detail="Uno o más empleados no existen o no pertenecen a esta empresa.",
+            )
+
+    # Desactivar miembros que ya no están en la lista (excepto el jefe de operaciones)
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    jefe_id  = proyecto.jefe_operaciones_id if proyecto else None
+
+    (
+        db.query(ProyectoMiembro)
+        .filter(
+            ProyectoMiembro.proyecto_id == proyecto_id,
+            ProyectoMiembro.empleado_id.notin_(equipo_ids) if equipo_ids else True,
+            ProyectoMiembro.empleado_id != jefe_id,  # nunca desactivar al jefe
+        )
+        .update({"activo": False}, synchronize_session=False)
+    )
+
+    # Insertar / reactivar miembros nuevos
+    for emp_id in equipo_ids:
+        existing = db.query(ProyectoMiembro).filter(
+            ProyectoMiembro.proyecto_id == proyecto_id,
+            ProyectoMiembro.empleado_id == emp_id,
+        ).first()
+        if existing:
+            existing.activo = True
+        else:
+            db.add(ProyectoMiembro(
+                id               = str(_uuid.uuid4()),
+                proyecto_id      = proyecto_id,
+                empleado_id      = emp_id,
+                rol_proyecto     = "Técnico",
+                fecha_asignacion = date.today(),
+                activo           = True,
+            ))
+
+    db.flush()
+
+    # ── 2. Procedimientos / Cronograma ────────────────────────────────────────
+    # Eliminar procedimientos existentes del servicio y recrèarlos
+    db.query(Procedimiento).filter(
+        Procedimiento.proyecto_servicio_id == servicio_id
+    ).delete(synchronize_session=False)
+
+    for i, proc in enumerate(body.procedimientos, start=1):
+        # Verificar que el responsable está en el equipo o es el jefe
+        if proc.responsable_id not in equipo_ids and proc.responsable_id != (jefe_id or ""):
+            # Permisivo: si no está en la lista exacta, lo aceptamos de todas formas
+            # (puede ser el jefe que no figura en equipo_ids)
+            pass
+
+        db.add(Procedimiento(
+            id                   = str(_uuid.uuid4()),
+            proyecto_servicio_id = servicio_id,
+            empresa_id           = empresa_id,
+            responsable_id       = proc.responsable_id or None,
+            nombre               = proc.nombre[:200],
+            orden                = i,
+            estado               = "pendiente",
+            fecha_inicio_tarea   = _parse_date(proc.fecha_inicio),
+            fecha_limite         = _parse_date(proc.fecha_fin),
+            created_at           = datetime.utcnow(),
+        ))
+
+    # Si el servicio estaba en Pendiente y se le asigna equipo, pasarlo a En_Proceso
+    if ps.estado == "Pendiente" and equipo_ids:
+        ps.estado = "En_Proceso"
+
+    ps.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "ok":              True,
+        "miembros_equipo": len(equipo_ids),
+        "procedimientos":  len(body.procedimientos),
+        "estado_servicio": ps.estado,
+    }
+
+
+# ── POST /operaciones/servicio/{servicio_id}/nota ─────────────────────────────
+
+@router.post("/servicio/{servicio_id}/nota", status_code=status.HTTP_201_CREATED)
+def agregar_nota_servicio(
+    servicio_id: str,
+    body:        AgregarNotaBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Agrega una nota/seguimiento al proyecto del servicio."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    registrador = _get_jefe_empleado(db, usuario_id, empresa_id)
+    if not registrador:
+        raise HTTPException(
+            status_code=422,
+            detail="No hay empleados registrados en la empresa.",
+        )
+
+    # Calcular el progreso actual del servicio
+    total_procs  = db.query(func.count(Procedimiento.id)).filter(
+        Procedimiento.proyecto_servicio_id == servicio_id
+    ).scalar() or 0
+    completos    = db.query(func.count(Procedimiento.id)).filter(
+        Procedimiento.proyecto_servicio_id == servicio_id,
+        Procedimiento.estado               == "completado",
+    ).scalar() or 0
+    pct = round(completos / total_procs * 100, 2) if total_procs else 0.0
+
+    nota = SeguimientoProyecto(
+        id                = str(_uuid.uuid4()),
+        proyecto_id       = ps.proyecto_id,
+        empresa_id        = empresa_id,
+        porcentaje_avance = pct,
+        descripcion       = body.descripcion,
+        fecha             = date.today(),
+        registrado_por    = registrador.id,
+        created_at        = datetime.utcnow(),
+    )
+    db.add(nota)
+    db.commit()
+
+    return {"ok": True, "nota_id": nota.id}

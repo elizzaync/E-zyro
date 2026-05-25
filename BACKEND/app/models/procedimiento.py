@@ -19,6 +19,7 @@ class Procedimiento(Base):
     descripcion          = Column(Text)
     orden                = Column(Integer, nullable=False, default=1)
     estado               = Column(String(20), nullable=False, default="pendiente")
-    fecha_limite         = Column(Date)
+    fecha_inicio_tarea   = Column(Date)   # inicio planificado (Gantt)
+    fecha_limite         = Column(Date)   # fin planificado (Gantt)
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at           = Column(DateTime)
