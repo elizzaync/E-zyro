@@ -31,6 +31,8 @@ from ..schemas.requerimientos import (
     CategoriaOut,
     AlmacenOut,
     CrearMaterialBody,
+    InventarioResumenOut,
+    MaterialBajoStockOut,
 )
 import json as _json
 
@@ -68,6 +70,7 @@ def get_catalogo(
         db.query(
             Stock.material_id,
             func.sum(Stock.cantidad).label("total"),
+            func.sum(Stock.cantidad_minima).label("minimo"),
         )
         .filter(Stock.empresa_id == empresa_id)
         .group_by(Stock.material_id)
@@ -83,6 +86,7 @@ def get_catalogo(
             Material.descripcion,
             CategoriaMaterial.nombre.label("categoria"),
             func.coalesce(stock_sq.c.total, 0).label("stock"),
+            func.coalesce(stock_sq.c.minimo, 0).label("minimo"),
         )
         .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
         .outerjoin(CategoriaMaterial, CategoriaMaterial.id == Material.categoria_id)
@@ -116,12 +120,78 @@ def get_catalogo(
             codigo=r.codigo,
             unidad=r.unidad,
             stock=int(r.stock),
+            stock_minimo=int(r.minimo or 0),
             categoria=r.categoria,
             descripcion=r.descripcion,
             imagen_url=None,
         )
         for r in rows
     ]
+
+
+# ── GET /requerimientos/inventario/resumen ────────────────────────────────────
+# Panel del encargado de logística: KPIs + alertas de bajo stock.
+
+@router.get("/inventario/resumen", response_model=InventarioResumenOut)
+def get_inventario_resumen(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    stock_sq = (
+        db.query(
+            Stock.material_id,
+            func.sum(Stock.cantidad).label("total"),
+            func.sum(Stock.cantidad_minima).label("minimo"),
+        )
+        .filter(Stock.empresa_id == empresa_id)
+        .group_by(Stock.material_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            Material.id,
+            Material.nombre,
+            Material.unidad,
+            CategoriaMaterial.nombre.label("categoria"),
+            func.coalesce(stock_sq.c.total, 0).label("stock"),
+            func.coalesce(stock_sq.c.minimo, 0).label("minimo"),
+        )
+        .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
+        .outerjoin(CategoriaMaterial, CategoriaMaterial.id == Material.categoria_id)
+        .filter(
+            Material.empresa_id == empresa_id,
+            Material.activo == True,
+        )
+        .all()
+    )
+
+    total_items = len(rows)
+    sin_stock = sum(1 for r in rows if int(r.stock) == 0)
+    bajo = [
+        r for r in rows
+        if int(r.minimo or 0) > 0 and int(r.stock) <= int(r.minimo)
+    ]
+    bajo.sort(key=lambda r: (int(r.stock) - int(r.minimo)))
+
+    return InventarioResumenOut(
+        total_items=total_items,
+        bajo_stock=len(bajo),
+        sin_stock=sin_stock,
+        items_bajo_stock=[
+            MaterialBajoStockOut(
+                id=str(r.id),
+                nombre=r.nombre or "",
+                unidad=r.unidad or "und",
+                categoria=r.categoria,
+                stock=int(r.stock),
+                minimo=int(r.minimo or 0),
+            )
+            for r in bajo[:30]
+        ],
+    )
 
 
 # ── GET /requerimientos/mis-solicitudes ───────────────────────────────────────

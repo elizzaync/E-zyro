@@ -10,9 +10,28 @@ class CatalogoItemOut(BaseModel):
     codigo: Optional[str]
     unidad: str
     stock: int
+    stock_minimo: int = 0
     categoria: Optional[str]
     descripcion: Optional[str] = None
     imagen_url: Optional[str] = None
+
+
+# ── Panel del encargado de logística ──────────────────────────────
+
+class MaterialBajoStockOut(BaseModel):
+    id: str
+    nombre: str
+    unidad: str
+    categoria: Optional[str] = None
+    stock: int
+    minimo: int
+
+
+class InventarioResumenOut(BaseModel):
+    total_items: int
+    bajo_stock: int
+    sin_stock: int
+    items_bajo_stock: List[MaterialBajoStockOut] = []
 
 
 class SolicitudDetalleOut(BaseModel):
