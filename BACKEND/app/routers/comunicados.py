@@ -14,6 +14,7 @@ from ..db.database import get_db
 from ..models.auditoria import Auditoria
 from ..models.comunicado import ComunicadoProyecto, ComunicadoLeido
 from ..models.empleado import Empleado
+from ..models.usuario import Usuario
 from ..models.proyecto import Proyecto
 
 router = APIRouter(prefix="/comunicados", tags=["comunicados"])
@@ -93,24 +94,47 @@ def listar_comunicados_proyecto(
         ).all()
         leidos_ids = {r.comunicado_id for r in leidos_rows}
 
-    autor_ids = [c.autor_id for c in comunicados if c.autor_id]
+    # ── Construir mapa autor_id (str) → nombre completo ──────────────────────
+    # Empleado NO tiene nombre/apellido; esos campos viven en Usuario.
+    # Hacemos JOIN Empleado ↔ Usuario y normalizamos todo a str para evitar
+    # mismatches UUID-object vs str en el .in_() de SQLAlchemy.
+    autor_ids: list[str] = [str(c.autor_id) for c in comunicados if c.autor_id]
     empleados_map: dict[str, str] = {}
     if autor_ids:
-        autores = db.query(Empleado).filter(Empleado.id.in_(autor_ids)).all()
-        empleados_map = {
-            e.id: f"{e.nombre} {e.apellido}".strip() for e in autores
-        }
+        try:
+            autores = (
+                db.query(Empleado, Usuario)
+                .join(Usuario, Usuario.id == Empleado.usuario_id)
+                .filter(Empleado.id.in_(autor_ids))
+                .all()
+            )
+            for emp, usr in autores:
+                if emp is None:
+                    continue
+                nombre   = (usr.nombre   or "") if usr else ""
+                apellido = (usr.apellido or "") if usr else ""
+                nombre_completo = f"{nombre} {apellido}".strip() or "Usuario Desconocido"
+                empleados_map[str(emp.id)] = nombre_completo
+        except Exception:
+            # Si la consulta falla por cualquier razón, continuamos con mapa vacío
+            empleados_map = {}
+
+    def _safe_fecha(c: ComunicadoProyecto) -> str:
+        try:
+            return c.created_at.strftime("%d/%m/%Y %H:%M") if c.created_at else "—"
+        except Exception:
+            return "—"
 
     return [
         ComunicadoProyectoOut(
-            id=c.id,
-            proyecto_id=c.proyecto_id,
-            titulo=c.titulo,
-            mensaje=c.mensaje,
-            autor=empleados_map.get(c.autor_id or "", "Sistema"),
-            fecha=c.created_at.strftime("%d/%m/%Y %H:%M"),
+            id=str(c.id),
+            proyecto_id=str(c.proyecto_id),
+            titulo=c.titulo or "(Sin título)",
+            mensaje=c.mensaje or "",
+            autor=empleados_map.get(str(c.autor_id) if c.autor_id else "", "Sistema"),
+            fecha=_safe_fecha(c),
             adjunto_url=c.adjunto_url,
-            leido=(c.id in leidos_ids),
+            leido=(str(c.id) in {str(x) for x in leidos_ids}),
         )
         for c in comunicados
     ]

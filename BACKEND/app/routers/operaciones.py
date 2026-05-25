@@ -1256,11 +1256,18 @@ def finalizar_mantenimiento(
         .all()
     )
 
+    # Empleado no tiene nombre/apellido — consultamos Usuario para el PDF
+    tecnico_usr = db.query(Usuario).filter(Usuario.id == empleado.usuario_id).first()
+    tecnico_nombre = (
+        f"{tecnico_usr.nombre or ''} {tecnico_usr.apellido or ''}".strip()
+        if tecnico_usr else "Técnico"
+    )
+
     pdf_bytes = _generar_pdf_mantenimiento(
         equipo_nombre=equipo.nombre,
         orden_id=orden.id,
         fecha=orden.fecha_fin or datetime.utcnow(),
-        tecnico_nombre=f"{empleado.nombre} {empleado.apellido}".strip(),
+        tecnico_nombre=tecnico_nombre,
         evidencias=evidencias,
     )
 
@@ -1374,8 +1381,18 @@ def get_historial_equipo(
 
     tecnicos_map: dict[str, str] = {}
     if tecnico_ids:
-        tecnicos = db.query(Empleado).filter(Empleado.id.in_(tecnico_ids)).all()
-        tecnicos_map = {e.id: f"{e.nombre} {e.apellido}".strip() for e in tecnicos}
+        # Empleado no tiene nombre/apellido — JOIN con Usuario es obligatorio
+        tec_rows = (
+            db.query(Empleado, Usuario)
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.id.in_(tecnico_ids))
+            .all()
+        )
+        tecnicos_map = {
+            str(emp.id): f"{usr.nombre or ''} {usr.apellido or ''}".strip() or "Técnico"
+            for emp, usr in tec_rows
+            if emp is not None
+        }
 
     evidencias_rows = (
         db.query(EvidenciaMantenimiento)
@@ -1892,14 +1909,31 @@ def get_personal_tecnicos(
     db:      Session = Depends(get_db),
 ):
     """
-    Devuelve todos los técnicos activos de la empresa, con su grupo de trabajo.
-    También retorna los grupos formados con sus miembros, para asignación masiva.
+    Devuelve todos los empleados activos de la empresa con sus datos de usuario,
+    más los grupos de trabajo con sus miembros (para asignación masiva).
+
+    FIX 2026-05-25: Todas las PKs/FKs de la BD son UUID nativos de PostgreSQL.
+    psycopg2 los devuelve como objetos uuid.UUID, no como str. Si los pasamos
+    directamente a los schemas Pydantic (que esperan Optional[str]) se produce
+    una ValidationError → HTTP 500. Solución: normalizar a str() en cuanto
+    salen de la base de datos, ANTES de usarlos como clave de diccionario o
+    valor de schema.
     """
     empresa_id = payload["empresa_id"]
 
-    # ── 1. Todos los empleados activos con su usuario ─────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────
+    # 1. Empleados activos JOIN Usuario — un solo round-trip
+    #    Seleccionamos columnas explícitas para evitar ORM lazy-loading.
+    # ─────────────────────────────────────────────────────────────────────────
     emp_rows = (
-        db.query(Empleado, Usuario)
+        db.query(
+            Empleado.id.label("emp_id"),
+            Empleado.cargo.label("cargo"),
+            Empleado.usuario_id.label("usuario_id"),
+            Usuario.nombre.label("nombre"),
+            Usuario.apellido.label("apellido"),
+            Usuario.foto_url.label("foto_url"),
+        )
         .join(Usuario, Usuario.id == Empleado.usuario_id)
         .filter(
             Empleado.empresa_id == empresa_id,
@@ -1909,82 +1943,116 @@ def get_personal_tecnicos(
         .all()
     )
 
-    # ── 2. Grupos de trabajo activos ──────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────────────────────
+    # 2. Grupos de trabajo activos
+    # ─────────────────────────────────────────────────────────────────────────
     grupos_db = (
         db.query(GrupoTrabajo)
-        .filter(GrupoTrabajo.empresa_id == empresa_id, GrupoTrabajo.activo == True)
+        .filter(
+            GrupoTrabajo.empresa_id == empresa_id,
+            GrupoTrabajo.activo     == True,
+        )
         .order_by(GrupoTrabajo.nombre.asc())
         .all()
     )
+    # Normalizar IDs de grupos a str inmediatamente
+    grupo_ids_str: list[str] = [str(g.id) for g in grupos_db]
 
-    # ── 3. Miembros activos por grupo ─────────────────────────────────────────
-    miembros_db = (
-        db.query(GrupoMiembro)
-        .filter(
-            GrupoMiembro.grupo_id.in_([g.id for g in grupos_db]),
-            GrupoMiembro.activo == True,
-        )
-        .all()
-    )
-    # empleado_id → grupo_id map (un empleado puede estar en varios grupos; tomamos el primero)
-    emp_a_grupo: dict[str, str] = {}
-    for m in miembros_db:
-        if m.empleado_id not in emp_a_grupo:
-            emp_a_grupo[m.empleado_id] = m.grupo_id
+    # grupo_id_str → nombre_str  (lookup O(1) garantizado)
+    grupo_nombre_map: dict[str, str] = {
+        str(g.id): (g.nombre or "") for g in grupos_db
+    }
 
-    # grupo_id → nombre map
-    grupo_nombre_map: dict[str, str] = {g.id: g.nombre for g in grupos_db}
-
-    # ── 4. Construir lista de técnicos ────────────────────────────────────────
-    tecnicos: list[TecnicoOut] = []
-    emp_map: dict[str, TecnicoOut] = {}   # empleado.id → TecnicoOut
-
-    for emp, usr in emp_rows:
-        grupo_id   = emp_a_grupo.get(emp.id)
-        tec = TecnicoOut(
-            id=str(emp.id),
-            usuario_id=str(usr.id),
-            nombre=usr.nombre or "",
-            apellido=usr.apellido or "",
-            cargo=emp.cargo or "Técnico",
-            foto_url=usr.foto_url,
-            grupo_id=grupo_id,
-            grupo_nombre=grupo_nombre_map.get(grupo_id) if grupo_id else None,
-        )
-        tecnicos.append(tec)
-        emp_map[emp.id] = tec
-
-    # ── 5. Construir grupos con miembros ──────────────────────────────────────
-    # Para el jefe de cada grupo necesitamos su nombre
-    jefe_ids = list({g.jefe_id for g in grupos_db if g.jefe_id})
-    jefe_map: dict[str, str] = {}
-    if jefe_ids:
-        jeferows = (
-            db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
-            .join(Usuario, Usuario.id == Empleado.usuario_id)
-            .filter(Empleado.id.in_(jefe_ids))
+    # ─────────────────────────────────────────────────────────────────────────
+    # 3. Miembros activos de esos grupos
+    #    Usamos grupo_ids_str (strings) para el .in_() — PostgreSQL admite
+    #    implicit cast de varchar → uuid.
+    # ─────────────────────────────────────────────────────────────────────────
+    miembros_db = []
+    if grupo_ids_str:
+        miembros_db = (
+            db.query(GrupoMiembro)
+            .filter(
+                GrupoMiembro.grupo_id.in_(grupo_ids_str),
+                GrupoMiembro.activo == True,
+            )
             .all()
         )
-        jefe_map = {r[0]: f"{r[1]} {r[2]}".strip() for r in jeferows}
 
-    # Miembros por grupo
+    # empleado_id_str → grupo_id_str  (primer grupo ganador)
+    emp_a_grupo: dict[str, str] = {}
+    for m in miembros_db:
+        eid = str(m.empleado_id)
+        if eid not in emp_a_grupo:
+            emp_a_grupo[eid] = str(m.grupo_id)
+
+    # grupo_id_str → [empleado_id_str, ...]
     miembros_by_grupo: dict[str, list[str]] = {}
     for m in miembros_db:
-        miembros_by_grupo.setdefault(m.grupo_id, []).append(m.empleado_id)
+        miembros_by_grupo.setdefault(str(m.grupo_id), []).append(str(m.empleado_id))
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 4. Construir TecnicoOut — todas las conversiones UUID→str aquí
+    # ─────────────────────────────────────────────────────────────────────────
+    tecnicos:  list[TecnicoOut]       = []
+    emp_map:   dict[str, TecnicoOut]  = {}   # emp_id_str → TecnicoOut
+
+    for row in emp_rows:
+        emp_id_str  = str(row.emp_id)
+        grupo_id_s  = emp_a_grupo.get(emp_id_str)          # str | None
+
+        tec = TecnicoOut(
+            id           = emp_id_str,
+            usuario_id   = str(row.usuario_id) if row.usuario_id else "",
+            nombre       = str(row.nombre   or ""),
+            apellido     = str(row.apellido or ""),
+            cargo        = str(row.cargo    or "Técnico"),
+            foto_url     = row.foto_url,                    # str | None — OK
+            grupo_id     = grupo_id_s,                     # str | None — ya es str
+            grupo_nombre = grupo_nombre_map.get(grupo_id_s) if grupo_id_s else None,
+        )
+        tecnicos.append(tec)
+        emp_map[emp_id_str] = tec
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # 5. Construir GrupoConMiembrosOut
+    # ─────────────────────────────────────────────────────────────────────────
+    # Nombres de jefes — un único JOIN para todos los grupos
+    jefe_ids_str: list[str] = list({
+        str(g.jefe_id) for g in grupos_db if g.jefe_id
+    })
+    jefe_map: dict[str, str] = {}
+    if jefe_ids_str:
+        jefe_rows = (
+            db.query(
+                Empleado.id.label("emp_id"),
+                Usuario.nombre.label("nombre"),
+                Usuario.apellido.label("apellido"),
+            )
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.id.in_(jefe_ids_str))
+            .all()
+        )
+        jefe_map = {
+            str(r.emp_id): f"{r.nombre or ''} {r.apellido or ''}".strip() or "Sin nombre"
+            for r in jefe_rows
+        }
 
     grupos_out: list[GrupoConMiembrosOut] = []
     for g in grupos_db:
-        miembro_tecnicos = [
+        g_id_str      = str(g.id)
+        jefe_id_str   = str(g.jefe_id) if g.jefe_id else ""
+        miembro_tecs  = [
             emp_map[eid]
-            for eid in miembros_by_grupo.get(g.id, [])
+            for eid in miembros_by_grupo.get(g_id_str, [])
             if eid in emp_map
         ]
         grupos_out.append(GrupoConMiembrosOut(
-            id=str(g.id),
-            nombre=g.nombre,
-            descripcion=g.descripcion,
-            jefe_nombre=jefe_map.get(g.jefe_id, "Sin asignar"),
-            miembros=miembro_tecnicos,
+            id          = g_id_str,
+            nombre      = str(g.nombre or ""),
+            descripcion = g.descripcion,
+            jefe_nombre = jefe_map.get(jefe_id_str, "Sin asignar"),
+            miembros    = miembro_tecs,
         ))
 
     return PersonalTecnicosOut(tecnicos=tecnicos, grupos=grupos_out)
