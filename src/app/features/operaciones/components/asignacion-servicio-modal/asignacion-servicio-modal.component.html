@@ -190,104 +190,181 @@
             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          Busca y selecciona los técnicos que ejecutarán este servicio.
-          Los técnicos agregados podrán ser asignados como responsables de tareas.
+          Selecciona los técnicos que ejecutarán este servicio. Filtra por nombre, cargo o grupo.
+          Los seleccionados podrán ser asignados como responsables de tareas en el cronograma.
         </p>
 
-        <!-- Buscador -->
-        <div class="search-wrapper">
-          <div class="search-input-box" [class.active]="mostrarDropdown">
-            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input
-              type="text"
-              class="search-input"
-              placeholder="Buscar técnico por nombre o cargo…"
-              [(ngModel)]="busquedaTecnico"
-              (input)="filtrarTecnicos()"
-              (focus)="mostrarDropdown = true"
-              (blur)="ocultarDropdown()"
-              autocomplete="off"
-            >
-            @if (cargandoTecnicos) {
-              <app-spinner></app-spinner>
-            }
-          </div>
+        <!-- ── Panel de selección de 2 columnas ── -->
+        <div class="team-picker">
 
-          <!-- Dropdown de resultados -->
-          @if (mostrarDropdown && tecnicosFiltrados.length > 0) {
-          <div class="technician-dropdown">
-            @for (t of tecnicosFiltrados; track t.id) {
-            <button class="tech-option"
-                    [class.already-selected]="estaSeleccionado(t.id)"
-                    (mousedown)="seleccionarTecnico(t)">
-              <div class="tech-opt-avatar" [style.background]="getColorAvatar(t.id)">
-                @if (t.fotoUrl) { <img [src]="t.fotoUrl" [alt]="t.nombre"> }
-                @else { {{ getIniciales(t) }} }
-              </div>
-              <div class="tech-opt-info">
-                <span class="tech-opt-nombre">{{ t.nombre }} {{ t.apellido }}</span>
-                <span class="tech-opt-cargo">{{ t.cargo }}</span>
-              </div>
-              @if (estaSeleccionado(t.id)) {
-              <svg class="tech-opt-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polyline points="20 6 9 17 4 12"/>
+          <!-- COLUMNA IZQUIERDA: Técnicos disponibles -->
+          <div class="picker-left">
+            <div class="picker-col-header">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
+              Técnicos disponibles
+              @if (!cargandoTecnicos) {
+                <span class="picker-count-badge">{{ tecnicosFiltrados.length }}</span>
               }
-            </button>
-            }
-          </div>
-          }
+            </div>
 
-          @if (mostrarDropdown && tecnicosFiltrados.length === 0 && !cargandoTecnicos) {
-          <div class="technician-dropdown empty-dropdown">
-            <span>No se encontraron técnicos con ese criterio.</span>
-          </div>
-          }
-        </div>
+            <!-- Buscador -->
+            <div class="picker-search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                class="picker-search-input"
+                placeholder="Filtrar por nombre, cargo o grupo…"
+                [(ngModel)]="busquedaTecnico"
+                (input)="filtrarTecnicos()"
+                autocomplete="off"
+              >
+              @if (busquedaTecnico) {
+                <button class="picker-search-clear" (click)="busquedaTecnico=''; filtrarTecnicos()" title="Limpiar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              }
+            </div>
 
-        <!-- Chips del equipo seleccionado -->
-        @if (equipoSeleccionado.length > 0) {
-        <div class="team-chips-section">
-          <div class="team-chips-header">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-            <span>Equipo asignado</span>
-            <span class="team-count">{{ equipoSeleccionado.length }} técnico{{ equipoSeleccionado.length !== 1 ? 's' : '' }}</span>
-          </div>
-          <div class="team-chips-grid">
-            @for (t of equipoSeleccionado; track t.id; let i = $index) {
-            <div class="team-chip">
-              <div class="chip-avatar" [style.background]="getColorAvatar(t.id)">
-                @if (t.fotoUrl) { <img [src]="t.fotoUrl" [alt]="t.nombre"> }
-                @else { {{ getIniciales(t) }} }
-              </div>
-              <div class="chip-info">
-                <span class="chip-nombre">{{ t.nombre }} {{ t.apellido }}</span>
-                <span class="chip-cargo">{{ t.cargo }}</span>
-              </div>
-              <button class="chip-remove" (click)="removerTecnico(t.id)" title="Quitar del equipo">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            <!-- Lista de técnicos -->
+            <div class="picker-list">
+              @if (cargandoTecnicos) {
+                <div class="picker-loading">
+                  <app-spinner></app-spinner>
+                  <span>Cargando personal…</span>
+                </div>
+              } @else if (tecnicosFiltrados.length === 0) {
+                <div class="picker-empty">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <span>Sin resultados para "{{ busquedaTecnico }}"</span>
+                </div>
+              } @else {
+                @for (t of tecnicosFiltrados; track t.id) {
+                <button
+                  class="picker-tech-row"
+                  [class.selected]="estaSeleccionado(t.id)"
+                  (click)="toggleTecnico(t)"
+                >
+                  <div class="picker-tech-avatar" [style.background]="getColorAvatar(t.id)">
+                    @if (t.fotoUrl) { <img [src]="t.fotoUrl" [alt]="t.nombre"> }
+                    @else { {{ getIniciales(t) }} }
+                  </div>
+                  <div class="picker-tech-info">
+                    <span class="picker-tech-nombre">{{ t.nombre }} {{ t.apellido }}</span>
+                    <span class="picker-tech-meta">
+                      {{ t.cargo }}
+                      @if (t.grupoNombre) { <span class="picker-tech-grupo">· {{ t.grupoNombre }}</span> }
+                    </span>
+                  </div>
+                  <div class="picker-tech-toggle">
+                    @if (estaSeleccionado(t.id)) {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    } @else {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                      </svg>
+                    }
+                  </div>
+                </button>
+                }
+              }
+            </div>
+
+            <!-- Grupos para agregar en bloque -->
+            @if (!cargandoTecnicos && grupos.length > 0 && !busquedaTecnico) {
+            <div class="groups-section">
+              <div class="groups-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
+                Agregar grupo completo
+              </div>
+              @for (g of grupos; track g.id) {
+              <button
+                class="group-row"
+                [class.fully-selected]="grupoTotalmenteSeleccionado(g)"
+                (click)="agregarGrupo(g)"
+              >
+                <div class="group-row-info">
+                  <span class="group-row-nombre">{{ g.nombre }}</span>
+                  <span class="group-row-meta">Jefe: {{ g.jefeNombre }} · {{ g.miembros.length }} miembro{{ g.miembros.length !== 1 ? 's' : '' }}</span>
+                </div>
+                <span class="group-row-badge">
+                  @if (grupoTotalmenteSeleccionado(g)) { ✓ Completo } @else { + Agregar todos }
+                </span>
               </button>
+              }
             </div>
             }
-          </div>
-        </div>
-        }
 
-        @if (equipoSeleccionado.length === 0 && !cargandoTecnicos) {
-        <div class="empty-team-hint">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-          </svg>
-          <p>Aún no has seleccionado ningún técnico.<br>Usa el buscador de arriba para agregar al equipo.</p>
-        </div>
-        }
+          </div><!-- /picker-left -->
+
+          <!-- COLUMNA DERECHA: Equipo seleccionado -->
+          <div class="picker-right">
+            <div class="picker-col-header">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Equipo seleccionado
+              @if (equipoSeleccionado.length > 0) {
+                <span class="picker-count-badge accent">{{ equipoSeleccionado.length }}</span>
+              }
+            </div>
+
+            <div class="picker-selected-list">
+              @if (equipoSeleccionado.length === 0) {
+                <div class="picker-selected-empty">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                  </svg>
+                  <span>Haz clic en un técnico<br>para añadirlo al equipo</span>
+                </div>
+              } @else {
+                @for (t of equipoSeleccionado; track t.id) {
+                <div class="selected-tech-row">
+                  <div class="selected-avatar" [style.background]="getColorAvatar(t.id)">
+                    @if (t.fotoUrl) { <img [src]="t.fotoUrl" [alt]="t.nombre"> }
+                    @else { {{ getIniciales(t) }} }
+                  </div>
+                  <div class="selected-info">
+                    <span class="selected-nombre">{{ t.nombre }} {{ t.apellido }}</span>
+                    <span class="selected-cargo">{{ t.cargo }}</span>
+                  </div>
+                  <button class="selected-remove" (click)="removerTecnico(t.id)" title="Quitar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+                }
+              }
+            </div>
+
+            @if (equipoSeleccionado.length > 0) {
+            <button class="selected-clear-all" (click)="limpiarEquipo()" title="Quitar todos">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+              </svg>
+              Quitar todos
+            </button>
+            }
+
+          </div><!-- /picker-right -->
+
+        </div><!-- /team-picker -->
 
       </div>
       }

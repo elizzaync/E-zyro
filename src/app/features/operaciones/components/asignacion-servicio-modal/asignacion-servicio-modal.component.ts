@@ -18,6 +18,14 @@ export interface TecnicoDisponible {
   apellido: string;
   cargo: string;
   fotoUrl: string;
+  grupoNombre?: string | null;
+}
+
+export interface GrupoDisponible {
+  id: string;
+  nombre: string;
+  jefeNombre: string;
+  miembros: TecnicoDisponible[];
 }
 
 export interface TareaForm {
@@ -70,8 +78,9 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   todosTecnicos: TecnicoDisponible[]    = [];
   tecnicosFiltrados: TecnicoDisponible[] = [];
   equipoSeleccionado: TecnicoDisponible[] = [];
+  grupos: GrupoDisponible[] = [];
   busquedaTecnico  = '';
-  mostrarDropdown  = false;
+  mostrarDropdown  = false;   // kept for backward compat, unused in new UI
   cargandoTecnicos = false;
 
   // UI
@@ -161,14 +170,33 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     this.cargandoTecnicos = true;
     this.svc.getPersonalTecnicos().pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
-        this.todosTecnicos = (Array.isArray(res) ? res : res.tecnicos ?? []).map((t: any) => ({
-          id:      t.id,
-          nombre:  t.nombre,
-          apellido: t.apellido,
-          cargo:   t.cargo    ?? 'Técnico',
-          fotoUrl: t.foto_url ?? ''
+        const rawTecnicos = Array.isArray(res) ? res : res.tecnicos ?? [];
+        this.todosTecnicos = rawTecnicos.map((t: any) => ({
+          id:          t.id,
+          nombre:      t.nombre,
+          apellido:    t.apellido,
+          cargo:       t.cargo       ?? 'Técnico',
+          fotoUrl:     t.foto_url    ?? '',
+          grupoNombre: t.grupo_nombre ?? null,
         }));
         this.tecnicosFiltrados = [...this.todosTecnicos];
+
+        // Cargar grupos con sus miembros
+        const rawGrupos = Array.isArray(res) ? [] : res.grupos ?? [];
+        this.grupos = rawGrupos.map((g: any) => ({
+          id:          g.id,
+          nombre:      g.nombre,
+          jefeNombre:  g.jefe_nombre ?? '',
+          miembros:    (g.miembros ?? []).map((m: any) => ({
+            id:          m.id,
+            nombre:      m.nombre,
+            apellido:    m.apellido,
+            cargo:       m.cargo    ?? 'Técnico',
+            fotoUrl:     m.foto_url ?? '',
+            grupoNombre: g.nombre,
+          }))
+        }));
+
         this.cargandoTecnicos = false;
       },
       error: () => { this.cargandoTecnicos = false; }
@@ -227,19 +255,32 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     this.tecnicosFiltrados = q
       ? this.todosTecnicos.filter(t =>
           `${t.nombre} ${t.apellido}`.toLowerCase().includes(q) ||
-          t.cargo.toLowerCase().includes(q)
+          t.cargo.toLowerCase().includes(q) ||
+          (t.grupoNombre ?? '').toLowerCase().includes(q)
         )
       : [...this.todosTecnicos];
-    this.mostrarDropdown = true;
+  }
+
+  toggleTecnico(t: TecnicoDisponible): void {
+    if (this.estaSeleccionado(t.id)) {
+      this.removerTecnico(t.id);
+    } else {
+      this.equipoSeleccionado.push(t);
+    }
   }
 
   seleccionarTecnico(t: TecnicoDisponible): void {
     if (!this.estaSeleccionado(t.id)) {
       this.equipoSeleccionado.push(t);
     }
-    this.busquedaTecnico = '';
-    this.filtrarTecnicos();
-    this.mostrarDropdown = false;
+  }
+
+  agregarGrupo(grupo: GrupoDisponible): void {
+    grupo.miembros.forEach(m => {
+      if (!this.estaSeleccionado(m.id)) {
+        this.equipoSeleccionado.push(m);
+      }
+    });
   }
 
   removerTecnico(id: string): void {
@@ -254,6 +295,18 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
 
   estaSeleccionado(id: string): boolean {
     return this.equipoSeleccionado.some(e => e.id === id);
+  }
+
+  grupoTotalmenteSeleccionado(grupo: GrupoDisponible): boolean {
+    return grupo.miembros.length > 0 && grupo.miembros.every(m => this.estaSeleccionado(m.id));
+  }
+
+  limpiarEquipo(): void {
+    this.equipoSeleccionado = [];
+    // Limpia todos los responsables en el cronograma
+    this.procedimientosArray.controls.forEach(ctrl => {
+      ctrl.get('responsable_id')?.setValue('');
+    });
   }
 
   ocultarDropdown(): void {
