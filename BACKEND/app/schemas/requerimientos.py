@@ -91,6 +91,16 @@ class CategoriaBody(BaseModel):
     descripcion: Optional[str] = None
 
 
+# ── Fase 6: transferencia entre almacenes ─────────────────────────
+
+class TransferenciaBody(BaseModel):
+    material_id: str
+    almacen_origen_id: str
+    almacen_destino_id: str
+    cantidad: int
+    motivo: Optional[str] = None
+
+
 class SolicitudDetalleOut(BaseModel):
     id: str
     material_id: Optional[str] = None

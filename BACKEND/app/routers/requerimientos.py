@@ -42,6 +42,7 @@ from ..schemas.requerimientos import (
     MovimientoOut,
     EditarMaterialBody,
     CategoriaBody,
+    TransferenciaBody,
 )
 import json as _json
 
@@ -598,6 +599,109 @@ def get_movimientos(
             fecha=m.fecha.strftime("%d %b %Y · %H:%M") if m.fecha else "",
         ))
     return result
+
+
+# ── POST /requerimientos/inventario/transferencia ─────────────────────────────
+# Mueve stock de un almacén a otro — registra 2 movimientos (salida + entrada).
+
+@router.post("/inventario/transferencia")
+def transferir_stock(
+    body:    TransferenciaBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+
+    if body.cantidad < 1:
+        raise HTTPException(status_code=422, detail="La cantidad debe ser mayor a 0")
+    if body.almacen_origen_id == body.almacen_destino_id:
+        raise HTTPException(status_code=422, detail="El origen y destino deben ser distintos")
+
+    mat = db.query(Material).filter(
+        Material.id         == body.material_id,
+        Material.empresa_id == empresa_id,
+        Material.activo     == True,
+    ).first()
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    almacenes = {
+        str(a.id): a
+        for a in db.query(Almacen).filter(
+            Almacen.id.in_([body.almacen_origen_id, body.almacen_destino_id]),
+            Almacen.empresa_id == empresa_id,
+        ).all()
+    }
+    origen = almacenes.get(body.almacen_origen_id)
+    destino = almacenes.get(body.almacen_destino_id)
+    if not origen or not destino:
+        raise HTTPException(status_code=404, detail="Almacén no encontrado")
+
+    # Stock origen (debe existir y tener suficiente)
+    stock_origen = db.query(Stock).filter(
+        Stock.material_id == mat.id,
+        Stock.empresa_id  == empresa_id,
+        Stock.almacen_id  == body.almacen_origen_id,
+    ).first()
+    disponible = stock_origen.cantidad if stock_origen else 0
+    if body.cantidad > disponible:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Stock insuficiente en origen (disponible: {disponible})",
+        )
+
+    stock_origen.cantidad -= body.cantidad
+    stock_origen.updated_at = datetime.utcnow()
+
+    # Stock destino (crear si no existe)
+    stock_destino = db.query(Stock).filter(
+        Stock.material_id == mat.id,
+        Stock.empresa_id  == empresa_id,
+        Stock.almacen_id  == body.almacen_destino_id,
+    ).first()
+    if stock_destino:
+        stock_destino.cantidad = (stock_destino.cantidad or 0) + body.cantidad
+        stock_destino.updated_at = datetime.utcnow()
+    else:
+        db.add(Stock(
+            material_id    = mat.id,
+            empresa_id     = empresa_id,
+            almacen_id     = body.almacen_destino_id,
+            cantidad       = body.cantidad,
+            cantidad_minima= 0,
+        ))
+
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    emp_id = empleado.id if empleado else None
+    ref = str(_uuid.uuid4())
+    nota = body.motivo or ""
+
+    # Movimiento de salida (origen) y entrada (destino)
+    db.add(MovimientoInventario(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id, material_id=mat.id,
+        almacen_id=body.almacen_origen_id, tipo="transferencia",
+        cantidad=body.cantidad,
+        motivo=f"Salida a {destino.nombre}" + (f" · {nota}" if nota else ""),
+        referencia_id=ref, referencia_tipo="transferencia",
+        responsable_id=emp_id, fecha=datetime.utcnow(),
+    ))
+    db.add(MovimientoInventario(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id, material_id=mat.id,
+        almacen_id=body.almacen_destino_id, tipo="transferencia",
+        cantidad=body.cantidad,
+        motivo=f"Entrada desde {origen.nombre}" + (f" · {nota}" if nota else ""),
+        referencia_id=ref, referencia_tipo="transferencia",
+        responsable_id=emp_id, fecha=datetime.utcnow(),
+    ))
+
+    db.commit()
+    return {"ok": True}
 
 
 # ── GET /requerimientos/mis-solicitudes ───────────────────────────────────────

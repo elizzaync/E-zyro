@@ -14,6 +14,7 @@ from app.routers import operaciones     as operaciones_router
 from app.routers import chat_ws         as chat_ws_router
 from app.routers import notificaciones  as notificaciones_router
 from app.routers import requerimientos  as requerimientos_router
+from app.routers import compras         as compras_router
 from app.routers import auditoria       as auditoria_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
@@ -175,6 +176,7 @@ app.include_router(operaciones_router.router)
 app.include_router(chat_ws_router.router)
 app.include_router(notificaciones_router.router)
 app.include_router(requerimientos_router.router)
+app.include_router(compras_router.router)
 app.include_router(auditoria_router.router)
 
 
