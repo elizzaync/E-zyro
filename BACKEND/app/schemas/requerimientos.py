@@ -34,6 +34,24 @@ class InventarioResumenOut(BaseModel):
     items_bajo_stock: List[MaterialBajoStockOut] = []
 
 
+# ── Bandeja de solicitudes del encargado ──────────────────────────
+
+class SolicitudGestionOut(BaseModel):
+    id: str
+    estado: str
+    fecha: str
+    observacion: Optional[str] = None
+    observacion_logistico: Optional[str] = None
+    proyecto_nombre: str
+    solicitante_nombre: str
+    items: List[SolicitudDetalleOut] = []
+
+
+class GestionarSolicitudBody(BaseModel):
+    accion: str  # "aprobar" | "rechazar"
+    observacion_logistico: Optional[str] = None
+
+
 class SolicitudDetalleOut(BaseModel):
     id: str
     material_id: Optional[str] = None
