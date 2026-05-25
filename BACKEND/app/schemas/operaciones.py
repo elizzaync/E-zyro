@@ -98,8 +98,11 @@ class ProyectoServicioListOut(BaseModel):
     estado: str
     orden: int
     fecha_programada: Optional[str]
-    fecha_fin: Optional[str] = None            # fecha real de cierre, para Gantt
+    fecha_inicio: Optional[str] = None         # ISO yyyy-MM-dd, para Gantt
+    fecha_fin: Optional[str] = None            # ISO yyyy-MM-dd, para Gantt
     estado_color: str
+    total_procedimientos: int = 0             # para stepper de progreso en card
+    procedimientos_completados: int = 0
 
 
 class DashboardMetricaOut(BaseModel):
