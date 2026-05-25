@@ -19,6 +19,7 @@ from ..models.material import Material, Stock
 from ..models.categoria_material import CategoriaMaterial
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.requerimiento_entrega import RequerimientoEntrega
+from ..models.movimiento_inventario import MovimientoInventario
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.proyecto import Proyecto
@@ -37,6 +38,10 @@ from ..schemas.requerimientos import (
     MaterialBajoStockOut,
     SolicitudGestionOut,
     GestionarSolicitudBody,
+    AjusteStockBody,
+    MovimientoOut,
+    EditarMaterialBody,
+    CategoriaBody,
 )
 import json as _json
 
@@ -434,6 +439,167 @@ def entregar_solicitud(
     return {"ok": True, "estado": "entregado"}
 
 
+# ── POST /requerimientos/inventario/ajuste ────────────────────────────────────
+# Ajuste manual de stock (entrada/salida/ajuste exacto) — solo logística/admin.
+
+@router.post("/inventario/ajuste")
+def ajustar_stock(
+    body:    AjusteStockBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+
+    tipo = (body.tipo or "").lower().strip()
+    if tipo not in ("entrada", "salida", "ajuste"):
+        raise HTTPException(status_code=422, detail="Tipo inválido")
+    if body.cantidad < 0:
+        raise HTTPException(status_code=422, detail="La cantidad no puede ser negativa")
+    if tipo in ("entrada", "salida") and body.cantidad < 1:
+        raise HTTPException(status_code=422, detail="La cantidad debe ser mayor a 0")
+
+    mat = db.query(Material).filter(
+        Material.id         == body.material_id,
+        Material.empresa_id == empresa_id,
+        Material.activo     == True,
+    ).first()
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    # Resolver almacén: el indicado, o el que ya tiene stock del material, o el principal.
+    almacen_id = body.almacen_id
+    stock = None
+    if almacen_id:
+        stock = db.query(Stock).filter(
+            Stock.material_id == mat.id,
+            Stock.empresa_id  == empresa_id,
+            Stock.almacen_id  == almacen_id,
+        ).first()
+    else:
+        stock = (
+            db.query(Stock)
+            .filter(Stock.material_id == mat.id, Stock.empresa_id == empresa_id)
+            .order_by(Stock.cantidad.desc())
+            .first()
+        )
+        if stock:
+            almacen_id = stock.almacen_id
+        else:
+            alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
+            if not alm:
+                raise HTTPException(status_code=400, detail="No hay almacenes registrados")
+            almacen_id = str(alm.id)
+
+    # Crear fila de stock si no existe
+    if stock is None:
+        stock = Stock(
+            material_id    = mat.id,
+            empresa_id     = empresa_id,
+            almacen_id     = almacen_id,
+            cantidad       = 0,
+            cantidad_minima= 0,
+        )
+        db.add(stock)
+        db.flush()
+
+    anterior = stock.cantidad or 0
+    if tipo == "entrada":
+        nuevo = anterior + body.cantidad
+        mov_cantidad = body.cantidad
+    elif tipo == "salida":
+        if body.cantidad > anterior:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Stock insuficiente (disponible: {anterior})",
+            )
+        nuevo = anterior - body.cantidad
+        mov_cantidad = body.cantidad
+    else:  # ajuste exacto
+        nuevo = body.cantidad
+        mov_cantidad = abs(nuevo - anterior)
+
+    stock.cantidad = nuevo
+    stock.updated_at = datetime.utcnow()
+
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+
+    db.add(MovimientoInventario(
+        id              = str(_uuid.uuid4()),
+        empresa_id      = empresa_id,
+        material_id     = mat.id,
+        almacen_id      = almacen_id,
+        tipo            = tipo,
+        cantidad        = mov_cantidad,
+        motivo          = body.motivo,
+        responsable_id  = empleado.id if empleado else None,
+        fecha           = datetime.utcnow(),
+    ))
+
+    db.commit()
+    return {"ok": True, "stock_anterior": anterior, "stock_actual": nuevo}
+
+
+# ── GET /requerimientos/inventario/movimientos ────────────────────────────────
+# Historial de movimientos (opcional filtro por material) — solo logística/admin.
+
+@router.get("/inventario/movimientos", response_model=List[MovimientoOut])
+def get_movimientos(
+    material_id: str = "",
+    limit:       int = 100,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+
+    limit = min(max(limit, 1), 300)
+
+    q = (
+        db.query(
+            MovimientoInventario,
+            Material.nombre.label("mat_nombre"),
+            Material.unidad.label("mat_unidad"),
+            Almacen.nombre.label("alm_nombre"),
+            Usuario.nombre.label("resp_nombre"),
+            Usuario.apellido.label("resp_apellido"),
+        )
+        .join(Material, Material.id == MovimientoInventario.material_id)
+        .outerjoin(Almacen, Almacen.id == MovimientoInventario.almacen_id)
+        .outerjoin(Empleado, Empleado.id == MovimientoInventario.responsable_id)
+        .outerjoin(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(MovimientoInventario.empresa_id == empresa_id)
+    )
+    if material_id:
+        q = q.filter(MovimientoInventario.material_id == material_id)
+
+    rows = q.order_by(MovimientoInventario.fecha.desc()).limit(limit).all()
+
+    result = []
+    for r in rows:
+        m = r.MovimientoInventario
+        responsable = f"{r.resp_nombre or ''} {r.resp_apellido or ''}".strip()
+        result.append(MovimientoOut(
+            id=str(m.id),
+            material_id=str(m.material_id),
+            material_nombre=r.mat_nombre or "",
+            unidad=r.mat_unidad or "und",
+            tipo=m.tipo or "",
+            cantidad=m.cantidad or 0,
+            motivo=m.motivo,
+            almacen_nombre=r.alm_nombre,
+            responsable_nombre=responsable or None,
+            fecha=m.fecha.strftime("%d %b %Y · %H:%M") if m.fecha else "",
+        ))
+    return result
+
+
 # ── GET /requerimientos/mis-solicitudes ───────────────────────────────────────
 
 @router.get("/mis-solicitudes", response_model=List[MiSolicitudOut])
@@ -689,3 +855,182 @@ def crear_material(
 
     db.commit()
     return {"ok": True, "material_id": nuevo.id}
+
+
+# ── PATCH /requerimientos/inventario/material/{id} ────────────────────────────
+# Editar datos del material y/o su umbral de bajo stock — solo logística/admin.
+
+@router.patch("/inventario/material/{material_id}")
+def editar_material(
+    material_id: str,
+    body:        EditarMaterialBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+
+    mat = db.query(Material).filter(
+        Material.id         == material_id,
+        Material.empresa_id == empresa_id,
+    ).first()
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    if body.nombre is not None:
+        mat.nombre = body.nombre.strip()
+    if body.codigo is not None:
+        mat.codigo = body.codigo.strip() or None
+    if body.unidad is not None:
+        mat.unidad = body.unidad.strip()
+    if body.descripcion is not None:
+        mat.descripcion = body.descripcion
+    if body.categoria_id is not None:
+        cat = db.query(CategoriaMaterial).filter(
+            CategoriaMaterial.id         == body.categoria_id,
+            CategoriaMaterial.empresa_id == empresa_id,
+        ).first()
+        if not cat:
+            raise HTTPException(status_code=404, detail="Categoría no encontrada")
+        mat.categoria_id = body.categoria_id
+
+    # Umbral de bajo stock: aplicar a las filas de stock del material
+    if body.cantidad_minima is not None:
+        if body.cantidad_minima < 0:
+            raise HTTPException(status_code=422, detail="El mínimo no puede ser negativo")
+        filas = db.query(Stock).filter(
+            Stock.material_id == mat.id,
+            Stock.empresa_id  == empresa_id,
+        ).all()
+        if filas:
+            for st in filas:
+                st.cantidad_minima = body.cantidad_minima
+                st.updated_at = datetime.utcnow()
+        else:
+            alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
+            if alm:
+                db.add(Stock(
+                    material_id    = mat.id,
+                    empresa_id     = empresa_id,
+                    almacen_id     = str(alm.id),
+                    cantidad       = 0,
+                    cantidad_minima= body.cantidad_minima,
+                ))
+
+    db.commit()
+    return {"ok": True, "material_id": mat.id}
+
+
+# ── DELETE /requerimientos/inventario/material/{id} ───────────────────────────
+# Baja lógica (activo=False) — solo logística/admin.
+
+@router.delete("/inventario/material/{material_id}")
+def eliminar_material(
+    material_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+
+    mat = db.query(Material).filter(
+        Material.id         == material_id,
+        Material.empresa_id == empresa_id,
+    ).first()
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    mat.activo = False
+    db.commit()
+    return {"ok": True}
+
+
+# ── POST /requerimientos/categorias ───────────────────────────────────────────
+# Crear categoría — solo logística/admin.
+
+@router.post("/categorias", status_code=status.HTTP_201_CREATED)
+def crear_categoria(
+    body:    CategoriaBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+    if not body.nombre.strip():
+        raise HTTPException(status_code=422, detail="El nombre es obligatorio")
+
+    cat = CategoriaMaterial(
+        id          = str(_uuid.uuid4()),
+        empresa_id  = empresa_id,
+        nombre      = body.nombre.strip(),
+        descripcion = body.descripcion,
+    )
+    db.add(cat)
+    db.commit()
+    return {"ok": True, "categoria_id": cat.id}
+
+
+# ── PATCH /requerimientos/categorias/{id} ─────────────────────────────────────
+
+@router.patch("/categorias/{categoria_id}")
+def editar_categoria(
+    categoria_id: str,
+    body:         CategoriaBody,
+    payload:      dict    = Depends(verificar_token),
+    db:           Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+
+    cat = db.query(CategoriaMaterial).filter(
+        CategoriaMaterial.id         == categoria_id,
+        CategoriaMaterial.empresa_id == empresa_id,
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    if body.nombre.strip():
+        cat.nombre = body.nombre.strip()
+    cat.descripcion = body.descripcion
+    db.commit()
+    return {"ok": True}
+
+
+# ── DELETE /requerimientos/categorias/{id} ────────────────────────────────────
+# Solo permite eliminar si no tiene materiales activos asociados.
+
+@router.delete("/categorias/{categoria_id}")
+def eliminar_categoria(
+    categoria_id: str,
+    payload:      dict    = Depends(verificar_token),
+    db:           Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    if not _puede_gestionar_logistica(payload):
+        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
+
+    cat = db.query(CategoriaMaterial).filter(
+        CategoriaMaterial.id         == categoria_id,
+        CategoriaMaterial.empresa_id == empresa_id,
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    en_uso = db.query(Material).filter(
+        Material.categoria_id == categoria_id,
+        Material.empresa_id   == empresa_id,
+        Material.activo       == True,
+    ).first()
+    if en_uso:
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar: hay materiales en esta categoría",
+        )
+
+    db.delete(cat)
+    db.commit()
+    return {"ok": True}

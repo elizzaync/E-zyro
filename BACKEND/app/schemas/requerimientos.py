@@ -52,6 +52,45 @@ class GestionarSolicitudBody(BaseModel):
     observacion_logistico: Optional[str] = None
 
 
+# ── Fase 3: ajuste de stock + movimientos ─────────────────────────
+
+class AjusteStockBody(BaseModel):
+    material_id: str
+    tipo: str             # "entrada" | "salida" | "ajuste"
+    cantidad: int         # entrada/salida: magnitud; ajuste: valor exacto a fijar
+    motivo: Optional[str] = None
+    almacen_id: Optional[str] = None   # opcional; por defecto el principal/que tiene stock
+
+
+class MovimientoOut(BaseModel):
+    id: str
+    material_id: str
+    material_nombre: str
+    unidad: str
+    tipo: str
+    cantidad: int
+    motivo: Optional[str] = None
+    almacen_nombre: Optional[str] = None
+    responsable_nombre: Optional[str] = None
+    fecha: str
+
+
+# ── Fase 4: editar materiales + categorías ────────────────────────
+
+class EditarMaterialBody(BaseModel):
+    nombre: Optional[str] = None
+    codigo: Optional[str] = None
+    unidad: Optional[str] = None
+    descripcion: Optional[str] = None
+    categoria_id: Optional[str] = None
+    cantidad_minima: Optional[int] = None   # umbral de bajo stock
+
+
+class CategoriaBody(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+
+
 class SolicitudDetalleOut(BaseModel):
     id: str
     material_id: Optional[str] = None

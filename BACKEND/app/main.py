@@ -111,6 +111,11 @@ def _run_migrations():
             "ALTER TABLE procedimiento "
             "ADD COLUMN IF NOT EXISTS fecha_inicio_tarea DATE"
         ))
+        # ── Logística Fase 3: motivo del movimiento de inventario ─────────────
+        conn.execute(text(
+            "ALTER TABLE movimiento_inventario "
+            "ADD COLUMN IF NOT EXISTS motivo VARCHAR(255)"
+        ))
         conn.execute(text("""
             DO $$
             BEGIN
