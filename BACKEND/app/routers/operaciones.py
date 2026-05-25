@@ -42,6 +42,7 @@ from ..models.tipo_equipo import TipoEquipo
 from ..models.orden_mantenimiento import OrdenMantenimiento
 from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
 from ..models.informe_tecnico import InformeTecnico
+from ..models.paso_mantenimiento import PasoMantenimiento
 
 # Schemas Pydantic
 from ..schemas.operaciones import (
@@ -62,6 +63,9 @@ from ..schemas.operaciones import (
     EquipoItemOut,
     MantenimientoHistorialOut,
     FotoEvidenciaOut,
+    ChecklistEquipoOut,
+    PasoChecklistOut,
+    PatchMantenimientoBody,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -91,6 +95,16 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
     return emp
 
 
+def _get_empleado_optional(db: Session, usuario_id: str, empresa_id: str) -> "Empleado | None":
+    """Como _get_empleado_or_403 pero no lanza excepción.
+    Úsalo en endpoints donde los administradores (sin fila en 'empleado')
+    también deben poder operar.  Quien llama decide qué hacer con None."""
+    return db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+
+
 # ── GET /operaciones/proyectos ────────────────────────────────────────────────
 
 @router.get("/proyectos", response_model=ProyectosConKpisOut)
@@ -100,14 +114,7 @@ def get_proyectos(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
-
-    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
-
-    miembro_sq = (
-        db.query(ProyectoMiembro.proyecto_id)
-        .filter(ProyectoMiembro.empleado_id == empleado.id)
-        .subquery()
-    )
+    rol        = payload.get("rol", "")
 
     # Subquery: total de servicios por proyecto
     svc_total_sq = (
@@ -134,7 +141,7 @@ def get_proyectos(
     JefeEmpleado = aliased(Empleado)
     JefeUsuario  = aliased(Usuario)
 
-    rows = (
+    base_q = (
         db.query(
             Proyecto,
             Cliente.razon_social.label("cliente"),
@@ -147,16 +154,30 @@ def get_proyectos(
         .outerjoin(svc_comp_sq,  svc_comp_sq.c.proyecto_id  == Proyecto.id)
         .outerjoin(JefeEmpleado, JefeEmpleado.id == Proyecto.jefe_operaciones_id)
         .outerjoin(JefeUsuario,  JefeUsuario.id  == JefeEmpleado.usuario_id)
-        .filter(
-            Proyecto.empresa_id == empresa_id,
-            or_(
-                Proyecto.jefe_operaciones_id == empleado.id,
-                Proyecto.id.in_(miembro_sq),
-            ),
-        )
-        .order_by(Proyecto.created_at.desc())
-        .all()
+        .filter(Proyecto.empresa_id == empresa_id)
     )
+
+    if rol == "Administrador":
+        # Admin ve todos los proyectos de la empresa sin restricción de membresía
+        rows = base_q.order_by(Proyecto.created_at.desc()).all()
+    else:
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        miembro_sq = (
+            db.query(ProyectoMiembro.proyecto_id)
+            .filter(ProyectoMiembro.empleado_id == empleado.id)
+            .subquery()
+        )
+        rows = (
+            base_q
+            .filter(
+                or_(
+                    Proyecto.jefe_operaciones_id == empleado.id,
+                    Proyecto.id.in_(miembro_sq),
+                )
+            )
+            .order_by(Proyecto.created_at.desc())
+            .all()
+        )
 
     proyectos = [
         ProyectoListOut(
@@ -165,6 +186,7 @@ def get_proyectos(
             nombre_proyecto=p.Proyecto.nombre_proyecto or "",
             estado=p.Proyecto.estado or "Pendiente",
             fecha_inicio=p.Proyecto.fecha_inicio.strftime("%d %b %Y") if p.Proyecto.fecha_inicio else None,
+            fecha_fin_estimada=p.Proyecto.fecha_fin_estimada.strftime("%d %b %Y") if p.Proyecto.fecha_fin_estimada else None,
             cliente=p.cliente or "Sin Cliente",
             total_servicios=int(p.total_servicios),
             servicios_completados=int(p.servicios_completados),
@@ -197,8 +219,7 @@ def get_servicios_proyecto(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
-
-    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+    rol        = payload.get("rol", "")
 
     proyecto = db.query(Proyecto).filter(
         Proyecto.id         == proyecto_id,
@@ -207,14 +228,16 @@ def get_servicios_proyecto(
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    es_jefe    = proyecto.jefe_operaciones_id == empleado.id
-    es_miembro = db.query(ProyectoMiembro).filter(
-        ProyectoMiembro.proyecto_id == proyecto_id,
-        ProyectoMiembro.empleado_id == empleado.id,
-    ).first() is not None
+    if rol != "Administrador":
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        es_jefe    = proyecto.jefe_operaciones_id == empleado.id
+        es_miembro = db.query(ProyectoMiembro).filter(
+            ProyectoMiembro.proyecto_id == proyecto_id,
+            ProyectoMiembro.empleado_id == empleado.id,
+        ).first() is not None
 
-    if not es_jefe and not es_miembro:
-        raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
+        if not es_jefe and not es_miembro:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
 
     servicios = (
         db.query(ProyectoServicio)
@@ -243,6 +266,7 @@ def get_servicios_proyecto(
             estado=ps.estado or "Pendiente",
             orden=ps.orden or 1,
             fecha_programada=ps.fecha_programada.strftime("%d %b %Y") if ps.fecha_programada else None,
+            fecha_fin=ps.fecha_fin.strftime("%d %b %Y") if ps.fecha_fin else None,
             estado_color=estado_color,
         ))
 
@@ -362,22 +386,23 @@ def get_detalle_servicio(
     detalle  = db.query(ProyectoDetalle).filter(ProyectoDetalle.proyecto_id == ps.proyecto_id).first()
     ubicacion = (detalle.zona_ejecucion if detalle and detalle.zona_ejecucion else proyecto.nombre_proyecto) or ""
 
-    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones
-    empleado_actual = db.query(Empleado).filter(
-        Empleado.usuario_id == usuario_id,
-        Empleado.empresa_id == empresa_id,
-    ).first()
-    if not empleado_actual:
-        raise HTTPException(status_code=403, detail="No eres empleado registrado")
+    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass)
+    if payload.get("rol", "") != "Administrador":
+        empleado_actual = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if not empleado_actual:
+            raise HTTPException(status_code=403, detail="No eres empleado registrado")
 
-    es_jefe    = proyecto.jefe_operaciones_id == empleado_actual.id
-    es_miembro = db.query(ProyectoMiembro).filter(
-        ProyectoMiembro.proyecto_id == ps.proyecto_id,
-        ProyectoMiembro.empleado_id == empleado_actual.id,
-    ).first() is not None
+        es_jefe    = proyecto.jefe_operaciones_id == empleado_actual.id
+        es_miembro = db.query(ProyectoMiembro).filter(
+            ProyectoMiembro.proyecto_id == ps.proyecto_id,
+            ProyectoMiembro.empleado_id == empleado_actual.id,
+        ).first() is not None
 
-    if not es_jefe and not es_miembro:
-        raise HTTPException(status_code=403, detail="No tienes acceso a este servicio")
+        if not es_jefe and not es_miembro:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este servicio")
 
     fp        = ps.fecha_programada
     fecha_str = fp.strftime("%d %b %Y") if fp else "Sin fecha"
@@ -826,6 +851,8 @@ async def agregar_item_borrador(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
+    rol        = (payload.get("rol") or "").strip().lower()
+    is_admin   = rol in {"administrador", "admin", "superadmin"}
 
     ps = db.query(ProyectoServicio).filter(
         ProyectoServicio.id         == servicio_id,
@@ -834,8 +861,47 @@ async def agregar_item_borrador(
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+    # ── Lookup de empleado ────────────────────────────────────────────────────
+    # Los administradores pueden no tener fila en 'empleado'.
+    # Usamos _get_empleado_optional para no lanzar 403.
+    empleado = _get_empleado_optional(db, usuario_id, empresa_id)
 
+    if not empleado and not is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="No eres empleado registrado en esta empresa. "
+                   "Contacta al administrador para que vincule tu cuenta.",
+        )
+
+    # ── solicitante_id: nunca NULL (evita NotNullViolation sin migración) ─────
+    # Si el usuario es admin sin empleado, usamos el jefe_operaciones del proyecto
+    # como solicitante referencial. La columna sigue siendo NOT NULL en la BD.
+    agregado_por_id = empleado.id if empleado else None   # requerimiento_detalle: ya nullable
+
+    if empleado:
+        solicitante_id: str = empleado.id
+    else:
+        # Admin sin empleado → buscamos al jefe del proyecto como fallback
+        proyecto_obj = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+        jefe_emp_id  = proyecto_obj.jefe_operaciones_id if proyecto_obj else None
+
+        if not jefe_emp_id:
+            # Último recurso: primer empleado activo de la empresa
+            primer_emp = db.query(Empleado).filter(
+                Empleado.empresa_id == empresa_id,
+                Empleado.activo     == True,
+            ).first()
+            jefe_emp_id = primer_emp.id if primer_emp else None
+
+        if not jefe_emp_id:
+            raise HTTPException(
+                status_code=422,
+                detail="La empresa no tiene empleados registrados. "
+                       "Crea al menos un empleado antes de gestionar borradores.",
+            )
+        solicitante_id = jefe_emp_id
+
+    # ── Borrador existente o nuevo ────────────────────────────────────────────
     borrador = db.query(Requerimiento).filter(
         Requerimiento.proyecto_servicio_id == servicio_id,
         Requerimiento.empresa_id           == empresa_id,
@@ -849,7 +915,7 @@ async def agregar_item_borrador(
             proyecto_id          = ps.proyecto_id,
             proyecto_servicio_id = servicio_id,
             empresa_id           = empresa_id,
-            solicitante_id       = empleado.id,
+            solicitante_id       = solicitante_id,   # siempre un empleado.id válido
             tipo                 = "material",
             estado               = "borrador",
             fecha                = date.today(),
@@ -864,7 +930,7 @@ async def agregar_item_borrador(
                 status_code=500,
                 detail=(
                     "No se pudo crear el borrador. "
-                    "Probablemente la migración 'add_borrador_estado.sql' no fue ejecutada. "
+                    "Verifica que la migración 'sync_schema_2026_05_20.sql' esté aplicada. "
                     f"Detalle BD: {orig}"
                 ),
             )
@@ -875,10 +941,10 @@ async def agregar_item_borrador(
         material_id      = body.material_id,
         cantidad         = body.cantidad,
     )
-    if body.nombre:         rd.nombre_libre      = body.nombre
-    if body.unidad:         rd.unidad_libre      = body.unidad
-    if body.especificacion: rd.especificacion    = body.especificacion
-    rd.agregado_por_id = empleado.id
+    if body.nombre:         rd.nombre_libre   = body.nombre
+    if body.unidad:         rd.unidad_libre   = body.unidad
+    if body.especificacion: rd.especificacion = body.especificacion
+    rd.agregado_por_id = agregado_por_id   # None cuando admin sin empleado
 
     try:
         db.add(rd)
@@ -1065,7 +1131,7 @@ def get_equipos_proyecto(
 
     return [
         EquipoItemOut(
-            id=r.Equipo.id,
+            id=str(r.Equipo.id),
             nombre=r.Equipo.nombre,
             descripcion=r.Equipo.modelo,
             ubicacion=r.Equipo.ubicacion,
@@ -1295,7 +1361,7 @@ def get_historial_equipo(
         ]
         informe = informes_map.get(orden.id)
         result.append(MantenimientoHistorialOut(
-            id=orden.id,
+            id=str(orden.id),
             fecha=orden.fecha.strftime("%d/%m/%Y") if orden.fecha else "",
             tecnico_nombre=tecnicos_map.get(orden.tecnico_id or "", "Sin técnico"),
             proyecto_nombre=proyecto_nombre,
@@ -1391,3 +1457,304 @@ def get_evidencias_zip(
         return {"url": resultado.get("secure_url")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al subir ZIP")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# HU-MANT: Checklist técnico por equipo, evidencias por paso, cierre.
+# ════════════════════════════════════════════════════════════════════════════
+
+# Pasos por defecto cuando el tipo_equipo no tiene procedimiento_tecnico definido.
+_PASOS_POR_DEFECTO = [
+    ("Inspección visual y diagnóstico inicial", "Revisión externa, identificación de fallas evidentes."),
+    ("Medición de parámetros eléctricos / mecánicos", "Capturar lecturas de tensión, resistencia, presión u otros relevantes."),
+    ("Aplicación del mantenimiento técnico", "Ejecutar el procedimiento correctivo o preventivo según corresponda."),
+    ("Verificación post-mantenimiento", "Confirmar que el equipo opera dentro de los rangos esperados."),
+]
+
+
+def _parse_pasos_from_template(template: str | None) -> list[tuple[str, str]]:
+    """Convierte un texto multilínea `tipo_equipo.procedimiento_tecnico` en pasos."""
+    if not template:
+        return list(_PASOS_POR_DEFECTO)
+    pasos = []
+    for raw in template.splitlines():
+        line = raw.strip().lstrip("-•").strip()
+        if not line:
+            continue
+        # Formato esperado opcional: "Nombre: descripción"
+        if ":" in line:
+            nombre, desc = line.split(":", 1)
+            pasos.append((nombre.strip(), desc.strip()))
+        else:
+            pasos.append((line, ""))
+    return pasos or list(_PASOS_POR_DEFECTO)
+
+
+def _ensure_pasos_for_equipo(db: Session, equipo: Equipo) -> list[PasoMantenimiento]:
+    """Devuelve los pasos del equipo. Si no existen, los crea desde la plantilla."""
+    pasos = (
+        db.query(PasoMantenimiento)
+        .filter(
+            PasoMantenimiento.equipo_id  == equipo.id,
+            PasoMantenimiento.empresa_id == equipo.empresa_id,
+        )
+        .order_by(PasoMantenimiento.orden.asc())
+        .all()
+    )
+    if pasos:
+        return pasos
+
+    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == equipo.tipo_equipo_id).first()
+    template = tipo.procedimiento_tecnico if tipo else None
+    plantilla = _parse_pasos_from_template(template)
+    for i, (nombre, desc) in enumerate(plantilla, start=1):
+        db.add(PasoMantenimiento(
+            id          = str(_uuid.uuid4()),
+            equipo_id   = equipo.id,
+            empresa_id  = equipo.empresa_id,
+            nombre      = nombre[:200],
+            descripcion = desc or None,
+            orden       = i,
+            estado      = "pendiente",
+        ))
+    db.commit()
+    return (
+        db.query(PasoMantenimiento)
+        .filter(
+            PasoMantenimiento.equipo_id  == equipo.id,
+            PasoMantenimiento.empresa_id == equipo.empresa_id,
+        )
+        .order_by(PasoMantenimiento.orden.asc())
+        .all()
+    )
+
+
+# ── GET /operaciones/equipo/{equipo_id}/checklist ─────────────────────────────
+
+@router.get("/equipo/{equipo_id}/checklist", response_model=ChecklistEquipoOut)
+def get_checklist_equipo(
+    equipo_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    equipo = db.query(Equipo).filter(
+        Equipo.id         == equipo_id,
+        Equipo.empresa_id == empresa_id,
+    ).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    pasos = _ensure_pasos_for_equipo(db, equipo)
+
+    # Buscar las evidencias por paso (todas las que tengan paso_id en estos pasos)
+    paso_ids = [p.id for p in pasos]
+    evidencias_rows = []
+    if paso_ids:
+        evidencias_rows = (
+            db.query(EvidenciaMantenimiento)
+            .filter(
+                EvidenciaMantenimiento.paso_id.in_(paso_ids),
+                EvidenciaMantenimiento.empresa_id == empresa_id,
+            )
+            .order_by(EvidenciaMantenimiento.fecha_captura.asc())
+            .all()
+        )
+    fotos_by_paso: dict[str, list[str]] = {}
+    for ev in evidencias_rows:
+        fotos_by_paso.setdefault(ev.paso_id, []).append(ev.url_cloudinary)
+
+    return ChecklistEquipoOut(
+        equipo_id=str(equipo.id),
+        equipo_nombre=equipo.nombre or "",
+        pasos=[
+            PasoChecklistOut(
+                id=str(p.id),
+                nombre=p.nombre or "",
+                descripcion=p.descripcion or "",
+                orden=p.orden or 1,
+                estado=p.estado or "pendiente",
+                fotos_urls=fotos_by_paso.get(p.id, []),
+            )
+            for p in pasos
+        ],
+    )
+
+
+# ── POST /operaciones/paso/{paso_id}/evidencia ────────────────────────────────
+
+_ETAPAS_MANT_VALIDAS = {"antes", "durante", "despues"}
+
+
+@router.post("/paso/{paso_id}/evidencia", status_code=status.HTTP_201_CREATED)
+async def subir_evidencia_paso(
+    paso_id:  str,
+    foto:     UploadFile = File(...),
+    tipo:     str        = Form(...),  # ANTES | DURANTE | DESPUES (mayúsculas, viene de Flutter)
+    lat:      str        = Form(default=""),
+    lng:      str        = Form(default=""),
+    taken_at: str        = Form(default=""),
+    payload:  dict       = Depends(verificar_token),
+    db:       Session    = Depends(get_db),
+):
+    etapa = tipo.strip().lower()
+    if etapa not in _ETAPAS_MANT_VALIDAS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"tipo debe ser uno de: ANTES, DURANTE, DESPUES (recibido: {tipo})",
+        )
+
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    paso = db.query(PasoMantenimiento).filter(
+        PasoMantenimiento.id         == paso_id,
+        PasoMantenimiento.empresa_id == empresa_id,
+    ).first()
+    if not paso:
+        raise HTTPException(status_code=404, detail="Paso no encontrado")
+
+    equipo = db.query(Equipo).filter(
+        Equipo.id         == paso.equipo_id,
+        Equipo.empresa_id == empresa_id,
+    ).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    # Empleado opcional: si el usuario es admin sin empleado, dejamos None.
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+
+    # Buscar/crear OrdenMantenimiento activa para este equipo
+    orden = (
+        db.query(OrdenMantenimiento)
+        .filter(
+            OrdenMantenimiento.equipo_id  == equipo.id,
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
+        )
+        .order_by(OrdenMantenimiento.created_at.desc())
+        .first()
+    )
+    if not orden:
+        orden = OrdenMantenimiento(
+            id           = str(_uuid.uuid4()),
+            equipo_id    = equipo.id,
+            empresa_id   = empresa_id,
+            tecnico_id   = empleado.id if empleado else None,
+            tipo         = "preventivo",
+            estado       = "en_proceso",
+            fecha        = date.today(),
+            fecha_inicio = datetime.utcnow(),
+        )
+        db.add(orden)
+        db.flush()
+    elif orden.estado == "pendiente":
+        orden.estado       = "en_proceso"
+        orden.fecha_inicio = orden.fecha_inicio or datetime.utcnow()
+
+    # Subir a Cloudinary
+    folder = f"e_zyro/{empresa_id}/mantenimiento/{equipo.id}"
+    try:
+        url = await subir_archivo_cloudinary(foto, folder)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error subiendo a Cloudinary: {exc}")
+    pub_id = _extract_public_id(url)
+
+    # Sobre-escribir evidencia anterior de la misma etapa (si existe) — política simple
+    db.query(EvidenciaMantenimiento).filter(
+        EvidenciaMantenimiento.paso_id    == paso_id,
+        EvidenciaMantenimiento.empresa_id == empresa_id,
+        EvidenciaMantenimiento.etapa      == etapa,
+    ).delete(synchronize_session=False)
+
+    ev = EvidenciaMantenimiento(
+        id                   = str(_uuid.uuid4()),
+        orden_id             = orden.id,
+        empresa_id           = empresa_id,
+        paso_id              = paso_id,
+        etapa                = etapa,
+        url_cloudinary       = url,
+        public_id_cloudinary = pub_id,
+    )
+    db.add(ev)
+
+    # Si el paso ya tiene al menos una evidencia, lo marcamos en_proceso;
+    # cuando tiene las 3 etapas, completado.
+    etapas_existentes = {etapa}
+    etapas_existentes.update({
+        e.etapa for e in db.query(EvidenciaMantenimiento)
+        .filter(EvidenciaMantenimiento.paso_id == paso_id)
+        .all()
+    })
+    if _ETAPAS_MANT_VALIDAS.issubset(etapas_existentes):
+        paso.estado = "completado"
+    elif paso.estado == "pendiente":
+        paso.estado = "en_proceso"
+    paso.updated_at = datetime.utcnow()
+
+    # Estado del equipo
+    if equipo.estado == "operativo":
+        equipo.estado = "en_mantenimiento"
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "url": url,
+        "etapa": etapa,
+        "paso_id": paso_id,
+        "paso_estado": paso.estado,
+    }
+
+
+# ── PATCH /operaciones/equipo/{id}/mantenimiento ──────────────────────────────
+
+@router.patch("/equipo/{equipo_id}/mantenimiento")
+def patch_mantenimiento_equipo(
+    equipo_id: str,
+    body:      PatchMantenimientoBody,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    estados_validos = {"pendiente", "en_proceso", "completado"}
+    if body.status not in estados_validos:
+        raise HTTPException(status_code=422, detail="status inválido")
+
+    empresa_id = payload["empresa_id"]
+
+    equipo = db.query(Equipo).filter(
+        Equipo.id         == equipo_id,
+        Equipo.empresa_id == empresa_id,
+    ).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    # Mapear estado del checklist al estado del equipo + cerrar la orden si toca
+    if body.status == "completado":
+        equipo.estado = "operativo"
+        orden = (
+            db.query(OrdenMantenimiento)
+            .filter(
+                OrdenMantenimiento.equipo_id  == equipo_id,
+                OrdenMantenimiento.empresa_id == empresa_id,
+                OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
+            )
+            .order_by(OrdenMantenimiento.created_at.desc())
+            .first()
+        )
+        if orden:
+            orden.estado    = "completado"
+            orden.fecha_fin = datetime.utcnow()
+    elif body.status == "en_proceso":
+        equipo.estado = "en_mantenimiento"
+    else:  # pendiente
+        equipo.estado = "operativo"
+
+    equipo.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {"ok": True, "equipo_id": equipo_id, "status": body.status}

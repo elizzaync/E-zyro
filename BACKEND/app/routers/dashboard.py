@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 import calendar
+import traceback
 
 from pydantic import BaseModel
 from app.db.database import get_db
@@ -652,14 +653,22 @@ def ignorar_notificacion(noti_id: str, current_user: dict = Depends(verificar_to
 def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     try:
         usuario_id = current_user.get("id")
-        resultado  = db.query(Usuario, Empleado, Empresa).join(
+        # OUTER JOIN: un usuario sin fila en 'empleado' (ej. admin) o sin
+        # empresa valida igual debe poder cargar su perfil. empleado y
+        # empresa pueden venir como None -> se manejan abajo con defaults.
+        resultado  = db.query(Usuario, Empleado, Empresa).outerjoin(
             Empleado, Empleado.usuario_id == Usuario.id
-        ).join(
+        ).outerjoin(
             Empresa, Empresa.id == Usuario.empresa_id
         ).filter(Usuario.id == usuario_id).first()
 
         if not resultado:
-            raise HTTPException(status_code=404, detail="Perfil no encontrado")
+            # Con outerjoin, esto solo ocurre si el usuario del token
+            # realmente no existe en la tabla usuario.
+            raise HTTPException(
+                status_code=404,
+                detail="Usuario del token no existe en la base de datos"
+            )
 
         usuario, empleado, empresa = resultado
 
@@ -671,7 +680,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
         meses     = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
                      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         fecha_txt = ""
-        fecha_ref = empleado.fecha_ingreso or usuario.created_at
+        fecha_ref = (empleado.fecha_ingreso if empleado else None) or usuario.created_at
         if fecha_ref:
             fecha_txt = f"{fecha_ref.day} de {meses[fecha_ref.month]}, {fecha_ref.year}"
 
@@ -685,21 +694,30 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "correo":         usuario.email,
                     "telefono":       usuario.telefono or "",
                     "fotoUrl":        usuario.foto_url or "",
-                    "rol":            empleado.cargo,
-                    "area":           empleado.area or "",
+                    "rol":            (empleado.cargo if empleado else "Administrador"),
+                    "area":           (empleado.area if empleado else "") or "",
                     "fechaCreacion":  fecha_txt,
                     "permisos_modulo": modulos_permitidos
                 },
                 "empresa": {
-                    "id":        empresa.id,
-                    "nombre":    empresa.razon_social,
-                    "ruc":       empresa.ruc,
+                    "id":        empresa.id if empresa else None,
+                    "nombre":    empresa.razon_social if empresa else "Sin empresa",
+                    "ruc":       empresa.ruc if empresa else "",
                     "ubicacion": "Sede Principal"
                 }
             }
         }
+    except HTTPException:
+        # Dejar pasar 404/401/etc. tal cual — no disfrazarlos de 500.
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Error al cargar perfil")
+        # Blindaje: imprimir el traceback COMPLETO en los logs de Railway
+        # y devolver el mensaje real para no quedar a ciegas.
+        print("=" * 70)
+        print("[ERROR /perfil] Traceback completo:")
+        traceback.print_exc()
+        print("=" * 70)
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
 
 
 # Tablas y acciones que nunca se exponen al usuario por seguridad
