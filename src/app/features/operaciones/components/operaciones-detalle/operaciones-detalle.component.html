@@ -313,12 +313,23 @@
                   <p class="bi-especificacion">{{ item.especificacion }}</p>
                   }
                   <div class="bi-footer-info">
-                    @if (item.agregadoPorFoto) {
-                    <img class="bi-avatar-img" [src]="item.agregadoPorFoto" [alt]="item.agregadoPor">
+                    <!-- Avatar: foto real → inicial generada → ? si nombre vacío -->
+                    @if (item.agregadoPorFoto && !item._avatarError) {
+                    <img
+                      class="bi-avatar-img"
+                      [src]="item.agregadoPorFoto"
+                      [alt]="item.agregadoPor"
+                      (error)="item._avatarError = true"
+                    >
                     } @else {
-                    <span class="bi-avatar">{{ item.agregadoPor | slice:0:1 | uppercase }}</span>
+                    <span class="bi-avatar" [title]="item.agregadoPor || 'Sin nombre'">
+                      {{ (item.agregadoPor | slice:0:1 | uppercase) || '?' }}
+                    </span>
                     }
-                    <span class="bi-agregado-por">Añadido por {{ item.agregadoPor || 'Equipo' }}</span>
+                    <div class="bi-autor-info">
+                      <span class="bi-autor-label">Añadido por</span>
+                      <span class="bi-autor-nombre">{{ item.agregadoPor || 'Anónimo' }}</span>
+                    </div>
                   </div>
                 </div>
                 <div class="bi-actions">

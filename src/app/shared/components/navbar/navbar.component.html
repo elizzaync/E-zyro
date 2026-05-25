@@ -5,7 +5,7 @@
         </div>
         <div class="brand-text">
             <h1 class="brand-title"><span class="text-green">E-System</span> TIC</h1>
-            <p class="brand-subtitle">Panel de Gestión Técnica</p>
+            <p class="brand-subtitle">{{ panelSubtitulo }}</p>
         </div>
     </div>
 
@@ -19,7 +19,9 @@
             <span>Inicio</span>
         </a>
 
-        @if (permisosUsuario.includes('OPERACIONES')) {
+        <!-- TODO(permisos): reactivar los @if cuando definamos el modelo de roles.
+             Por ahora todos los usuarios ven todos los enlaces. -->
+        <!-- @if (permisosUsuario.includes('OPERACIONES')) { -->
         <a routerLink="/operaciones" routerLinkActive="active" class="nav-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
@@ -29,9 +31,9 @@
             </svg>
             <span>Operaciones</span>
         </a>
-        }
+        <!-- } -->
 
-        @if (permisosUsuario.includes('LOGISTICA')) {
+        <!-- @if (permisosUsuario.includes('LOGISTICA')) { -->
         <a href="javascript:void(0)" class="nav-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
@@ -40,9 +42,9 @@
             </svg>
             <span>Logística</span>
         </a>
-        }
+        <!-- } -->
 
-        @if (permisosUsuario.includes('PERSONAL') || permisosUsuario.includes('tecnico')) {
+        <!-- @if (permisosUsuario.includes('PERSONAL') || permisosUsuario.includes('tecnico')) { -->
         <a routerLink="/personal" routerLinkActive="active" class="nav-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
@@ -51,7 +53,7 @@
             </svg>
             <span>Personal</span>
         </a>
-        }
+        <!-- } -->
 
         <a routerLink="/mas" routerLinkActive="active" class="nav-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"

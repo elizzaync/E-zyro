@@ -1,12 +1,8 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
-import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
-import { TipoEquipoGrupoComponent } from './components/tipo-equipo-grupo/tipo-equipo-grupo.component';
-
-/* ── Modelos de dominio ──────────────────────────────────────────────────── */
-
+// ─── Re-exports para compatibilidad con componentes hijos ──────────────────
 export interface ProcedimientoEI {
   id: string;
   orden: number;
@@ -31,88 +27,156 @@ export interface TipoEquipoGrupoEI {
   equipos: EquipoEI[];
 }
 
-/* ── Componente ──────────────────────────────────────────────────────────── */
+// ─── Types nuevos (vista de zonas) ─────────────────────────────────────────
+export type EstadoZona = 'completado' | 'en_proceso' | 'sin_inicio';
 
+export interface ResumenEquiposZona {
+  operativos: number;
+  enMantenimiento: number;
+  fueraDeServicio: number;
+  pendientes: number;
+}
+
+export interface ZonaServicio {
+  id: string;
+  nombre: string;
+  ciudad: string;
+  region: string;
+  direccion?: string;
+  equipoTotal: number;
+  completados: number;
+  estado: EstadoZona;
+  resumen: ResumenEquiposZona;
+  tecnicosAsignados: string[];
+  fechaIntervencion?: string;
+}
+
+// ─── Mock data ─────────────────────────────────────────────────────────────
+const MOCK_ZONAS: ZonaServicio[] = [
+  {
+    id: 'trujillo',
+    nombre: 'Sede Norte',
+    ciudad: 'Trujillo', region: 'La Libertad',
+    direccion: 'Av. Larco 1240',
+    equipoTotal: 7, completados: 5,
+    estado: 'en_proceso',
+    resumen: { operativos: 3, enMantenimiento: 2, fueraDeServicio: 1, pendientes: 1 },
+    tecnicosAsignados: ['Carlos V.', 'Andrea L.'],
+    fechaIntervencion: '24 May 2026',
+  },
+  {
+    id: 'iquitos',
+    nombre: 'Base Amazónica',
+    ciudad: 'Iquitos', region: 'Loreto',
+    direccion: 'Jr. Próspero 312',
+    equipoTotal: 4, completados: 2,
+    estado: 'en_proceso',
+    resumen: { operativos: 1, enMantenimiento: 1, fueraDeServicio: 2, pendientes: 0 },
+    tecnicosAsignados: ['Miguel R.'],
+    fechaIntervencion: '24 May 2026',
+  },
+  {
+    id: 'loreto',
+    nombre: 'Sede Loretana',
+    ciudad: 'Yurimaguas', region: 'Loreto',
+    direccion: 'Calle Libertad 88',
+    equipoTotal: 0, completados: 0,
+    estado: 'sin_inicio',
+    resumen: { operativos: 0, enMantenimiento: 0, fueraDeServicio: 0, pendientes: 0 },
+    tecnicosAsignados: [],
+    fechaIntervencion: '25 May 2026',
+  },
+  {
+    id: 'lima-norte',
+    nombre: 'Planta Lima Norte',
+    ciudad: 'Los Olivos', region: 'Lima',
+    direccion: 'Av. Tomás Valle 2100',
+    equipoTotal: 3, completados: 1,
+    estado: 'en_proceso',
+    resumen: { operativos: 2, enMantenimiento: 0, fueraDeServicio: 0, pendientes: 1 },
+    tecnicosAsignados: ['Sandra M.', 'Jhon C.', 'Pedro A.'],
+    fechaIntervencion: '23 May 2026',
+  },
+  {
+    id: 'callao',
+    nombre: 'Puerto Industrial',
+    ciudad: 'Callao', region: 'Callao',
+    direccion: 'Av. N. Gambetta 8000',
+    equipoTotal: 6, completados: 6,
+    estado: 'completado',
+    resumen: { operativos: 6, enMantenimiento: 0, fueraDeServicio: 0, pendientes: 0 },
+    tecnicosAsignados: ['Karla F.', 'Luis B.'],
+    fechaIntervencion: '22 May 2026',
+  },
+];
+
+// ─── Component ─────────────────────────────────────────────────────────────
 @Component({
   selector: 'app-equipos-intervenidos',
   standalone: true,
-  imports: [CommonModule, SpinnerComponent, TipoEquipoGrupoComponent],
+  imports: [CommonModule],
   templateUrl: './equipos-intervenidos.component.html',
   styleUrls: ['./equipos-intervenidos.component.css'],
 })
 export class EquiposIntervenidosComponent implements OnInit {
   private route    = inject(ActivatedRoute);
+  private router   = inject(Router);
   private location = inject(Location);
 
   servicioId: string | null = null;
   cargando = true;
-  grupos: TipoEquipoGrupoEI[] = [];
+  zonas: ZonaServicio[] = [];
+  filtroEstado: EstadoZona | 'todos' = 'todos';
 
+  // ─── Lifecycle ───────────────────────────────────────────────────────────
   ngOnInit(): void {
     this.servicioId = this.route.snapshot.paramMap.get('id');
-    // TODO: reemplazar con llamada real a OperacionesService
     setTimeout(() => {
-      this.grupos = this._mockData();
+      this.zonas = MOCK_ZONAS.map(z => ({ ...z }));
       this.cargando = false;
-    }, 600);
+    }, 800);
   }
 
-  volver(): void {
-    this.location.back();
+  // ─── Navigation ──────────────────────────────────────────────────────────
+  volver(): void { this.location.back(); }
+
+  verEquipos(zona: ZonaServicio): void {
+    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos', zona.id]);
   }
 
-  /** Calcula el progreso (%) de un grupo en base a sus procedimientos. */
-  progresoGrupo(grupo: TipoEquipoGrupoEI): number {
-    const total = grupo.equipos.reduce((s, e) => s + e.procedimientos.length, 0);
-    if (total === 0) return 0;
-    const done = grupo.equipos.reduce(
-      (s, e) => s + e.procedimientos.filter(p => p.estado === 'completado').length,
-      0,
-    );
-    return Math.round((done / total) * 100);
+  // ─── Getters ─────────────────────────────────────────────────────────────
+  get zonasFiltradas(): ZonaServicio[] {
+    if (this.filtroEstado === 'todos') return this.zonas;
+    return this.zonas.filter(z => z.estado === this.filtroEstado);
   }
 
-  /* ── Datos de demostración (reemplazar con API) ──────────────────────── */
-  private _mockData(): TipoEquipoGrupoEI[] {
-    return [
-      {
-        id: 'g1',
-        nombre: 'Pozos a Tierra — Sede Jauja',
-        equipos: [
-          {
-            id: 'eq1', nombre: 'Pozo a Tierra #1', tag: 'PT-001',
-            ubicacion: 'Sala de servidores', estado: 'completado',
-            procedimientos: [
-              { id: 'p1', orden: 1, nombre: 'Inspección visual del electrodo',   estado: 'completado', fotoUrl: 'https://picsum.photos/seed/p1/400/300' },
-              { id: 'p2', orden: 2, nombre: 'Medición de resistencia inicial',   estado: 'completado', fotoUrl: 'https://picsum.photos/seed/p2/400/300' },
-              { id: 'p3', orden: 3, nombre: 'Aplicación de gel conductor',       estado: 'completado' },
-            ],
-          },
-          {
-            id: 'eq2', nombre: 'Pozo a Tierra #2', tag: 'PT-002',
-            ubicacion: 'Tablero principal', estado: 'en_proceso',
-            procedimientos: [
-              { id: 'p4', orden: 1, nombre: 'Inspección visual del electrodo',   estado: 'completado', fotoUrl: 'https://picsum.photos/seed/p4/400/300' },
-              { id: 'p5', orden: 2, nombre: 'Medición de resistencia inicial',   estado: 'en_proceso' },
-              { id: 'p6', orden: 3, nombre: 'Aplicación de gel conductor',       estado: 'pendiente' },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'g2',
-        nombre: 'Tableros Eléctricos — Sede Principal',
-        equipos: [
-          {
-            id: 'eq3', nombre: 'Tablero General TG-01', tag: 'TG-001',
-            ubicacion: 'Ingreso principal', estado: 'pendiente',
-            procedimientos: [
-              { id: 'p7', orden: 1, nombre: 'Verificar tensión de alimentación', estado: 'pendiente' },
-              { id: 'p8', orden: 2, nombre: 'Revisión de bornes y conexiones',   estado: 'pendiente' },
-            ],
-          },
-        ],
-      },
-    ];
+  get totalEquipos(): number {
+    return this.zonas.reduce((a, z) => a + z.equipoTotal, 0);
+  }
+
+  get totalCompletados(): number {
+    return this.zonas.reduce((a, z) => a + z.completados, 0);
+  }
+
+  get progresoGlobal(): number {
+    return this.totalEquipos ? Math.round((this.totalCompletados / this.totalEquipos) * 100) : 0;
+  }
+
+  get contarCompletadas(): number {
+    return this.zonas.filter(z => z.estado === 'completado').length;
+  }
+
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+  progreso(zona: ZonaServicio): number {
+    return zona.equipoTotal ? Math.round((zona.completados / zona.equipoTotal) * 100) : 0;
+  }
+
+  estadoLabel(e: EstadoZona): string {
+    return { completado: 'Completado', en_proceso: 'En proceso', sin_inicio: 'Sin inicio' }[e];
+  }
+
+  avatarColor(idx: number): string {
+    const palette = ['#91d337', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899'];
+    return palette[idx % palette.length];
   }
 }

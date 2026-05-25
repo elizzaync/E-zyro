@@ -109,6 +109,8 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     agregadoPor: string;
     agregadoPorFoto: string;
     especificacion?: string;
+    /** true cuando el <img> del avatar devuelve error (URL rota / no accesible) */
+    _avatarError?: boolean;
   }> = [];
   // ── Edición inline de borrador ─────────────────────────────
   editandoIndice:     number | null = null;

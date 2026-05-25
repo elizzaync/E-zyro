@@ -17,6 +17,18 @@ import { ToastService } from '../../../core/services/toast.service';
 export class NavbarComponent implements OnInit, OnDestroy {
   usuarioActual = { nombre: 'Cargando...', rol: '...', iniciales: '', id: 'EMP-0000', foto: '' };
 
+  /**
+   * Subtitulo del navbar: "Panel de Gestion" + rol del usuario.
+   * Mientras carga ("..." / "Cargando...") muestra solo "Panel de Gestion".
+   */
+  get panelSubtitulo(): string {
+    const rol = (this.usuarioActual.rol || '').trim();
+    if (!rol || rol === '...' || rol.toLowerCase().startsWith('cargando')) {
+      return 'Panel de Gestión';
+    }
+    return `Panel de Gestión · ${rol}`;
+  }
+
   isMenuOpen = false;
   showProfileModal = false;
   isEditingProfile = false;

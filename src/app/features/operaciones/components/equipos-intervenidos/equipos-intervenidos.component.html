@@ -1,48 +1,225 @@
-<div class="ei-layout">
+<div class="ei-layout fade-in">
 
-  <!-- CABECERA DE PÁGINA -->
-  <div class="ei-page-header">
-    <button class="btn-volver" (click)="volver()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <polyline points="15 18 9 12 15 6"/>
-      </svg>
-      Volver
-    </button>
-    <div class="ei-page-titles">
-      <h2 class="ei-title">Equipos Intervenidos</h2>
-      <p class="ei-subtitle">Registro de trabajo físico y evidencia fotográfica</p>
+  <!-- ══ Page Header ══════════════════════════════════════════════ -->
+  <header class="ei-page-header">
+    <div class="ei-header-left">
+      <button class="btn-volver" (click)="volver()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Volver al Servicio
+      </button>
+      <div class="ei-page-titles">
+        <h2 class="ei-title">Equipos Intervenidos</h2>
+        <p class="ei-subtitle">Zonas y sedes cubiertas en este servicio</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ Skeleton loader ══════════════════════════════════════════ -->
+  @if (cargando) {
+  <div class="ei-sk-grid">
+    @for (i of [1,2,3,4,5]; track i) {
+    <div class="ei-sk-card">
+      <div class="sk-row">
+        <div class="sk-block sk-icon"></div>
+        <div class="sk-block sk-badge"></div>
+      </div>
+      <div class="sk-block sk-title"></div>
+      <div class="sk-block sk-sub"></div>
+      <div class="sk-chips-row">
+        <div class="sk-block sk-chip"></div>
+        <div class="sk-block sk-chip"></div>
+        <div class="sk-block sk-chip sk-chip--long"></div>
+      </div>
+      <div class="sk-block sk-bar"></div>
+      <div class="sk-block sk-footer"></div>
+    </div>
+    }
+  </div>
+  }
+
+  @if (!cargando) {
+
+  <!-- ══ Stats bar ════════════════════════════════════════════════ -->
+  <div class="ei-stats-bar">
+    <div class="ei-stat">
+      <span class="ei-stat__value">{{ zonas.length }}</span>
+      <span class="ei-stat__label">Zonas</span>
+    </div>
+    <div class="ei-stat-divider"></div>
+    <div class="ei-stat">
+      <span class="ei-stat__value">{{ totalEquipos }}</span>
+      <span class="ei-stat__label">Equipos</span>
+    </div>
+    <div class="ei-stat-divider"></div>
+    <div class="ei-stat">
+      <span class="ei-stat__value ei-stat__value--green">{{ contarCompletadas }}</span>
+      <span class="ei-stat__label">Zonas listas</span>
+    </div>
+    <div class="ei-stat-divider ei-stat-divider--hide-sm"></div>
+    <div class="ei-stat-progress">
+      <div class="ei-stat__label ei-stat__label--top">Avance global · {{ progresoGlobal }}%</div>
+      <div class="ei-mini-track">
+        <div class="ei-mini-fill" [style.width.%]="progresoGlobal"></div>
+      </div>
     </div>
   </div>
 
-  <!-- ESTADO: CARGANDO -->
-  @if (cargando) {
-  <div class="ei-loading">
-    <app-spinner></app-spinner>
-    <span>Cargando equipos...</span>
+  <!-- ══ Filter chips ═════════════════════════════════════════════ -->
+  <div class="ei-filters">
+    <button class="ei-filter-btn" [class.active]="filtroEstado === 'todos'"
+            (click)="filtroEstado = 'todos'">
+      Todas <span class="ei-filter-count">{{ zonas.length }}</span>
+    </button>
+    <button class="ei-filter-btn" [class.active]="filtroEstado === 'en_proceso'"
+            (click)="filtroEstado = 'en_proceso'">
+      <span class="ei-dot ei-dot--yellow"></span>En proceso
+    </button>
+    <button class="ei-filter-btn" [class.active]="filtroEstado === 'completado'"
+            (click)="filtroEstado = 'completado'">
+      <span class="ei-dot ei-dot--green"></span>Completadas
+    </button>
+    <button class="ei-filter-btn" [class.active]="filtroEstado === 'sin_inicio'"
+            (click)="filtroEstado = 'sin_inicio'">
+      <span class="ei-dot ei-dot--gray"></span>Sin inicio
+    </button>
   </div>
-  } @else if (grupos.length === 0) {
 
-  <!-- ESTADO: VACÍO -->
-  <div class="ei-empty">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
-    </svg>
-    <h3>Sin equipos registrados</h3>
-    <p>No hay equipos asignados a este servicio.</p>
-  </div>
+  <!-- ══ Zone Cards Grid ══════════════════════════════════════════ -->
+  <div class="ei-zones-grid">
 
-  } @else {
+    @for (zona of zonasFiltradas; track zona.id; let i = $index) {
+    <article class="ei-zone-card slide-up"
+             [class.ei-zone-card--completado]="zona.estado === 'completado'"
+             [style.animation-delay]="(i * 70) + 'ms'"
+             (click)="verEquipos(zona)" role="button" [attr.aria-label]="'Ver equipos de ' + zona.nombre">
 
-  <!-- GRUPOS DE TIPO DE EQUIPO -->
-  @for (grupo of grupos; track grupo.id; let i = $index) {
-  <app-tipo-equipo-grupo
-    class="slide-up"
-    [style.animation-delay]="(i * 100) + 'ms'"
-    [grupo]="grupo"
-    [progreso]="progresoGrupo(grupo)">
-  </app-tipo-equipo-grupo>
-  }
+      <!-- Top accent bar -->
+      <div class="ei-card-accent"
+           [class.accent--green]="zona.estado === 'completado'"
+           [class.accent--yellow]="zona.estado === 'en_proceso'"
+           [class.accent--gray]="zona.estado === 'sin_inicio'"></div>
 
-  }
+      <div class="ei-card-body">
 
-</div>
+        <!-- Header: icon + status badge -->
+        <div class="ei-card-top">
+          <div class="ei-zone-icon" [class.icon--completado]="zona.estado === 'completado'"
+               [class.icon--proceso]="zona.estado === 'en_proceso'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+          </div>
+          <span class="ei-estado-badge ei-estado--{{ zona.estado }}">
+            @if (zona.estado === 'completado') {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="10" height="10">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            }
+            {{ estadoLabel(zona.estado) }}
+          </span>
+        </div>
+
+        <!-- Zone title & location -->
+        <div class="ei-card-names">
+          <h3 class="ei-zone-nombre">{{ zona.nombre }}</h3>
+          <p class="ei-zone-ciudad">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            {{ zona.ciudad }}, {{ zona.region }}
+            @if (zona.direccion) { <span class="ei-dir"> · {{ zona.direccion }}</span> }
+          </p>
+        </div>
+
+        <!-- Equipment count summary chips -->
+        @if (zona.equipoTotal > 0) {
+        <div class="ei-chips-row">
+          @if (zona.resumen.operativos > 0) {
+          <span class="ei-chip ei-chip--green">{{ zona.resumen.operativos }} operativos</span>
+          }
+          @if (zona.resumen.enMantenimiento > 0) {
+          <span class="ei-chip ei-chip--yellow">{{ zona.resumen.enMantenimiento }} mant.</span>
+          }
+          @if (zona.resumen.fueraDeServicio > 0) {
+          <span class="ei-chip ei-chip--red">{{ zona.resumen.fueraDeServicio }} fuera</span>
+          }
+          @if (zona.resumen.pendientes > 0) {
+          <span class="ei-chip ei-chip--gray">{{ zona.resumen.pendientes }} pend.</span>
+          }
+        </div>
+        }
+
+        <!-- No equipment placeholder -->
+        @if (zona.equipoTotal === 0) {
+        <div class="ei-no-equipo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Sin equipos registrados aún
+        </div>
+        }
+
+        <!-- Progress bar -->
+        @if (zona.equipoTotal > 0) {
+        <div class="ei-progress-wrap">
+          <div class="ei-progress-track">
+            <div class="ei-progress-fill" [style.width.%]="progreso(zona)"
+                 [class.ei-progress-fill--full]="progreso(zona) === 100"></div>
+          </div>
+          <span class="ei-progress-label">
+            {{ zona.completados }}/{{ zona.equipoTotal }} eq. · {{ progreso(zona) }}%
+          </span>
+        </div>
+        }
+
+        <!-- Footer: technicians + date + arrow -->
+        <div class="ei-card-footer">
+          <div class="ei-tecnicos">
+            @for (t of zona.tecnicosAsignados.slice(0, 3); track t; let ti = $index) {
+            <div class="ei-avatar" [style.background]="avatarColor(ti)" [title]="t">
+              {{ t.charAt(0) }}
+            </div>
+            }
+            @if (zona.tecnicosAsignados.length > 3) {
+            <div class="ei-avatar ei-avatar--more">+{{ zona.tecnicosAsignados.length - 3 }}</div>
+            }
+            @if (zona.tecnicosAsignados.length === 0) {
+            <span class="ei-no-tech">Sin técnicos</span>
+            }
+          </div>
+          <div class="ei-footer-right">
+            @if (zona.fechaIntervencion) {
+            <span class="ei-fecha">{{ zona.fechaIntervencion }}</span>
+            }
+            <svg class="ei-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </div>
+        </div>
+
+      </div><!-- /card-body -->
+    </article>
+    }
+
+    <!-- Empty filter state -->
+    @if (zonasFiltradas.length === 0) {
+    <div class="ei-empty-filter">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <p>No hay zonas con ese filtro.</p>
+      <button class="ei-btn-clear" (click)="filtroEstado = 'todos'">Ver todas</button>
+    </div>
+    }
+
+  </div><!-- /zones-grid -->
+
+  }<!-- /!cargando -->
+
+</div><!-- /ei-layout -->

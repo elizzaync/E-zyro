@@ -12,6 +12,7 @@ export interface ProyectoOperacion {
   nombre_proyecto: string;
   estado: string;
   fecha_inicio: string | null;
+  fecha_fin_estimada: string | null;   // nuevo — para cronograma / Gantt
   cliente: string;
   total_servicios: number;
   servicios_completados: number;

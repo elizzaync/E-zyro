@@ -11,7 +11,7 @@ interface ProyectoCronograma {
   estado: string;
   orden_trabajo: string;
   fecha_inicio: string | null;
-  fecha_fin_estimada: string | null;
+  fecha_fin_estimada: string | null;   // populated from backend
   total_servicios: number;
   servicios_completados: number;
 }
@@ -30,8 +30,8 @@ interface ServicioCronograma {
   descripcion: string | null;
   estado: string;
   orden: number;
-  fecha_programada: string | null;
-  fecha_fin?: string | null;
+  fecha_programada: string | null;   // inicio del servicio ("dd Mon YYYY")
+  fecha_fin: string | null;          // cierre real del servicio ("dd Mon YYYY")
   expandido: boolean;
   cargandoProcedimientos: boolean;
   procedimientos?: ProcedimientoCronograma[];
@@ -110,10 +110,10 @@ export class OperacionesCronogramaComponent implements OnInit {
           cliente:               raw.cliente,
           estado:                raw.estado,
           orden_trabajo:         raw.orden_trabajo,
-          fecha_inicio:          raw.fecha_inicio       ?? null,
-          fecha_fin_estimada:    raw.fecha_fin_estimada ?? null,
-          total_servicios:       raw.total_servicios       ?? 0,
-          servicios_completados: raw.servicios_completados ?? 0,
+          fecha_inicio:          raw.fecha_inicio        ?? null,
+          fecha_fin_estimada:    raw.fecha_fin_estimada  ?? null,  // now populated by backend
+          total_servicios:       raw.total_servicios        ?? 0,
+          servicios_completados: raw.servicios_completados  ?? 0,
         };
         this.cargarServicios();
       },
@@ -134,11 +134,11 @@ export class OperacionesCronogramaComponent implements OnInit {
           .map(s => ({
             id:                     s.id,
             nombre:                 s.nombre,
-            descripcion:            s.descripcion    ?? null,
+            descripcion:            s.descripcion      ?? null,
             estado:                 s.estado,
             orden:                  s.orden,
             fecha_programada:       s.fecha_programada ?? null,
-            fecha_fin:              s.fecha_fin         ?? null,
+            fecha_fin:              s.fecha_fin         ?? null,  // from backend
             expandido:              false,
             cargandoProcedimientos: false,
             procedimientos:         undefined,
@@ -342,13 +342,43 @@ export class OperacionesCronogramaComponent implements OnInit {
     return this.servicios.find(s => s.id === id);
   }
 
+  /**
+   * Parsea fechas en dos formatos:
+   *   • ISO:          "2025-01-15"  o  "2025-01-15T00:00:00"
+   *   • dd Mon YYYY:  "15 Jan 2025" (formato que devuelve el backend con strftime %d %b %Y)
+   */
+  private static readonly MONTH_MAP: Record<string, number> = {
+    jan:1, feb:2, mar:3, apr:4, may:5, jun:6,
+    jul:7, aug:8, sep:9, oct:10, nov:11, dec:12,
+    // alias español (por si el servidor usa locale es)
+    ene:1, abr:4, ago:8, dic:12,
+  };
+
   parseDate(d: string | null | undefined): Date | null {
     if (!d) return null;
-    const part = (d.includes('T') ? d.split('T')[0] : d.split(' ')[0]).trim();
-    const [y, m, day] = part.split('-').map(Number);
-    if (!y || !m || !day || isNaN(y) || isNaN(m) || isNaN(day)) return null;
-    const dt = new Date(y, m - 1, day, 12);
-    return isNaN(dt.getTime()) ? null : dt;
+    const s = d.trim();
+
+    // ── Formato ISO: YYYY-MM-DD[THH:MM:SS[.fff][Z]] ──────────────────
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const part = s.split('T')[0].split(' ')[0];
+      const [y, m, day] = part.split('-').map(Number);
+      if (!y || !m || !day || isNaN(y) || isNaN(m) || isNaN(day)) return null;
+      const dt = new Date(y, m - 1, day, 12);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    // ── Formato "dd Mon YYYY": "15 Jan 2025" ─────────────────────────
+    const match = /^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})$/.exec(s);
+    if (match) {
+      const day  = parseInt(match[1], 10);
+      const mon  = OperacionesCronogramaComponent.MONTH_MAP[match[2].toLowerCase()];
+      const year = parseInt(match[3], 10);
+      if (!day || !mon || !year || isNaN(day) || isNaN(year)) return null;
+      const dt = new Date(year, mon - 1, day, 12);
+      return isNaN(dt.getTime()) ? null : dt;
+    }
+
+    return null;
   }
 
   formatDate(d: string | Date | null | undefined): string {
