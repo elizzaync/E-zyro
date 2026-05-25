@@ -24,51 +24,73 @@ class StatCard extends StatelessWidget {
     final surface = Theme.of(context).colorScheme.surface;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
       decoration: BoxDecoration(
         color: isDark ? surface : color,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: isDark
-            ? Border.all(color: iconColor.withValues(alpha: 0.75), width: 1.5)
+            ? Border.all(color: iconColor.withValues(alpha: 0.65), width: 1.5)
             : null,
         boxShadow: isDark
             ? [
                 BoxShadow(
-                  color: iconColor.withValues(alpha: 0.35),
-                  blurRadius: 12,
+                  color: iconColor.withValues(alpha: 0.30),
+                  blurRadius: 14,
                   spreadRadius: 1,
                 ),
               ]
             : [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  color: Colors.black.withValues(alpha: 0.07),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
               ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(iconData, size: 22, color: iconColor),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: isDark ? iconColor : (isHighlighted ? iconColor : Colors.black87),
+          // Icono con fondo circular suave
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: isDark ? 0.18 : 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(iconData, size: 20, color: iconColor),
+          ),
+          const SizedBox(height: 8),
+          // Valor con animación cuando cambia
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 400),
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: animation,
+              child: FadeTransition(opacity: animation, child: child),
+            ),
+            child: Text(
+              value,
+              key: ValueKey(value),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: isDark
+                    ? iconColor
+                    : (isHighlighted ? iconColor : Colors.black87),
+              ),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 3),
           Text(
             label,
             style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
               color: isDark
-                  ? iconColor.withValues(alpha: 0.8)
-                  : (isHighlighted ? iconColor : Colors.grey),
+                  ? iconColor.withValues(alpha: 0.80)
+                  : (isHighlighted ? iconColor : Colors.grey.shade600),
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),

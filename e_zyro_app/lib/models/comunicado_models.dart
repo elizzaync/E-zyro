@@ -4,6 +4,7 @@ class Comunicado {
   final String contenido;
   final String fecha;
   final bool leido;
+  final String autor;
 
   const Comunicado({
     required this.id,
@@ -11,6 +12,7 @@ class Comunicado {
     required this.contenido,
     required this.fecha,
     this.leido = false,
+    this.autor = '',
   });
 
   factory Comunicado.fromJson(Map<String, dynamic> j) => Comunicado(
@@ -19,6 +21,7 @@ class Comunicado {
         contenido: j['contenido'] as String? ?? '',
         fecha: j['fecha'] as String? ?? '',
         leido: j['leido'] as bool? ?? false,
+        autor: j['autor'] as String? ?? '',
       );
 
   Comunicado markRead() => Comunicado(
@@ -27,6 +30,7 @@ class Comunicado {
         contenido: contenido,
         fecha: fecha,
         leido: true,
+        autor: autor,
       );
 }
 

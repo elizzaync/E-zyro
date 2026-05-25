@@ -318,23 +318,31 @@ class _HomeScreenState extends State<HomeScreen> {
           child: SafeArea(
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildGreeting(),
-                  const SizedBox(height: 24),
-                  _buildStatsRow(),
-                  const SizedBox(height: 20),
-                  _buildProximosServicios(),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'Acciones Rápidas',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  // ── Header card flotante ──────────────────────────────
+                  _buildHeaderCard(),
+                  // ── Contenido ─────────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildProximosServicios(),
+                        const SizedBox(height: 28),
+                        const Text(
+                          'Acciones Rápidas',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 14),
+                        _buildQuickActions(context),
+                        const SizedBox(height: 28),
+                        _buildResumenMes(),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                  _buildQuickActions(context),
-                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -350,10 +358,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ── Header card (superficie con esquinas redondeadas abajo) ────────────────
+  Widget _buildHeaderCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildGreeting(),
+          const SizedBox(height: 18),
+          _buildStatsRow(),
+        ],
+      ),
+    );
+  }
+
   // ── Saludo ──────────────────────────────────────────────────────────────────
   String get _firstName {
     final parts = _userName.trim().split(' ');
     return parts.isNotEmpty ? parts.first : 'Usuario';
+  }
+
+  String get _greeting {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Buenos días';
+    if (h < 18) return 'Buenas tardes';
+    return 'Buenas noches';
   }
 
   Widget _buildGreeting() {
@@ -365,14 +412,14 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Hola, $_firstName 👋',
+                '$_greeting, $_firstName 👋',
                 style: const TextStyle(
-                    fontSize: 24, fontWeight: FontWeight.bold),
+                    fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 4),
-              const Text(
-                'Bienvenido de nuevo',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+              const SizedBox(height: 3),
+              Text(
+                _subtitleDate(),
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
             ],
           ),
@@ -382,22 +429,30 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 44,
-                height: 44,
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.07),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
-                child: const Icon(Icons.notifications_none_rounded,
-                    size: 24, color: Colors.grey),
+                child: Icon(
+                  _unreadCount > 0
+                      ? Icons.notifications_rounded
+                      : Icons.notifications_none_rounded,
+                  size: 24,
+                  color: _unreadCount > 0
+                      ? const Color(0xFF8FD11B)
+                      : Colors.grey,
+                ),
               ),
               if (_unreadCount > 0)
                 Positioned(
@@ -424,6 +479,18 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+  }
+
+  String _subtitleDate() {
+    const months = [
+      'enero','febrero','marzo','abril','mayo','junio',
+      'julio','agosto','septiembre','octubre','noviembre','diciembre',
+    ];
+    const days = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+    final now = DateTime.now();
+    final dayName = days[now.weekday - 1];
+    final monthName = months[now.month - 1];
+    return '${dayName[0].toUpperCase()}${dayName.substring(1)}, ${now.day} de $monthName';
   }
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
@@ -517,51 +584,197 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildServicioCard(ProximoServicio s) {
-    final Color estadoColor = switch (s.estado) {
-      'Activo' => const Color(0xFF8FD11B),
-      'Pendiente' => const Color(0xFFF59E0B),
-      _ => Colors.grey,
-    };
+    final bool isActivo = s.estado.toLowerCase() == 'activo';
+    final Color estadoColor = isActivo
+        ? const Color(0xFFF59E0B)   // amber — en proceso
+        : s.estado.toLowerCase() == 'pendiente'
+            ? Colors.grey
+            : const Color(0xFF8FD11B);
+    final Color estadoBg = isActivo
+        ? const Color(0xFFFFF3CD)
+        : s.estado.toLowerCase() == 'pendiente'
+            ? const Color(0xFFF3F3F3)
+            : const Color(0xFFEFFAE0);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: _neonDecoration(),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.tipo,
-                  style: const TextStyle(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (s.empresa.isNotEmpty)
+                      Text(
+                        s.empresa,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (s.empresa.isNotEmpty) const SizedBox(height: 2),
+                    Text(
+                      s.tipo,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: s.empresa.isNotEmpty ? 12 : 14,
+                        fontWeight: s.empresa.isNotEmpty
+                            ? FontWeight.w400
+                            : FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: estadoBg,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  s.estado,
+                  style: TextStyle(
+                    color: estadoColor,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${s.fecha}  •  ${s.hora}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.schedule_outlined, size: 12, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                '${s.fecha}  ·  ${s.hora}',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Resumen del Mes ─────────────────────────────────────────────────────────
+  Widget _buildResumenMes() {
+    final total =
+        _resumen.activos + _resumen.pendientes + _resumen.completados;
+    if (total == 0) return const SizedBox.shrink();
+
+    final tasaExito =
+        total > 0 ? (_resumen.completados / total * 100).round() : 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Resumen del Mes',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _neonDecoration(radius: 16),
+          child: Column(
+            children: [
+              _buildResumenRow(
+                  'Completados', _resumen.completados, total,
+                  const Color(0xFF8FD11B)),
+              const SizedBox(height: 10),
+              _buildResumenRow(
+                  'En proceso', _resumen.activos, total,
+                  const Color(0xFFF59E0B)),
+              const SizedBox(height: 10),
+              _buildResumenRow(
+                  'Pendientes', _resumen.pendientes, total, Colors.grey),
+              const Divider(height: 22),
+              Row(
+                children: [
+                  _buildResumenStat(
+                      '$tasaExito%', 'Tasa éxito',
+                      const Color(0xFF8FD11B)),
+                  _buildResumenStat('$total', 'Total', null),
+                  _buildResumenStat(
+                      '${_resumen.asistenciasMes}', 'Asistencias',
+                      const Color(0xFF3B82F6)),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResumenRow(
+      String label, int value, int total, Color color) {
+    final pct = total > 0 ? value / total : 0.0;
+    return Row(
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(label,
+              style:
+                  const TextStyle(fontSize: 12, color: Colors.grey)),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+              minHeight: 6,
             ),
           ),
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: estadoColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              s.estado,
-              style: TextStyle(
-                color: estadoColor,
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 28,
+          child: Text(
+            '$value',
+            style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+                fontWeight: FontWeight.bold,
+                color: color),
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResumenStat(
+      String value, String label, Color? color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
+          ),
+          Text(
+            label,
+            style:
+                const TextStyle(fontSize: 10, color: Colors.grey),
           ),
         ],
       ),
@@ -580,43 +793,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Acciones Rápidas ────────────────────────────────────────────────────────
+  // ── Acciones Rápidas (estilo Figma: 1 verde + 2 blancos) ───────────────────
   Widget _buildQuickActions(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 2.2,
+    return Row(
       children: [
-        _QuickActionButton(
-          label: 'Asistencia',
-          icon: Icons.access_time,
-          isActive: true,
-          onTap: () => Navigator.pushNamed(context, '/asistencia'),
+        // ── Primario: Asistencia (verde sólido) ────────────────────────
+        Expanded(
+          child: _FigmaQuickAction(
+            label: 'Asistencia',
+            icon: Icons.fingerprint_rounded,
+            isPrimary: true,
+            onTap: () => Navigator.pushNamed(context, '/asistencia'),
+          ),
         ),
-        _QuickActionButton(
-          label: 'Calendario',
-          icon: Icons.calendar_today_outlined,
-          onTap: () => Navigator.pushNamed(context, '/calendario'),
+        const SizedBox(width: 10),
+        // ── Secundario: Calendario ─────────────────────────────────────
+        Expanded(
+          child: _FigmaQuickAction(
+            label: 'Calendario',
+            icon: Icons.calendar_month_rounded,
+            isPrimary: false,
+            onTap: () => Navigator.pushNamed(context, '/calendario'),
+          ),
         ),
-        _QuickActionButton(
-          label: 'Operaciones',
-          icon: Icons.build_outlined,
-          onTap: () => tabNotifier.value = 1,
-        ),
-        _QuickActionButton(
-          label: 'Evidencia',
-          icon: Icons.camera_alt_outlined,
-          onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Evidencia disponible próximamente'),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
+        const SizedBox(width: 10),
+        // ── Secundario: Operaciones ────────────────────────────────────
+        Expanded(
+          child: _FigmaQuickAction(
+            label: 'Operaciones',
+            icon: Icons.build_rounded,
+            isPrimary: false,
+            onTap: () => tabNotifier.value = 1,
           ),
         ),
       ],
@@ -624,80 +831,122 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ─── Botón de Acción Rápida ───────────────────────────────────────────────────
-class _QuickActionButton extends StatelessWidget {
+// ─── Botón de Acción Rápida — estilo Figma ────────────────────────────────────
+class _FigmaQuickAction extends StatefulWidget {
   final String label;
   final IconData icon;
-  final bool isActive;
+  final bool isPrimary;
   final VoidCallback onTap;
 
-  const _QuickActionButton({
+  const _FigmaQuickAction({
     required this.label,
     required this.icon,
+    required this.isPrimary,
     required this.onTap,
-    this.isActive = false,
   });
 
   @override
+  State<_FigmaQuickAction> createState() => _FigmaQuickActionState();
+}
+
+class _FigmaQuickActionState extends State<_FigmaQuickAction>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+      lowerBound: 0.0,
+      upperBound: 0.06,
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.93).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    const green = Color(0xFF8FD11B);
+
     return GestureDetector(
-      onTap: onTap,
-      child: Builder(
-        builder: (context) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          final surface = Theme.of(context).colorScheme.surface;
-          const green = Color(0xFF8FD11B);
-          return Container(
-            decoration: BoxDecoration(
-              color: isActive ? green : surface,
-              borderRadius: BorderRadius.circular(14),
-              border: (!isActive && isDark)
-                  ? Border.all(color: green.withValues(alpha: 0.45), width: 1.0)
-                  : null,
-              boxShadow: isActive
-                  ? [
-                      BoxShadow(
-                        color: green.withValues(alpha: 0.4),
-                        blurRadius: 10,
-                        spreadRadius: 1,
-                      ),
-                    ]
-                  : isDark
-                      ? [
-                          BoxShadow(
-                            color: green.withValues(alpha: 0.10),
-                            blurRadius: 8,
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  color: isActive ? Colors.white : Colors.grey.shade700,
-                  size: 22,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isActive ? Colors.white : Colors.grey.shade700,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(
+            color: widget.isPrimary ? green : surface,
+            borderRadius: BorderRadius.circular(16),
+            border: widget.isPrimary
+                ? null
+                : Border.all(
+                    color: isDark
+                        ? green.withValues(alpha: 0.25)
+                        : Colors.grey.shade200,
+                    width: 1.2,
                   ),
+            boxShadow: widget.isPrimary
+                ? [
+                    BoxShadow(
+                      color: green.withValues(alpha: 0.42),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black
+                          .withValues(alpha: isDark ? 0.12 : 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.icon,
+                size: 28,
+                color: widget.isPrimary
+                    ? Colors.white
+                    : (isDark ? green : const Color(0xFF4A8E00)),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: widget.isPrimary
+                      ? Colors.white
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
-              ],
-            ),
-          );
-        },
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

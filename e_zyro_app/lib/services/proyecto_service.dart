@@ -189,6 +189,45 @@ class ProyectoService {
     }
   }
 
+  // ── Gestión de equipo ──────────────────────────────────────────────────────
+
+  // GET /operaciones/proyecto/{id}/tecnicos-disponibles
+  Future<List<UsuarioTecnico>> getTecnicosDisponibles(String proyectoId) async {
+    try {
+      final r = await _client
+          .get('/operaciones/proyecto/$proyectoId/tecnicos-disponibles');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => UsuarioTecnico.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // POST /operaciones/proyecto/{id}/equipo
+  Future<bool> agregarMiembro(String proyectoId, String userId) async {
+    try {
+      final r = await _client
+          .post('/operaciones/proyecto/$proyectoId/equipo', {'user_id': userId});
+      return r.statusCode == 200 || r.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // DELETE /operaciones/proyecto/{id}/equipo/{userId}
+  Future<bool> removerMiembro(String proyectoId, String userId) async {
+    try {
+      final r = await _client
+          .delete('/operaciones/proyecto/$proyectoId/equipo/$userId');
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // Legacy: usado por el dashboard
   Future<List<ProyectoServicio>> getMisServicios() async {
     try {

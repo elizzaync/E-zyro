@@ -35,7 +35,8 @@ class AppSession {
 
   // ── Atajos para cada módulo ───────────────────────────────────────────────
 
-  bool get canVerAuditoria     => hasPerm('AUDITORIA:VER');
+  bool get canVerAuditoria          => hasPerm('AUDITORIA:VER');
+  bool get canVerMantenimientoGeneral => isAdmin || _esJefeOp || hasPerm('MANTENIMIENTO:VER_GENERAL');
   bool get canEnviarComunicado => isAdmin || _esJefeOp;
   bool get canGestInventario   => isAdmin || _esLogistica;
   bool get canGestPersonal     => isAdmin || hasPerm('PERSONAL:GESTIONAR');

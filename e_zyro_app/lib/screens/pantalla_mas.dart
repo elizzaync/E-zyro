@@ -6,6 +6,7 @@ import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_auditoria.dart';
+import 'pantalla_mantenimientos.dart';
 import 'pantalla_comunicados.dart';
 import 'pantalla_editar_perfil.dart';
 
@@ -21,6 +22,7 @@ class _MoreScreenState extends State<MoreScreen> {
   String _userRol = '';
   String _fotoUrl = '';
   bool _puedeVerAuditoria = false;
+  bool _puedeVerMantenimiento = false;
 
   @override
   void initState() {
@@ -36,7 +38,8 @@ class _MoreScreenState extends State<MoreScreen> {
         _userName = prefs.getString('user_name') ?? 'Usuario';
         _userRol  = prefs.getString('user_rol') ?? '';
         _fotoUrl  = prefs.getString('user_foto_url') ?? '';
-        _puedeVerAuditoria = AppSession.i.canVerAuditoria;
+        _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
+        _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
       });
     }
   }
@@ -100,21 +103,49 @@ class _MoreScreenState extends State<MoreScreen> {
       stroke: 0.40,
       speed: 0.5,
       child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Título ─────────────────────────────────────────────────
-            const Text(
-              'Más',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            // ── Header card ─────────────────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black
+                        .withValues(alpha: isDark ? 0.20 : 0.07),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Más',
+                    style: TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildUserBanner(),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
-
-            // ── Banner de usuario ───────────────────────────────────────
-            _buildUserBanner(),
-            const SizedBox(height: 24),
+            // ── Contenido ────────────────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
 
             // ── Apariencia ─────────────────────────────────────────────
             _buildSectionTitle('Apariencia'),
@@ -192,21 +223,33 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
               ],
             ),
-            if (_puedeVerAuditoria) ...[
+            if (_puedeVerAuditoria || _puedeVerMantenimiento) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
-                  _MenuItem(
-                    icon: Icons.manage_search_rounded,
-                    label: 'Registro de Auditoría',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PantallaAuditoria()),
+                  if (_puedeVerMantenimiento)
+                    _MenuItem(
+                      icon: Icons.build_circle_outlined,
+                      label: 'Mantenimientos',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaMantenimientos()),
+                      ),
                     ),
-                  ),
+                  if (_puedeVerAuditoria)
+                    _MenuItem(
+                      icon: Icons.manage_search_rounded,
+                      label: 'Registro de Auditoría',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaAuditoria()),
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -293,56 +336,164 @@ class _MoreScreenState extends State<MoreScreen> {
               ),
             ),
             const SizedBox(height: 10),
-          ],
-        ),
-      ),
-    ),
+                ],          // inner Column.children
+              ),             // inner Column
+            ),               // SingleChildScrollView
+          ),                 // Expanded
+        ],                   // outer Column.children
+      ),                     // outer Column (SafeArea child)
+    ),                       // SafeArea
   );
   }
 
   // ── Widgets privados ────────────────────────────────────────────────────────
 
   Widget _buildUserBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF8FD11B),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: Colors.white.withValues(alpha: 0.3),
-            backgroundImage: _fotoUrl.isNotEmpty
-                ? NetworkImage(_fotoUrl)
-                : null,
-            child: _fotoUrl.isEmpty
-                ? const Icon(Icons.person, color: Colors.white, size: 28)
-                : null,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+      ).then((_) => _loadUserData()),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF2D5A00), const Color(0xFF4E8A00)]
+                : [const Color(0xFF5A9A00), const Color(0xFF8FD11B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8FD11B).withValues(alpha: 0.35),
+              blurRadius: 20,
+              spreadRadius: 1,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // ── Avatar ─────────────────────────────────────────────────
+            Stack(
               children: [
-                Text(
-                  _userName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.5), width: 2.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.20),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: _fotoUrl.isNotEmpty
+                        ? Image.network(
+                            _fotoUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context2, err, stack) => _avatarFallback(),
+                          )
+                        : _avatarFallback(),
                   ),
                 ),
-                if (_userRol.isNotEmpty)
-                  Text(
-                    _userRol,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                // Indicador "activo"
+                Positioned(
+                  right: 2,
+                  bottom: 2,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.shade400,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
                   ),
+                ),
               ],
             ),
+            const SizedBox(width: 16),
+
+            // ── Nombre + rol ────────────────────────────────────────────
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _userName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (_userRol.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _userRol,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            // ── Botón editar ─────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.20),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.edit_outlined,
+                  color: Colors.white, size: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarFallback() {
+    final initials = _userName.trim().split(' ')
+        .where((p) => p.isNotEmpty)
+        .take(2)
+        .map((p) => p[0].toUpperCase())
+        .join();
+    return Container(
+      color: Colors.white.withValues(alpha: 0.25),
+      child: Center(
+        child: Text(
+          initials.isEmpty ? '?' : initials,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
           ),
-        ],
+        ),
       ),
     );
   }

@@ -14,25 +14,84 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  // ── Animaciones ───────────────────────────────────────────────────────────
+  late AnimationController _ctrl;
+  late Animation<double>  _logoScale;
+  late Animation<double>  _logoOpacity;
+  late Animation<double>  _textOpacity;
+  late Animation<Offset>  _textSlide;
+  late Animation<double>  _subtitleOpacity;
+
   @override
   void initState() {
     super.initState();
+
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    );
+
+    // Logo: scale 0.72 → 1.0 con elasticidad + fade in
+    _logoScale = Tween<double>(begin: 0.72, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.0, 0.55, curve: Curves.elasticOut),
+      ),
+    );
+    _logoOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.0, 0.30, curve: Curves.easeOut),
+      ),
+    );
+
+    // Título: sube + fade in ligeramente después del logo
+    _textOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.30, 0.65, curve: Curves.easeOut),
+      ),
+    );
+    _textSlide = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.28, 0.62, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Subtítulo: aparece al final
+    _subtitleOpacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.55, 0.90, curve: Curves.easeOut),
+      ),
+    );
+
+    _ctrl.forward();
     _navigate();
   }
 
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(milliseconds: 2800));
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
-    // Restaurar token desde SecureStorage si SharedPreferences fue borrado
     await AuthService.restoreTokenIfNeeded(prefs);
     await AppSession.load();
-    final hasToken = prefs.getString('auth_token') != null;
+    final hasToken  = prefs.getString('auth_token') != null;
     final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
     if (!mounted) return;
 
-    // Cuando ya hay sesión y no se pasa por login, inicializar FCM aquí.
     if (hasToken && !bioEnabled) {
       FcmFlutterService.initialize(
         client: ApiClient(prefs),
@@ -40,8 +99,6 @@ class _SplashScreenState extends State<SplashScreen> {
       );
     }
 
-    // Si biométrica habilitada → pasar siempre por login para verificación.
-    // Si no → acceso directo al home cuando ya hay sesión.
     Navigator.pushReplacementNamed(
       context,
       (!hasToken || bioEnabled) ? '/login' : '/',
@@ -60,63 +117,163 @@ class _SplashScreenState extends State<SplashScreen> {
         child: SafeArea(
           child: Column(
             children: [
+              // ── Contenido central ────────────────────────────────────
               Expanded(
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Image.asset('assets/logo.png', width: 180, height: 180),
-                      const SizedBox(height: 28),
-                      RichText(
-                        text: const TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'e-System ',
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
+                  child: AnimatedBuilder(
+                    animation: _ctrl,
+                    builder: (context2, child2) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Logo animado
+                        FadeTransition(
+                          opacity: _logoOpacity,
+                          child: ScaleTransition(
+                            scale: _logoScale,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF8FD11B).withValues(alpha: 0.30),
+                                    blurRadius: 32,
+                                    spreadRadius: 4,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: Image.asset(
+                                  'assets/logo.png',
+                                  width: 120,
+                                  height: 120,
+                                ),
                               ),
                             ),
-                            TextSpan(
-                              text: 'Tic',
-                              style: TextStyle(
-                                fontSize: 30,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF8FD11B),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+
+                        // Nombre de la app
+                        FadeTransition(
+                          opacity: _textOpacity,
+                          child: SlideTransition(
+                            position: _textSlide,
+                            child: RichText(
+                              text: const TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'e-System ',
+                                    style: TextStyle(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: 'Tic',
+                                    style: TextStyle(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF8FD11B),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Soluciones innovadoras para tu empresa',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey,
-                          letterSpacing: 0.2,
+                        const SizedBox(height: 8),
+
+                        // Subtítulo
+                        FadeTransition(
+                          opacity: _subtitleOpacity,
+                          child: const Text(
+                            'Soluciones innovadoras para tu empresa',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
+
+              // ── Dots animados en el footer ───────────────────────────
               Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: Container(
-                  width: 48,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
+                padding: const EdgeInsets.only(bottom: 32),
+                child: _AnimatedDots(),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ─── Tres puntos que pulsan secuencialmente ────────────────────────────────────
+class _AnimatedDots extends StatefulWidget {
+  @override
+  State<_AnimatedDots> createState() => _AnimatedDotsState();
+}
+
+class _AnimatedDotsState extends State<_AnimatedDots>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context2, child2) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            // Cada punto tiene su propio desfase
+            final phase = ((_ctrl.value * 3) - i).clamp(0.0, 1.0);
+            final scale = 1.0 + 0.5 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2);
+            final opacity = 0.3 + 0.7 * (phase < 0.5 ? phase * 2 : (1 - phase) * 2);
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Transform.scale(
+                scale: scale,
+                child: Opacity(
+                  opacity: opacity,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF8FD11B),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

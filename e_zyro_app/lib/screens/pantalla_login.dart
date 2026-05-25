@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../core/connectivity_service.dart';
@@ -83,6 +84,10 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     _pulseCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1600),
@@ -112,6 +117,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     _usernameController.dispose();
     _passwordController.dispose();
     _pulseCtrl.dispose();
@@ -286,7 +292,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      resizeToAvoidBottomInset: true,
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           TopoBackground(

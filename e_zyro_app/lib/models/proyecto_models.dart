@@ -210,6 +210,34 @@ class MiembroEquipo {
       );
 }
 
+// ── Usuario técnico disponible para asignación ───────────────────────────────
+
+class UsuarioTecnico {
+  final String id;
+  final String nombre;
+  final String apellido;
+  final String fotoUrl;
+  final String cargo;
+
+  const UsuarioTecnico({
+    required this.id,
+    required this.nombre,
+    required this.apellido,
+    required this.fotoUrl,
+    required this.cargo,
+  });
+
+  String get nombreCompleto => '$nombre $apellido'.trim();
+
+  factory UsuarioTecnico.fromJson(Map<String, dynamic> j) => UsuarioTecnico(
+        id: j['id'] as String? ?? '',
+        nombre: j['nombre'] as String? ?? '',
+        apellido: j['apellido'] as String? ?? '',
+        fotoUrl: j['foto_url'] as String? ?? '',
+        cargo: j['cargo'] as String? ?? 'Técnico de Campo',
+      );
+}
+
 // ── Item de material ──────────────────────────────────────────────────────────
 
 class ItemMaterial {

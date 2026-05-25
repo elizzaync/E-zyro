@@ -382,10 +382,11 @@ class _ProyectoCard extends StatelessWidget {
                   proyecto.ordenTrabajo.isNotEmpty
                       ? proyecto.ordenTrabajo
                       : 'Sin OT',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade500,
-                    fontWeight: FontWeight.w500,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: green,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.4,
                   ),
                 ),
                 Container(
@@ -501,8 +502,21 @@ class _ProyectoCard extends StatelessWidget {
                         const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                   const Spacer(),
-                  const Icon(Icons.chevron_right,
-                      color: Colors.grey, size: 18),
+                  const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Ver servicios',
+                        style: TextStyle(
+                          color: green,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(Icons.chevron_right, color: green, size: 14),
+                    ],
+                  ),
                 ],
               ),
             ] else ...[
@@ -510,7 +524,16 @@ class _ProyectoCard extends StatelessWidget {
               const Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+                  Text(
+                    'Ver servicios',
+                    style: TextStyle(
+                      color: green,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(width: 2),
+                  Icon(Icons.chevron_right, color: green, size: 14),
                 ],
               ),
             ],

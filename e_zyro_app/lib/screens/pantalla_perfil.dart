@@ -38,6 +38,7 @@ class _PersonalScreenState extends State<PersonalScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
     return TopoBackground(
       c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
       c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
@@ -50,14 +51,32 @@ class _PersonalScreenState extends State<PersonalScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+            // ── Header card flotante ──────────────────────────────────
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(24),
+                  bottomRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black
+                        .withValues(alpha: isDark ? 0.20 : 0.07),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
                     'Personal',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -73,10 +92,10 @@ class _PersonalScreenState extends State<PersonalScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
                 ],
               ),
             ),
+            // ── Contenido ─────────────────────────────────────────────
             Expanded(
               child: IndexedStack(
                 index: _selectedTab,
@@ -211,6 +230,13 @@ class _ProfileTabState extends State<_ProfileTab> {
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 
+  /// ID de empleado derivado del nombre (estable y visual).
+  String get _employeeId {
+    if (_name.isEmpty) return 'EMP-0001';
+    final code = (_name.hashCode.abs() % 9000 + 1000);
+    return 'EMP-$code';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -249,7 +275,7 @@ class _ProfileTabState extends State<_ProfileTab> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
       child: Column(
         children: [
           // ── Avatar + nombre ───────────────────────────────────────────
@@ -263,13 +289,17 @@ class _ProfileTabState extends State<_ProfileTab> {
                   width: 84,
                   height: 84,
                   decoration: BoxDecoration(
-                    color: green,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF8FD11B), Color(0xFF3E7E00)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: green.withValues(alpha: 0.35),
-                        blurRadius: 16,
-                        spreadRadius: 2,
+                        color: green.withValues(alpha: 0.45),
+                        blurRadius: 22,
+                        spreadRadius: 3,
                       ),
                     ],
                   ),
@@ -318,36 +348,76 @@ class _ProfileTabState extends State<_ProfileTab> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? green.withValues(alpha: 0.12)
-                        : const Color(0xFFEFFAE0),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.verified_user_outlined,
-                        size: 13,
-                        color: Color(0xFF8FD11B),
+                // ── Badges: Cuenta Activa + ID de empleado ────────────
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? green.withValues(alpha: 0.12)
+                            : const Color(0xFFEFFAE0),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      const SizedBox(width: 5),
-                      const Text(
-                        'Cuenta Activa',
-                        style: TextStyle(
-                          color: Color(0xFF8FD11B),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.verified_user_outlined,
+                              size: 12, color: Color(0xFF8FD11B)),
+                          const SizedBox(width: 4),
+                          const Text(
+                            'Cuenta Activa',
+                            style: TextStyle(
+                              color: Color(0xFF8FD11B),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : Colors.grey.shade300,
                         ),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.badge_outlined,
+                              size: 12,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant),
+                          const SizedBox(width: 4),
+                          Text(
+                            _employeeId,
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -403,6 +473,73 @@ class _ProfileTabState extends State<_ProfileTab> {
           ),
           const SizedBox(height: 16),
 
+          // ── Certificaciones ───────────────────────────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: cardDeco(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Certificaciones',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? green.withValues(alpha: 0.14)
+                            : const Color(0xFFEFFAE0),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        'Próximamente',
+                        style: TextStyle(
+                          color: Color(0xFF8FD11B),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.workspace_premium_outlined,
+                          size: 44,
+                          color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Sin certificaciones registradas',
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Tus certificaciones y habilidades\nse mostrarán aquí',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // ── Estadísticas rápidas ──────────────────────────────────────
           Container(
             width: double.infinity,
@@ -412,7 +549,7 @@ class _ProfileTabState extends State<_ProfileTab> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Resumen',
+                  'Estadísticas',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 const SizedBox(height: 14),
@@ -633,7 +770,7 @@ class _AsistenciaHistorialTabState extends State<_AsistenciaHistorialTab> {
       color: _green,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

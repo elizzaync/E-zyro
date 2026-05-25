@@ -24,6 +24,7 @@ import 'services/notification_service.dart';
 import 'services/fcm_flutter_service.dart';
 import 'screens/pantalla_historial_equipo.dart';
 import 'screens/pantalla_auditoria.dart';
+import 'screens/pantalla_mantenimientos.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +58,36 @@ ThemeData _buildTheme(Brightness brightness) {
     useMaterial3: true,
     scaffoldBackgroundColor: scheme.surfaceContainerLow,
     cardColor: scheme.surface,
+    // ── Transiciones de página suaves (Material 3 Zoom) ──────────────────
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: ZoomPageTransitionsBuilder(),
+        TargetPlatform.iOS:     ZoomPageTransitionsBuilder(),
+        TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+      },
+    ),
+    // ── NavigationBar (Material 3) ───────────────────────────────────────
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: scheme.surface,
+      indicatorColor: const Color(0xFF8FD11B).withValues(alpha: 0.15),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 11,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          color: selected ? const Color(0xFF5A9A00) : scheme.onSurfaceVariant,
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: selected ? const Color(0xFF5A9A00) : scheme.onSurfaceVariant,
+          size: 24,
+        );
+      }),
+      elevation: 0,
+      height: 68,
+    ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surface,
@@ -118,6 +149,7 @@ class ESystemApp extends StatelessWidget {
             body: const AsistenciaScreen(),
           ),
           '/auditoria': (_) => const PantallaAuditoria(),
+          '/mantenimientos': (_) => const PantallaMantenimientos(),
           '/historial-equipo': (context) {
             final args = ModalRoute.of(context)?.settings.arguments
                 as Map<String, String>?;
@@ -230,36 +262,34 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabTappedWithOfflineCheck,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: const Color(0xFF8FD11B),
-        unselectedItemColor: Colors.grey,
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onTabTappedWithOfflineCheck,
+        animationDuration: const Duration(milliseconds: 320),
+        destinations: const [
+          NavigationDestination(
             icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
+            selectedIcon: Icon(Icons.home_rounded),
             label: 'Inicio',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.build_outlined),
-            activeIcon: Icon(Icons.build),
+            selectedIcon: Icon(Icons.build_rounded),
             label: 'Operaciones',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
-            activeIcon: Icon(Icons.inventory_2),
+            selectedIcon: Icon(Icons.inventory_2_rounded),
             label: 'Logística',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            selectedIcon: Icon(Icons.person_rounded),
             label: 'Personal',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
+          NavigationDestination(
+            icon: Icon(Icons.more_horiz_rounded),
+            selectedIcon: Icon(Icons.more_horiz_rounded),
             label: 'Más',
           ),
         ],
