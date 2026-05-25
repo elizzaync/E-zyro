@@ -602,18 +602,19 @@ class _GanttScreenState extends State<GanttScreen> {
                       style: TextStyle(
                         fontSize:
                             row.type == _RowType.project ? 12 : 11,
+                        height: 1.1,
                         fontWeight: row.type == _RowType.project
                             ? FontWeight.bold
                             : FontWeight.w500,
                       ),
-                      maxLines: 2,
+                      maxLines: row.subtitle != null ? 1 : 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (row.subtitle != null)
                       Text(
                         row.subtitle!,
                         style: const TextStyle(
-                            fontSize: 9, color: Colors.grey),
+                            fontSize: 9, height: 1.1, color: Colors.grey),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -907,9 +908,11 @@ Color _colorForEstado(String estado) => switch (estado.toLowerCase()) {
 
 DateTime? _parseDate(String? s) {
   if (s == null || s.isEmpty) return null;
+  // ISO (yyyy-MM-dd)
   try {
     return DateTime.parse(s);
   } catch (_) {}
+  // dd/MM/yyyy
   try {
     final parts = s.split('/');
     if (parts.length == 3) {
@@ -920,5 +923,35 @@ DateTime? _parseDate(String? s) {
       );
     }
   } catch (_) {}
+  // "dd Mon yyyy" (ej. "15 Nov 2025" / "15 nov. 2025") — formato legible ES/EN
+  try {
+    final parts = s.trim().split(RegExp(r'\s+'));
+    if (parts.length == 3) {
+      final day = int.parse(parts[0]);
+      final mon = _monthFromName(parts[1]);
+      final year = int.parse(parts[2]);
+      if (mon != null) return DateTime(year, mon, day);
+    }
+  } catch (_) {}
   return null;
+}
+
+int? _monthFromName(String name) {
+  final n = name.toLowerCase().replaceAll('.', '');
+  if (n.length < 3) return null;
+  const months = {
+    'jan': 1, 'ene': 1,
+    'feb': 2,
+    'mar': 3,
+    'apr': 4, 'abr': 4,
+    'may': 5,
+    'jun': 6,
+    'jul': 7,
+    'aug': 8, 'ago': 8,
+    'sep': 9, 'set': 9,
+    'oct': 10,
+    'nov': 11,
+    'dec': 12, 'dic': 12,
+  };
+  return months[n.substring(0, 3)];
 }

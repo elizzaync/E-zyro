@@ -9,6 +9,7 @@ import '../services/proyecto_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
+import 'pantalla_inventario_panel.dart';
 
 // ── Private carrito entry ─────────────────────────────────────────────────────
 class _CarritoEntry {
@@ -315,12 +316,55 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Logística',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        const Text(
+                          'Logística',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        // Acceso al panel del encargado (solo logística/admin)
+                        if (_puedeGestionar)
+                          GestureDetector(
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const PantallaInventarioPanel(),
+                              ),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: _green,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _green.withValues(alpha: 0.35),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.dashboard_customize_outlined,
+                                      color: Colors.white, size: 16),
+                                  SizedBox(width: 6),
+                                  Text('Panel',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 

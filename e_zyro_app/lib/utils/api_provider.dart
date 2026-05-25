@@ -8,6 +8,7 @@ import '../services/asistencia_service.dart';
 import '../services/notificacion_service.dart';
 import '../services/proyecto_service.dart';
 import '../services/requerimiento_service.dart';
+import '../services/compras_service.dart';
 import '../services/mantenimiento_service.dart';
 import '../services/historial_service.dart';
 import '../services/auditoria_service.dart';
@@ -45,6 +46,11 @@ Future<ComunicadoService> getComunicadoService() async {
 Future<RequerimientoService> getRequerimientoService() async {
   final prefs = await SharedPreferences.getInstance();
   return RequerimientoService(ApiClient(prefs));
+}
+
+Future<ComprasService> getComprasService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return ComprasService(ApiClient(prefs));
 }
 
 Future<NotificacionService> getNotificacionService() async {

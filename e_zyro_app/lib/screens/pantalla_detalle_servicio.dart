@@ -202,22 +202,38 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                       labelColor: _green,
                       unselectedLabelColor: Colors.grey,
                       indicatorColor: _green,
+                      labelPadding:
+                          const EdgeInsets.symmetric(horizontal: 12),
                       labelStyle: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 13),
+                          fontWeight: FontWeight.w600, fontSize: 12),
                       tabs: [
-                        Tab(text: 'Procedimientos (${d.procedimientos.length})'),
-                        Tab(text: 'Equipo (${d.equipo.length})'),
                         Tab(
+                            height: 46,
+                            icon: const Icon(Icons.checklist_rounded, size: 18),
+                            text: 'Pasos · ${d.procedimientos.length}'),
+                        Tab(
+                            height: 46,
+                            icon: const Icon(Icons.groups_outlined, size: 18),
+                            text: 'Equipo · ${d.equipo.length}'),
+                        Tab(
+                          height: 46,
+                          icon: const Icon(Icons.inventory_2_outlined, size: 18),
                           text:
-                              'Materiales (${d.materialesAsignados.length + d.materialesSolicitados.length})',
+                              'Material · ${d.materialesAsignados.length + d.materialesSolicitados.length}',
                         ),
-                        Tab(text: 'Notas (${d.notas.length})'),
+                        Tab(
+                            height: 46,
+                            icon: const Icon(Icons.sticky_note_2_outlined,
+                                size: 18),
+                            text: 'Notas · ${d.notas.length}'),
                         const Tab(
-                            icon: Icon(Icons.chat_bubble_outline, size: 16),
+                            height: 46,
+                            icon: Icon(Icons.chat_bubble_outline, size: 18),
                             text: 'Chat'),
                         const Tab(
-                            icon: Icon(Icons.campaign_outlined, size: 16),
-                            text: 'Comunicados'),
+                            height: 46,
+                            icon: Icon(Icons.campaign_outlined, size: 18),
+                            text: 'Avisos'),
                       ],
                     ),
                     Expanded(

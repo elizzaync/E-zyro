@@ -340,101 +340,191 @@ class _ServicioCard extends StatelessWidget {
                   )
                 ],
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Número de orden ──────────────────────────────────────────
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? _dotColor.withValues(alpha: 0.15)
-                    : _dotColor.withValues(alpha: 0.10),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '${servicio.orden}',
-                  style: TextStyle(
-                    color: _dotColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // ── Nombre y fecha ───────────────────────────────────────────
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    servicio.nombre,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  if (servicio.descripcion != null &&
-                      servicio.descripcion!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      servicio.descripcion!,
-                      style: const TextStyle(
-                          color: Colors.grey, fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  if (servicio.fechaProgramada != null) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today_outlined,
-                            size: 11, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Text(
-                          servicio.fechaProgramada!,
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-
-            // ── Estado + chevron ─────────────────────────────────────────
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
+                // ── Número de orden ──────────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: isDark
-                        ? _statusColor.withValues(alpha: 0.15)
-                        : _statusColor.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(20),
+                        ? _dotColor.withValues(alpha: 0.15)
+                        : _dotColor.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    _estadoLabel,
-                    style: TextStyle(
-                      color: _statusColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                  child: Center(
+                    child: Text(
+                      '${servicio.orden}',
+                      style: TextStyle(
+                        color: _dotColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Icon(Icons.chevron_right,
-                    color: Colors.grey, size: 18),
+                const SizedBox(width: 12),
+
+                // ── Nombre y fecha ───────────────────────────────────────
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        servicio.nombre,
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      if (servicio.descripcion != null &&
+                          servicio.descripcion!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          servicio.descripcion!,
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      if (servicio.fechaProgramada != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_today_outlined,
+                                size: 11, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Text(
+                              servicio.fechaProgramada!,
+                              style: const TextStyle(
+                                  color: Colors.grey, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // ── Estado + chevron ─────────────────────────────────────
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? _statusColor.withValues(alpha: 0.15)
+                            : _statusColor.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _estadoLabel,
+                        style: TextStyle(
+                          color: _statusColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Icon(Icons.chevron_right,
+                        color: Colors.grey, size: 18),
+                  ],
+                ),
               ],
             ),
+
+            // ── Stepper de procedimientos ───────────────────────────────
+            if (servicio.totalProcedimientos > 0) ...[
+              const SizedBox(height: 12),
+              Divider(
+                height: 1,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.grey.withValues(alpha: 0.15),
+              ),
+              const SizedBox(height: 10),
+              _ProcedimientoStepper(
+                total: servicio.totalProcedimientos,
+                completados: servicio.procedimientosCompletados,
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─── Stepper de puntos de procedimientos ──────────────────────────────────────
+
+class _ProcedimientoStepper extends StatelessWidget {
+  final int total;
+  final int completados;
+
+  const _ProcedimientoStepper({
+    required this.total,
+    required this.completados,
+  });
+
+  static const _green = Color(0xFF8FD11B);
+  static const _maxDots = 12; // límite visual para servicios con muchos pasos
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final pendientesColor =
+        isDark ? Colors.white.withValues(alpha: 0.18) : Colors.grey.shade300;
+
+    // Si hay demasiados procedimientos, escalamos la proporción a _maxDots.
+    final mostrarDots = total <= _maxDots ? total : _maxDots;
+    final dotsCompletados = total <= _maxDots
+        ? completados
+        : (completados / total * _maxDots).round();
+
+    return Row(
+      children: [
+        Expanded(
+          child: Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: List.generate(mostrarDots, (i) {
+              final hecho = i < dotsCompletados;
+              return Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: hecho ? _green : pendientesColor,
+                  shape: BoxShape.circle,
+                  border: hecho
+                      ? null
+                      : Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.25)
+                              : Colors.grey.shade400,
+                          width: 1,
+                        ),
+                ),
+              );
+            }),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '$completados/$total pasos',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: completados >= total && total > 0
+                ? _green
+                : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+          ),
+        ),
+      ],
     );
   }
 }

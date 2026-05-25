@@ -93,6 +93,8 @@ class ServicioItem {
   final String? fechaInicio;
   final String? fechaFin;
   final String estadoColor;
+  final int totalProcedimientos;
+  final int procedimientosCompletados;
 
   const ServicioItem({
     required this.id,
@@ -104,6 +106,8 @@ class ServicioItem {
     this.fechaInicio,
     this.fechaFin,
     required this.estadoColor,
+    this.totalProcedimientos = 0,
+    this.procedimientosCompletados = 0,
   });
 
   factory ServicioItem.fromJson(Map<String, dynamic> j) => ServicioItem(
@@ -116,6 +120,8 @@ class ServicioItem {
         fechaInicio: j['fecha_inicio'] as String?,
         fechaFin: j['fecha_fin'] as String?,
         estadoColor: j['estado_color'] as String? ?? 'amarillo',
+        totalProcedimientos: j['total_procedimientos'] as int? ?? 0,
+        procedimientosCompletados: j['procedimientos_completados'] as int? ?? 0,
       );
 }
 
