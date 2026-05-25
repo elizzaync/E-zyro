@@ -230,8 +230,9 @@ class TecnicoOut(BaseModel):
     apellido: str
     cargo: str
     foto_url: Optional[str] = None
-    grupo_nombre: Optional[str] = None
+    grupo_nombre: Optional[str] = None   # alias de grupo_actual (compat)
     grupo_id: Optional[str] = None
+    grupo_actual: Optional[str] = None   # nombre del grupo actual (HU-13 alert)
 
 
 class GrupoConMiembrosOut(BaseModel):
@@ -317,8 +318,17 @@ class ProcedimientoConfigBody(BaseModel):
 
 
 class ConfigurarServicioBody(BaseModel):
-    equipo: List[str]               # list of empleado.id
+    equipo: List[str]                       # list of empleado.id
     procedimientos: List[ProcedimientoConfigBody]
+    lider_id: Optional[str] = None          # empleado.id del responsable del servicio
+
+
+# ── Body: Validar cruce de horarios ──────────────────────────────────────────
+class ValidarHorarioBody(BaseModel):
+    empleado_id: str                        # empleado.id a validar
+    fecha_inicio: str                       # YYYY-MM-DD
+    fecha_fin: str                          # YYYY-MM-DD
+    excluir_servicio_id: Optional[str] = None  # no reportar conflictos del mismo servicio
 
 
 # ── Body: Nota / Seguimiento ──────────────────────────────────────────────────

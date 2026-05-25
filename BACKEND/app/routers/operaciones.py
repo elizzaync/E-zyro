@@ -82,6 +82,7 @@ from ..schemas.operaciones import (
     ActualizarServicioBody,
     ConfigurarServicioBody,
     AgregarNotaBody,
+    ValidarHorarioBody,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -1975,15 +1976,17 @@ def get_personal_tecnicos(
         emp_id_str  = str(row.emp_id)
         grupo_id_s  = emp_a_grupo.get(emp_id_str)          # str | None
 
+        _grupo_nombre = grupo_nombre_map.get(grupo_id_s) if grupo_id_s else None
         tec = TecnicoOut(
             id           = emp_id_str,
             usuario_id   = str(row.usuario_id) if row.usuario_id else "",
             nombre       = str(row.nombre   or ""),
             apellido     = str(row.apellido or ""),
             cargo        = str(row.cargo    or "Técnico"),
-            foto_url     = row.foto_url,                    # str | None — OK
-            grupo_id     = grupo_id_s,                     # str | None — ya es str
-            grupo_nombre = grupo_nombre_map.get(grupo_id_s) if grupo_id_s else None,
+            foto_url     = row.foto_url,          # str | None — OK
+            grupo_id     = grupo_id_s,            # str | None — ya es str
+            grupo_nombre = _grupo_nombre,
+            grupo_actual = _grupo_nombre,         # HU-13: usado en alerta de conflicto de grupo
         )
         tecnicos.append(tec)
         emp_map[emp_id_str] = tec
@@ -2030,6 +2033,98 @@ def get_personal_tecnicos(
         ))
 
     return PersonalTecnicosOut(tecnicos=tecnicos, grupos=grupos_out)
+
+
+# ── POST /operaciones/personal/validar-horario ────────────────────────────────
+# HU-13: Detecta si un técnico ya tiene tareas solapadas con el rango pedido.
+
+@router.post("/personal/validar-horario")
+def validar_horario_tecnico(
+    body:    ValidarHorarioBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Verifica si un empleado tiene procedimientos en estado 'pendiente' o
+    'en_proceso' que se solapen con [fecha_inicio, fecha_fin].
+
+    Solapamiento entre (A_ini, A_fin) y (B_ini, B_fin):
+        A_ini <= B_fin  AND  A_fin >= B_ini
+
+    Retorna:
+        {"conflicto": false}
+        {"conflicto": true, "detalle": {...}}
+    """
+    from datetime import date as _date
+
+    empresa_id = payload["empresa_id"]
+
+    # Validar que el empleado pertenece a la empresa
+    emp = db.query(Empleado).filter(
+        Empleado.id         == body.empleado_id,
+        Empleado.empresa_id == empresa_id,
+        Empleado.activo     == True,
+    ).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
+    # Parsear fechas — el cliente manda YYYY-MM-DD
+    try:
+        fecha_ini_dt = _date.fromisoformat(body.fecha_inicio)
+        fecha_fin_dt = _date.fromisoformat(body.fecha_fin)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Fechas inválidas. Use formato YYYY-MM-DD.")
+
+    if fecha_fin_dt < fecha_ini_dt:
+        raise HTTPException(status_code=422, detail="fecha_fin no puede ser anterior a fecha_inicio.")
+
+    # Construir la query base
+    q = (
+        db.query(Procedimiento)
+        .filter(
+            Procedimiento.responsable_id     == body.empleado_id,
+            Procedimiento.estado.in_(["pendiente", "en_proceso"]),
+            Procedimiento.fecha_inicio_tarea != None,
+            Procedimiento.fecha_limite       != None,
+            # Condición de solapamiento
+            Procedimiento.fecha_inicio_tarea <= fecha_fin_dt,
+            Procedimiento.fecha_limite       >= fecha_ini_dt,
+        )
+    )
+
+    # Excluir procedimientos del mismo servicio (para modo editar)
+    if body.excluir_servicio_id:
+        q = q.filter(
+            Procedimiento.proyecto_servicio_id != body.excluir_servicio_id
+        )
+
+    conflicto = q.first()
+
+    if not conflicto:
+        return {"conflicto": False}
+
+    # Recuperar nombre del servicio para el mensaje
+    ps_nombre = "otro servicio"
+    try:
+        ps_obj = db.query(ProyectoServicio).filter(
+            ProyectoServicio.id == conflicto.proyecto_servicio_id
+        ).first()
+        if ps_obj:
+            ps_nombre = ps_obj.nombre or "otro servicio"
+    except Exception:
+        pass
+
+    return {
+        "conflicto": True,
+        "detalle": {
+            "tarea":           conflicto.nombre,
+            "servicio_nombre": ps_nombre,
+            "servicio_id":     str(conflicto.proyecto_servicio_id),
+            "fecha_inicio":    str(conflicto.fecha_inicio_tarea),
+            "fecha_fin":       str(conflicto.fecha_limite),
+            "estado":          conflicto.estado,
+        },
+    }
 
 
 # ── GET /operaciones/proyecto/{proyecto_id} ───────────────────────────────────
@@ -2442,6 +2537,38 @@ def configurar_servicio(
             created_at           = datetime.utcnow(),
         ))
 
+    # ── 3. Auto-liderazgo (HU-13) ─────────────────────────────────────────────
+    # Determinar el responsable del servicio:
+    #   a) Usar body.lider_id si el frontend lo envía explícitamente, O
+    #   b) Derivar desde el JWT (usuario que está configurando el servicio)
+    lider_empleado_id: str | None = None
+
+    if body.lider_id:
+        # Verificar que pertenece a la empresa
+        emp_lider = db.query(Empleado).filter(
+            Empleado.id         == body.lider_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if emp_lider:
+            lider_empleado_id = str(emp_lider.id)
+    else:
+        # Fallback: buscar el empleado del usuario autenticado
+        usuario_id = payload.get("id", "")
+        emp_lider = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+            Empleado.activo     == True,
+        ).first()
+        if emp_lider:
+            lider_empleado_id = str(emp_lider.id)
+
+    if lider_empleado_id:
+        # Asignar como responsable del servicio
+        ps.responsable_id = lider_empleado_id
+        # Asignar como jefe de operaciones del proyecto si no tenía uno
+        if proyecto and not proyecto.jefe_operaciones_id:
+            proyecto.jefe_operaciones_id = lider_empleado_id
+
     # Si el servicio estaba en Pendiente y se le asigna equipo, pasarlo a En_Proceso
     if ps.estado == "Pendiente" and equipo_ids:
         ps.estado = "En_Proceso"
@@ -2454,6 +2581,7 @@ def configurar_servicio(
         "miembros_equipo": len(equipo_ids),
         "procedimientos":  len(body.procedimientos),
         "estado_servicio": ps.estado,
+        "lider_id":        lider_empleado_id,
     }
 
 
