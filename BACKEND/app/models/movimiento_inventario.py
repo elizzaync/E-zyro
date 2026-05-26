@@ -15,6 +15,7 @@ class MovimientoInventario(Base):
     almacen_id       = Column(String(36), ForeignKey("almacen.id"), nullable=True)
     tipo             = Column(String(20), nullable=False)   # entrada|salida|ajuste|requerimiento|transferencia|compra
     cantidad         = Column(Integer, nullable=False)
+    motivo           = Column(String(255), nullable=True)   # razón del ajuste manual
     referencia_id    = Column(String(36), nullable=True)
     referencia_tipo  = Column(String(50), nullable=True)
     responsable_id   = Column(String(36), ForeignKey("empleado.id"), nullable=True)
