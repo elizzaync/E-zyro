@@ -248,6 +248,9 @@ def resolver_cliente(pg_cur, empresa_id: str, cache: ResolverCache, legacy_id: O
 
 
 def resolver_usuario(pg_cur, empresa_id: str, cache: ResolverCache, legacy_id: Optional[int]) -> Optional[str]:
+    """Resuelve legacy.id_usuario → empleado.id (Técnico Líder).
+    proyecto_servicio.responsable_id es FK a empleado(id), por eso resolvemos
+    el usuario a su fila de empleado (no a usuario.id)."""
     if legacy_id is None:
         return None
     if legacy_id in cache.usuario_por_legacy:
@@ -257,12 +260,18 @@ def resolver_usuario(pg_cur, empresa_id: str, cache: ResolverCache, legacy_id: O
     if not email:
         return None
     pg_cur.execute(
-        "SELECT id FROM usuario WHERE empresa_id = %s AND email = %s LIMIT 1",
+        """
+        SELECT e.id
+        FROM empleado e
+        JOIN usuario  u ON u.id = e.usuario_id
+        WHERE e.empresa_id = %s AND u.email = %s
+        LIMIT 1
+        """,
         (empresa_id, email),
     )
     row = pg_cur.fetchone()
     if not row:
-        log.warning("Usuario '%s' (legacy %s) no existe; servicio quedará sin responsable.", email, legacy_id)
+        log.warning("Empleado para '%s' (legacy %s) no existe; servicio quedará sin técnico.", email, legacy_id)
         return None
     cache.usuario_por_legacy[legacy_id] = row["id"]
     return row["id"]

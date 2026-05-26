@@ -16,11 +16,25 @@ class ProyectoServicio(Base):
     fase_id = Column(String(36), ForeignKey("fase.id"), nullable=True)
     nombre = Column(String(200), nullable=False)
     descripcion = Column(Text)
-    responsable_id = Column(String(36), ForeignKey("empleado.id"))
+
+    # Liderazgo del servicio
+    lider_id = Column(String(36), ForeignKey("empleado.id"))        # Líder (jefe) — obligatorio en la app
+    responsable_id = Column(String(36), ForeignKey("empleado.id"))  # Técnico líder (opcional) — legacy id_usuario
+
     orden = Column(Integer, nullable=False, default=1)
     estado = Column(String(30), nullable=False, default='Pendiente')
     fecha_programada = Column(Date)
     fecha_inicio = Column(Date)
     fecha_fin = Column(Date)
+
+    # Alcance, zona y facturación heredados del legacy (por servicio)
+    zona_ejecucion = Column(String(255))
+    alcance = Column(Text)
+    tipo_documento_cliente = Column(String(20))   # 'OC' | 'PROF' | 'SIN_OC'
+    nro_documento = Column(String(100))
+    nro_conformidad = Column(String(100), default='En Espera')
+    acta_url = Column(String(500))
+    public_id_cloudinary = Column(String(255))
+
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime)

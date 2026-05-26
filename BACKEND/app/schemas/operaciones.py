@@ -64,6 +64,13 @@ class ServicioDetalleOut(BaseModel):
     fecha_programada: Optional[str] = None  # YYYY-MM-DD raw
     fecha_inicio: Optional[str] = None
     fecha_fin: Optional[str] = None
+    # Liderazgo + alcance/facturación (prefill modal servicio)
+    lider_id: Optional[str] = None
+    responsable_id: Optional[str] = None
+    zona_ejecucion: Optional[str] = None
+    alcance: Optional[str] = None
+    tipo_documento_cliente: Optional[str] = None
+    nro_documento: Optional[str] = None
 
 
 class ProyectoListOut(BaseModel):
@@ -222,6 +229,20 @@ class CatalogoServicioOut(BaseModel):
     descripcion: Optional[str] = None
 
 
+# ── Personas elegibles para liderazgo / ejecución del servicio ────────────────
+class PersonaServicioOut(BaseModel):
+    id: str               # empleado.id
+    nombre: str
+    apellido: str
+    cargo: Optional[str] = None
+    foto_url: Optional[str] = None
+
+
+# ── Siguiente orden de trabajo (auto-correlativo) ─────────────────────────────
+class SiguienteOrdenOut(BaseModel):
+    orden_trabajo: str
+
+
 # ── Personal / Técnicos ───────────────────────────────────────────────────────
 class TecnicoOut(BaseModel):
     id: str               # empleado.id
@@ -257,8 +278,7 @@ class ProyectoEditOut(BaseModel):
     estado: str
     fecha_inicio: Optional[str] = None        # YYYY-MM-DD
     fecha_fin_estimada: Optional[str] = None  # YYYY-MM-DD
-    zona_ejecucion: Optional[str] = None
-    alcance: Optional[str] = None
+    orden_compra_cliente: Optional[str] = None   # OC "marco" del proyecto
     jefe_nombre: Optional[str] = None
 
 
@@ -266,12 +286,12 @@ class ProyectoEditOut(BaseModel):
 class CrearProyectoBody(BaseModel):
     nombre_proyecto: str
     cliente_id: str
-    orden_trabajo: str
+    # orden_trabajo es opcional: el backend lo auto-genera (correlativo por año, rellena huecos).
+    orden_trabajo: Optional[str] = None
     estado: str = "Pendiente"
     fecha_inicio: Optional[str] = None
     fecha_fin_estimada: Optional[str] = None
-    zona_ejecucion: Optional[str] = None
-    alcance: Optional[str] = None
+    orden_compra_cliente: Optional[str] = None   # OC "marco" del proyecto (opcional)
 
 
 # ── Body: Actualizar Proyecto ─────────────────────────────────────────────────
@@ -282,8 +302,7 @@ class ActualizarProyectoBody(BaseModel):
     estado: Optional[str] = None
     fecha_inicio: Optional[str] = None
     fecha_fin_estimada: Optional[str] = None
-    zona_ejecucion: Optional[str] = None
-    alcance: Optional[str] = None
+    orden_compra_cliente: Optional[str] = None
 
 
 # ── Body: Crear Servicio ──────────────────────────────────────────────────────
@@ -295,6 +314,14 @@ class CrearServicioBody(BaseModel):
     fecha_programada: Optional[str] = None
     fecha_inicio: Optional[str] = None
     fecha_fin: Optional[str] = None
+    # Liderazgo
+    lider_id: str                                   # empleado.id — Líder del Servicio (obligatorio)
+    responsable_id: Optional[str] = None            # empleado.id — Técnico Líder (opcional)
+    # Alcance / zona / facturación
+    zona_ejecucion: Optional[str] = None
+    alcance: Optional[str] = None
+    tipo_documento_cliente: Optional[str] = "SIN_OC"   # 'OC' | 'PROF' | 'SIN_OC'
+    nro_documento: Optional[str] = None
 
 
 # ── Body: Actualizar Servicio ─────────────────────────────────────────────────
@@ -306,6 +333,12 @@ class ActualizarServicioBody(BaseModel):
     fecha_programada: Optional[str] = None
     fecha_inicio: Optional[str] = None
     fecha_fin: Optional[str] = None
+    lider_id: Optional[str] = None
+    responsable_id: Optional[str] = None
+    zona_ejecucion: Optional[str] = None
+    alcance: Optional[str] = None
+    tipo_documento_cliente: Optional[str] = None
+    nro_documento: Optional[str] = None
 
 
 # ── Body: Configurar Servicio (equipo + procedimientos/Gantt) ─────────────────

@@ -14,7 +14,6 @@ from app.routers import operaciones     as operaciones_router
 from app.routers import chat_ws         as chat_ws_router
 from app.routers import notificaciones  as notificaciones_router
 from app.routers import requerimientos  as requerimientos_router
-from app.routers import compras         as compras_router
 from app.routers import auditoria       as auditoria_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
@@ -112,11 +111,6 @@ def _run_migrations():
             "ALTER TABLE procedimiento "
             "ADD COLUMN IF NOT EXISTS fecha_inicio_tarea DATE"
         ))
-        # ── Logística Fase 3: motivo del movimiento de inventario ─────────────
-        conn.execute(text(
-            "ALTER TABLE movimiento_inventario "
-            "ADD COLUMN IF NOT EXISTS motivo VARCHAR(255)"
-        ))
         conn.execute(text("""
             DO $$
             BEGIN
@@ -176,7 +170,6 @@ app.include_router(operaciones_router.router)
 app.include_router(chat_ws_router.router)
 app.include_router(notificaciones_router.router)
 app.include_router(requerimientos_router.router)
-app.include_router(compras_router.router)
 app.include_router(auditoria_router.router)
 
 

@@ -776,7 +776,11 @@ CREATE TABLE fase (
 --   * alcance / tipo_documento_cliente / nro_documento → eran por-servicio en el legacy
 --   * nro_conformidad / acta_url / public_id_cloudinary → la conformidad se emite por servicio ejecutado
 --   * zona_ejecucion (legacy id_zona) → cada servicio puede atender una zona distinta
---   * responsable_id → mapea el antiguo id_usuario (FK directa a usuario)
+-- LIDERAZGO (HU-13 / regla de negocio):
+--   * lider_id        → Líder del Servicio. OBLIGATORIO en la app. Solo empleados cuyo
+--                       usuario tiene rol "Jefe de Operaciones"/"Jefe de Proyecto".
+--   * responsable_id  → Técnico Líder (opcional): técnico al mando en campo. Mapea el
+--                       antiguo id_usuario del legacy (resuelto a empleado.id).
 CREATE TABLE proyecto_servicio (
     id                     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     proyecto_id            UUID         NOT NULL,
@@ -785,7 +789,8 @@ CREATE TABLE proyecto_servicio (
     fase_id                UUID,
     nombre                 VARCHAR(200) NOT NULL,
     descripcion            TEXT,
-    responsable_id         UUID,                                        -- FK → usuario(id) (legacy id_usuario)
+    lider_id               UUID,                                        -- FK → empleado(id) — jefe responsable del servicio
+    responsable_id         UUID,                                        -- FK → empleado(id) — técnico líder (legacy id_usuario)
     orden                  INT          NOT NULL DEFAULT 1,
     estado                 VARCHAR(30)  NOT NULL DEFAULT 'Pendiente',
     fecha_programada       DATE,
@@ -1284,8 +1289,8 @@ ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_proyecto          FOREIGN 
 ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_empresa           FOREIGN KEY (empresa_id)         REFERENCES empresa(id);
 ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_catalogo          FOREIGN KEY (catalogo_servicio_id) REFERENCES catalogo_servicio(id);
 ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_fase              FOREIGN KEY (fase_id)            REFERENCES fase(id);
--- M-LEGACY: responsable_id apunta a usuario(id) para mapear el id_usuario del legacy
-ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_responsable       FOREIGN KEY (responsable_id)     REFERENCES usuario(id);
+ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_lider             FOREIGN KEY (lider_id)           REFERENCES empleado(id);
+ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_responsable       FOREIGN KEY (responsable_id)     REFERENCES empleado(id);
 ALTER TABLE procedimiento        ADD CONSTRAINT fk_proc_ps              FOREIGN KEY (proyecto_servicio_id) REFERENCES proyecto_servicio(id);
 ALTER TABLE procedimiento        ADD CONSTRAINT fk_proc_empresa         FOREIGN KEY (empresa_id)         REFERENCES empresa(id);
 ALTER TABLE procedimiento        ADD CONSTRAINT fk_proc_responsable     FOREIGN KEY (responsable_id)     REFERENCES empleado(id);
@@ -1379,9 +1384,10 @@ CREATE INDEX idx_proyecto_cliente          ON proyecto(cliente_id);
 CREATE INDEX idx_proyecto_estado           ON proyecto(empresa_id, estado);
 CREATE INDEX idx_proyecto_servicio_proy    ON proyecto_servicio(proyecto_id);
 CREATE INDEX idx_proyecto_servicio_estado  ON proyecto_servicio(proyecto_id, estado);
--- M-LEGACY: búsquedas por OC/Proforma y por responsable (reportes y dashboard)
+-- M-LEGACY: búsquedas por OC/Proforma y por responsable/líder (reportes y dashboard)
 CREATE INDEX idx_proyecto_servicio_doc     ON proyecto_servicio(empresa_id, tipo_documento_cliente, nro_documento);
 CREATE INDEX idx_proyecto_servicio_resp    ON proyecto_servicio(responsable_id);
+CREATE INDEX idx_proyecto_servicio_lider   ON proyecto_servicio(lider_id);
 CREATE INDEX idx_procedimiento_ps          ON procedimiento(proyecto_servicio_id);
 CREATE INDEX idx_procedimiento_estado      ON procedimiento(proyecto_servicio_id, estado);
 
@@ -1442,8 +1448,9 @@ CREATE INDEX idx_contrato_comercial_cliente ON contrato_comercial(cliente_id, es
 --                                especificacion, agregado_por_id
 --   ~ proyecto_detalle         : – zona_ejecucion, alcance, tipo_documento_cliente,
 --                                  nro_documento, nro_conformidad, acta_url, public_id_cloudinary
---   ~ proyecto_servicio        : + zona_ejecucion, alcance, tipo_documento_cliente,
+--   ~ proyecto_servicio        : + lider_id (empleado, líder obligatorio),
+--                                  + zona_ejecucion, alcance, tipo_documento_cliente,
 --                                  nro_documento, nro_conformidad, acta_url, public_id_cloudinary;
---                                  responsable_id FK ahora → usuario(id) (mapeo legacy id_usuario)
+--                                  responsable_id = técnico líder (empleado, opcional, legacy id_usuario)
 -- ============================================================
 

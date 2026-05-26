@@ -7,6 +7,7 @@ from __future__ import annotations
 import io
 import logging
 import re
+import unicodedata
 import uuid as _uuid
 import zipfile
 from datetime import date, datetime
@@ -46,6 +47,8 @@ from ..models.paso_mantenimiento import PasoMantenimiento
 from ..models.catalogo_servicio import CatalogoServicio
 from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
 from ..models.seguimiento_proyecto import SeguimientoProyecto
+from ..models.rol import Rol
+from ..models.usuario_rol import UsuarioRol
 
 # Schemas Pydantic
 from ..schemas.operaciones import (
@@ -83,6 +86,8 @@ from ..schemas.operaciones import (
     ConfigurarServicioBody,
     AgregarNotaBody,
     ValidarHorarioBody,
+    PersonaServicioOut,
+    SiguienteOrdenOut,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -318,11 +323,10 @@ def get_dashboard(
             ProyectoServicio,
             Proyecto.fecha_inicio.label("fecha_proyecto"),
             Cliente.razon_social.label("cliente"),
-            func.coalesce(ProyectoDetalle.zona_ejecucion, Proyecto.nombre_proyecto).label("ubicacion"),
+            func.coalesce(ProyectoServicio.zona_ejecucion, Proyecto.nombre_proyecto).label("ubicacion"),
         )
         .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
-        .outerjoin(ProyectoDetalle, ProyectoDetalle.proyecto_id == Proyecto.id)
         .filter(
             ProyectoServicio.empresa_id == empresa_id,
             ProyectoServicio.proyecto_id.in_(miembro_subq),
@@ -400,8 +404,8 @@ def get_detalle_servicio(
 
     proyecto = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
     cliente  = db.query(Cliente).filter(Cliente.id  == proyecto.cliente_id).first()
-    detalle  = db.query(ProyectoDetalle).filter(ProyectoDetalle.proyecto_id == ps.proyecto_id).first()
-    ubicacion = (detalle.zona_ejecucion if detalle and detalle.zona_ejecucion else proyecto.nombre_proyecto) or ""
+    # La zona ahora vive en el servicio; el nombre del proyecto es el fallback.
+    ubicacion = (ps.zona_ejecucion or proyecto.nombre_proyecto) or ""
 
     # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass)
     if payload.get("rol", "") != "Administrador":
@@ -583,6 +587,12 @@ def get_detalle_servicio(
         fecha_programada=ps.fecha_programada.isoformat() if ps.fecha_programada else None,
         fecha_inicio=ps.fecha_inicio.isoformat() if ps.fecha_inicio else None,
         fecha_fin=ps.fecha_fin.isoformat() if ps.fecha_fin else None,
+        lider_id=str(ps.lider_id) if ps.lider_id else None,
+        responsable_id=str(ps.responsable_id) if ps.responsable_id else None,
+        zona_ejecucion=ps.zona_ejecucion or None,
+        alcance=ps.alcance or None,
+        tipo_documento_cliente=ps.tipo_documento_cliente or None,
+        nro_documento=ps.nro_documento or None,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -1832,6 +1842,107 @@ def _get_jefe_empleado(db: Session, usuario_id: str, empresa_id: str) -> "Emplea
     ).order_by(Empleado.created_at.asc()).first()
 
 
+# ── Orden de trabajo auto-correlativa ─────────────────────────────────────────
+
+def _siguiente_orden_trabajo(db: Session, empresa_id: str, anio: int | None = None) -> str:
+    """
+    Genera el siguiente N° de Orden de Trabajo en formato 'YYYY-NNN' (correlativo
+    por año), RELLENANDO HUECOS: si se eliminó un proyecto, su número queda libre
+    y el siguiente proyecto lo reutiliza. Así la secuencia nunca tiene huecos.
+    """
+    anio = anio or datetime.utcnow().year
+    prefijo = f"{anio}-"
+    filas = (
+        db.query(Proyecto.orden_trabajo)
+        .filter(
+            Proyecto.empresa_id == empresa_id,
+            Proyecto.orden_trabajo.like(f"{prefijo}%"),
+        )
+        .all()
+    )
+    patron = re.compile(rf"^{anio}-(\d+)$")
+    usados: set[int] = set()
+    for (ot,) in filas:
+        if not ot:
+            continue
+        m = patron.match(ot.strip())
+        if m:
+            usados.add(int(m.group(1)))
+
+    n = 1
+    while n in usados:
+        n += 1
+    return f"{prefijo}{n:03d}"
+
+
+# ── Liderazgo: roles que pueden liderar un servicio ───────────────────────────
+
+def _norm_rol(nombre: str | None) -> str:
+    """Normaliza un nombre de rol: minúsculas, sin acentos, sin separadores."""
+    base = unicodedata.normalize("NFKD", nombre or "").encode("ascii", "ignore").decode()
+    return re.sub(r"[\s_\-]+", " ", base).strip().lower()
+
+
+def _rol_es_lider(nombre_rol: str | None) -> bool:
+    """True si el rol habilita a liderar un servicio: Jefe de Operaciones/Proyecto o Admin."""
+    n = _norm_rol(nombre_rol)
+    if n in ("administrador", "admin", "superadmin"):
+        return True
+    return "jefe" in n and ("operac" in n or "proyect" in n)
+
+
+def _lideres_elegibles(db: Session, empresa_id: str):
+    """Empleados activos cuyo usuario tiene un rol que habilita liderar servicios."""
+    rows = (
+        db.query(
+            Empleado.id.label("emp_id"),
+            Usuario.nombre.label("nombre"),
+            Usuario.apellido.label("apellido"),
+            Empleado.cargo.label("cargo"),
+            Usuario.foto_url.label("foto_url"),
+            Rol.nombre.label("rol_nombre"),
+        )
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
+        .join(Rol, Rol.id == UsuarioRol.rol_id)
+        .filter(Empleado.empresa_id == empresa_id, Empleado.activo == True)
+        .order_by(Usuario.nombre.asc(), Usuario.apellido.asc())
+        .all()
+    )
+    vistos: dict[str, object] = {}
+    for r in rows:
+        eid = str(r.emp_id)
+        if eid not in vistos and _rol_es_lider(r.rol_nombre):
+            vistos[eid] = r
+    return list(vistos.values())
+
+
+def _empleado_es_lider_elegible(db: Session, empleado_id: str, empresa_id: str) -> bool:
+    """Valida que un empleado (por su rol de usuario) pueda ser Líder del Servicio."""
+    rows = (
+        db.query(Rol.nombre)
+        .join(UsuarioRol, UsuarioRol.rol_id == Rol.id)
+        .join(Empleado, Empleado.usuario_id == UsuarioRol.usuario_id)
+        .filter(Empleado.id == empleado_id, Empleado.empresa_id == empresa_id)
+        .all()
+    )
+    return any(_rol_es_lider(n) for (n,) in rows)
+
+
+_TIPOS_DOC_OK = {"OC", "PROF", "SIN_OC"}
+
+
+def _normalizar_documento(tipo: str | None, nro: str | None) -> tuple[str, str | None]:
+    """Devuelve (tipo_doc, nro_doc) saneados. 'SIN_OC' fuerza nro a None."""
+    t = (tipo or "SIN_OC").strip().upper()
+    if t not in _TIPOS_DOC_OK:
+        t = "SIN_OC"
+    if t == "SIN_OC":
+        return t, None
+    n = (nro or "").strip()
+    return t, (n or None)
+
+
 # ── GET /operaciones/clientes ─────────────────────────────────────────────────
 
 @router.get("/clientes", response_model=list[ClienteOut])
@@ -1848,6 +1959,73 @@ def get_clientes(
         .all()
     )
     return [ClienteOut(id=str(c.id), razon_social=c.razon_social, ruc=c.ruc) for c in clientes]
+
+
+# ── GET /operaciones/proyectos/siguiente-orden ────────────────────────────────
+
+@router.get("/proyectos/siguiente-orden", response_model=SiguienteOrdenOut)
+def get_siguiente_orden_trabajo(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Devuelve el próximo N° de Orden de Trabajo que asignaría el sistema (preview read-only)."""
+    empresa_id = payload["empresa_id"]
+    return SiguienteOrdenOut(orden_trabajo=_siguiente_orden_trabajo(db, empresa_id))
+
+
+# ── GET /operaciones/lideres-servicio ─────────────────────────────────────────
+
+@router.get("/lideres-servicio", response_model=list[PersonaServicioOut])
+def get_lideres_servicio(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Empleados que pueden ser Líder del Servicio (Jefe de Operaciones / Jefe de Proyecto)."""
+    empresa_id = payload["empresa_id"]
+    return [
+        PersonaServicioOut(
+            id=str(r.emp_id),
+            nombre=r.nombre or "",
+            apellido=r.apellido or "",
+            cargo=r.cargo or None,
+            foto_url=r.foto_url or None,
+        )
+        for r in _lideres_elegibles(db, empresa_id)
+    ]
+
+
+# ── GET /operaciones/responsables-servicio ────────────────────────────────────
+
+@router.get("/responsables-servicio", response_model=list[PersonaServicioOut])
+def get_responsables_servicio(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Todos los empleados activos — candidatos a Técnico Líder del servicio (opcional)."""
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(
+            Empleado.id.label("emp_id"),
+            Usuario.nombre.label("nombre"),
+            Usuario.apellido.label("apellido"),
+            Empleado.cargo.label("cargo"),
+            Usuario.foto_url.label("foto_url"),
+        )
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(Empleado.empresa_id == empresa_id, Empleado.activo == True)
+        .order_by(Usuario.nombre.asc(), Usuario.apellido.asc())
+        .all()
+    )
+    return [
+        PersonaServicioOut(
+            id=str(r.emp_id),
+            nombre=r.nombre or "",
+            apellido=r.apellido or "",
+            cargo=r.cargo or None,
+            foto_url=r.foto_url or None,
+        )
+        for r in rows
+    ]
 
 
 # ── GET /operaciones/catalogo-servicios ───────────────────────────────────────
@@ -2166,8 +2344,7 @@ def get_detalle_proyecto(
         estado=proyecto.estado or "Pendiente",
         fecha_inicio=proyecto.fecha_inicio.isoformat() if proyecto.fecha_inicio else None,
         fecha_fin_estimada=proyecto.fecha_fin_estimada.isoformat() if proyecto.fecha_fin_estimada else None,
-        zona_ejecucion=detalle.zona_ejecucion if detalle else None,
-        alcance=detalle.alcance if detalle else None,
+        orden_compra_cliente=detalle.orden_compra_cliente if detalle else None,
         jefe_nombre=jefe_nombre,
     )
 
@@ -2201,16 +2378,9 @@ def crear_proyecto(
                    "Crea al menos un empleado antes de crear proyectos.",
         )
 
-    # Verificar orden de trabajo único dentro de la empresa
-    existe = db.query(Proyecto).filter(
-        Proyecto.empresa_id    == empresa_id,
-        Proyecto.orden_trabajo == body.orden_trabajo,
-    ).first()
-    if existe:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Ya existe un proyecto con la orden de trabajo '{body.orden_trabajo}'.",
-        )
+    # El N° de Orden de Trabajo lo asigna el sistema (correlativo por año, rellena
+    # huecos). Ignoramos cualquier valor enviado por el cliente.
+    orden_trabajo = _siguiente_orden_trabajo(db, empresa_id)
 
     proyecto_id = str(_uuid.uuid4())
     ahora = datetime.utcnow()
@@ -2219,7 +2389,7 @@ def crear_proyecto(
         id                  = proyecto_id,
         empresa_id          = empresa_id,
         cliente_id          = body.cliente_id,
-        orden_trabajo       = body.orden_trabajo,
+        orden_trabajo       = orden_trabajo,
         jefe_operaciones_id = jefe.id,
         nombre_proyecto     = body.nombre_proyecto,
         estado              = body.estado or "Pendiente",
@@ -2230,15 +2400,13 @@ def crear_proyecto(
     db.add(nuevo)
     db.flush()
 
-    # Detalle del proyecto (zona + alcance)
-    if body.zona_ejecucion or body.alcance:
-        det = ProyectoDetalle(
-            proyecto_id    = proyecto_id,
-            empresa_id     = empresa_id,
-            zona_ejecucion = body.zona_ejecucion or None,
-            alcance        = body.alcance or "",
-        )
-        db.add(det)
+    # Detalle del proyecto: solo el OC "marco" (alcance/zona/doc viven por servicio)
+    if body.orden_compra_cliente:
+        db.add(ProyectoDetalle(
+            proyecto_id          = proyecto_id,
+            empresa_id           = empresa_id,
+            orden_compra_cliente = body.orden_compra_cliente or None,
+        ))
 
     # Agregar al jefe como miembro del proyecto
     db.add(ProyectoMiembro(
@@ -2251,7 +2419,7 @@ def crear_proyecto(
     ))
 
     db.commit()
-    return {"ok": True, "id": proyecto_id}
+    return {"ok": True, "id": proyecto_id, "orden_trabajo": orden_trabajo}
 
 
 # ── PATCH /operaciones/proyecto/{proyecto_id} ─────────────────────────────────
@@ -2273,18 +2441,7 @@ def actualizar_proyecto(
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    # Verificar unicidad de orden_trabajo si cambió
-    if body.orden_trabajo and body.orden_trabajo != proyecto.orden_trabajo:
-        existe = db.query(Proyecto).filter(
-            Proyecto.empresa_id    == empresa_id,
-            Proyecto.orden_trabajo == body.orden_trabajo,
-            Proyecto.id            != proyecto_id,
-        ).first()
-        if existe:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Ya existe un proyecto con la orden de trabajo '{body.orden_trabajo}'.",
-            )
+    # El N° de Orden de Trabajo lo gestiona el sistema y NO es editable.
 
     # Verificar cliente si cambió
     if body.cliente_id and body.cliente_id != str(proyecto.cliente_id):
@@ -2300,8 +2457,6 @@ def actualizar_proyecto(
         proyecto.nombre_proyecto = body.nombre_proyecto
     if body.cliente_id is not None:
         proyecto.cliente_id = body.cliente_id
-    if body.orden_trabajo is not None:
-        proyecto.orden_trabajo = body.orden_trabajo
     if body.estado is not None:
         proyecto.estado = body.estado
     if body.fecha_inicio is not None:
@@ -2310,23 +2465,19 @@ def actualizar_proyecto(
         proyecto.fecha_fin_estimada = _parse_date(body.fecha_fin_estimada)
     proyecto.updated_at = datetime.utcnow()
 
-    # Actualizar o crear ProyectoDetalle
-    if body.zona_ejecucion is not None or body.alcance is not None:
+    # Actualizar o crear ProyectoDetalle (solo OC "marco")
+    if body.orden_compra_cliente is not None:
         det = db.query(ProyectoDetalle).filter(
             ProyectoDetalle.proyecto_id == proyecto_id
         ).first()
         if det:
-            if body.zona_ejecucion is not None:
-                det.zona_ejecucion = body.zona_ejecucion or None
-            if body.alcance is not None:
-                det.alcance = body.alcance or ""
+            det.orden_compra_cliente = body.orden_compra_cliente or None
             det.updated_at = datetime.utcnow()
         else:
             db.add(ProyectoDetalle(
-                proyecto_id    = proyecto_id,
-                empresa_id     = empresa_id,
-                zona_ejecucion = body.zona_ejecucion or None,
-                alcance        = body.alcance or "",
+                proyecto_id          = proyecto_id,
+                empresa_id           = empresa_id,
+                orden_compra_cliente = body.orden_compra_cliente or None,
             ))
 
     db.commit()
@@ -2360,6 +2511,32 @@ def crear_servicio(
     if not catalogo:
         raise HTTPException(status_code=404, detail="Catálogo de servicio no encontrado")
 
+    # ── Líder del Servicio: obligatorio y solo Jefes de Operaciones / Proyecto ──
+    lider_id = (body.lider_id or "").strip()
+    if not lider_id:
+        raise HTTPException(status_code=422, detail="El servicio requiere un Líder del Servicio.")
+    lider = db.query(Empleado).filter(
+        Empleado.id == lider_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not lider:
+        raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
+    if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
+        raise HTTPException(
+            status_code=422,
+            detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
+        )
+
+    # ── Técnico Líder (opcional): cualquier empleado activo de la empresa ──
+    responsable_id = (body.responsable_id or "").strip() or None
+    if responsable_id:
+        tecnico = db.query(Empleado).filter(
+            Empleado.id == responsable_id, Empleado.empresa_id == empresa_id
+        ).first()
+        if not tecnico:
+            raise HTTPException(status_code=404, detail="Técnico líder no encontrado.")
+
+    tipo_doc, nro_doc = _normalizar_documento(body.tipo_documento_cliente, body.nro_documento)
+
     # Calcular el siguiente número de orden
     max_orden = (
         db.query(func.max(ProyectoServicio.orden))
@@ -2372,18 +2549,24 @@ def crear_servicio(
 
     servicio_id = str(_uuid.uuid4())
     nuevo = ProyectoServicio(
-        id                   = servicio_id,
-        proyecto_id          = proyecto_id,
-        empresa_id           = empresa_id,
-        catalogo_servicio_id = body.catalogo_servicio_id,
-        nombre               = body.nombre,
-        descripcion          = body.descripcion or None,
-        estado               = body.estado or "Pendiente",
-        orden                = max_orden + 1,
-        fecha_programada     = _parse_date(body.fecha_programada),
-        fecha_inicio         = _parse_date(body.fecha_inicio),
-        fecha_fin            = _parse_date(body.fecha_fin),
-        created_at           = datetime.utcnow(),
+        id                     = servicio_id,
+        proyecto_id            = proyecto_id,
+        empresa_id             = empresa_id,
+        catalogo_servicio_id   = body.catalogo_servicio_id,
+        nombre                 = body.nombre,
+        descripcion            = body.descripcion or None,
+        estado                 = body.estado or "Pendiente",
+        orden                  = max_orden + 1,
+        lider_id               = lider_id,
+        responsable_id         = responsable_id,
+        zona_ejecucion         = body.zona_ejecucion or None,
+        alcance                = body.alcance or None,
+        tipo_documento_cliente = tipo_doc,
+        nro_documento          = nro_doc,
+        fecha_programada       = _parse_date(body.fecha_programada),
+        fecha_inicio           = _parse_date(body.fecha_inicio),
+        fecha_fin              = _parse_date(body.fecha_fin),
+        created_at             = datetime.utcnow(),
     )
     db.add(nuevo)
     db.commit()
@@ -2431,6 +2614,47 @@ def actualizar_servicio(
         ps.fecha_inicio = _parse_date(body.fecha_inicio)
     if body.fecha_fin is not None:
         ps.fecha_fin = _parse_date(body.fecha_fin)
+
+    # Líder del Servicio (si cambió): validar elegibilidad
+    if body.lider_id is not None:
+        lider_id = (body.lider_id or "").strip()
+        if not lider_id:
+            raise HTTPException(status_code=422, detail="El servicio requiere un Líder del Servicio.")
+        lider = db.query(Empleado).filter(
+            Empleado.id == lider_id, Empleado.empresa_id == empresa_id
+        ).first()
+        if not lider:
+            raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
+        if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
+            raise HTTPException(
+                status_code=422,
+                detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
+            )
+        ps.lider_id = lider_id
+
+    # Técnico Líder (opcional)
+    if body.responsable_id is not None:
+        responsable_id = (body.responsable_id or "").strip() or None
+        if responsable_id:
+            tecnico = db.query(Empleado).filter(
+                Empleado.id == responsable_id, Empleado.empresa_id == empresa_id
+            ).first()
+            if not tecnico:
+                raise HTTPException(status_code=404, detail="Técnico líder no encontrado.")
+        ps.responsable_id = responsable_id
+
+    if body.zona_ejecucion is not None:
+        ps.zona_ejecucion = body.zona_ejecucion or None
+    if body.alcance is not None:
+        ps.alcance = body.alcance or None
+    if body.tipo_documento_cliente is not None:
+        tipo_doc, nro_doc = _normalizar_documento(body.tipo_documento_cliente, body.nro_documento)
+        ps.tipo_documento_cliente = tipo_doc
+        ps.nro_documento = nro_doc
+    elif body.nro_documento is not None:
+        # Cambió solo el nro: respetar el tipo actual
+        _, nro_doc = _normalizar_documento(ps.tipo_documento_cliente, body.nro_documento)
+        ps.nro_documento = nro_doc
 
     ps.updated_at = datetime.utcnow()
     db.commit()
