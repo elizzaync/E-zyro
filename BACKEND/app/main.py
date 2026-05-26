@@ -111,6 +111,14 @@ def _run_migrations():
             "ALTER TABLE procedimiento "
             "ADD COLUMN IF NOT EXISTS fecha_inicio_tarea DATE"
         ))
+        # ── Notas por servicio 2026-05-26 ────────────────────────────────────
+        # Liga la nota (seguimiento) a un servicio concreto. NULL = nota antigua
+        # a nivel proyecto. create_all() no altera tablas existentes.
+        conn.execute(text(
+            "ALTER TABLE seguimiento_proyecto "
+            "ADD COLUMN IF NOT EXISTS proyecto_servicio_id VARCHAR(36) "
+            "REFERENCES proyecto_servicio(id)"
+        ))
         conn.execute(text("""
             DO $$
             BEGIN

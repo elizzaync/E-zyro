@@ -369,3 +369,16 @@ class AgregarNotaBody(BaseModel):
     descripcion: str
 
 
+class ActualizarNotaBody(BaseModel):
+    descripcion: str
+
+
+class NotaOut(BaseModel):
+    id: str
+    descripcion: str
+    autor: str
+    autor_id: Optional[str] = None      # empleado.id del autor (para permisos en UI)
+    fecha: str                          # dd/mm/yyyy HH:MM
+    puede_editar: bool = False          # el usuario actual puede editar/eliminar
+
+

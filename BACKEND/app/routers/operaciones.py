@@ -21,7 +21,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, aliased
 
-from ..core.security import verificar_token
+from ..core.security import verificar_token, es_superadmin
 from ..db.database import get_db
 import requests as _requests
 from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary
@@ -85,6 +85,8 @@ from ..schemas.operaciones import (
     ActualizarServicioBody,
     ConfigurarServicioBody,
     AgregarNotaBody,
+    ActualizarNotaBody,
+    NotaOut,
     ValidarHorarioBody,
     PersonaServicioOut,
     SiguienteOrdenOut,
@@ -2847,16 +2849,147 @@ def agregar_nota_servicio(
     pct = round(completos / total_procs * 100, 2) if total_procs else 0.0
 
     nota = SeguimientoProyecto(
-        id                = str(_uuid.uuid4()),
-        proyecto_id       = ps.proyecto_id,
-        empresa_id        = empresa_id,
-        porcentaje_avance = pct,
-        descripcion       = body.descripcion,
-        fecha             = date.today(),
-        registrado_por    = registrador.id,
-        created_at        = datetime.utcnow(),
+        id                   = str(_uuid.uuid4()),
+        proyecto_id          = ps.proyecto_id,
+        proyecto_servicio_id = servicio_id,
+        empresa_id           = empresa_id,
+        porcentaje_avance    = pct,
+        descripcion          = body.descripcion,
+        fecha                = date.today(),
+        registrado_por       = registrador.id,
+        created_at           = datetime.utcnow(),
     )
     db.add(nota)
     db.commit()
 
     return {"ok": True, "nota_id": nota.id}
+
+
+# ── Helpers de Notas ──────────────────────────────────────────────────────────
+
+def _nota_autor_nombre(db: Session, registrado_por) -> tuple[str, str | None]:
+    """Devuelve (nombre_completo, empleado_id) del autor de una nota."""
+    if not registrado_por:
+        return ("Sistema", None)
+    row = (
+        db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(Empleado.id == registrado_por)
+        .first()
+    )
+    if not row:
+        return ("Usuario", str(registrado_por))
+    nombre = f"{row.nombre or ''} {row.apellido or ''}".strip() or "Usuario"
+    return (nombre, str(row.id))
+
+
+def _puede_gestionar_nota(db: Session, nota: SeguimientoProyecto, payload: dict) -> bool:
+    """El autor, un admin/superadmin o el jefe del proyecto pueden editar/eliminar."""
+    if es_superadmin(payload):
+        return True
+    emp = _get_empleado_optional(db, payload["id"], payload["empresa_id"])
+    if not emp:
+        return False
+    if str(nota.registrado_por) == str(emp.id):
+        return True
+    proyecto = db.query(Proyecto).filter(Proyecto.id == nota.proyecto_id).first()
+    return bool(proyecto and str(proyecto.jefe_operaciones_id) == str(emp.id))
+
+
+# ── GET /operaciones/servicio/{servicio_id}/notas ─────────────────────────────
+
+@router.get("/servicio/{servicio_id}/notas", response_model=List[NotaOut])
+def listar_notas_servicio(
+    servicio_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Lista las notas/observaciones de un servicio (más recientes primero)."""
+    empresa_id = payload["empresa_id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    notas = (
+        db.query(SeguimientoProyecto)
+        .filter(
+            SeguimientoProyecto.proyecto_servicio_id == servicio_id,
+            SeguimientoProyecto.empresa_id           == empresa_id,
+        )
+        .order_by(SeguimientoProyecto.created_at.desc())
+        .all()
+    )
+
+    salida: list[NotaOut] = []
+    for n in notas:
+        autor, autor_id = _nota_autor_nombre(db, n.registrado_por)
+        try:
+            fecha_str = n.created_at.strftime("%d/%m/%Y %H:%M") if n.created_at else "—"
+        except Exception:
+            fecha_str = "—"
+        salida.append(NotaOut(
+            id=str(n.id),
+            descripcion=n.descripcion or "",
+            autor=autor,
+            autor_id=autor_id,
+            fecha=fecha_str,
+            puede_editar=_puede_gestionar_nota(db, n, payload),
+        ))
+    return salida
+
+
+# ── PUT /operaciones/nota/{nota_id} ───────────────────────────────────────────
+
+@router.put("/nota/{nota_id}")
+def actualizar_nota(
+    nota_id: str,
+    body:    ActualizarNotaBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Edita el texto de una nota. Solo autor / jefe / admin."""
+    empresa_id = payload["empresa_id"]
+    nota = db.query(SeguimientoProyecto).filter(
+        SeguimientoProyecto.id         == nota_id,
+        SeguimientoProyecto.empresa_id == empresa_id,
+    ).first()
+    if not nota:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    if not _puede_gestionar_nota(db, nota, payload):
+        raise HTTPException(status_code=403, detail="No puedes editar esta nota")
+
+    texto = (body.descripcion or "").strip()
+    if not texto:
+        raise HTTPException(status_code=422, detail="La nota no puede estar vacía")
+
+    nota.descripcion = texto
+    db.commit()
+    return {"ok": True, "id": str(nota.id)}
+
+
+# ── DELETE /operaciones/nota/{nota_id} ────────────────────────────────────────
+
+@router.delete("/nota/{nota_id}")
+def eliminar_nota(
+    nota_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Elimina una nota. Solo autor / jefe / admin."""
+    empresa_id = payload["empresa_id"]
+    nota = db.query(SeguimientoProyecto).filter(
+        SeguimientoProyecto.id         == nota_id,
+        SeguimientoProyecto.empresa_id == empresa_id,
+    ).first()
+    if not nota:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    if not _puede_gestionar_nota(db, nota, payload):
+        raise HTTPException(status_code=403, detail="No puedes eliminar esta nota")
+
+    db.delete(nota)
+    db.commit()
+    return {"ok": True}
