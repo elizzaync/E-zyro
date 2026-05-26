@@ -328,6 +328,42 @@
   color: var(--cpm-danger);
   font-weight: 600;
 }
+
+/* ── Orden de trabajo auto (read-only) ───────────────────────────────── */
+.label-auto {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--cpm-accent);
+  background: var(--cpm-accent-dim);
+  padding: 1px 7px;
+  border-radius: 999px;
+  margin-left: 6px;
+}
+
+.orden-auto-wrap { position: relative; display: flex; align-items: center; }
+
+.field-input--readonly {
+  background: var(--cpm-surface2);
+  color: var(--cpm-accent);
+  font-weight: 800;
+  letter-spacing: .5px;
+  cursor: default;
+  padding-right: 38px;
+}
+.field-input--readonly:focus {
+  border-color: var(--cpm-border);
+  box-shadow: none;
+}
+
+.orden-auto-icon {
+  position: absolute;
+  right: 12px;
+  width: 15px; height: 15px;
+  color: var(--cpm-dimmed);
+  pointer-events: none;
+}
 .field-warn {
   font-size: 11px;
   color: var(--cpm-warn);

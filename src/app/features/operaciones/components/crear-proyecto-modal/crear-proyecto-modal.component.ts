@@ -38,6 +38,7 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
   guardando  = false;
   errorMsg   = '';
   seccion: 1 | 2 = 1;
+  cargandoOrden = false;   // preview del N° de OT auto-generado
 
   form!: FormGroup;
 
@@ -47,6 +48,8 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
     this._cargarClientes();
     if (this.mode === 'editar' && this.proyectoId) {
       this._precargarProyecto();
+    } else {
+      this._cargarSiguienteOrden();
     }
   }
 
@@ -64,11 +67,23 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
     this.form = this.fb.group({
       nombre_proyecto:      ['', [Validators.required, Validators.maxLength(200)]],
       cliente_id:           ['', Validators.required],
-      orden_trabajo:        ['', [Validators.required, Validators.maxLength(50)]],
+      // El N° de OT lo asigna el sistema (correlativo por año). Solo lectura.
+      orden_trabajo:        [{ value: '', disabled: true }],
       estado:               ['Pendiente', Validators.required],
       fecha_inicio:         [''],
       fecha_fin_estimada:   [''],
       orden_compra_cliente: ['', Validators.maxLength(100)],   // OC "marco" opcional
+    });
+  }
+
+  private _cargarSiguienteOrden(): void {
+    this.cargandoOrden = true;
+    this.svc.getSiguienteOrdenTrabajo().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        this.form.get('orden_trabajo')?.setValue(res?.orden_trabajo ?? '');
+        this.cargandoOrden = false;
+      },
+      error: () => { this.cargandoOrden = false; }
     });
   }
 
@@ -97,7 +112,7 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
           estado:               raw.estado ?? 'Pendiente',
           fecha_inicio:         raw.fecha_inicio?.split('T')[0]       ?? '',
           fecha_fin_estimada:   raw.fecha_fin_estimada?.split('T')[0] ?? '',
-          orden_compra_cliente: raw.detalle?.orden_compra_cliente ?? '',
+          orden_compra_cliente: raw.orden_compra_cliente ?? '',
         });
       }
     });
@@ -116,11 +131,11 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // El N° de OT lo gestiona el sistema, no se envía desde el cliente.
     const v = this.form.value;
     const payload = {
       nombre_proyecto:      v.nombre_proyecto,
       cliente_id:           v.cliente_id,
-      orden_trabajo:        v.orden_trabajo,
       estado:               v.estado,
       fecha_inicio:         v.fecha_inicio || null,
       fecha_fin_estimada:   v.fecha_fin_estimada || null,
@@ -156,6 +171,6 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
 
   get seccion1Completa(): boolean {
     const c = this.form;
-    return !!(c.get('nombre_proyecto')?.valid && c.get('cliente_id')?.valid && c.get('orden_trabajo')?.valid);
+    return !!(c.get('nombre_proyecto')?.valid && c.get('cliente_id')?.valid);
   }
 }

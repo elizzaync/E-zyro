@@ -15,8 +15,8 @@ export interface CatalogoServicio {
   descripcion: string | null;
 }
 
-export interface ResponsableServicio {
-  id: string;          // usuario.id
+export interface PersonaServicio {
+  id: string;          // empleado.id
   nombre: string;
   apellido: string;
   cargo: string | null;
@@ -42,9 +42,11 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
   private svc      = inject(OperacionesService);
   private destroy$ = new Subject<void>();
 
-  catalogo: CatalogoServicio[]          = [];
-  responsables: ResponsableServicio[]   = [];
+  catalogo: CatalogoServicio[]      = [];
+  lideres: PersonaServicio[]        = [];
+  responsables: PersonaServicio[]   = [];
   cargandoCatalogo     = false;
+  cargandoLideres      = false;
   cargandoResponsables = false;
 
   guardando = false;
@@ -65,6 +67,7 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
     document.body.style.overflow = 'hidden';
     this._initForm();
     this._cargarCatalogo();
+    this._cargarLideres();
     this._cargarResponsables();
     if (this.mode === 'editar' && this.servicioId) {
       this._precargarServicio();
@@ -86,8 +89,9 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       catalogo_servicio_id:   ['', Validators.required],
       descripcion:            ['', Validators.maxLength(1000)],
 
-      // M-LEGACY: datos heredados de la tabla `servicios`
-      responsable_id:         [''],
+      // Liderazgo
+      lider_id:               ['', Validators.required],   // Líder del Servicio (obligatorio, solo jefes)
+      responsable_id:         [''],                         // Técnico Líder (opcional)
       zona_ejecucion:         ['', Validators.maxLength(255)],
       alcance:                ['', Validators.maxLength(4000)],
       tipo_documento_cliente: ['SIN_OC' as TipoDocumentoCliente],
@@ -129,18 +133,32 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
     });
   }
 
+  private _mapPersona = (u: any): PersonaServicio => ({
+    id:       u.id ?? u.usuario_id,
+    nombre:   u.nombre   ?? '',
+    apellido: u.apellido ?? '',
+    cargo:    u.cargo    ?? null,
+    foto_url: u.foto_url ?? null,
+  });
+
+  private _cargarLideres(): void {
+    this.cargandoLideres = true;
+    this.svc.getLideresServicio().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        const list = Array.isArray(res) ? res : (res?.lideres ?? []);
+        this.lideres = list.map(this._mapPersona);
+        this.cargandoLideres = false;
+      },
+      error: () => { this.cargandoLideres = false; }
+    });
+  }
+
   private _cargarResponsables(): void {
     this.cargandoResponsables = true;
     this.svc.getResponsablesServicio().pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
         const list = Array.isArray(res) ? res : (res?.responsables ?? []);
-        this.responsables = list.map((u: any) => ({
-          id:       u.id ?? u.usuario_id,
-          nombre:   u.nombre   ?? '',
-          apellido: u.apellido ?? '',
-          cargo:    u.cargo    ?? null,
-          foto_url: u.foto_url ?? null,
-        }));
+        this.responsables = list.map(this._mapPersona);
         this.cargandoResponsables = false;
       },
       error: () => { this.cargandoResponsables = false; }
@@ -156,6 +174,7 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
           catalogo_servicio_id:   raw.catalogo_servicio_id ?? '',
           descripcion:            raw.descripcion ?? '',
 
+          lider_id:               raw.lider_id ?? '',
           responsable_id:         raw.responsable_id ?? '',
           zona_ejecucion:         raw.zona_ejecucion ?? '',
           alcance:                raw.alcance ?? '',
@@ -182,6 +201,10 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
     }
 
     const v = this.form.getRawValue();
+    if (!v.lider_id) {
+      this.errorMsg = 'Selecciona el Líder del Servicio (Jefe de Operaciones o Proyecto).';
+      return;
+    }
     if (v.fecha_inicio && v.fecha_fin && v.fecha_fin < v.fecha_inicio) {
       this.errorMsg = 'La fecha de fin no puede ser anterior a la de inicio.';
       return;
@@ -197,6 +220,7 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       catalogo_servicio_id:   v.catalogo_servicio_id,
       descripcion:            v.descripcion || null,
 
+      lider_id:               v.lider_id,
       responsable_id:         v.responsable_id || null,
       zona_ejecucion:         v.zona_ejecucion || null,
       alcance:                v.alcance || null,

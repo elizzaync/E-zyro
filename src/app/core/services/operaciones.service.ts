@@ -159,11 +159,22 @@ export class OperacionesService {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // M-LEGACY: Responsables técnicos (usuarios) para el modal de servicio
-  // GET /operaciones/responsables-servicio → [{ id, nombre, apellido, cargo, foto_url }]
+  // Líderes y Técnicos del servicio (modal de servicio)
   // ─────────────────────────────────────────────────────────────────────
+
+  /** Empleados que pueden ser Líder del Servicio (Jefe de Operaciones / Proyecto). */
+  getLideresServicio(): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/lideres-servicio`);
+  }
+
+  /** Todos los empleados activos — candidatos a Técnico Líder (opcional). */
   getResponsablesServicio(): Observable<any> {
     return this.http.get(`${this.api}/operaciones/responsables-servicio`);
+  }
+
+  /** Próximo N° de Orden de Trabajo que asignará el sistema (preview read-only). */
+  getSiguienteOrdenTrabajo(): Observable<{ orden_trabajo: string }> {
+    return this.http.get<{ orden_trabajo: string }>(`${this.api}/operaciones/proyectos/siguiente-orden`);
   }
 
   // ─────────────────────────────────────────────────────────────────────
