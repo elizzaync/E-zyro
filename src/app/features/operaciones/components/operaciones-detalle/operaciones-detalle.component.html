@@ -21,47 +21,94 @@
 @if (!cargando && !error && servicio) {
 <div class="detalle-layout fade-in">
 
-  <header class="detalle-header">
-    <button class="btn-back" (click)="volver()">
+  <!-- ═══════════════ BARRA DE CABECERA COMPACTA ═══════════════ -->
+  <div class="svc-headbar">
+    <button class="hb-back" (click)="volver()" title="Volver a Operaciones">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="19" y1="12" x2="5" y2="12"></line>
         <polyline points="12 19 5 12 12 5"></polyline>
       </svg>
-      Volver a Operaciones
     </button>
 
-    <div class="header-info">
-      <div class="header-titles">
-        <h2 class="cliente-nombre">{{ servicio.cliente }}</h2>
-        <span class="badge-tipo">{{ servicio.tipoServicio }}</span>
-        <button class="btn-equipos-intervenidos" title="Ver equipos intervenidos en este servicio" (click)="irAEquiposIntervenidos()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          Equipos Intervenidos
-        </button>
+    <div class="hb-main">
+      <div class="hb-pills">
+        <span class="hb-pill hb-pill--brand">{{ servicio.tipoServicio }}</span>
+        <span class="hb-pill"
+              [class.hb-pill--warn]="servicio.estado === 'Pendiente'"
+              [class.hb-pill--info]="servicio.estado === 'En_Proceso'"
+              [class.hb-pill--ok]="servicio.estado === 'Completado'">
+          {{ estadoLabel(servicio.estado) | uppercase }}
+        </span>
+        <span class="hb-ref">Servicio · {{ servicio.id | slice:0:8 }}</span>
       </div>
-      <div class="header-meta">
-        <div class="meta-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-            <circle cx="12" cy="10" r="3"></circle>
-          </svg>
-          {{ servicio.ubicacion }}
-        </div>
-        <div class="meta-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          {{ servicio.fechaStr }} &bull; {{ servicio.horaStr }}
-        </div>
+      <h2 class="hb-title">{{ servicio.cliente }}</h2>
+      <div class="hb-meta">
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>{{ servicio.ubicacion }}</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>{{ servicio.fechaStr }} · {{ servicio.horaStr }}</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>{{ servicio.equipo.length }} técnico{{ servicio.equipo.length !== 1 ? 's' : '' }}</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73L13 2.27a2 2 0 0 0-2 0L4 6.27A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22V12"></path></svg>{{ totalMateriales }} material{{ totalMateriales !== 1 ? 'es' : '' }}</span>
       </div>
     </div>
-  </header>
+
+    <div class="hb-progress">
+      <span class="hb-progress-label">Progreso</span>
+      <span class="hb-progress-num">{{ servicio.progreso }}%</span>
+      <div class="hb-pbar"><i [style.width.%]="servicio.progreso"></i></div>
+    </div>
+
+    <div class="hb-actions">
+      <button class="hb-btn" (click)="irAEquiposIntervenidos()" title="Equipos intervenidos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        Equipos
+      </button>
+      <button class="hb-btn" (click)="abrirModalPreInforme()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+        Pre-Informe
+      </button>
+      @if (servicio.estado === 'Pendiente') {
+        <button class="hb-btn hb-btn--brand" [class.hb-btn--locked]="!puedeIniciar"
+                [attr.title]="puedeIniciar ? 'Iniciar el servicio' : ('Aún no se puede iniciar — falta: ' + motivosInicio.join(' · '))"
+                (click)="iniciarServicio()">
+          @if (puedeIniciar) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          }
+          Iniciar
+        </button>
+      } @else if (servicio.estado === 'En_Proceso' && soyJefeOperaciones) {
+        <button class="hb-btn hb-btn--brand" [disabled]="!todasCompletadas" (click)="finalizarServicio()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          Finalizar
+        </button>
+      } @else if (servicio.estado === 'Completado') {
+        <button class="hb-btn hb-btn--ok" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          Concluido
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ═══════════════ STEPPER DE FASES ═══════════════ -->
+  <div class="svc-stepper">
+    @for (f of fasesLista; track f.n; let last = $last) {
+      <div class="step" [class.done]="faseClase(f.n) === 'done'"
+                        [class.active]="faseClase(f.n) === 'active'"
+                        [class.muted]="faseClase(f.n) === 'muted'">
+        <span class="step-num">
+          @if (faseClase(f.n) === 'done') {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          } @else { {{ f.n }} }
+        </span>
+        <div class="step-text">
+          <span class="step-name">{{ f.nombre }}</span>
+          <span class="step-sub">{{ f.sub }}</span>
+        </div>
+        @if (!last) { <span class="step-line" [class.filled]="faseClase(f.n) === 'done'"></span> }
+      </div>
+    }
+  </div>
 
   @if (servicio.estado === 'Completado') {
   <div class="banner-completado">
@@ -78,10 +125,10 @@
   </div>
   }
 
-  <div class="detalle-grid">
+  <div class="svc-grid">
 
-    <!-- ═══════════════ COLUMNA IZQUIERDA ═══════════════ -->
-    <div class="col-left">
+    <!-- ═══════════════ COLUMNA IZQUIERDA: Equipo + Materiales ═══════════════ -->
+    <div class="svc-col svc-col-left">
 
       <section class="section-card">
         <h3 class="section-title">
@@ -111,67 +158,6 @@
               <span class="miembro-rol">{{ miembro.rolProyecto }}</span>
               <span class="miembro-cargo">{{ miembro.cargo }}</span>
             </div>
-          </div>
-          }
-        </div>
-        }
-      </section>
-
-      <section class="section-card">
-        <h3 class="section-title">Descripción del Problema</h3>
-        <p class="desc-text">{{ servicio.descripcion || 'Sin descripción.' }}</p>
-      </section>
-
-      <section class="section-card">
-        <div class="tareas-header">
-          <h3 class="section-title mb-0">Tareas del Servicio</h3>
-          <div class="progreso-badge">
-            <span class="progreso-num">{{ servicio.progreso }}%</span>
-            <span class="progreso-label">completado</span>
-          </div>
-        </div>
-
-        <div class="progreso-bar">
-          <div class="progreso-fill" [style.width.%]="servicio.progreso"
-            [class.progreso-full]="servicio.progreso === 100"></div>
-        </div>
-
-        @if (servicio.procedimientos.length === 0) {
-        <p class="empty-msg">Sin tareas registradas para este servicio.</p>
-        } @else {
-        <div class="lista-tareas">
-          @for (proc of servicio.procedimientos; track proc.id) {
-          <div class="tarea-item" [class.completada]="proc.estado === 'completado'">
-            <button class="tarea-check" (click)="toggleProcedimiento(proc)"
-              [disabled]="servicio.estado === 'Completado'" [attr.aria-label]="'Toggle ' + proc.nombre">
-              @if (proc.estado === 'completado') {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-              }
-            </button>
-            <div class="tarea-body">
-              <span class="tarea-desc">{{ proc.orden }}. {{ proc.nombre }}</span>
-              @if (proc.evidencias.length > 0) {
-              <span class="badge-ev">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
-                </svg>
-                {{ proc.evidencias.length }}
-              </span>
-              }
-            </div>
-            <button class="btn-evidencia" (click)="abrirModalEvidencia(proc)"
-              [disabled]="servicio.estado === 'Completado'" title="Agregar evidencia">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
-                <line x1="12" y1="11" x2="12" y2="15"></line>
-                <line x1="10" y1="13" x2="14" y2="13"></line>
-              </svg>
-              Evidencia
-            </button>
           </div>
           }
         </div>
@@ -374,30 +360,73 @@
 
     </div>
 
-    <!-- ═══════════════ COLUMNA DERECHA ═══════════════ -->
-    <div class="col-right">
+    <!-- ═══════════════ COLUMNA CENTRAL: Tareas (timeline) + Evidencia ═══════════════ -->
+    <div class="svc-col svc-col-center">
 
-      <section class="section-card">
-        <h3 class="section-title">Estado del Servicio</h3>
-        <div class="badge-estado-srv" [class.srv-pendiente]="servicio.estado === 'Pendiente'"
-          [class.srv-en-proceso]="servicio.estado === 'En_Proceso'"
-          [class.srv-completado]="servicio.estado === 'Completado'">
-          @if (servicio.estado === 'Pendiente') {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          } @else if (servicio.estado === 'En_Proceso') {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-          } @else {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+      <section class="section-card tareas-card">
+        <div class="tk-head">
+          <h3 class="section-title mb-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Tareas del servicio
+          </h3>
+          <span class="tk-count">{{ tareasCompletadas }} / {{ servicio.procedimientos.length }} completadas</span>
+        </div>
+
+        <!-- Descripción del problema (embebida) -->
+        <div class="tk-desc">
+          <span class="tk-desc-label">Descripción del problema</span>
+          <p>{{ servicio.descripcion || 'Sin descripción registrada.' }}</p>
+        </div>
+
+        @if (servicio.procedimientos.length === 0) {
+        <p class="empty-msg">Sin tareas registradas para este servicio.</p>
+        } @else {
+        <div class="timeline">
+          @for (proc of servicio.procedimientos; track proc.id) {
+          <div class="tl-item" [class.done]="proc.estado === 'completado'">
+            <button class="tl-node" (click)="toggleProcedimiento(proc)"
+              [disabled]="servicio.estado === 'Completado'" [attr.aria-label]="'Toggle ' + proc.nombre">
+              @if (proc.estado === 'completado') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              }
+            </button>
+            <div class="tl-card">
+              <div class="tl-info">
+                <div class="tl-name">{{ proc.orden }}. {{ proc.nombre }}</div>
+                <div class="tl-sub">
+                  @if (proc.evidencias.length > 0) {
+                    {{ proc.evidencias.length }} evidencia{{ proc.evidencias.length !== 1 ? 's' : '' }}
+                  } @else { Sin evidencias }
+                </div>
+              </div>
+              <span class="tl-status"
+                    [class.tl-pend]="proc.estado === 'pendiente'"
+                    [class.tl-proc]="proc.estado === 'en_proceso'"
+                    [class.tl-ok]="proc.estado === 'completado'"
+                    [class.tl-block]="proc.estado === 'bloqueado'">
+                {{ procEstadoLabel(proc.estado) }}
+              </span>
+              <button class="tl-ev" (click)="abrirModalEvidencia(proc)"
+                [disabled]="servicio.estado === 'Completado'" title="Agregar evidencia">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="4"></circle>
+                  <line x1="12" y1="11" x2="12" y2="15"></line>
+                  <line x1="10" y1="13" x2="14" y2="13"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
           }
-          {{ servicio.estado === 'En_Proceso' ? 'En Proceso' : servicio.estado }}
+        </div>
+        }
+
+        <div class="tk-evfoot">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+          </svg>
+          <span>Las evidencias se añaden desde cada tarea. <strong>{{ todasLasEvidencias.length }} foto{{ todasLasEvidencias.length !== 1 ? 's' : '' }}</strong> hasta el momento.</span>
         </div>
       </section>
 
@@ -434,6 +463,11 @@
         </div>
         }
       </section>
+
+    </div>
+
+    <!-- ═══════════════ COLUMNA DERECHA: Chat · Comunicados · Notas ═══════════════ -->
+    <div class="svc-col svc-col-right">
 
       <!-- ── CHAT EN TIEMPO REAL (embebido) ── -->
       <section class="section-card inline-chat-container">

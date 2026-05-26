@@ -44,6 +44,7 @@ export interface Procedimiento {
   orden: number;
   estado: 'pendiente' | 'en_proceso' | 'completado' | 'bloqueado';
   evidencias: EvidenciaProcedimiento[];
+  responsableId?: string | null;
 }
 
 export interface ItemMaterial {
@@ -274,6 +275,111 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 
   irAEquiposIntervenidos(): void {
     this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos']);
+  }
+
+  // ==========================================================
+  // STEPPER DE FASES + ACCIÓN DE INICIO
+  // ==========================================================
+  fasesLista = [
+    { n: 1, nombre: 'Preparación', sub: 'Equipo y materiales' },
+    { n: 2, nombre: 'En sitio',    sub: 'Inspección y medición' },
+    { n: 3, nombre: 'Ejecución',   sub: 'Aplicación y pruebas' },
+    { n: 4, nombre: 'Cierre',      sub: 'Informe y firma' },
+  ];
+
+  /** Paso activo (1-4) derivado del estado + progreso del servicio. */
+  get pasoFase(): number {
+    if (!this.servicio) return 1;
+    switch (this.servicio.estado) {
+      case 'Pendiente':  return 1;
+      case 'En_Proceso': return this.servicio.progreso >= 50 ? 3 : 2;
+      case 'Completado': return 4;
+      default:           return 1;
+    }
+  }
+
+  faseClase(n: number): 'done' | 'active' | 'muted' {
+    const p = this.pasoFase;
+    if (this.servicio?.estado === 'Completado') return 'done';
+    if (n < p) return 'done';
+    if (n === p) return 'active';
+    return 'muted';
+  }
+
+  get totalMateriales(): number {
+    if (!this.servicio) return 0;
+    return this.servicio.materialesAsignados.length + this.servicio.materialesSolicitados.length;
+  }
+
+  get tareasCompletadas(): number {
+    return this.servicio?.procedimientos.filter(p => p.estado === 'completado').length ?? 0;
+  }
+
+  /** Materiales/herramientas aún no entregados (pendientes o solo aprobados). */
+  get materialesPendientesEntrega(): number {
+    if (!this.servicio) return 0;
+    const todos = [...this.servicio.materialesAsignados, ...this.servicio.materialesSolicitados];
+    return todos.filter(m => m.estadoReq === 'pendiente' || m.estadoReq === 'aprobado').length;
+  }
+
+  /** Requisitos que faltan para poder iniciar el servicio. */
+  get motivosInicio(): string[] {
+    const m: string[] = [];
+    if (!this.servicio) return m;
+    if (this.servicio.equipo.length === 0) {
+      m.push('asignar el equipo técnico');
+    }
+    if (this.servicio.procedimientos.length === 0) {
+      m.push('repartir las tareas del servicio');
+    } else if (this.servicio.procedimientos.some(p => !p.responsableId)) {
+      m.push('asignar un responsable a todas las tareas');
+    }
+    if (this.materialesBorrador.length > 0) {
+      m.push('enviar el borrador de materiales a Logística');
+    }
+    if (this.materialesPendientesEntrega > 0) {
+      m.push(`esperar la entrega de ${this.materialesPendientesEntrega} material(es)/herramienta(s)`);
+    }
+    return m;
+  }
+
+  get puedeIniciar(): boolean {
+    return this.motivosInicio.length === 0;
+  }
+
+  /** Inicia el servicio (Pendiente → En_Proceso) solo si todo está listo. */
+  iniciarServicio(): void {
+    if (!this.servicio || this.servicio.estado !== 'Pendiente') return;
+
+    const motivos = this.motivosInicio;
+    if (motivos.length > 0) {
+      this.toast.mostrar(
+        'No puedes iniciar el servicio aún. Falta: ' + motivos.join(' · ') + '.',
+        'error'
+      );
+      return;
+    }
+
+    this.svc.actualizarEstado(this.servicio.id, 'En_Proceso').subscribe({
+      next: () => {
+        this.servicio!.estado = 'En_Proceso';
+        this.toast.mostrar('Servicio iniciado', 'success');
+      },
+      error: (err: any) => this.toast.mostrar(err?.error?.detail ?? 'No se pudo iniciar el servicio.', 'error')
+    });
+  }
+
+  estadoLabel(estado: string): string {
+    const m: Record<string, string> = { 'En_Proceso': 'En Proceso' };
+    return m[estado] ?? estado;
+  }
+
+  procEstadoLabel(estado: string): string {
+    const m: Record<string, string> = {
+      'pendiente': 'No iniciado', 'en_proceso': 'En proceso',
+      'completado': 'Completado', 'bloqueado': 'Bloqueado',
+    };
+    return m[estado] ?? estado;
   }
 
   // ==========================================================
@@ -602,11 +708,12 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         rolProyecto: m.rol_proyecto ?? 'Técnico'
       })),
       procedimientos: (raw.procedimientos ?? []).map((p: any) => ({
-        id:          p.id,
-        nombre:      p.nombre,
-        descripcion: p.descripcion,
-        orden:       p.orden,
-        estado:      p.estado,
+        id:           p.id,
+        nombre:       p.nombre,
+        descripcion:  p.descripcion,
+        orden:        p.orden,
+        estado:       p.estado,
+        responsableId: p.responsable_id ?? null,
         evidencias:  (p.evidencias ?? []).map((e: any) => ({
           id:            e.id,
           urlCloudinary: e.url_cloudinary,
