@@ -18,11 +18,8 @@ from ..db.database import get_db
 from ..models.material import Material, Stock
 from ..models.categoria_material import CategoriaMaterial
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
-<<<<<<< HEAD
-=======
 from ..models.requerimiento_entrega import RequerimientoEntrega
 from ..models.movimiento_inventario import MovimientoInventario
->>>>>>> a8a495eb639b3585dc6b24c39e4fc63d6d286f91
 from ..models.empleado import Empleado
 from ..models.proyecto import Proyecto
 
@@ -36,8 +33,6 @@ from ..schemas.requerimientos import (
     CategoriaOut,
     AlmacenOut,
     CrearMaterialBody,
-<<<<<<< HEAD
-=======
     InventarioResumenOut,
     MaterialBajoStockOut,
     SolicitudGestionOut,
@@ -47,7 +42,6 @@ from ..schemas.requerimientos import (
     EditarMaterialBody,
     CategoriaBody,
     TransferenciaBody,
->>>>>>> a8a495eb639b3585dc6b24c39e4fc63d6d286f91
 )
 import json as _json
 
@@ -141,8 +135,6 @@ def get_catalogo(
     ]
 
 
-<<<<<<< HEAD
-=======
 # ── GET /requerimientos/inventario/resumen ────────────────────────────────────
 # Panel del encargado de logística: KPIs + alertas de bajo stock.
 
@@ -708,7 +700,6 @@ def transferir_stock(
     return {"ok": True}
 
 
->>>>>>> a8a495eb639b3585dc6b24c39e4fc63d6d286f91
 # ── GET /requerimientos/mis-solicitudes ───────────────────────────────────────
 
 @router.get("/mis-solicitudes", response_model=List[MiSolicitudOut])

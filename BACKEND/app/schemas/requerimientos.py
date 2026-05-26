@@ -15,8 +15,6 @@ class CatalogoItemOut(BaseModel):
     imagen_url: Optional[str] = None
 
 
-<<<<<<< HEAD
-=======
 # ── Panel del encargado de logística ──────────────────────────────
 
 class MaterialBajoStockOut(BaseModel):
@@ -102,7 +100,6 @@ class TransferenciaBody(BaseModel):
     motivo: Optional[str] = None
 
 
->>>>>>> a8a495eb639b3585dc6b24c39e4fc63d6d286f91
 class SolicitudDetalleOut(BaseModel):
     id: str
     material_id: Optional[str] = None
