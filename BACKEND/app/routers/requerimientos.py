@@ -18,9 +18,7 @@ from ..db.database import get_db
 from ..models.material import Material, Stock
 from ..models.categoria_material import CategoriaMaterial
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
-from ..models.requerimiento_entrega import RequerimientoEntrega
 from ..models.empleado import Empleado
-from ..models.usuario import Usuario
 from ..models.proyecto import Proyecto
 
 from ..models.almacen import Almacen
@@ -33,10 +31,6 @@ from ..schemas.requerimientos import (
     CategoriaOut,
     AlmacenOut,
     CrearMaterialBody,
-    InventarioResumenOut,
-    MaterialBajoStockOut,
-    SolicitudGestionOut,
-    GestionarSolicitudBody,
 )
 import json as _json
 
@@ -74,7 +68,6 @@ def get_catalogo(
         db.query(
             Stock.material_id,
             func.sum(Stock.cantidad).label("total"),
-            func.sum(Stock.cantidad_minima).label("minimo"),
         )
         .filter(Stock.empresa_id == empresa_id)
         .group_by(Stock.material_id)
@@ -90,7 +83,6 @@ def get_catalogo(
             Material.descripcion,
             CategoriaMaterial.nombre.label("categoria"),
             func.coalesce(stock_sq.c.total, 0).label("stock"),
-            func.coalesce(stock_sq.c.minimo, 0).label("minimo"),
         )
         .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
         .outerjoin(CategoriaMaterial, CategoriaMaterial.id == Material.categoria_id)
@@ -124,314 +116,12 @@ def get_catalogo(
             codigo=r.codigo,
             unidad=r.unidad,
             stock=int(r.stock),
-            stock_minimo=int(r.minimo or 0),
             categoria=r.categoria,
             descripcion=r.descripcion,
             imagen_url=None,
         )
         for r in rows
     ]
-
-
-# ── GET /requerimientos/inventario/resumen ────────────────────────────────────
-# Panel del encargado de logística: KPIs + alertas de bajo stock.
-
-@router.get("/inventario/resumen", response_model=InventarioResumenOut)
-def get_inventario_resumen(
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-
-    stock_sq = (
-        db.query(
-            Stock.material_id,
-            func.sum(Stock.cantidad).label("total"),
-            func.sum(Stock.cantidad_minima).label("minimo"),
-        )
-        .filter(Stock.empresa_id == empresa_id)
-        .group_by(Stock.material_id)
-        .subquery()
-    )
-
-    rows = (
-        db.query(
-            Material.id,
-            Material.nombre,
-            Material.unidad,
-            CategoriaMaterial.nombre.label("categoria"),
-            func.coalesce(stock_sq.c.total, 0).label("stock"),
-            func.coalesce(stock_sq.c.minimo, 0).label("minimo"),
-        )
-        .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
-        .outerjoin(CategoriaMaterial, CategoriaMaterial.id == Material.categoria_id)
-        .filter(
-            Material.empresa_id == empresa_id,
-            Material.activo == True,
-        )
-        .all()
-    )
-
-    total_items = len(rows)
-    sin_stock = sum(1 for r in rows if int(r.stock) == 0)
-    bajo = [
-        r for r in rows
-        if int(r.minimo or 0) > 0 and int(r.stock) <= int(r.minimo)
-    ]
-    bajo.sort(key=lambda r: (int(r.stock) - int(r.minimo)))
-
-    return InventarioResumenOut(
-        total_items=total_items,
-        bajo_stock=len(bajo),
-        sin_stock=sin_stock,
-        items_bajo_stock=[
-            MaterialBajoStockOut(
-                id=str(r.id),
-                nombre=r.nombre or "",
-                unidad=r.unidad or "und",
-                categoria=r.categoria,
-                stock=int(r.stock),
-                minimo=int(r.minimo or 0),
-            )
-            for r in bajo[:30]
-        ],
-    )
-
-
-# ── Helpers de gestión de logística ───────────────────────────────────────────
-
-def _puede_gestionar_logistica(payload: dict) -> bool:
-    """Encargado de logística o administrador (coherente con canGestInventario)."""
-    if es_superadmin(payload):
-        return True
-    rol = (payload.get("rol") or "").lower().strip()
-    return "logist" in rol
-
-
-def _build_solicitud_items(db: Session, req_ids: list[str]) -> dict[str, list]:
-    """Devuelve {requerimiento_id: [SolicitudDetalleOut, ...]}."""
-    rows = (
-        db.query(
-            RequerimientoDetalle,
-            Material.nombre.label("mat_nombre"),
-            Material.unidad.label("mat_unidad"),
-        )
-        .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
-        .filter(RequerimientoDetalle.requerimiento_id.in_(req_ids))
-        .all()
-    )
-    by_req: dict[str, list] = {}
-    for row in rows:
-        d = row.RequerimientoDetalle
-        by_req.setdefault(d.requerimiento_id, []).append(
-            SolicitudDetalleOut(
-                id=str(d.id),
-                material_id=str(d.material_id) if d.material_id else None,
-                nombre=row.mat_nombre or d.nombre_libre or "",
-                unidad=row.mat_unidad or d.unidad_libre or "",
-                cantidad=d.cantidad or 0,
-                cantidad_aprobada=d.cantidad_aprobada,
-                nombre_libre=d.nombre_libre,
-                unidad_libre=d.unidad_libre,
-                especificacion=d.especificacion,
-            )
-        )
-    return by_req
-
-
-# ── GET /requerimientos/pendientes ────────────────────────────────────────────
-# Bandeja del encargado: solicitudes de toda la empresa (excluye borradores).
-
-@router.get("/pendientes", response_model=List[SolicitudGestionOut])
-def get_solicitudes_pendientes(
-    estado:  str = "",   # filtro opcional: pendiente | aprobado | rechazado | entregado
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-    if not _puede_gestionar_logistica(payload):
-        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
-
-    q = (
-        db.query(Requerimiento)
-        .filter(
-            Requerimiento.empresa_id == empresa_id,
-            Requerimiento.tipo       == "material",
-            Requerimiento.estado     != "borrador",
-        )
-    )
-    if estado:
-        q = q.filter(Requerimiento.estado == estado)
-
-    reqs = q.order_by(Requerimiento.created_at.desc()).all()
-    if not reqs:
-        return []
-
-    req_ids      = [r.id for r in reqs]
-    proyecto_ids = list({r.proyecto_id for r in reqs})
-    solicitante_ids = list({r.solicitante_id for r in reqs if r.solicitante_id})
-
-    proyectos_map = {
-        p.id: p for p in db.query(Proyecto).filter(Proyecto.id.in_(proyecto_ids)).all()
-    }
-
-    # Nombre del solicitante (empleado → usuario)
-    solicitante_map: dict[str, str] = {}
-    if solicitante_ids:
-        rows = (
-            db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
-            .join(Usuario, Usuario.id == Empleado.usuario_id)
-            .filter(Empleado.id.in_(solicitante_ids))
-            .all()
-        )
-        solicitante_map = {
-            r.id: f"{r.nombre or ''} {r.apellido or ''}".strip() or "Sin nombre"
-            for r in rows
-        }
-
-    items_by_req = _build_solicitud_items(db, req_ids)
-
-    result = []
-    for req in reqs:
-        proyecto = proyectos_map.get(req.proyecto_id)
-        result.append(SolicitudGestionOut(
-            id=str(req.id),
-            estado=req.estado or "pendiente",
-            fecha=req.fecha.strftime("%d %b %Y") if req.fecha else "",
-            observacion=req.observacion,
-            observacion_logistico=req.observacion_logistico,
-            proyecto_nombre=(proyecto.nombre_proyecto if proyecto else "Proyecto") or "Proyecto",
-            solicitante_nombre=solicitante_map.get(req.solicitante_id, "Sin nombre"),
-            items=items_by_req.get(req.id, []),
-        ))
-    return result
-
-
-# ── PATCH /requerimientos/{req_id}/gestionar ──────────────────────────────────
-# Aprobar o rechazar una solicitud.
-
-@router.patch("/{req_id}/gestionar")
-def gestionar_solicitud(
-    req_id:  str,
-    body:    GestionarSolicitudBody,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-    usuario_id = payload["id"]
-    if not _puede_gestionar_logistica(payload):
-        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
-
-    accion = (body.accion or "").lower().strip()
-    if accion not in ("aprobar", "rechazar"):
-        raise HTTPException(status_code=422, detail="Acción inválida")
-
-    req = db.query(Requerimiento).filter(
-        Requerimiento.id         == req_id,
-        Requerimiento.empresa_id == empresa_id,
-    ).first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    if req.estado in ("entregado", "rechazado"):
-        raise HTTPException(status_code=409, detail="La solicitud ya fue finalizada")
-
-    empleado = db.query(Empleado).filter(
-        Empleado.usuario_id == usuario_id,
-        Empleado.empresa_id == empresa_id,
-    ).first()
-
-    if accion == "aprobar":
-        req.estado = "aprobado"
-        # Aprobar la cantidad solicitada por defecto
-        for d in db.query(RequerimientoDetalle).filter(
-            RequerimientoDetalle.requerimiento_id == req.id
-        ).all():
-            if d.cantidad_aprobada is None:
-                d.cantidad_aprobada = d.cantidad
-    else:
-        req.estado = "rechazado"
-
-    if body.observacion_logistico:
-        req.observacion_logistico = body.observacion_logistico
-    if empleado:
-        req.aprobado_por = empleado.id
-    req.updated_at = datetime.utcnow()
-    db.commit()
-    return {"ok": True, "estado": req.estado}
-
-
-# ── POST /requerimientos/{req_id}/entregar ────────────────────────────────────
-# Marca como entregada: descuenta stock y registra la entrega.
-
-@router.post("/{req_id}/entregar")
-def entregar_solicitud(
-    req_id:  str,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-    usuario_id = payload["id"]
-    if not _puede_gestionar_logistica(payload):
-        raise HTTPException(status_code=403, detail="No tienes acceso a la gestión de logística")
-
-    req = db.query(Requerimiento).filter(
-        Requerimiento.id         == req_id,
-        Requerimiento.empresa_id == empresa_id,
-    ).first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    if req.estado == "entregado":
-        raise HTTPException(status_code=409, detail="La solicitud ya fue entregada")
-    if req.estado == "rechazado":
-        raise HTTPException(status_code=409, detail="La solicitud fue rechazada")
-
-    detalles = db.query(RequerimientoDetalle).filter(
-        RequerimientoDetalle.requerimiento_id == req.id
-    ).all()
-
-    # Descontar stock de cada material (del almacén con mayor cantidad disponible)
-    for d in detalles:
-        if not d.material_id:
-            continue  # compra externa, sin stock interno
-        pedida = d.cantidad_aprobada if d.cantidad_aprobada is not None else d.cantidad
-        restante = pedida or 0
-        stocks = (
-            db.query(Stock)
-            .filter(
-                Stock.material_id == d.material_id,
-                Stock.empresa_id  == empresa_id,
-            )
-            .order_by(Stock.cantidad.desc())
-            .all()
-        )
-        for st in stocks:
-            if restante <= 0:
-                break
-            quita = min(st.cantidad, restante)
-            st.cantidad -= quita
-            st.updated_at = datetime.utcnow()
-            restante -= quita
-
-    empleado = db.query(Empleado).filter(
-        Empleado.usuario_id == usuario_id,
-        Empleado.empresa_id == empresa_id,
-    ).first()
-
-    entregado_por = empleado.id if empleado else None
-    recibido_por  = req.solicitante_id or entregado_por
-    if entregado_por and recibido_por:
-        db.add(RequerimientoEntrega(
-            requerimiento_id=req.id,
-            empresa_id=empresa_id,
-            entregado_por_id=entregado_por,
-            recibido_por_id=recibido_por,
-            fecha_entrega=datetime.utcnow(),
-        ))
-
-    req.estado = "entregado"
-    req.updated_at = datetime.utcnow()
-    db.commit()
-    return {"ok": True, "estado": "entregado"}
 
 
 # ── GET /requerimientos/mis-solicitudes ───────────────────────────────────────

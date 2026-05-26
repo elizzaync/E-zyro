@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from typing import List
 
-from sqlalchemy import func, or_, case
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, aliased
 
@@ -266,28 +266,6 @@ def get_servicios_proyecto(
         .all()
     )
 
-    # Conteo de procedimientos por servicio (para el stepper de progreso en cada card)
-    proc_map: dict[str, tuple[int, int]] = {}
-    if servicios:
-        proc_rows = (
-            db.query(
-                Procedimiento.proyecto_servicio_id.label("svc_id"),
-                func.count(Procedimiento.id).label("total"),
-                func.sum(
-                    case((Procedimiento.estado == "completado", 1), else_=0)
-                ).label("completados"),
-            )
-            .filter(
-                Procedimiento.proyecto_servicio_id.in_([s.id for s in servicios])
-            )
-            .group_by(Procedimiento.proyecto_servicio_id)
-            .all()
-        )
-        proc_map = {
-            r.svc_id: (int(r.total or 0), int(r.completados or 0))
-            for r in proc_rows
-        }
-
     hoy = date.today()
     result = []
     for ps in servicios:
@@ -298,8 +276,6 @@ def get_servicios_proyecto(
         else:
             estado_color = "amarillo"
 
-        total_proc, comp_proc = proc_map.get(ps.id, (0, 0))
-
         result.append(ProyectoServicioListOut(
             id=str(ps.id),
             nombre=ps.nombre or "",
@@ -307,11 +283,8 @@ def get_servicios_proyecto(
             estado=ps.estado or "Pendiente",
             orden=ps.orden or 1,
             fecha_programada=ps.fecha_programada.strftime("%d %b %Y") if ps.fecha_programada else None,
-            fecha_inicio=ps.fecha_inicio.isoformat() if ps.fecha_inicio else None,
-            fecha_fin=ps.fecha_fin.isoformat() if ps.fecha_fin else None,
+            fecha_fin=ps.fecha_fin.strftime("%d %b %Y") if ps.fecha_fin else None,
             estado_color=estado_color,
-            total_procedimientos=total_proc,
-            procedimientos_completados=comp_proc,
         ))
 
     return result

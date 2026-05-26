@@ -735,18 +735,16 @@ CREATE TABLE proyecto (
     CONSTRAINT chk_proyecto_estado CHECK (estado IN ('Pendiente','En_Proceso','En_Pausa','Completado','Cancelado'))
 );
 
+-- M-LEGACY: limpio. El alcance, OC/Proforma, conformidad y acta ahora viven en
+-- proyecto_servicio (cada servicio del legacy llevaba su propia documentación).
+-- zona_ejecucion también se mueve a proyecto_servicio: en el legacy era id_zona
+-- por servicio y un mismo proyecto puede atender varias zonas. Solo queda aquí
+-- el OC "marco" del proyecto (cuando existe un único contrato comercial).
 CREATE TABLE proyecto_detalle (
-    proyecto_id            UUID PRIMARY KEY,
-    empresa_id             UUID         NOT NULL,
-    zona_ejecucion         VARCHAR(255),
-    alcance                TEXT         NOT NULL,
-    orden_compra_cliente   VARCHAR(100),
-    tipo_documento_cliente VARCHAR(50),
-    nro_documento          VARCHAR(100),
-    nro_conformidad        VARCHAR(100) DEFAULT 'En Espera',
-    acta_url               VARCHAR(500),
-    public_id_cloudinary   VARCHAR(255),
-    updated_at             TIMESTAMP
+    proyecto_id          UUID PRIMARY KEY,
+    empresa_id           UUID NOT NULL,
+    orden_compra_cliente VARCHAR(100),
+    updated_at           TIMESTAMP
 );
 
 -- G2: Relación muchos-a-muchos: un proyecto puede tener varios grupos de trabajo
@@ -771,25 +769,40 @@ CREATE TABLE fase (
     CONSTRAINT chk_fase_estado CHECK (estado IN ('pendiente','en_proceso','completada','cancelada'))
 );
 
--- C1 + C2: Capa de servicios dentro del proyecto
--- Ej: "Mantenimiento de POZO", "Instalación de Pararrayos", "Instalación CCTV"
+-- C1 + C2: Capa de servicios dentro del proyecto.
+-- Ej: "Mantenimiento de POZO", "Instalación de Pararrayos", "Instalación CCTV".
+--
+-- M-LEGACY (migración tabla `servicios`):
+--   * alcance / tipo_documento_cliente / nro_documento → eran por-servicio en el legacy
+--   * nro_conformidad / acta_url / public_id_cloudinary → la conformidad se emite por servicio ejecutado
+--   * zona_ejecucion (legacy id_zona) → cada servicio puede atender una zona distinta
+--   * responsable_id → mapea el antiguo id_usuario (FK directa a usuario)
 CREATE TABLE proyecto_servicio (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    proyecto_id         UUID         NOT NULL,
-    empresa_id          UUID         NOT NULL,
-    catalogo_servicio_id UUID        NOT NULL,
-    fase_id             UUID,
-    nombre              VARCHAR(200) NOT NULL,
-    descripcion         TEXT,
-    responsable_id      UUID,
-    orden               INT          NOT NULL DEFAULT 1,
-    estado              VARCHAR(30)  NOT NULL DEFAULT 'Pendiente',
-    fecha_programada    DATE,
-    fecha_inicio        DATE,
-    fecha_fin           DATE,
-    created_at          TIMESTAMP    NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMP,
-    CONSTRAINT chk_ps_estado CHECK (estado IN ('Pendiente','En_Proceso','Completado','Cancelado'))
+    id                     UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    proyecto_id            UUID         NOT NULL,
+    empresa_id             UUID         NOT NULL,
+    catalogo_servicio_id   UUID         NOT NULL,
+    fase_id                UUID,
+    nombre                 VARCHAR(200) NOT NULL,
+    descripcion            TEXT,
+    responsable_id         UUID,                                        -- FK → usuario(id) (legacy id_usuario)
+    orden                  INT          NOT NULL DEFAULT 1,
+    estado                 VARCHAR(30)  NOT NULL DEFAULT 'Pendiente',
+    fecha_programada       DATE,
+    fecha_inicio           DATE,
+    fecha_fin              DATE,
+    -- ── Datos heredados de legacy: alcance, facturación y zona por servicio ──
+    zona_ejecucion         VARCHAR(255),
+    alcance                TEXT,
+    tipo_documento_cliente VARCHAR(20),                                 -- 'OC' | 'PROF' | 'SIN_OC'
+    nro_documento          VARCHAR(100),
+    nro_conformidad        VARCHAR(100) DEFAULT 'En Espera',
+    acta_url               VARCHAR(500),
+    public_id_cloudinary   VARCHAR(255),
+    created_at             TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMP,
+    CONSTRAINT chk_ps_estado    CHECK (estado IN ('Pendiente','En_Proceso','Completado','Cancelado')),
+    CONSTRAINT chk_ps_tipo_doc  CHECK (tipo_documento_cliente IS NULL OR tipo_documento_cliente IN ('OC','PROF','SIN_OC'))
 );
 
 -- C2: Antes llamada "tarea". Pasos técnicos dentro de un servicio.
@@ -1271,7 +1284,8 @@ ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_proyecto          FOREIGN 
 ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_empresa           FOREIGN KEY (empresa_id)         REFERENCES empresa(id);
 ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_catalogo          FOREIGN KEY (catalogo_servicio_id) REFERENCES catalogo_servicio(id);
 ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_fase              FOREIGN KEY (fase_id)            REFERENCES fase(id);
-ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_responsable       FOREIGN KEY (responsable_id)     REFERENCES empleado(id);
+-- M-LEGACY: responsable_id apunta a usuario(id) para mapear el id_usuario del legacy
+ALTER TABLE proyecto_servicio    ADD CONSTRAINT fk_ps_responsable       FOREIGN KEY (responsable_id)     REFERENCES usuario(id);
 ALTER TABLE procedimiento        ADD CONSTRAINT fk_proc_ps              FOREIGN KEY (proyecto_servicio_id) REFERENCES proyecto_servicio(id);
 ALTER TABLE procedimiento        ADD CONSTRAINT fk_proc_empresa         FOREIGN KEY (empresa_id)         REFERENCES empresa(id);
 ALTER TABLE procedimiento        ADD CONSTRAINT fk_proc_responsable     FOREIGN KEY (responsable_id)     REFERENCES empleado(id);
@@ -1365,6 +1379,9 @@ CREATE INDEX idx_proyecto_cliente          ON proyecto(cliente_id);
 CREATE INDEX idx_proyecto_estado           ON proyecto(empresa_id, estado);
 CREATE INDEX idx_proyecto_servicio_proy    ON proyecto_servicio(proyecto_id);
 CREATE INDEX idx_proyecto_servicio_estado  ON proyecto_servicio(proyecto_id, estado);
+-- M-LEGACY: búsquedas por OC/Proforma y por responsable (reportes y dashboard)
+CREATE INDEX idx_proyecto_servicio_doc     ON proyecto_servicio(empresa_id, tipo_documento_cliente, nro_documento);
+CREATE INDEX idx_proyecto_servicio_resp    ON proyecto_servicio(responsable_id);
 CREATE INDEX idx_procedimiento_ps          ON procedimiento(proyecto_servicio_id);
 CREATE INDEX idx_procedimiento_estado      ON procedimiento(proyecto_servicio_id, estado);
 
@@ -1412,7 +1429,7 @@ CREATE INDEX idx_contrato_comercial_cliente ON contrato_comercial(cliente_id, es
 
 -- ============================================================
 -- FIN DEL SCRIPT - 87 TABLAS
--- Última actualización: 2026-05-20
+-- Última actualización: 2026-05-26
 -- Cambios vs versión anterior:
 --   + comunicado_proyecto      (nueva)
 --   + comunicado_leido         (nueva)
@@ -1423,5 +1440,10 @@ CREATE INDEX idx_contrato_comercial_cliente ON contrato_comercial(cliente_id, es
 --   ~ requerimiento            : + observacion_logistico, chk_req_estado += 'borrador'
 --   ~ requerimiento_detalle    : material_id → nullable, + nombre_libre, unidad_libre,
 --                                especificacion, agregado_por_id
+--   ~ proyecto_detalle         : – zona_ejecucion, alcance, tipo_documento_cliente,
+--                                  nro_documento, nro_conformidad, acta_url, public_id_cloudinary
+--   ~ proyecto_servicio        : + zona_ejecucion, alcance, tipo_documento_cliente,
+--                                  nro_documento, nro_conformidad, acta_url, public_id_cloudinary;
+--                                  responsable_id FK ahora → usuario(id) (mapeo legacy id_usuario)
 -- ============================================================
 
