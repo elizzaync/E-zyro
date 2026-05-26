@@ -56,8 +56,40 @@ export class OperacionesService {
     return this.http.patch(`${this.api}/operaciones/requerimiento-detalle/${rdId}`, body);
   }
 
+  // ─────────────────────────────────────────────────────────────────────
+  // Notas del servicio (CRUD)
+  // ─────────────────────────────────────────────────────────────────────
+
+  getNotasServicio(psId: string): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/servicio/${psId}/notas`);
+  }
+
   agregarNota(psId: string, body: { descripcion: string }): Observable<any> {
     return this.http.post(`${this.api}/operaciones/servicio/${psId}/nota`, body);
+  }
+
+  actualizarNota(notaId: string, body: { descripcion: string }): Observable<any> {
+    return this.http.put(`${this.api}/operaciones/nota/${notaId}`, body);
+  }
+
+  eliminarNota(notaId: string): Observable<any> {
+    return this.http.delete(`${this.api}/operaciones/nota/${notaId}`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Comunicados del proyecto (tablero de anuncios)
+  // ─────────────────────────────────────────────────────────────────────
+
+  getComunicadosProyecto(proyectoId: string): Observable<any> {
+    return this.http.get(`${this.api}/comunicados/proyecto/${proyectoId}`);
+  }
+
+  crearComunicado(proyectoId: string, body: { titulo: string; mensaje: string; adjunto_url?: string | null }): Observable<any> {
+    return this.http.post(`${this.api}/comunicados/proyecto/${proyectoId}/nuevo`, body);
+  }
+
+  marcarComunicadoLeido(comunicadoId: string): Observable<any> {
+    return this.http.put(`${this.api}/comunicados/${comunicadoId}/marcar-leido`, {});
   }
 
   getBorrador(psId: string): Observable<any> {

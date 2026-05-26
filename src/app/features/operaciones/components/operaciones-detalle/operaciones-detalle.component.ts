@@ -72,6 +72,25 @@ export interface ServicioDetalle {
   materialesSolicitados: ItemMaterial[];
 }
 
+export interface ComunicadoItem {
+  id: string;
+  titulo: string;
+  mensaje: string;
+  autor: string;
+  fecha: string;
+  adjunto_url?: string | null;
+  leido: boolean;
+}
+
+export interface NotaItem {
+  id: string;
+  descripcion: string;
+  autor: string;
+  autor_id?: string | null;
+  fecha: string;
+  puede_editar: boolean;
+}
+
 @Component({
   selector: 'app-operaciones-detalle',
   standalone: true,
@@ -169,6 +188,25 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   chatDestinatario: string | null = null;
   soyJefeOperaciones              = false;
 
+  // ── Comunicados (nivel proyecto) ───────────────────────────
+  comunicados: ComunicadoItem[]   = [];
+  cargandoComunicados             = false;
+  errorComunicados                = '';
+  showNuevoComunicado             = false;
+  ncTitulo                        = '';
+  ncMensaje                       = '';
+  guardandoComunicado             = false;
+
+  // ── Notas (nivel servicio) ─────────────────────────────────
+  notas: NotaItem[]               = [];
+  cargandoNotas                   = false;
+  errorNotas                      = '';
+  nuevaNota                       = '';
+  guardandoNota                   = false;
+  notaEditandoId: string | null   = null;
+  notaEditTexto                   = '';
+  notaEliminandoId: string | null = null;
+
   private chatSocket$: WebSocketSubject<unknown> | null = null;
   private chatSub?: Subscription;
   private _scrollPending = false;
@@ -257,6 +295,8 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this._conectarChat(this.servicio.id);
         this._checkDeepLink();
         this.cargarBorrador();
+        this.cargarComunicados();
+        this.cargarNotas();
       },
       error: (err: any) => {
         this.error    = true;
@@ -285,6 +325,172 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.cargandoBorrador = false;
       },
       error: () => { this.cargandoBorrador = false; }
+    });
+  }
+
+  // ==========================================================
+  // COMUNICADOS (nivel proyecto) — tablero de anuncios
+  // ==========================================================
+  cargarComunicados(): void {
+    const proyectoId = this.servicio?.proyectoId;
+    if (!proyectoId) return;
+    this.cargandoComunicados = true;
+    this.errorComunicados    = '';
+    this.svc.getComunicadosProyecto(proyectoId).subscribe({
+      next: (res: any) => {
+        const list = Array.isArray(res) ? res : (res?.comunicados ?? []);
+        this.comunicados = list.map((c: any) => ({
+          id:          c.id,
+          titulo:      c.titulo ?? '(Sin título)',
+          mensaje:     c.mensaje ?? '',
+          autor:       c.autor ?? 'Sistema',
+          fecha:       c.fecha ?? '—',
+          adjunto_url: c.adjunto_url ?? null,
+          leido:       !!c.leido,
+        }));
+        this.cargandoComunicados = false;
+      },
+      error: (err: any) => {
+        this.errorComunicados = err?.error?.detail ?? 'No se pudieron cargar los comunicados.';
+        this.cargandoComunicados = false;
+      }
+    });
+  }
+
+  get comunicadosNoLeidos(): number {
+    return this.comunicados.filter(c => !c.leido).length;
+  }
+
+  abrirNuevoComunicado(): void {
+    this.showNuevoComunicado = true;
+    this.ncTitulo = '';
+    this.ncMensaje = '';
+  }
+
+  cancelarNuevoComunicado(): void {
+    this.showNuevoComunicado = false;
+    this.ncTitulo = '';
+    this.ncMensaje = '';
+  }
+
+  enviarComunicado(): void {
+    const proyectoId = this.servicio?.proyectoId;
+    if (!proyectoId) return;
+    const titulo  = this.ncTitulo.trim();
+    const mensaje = this.ncMensaje.trim();
+    if (!titulo || !mensaje) {
+      this.toast.mostrar('Completa título y mensaje del comunicado.', 'error');
+      return;
+    }
+    this.guardandoComunicado = true;
+    this.svc.crearComunicado(proyectoId, { titulo, mensaje }).subscribe({
+      next: () => {
+        this.guardandoComunicado = false;
+        this.showNuevoComunicado = false;
+        this.ncTitulo = '';
+        this.ncMensaje = '';
+        this.toast.mostrar('Comunicado publicado', 'success');
+        this.cargarComunicados();
+      },
+      error: (err: any) => {
+        this.guardandoComunicado = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo publicar el comunicado.', 'error');
+      }
+    });
+  }
+
+  marcarComunicadoLeido(c: ComunicadoItem): void {
+    if (c.leido) return;
+    c.leido = true; // optimista
+    this.svc.marcarComunicadoLeido(c.id).subscribe({
+      error: () => { c.leido = false; }
+    });
+  }
+
+  // ==========================================================
+  // NOTAS (nivel servicio) — CRUD
+  // ==========================================================
+  cargarNotas(): void {
+    if (!this.servicioId) return;
+    this.cargandoNotas = true;
+    this.errorNotas    = '';
+    this.svc.getNotasServicio(this.servicioId).subscribe({
+      next: (res: any) => {
+        const list = Array.isArray(res) ? res : (res?.notas ?? []);
+        this.notas = list.map((n: any) => ({
+          id:           n.id,
+          descripcion:  n.descripcion ?? '',
+          autor:        n.autor ?? 'Usuario',
+          autor_id:     n.autor_id ?? null,
+          fecha:        n.fecha ?? '—',
+          puede_editar: !!n.puede_editar,
+        }));
+        this.cargandoNotas = false;
+      },
+      error: (err: any) => {
+        this.errorNotas = err?.error?.detail ?? 'No se pudieron cargar las notas.';
+        this.cargandoNotas = false;
+      }
+    });
+  }
+
+  agregarNota(): void {
+    if (!this.servicioId) return;
+    const texto = this.nuevaNota.trim();
+    if (!texto) { return; }
+    this.guardandoNota = true;
+    this.svc.agregarNota(this.servicioId, { descripcion: texto }).subscribe({
+      next: () => {
+        this.guardandoNota = false;
+        this.nuevaNota = '';
+        this.toast.mostrar('Nota agregada', 'success');
+        this.cargarNotas();
+      },
+      error: (err: any) => {
+        this.guardandoNota = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo agregar la nota.', 'error');
+      }
+    });
+  }
+
+  iniciarEdicionNota(n: NotaItem): void {
+    this.notaEditandoId = n.id;
+    this.notaEditTexto  = n.descripcion;
+  }
+
+  cancelarEdicionNota(): void {
+    this.notaEditandoId = null;
+    this.notaEditTexto  = '';
+  }
+
+  guardarEdicionNota(n: NotaItem): void {
+    const texto = this.notaEditTexto.trim();
+    if (!texto) { return; }
+    this.svc.actualizarNota(n.id, { descripcion: texto }).subscribe({
+      next: () => {
+        n.descripcion = texto;
+        this.notaEditandoId = null;
+        this.notaEditTexto  = '';
+        this.toast.mostrar('Nota actualizada', 'success');
+      },
+      error: (err: any) => {
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo actualizar la nota.', 'error');
+      }
+    });
+  }
+
+  eliminarNota(n: NotaItem): void {
+    this.notaEliminandoId = n.id;
+    this.svc.eliminarNota(n.id).subscribe({
+      next: () => {
+        this.notas = this.notas.filter(x => x.id !== n.id);
+        this.notaEliminandoId = null;
+        this.toast.mostrar('Nota eliminada', 'success');
+      },
+      error: (err: any) => {
+        this.notaEliminandoId = null;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo eliminar la nota.', 'error');
+      }
     });
   }
 

@@ -514,6 +514,193 @@
         </div>
       </section>
 
+      <!-- ══════════════ COMUNICADOS (TABLERO DE ANUNCIOS) ══════════════ -->
+      <section class="section-card comunicados-card">
+        <div class="cm-head">
+          <h3 class="section-title mb-0">
+            <svg class="cm-head-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 11l18-5v12L3 14v-3z"></path>
+              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
+            </svg>
+            Comunicados
+            @if (comunicadosNoLeidos > 0) {
+              <span class="cm-badge">{{ comunicadosNoLeidos }} nuevo{{ comunicadosNoLeidos !== 1 ? 's' : '' }}</span>
+            }
+          </h3>
+          @if (soyJefeOperaciones && !showNuevoComunicado) {
+            <button class="cm-new-btn" (click)="abrirNuevoComunicado()" title="Publicar comunicado">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Nuevo
+            </button>
+          }
+        </div>
+
+        <!-- Form nuevo comunicado (solo jefe) -->
+        @if (showNuevoComunicado) {
+          <div class="cm-form">
+            <input class="cm-input" type="text" [(ngModel)]="ncTitulo" maxlength="200"
+                   placeholder="Título del comunicado">
+            <textarea class="cm-textarea" [(ngModel)]="ncMensaje" rows="3"
+                      placeholder="Escribe el anuncio para todo el equipo…"></textarea>
+            <div class="cm-form-actions">
+              <button class="cm-btn-cancel" (click)="cancelarNuevoComunicado()" [disabled]="guardandoComunicado">Cancelar</button>
+              <button class="cm-btn-send" (click)="enviarComunicado()" [disabled]="guardandoComunicado">
+                @if (guardandoComunicado) { <app-spinner></app-spinner> Publicando… }
+                @else { Publicar }
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Estados -->
+        @if (cargandoComunicados) {
+          <div class="cm-loading"><app-spinner></app-spinner><span>Cargando comunicados…</span></div>
+        } @else if (errorComunicados) {
+          <div class="cm-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ errorComunicados }}</span>
+            <button class="cm-retry" (click)="cargarComunicados()">Reintentar</button>
+          </div>
+        } @else if (comunicados.length === 0) {
+          <div class="cm-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 11l18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
+            </svg>
+            <span>Sin comunicados por ahora.</span>
+          </div>
+        } @else {
+          <div class="cm-list">
+            @for (c of comunicados; track c.id) {
+              <article class="cm-item" [class.cm-unread]="!c.leido" (click)="marcarComunicadoLeido(c)">
+                <div class="cm-item-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 11l18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
+                  </svg>
+                </div>
+                <div class="cm-item-body">
+                  <div class="cm-item-top">
+                    <h4 class="cm-item-title">{{ c.titulo }}</h4>
+                    @if (!c.leido) { <span class="cm-dot" title="No leído"></span> }
+                  </div>
+                  <p class="cm-item-msg">{{ c.mensaje }}</p>
+                  @if (c.adjunto_url) {
+                    <a class="cm-attach" [href]="c.adjunto_url" target="_blank" rel="noopener" (click)="$event.stopPropagation()">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                      </svg>
+                      Ver adjunto
+                    </a>
+                  }
+                  <div class="cm-item-foot">
+                    <span class="cm-author">{{ c.autor }}</span>
+                    <span class="cm-sep">•</span>
+                    <span class="cm-date">{{ c.fecha }}</span>
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- ══════════════ NOTAS DEL SERVICIO (CRUD) ══════════════ -->
+      <section class="section-card notas-card">
+        <h3 class="section-title">
+          <svg class="nt-head-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line>
+          </svg>
+          Notas del Servicio
+        </h3>
+
+        <!-- Agregar nota -->
+        <div class="nt-add">
+          <textarea class="nt-textarea" [(ngModel)]="nuevaNota" rows="2"
+                    placeholder="Observación, punto de mejora o recordatorio…"
+                    (keydown.control.enter)="agregarNota()"></textarea>
+          <button class="nt-add-btn" (click)="agregarNota()" [disabled]="guardandoNota || !nuevaNota.trim()">
+            @if (guardandoNota) { <app-spinner></app-spinner> }
+            @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Agregar
+            }
+          </button>
+        </div>
+
+        <!-- Estados -->
+        @if (cargandoNotas) {
+          <div class="cm-loading"><app-spinner></app-spinner><span>Cargando notas…</span></div>
+        } @else if (errorNotas) {
+          <div class="cm-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{{ errorNotas }}</span>
+            <button class="cm-retry" (click)="cargarNotas()">Reintentar</button>
+          </div>
+        } @else if (notas.length === 0) {
+          <div class="cm-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>Aún no hay notas en este servicio.</span>
+          </div>
+        } @else {
+          <div class="nt-list">
+            @for (n of notas; track n.id) {
+              <article class="nt-item">
+                @if (notaEditandoId === n.id) {
+                  <!-- Modo edición -->
+                  <textarea class="nt-textarea" [(ngModel)]="notaEditTexto" rows="2"></textarea>
+                  <div class="nt-edit-actions">
+                    <button class="nt-btn-cancel" (click)="cancelarEdicionNota()">Cancelar</button>
+                    <button class="nt-btn-save" (click)="guardarEdicionNota(n)" [disabled]="!notaEditTexto.trim()">Guardar</button>
+                  </div>
+                } @else {
+                  <!-- Modo vista -->
+                  <p class="nt-text">{{ n.descripcion }}</p>
+                  <div class="nt-foot">
+                    <div class="nt-meta">
+                      <span class="nt-author">{{ n.autor }}</span>
+                      <span class="cm-sep">•</span>
+                      <span class="nt-date">{{ n.fecha }}</span>
+                    </div>
+                    @if (n.puede_editar) {
+                      <div class="nt-actions">
+                        <button class="nt-icon-btn" (click)="iniciarEdicionNota(n)" title="Editar">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                          </svg>
+                        </button>
+                        <button class="nt-icon-btn nt-icon-danger" (click)="eliminarNota(n)" title="Eliminar"
+                                [disabled]="notaEliminandoId === n.id">
+                          @if (notaEliminandoId === n.id) { <app-spinner></app-spinner> }
+                          @else {
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <polyline points="3 6 5 6 21 6"></polyline>
+                              <path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path>
+                            </svg>
+                          }
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+              </article>
+            }
+          </div>
+        }
+      </section>
+
     </div>
   </div>
 </div>
