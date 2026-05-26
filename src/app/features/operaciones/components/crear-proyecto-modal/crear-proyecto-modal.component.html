@@ -195,7 +195,9 @@
             <line x1="8" y1="2" x2="8" y2="6"/>
             <line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
-          Define el plan de ejecución y el alcance del proyecto. Todos los campos son opcionales.
+          Define la ventana de ejecución del proyecto. El <strong>alcance</strong>,
+          la <strong>zona</strong> y la <strong>documentación (OC/Proforma)</strong>
+          se configurarán por cada servicio en el paso siguiente.
         </p>
 
         <!-- Grid: Fechas -->
@@ -243,45 +245,47 @@
 
         </div>
 
-        <!-- Zona de Ejecución -->
+        <!-- Orden de Compra "marco" (opcional, a nivel proyecto) -->
         <div class="field-group">
-          <label class="field-label" for="zona_ejecucion">
+          <label class="field-label" for="orden_compra_cliente">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-              <circle cx="12" cy="10" r="3"/>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="9" y1="13" x2="15" y2="13"/>
+              <line x1="9" y1="17" x2="13" y2="17"/>
             </svg>
-            Zona de Ejecución
+            OC "marco" del proyecto
+            <span class="label-optional">(opcional)</span>
           </label>
           <input
-            id="zona_ejecucion"
+            id="orden_compra_cliente"
             type="text"
             class="field-input"
-            formControlName="zona_ejecucion"
-            placeholder="Ej: Planta Norte — Sala eléctrica 2"
+            formControlName="orden_compra_cliente"
+            placeholder="Ej: 4500620238 — útil cuando un único contrato cubre todos los servicios"
           >
+          <span class="field-hint">
+            Si cada servicio se factura con OC/Proforma propia, déjalo en blanco.
+          </span>
         </div>
 
-        <!-- Alcance -->
-        <div class="field-group">
-          <label class="field-label" for="alcance">
+        <!-- Aviso informativo: dónde van alcance/zona/docs ahora -->
+        <div class="cpm-info-callout">
+          <div class="cpm-info-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="17" y1="10" x2="3" y2="10"/>
-              <line x1="21" y1="6" x2="3" y2="6"/>
-              <line x1="21" y1="14" x2="3" y2="14"/>
-              <line x1="17" y1="18" x2="3" y2="18"/>
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            Alcance del Proyecto
-          </label>
-          <textarea
-            id="alcance"
-            class="field-textarea"
-            formControlName="alcance"
-            rows="5"
-            placeholder="Describe el alcance, objetivos y entregables del proyecto…"
-          ></textarea>
-          <span class="field-hint">
-            {{ (ctrl('alcance')?.value?.length ?? 0) }} / 2000 caracteres
-          </span>
+          </div>
+          <div class="cpm-info-body">
+            <h5>El alcance y la documentación se gestionan por servicio</h5>
+            <p>
+              Una vez creado el proyecto podrás <strong>agregar servicios</strong> con su
+              propio alcance, zona de ejecución, responsable técnico, tipo de documento
+              (OC / Proforma / Sin OC), N° de documento y conformidad.
+            </p>
+          </div>
         </div>
 
       </div>

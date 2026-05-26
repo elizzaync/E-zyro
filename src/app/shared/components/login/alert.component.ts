@@ -9,9 +9,6 @@ import { CommonModule } from '@angular/common';
   styleUrls: ['./alert.component.css']
 })
 export class AlertComponent {
-  // Recibe el mensaje a mostrar
   @Input({ required: true }) message!: string;
-
-  // Define el estilo (por defecto será de error)
   @Input() type: 'error' | 'success' | 'warning' | 'info' = 'error';
 }

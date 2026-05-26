@@ -8,6 +8,7 @@ import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { Subscription } from 'rxjs';
 
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
 export interface MiembroEquipo {
@@ -84,6 +85,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   private location  = inject(Location);
   private sanitizer = inject(DomSanitizer);
   private svc       = inject(OperacionesService);
+  private toast     = inject(ToastService);
 
   @ViewChild('chatScroll') private chatScrollEl!: ElementRef<HTMLDivElement>;
 
@@ -732,7 +734,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
       },
       error: () => {
         this.enviandoLote = false;
-        alert('Hubo un error al enviar el borrador a Logística.');
+        this.toast.mostrar('Hubo un error al enviar el borrador a Logística.', 'error');
       }
     });
   }
@@ -1151,7 +1153,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 async finalizarServicio(): Promise<void> {
     // 1. Candado de seguridad: Solo Jefatura puede finalizar
     if (!this.soyJefeOperaciones) {
-      alert('Acceso denegado: Solo el Jefe de Operaciones puede finalizar y cerrar este servicio.');
+      this.toast.mostrar('Acceso denegado: solo el Jefe de Operaciones puede finalizar y cerrar este servicio.', 'error');
       return;
     }
 

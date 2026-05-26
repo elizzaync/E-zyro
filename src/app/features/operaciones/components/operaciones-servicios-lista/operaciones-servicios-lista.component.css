@@ -223,12 +223,16 @@
 .semaforo-amarillo { border-left: 4px solid #f59e0b; }
 .semaforo-verde    { border-left: 4px solid #91d337; }
 
-/* ── INTERIOR TARJETA ── */
+/* ── INTERIOR TARJETA: orden+badge a la izquierda, acciones a la derecha ── */
 .sc-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
+
+/* Cluster derecho: edit + asignar */
+.sc-top .btn-editar-srv { margin-left: auto; }
+.sc-top .btn-asignar    { flex-shrink: 0; }
 
 .sc-orden {
   font-size: 12px;

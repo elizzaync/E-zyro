@@ -119,11 +119,11 @@
 }
 .proyecto-card:hover .pc-arrow { opacity: 1; transform: translateX(0); }
 
-/* ── TOP ROW ── */
+/* ── TOP ROW: orden+badge a la izquierda, acciones a la derecha ── */
 .pc-top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 10px;
 }
 
 .pc-orden {
@@ -133,6 +133,9 @@
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
+
+/* Empuja todas las acciones a la derecha */
+.pc-top .btn-editar-proyecto { margin-left: auto; }
 
 /* ── NOMBRE ── */
 .pc-nombre {

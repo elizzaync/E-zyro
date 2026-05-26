@@ -654,3 +654,42 @@
 
   </div><!-- /asm-container -->
 </div><!-- /asm-overlay -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     HU-13 · Confirmación: técnico ya pertenece a un grupo activo
+═══════════════════════════════════════════════════════════════ -->
+@if (confirmGrupoOpen && confirmGrupoTecnico) {
+<div class="asm-confirm-overlay" (click)="cancelarAgregarConGrupo()" role="dialog" aria-modal="true">
+  <div class="asm-confirm-dialog" (click)="$event.stopPropagation()">
+
+    <div class="asm-confirm-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+
+    <h3 class="asm-confirm-title">Técnico ya asignado a un grupo</h3>
+    <p class="asm-confirm-body">
+      <strong>{{ confirmGrupoTecnico.nombre }} {{ confirmGrupoTecnico.apellido }}</strong>
+      ya pertenece al grupo
+      <span class="asm-confirm-tag">{{ confirmGrupoTecnico.grupoActual }}</span>.
+      <br>
+      ¿Quieres añadirlo de todas formas a este servicio?
+    </p>
+
+    <div class="asm-confirm-actions">
+      <button class="btn-cancel" (click)="cancelarAgregarConGrupo()">Cancelar</button>
+      <button class="btn-primary" (click)="confirmarAgregarConGrupo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Añadir igual
+      </button>
+    </div>
+
+  </div>
+</div>
+}
+

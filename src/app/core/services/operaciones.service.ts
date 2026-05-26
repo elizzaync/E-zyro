@@ -159,6 +159,14 @@ export class OperacionesService {
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // M-LEGACY: Responsables técnicos (usuarios) para el modal de servicio
+  // GET /operaciones/responsables-servicio → [{ id, nombre, apellido, cargo, foto_url }]
+  // ─────────────────────────────────────────────────────────────────────
+  getResponsablesServicio(): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/responsables-servicio`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Servicios (proyecto_servicio) CRUD
   // ─────────────────────────────────────────────────────────────────────
 

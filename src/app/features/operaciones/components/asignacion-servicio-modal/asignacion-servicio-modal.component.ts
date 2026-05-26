@@ -104,6 +104,10 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   errorMsg   = '';
   successMsg = '';
 
+  // ── HU-13: confirmación de añadir técnico que ya pertenece a un grupo ──
+  confirmGrupoOpen = false;
+  confirmGrupoTecnico: TecnicoDisponible | null = null;
+
   // ── Formulario ───────────────────────────────────────────────────────────
   form!: FormGroup;
 
@@ -329,15 +333,30 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   seleccionarTecnico(t: TecnicoDisponible): void {
     if (this.estaSeleccionado(t.id)) return;
 
-    // ── Alerta de grupo: el técnico ya pertenece a un grupo de trabajo ───────
     if (t.grupoActual) {
-      const confirmar = window.confirm(
-        `⚠ Este usuario ya pertenece al grupo "${t.grupoActual}".\n` +
-        `¿Quieres añadirlo a este servicio de todas formas?`
-      );
-      if (!confirmar) return;
+      this.confirmGrupoTecnico = t;
+      this.confirmGrupoOpen = true;
+      return;
     }
 
+    this._agregarTecnicoAlEquipo(t);
+  }
+
+  /** Confirma añadir el técnico que ya pertenece a un grupo activo. */
+  confirmarAgregarConGrupo(): void {
+    if (this.confirmGrupoTecnico) {
+      this._agregarTecnicoAlEquipo(this.confirmGrupoTecnico);
+    }
+    this.cancelarAgregarConGrupo();
+  }
+
+  /** Cierra el modal de confirmación sin añadir al técnico. */
+  cancelarAgregarConGrupo(): void {
+    this.confirmGrupoOpen = false;
+    this.confirmGrupoTecnico = null;
+  }
+
+  private _agregarTecnicoAlEquipo(t: TecnicoDisponible): void {
     this.equipoSeleccionado = [...this.equipoSeleccionado, t];
     this.filtrarTecnicos();
   }

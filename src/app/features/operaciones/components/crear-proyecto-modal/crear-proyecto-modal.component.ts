@@ -59,15 +59,16 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
   @HostListener('document:keydown.escape') onEsc() { this.cerrar(); }
 
   private _initForm(): void {
+    // M-LEGACY: el alcance, zona y documentación dejaron de estar a nivel proyecto.
+    // Ahora viven en proyecto_servicio (cada servicio lleva su propio alcance/OC).
     this.form = this.fb.group({
-      nombre_proyecto:    ['', [Validators.required, Validators.maxLength(200)]],
-      cliente_id:         ['', Validators.required],
-      orden_trabajo:      ['', [Validators.required, Validators.maxLength(50)]],
-      estado:             ['Pendiente', Validators.required],
-      fecha_inicio:       [''],
-      fecha_fin_estimada: [''],
-      zona_ejecucion:     ['', Validators.maxLength(255)],
-      alcance:            ['', Validators.maxLength(2000)],
+      nombre_proyecto:      ['', [Validators.required, Validators.maxLength(200)]],
+      cliente_id:           ['', Validators.required],
+      orden_trabajo:        ['', [Validators.required, Validators.maxLength(50)]],
+      estado:               ['Pendiente', Validators.required],
+      fecha_inicio:         [''],
+      fecha_fin_estimada:   [''],
+      orden_compra_cliente: ['', Validators.maxLength(100)],   // OC "marco" opcional
     });
   }
 
@@ -90,14 +91,13 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
     this.svc.getDetalleProyecto(this.proyectoId!).pipe(takeUntil(this.destroy$)).subscribe({
       next: (raw: any) => {
         this.form.patchValue({
-          nombre_proyecto:    raw.nombre_proyecto ?? '',
-          cliente_id:         raw.cliente_id ?? '',
-          orden_trabajo:      raw.orden_trabajo ?? '',
-          estado:             raw.estado ?? 'Pendiente',
-          fecha_inicio:       raw.fecha_inicio?.split('T')[0] ?? '',
-          fecha_fin_estimada: raw.fecha_fin_estimada?.split('T')[0] ?? '',
-          zona_ejecucion:     raw.detalle?.zona_ejecucion ?? '',
-          alcance:            raw.detalle?.alcance ?? '',
+          nombre_proyecto:      raw.nombre_proyecto ?? '',
+          cliente_id:           raw.cliente_id ?? '',
+          orden_trabajo:        raw.orden_trabajo ?? '',
+          estado:               raw.estado ?? 'Pendiente',
+          fecha_inicio:         raw.fecha_inicio?.split('T')[0]       ?? '',
+          fecha_fin_estimada:   raw.fecha_fin_estimada?.split('T')[0] ?? '',
+          orden_compra_cliente: raw.detalle?.orden_compra_cliente ?? '',
         });
       }
     });
@@ -118,14 +118,13 @@ export class CrearProyectoModalComponent implements OnInit, OnDestroy {
 
     const v = this.form.value;
     const payload = {
-      nombre_proyecto:    v.nombre_proyecto,
-      cliente_id:         v.cliente_id,
-      orden_trabajo:      v.orden_trabajo,
-      estado:             v.estado,
-      fecha_inicio:       v.fecha_inicio || null,
-      fecha_fin_estimada: v.fecha_fin_estimada || null,
-      zona_ejecucion:     v.zona_ejecucion || null,
-      alcance:            v.alcance || null,
+      nombre_proyecto:      v.nombre_proyecto,
+      cliente_id:           v.cliente_id,
+      orden_trabajo:        v.orden_trabajo,
+      estado:               v.estado,
+      fecha_inicio:         v.fecha_inicio || null,
+      fecha_fin_estimada:   v.fecha_fin_estimada || null,
+      orden_compra_cliente: v.orden_compra_cliente || null,
     };
 
     this.guardando = true;

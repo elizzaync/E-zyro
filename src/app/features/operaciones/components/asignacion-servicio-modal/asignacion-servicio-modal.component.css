@@ -1,33 +1,79 @@
 /* ══════════════════════════════════════════════════════════════════════
    ASM MODAL — HU-13: Asignación de Personal y Avisos
-   Paleta: Dark mode slate/navy · Acento verde marca #91d337
+   Tema dinámico: claro por defecto · sobreescritura para dark
 ══════════════════════════════════════════════════════════════════════ */
 
-/* ─── Variables internas (forced dark mode) ─────────────────────────── */
+/* ─── Tema claro (default) ──────────────────────────────────────────── */
 :host {
-  --asm-bg:         #0f172a;   /* slate-900  — fondo modal */
-  --asm-surface:    #1e293b;   /* slate-800  — cards, inputs */
-  --asm-surface2:   #263348;   /* slate-750  — hover / nested */
-  --asm-border:     #334155;   /* slate-700  — bordes */
-  --asm-border2:    #475569;   /* slate-600  — bordes activos */
-  --asm-text:       #f1f5f9;   /* slate-100  — texto principal */
-  --asm-muted:      #94a3b8;   /* slate-400  — texto secundario */
-  --asm-dimmed:     #64748b;   /* slate-500  — placeholder / dim */
-  --asm-accent:     #91d337;   /* verde marca */
-  --asm-accent-dim: rgba(145,211,55,.12);
-  --asm-accent-glow:rgba(145,211,55,.25);
-  --asm-blue:       #3b82f6;
-  --asm-danger:     #ef4444;
+  --asm-bg:           #ffffff;
+  --asm-surface:      #f8fafc;
+  --asm-surface2:     #f1f5f9;
+  --asm-border:       #e2e8f0;
+  --asm-border2:      #cbd5e1;
+  --asm-text:         #0f172a;
+  --asm-muted:        #475569;
+  --asm-dimmed:       #94a3b8;
+  --asm-footer-bg:    #f8fafc;
+  --asm-steps-bg:     #f8fafc;
+  --asm-overlay-bg:   rgba(15, 23, 42, 0.55);
+  --asm-shadow:       0 24px 80px rgba(15, 23, 42, .25), 0 8px 24px rgba(15, 23, 42, .12);
+  --asm-date-scheme:  light;
+
+  --asm-accent:       #5a8a20;
+  --asm-accent-dim:   rgba(145, 211, 55, .14);
+  --asm-accent-glow:  rgba(145, 211, 55, .22);
+  --asm-blue:         #3b82f6;
+  --asm-danger:       #ef4444;
+  --asm-warn:         #d97706;
+  --asm-radius:       16px;
+  --asm-radius-sm:    10px;
+}
+
+/* ─── Tema oscuro automático ────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) {
+    --asm-bg:         #0f172a;
+    --asm-surface:    #1e293b;
+    --asm-surface2:   #263348;
+    --asm-border:     #334155;
+    --asm-border2:    #475569;
+    --asm-text:       #f1f5f9;
+    --asm-muted:      #94a3b8;
+    --asm-dimmed:     #64748b;
+    --asm-footer-bg:  rgba(15, 23, 42, .5);
+    --asm-steps-bg:   rgba(15, 23, 42, .6);
+    --asm-overlay-bg: rgba(0, 0, 0, 0.72);
+    --asm-shadow:     0 0 0 1px rgba(145,211,55,.08), 0 24px 80px rgba(0,0,0,.65), 0 8px 32px rgba(0,0,0,.4);
+    --asm-date-scheme: dark;
+    --asm-accent:     #91d337;
+    --asm-warn:       #f59e0b;
+  }
+}
+
+/* ─── Tema oscuro forzado ───────────────────────────────────────────── */
+:host-context(html[data-theme="dark"]) {
+  --asm-bg:         #0f172a;
+  --asm-surface:    #1e293b;
+  --asm-surface2:   #263348;
+  --asm-border:     #334155;
+  --asm-border2:    #475569;
+  --asm-text:       #f1f5f9;
+  --asm-muted:      #94a3b8;
+  --asm-dimmed:     #64748b;
+  --asm-footer-bg:  rgba(15, 23, 42, .5);
+  --asm-steps-bg:   rgba(15, 23, 42, .6);
+  --asm-overlay-bg: rgba(0, 0, 0, 0.72);
+  --asm-shadow:     0 0 0 1px rgba(145,211,55,.08), 0 24px 80px rgba(0,0,0,.65), 0 8px 32px rgba(0,0,0,.4);
+  --asm-date-scheme: dark;
+  --asm-accent:     #91d337;
   --asm-warn:       #f59e0b;
-  --asm-radius:     16px;
-  --asm-radius-sm:  10px;
 }
 
 /* ─── Overlay ────────────────────────────────────────────────────────── */
 .asm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.72);
+  background: var(--asm-overlay-bg);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   z-index: 9000;
@@ -53,10 +99,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow:
-    0 0 0 1px rgba(145,211,55,.08),
-    0 24px 80px rgba(0,0,0,.65),
-    0 8px 32px rgba(0,0,0,.4);
+  box-shadow: var(--asm-shadow);
   animation: slideUp 0.28s cubic-bezier(.22,.68,0,1.2);
 }
 @keyframes slideUp {
@@ -126,7 +169,7 @@
   border-bottom: 1px solid var(--asm-border);
   gap: 0;
   flex-shrink: 0;
-  background: rgba(15,23,42,.6);
+  background: var(--asm-steps-bg);
 }
 
 .asm-step {
@@ -160,7 +203,7 @@
 .asm-step.active .step-bubble {
   background: var(--asm-accent);
   border-color: var(--asm-accent);
-  color: #0f172a;
+  color: var(--asm-bg);
   box-shadow: 0 0 0 4px var(--asm-accent-glow);
 }
 .asm-step.done .step-bubble {
@@ -212,9 +255,13 @@
   border-radius: 10px;
   font-size: 13px;
   font-weight: 500;
-  color: #93c5fd;
+  color: #2563eb;
   margin: 0;
   line-height: 1.5;
+}
+:host-context(html[data-theme="dark"]) .section-intro { color: #93c5fd; }
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .section-intro { color: #93c5fd; }
 }
 .section-intro svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
 
@@ -318,7 +365,7 @@
   width: 46px; height: 46px;
   border-radius: 50%;
   background: linear-gradient(135deg, #91d337, #4caf50);
-  color: #0f172a;
+  color: #ffffff;
   display: flex; align-items: center; justify-content: center;
   font-size: 16px; font-weight: 800;
   flex-shrink: 0;
@@ -510,7 +557,7 @@
   width: 34px; height: 34px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 800; color: #0f172a;
+  font-size: 12px; font-weight: 800; color: #ffffff;
   flex-shrink: 0; overflow: hidden;
 }
 .picker-tech-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -539,7 +586,7 @@
 .picker-tech-row.selected .picker-tech-toggle {
   background: var(--asm-accent);
   border-color: var(--asm-accent);
-  color: #0f172a;
+  color: #ffffff;
 }
 .picker-tech-toggle svg { width: 12px; height: 12px; }
 
@@ -636,7 +683,7 @@
   width: 32px; height: 32px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 800; color: #0f172a;
+  font-size: 11px; font-weight: 800; color: #ffffff;
   flex-shrink: 0; overflow: hidden;
 }
 .selected-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -750,11 +797,11 @@
 .field-input.invalid,
 .field-select.invalid { border-color: var(--asm-danger) !important; box-shadow: 0 0 0 3px rgba(239,68,68,.15); }
 
-/* Opciones del select en dark */
-.field-select option { background: #1e293b; color: #f1f5f9; }
+/* Opciones del select — color sigue al tema */
+.field-select option { background: var(--asm-bg); color: var(--asm-text); }
 
-/* Date input fix */
-.field-input[type="date"] { color-scheme: dark; }
+/* Date input fix — esquema dinámico */
+.field-input[type="date"] { color-scheme: var(--asm-date-scheme); }
 
 .field-error { font-size: 11px; color: var(--asm-danger); font-weight: 600; }
 .field-warn  { font-size: 11px; color: var(--asm-warn);   font-weight: 600; }
@@ -818,7 +865,7 @@
   gap: 12px;
   padding: 16px 24px 20px;
   border-top: 1px solid var(--asm-border);
-  background: rgba(15,23,42,.5);
+  background: var(--asm-footer-bg);
   flex-shrink: 0;
 }
 
@@ -888,10 +935,10 @@
 .btn-save {
   display: flex; align-items: center; gap: 8px;
   padding: 11px 26px;
-  background: linear-gradient(135deg, var(--asm-accent), #6ab020);
+  background: linear-gradient(135deg, #91d337, #6ab020);
   border: none;
   border-radius: 8px;
-  color: #0f172a;
+  color: #ffffff;
   font-size: 14px; font-weight: 800;
   cursor: pointer;
   transition: all .2s;
@@ -990,3 +1037,81 @@
 .cruce-warning span {
   flex: 1;
 }
+
+/* ─── HU-13 · Confirm dialog (técnico con grupo activo) ─────────────── */
+.asm-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--asm-overlay-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeOverlay 0.18s ease;
+}
+
+.asm-confirm-dialog {
+  background: var(--asm-bg);
+  border: 1px solid var(--asm-border);
+  border-radius: var(--asm-radius);
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px 20px;
+  text-align: center;
+  box-shadow: var(--asm-shadow);
+  animation: slideUp 0.24s cubic-bezier(.22,.68,0,1.2);
+  font-family: 'Inter', sans-serif;
+}
+
+.asm-confirm-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--asm-warn);
+}
+.asm-confirm-icon svg { width: 28px; height: 28px; }
+
+.asm-confirm-title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--asm-text);
+  letter-spacing: -.2px;
+}
+
+.asm-confirm-body {
+  margin: 0 0 22px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--asm-muted);
+  line-height: 1.55;
+}
+.asm-confirm-body strong { color: var(--asm-text); font-weight: 700; }
+
+.asm-confirm-tag {
+  display: inline-block;
+  padding: 2px 9px;
+  margin: 0 2px;
+  border-radius: 999px;
+  background: var(--asm-accent-dim);
+  color: var(--asm-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.asm-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.asm-confirm-actions .btn-cancel,
+.asm-confirm-actions .btn-primary { flex: 1; justify-content: center; }
+
