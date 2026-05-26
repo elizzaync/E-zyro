@@ -437,11 +437,21 @@
 
       <!-- ── CHAT EN TIEMPO REAL (embebido) ── -->
       <section class="section-card inline-chat-container">
-        <!-- Header minimalista con estado activo -->
+        <!-- Header con estado en vivo -->
         <div class="chat-header">
-          <span class="chat-status-dot"></span>
-          <span class="chat-header-label">Chat en tiempo real activo</span>
-          <span class="chat-header-members">{{ servicio.equipo.length }} participante{{ servicio.equipo.length !== 1 ? 's' : '' }}</span>
+          <span class="chat-header-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </span>
+          <div class="chat-header-titles">
+            <span class="chat-header-title">Chat en tiempo real</span>
+            <span class="chat-header-members">{{ servicio.equipo.length }} participante{{ servicio.equipo.length !== 1 ? 's' : '' }}</span>
+          </div>
+          <span class="chat-live-pill">
+            <span class="chat-live-dot"></span>
+            En vivo
+          </span>
         </div>
 
         <div class="inline-chat-messages" #chatScroll>
@@ -578,13 +588,13 @@
               <article class="cm-item" [class.cm-unread]="!c.leido" (click)="marcarComunicadoLeido(c)">
                 <div class="cm-item-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 11l18-5v12L3 14v-3z"></path><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"></path>
+                    <path d="M3 11v4a2 2 0 0 0 2 2h1l3 4v-4l11-3V8L9 5V1L6 5H5a2 2 0 0 0-2 2z"></path>
                   </svg>
                 </div>
                 <div class="cm-item-body">
                   <div class="cm-item-top">
                     <h4 class="cm-item-title">{{ c.titulo }}</h4>
-                    @if (!c.leido) { <span class="cm-dot" title="No leído"></span> }
+                    @if (!c.leido) { <span class="cm-new-pill">NUEVO</span> }
                   </div>
                   <p class="cm-item-msg">{{ c.mensaje }}</p>
                   @if (c.adjunto_url) {
@@ -596,6 +606,7 @@
                     </a>
                   }
                   <div class="cm-item-foot">
+                    <span class="cm-author-avatar" [style.background]="getChatAvatarColor(c.autor)">{{ getChatInitiales(c.autor) }}</span>
                     <span class="cm-author">{{ c.autor }}</span>
                     <span class="cm-sep">•</span>
                     <span class="cm-date">{{ c.fecha }}</span>
