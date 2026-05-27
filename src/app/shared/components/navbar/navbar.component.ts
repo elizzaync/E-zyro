@@ -1,6 +1,6 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
@@ -30,6 +30,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   isMenuOpen = false;
+  logisticaOpen = false;
   showProfileModal = false;
   isEditingProfile = false;
   permisosUsuario: string[] = [];
@@ -69,7 +70,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ... resto de tu código (cargarDatosDeUsuario, etc.) ...
-  constructor(private authService: AuthService, private dashboardService: DashboardService, private toastService: ToastService) {}
+  constructor(private authService: AuthService, private dashboardService: DashboardService, private toastService: ToastService, private router: Router) {}
+
+  /** True cuando la ruta actual pertenece al módulo de Logística. */
+  get enLogistica(): boolean {
+    return this.router.url.startsWith('/logistica');
+  }
 
   private notiInitialized = false;
 

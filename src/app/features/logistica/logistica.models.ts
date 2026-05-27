@@ -62,6 +62,49 @@ export interface AlmacenItem extends CatalogoItem { ubicacion?: string | null; }
 export interface UnidadItem  extends CatalogoItem { abreviatura?: string | null; }
 export interface ModeloItem  extends CatalogoItem { marcaId: string; }
 
+// ── Requerimientos (HU-16) ──────────────────────────────────────────────────
+
+export interface RequerimientoItem {
+  id: string;
+  materialId: string | null;
+  nombre: string;
+  unidad: string;
+  cantidad: number;
+  cantidadAprobada: number | null;
+  stockDisponible: number;
+  enStock: boolean;
+  esCompraExterna: boolean;
+  especificacion: string | null;
+  estadoItem: string;          // pendiente | aprobado | para_compra | rechazado
+  agregadoPor: string | null;
+}
+
+export interface Requerimiento {
+  id: string;
+  estado: string;              // pendiente | aprobado | listo | entregado | rechazado
+  fecha: string | null;
+  observacion: string | null;
+  observacionLogistico: string | null;
+  proyectoId: string | null;
+  proyectoNombre: string;
+  servicioId: string | null;
+  servicioNombre: string | null;
+  solicitanteId: string | null;
+  solicitanteNombre: string;
+  solicitanteFoto: string | null;
+  items: RequerimientoItem[];
+  entregadoPorNombre: string | null;
+  recibidoPorNombre: string | null;
+  firmaUrl: string | null;
+  fechaEntrega: string | null;
+}
+
+export interface AprobarItemDecision {
+  detalleId: string;
+  decision: 'aprobar' | 'compra' | 'rechazar';
+  cantidadAprobada?: number | null;
+}
+
 export type ClaseArticulo = 'equipo' | 'herramienta';
 
 export type EstadoEquipo =

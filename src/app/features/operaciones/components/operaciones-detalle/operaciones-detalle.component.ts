@@ -8,9 +8,11 @@ import { webSocket, WebSocketSubject } from 'rxjs/webSocket';
 import { Subscription } from 'rxjs';
 
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { FASES_SERVICIO, faseClase as faseClaseServicio } from '../../fase-servicio';
+import { Requerimiento } from '../../../logistica/logistica.models';
 
 export interface MiembroEquipo {
   id: string;
@@ -106,9 +108,19 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   private location  = inject(Location);
   private sanitizer = inject(DomSanitizer);
   private svc       = inject(OperacionesService);
+  private logistica = inject(LogisticaService);
   private toast     = inject(ToastService);
 
   @ViewChild('chatScroll') private chatScrollEl!: ElementRef<HTMLDivElement>;
+  @ViewChild('firmaCanvas') private firmaCanvasEl?: ElementRef<HTMLCanvasElement>;
+
+  // ── HU-16: requerimientos aprobados listos para firmar ──
+  reqsListos: Requerimiento[] = [];
+  showFirmaModal = false;
+  reqAFirmar: Requerimiento | null = null;
+  firmando = false;
+  private _dibujando = false;
+  private _hayTrazo = false;
 
   servicioId: string | null = null;
   servicio: ServicioDetalle | null = null;
@@ -422,11 +434,108 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.cargarBorrador();
         this.cargarComunicados();
         this.cargarNotas();
+        this.cargarReqsListos();
       },
       error: (err: any) => {
         this.error    = true;
         this.errorMsg = err?.error?.detail ?? 'No se pudo cargar el detalle del servicio.';
         this.cargando = false;
+      }
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // HU-16: requerimientos aprobados listos para firmar recepción
+  // ──────────────────────────────────────────────────────────
+  cargarReqsListos(): void {
+    if (!this.servicioId) return;
+    // Trae aprobados y listos (los listos ya firmados, para mostrar estado)
+    this.logistica.getRequerimientos({ estado: 'todos', servicioId: this.servicioId }).subscribe({
+      next: (reqs) => {
+        this.reqsListos = reqs.filter(r => r.estado === 'aprobado' || r.estado === 'listo');
+      },
+      error: () => { /* silencioso */ }
+    });
+  }
+
+  get hayReqsPorFirmar(): boolean {
+    return this.reqsListos.some(r => r.estado === 'aprobado');
+  }
+
+  abrirFirma(req: Requerimiento): void {
+    this.reqAFirmar = req;
+    this.showFirmaModal = true;
+    this._hayTrazo = false;
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => this._initCanvas(), 50);
+  }
+
+  cerrarFirma(): void {
+    this.showFirmaModal = false;
+    this.reqAFirmar = null;
+    document.body.style.overflow = '';
+  }
+
+  private _initCanvas(): void {
+    const canvas = this.firmaCanvasEl?.nativeElement;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0f172a';
+  }
+
+  private _pos(ev: MouseEvent | TouchEvent): { x: number; y: number } {
+    const canvas = this.firmaCanvasEl!.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+    const p = ev instanceof TouchEvent ? ev.touches[0] : ev;
+    return { x: (p.clientX - rect.left), y: (p.clientY - rect.top) };
+  }
+
+  firmaStart(ev: MouseEvent | TouchEvent): void {
+    ev.preventDefault();
+    this._dibujando = true;
+    const ctx = this.firmaCanvasEl!.nativeElement.getContext('2d')!;
+    const { x, y } = this._pos(ev);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }
+  firmaMove(ev: MouseEvent | TouchEvent): void {
+    if (!this._dibujando) return;
+    ev.preventDefault();
+    const ctx = this.firmaCanvasEl!.nativeElement.getContext('2d')!;
+    const { x, y } = this._pos(ev);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    this._hayTrazo = true;
+  }
+  firmaEnd(): void { this._dibujando = false; }
+
+  limpiarFirma(): void {
+    const canvas = this.firmaCanvasEl?.nativeElement;
+    if (!canvas) return;
+    canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height);
+    this._hayTrazo = false;
+  }
+
+  confirmarFirma(): void {
+    if (!this.reqAFirmar || !this._hayTrazo) {
+      this.toast.mostrar('Dibuja la firma antes de confirmar.', 'error');
+      return;
+    }
+    const dataUrl = this.firmaCanvasEl!.nativeElement.toDataURL('image/png');
+    this.firmando = true;
+    this.logistica.firmarRequerimiento(this.reqAFirmar.id, '', dataUrl).subscribe({
+      next: () => {
+        this.firmando = false;
+        this.toast.mostrar('Recepción firmada. Logística fue notificada.', 'success');
+        this.cerrarFirma();
+        this.cargarReqsListos();
+      },
+      error: (err: any) => {
+        this.firmando = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo firmar.', 'error');
       }
     });
   }

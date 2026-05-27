@@ -11,6 +11,7 @@ import { CentroAyudaComponent } from './features/centro-ayuda/centro-ayuda.compo
 import { DocumentacionComponent } from './features/documentacion/documentacion.component';
 import { OperacionesComponent } from './features/operaciones/operaciones.component';
 import { LogisticaComponent } from './features/logistica/logistica.component';
+import { RequerimientosComponent } from './features/logistica/components/requerimientos/requerimientos.component';
 import { OperacionesDetalleComponent } from './features/operaciones/components/operaciones-detalle/operaciones-detalle.component';
 import { OperacionesServiciosListaComponent } from './features/operaciones/components/operaciones-servicios-lista/operaciones-servicios-lista.component';
 import { OperacionesCronogramaComponent } from './features/operaciones/components/operaciones-cronograma/operaciones-cronograma.component';
@@ -75,6 +76,12 @@ export const routes: Routes = [
     path: 'logistica',
     component: LogisticaComponent,
     title: 'Logística | E-System Tic',
+    canActivate: [authGuard]
+},
+{
+    path: 'logistica/requerimientos',
+    component: RequerimientosComponent,
+    title: 'Requerimientos | E-System Tic',
     canActivate: [authGuard]
 },
 {

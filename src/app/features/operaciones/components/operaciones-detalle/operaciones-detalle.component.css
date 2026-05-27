@@ -558,6 +558,74 @@
 :host-context([data-theme="dark"]) .prep-checklist { background: #0f172a; border-color: #334155; }
 :host-context([data-theme="dark"]) .prep-step { background: #1e293b; border-color: #334155; }
 
+/* ── HU-16: tarjeta de materiales listos para firmar ── */
+.firma-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid rgba(59,130,246,.35);
+  border-radius: 14px; padding: 16px 20px; margin-bottom: 20px;
+}
+.firma-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.firma-head > svg { width: 22px; height: 22px; color: #2563eb; flex-shrink: 0; }
+.firma-head-text { display: flex; flex-direction: column; gap: 2px; }
+.firma-head-text strong { font-size: 14px; font-weight: 800; color: var(--text-main, #0f172a); }
+.firma-head-text span { font-size: 12.5px; color: var(--text-muted, #64748b); }
+.firma-req {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px; border: 1px solid var(--border-color, #e7eae6); border-radius: 11px;
+  margin-top: 8px;
+}
+.firma-req-info { min-width: 0; }
+.firma-req-items { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.firma-chip {
+  font-size: 12px; font-weight: 600; color: var(--text-main, #334155);
+  background: var(--page-bg, #f1f5f9); border-radius: 20px; padding: 3px 10px;
+}
+.firma-chip em { color: #7c3aed; font-style: normal; font-weight: 700; }
+.firma-req-meta { font-size: 11.5px; color: var(--text-muted, #94a3b8); }
+.firma-btn {
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  padding: 9px 16px; border: none; border-radius: 9px;
+  background: #3b82f6; color: #fff; font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+}
+.firma-btn svg { width: 15px; height: 15px; }
+.firma-btn:hover { background: #2563eb; }
+.firma-ok { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: #7c3aed; flex-shrink: 0; }
+.firma-ok svg { width: 15px; height: 15px; }
+
+/* Modal de firma */
+.modal-firma { max-width: 600px; }
+.salida-preview {
+  border: 1px solid var(--border-color, #e7eae6); border-radius: 12px;
+  padding: 16px; margin-bottom: 16px; background: var(--page-bg, #f8fafc);
+}
+.salida-head { text-align: center; margin-bottom: 12px; }
+.salida-head strong { display: block; font-size: 13px; font-weight: 800; letter-spacing: .03em; color: var(--text-main, #0f172a); }
+.salida-head span { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.salida-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.salida-meta div { display: flex; flex-direction: column; }
+.salida-meta span { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted, #94a3b8); font-weight: 700; }
+.salida-meta b { font-size: 13px; color: var(--text-main, #334155); }
+.salida-tabla { width: 100%; border-collapse: collapse; }
+.salida-tabla th { text-align: left; font-size: 10.5px; text-transform: uppercase; color: var(--text-muted, #94a3b8); padding: 6px 8px; border-bottom: 1px solid var(--border-color, #e7eae6); }
+.salida-tabla td { font-size: 12.5px; color: var(--text-main, #334155); padding: 7px 8px; border-bottom: 1px solid var(--border-color, #eef1ee); }
+.salida-nota { font-size: 11px; color: var(--text-muted, #94a3b8); font-style: italic; margin: 10px 0 0; }
+
+.firma-pad-wrap { display: flex; flex-direction: column; gap: 8px; }
+.firma-pad-label { font-size: 12.5px; font-weight: 700; color: var(--text-main, #334155); }
+.firma-pad {
+  width: 100%; height: 160px; border: 2px dashed var(--border-color, #cbd5e1);
+  border-radius: 10px; background: #fff; touch-action: none; cursor: crosshair;
+}
+.firma-clear {
+  align-self: flex-end; background: transparent; border: none;
+  font-size: 12px; font-weight: 700; color: #dc2626; cursor: pointer; font-family: 'Inter', sans-serif;
+}
+
+:host-context([data-theme="dark"]) .firma-card { background: #0f172a; border-color: rgba(59,130,246,.4); }
+:host-context([data-theme="dark"]) .firma-req { background: #1e293b; border-color: #334155; }
+:host-context([data-theme="dark"]) .salida-preview { background: #1e293b; border-color: #334155; }
+
 .btn-solid-green {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 11px 22px; border: none; background: var(--brand-green,#91d337);

@@ -174,6 +174,52 @@
   </div>
   }
 
+  <!-- ═══════════════ HU-16: MATERIALES LISTOS PARA FIRMAR ═══════════════ -->
+  @if (reqsListos.length > 0) {
+  <div class="firma-card">
+    <div class="firma-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+      </svg>
+      <div class="firma-head-text">
+        <strong>Materiales aprobados por Logística</strong>
+        <span>Firma la recepción para que Logística despache los materiales al equipo.</span>
+      </div>
+    </div>
+
+    @for (req of reqsListos; track req.id) {
+    <div class="firma-req">
+      <div class="firma-req-info">
+        <div class="firma-req-items">
+          @for (it of req.items; track it.id) {
+            @if (it.estadoItem !== 'rechazado') {
+            <span class="firma-chip">
+              {{ it.nombre }} × {{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}
+              @if (it.estadoItem === 'para_compra') { <em>(compra)</em> }
+            </span>
+            }
+          }
+        </div>
+        <span class="firma-req-meta">Solicitado por {{ req.solicitanteNombre }} · {{ req.fecha }}</span>
+      </div>
+      @if (req.estado === 'aprobado') {
+        <button class="firma-btn" (click)="abrirFirma(req)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+          </svg>
+          Firmar recepción
+        </button>
+      } @else {
+        <span class="firma-ok">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+          Firmado · esperando despacho
+        </span>
+      }
+    </div>
+    }
+  </div>
+  }
+
   @if (servicio.estado === 'Completado') {
   <div class="banner-completado">
     <div class="banner-completado-icon">
@@ -1262,6 +1308,77 @@
           <line x1="12" y1="15" x2="12" y2="3"></line>
         </svg>
         Descargar PDF
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+<!-- ══════════════════════════════════════════════════════════
+     HU-16 — MODAL DE FIRMA DE RECEPCIÓN + PREVIEW REPORTE SALIDA
+══════════════════════════════════════════════════════════ -->
+@if (showFirmaModal && reqAFirmar) {
+<div class="modal-overlay" (click)="cerrarFirma()">
+  <div class="modal-box modal-firma" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Firmar recepción de materiales</h3>
+        <p class="modal-subtitle">Reporte de salida · {{ servicio?.cliente }}</p>
+      </div>
+      <button class="modal-close" (click)="cerrarFirma()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Previsualización del reporte de salida (stub del PDF) -->
+      <div class="salida-preview">
+        <div class="salida-head">
+          <strong>REPORTE DE SALIDA DE MATERIALES</strong>
+          <span>E-System TIC · Documento de control logístico</span>
+        </div>
+        <div class="salida-meta">
+          <div><span>Servicio</span><b>{{ servicio?.tipoServicio }}</b></div>
+          <div><span>Cliente</span><b>{{ servicio?.cliente }}</b></div>
+          <div><span>Solicitado por</span><b>{{ reqAFirmar.solicitanteNombre }}</b></div>
+          <div><span>Recibe</span><b>{{ _nombreUsuario }}</b></div>
+        </div>
+        <table class="salida-tabla">
+          <thead><tr><th>Material</th><th>Cant.</th><th>Origen</th></tr></thead>
+          <tbody>
+            @for (it of reqAFirmar.items; track it.id) {
+              @if (it.estadoItem !== 'rechazado') {
+              <tr>
+                <td>{{ it.nombre }}</td>
+                <td>{{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}</td>
+                <td>{{ it.estadoItem === 'para_compra' ? 'Compra externa' : 'Stock' }}</td>
+              </tr>
+              }
+            }
+          </tbody>
+        </table>
+        <p class="salida-nota">El PDF formal se generará en la entrega. Esta es una previsualización.</p>
+      </div>
+
+      <!-- Pad de firma -->
+      <div class="firma-pad-wrap">
+        <label class="firma-pad-label">Firma del receptor (técnico líder / jefe de operaciones recomendado)</label>
+        <canvas #firmaCanvas class="firma-pad" width="520" height="160"
+                (mousedown)="firmaStart($event)" (mousemove)="firmaMove($event)"
+                (mouseup)="firmaEnd()" (mouseleave)="firmaEnd()"
+                (touchstart)="firmaStart($event)" (touchmove)="firmaMove($event)"
+                (touchend)="firmaEnd()"></canvas>
+        <button class="firma-clear" (click)="limpiarFirma()">Limpiar firma</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel" (click)="cerrarFirma()">Cancelar</button>
+      <button class="btn-primary" (click)="confirmarFirma()" [disabled]="firmando">
+        @if (firmando) { <app-spinner [size]="16" theme="light"></app-spinner> Firmando… }
+        @else { Confirmar firma y notificar a Logística }
       </button>
     </div>
   </div>

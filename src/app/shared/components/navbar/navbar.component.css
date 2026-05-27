@@ -42,6 +42,57 @@
 }
 .nav-item.inactive { opacity: 0.5; }
 
+/* ── Desplegable de Logística (apertura por click) ── */
+.nav-dropdown { position: relative; }
+.nav-caret { transition: transform 0.2s ease; opacity: 0.7; }
+.nav-caret.open { transform: rotate(180deg); }
+
+/* Backdrop a pantalla completa: captura el clic fuera para cerrar el menú */
+.nav-submenu-backdrop {
+  position: fixed; inset: 0; z-index: 190; background: transparent;
+}
+
+.nav-submenu {
+  position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+  min-width: 260px; padding: 8px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px var(--shadow-color, rgba(0,0,0,.16));
+  z-index: 200;
+  display: flex; flex-direction: column; gap: 4px;
+  animation: navsub-in 0.16s ease;
+}
+/* Puntita superior apuntando al botón */
+.nav-submenu::before {
+  content: ''; position: absolute; top: -6px; left: 50%; transform: translateX(-50%) rotate(45deg);
+  width: 12px; height: 12px; background-color: var(--card-bg);
+  border-left: 1px solid var(--border-color); border-top: 1px solid var(--border-color);
+}
+@keyframes navsub-in { from { opacity: 0; transform: translateX(-50%) translateY(-6px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+.nav-subitem {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 11px; text-decoration: none;
+  color: var(--text-muted);
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.nav-subitem:hover { background-color: var(--hover-bg); color: var(--text-main); }
+.nav-subitem.active { background-color: rgba(145,211,55,.14); }
+.nav-subitem.active .nav-subitem-title { color: var(--brand-green); }
+.nav-subitem.active .nav-subitem-ic { background-color: rgba(145,211,55,.18); color: var(--brand-green); }
+
+.nav-subitem-ic {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background-color: var(--hover-bg); color: var(--text-muted);
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.nav-subitem-ic svg { flex-shrink: 0; }
+.nav-subitem-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.nav-subitem-title { font-size: 13.5px; font-weight: 700; color: var(--text-main); }
+.nav-subitem-desc { font-size: 11.5px; color: var(--text-muted); }
+
 /* ── Zona Derecha: Acciones y Perfil ── */
 .navbar-actions { display: flex; align-items: center; gap: 12px; }
 .divider { width: 1px; height: 24px; background-color: var(--border-color); margin: 0 4px; transition: background-color 0.4s ease; }

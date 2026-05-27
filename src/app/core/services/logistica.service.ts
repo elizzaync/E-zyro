@@ -10,7 +10,16 @@ import {
   AlmacenItem,
   UnidadItem,
   ModeloItem,
+  Requerimiento,
+  AprobarItemDecision,
 } from '../../features/logistica/logistica.models';
+
+interface RequerimientosListResponse {
+  items: Requerimiento[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SERVICIO DE LOGÍSTICA (INVENTARIO)
@@ -169,5 +178,54 @@ export class LogisticaService {
   getSiguienteCodigo(tipo: 'material' | 'equipo' | 'herramienta'): Observable<{ codigo: string }> {
     const params = new HttpParams().set('tipo', tipo);
     return this.http.get<{ codigo: string }>(`${this.api}/logistica/siguiente-codigo`, { params });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // REQUERIMIENTOS (HU-16)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  getRequerimientos(filtros: {
+    estado?: string; proyectoId?: string; servicioId?: string; q?: string;
+  } = {}): Observable<Requerimiento[]> {
+    let params = new HttpParams().set('estado', filtros.estado ?? 'pendiente');
+    if (filtros.proyectoId) params = params.set('proyecto_id', filtros.proyectoId);
+    if (filtros.servicioId) params = params.set('servicio_id', filtros.servicioId);
+    if (filtros.q)          params = params.set('q', filtros.q);
+    return this.http
+      .get<RequerimientosListResponse>(`${this.api}/logistica/requerimientos`, { params })
+      .pipe(map(r => r.items));
+  }
+
+  getHistorialRequerimientos(filtros: { proyectoId?: string; servicioId?: string } = {}): Observable<Requerimiento[]> {
+    let params = new HttpParams();
+    if (filtros.proyectoId) params = params.set('proyecto_id', filtros.proyectoId);
+    if (filtros.servicioId) params = params.set('servicio_id', filtros.servicioId);
+    return this.http
+      .get<RequerimientosListResponse>(`${this.api}/logistica/requerimientos/historial`, { params })
+      .pipe(map(r => r.items));
+  }
+
+  getRequerimiento(id: string): Observable<Requerimiento> {
+    return this.http.get<Requerimiento>(`${this.api}/logistica/requerimientos/${id}`);
+  }
+
+  aprobarRequerimiento(id: string, body: {
+    almacenId?: string; decisiones?: AprobarItemDecision[]; observacion?: string;
+  }): Observable<Requerimiento> {
+    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/aprobar`, body);
+  }
+
+  rechazarRequerimiento(id: string, observacion: string): Observable<Requerimiento> {
+    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/rechazar`, { observacion });
+  }
+
+  firmarRequerimiento(id: string, recibidoPorId: string, firmaUrl: string): Observable<Requerimiento> {
+    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/firmar`, { recibidoPorId, firmaUrl });
+  }
+
+  entregarRequerimiento(id: string, body: {
+    recibidoPorId?: string; firmaUrl?: string; notas?: string;
+  } = {}): Observable<Requerimiento> {
+    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/entregar`, body);
   }
 }

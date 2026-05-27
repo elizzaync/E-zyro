@@ -1,0 +1,214 @@
+<div class="req-layout fade-in">
+
+  <!-- Cabecera -->
+  <header class="req-header">
+    <div class="req-header-main">
+      <button class="req-back" (click)="volverInventario()" title="Volver a Inventario">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+        </svg>
+      </button>
+      <div class="req-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="req-title">Requerimientos</h1>
+        <p class="req-subtitle">Solicitudes de materiales de los equipos de campo</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="req-tabs">
+    <button class="req-tab" [class.active]="tab === 'pendientes'" (click)="setTab('pendientes')">
+      Pendientes
+      @if (pendientes.length > 0 && tab !== 'pendientes') { <span class="req-tab-badge">{{ pendientes.length }}</span> }
+    </button>
+    <button class="req-tab" [class.active]="tab === 'historial'" (click)="setTab('historial')">
+      Historial
+    </button>
+  </nav>
+
+  <!-- Buscador -->
+  <div class="req-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+    <input type="text" [(ngModel)]="busqueda" placeholder="Buscar por proyecto, servicio, solicitante o material…">
+  </div>
+
+  <!-- Lista -->
+  @if (cargando) {
+    <div class="req-estado"><app-spinner [size]="34"></app-spinner><span>Cargando…</span></div>
+  } @else if (lista.length === 0) {
+    <div class="req-estado">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="44" height="44">
+        <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+      <span>{{ tab === 'pendientes' ? 'No hay requerimientos pendientes.' : 'Sin historial de consumo.' }}</span>
+    </div>
+  } @else {
+    <div class="req-list">
+      @for (r of lista; track r.id) {
+      <article class="req-card">
+        <div class="rc-head">
+          <div class="rc-solicitante">
+            @if (r.solicitanteFoto) {
+              <img class="rc-avatar" [src]="r.solicitanteFoto" [alt]="r.solicitanteNombre">
+            } @else {
+              <span class="rc-avatar rc-avatar-fb">{{ r.solicitanteNombre.charAt(0) }}</span>
+            }
+            <div>
+              <div class="rc-sol-nombre">{{ r.solicitanteNombre }}</div>
+              <div class="rc-meta">
+                <span>{{ r.proyectoNombre }}</span>
+                @if (r.servicioNombre) { <span class="rc-sep">·</span> <span>{{ r.servicioNombre }}</span> }
+                @if (r.fecha) { <span class="rc-sep">·</span> <span>{{ r.fecha }}</span> }
+              </div>
+            </div>
+          </div>
+          <span class="rc-badge" [class]="estadoClase(r.estado)">{{ estadoLabel(r.estado) }}</span>
+        </div>
+
+        <!-- Items -->
+        <ul class="rc-items">
+          @for (it of r.items; track it.id) {
+          <li class="rc-item">
+            <span class="rci-nombre">{{ it.nombre }}</span>
+            <span class="rci-cant">× {{ it.cantidad }} {{ it.unidad }}</span>
+            @if (it.esCompraExterna) {
+              <span class="rci-tag tag-compra">Compra externa</span>
+            } @else if (it.enStock) {
+              <span class="rci-tag tag-stock">Stock: {{ it.stockDisponible }}</span>
+            } @else {
+              <span class="rci-tag tag-sinstock">Stock insuf. ({{ it.stockDisponible }})</span>
+            }
+            @if (tab === 'historial' && it.estadoItem !== 'pendiente') {
+              <span class="rci-tag tag-estado">{{ itemEstadoLabel(it.estadoItem) }}</span>
+            }
+          </li>
+          }
+        </ul>
+
+        @if (r.observacion) {
+          <p class="rc-obs"><strong>Nota del técnico:</strong> {{ r.observacion }}</p>
+        }
+        @if (r.observacionLogistico) {
+          <p class="rc-obs rc-obs-log"><strong>Logística:</strong> {{ r.observacionLogistico }}</p>
+        }
+        @if (r.estado === 'entregado' && r.recibidoPorNombre) {
+          <p class="rc-entrega">Entregado a <strong>{{ r.recibidoPorNombre }}</strong>
+             @if (r.entregadoPorNombre) { por {{ r.entregadoPorNombre }} }</p>
+        }
+
+        <!-- Acciones -->
+        @if (r.estado === 'pendiente') {
+          <div class="rc-actions">
+            <button class="rc-btn rc-btn-reject" (click)="abrirRechazo(r)">Rechazar</button>
+            <button class="rc-btn rc-btn-review" (click)="abrirRevision(r)">Revisar y aprobar</button>
+          </div>
+        } @else if (r.estado === 'aprobado' || r.estado === 'listo') {
+          <div class="rc-actions">
+            @if (r.estado === 'listo' && r.firmaUrl) {
+              <span class="rc-firmado">✓ Firmado por {{ r.recibidoPorNombre }}</span>
+            }
+            <button class="rc-btn rc-btn-deliver" (click)="entregar(r)" [disabled]="procesando">
+              Registrar entrega
+            </button>
+          </div>
+        }
+      </article>
+      }
+    </div>
+  }
+</div>
+
+<!-- ═══ MODAL DE REVISIÓN / APROBACIÓN ═══ -->
+@if (reqActivo) {
+<div class="rm-overlay" (click)="cerrarRevision()">
+  <div class="rm-modal" (click)="$event.stopPropagation()">
+    <header class="rm-header">
+      <div>
+        <h2 class="rm-title">Revisar requerimiento</h2>
+        <p class="rm-subtitle">{{ reqActivo.solicitanteNombre }} · {{ reqActivo.proyectoNombre }}</p>
+      </div>
+      <button class="rm-close" (click)="cerrarRevision()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="rm-body">
+      <p class="rm-hint">Decide por cada material: sale de stock (resta automática), se compra (genera ticket) o se rechaza.</p>
+      <div class="rm-items">
+        @for (it of reqActivo.items; track it.id) {
+        <div class="rm-item">
+          <div class="rm-item-info">
+            <span class="rm-item-nombre">{{ it.nombre }}</span>
+            <span class="rm-item-meta">
+              Pedido: <strong>{{ it.cantidad }} {{ it.unidad }}</strong>
+              @if (!it.esCompraExterna) {
+                · Stock: <strong [class.txt-warn]="!it.enStock">{{ it.stockDisponible }}</strong>
+                @if (decisiones[it.id] === 'aprobar' && it.enStock) {
+                  · Quedará: <strong class="txt-ok">{{ proyeccion(it) }}</strong>
+                }
+              }
+              @if (it.especificacion) { <br><em>{{ it.especificacion }}</em> }
+            </span>
+          </div>
+          <div class="rm-seg">
+            <button class="rm-seg-btn" [class.on-ap]="decisiones[it.id] === 'aprobar'"
+                    [disabled]="it.esCompraExterna"
+                    (click)="setDecision(it.id, 'aprobar')">De stock</button>
+            <button class="rm-seg-btn" [class.on-co]="decisiones[it.id] === 'compra'"
+                    (click)="setDecision(it.id, 'compra')">Comprar</button>
+            <button class="rm-seg-btn" [class.on-re]="decisiones[it.id] === 'rechazar'"
+                    (click)="setDecision(it.id, 'rechazar')">Rechazar</button>
+          </div>
+        </div>
+        }
+      </div>
+    </div>
+
+    <footer class="rm-footer">
+      <button class="rm-btn-cancel" (click)="cerrarRevision()">Cancelar</button>
+      <button class="rm-btn-confirm" (click)="confirmarAprobacion()" [disabled]="procesando">
+        @if (procesando) { <app-spinner [size]="15" theme="light"></app-spinner> Procesando… }
+        @else { Confirmar y restar stock }
+      </button>
+    </footer>
+  </div>
+</div>
+}
+
+<!-- ═══ MODAL DE RECHAZO ═══ -->
+@if (reqRechazar) {
+<div class="rm-overlay" (click)="cerrarRechazo()">
+  <div class="rm-modal rm-modal-sm" (click)="$event.stopPropagation()">
+    <header class="rm-header">
+      <h2 class="rm-title">Rechazar requerimiento</h2>
+      <button class="rm-close" (click)="cerrarRechazo()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </header>
+    <div class="rm-body">
+      <label class="rm-label">Motivo del rechazo (visible para el técnico)</label>
+      <textarea class="rm-textarea" rows="3" [(ngModel)]="motivoRechazo"
+                placeholder="Ej: El material solicitado no corresponde al alcance del servicio…"></textarea>
+    </div>
+    <footer class="rm-footer">
+      <button class="rm-btn-cancel" (click)="cerrarRechazo()">Cancelar</button>
+      <button class="rm-btn-reject-confirm" (click)="confirmarRechazo()"
+              [disabled]="procesando || !motivoRechazo.trim()">
+        @if (procesando) { <app-spinner [size]="15" theme="light"></app-spinner> Rechazando… }
+        @else { Rechazar pedido }
+      </button>
+    </footer>
+  </div>
+</div>
+}
