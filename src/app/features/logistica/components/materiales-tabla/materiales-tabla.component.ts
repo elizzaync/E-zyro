@@ -93,7 +93,7 @@ export class MaterialesTablaComponent implements OnInit {
   abrirEditar(m: MaterialLog): void { this.materialEnEdicion = m; this.showModal = true; }
   cerrarModal(): void { this.showModal = false; this.materialEnEdicion = null; }
 
-  onGuardar(data: Omit<MaterialLog, 'id'>): void {
+  onGuardar(data: any): void {
     this.guardando = true;
     const obs = this.materialEnEdicion
       ? this.svc.actualizarMaterial(this.materialEnEdicion.id, data)

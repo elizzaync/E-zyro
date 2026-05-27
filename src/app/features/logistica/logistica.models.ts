@@ -13,16 +13,17 @@
 /** Material consumible / insumo de almacén. */
 export interface MaterialLog {
   id: string;
-  codigo: string;
+  codigo: string;                  // autogenerado por backend (MAT-NNNN)
   nombre: string;
   categoriaId: string | null;
-  categoria: string;
-  unidad: string;
+  categoria: string;               // nombre denormalizado
+  unidadId: string | null;
+  unidad: string;                  // nombre denormalizado
   descripcion: string | null;
-  cantidad: number;        // stock actual
+  cantidad: number;                // stock actual
   stockMinimo: number;
   almacenId: string | null;
-  almacen: string;
+  almacen: string;                 // nombre denormalizado
   precio: number | null;
   activo: boolean;
 }
@@ -30,23 +31,36 @@ export interface MaterialLog {
 /** Equipo o herramienta del inventario (antes tabla `articulos`). */
 export interface EquipoHerramienta {
   id: string;
-  codigo: string;
+  codigo: string;                  // autogenerado por backend (EQ-NNNN / HR-NNNN)
   nombre: string;
-  clase: ClaseArticulo;              // equipo | herramienta
-  tipo: string;                      // tipo de equipo / familia
-  marca: string | null;
+  clase: ClaseArticulo;            // equipo | herramienta
+  tipoId: string | null;
+  tipo: string;                    // nombre de familia/tipo (denormalizado)
+  marcaId: string | null;
+  marca: string | null;            // nombre denormalizado
+  modeloId: string | null;
   modelo: string | null;
   numeroSerie: string | null;
+  almacenId: string | null;
   ubicacion: string | null;
   cantidad: number;
   estado: EstadoEquipo;
   // ── Mantenimiento ──
   requiereMantenimiento: boolean;
   frecuenciaMantenimiento: FrecuenciaMantenimiento;
-  proximaFechaMantenimiento: string | null;   // ISO yyyy-mm-dd
+  proximaFechaMantenimiento: string | null;
   fechaAdquisicion: string | null;
   fichaTecnica: string | null;
 }
+
+/** Item simple para selects de catálogo. */
+export interface CatalogoItem {
+  id: string;
+  nombre: string;
+}
+export interface AlmacenItem extends CatalogoItem { ubicacion?: string | null; }
+export interface UnidadItem  extends CatalogoItem { abreviatura?: string | null; }
+export interface ModeloItem  extends CatalogoItem { marcaId: string; }
 
 export type ClaseArticulo = 'equipo' | 'herramienta';
 

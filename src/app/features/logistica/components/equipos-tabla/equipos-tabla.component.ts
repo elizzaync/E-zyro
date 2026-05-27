@@ -108,7 +108,7 @@ export class EquiposTablaComponent implements OnInit {
   abrirEditar(e: EquipoHerramienta): void { this.equipoEnEdicion = e; this.showModal = true; }
   cerrarModal(): void { this.showModal = false; this.equipoEnEdicion = null; }
 
-  onGuardar(data: Omit<EquipoHerramienta, 'id'>): void {
+  onGuardar(data: any): void {
     this.guardando = true;
     const obs = this.equipoEnEdicion
       ? this.svc.actualizarEquipo(this.equipoEnEdicion.id, data)

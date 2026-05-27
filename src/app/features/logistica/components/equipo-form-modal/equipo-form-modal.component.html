@@ -4,7 +4,10 @@
     <header class="lf-header">
       <div>
         <h2 class="lf-title">{{ esEdicion ? 'Editar Equipo / Herramienta' : 'Nuevo Equipo / Herramienta' }}</h2>
-        <p class="lf-subtitle">Registro del activo de inventario</p>
+        <p class="lf-subtitle">
+          @if (esEdicion) { Registro del activo — código <strong>{{ equipo?.codigo }}</strong> }
+          @else { El código será generado automáticamente: <strong>{{ codigoPreview || '…' }}</strong> }
+        </p>
       </div>
       <button class="lf-close" (click)="cerrar.emit()" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -16,19 +19,13 @@
     <div class="lf-body">
       <div class="lf-grid">
 
-        <div class="lf-field">
-          <label class="lf-label">Código <span class="req">*</span></label>
-          <input class="lf-input" formControlName="codigo" placeholder="Ej: EQ-0005"
-                 [class.invalid]="ctrl('codigo')?.invalid && ctrl('codigo')?.touched">
-        </div>
-
-        <div class="lf-field lf-col-2">
+        <div class="lf-field lf-col-3">
           <label class="lf-label">Nombre <span class="req">*</span></label>
-          <input class="lf-input" formControlName="nombre" placeholder="Ej: Taladro percutor Bosch"
+          <input class="lf-input" formControlName="nombre" placeholder="Ej: Taladro percutor Bosch GSB"
                  [class.invalid]="ctrl('nombre')?.invalid && ctrl('nombre')?.touched">
         </div>
 
-        <!-- Clase: equipo vs herramienta (segmented) -->
+        <!-- Clase: equipo vs herramienta -->
         <div class="lf-field lf-col-3">
           <label class="lf-label">Clasificación <span class="req">*</span></label>
           <div class="seg">
@@ -41,18 +38,85 @@
           </div>
         </div>
 
+        <!-- ── Tipo / familia (select + nuevo inline) ── -->
         <div class="lf-field">
-          <label class="lf-label">Tipo / familia <span class="req">*</span></label>
-          <input class="lf-input" formControlName="tipo" placeholder="Ej: Instrumento de medición"
-                 [class.invalid]="ctrl('tipo')?.invalid && ctrl('tipo')?.touched">
+          <label class="lf-label">
+            Tipo / familia
+            <button type="button" class="lf-add-link" (click)="toggleAddTipo()">
+              {{ showAddTipo ? 'Cancelar' : '+ Nuevo' }}
+            </button>
+          </label>
+          @if (!showAddTipo) {
+            <select class="lf-input" formControlName="tipoId">
+              <option value="">— Sin asignar —</option>
+              @for (t of tipos; track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+            </select>
+          } @else {
+            <div class="lf-add-row">
+              <input class="lf-input" [(ngModel)]="nuevoTipo" [ngModelOptions]="{ standalone: true }"
+                     placeholder="Ej: Instrumento de medición">
+              <button type="button" class="lf-add-btn" (click)="confirmarNuevoTipo()"
+                      [disabled]="!nuevoTipo.trim() || creandoTipo">
+                @if (creandoTipo) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
+            </div>
+          }
         </div>
+
+        <!-- ── Marca (select + nueva inline) ── -->
         <div class="lf-field">
-          <label class="lf-label">Marca</label>
-          <input class="lf-input" formControlName="marca" placeholder="Ej: Fluke">
+          <label class="lf-label">
+            Marca
+            <button type="button" class="lf-add-link" (click)="toggleAddMarca()">
+              {{ showAddMarca ? 'Cancelar' : '+ Nueva' }}
+            </button>
+          </label>
+          @if (!showAddMarca) {
+            <select class="lf-input" formControlName="marcaId">
+              <option value="">— Sin asignar —</option>
+              @for (m of marcas; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
+            </select>
+          } @else {
+            <div class="lf-add-row">
+              <input class="lf-input" [(ngModel)]="nuevaMarca" [ngModelOptions]="{ standalone: true }"
+                     placeholder="Ej: Bosch">
+              <button type="button" class="lf-add-btn" (click)="confirmarNuevaMarca()"
+                      [disabled]="!nuevaMarca.trim() || creandoMarca">
+                @if (creandoMarca) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
+            </div>
+          }
         </div>
+
+        <!-- ── Modelo (depende de marca) ── -->
         <div class="lf-field">
-          <label class="lf-label">Modelo</label>
-          <input class="lf-input" formControlName="modelo" placeholder="Ej: 117">
+          <label class="lf-label">
+            Modelo
+            <button type="button" class="lf-add-link"
+                    (click)="toggleAddModelo()"
+                    [disabled]="!marcaSeleccionada"
+                    [title]="!marcaSeleccionada ? 'Primero elige una marca' : ''">
+              {{ showAddModelo ? 'Cancelar' : '+ Nuevo' }}
+            </button>
+          </label>
+          @if (!showAddModelo) {
+            <select class="lf-input" formControlName="modeloId" [disabled]="!marcaSeleccionada">
+              <option value="">{{ marcaSeleccionada ? '— Sin asignar —' : 'Selecciona una marca primero' }}</option>
+              @for (m of modelos; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
+            </select>
+          } @else {
+            <div class="lf-add-row">
+              <input class="lf-input" [(ngModel)]="nuevoModelo" [ngModelOptions]="{ standalone: true }"
+                     placeholder="Ej: GSB 550">
+              <button type="button" class="lf-add-btn" (click)="confirmarNuevoModelo()"
+                      [disabled]="!nuevoModelo.trim() || creandoModelo || !marcaSeleccionada">
+                @if (creandoModelo) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
+            </div>
+          }
         </div>
 
         <div class="lf-field">
@@ -71,10 +135,32 @@
           </select>
         </div>
 
+        <!-- ── Almacén (select + nuevo inline) ── -->
         <div class="lf-field">
-          <label class="lf-label">Ubicación</label>
-          <input class="lf-input" formControlName="ubicacion" placeholder="Ej: Almacén Central">
+          <label class="lf-label">
+            Almacén / Ubicación
+            <button type="button" class="lf-add-link" (click)="toggleAddAlmacen()">
+              {{ showAddAlmacen ? 'Cancelar' : '+ Nuevo' }}
+            </button>
+          </label>
+          @if (!showAddAlmacen) {
+            <select class="lf-input" formControlName="almacenId">
+              <option value="">— Sin asignar —</option>
+              @for (a of almacenes; track a.id) { <option [value]="a.id">{{ a.nombre }}</option> }
+            </select>
+          } @else {
+            <div class="lf-add-row">
+              <input class="lf-input" [(ngModel)]="nuevoAlmacen" [ngModelOptions]="{ standalone: true }"
+                     placeholder="Ej: Almacén Sur">
+              <button type="button" class="lf-add-btn" (click)="confirmarNuevoAlmacen()"
+                      [disabled]="!nuevoAlmacen.trim() || creandoAlmacen">
+                @if (creandoAlmacen) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
+            </div>
+          }
         </div>
+
         <div class="lf-field">
           <label class="lf-label">Fecha de adquisición</label>
           <input class="lf-input" type="date" formControlName="fechaAdquisicion">

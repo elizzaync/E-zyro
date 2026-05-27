@@ -4,7 +4,10 @@
     <header class="lf-header">
       <div>
         <h2 class="lf-title">{{ esEdicion ? 'Editar Material' : 'Nuevo Material' }}</h2>
-        <p class="lf-subtitle">Datos del insumo de almacén</p>
+        <p class="lf-subtitle">
+          @if (esEdicion) { Datos del material — código <strong>{{ material?.codigo }}</strong> }
+          @else { El código será generado automáticamente: <strong>{{ codigoPreview || '…' }}</strong> }
+        </p>
       </div>
       <button class="lf-close" (click)="cerrar.emit()" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -16,36 +19,93 @@
     <div class="lf-body">
       <div class="lf-grid">
 
-        <div class="lf-field">
-          <label class="lf-label">Código <span class="req">*</span></label>
-          <input class="lf-input" formControlName="codigo" placeholder="Ej: MAT-0007"
-                 [class.invalid]="ctrl('codigo')?.invalid && ctrl('codigo')?.touched">
-        </div>
-
-        <div class="lf-field lf-col-2">
+        <div class="lf-field lf-col-3">
           <label class="lf-label">Nombre <span class="req">*</span></label>
           <input class="lf-input" formControlName="nombre" placeholder="Ej: Cable UTP Cat6"
                  [class.invalid]="ctrl('nombre')?.invalid && ctrl('nombre')?.touched">
         </div>
 
+        <!-- ── Categoría (select + nueva inline) ── -->
         <div class="lf-field">
-          <label class="lf-label">Categoría <span class="req">*</span></label>
-          <input class="lf-input" formControlName="categoria" placeholder="Ej: Redes"
-                 [class.invalid]="ctrl('categoria')?.invalid && ctrl('categoria')?.touched">
+          <label class="lf-label">
+            Categoría <span class="req">*</span>
+            <button type="button" class="lf-add-link" (click)="toggleAddCategoria()">
+              {{ showAddCategoria ? 'Cancelar' : '+ Nueva' }}
+            </button>
+          </label>
+          @if (!showAddCategoria) {
+            <select class="lf-input" formControlName="categoriaId"
+                    [class.invalid]="ctrl('categoriaId')?.invalid && ctrl('categoriaId')?.touched">
+              <option value="" disabled>— Seleccionar —</option>
+              @for (c of categorias; track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+            </select>
+          } @else {
+            <div class="lf-add-row">
+              <input class="lf-input" [(ngModel)]="nuevaCategoria" [ngModelOptions]="{ standalone: true }"
+                     placeholder="Nombre de la categoría">
+              <button type="button" class="lf-add-btn" (click)="confirmarNuevaCategoria()"
+                      [disabled]="!nuevaCategoria.trim() || creandoCategoria">
+                @if (creandoCategoria) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
+            </div>
+          }
         </div>
 
+        <!-- ── Unidad (select + nueva inline) ── -->
         <div class="lf-field">
-          <label class="lf-label">Unidad <span class="req">*</span></label>
-          <select class="lf-input" formControlName="unidad">
-            @for (u of unidades; track u) { <option [value]="u">{{ u }}</option> }
-          </select>
+          <label class="lf-label">
+            Unidad <span class="req">*</span>
+            <button type="button" class="lf-add-link" (click)="toggleAddUnidad()">
+              {{ showAddUnidad ? 'Cancelar' : '+ Nueva' }}
+            </button>
+          </label>
+          @if (!showAddUnidad) {
+            <select class="lf-input" formControlName="unidadId"
+                    [class.invalid]="ctrl('unidadId')?.invalid && ctrl('unidadId')?.touched">
+              <option value="" disabled>— Seleccionar —</option>
+              @for (u of unidades; track u.id) {
+                <option [value]="u.id">{{ u.nombre }}{{ u.abreviatura ? ' (' + u.abreviatura + ')' : '' }}</option>
+              }
+            </select>
+          } @else {
+            <div class="lf-add-row">
+              <input class="lf-input" [(ngModel)]="nuevaUnidad" [ngModelOptions]="{ standalone: true }"
+                     placeholder="Ej: Bobina">
+              <button type="button" class="lf-add-btn" (click)="confirmarNuevaUnidad()"
+                      [disabled]="!nuevaUnidad.trim() || creandoUnidad">
+                @if (creandoUnidad) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
+            </div>
+          }
         </div>
 
+        <!-- ── Almacén (select + nuevo inline) ── -->
         <div class="lf-field">
-          <label class="lf-label">Almacén <span class="req">*</span></label>
-          <select class="lf-input" formControlName="almacen">
-            @for (a of almacenes; track a) { <option [value]="a">{{ a }}</option> }
-          </select>
+          <label class="lf-label">
+            Almacén <span class="req">*</span>
+            <button type="button" class="lf-add-link" (click)="toggleAddAlmacen()">
+              {{ showAddAlmacen ? 'Cancelar' : '+ Nuevo' }}
+            </button>
+          </label>
+          @if (!showAddAlmacen) {
+            <select class="lf-input" formControlName="almacenId"
+                    [class.invalid]="ctrl('almacenId')?.invalid && ctrl('almacenId')?.touched">
+              <option value="" disabled>— Seleccionar —</option>
+              @for (a of almacenes; track a.id) { <option [value]="a.id">{{ a.nombre }}</option> }
+            </select>
+          } @else {
+            <div class="lf-add-row">
+              <input class="lf-input" [(ngModel)]="nuevoAlmacen" [ngModelOptions]="{ standalone: true }"
+                     placeholder="Ej: Almacén Sur">
+              <button type="button" class="lf-add-btn" (click)="confirmarNuevoAlmacen()"
+                      [disabled]="!nuevoAlmacen.trim() || creandoAlmacen">
+                @if (creandoAlmacen) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
+            </div>
+          }
         </div>
 
         <div class="lf-field">
@@ -53,13 +113,11 @@
           <input class="lf-input" type="number" min="0" formControlName="cantidad"
                  [class.invalid]="ctrl('cantidad')?.invalid && ctrl('cantidad')?.touched">
         </div>
-
         <div class="lf-field">
           <label class="lf-label">Stock mínimo <span class="req">*</span></label>
           <input class="lf-input" type="number" min="0" formControlName="stockMinimo"
                  [class.invalid]="ctrl('stockMinimo')?.invalid && ctrl('stockMinimo')?.touched">
         </div>
-
         <div class="lf-field">
           <label class="lf-label">Precio referencial</label>
           <input class="lf-input" type="number" min="0" step="0.01" formControlName="precio" placeholder="0.00">

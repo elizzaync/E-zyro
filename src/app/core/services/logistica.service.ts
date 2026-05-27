@@ -6,6 +6,10 @@ import {
   MaterialLog,
   EquipoHerramienta,
   LogisticaKpis,
+  CatalogoItem,
+  AlmacenItem,
+  UnidadItem,
+  ModeloItem,
 } from '../../features/logistica/logistica.models';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -66,11 +70,11 @@ export class LogisticaService {
       .pipe(map(r => r.items));
   }
 
-  crearMaterial(data: Omit<MaterialLog, 'id'>): Observable<MaterialLog> {
+  crearMaterial(data: any): Observable<MaterialLog> {
     return this.http.post<MaterialLog>(`${this.api}/logistica/materiales`, data);
   }
 
-  actualizarMaterial(id: string, data: Partial<MaterialLog>): Observable<MaterialLog> {
+  actualizarMaterial(id: string, data: any): Observable<MaterialLog> {
     return this.http.patch<MaterialLog>(`${this.api}/logistica/materiales/${id}`, data);
   }
 
@@ -94,11 +98,11 @@ export class LogisticaService {
       .pipe(map(r => r.items));
   }
 
-  crearEquipo(data: Omit<EquipoHerramienta, 'id'>): Observable<EquipoHerramienta> {
+  crearEquipo(data: any): Observable<EquipoHerramienta> {
     return this.http.post<EquipoHerramienta>(`${this.api}/logistica/equipos`, data);
   }
 
-  actualizarEquipo(id: string, data: Partial<EquipoHerramienta>): Observable<EquipoHerramienta> {
+  actualizarEquipo(id: string, data: any): Observable<EquipoHerramienta> {
     return this.http.patch<EquipoHerramienta>(`${this.api}/logistica/equipos/${id}`, data);
   }
 
@@ -112,5 +116,58 @@ export class LogisticaService {
 
   getKpis(): Observable<LogisticaKpis> {
     return this.http.get<LogisticaKpis>(`${this.api}/logistica/kpis`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CATÁLOGOS (selects)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  getCategorias(): Observable<CatalogoItem[]> {
+    return this.http.get<CatalogoItem[]>(`${this.api}/logistica/categorias`);
+  }
+  crearCategoria(nombre: string): Observable<CatalogoItem> {
+    return this.http.post<CatalogoItem>(`${this.api}/logistica/categorias`, { nombre });
+  }
+
+  getAlmacenes(): Observable<AlmacenItem[]> {
+    return this.http.get<AlmacenItem[]>(`${this.api}/logistica/almacenes`);
+  }
+  crearAlmacen(nombre: string, ubicacion?: string): Observable<AlmacenItem> {
+    return this.http.post<AlmacenItem>(`${this.api}/logistica/almacenes`, { nombre, ubicacion });
+  }
+
+  getUnidades(): Observable<UnidadItem[]> {
+    return this.http.get<UnidadItem[]>(`${this.api}/logistica/unidades`);
+  }
+  crearUnidad(nombre: string, abreviatura?: string): Observable<UnidadItem> {
+    return this.http.post<UnidadItem>(`${this.api}/logistica/unidades`, { nombre, abreviatura });
+  }
+
+  getTiposEquipo(): Observable<CatalogoItem[]> {
+    return this.http.get<CatalogoItem[]>(`${this.api}/logistica/tipos-equipo`);
+  }
+  crearTipoEquipo(nombre: string): Observable<CatalogoItem> {
+    return this.http.post<CatalogoItem>(`${this.api}/logistica/tipos-equipo`, { nombre });
+  }
+
+  getMarcas(): Observable<CatalogoItem[]> {
+    return this.http.get<CatalogoItem[]>(`${this.api}/logistica/marcas`);
+  }
+  crearMarca(nombre: string): Observable<CatalogoItem> {
+    return this.http.post<CatalogoItem>(`${this.api}/logistica/marcas`, { nombre });
+  }
+
+  getModelos(marcaId?: string): Observable<ModeloItem[]> {
+    let params = new HttpParams();
+    if (marcaId) params = params.set('marca_id', marcaId);
+    return this.http.get<ModeloItem[]>(`${this.api}/logistica/modelos`, { params });
+  }
+  crearModelo(nombre: string, marcaId: string): Observable<ModeloItem> {
+    return this.http.post<ModeloItem>(`${this.api}/logistica/modelos`, { nombre, marcaId });
+  }
+
+  getSiguienteCodigo(tipo: 'material' | 'equipo' | 'herramienta'): Observable<{ codigo: string }> {
+    const params = new HttpParams().set('tipo', tipo);
+    return this.http.get<{ codigo: string }>(`${this.api}/logistica/siguiente-codigo`, { params });
   }
 }
