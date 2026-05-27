@@ -199,3 +199,78 @@ class ModeloIn(BaseModel):
     nombre:  str
     marcaId: str
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# REQUERIMIENTOS (HU-16 — control de stock y aprobación de pedidos)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class RequerimientoItemOut(BaseModel):
+    id:              str
+    materialId:      Optional[str] = None
+    nombre:          str
+    unidad:          str
+    cantidad:        int
+    cantidadAprobada: Optional[int] = None
+    stockDisponible: int = 0          # stock actual del material (0 si compra externa)
+    enStock:         bool = False     # True si hay stock suficiente
+    esCompraExterna: bool = False     # material_id NULL → no está en catálogo
+    especificacion:  Optional[str] = None
+    estadoItem:      str = "pendiente"
+    agregadoPor:     Optional[str] = None
+
+
+class RequerimientoOut(BaseModel):
+    id:              str
+    estado:          str
+    fecha:           Optional[str] = None
+    observacion:     Optional[str] = None
+    observacionLogistico: Optional[str] = None
+    proyectoId:      Optional[str] = None
+    proyectoNombre:  str
+    servicioId:      Optional[str] = None
+    servicioNombre:  Optional[str] = None
+    solicitanteId:   Optional[str] = None
+    solicitanteNombre: str
+    solicitanteFoto: Optional[str] = None
+    items:           List[RequerimientoItemOut]
+    # Entrega (si ya se entregó)
+    entregadoPorNombre: Optional[str] = None
+    recibidoPorNombre:  Optional[str] = None
+    firmaUrl:           Optional[str] = None
+    fechaEntrega:       Optional[str] = None
+
+
+class RequerimientosListResponse(BaseModel):
+    items: List[RequerimientoOut]
+    total: int
+    page:  int
+    pageSize: int
+
+
+class AprobarItemDecision(BaseModel):
+    detalleId:        str
+    decision:         Literal["aprobar", "compra", "rechazar"]
+    cantidadAprobada: Optional[int] = None   # si None → toma cantidad solicitada (o stock disponible)
+
+
+class AprobarBody(BaseModel):
+    almacenId:    Optional[str] = None       # almacén de salida; si None usa el primero
+    decisiones:   List[AprobarItemDecision] = []
+    observacion:  Optional[str] = None
+
+
+class RechazarBody(BaseModel):
+    observacion: str
+
+
+class EntregarBody(BaseModel):
+    recibidoPorId: Optional[str] = None       # si None usa el receptor que firmó
+    firmaUrl:      Optional[str] = None        # si None usa la firma ya capturada
+    notas:         Optional[str] = None
+
+
+class FirmarBody(BaseModel):
+    """El técnico confirma recepción en el detalle del servicio (firma virtual)."""
+    recibidoPorId: Optional[str] = None        # si None usa el empleado del usuario logueado
+    firmaUrl:      str                         # data-url de la firma
+

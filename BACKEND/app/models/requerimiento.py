@@ -23,6 +23,10 @@ class Requerimiento(Base):
     observacion_logistico = Column(String(500), nullable=True)  # HU-16
     fecha                = Column(Date, nullable=False, default=date.today)
     aprobado_por         = Column(String(36), ForeignKey("empleado.id"))
+    # HU-16: firma del técnico que confirma recepción (estado 'listo')
+    firma_receptor_url   = Column(String(500), nullable=True)
+    firma_recibido_por_id = Column(String(36), ForeignKey("empleado.id"), nullable=True)
+    firma_fecha          = Column(DateTime, nullable=True)
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at           = Column(DateTime)
 
@@ -40,3 +44,6 @@ class RequerimientoDetalle(Base):
     unidad_libre      = Column(String(50))
     especificacion    = Column(String(500))
     agregado_por_id   = Column(String(36))    # empleado.id que agregó este ítem al borrador
+    # HU-16: decisión de logística por ítem
+    #   pendiente | aprobado (sale de stock) | para_compra (ticket) | rechazado
+    estado_item       = Column(String(20), nullable=False, default="pendiente")

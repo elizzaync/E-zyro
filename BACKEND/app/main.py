@@ -69,14 +69,10 @@ def _pre_create_migrations():
     """
     Migraciones que DEBEN correr ANTES de Base.metadata.create_all.
 
-    Las tablas marca / modelo_equipo / unidad_medida llevan FK a empresa(id)
-    que en la BD real es `uuid`. Si dejamos que SQLAlchemy las cree desde el
-    modelo Python (`String(36)`), las generaría como `VARCHAR(36)` y al
-    intentar luego añadir `equipo.marca_id uuid REFERENCES marca(id)` Postgres
-    rechaza el FK con "incompatible types: character varying and uuid".
-
-    Solución: crearlas aquí con DDL explícito en `uuid` antes de que
-    create_all las vea, y SQLAlchemy ya no las recreará (IF NOT EXISTS).
+    marca / modelo_equipo / unidad_medida llevan FK a empresa(id) que es `uuid`.
+    Si SQLAlchemy las crea desde el modelo (String(36)) las haría VARCHAR(36) y
+    al añadir luego `equipo.marca_id uuid REFERENCES marca(id)` Postgres rechaza
+    el FK por tipos incompatibles. Por eso las creamos aquí con uuid explícito.
     """
     with engine.connect() as conn:
         conn.execute(text("""
@@ -105,7 +101,6 @@ def _pre_create_migrations():
                 created_at  TIMESTAMP NOT NULL DEFAULT now()
             )
         """))
-        # Índices únicos (idempotentes)
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_marca_empresa_nombre "
             "ON marca (empresa_id, lower(nombre))"
@@ -219,9 +214,6 @@ def _run_migrations():
         """))
 
         # ── HU-15 LOGÍSTICA 2026-05-27 ───────────────────────────────────────
-        # Las tablas marca / modelo_equipo / unidad_medida se crean en
-        # _pre_create_migrations() porque deben existir con tipo UUID antes
-        # de que SQLAlchemy.create_all las cree con VARCHAR(36).
         # Material: precio referencial
         conn.execute(text(
             "ALTER TABLE material "
@@ -260,9 +252,7 @@ def _run_migrations():
             "ALTER TABLE equipo "
             "ADD COLUMN IF NOT EXISTS proxima_fecha_mantenimiento DATE"
         ))
-        # tipo_equipo_id antes era NOT NULL; ahora opcional. Idempotente:
-        # DROP NOT NULL en una columna ya nullable es no-op en Postgres, pero
-        # lo envolvemos en un DO por si en algún ambiente la sintaxis varía.
+        # tipo_equipo_id antes era NOT NULL; ahora opcional (idempotente).
         conn.execute(text("""
             DO $$
             BEGIN
@@ -272,8 +262,10 @@ def _run_migrations():
             END $$;
         """))
 
-        # FK marca_id/modelo_id/almacen_id en equipo (uuid → uuid)
-        # Las tablas referenciadas ya existen (las creó _pre_create_migrations).
+        # ── Catálogos de Logística (Marca, Modelo, Unidad) ───────────────────
+        # Las tablas marca/modelo_equipo/unidad_medida se crean en
+        # _pre_create_migrations() con tipo UUID (las FKs apuntan a empresa.id
+        # que es uuid). Aquí solo agregamos las FKs en `equipo`, también uuid.
         conn.execute(text(
             "ALTER TABLE equipo "
             "ADD COLUMN IF NOT EXISTS marca_id    uuid REFERENCES marca(id)"
@@ -287,7 +279,26 @@ def _run_migrations():
             "ADD COLUMN IF NOT EXISTS almacen_id  uuid REFERENCES almacen(id)"
         ))
 
-        # Índices únicos para evitar duplicados de catálogos por empresa
+        # HU-16: estado por ítem del requerimiento (decisión de logística)
+        conn.execute(text(
+            "ALTER TABLE requerimiento_detalle "
+            "ADD COLUMN IF NOT EXISTS estado_item VARCHAR(20) NOT NULL DEFAULT 'pendiente'"
+        ))
+        # HU-16: firma del técnico receptor en el requerimiento
+        conn.execute(text(
+            "ALTER TABLE requerimiento "
+            "ADD COLUMN IF NOT EXISTS firma_receptor_url VARCHAR(500)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE requerimiento "
+            "ADD COLUMN IF NOT EXISTS firma_recibido_por_id uuid REFERENCES empleado(id)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE requerimiento "
+            "ADD COLUMN IF NOT EXISTS firma_fecha TIMESTAMP"
+        ))
+
+        # Índices únicos para evitar duplicados de categoría/almacén por empresa
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_categoria_material_empresa_nombre "
             "ON categoria_material (empresa_id, lower(nombre))"
@@ -303,8 +314,8 @@ def _run_migrations():
 
         conn.commit()
 
-        # ── Semillas: unidades por defecto si la empresa no tiene ────────────
-        # uuid_generate_v4() devuelve uuid nativo, no necesita cast.
+        # ── Semillas básicas: unidades por defecto si la empresa no tiene ─────
+        # Se ejecuta una sola vez por empresa cuando aún no hay unidades cargadas.
         conn.execute(text("""
             INSERT INTO unidad_medida (id, empresa_id, nombre, abreviatura)
             SELECT uuid_generate_v4(), e.id, u.nombre, u.abrev
@@ -331,9 +342,6 @@ def _run_migrations():
 async def lifespan(app: FastAPI):
     for intento in range(10):
         try:
-            # Tablas que requieren tipo UUID explícito (HU-15) — deben
-            # existir antes de create_all para que SQLAlchemy no las recree
-            # con VARCHAR(36) y rompa las FKs.
             _pre_create_migrations()
             Base.metadata.create_all(bind=engine)
             _run_migrations()

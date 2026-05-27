@@ -29,6 +29,15 @@ from ..models.tipo_equipo import TipoEquipo
 from ..models.marca import Marca
 from ..models.modelo_equipo import ModeloEquipo
 from ..models.unidad_medida import UnidadMedida
+from ..models.requerimiento import Requerimiento, RequerimientoDetalle
+from ..models.requerimiento_entrega import RequerimientoEntrega
+from ..models.movimiento_inventario import MovimientoInventario
+from ..models.empleado import Empleado
+from ..models.usuario import Usuario
+from ..models.proyecto import Proyecto
+from ..models.proyecto_servicio import ProyectoServicio
+from ..models.firma_digital import FirmaDigital
+from ..models.notificacion import Notificacion
 
 from ..schemas.logistica import (
     MaterialIn, MaterialPatch, MaterialOut, MaterialesListResponse,
@@ -38,7 +47,10 @@ from ..schemas.logistica import (
     AlmacenOut, AlmacenIn,
     UnidadOut,  UnidadIn,
     ModeloOut,  ModeloIn,
+    RequerimientoItemOut, RequerimientoOut, RequerimientosListResponse,
+    AprobarBody, RechazarBody, EntregarBody, FirmarBody,
 )
+from datetime import date as _date
 
 
 router = APIRouter(prefix="/logistica", tags=["logistica"])
@@ -855,3 +867,498 @@ def siguiente_codigo(
     if t == "herramienta":
         return {"codigo": _siguiente_codigo(db, empresa_id, "HR",  Equipo)}
     raise HTTPException(status_code=400, detail="tipo debe ser material|equipo|herramienta")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# REQUERIMIENTOS (HU-16) — Control de stock y aprobación de pedidos
+# ══════════════════════════════════════════════════════════════════════════
+
+def _stock_de_material(db: Session, material_id: str, empresa_id: str) -> int:
+    total = (
+        db.query(func.coalesce(func.sum(Stock.cantidad), 0))
+        .filter(Stock.material_id == material_id, Stock.empresa_id == empresa_id)
+        .scalar()
+    )
+    return int(total or 0)
+
+
+def _nombre_empleado(db: Session, empleado_id: str | None) -> tuple[str, str | None]:
+    """Devuelve (nombre_completo, foto_url) del empleado vía su usuario."""
+    if not empleado_id:
+        return "—", None
+    row = (
+        db.query(Usuario.nombre, Usuario.apellido, Usuario.foto_url)
+        .join(Empleado, Empleado.usuario_id == Usuario.id)
+        .filter(Empleado.id == empleado_id)
+        .first()
+    )
+    if not row:
+        return "—", None
+    return f"{row[0]} {row[1]}".strip(), row[2]
+
+
+def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoOut:
+    # Proyecto / servicio
+    proyecto = db.query(Proyecto).filter(Proyecto.id == req.proyecto_id).first()
+    proyecto_nombre = proyecto.nombre_proyecto if proyecto else "Proyecto"
+
+    servicio_nombre = None
+    if req.proyecto_servicio_id:
+        srv = db.query(ProyectoServicio).filter(ProyectoServicio.id == req.proyecto_servicio_id).first()
+        servicio_nombre = srv.nombre if srv else None
+
+    solicitante_nombre, solicitante_foto = _nombre_empleado(db, req.solicitante_id)
+
+    # Ítems
+    detalles = (
+        db.query(RequerimientoDetalle, Material.nombre, Material.unidad)
+        .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
+        .filter(RequerimientoDetalle.requerimiento_id == req.id)
+        .all()
+    )
+    items: list[RequerimientoItemOut] = []
+    for d, mat_nombre, mat_unidad in detalles:
+        es_externa = d.material_id is None
+        stock = 0 if es_externa else _stock_de_material(db, d.material_id, empresa_id)
+        items.append(RequerimientoItemOut(
+            id=str(d.id),
+            materialId=str(d.material_id) if d.material_id else None,
+            nombre=mat_nombre or d.nombre_libre or "—",
+            unidad=mat_unidad or d.unidad_libre or "",
+            cantidad=int(d.cantidad or 0),
+            cantidadAprobada=d.cantidad_aprobada,
+            stockDisponible=stock,
+            enStock=(not es_externa and stock >= int(d.cantidad or 0)),
+            esCompraExterna=es_externa,
+            especificacion=d.especificacion,
+            estadoItem=d.estado_item or "pendiente",
+            agregadoPor=None,
+        ))
+
+    # Entrega
+    entrega = (
+        db.query(RequerimientoEntrega)
+        .filter(RequerimientoEntrega.requerimiento_id == req.id)
+        .order_by(RequerimientoEntrega.created_at.desc())
+        .first()
+    )
+    entregado_nombre = recibido_nombre = firma_url = fecha_entrega = None
+    if entrega:
+        entregado_nombre, _ = _nombre_empleado(db, entrega.entregado_por_id)
+        recibido_nombre, _  = _nombre_empleado(db, entrega.recibido_por_id)
+        firma_url = entrega.firma_receptor_url
+        fecha_entrega = entrega.fecha_entrega.isoformat() if entrega.fecha_entrega else None
+
+    return RequerimientoOut(
+        id=str(req.id), estado=req.estado or "pendiente",
+        fecha=req.fecha.strftime("%d %b %Y") if req.fecha else None,
+        observacion=req.observacion,
+        observacionLogistico=req.observacion_logistico,
+        proyectoId=str(req.proyecto_id) if req.proyecto_id else None,
+        proyectoNombre=proyecto_nombre,
+        servicioId=str(req.proyecto_servicio_id) if req.proyecto_servicio_id else None,
+        servicioNombre=servicio_nombre,
+        solicitanteId=str(req.solicitante_id) if req.solicitante_id else None,
+        solicitanteNombre=solicitante_nombre,
+        solicitanteFoto=solicitante_foto,
+        items=items,
+        entregadoPorNombre=entregado_nombre,
+        recibidoPorNombre=recibido_nombre,
+        firmaUrl=firma_url,
+        fechaEntrega=fecha_entrega,
+    )
+
+
+@router.get("/requerimientos", response_model=RequerimientosListResponse)
+def listar_requerimientos(
+    estado:      str = Query("pendiente", description="pendiente|aprobado|listo|entregado|rechazado|todos"),
+    proyecto_id: str = Query(""),
+    servicio_id: str = Query(""),
+    q:           str = Query(""),
+    page:        int = Query(1, ge=1),
+    page_size:   int = Query(30, ge=1, le=200),
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Lista requerimientos para el panel de Logística (excluye borradores)."""
+    empresa_id = payload["empresa_id"]
+    base = db.query(Requerimiento).filter(
+        Requerimiento.empresa_id == empresa_id,
+        Requerimiento.estado != "borrador",
+    )
+    if estado and estado != "todos":
+        base = base.filter(Requerimiento.estado == estado)
+    if proyecto_id:
+        base = base.filter(Requerimiento.proyecto_id == proyecto_id)
+    if servicio_id:
+        base = base.filter(Requerimiento.proyecto_servicio_id == servicio_id)
+
+    total = base.count()
+    rows = (
+        base.order_by(Requerimiento.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    items = [_req_out(db, r, empresa_id) for r in rows]
+
+    if q:
+        ql = q.lower()
+        items = [
+            it for it in items
+            if ql in it.proyectoNombre.lower()
+            or ql in (it.servicioNombre or "").lower()
+            or ql in it.solicitanteNombre.lower()
+            or any(ql in i.nombre.lower() for i in it.items)
+        ]
+
+    return RequerimientosListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+@router.get("/requerimientos/historial", response_model=RequerimientosListResponse)
+def historial_requerimientos(
+    proyecto_id: str = Query(""),
+    servicio_id: str = Query(""),
+    page:        int = Query(1, ge=1),
+    page_size:   int = Query(50, ge=1, le=200),
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Historial de consumo: requerimientos ya aprobados / entregados / rechazados."""
+    empresa_id = payload["empresa_id"]
+    base = db.query(Requerimiento).filter(
+        Requerimiento.empresa_id == empresa_id,
+        Requerimiento.estado.in_(["aprobado", "listo", "entregado", "rechazado"]),
+    )
+    if proyecto_id:
+        base = base.filter(Requerimiento.proyecto_id == proyecto_id)
+    if servicio_id:
+        base = base.filter(Requerimiento.proyecto_servicio_id == servicio_id)
+
+    total = base.count()
+    rows = (
+        base.order_by(Requerimiento.updated_at.desc().nullslast(), Requerimiento.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return RequerimientosListResponse(
+        items=[_req_out(db, r, empresa_id) for r in rows],
+        total=total, page=page, pageSize=page_size,
+    )
+
+
+@router.get("/requerimientos/{req_id}", response_model=RequerimientoOut)
+def detalle_requerimiento(
+    req_id:  str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
+    return _req_out(db, req, empresa_id)
+
+
+@router.post("/requerimientos/{req_id}/aprobar", response_model=RequerimientoOut)
+def aprobar_requerimiento(
+    req_id:  str,
+    body:    AprobarBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Procesa la decisión por ítem:
+      * aprobar → resta stock (movimiento salida) y marca estado_item='aprobado'
+      * compra  → marca 'para_compra' (genera ticket de compra, sin tocar stock)
+      * rechazar→ marca 'rechazado'
+    El requerimiento pasa a 'aprobado' (listo para entregar) si hay al menos un ítem aprobado.
+    """
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
+    if req.estado not in ("pendiente",):
+        raise HTTPException(status_code=409, detail="El requerimiento ya fue procesado")
+
+    # empleado logístico (responsable del movimiento)
+    emp_log = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    # almacén de salida
+    almacen_id = body.almacenId
+    if not almacen_id:
+        alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
+        almacen_id = str(alm.id) if alm else None
+
+    decisiones = {d.detalleId: d for d in body.decisiones}
+
+    detalles = db.query(RequerimientoDetalle).filter(
+        RequerimientoDetalle.requerimiento_id == req.id
+    ).all()
+
+    hay_aprobado = False
+    for d in detalles:
+        dec = decisiones.get(str(d.id))
+        # Por defecto: si está en stock se aprueba, si no, va a compra
+        if dec is None:
+            es_externa = d.material_id is None
+            stock = 0 if es_externa else _stock_de_material(db, d.material_id, empresa_id)
+            decision = "aprobar" if (not es_externa and stock >= int(d.cantidad or 0)) else "compra"
+            cant_aprob = int(d.cantidad or 0)
+        else:
+            decision = dec.decision
+            cant_aprob = dec.cantidadAprobada if dec.cantidadAprobada is not None else int(d.cantidad or 0)
+
+        if decision == "aprobar" and d.material_id:
+            disponible = _stock_de_material(db, d.material_id, empresa_id)
+            cant_aprob = min(cant_aprob, disponible)
+            if cant_aprob <= 0:
+                # sin stock real → mandar a compra
+                d.estado_item = "para_compra"
+                d.cantidad_aprobada = 0
+                continue
+
+            # Resta de stock (del almacén con más cantidad disponible)
+            restante = cant_aprob
+            stocks = (
+                db.query(Stock)
+                .filter(Stock.material_id == d.material_id, Stock.empresa_id == empresa_id, Stock.cantidad > 0)
+                .order_by(Stock.cantidad.desc())
+                .all()
+            )
+            for s in stocks:
+                if restante <= 0:
+                    break
+                quita = min(int(s.cantidad), restante)
+                s.cantidad = int(s.cantidad) - quita
+                s.updated_at = datetime.utcnow()
+                restante -= quita
+
+            # Movimiento de inventario (registro de salida — auditoría/proyección)
+            db.add(MovimientoInventario(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                material_id=d.material_id, almacen_id=almacen_id,
+                tipo="salida", cantidad=cant_aprob,
+                referencia_id=req.id, referencia_tipo="requerimiento",
+                responsable_id=emp_log.id if emp_log else None,
+                fecha=datetime.utcnow(),
+            ))
+            d.estado_item = "aprobado"
+            d.cantidad_aprobada = cant_aprob
+            hay_aprobado = True
+
+        elif decision == "compra":
+            d.estado_item = "para_compra"
+            d.cantidad_aprobada = cant_aprob
+        else:  # rechazar
+            d.estado_item = "rechazado"
+            d.cantidad_aprobada = 0
+
+    req.estado = "aprobado" if hay_aprobado else "rechazado"
+    if body.observacion:
+        req.observacion_logistico = body.observacion
+    req.aprobado_por = emp_log.id if emp_log else None
+    req.updated_at = datetime.utcnow()
+    db.commit()
+
+    # Notificar al solicitante
+    _notificar_solicitante(
+        db, req, empresa_id,
+        titulo="Requerimiento procesado",
+        mensaje=f"Tu pedido de materiales fue {'aprobado' if hay_aprobado else 'rechazado'} por Logística.",
+    )
+
+    db.refresh(req)
+    return _req_out(db, req, empresa_id)
+
+
+@router.post("/requerimientos/{req_id}/rechazar", response_model=RequerimientoOut)
+def rechazar_requerimiento(
+    req_id:  str,
+    body:    RechazarBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
+    if req.estado not in ("pendiente",):
+        raise HTTPException(status_code=409, detail="El requerimiento ya fue procesado")
+
+    req.estado = "rechazado"
+    req.observacion_logistico = body.observacion
+    req.updated_at = datetime.utcnow()
+    for d in db.query(RequerimientoDetalle).filter(
+        RequerimientoDetalle.requerimiento_id == req.id
+    ).all():
+        d.estado_item = "rechazado"
+    db.commit()
+
+    _notificar_solicitante(
+        db, req, empresa_id,
+        titulo="Requerimiento rechazado",
+        mensaje=f"Tu pedido fue rechazado: {body.observacion}",
+    )
+    db.refresh(req)
+    return _req_out(db, req, empresa_id)
+
+
+@router.post("/requerimientos/{req_id}/firmar", response_model=RequerimientoOut)
+def firmar_requerimiento(
+    req_id:  str,
+    body:    FirmarBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    El técnico (líder / jefe ops, recomendado) confirma recepción desde el
+    detalle del servicio con su firma virtual. El requerimiento pasa a 'listo'
+    y se notifica a Logística para que despache.
+    """
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
+    if req.estado not in ("aprobado", "listo"):
+        raise HTTPException(status_code=409, detail="Solo se firman requerimientos aprobados")
+
+    # Firmante: el indicado o, por defecto, el empleado del usuario logueado
+    if body.recibidoPorId:
+        receptor = db.query(Empleado).filter(
+            Empleado.id == body.recibidoPorId, Empleado.empresa_id == empresa_id
+        ).first()
+    else:
+        receptor = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+        ).first()
+    if not receptor:
+        raise HTTPException(status_code=404, detail="Firmante no encontrado")
+
+    req.firma_receptor_url    = body.firmaUrl
+    req.firma_recibido_por_id = receptor.id
+    req.firma_fecha           = datetime.utcnow()
+    req.estado                = "listo"
+    req.updated_at            = datetime.utcnow()
+    db.commit()
+
+    # Notificar a Logística (responsables de almacén) — best effort: a todos
+    # los usuarios con rol logística/admin de la empresa.
+    try:
+        logisticos = (
+            db.query(Usuario)
+            .filter(Usuario.empresa_id == empresa_id, Usuario.activo.is_(True))
+            .all()
+        )
+        for u in logisticos:
+            db.add(Notificacion(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=u.id,
+                tipo="info", categoria="logistica",
+                titulo="Requerimiento listo para entrega",
+                mensaje="Un técnico firmó la recepción. Despacha los materiales.",
+                leido=False, enviado=False,
+                referencia_tabla="requerimiento", referencia_id=str(req.id),
+            ))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    db.refresh(req)
+    return _req_out(db, req, empresa_id)
+
+
+@router.post("/requerimientos/{req_id}/entregar", response_model=RequerimientoOut)
+def entregar_requerimiento(
+    req_id:  str,
+    body:    EntregarBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Registra la entrega física: quién entrega (logística), quién recibe (técnico)
+    y la firma virtual del receptor. Marca el requerimiento como 'entregado'.
+    Usa la firma ya capturada en /firmar si el body no la trae.
+    """
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
+    if req.estado not in ("aprobado", "listo"):
+        raise HTTPException(status_code=409, detail="Solo se entregan requerimientos aprobados")
+
+    emp_log = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not emp_log:
+        raise HTTPException(status_code=403, detail="No eres un empleado registrado")
+
+    # Receptor: el del body o el que firmó previamente
+    receptor_id = body.recibidoPorId or req.firma_recibido_por_id
+    if not receptor_id:
+        raise HTTPException(status_code=422, detail="Falta el receptor de la entrega")
+    receptor = db.query(Empleado).filter(
+        Empleado.id == receptor_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not receptor:
+        raise HTTPException(status_code=404, detail="Receptor no encontrado")
+
+    firma = body.firmaUrl or req.firma_receptor_url
+
+    db.add(RequerimientoEntrega(
+        id=str(_uuid.uuid4()), requerimiento_id=req.id, empresa_id=empresa_id,
+        entregado_por_id=emp_log.id, recibido_por_id=receptor.id,
+        firma_receptor_url=firma, fecha_entrega=datetime.utcnow(),
+        notas=body.notas,
+    ))
+    req.estado = "entregado"
+    req.updated_at = datetime.utcnow()
+    db.commit()
+
+    _notificar_solicitante(
+        db, req, empresa_id,
+        titulo="Materiales entregados",
+        mensaje="Logística registró la entrega de tus materiales.",
+    )
+    db.refresh(req)
+    return _req_out(db, req, empresa_id)
+
+
+def _notificar_solicitante(db: Session, req: Requerimiento, empresa_id: str, titulo: str, mensaje: str) -> None:
+    """Crea una notificación para el usuario solicitante (silenciosa si falla)."""
+    try:
+        if not req.solicitante_id:
+            return
+        emp = db.query(Empleado).filter(Empleado.id == req.solicitante_id).first()
+        if not emp:
+            return
+        db.add(Notificacion(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=emp.usuario_id,
+            tipo="info", categoria="logistica",
+            titulo=titulo, mensaje=mensaje,
+            leido=False, enviado=False,
+            referencia_tabla="requerimiento", referencia_id=str(req.id),
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
