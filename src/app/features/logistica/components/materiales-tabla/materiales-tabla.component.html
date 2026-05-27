@@ -1,0 +1,149 @@
+<section class="tabla-card">
+
+  <!-- ── Toolbar ── -->
+  <div class="tabla-toolbar">
+    <div class="tt-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+      <input type="text" placeholder="Buscar por nombre, código o categoría…"
+             [(ngModel)]="busqueda" (ngModelChange)="onFiltroCambio()">
+    </div>
+
+    <select class="tt-select" [(ngModel)]="filtroCategoria" (ngModelChange)="onFiltroCambio()">
+      @for (c of categorias; track c) { <option [value]="c">{{ c }}</option> }
+    </select>
+
+    <select class="tt-select" [(ngModel)]="filtroEstado" (ngModelChange)="onFiltroCambio()">
+      <option value="todos">Todos</option>
+      <option value="activos">Activos</option>
+      <option value="inactivos">Inactivos</option>
+      <option value="stock_bajo">Stock bajo</option>
+    </select>
+
+    <button class="tt-nuevo" (click)="abrirCrear()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      Nuevo material
+    </button>
+  </div>
+
+  <!-- ── Tabla ── -->
+  @if (cargando) {
+    <div class="tabla-estado"><app-spinner [size]="34"></app-spinner><span>Cargando materiales…</span></div>
+  } @else if (materialesFiltrados.length === 0) {
+    <div class="tabla-estado">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="42" height="42">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73L13 2.27a2 2 0 0 0-2 0L4 6.27A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      </svg>
+      <span>No hay materiales que coincidan con el filtro.</span>
+    </div>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Material</th>
+            <th>Categoría</th>
+            <th>Unidad</th>
+            <th class="th-num">Stock</th>
+            <th class="th-num">Mín.</th>
+            <th class="th-num">Precio</th>
+            <th>Almacén</th>
+            <th>Estado</th>
+            <th class="th-acc">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (m of materialesPagina; track m.id) {
+          <tr>
+            <td class="td-codigo">{{ m.codigo }}</td>
+            <td>
+              <div class="td-nombre">{{ m.nombre }}</div>
+              @if (m.descripcion) { <div class="td-desc">{{ m.descripcion }}</div> }
+            </td>
+            <td><span class="chip">{{ m.categoria }}</span></td>
+            <td>{{ m.unidad }}</td>
+            <td class="th-num">
+              <span class="stock" [class.stock-bajo]="stockBajo(m)">{{ m.cantidad }}</span>
+              @if (stockBajo(m)) {
+                <span class="stock-alerta" title="Stock por debajo del mínimo">▼</span>
+              }
+            </td>
+            <td class="th-num td-muted">{{ m.stockMinimo }}</td>
+            <td class="th-num">{{ m.precio !== null ? ('S/ ' + m.precio) : '—' }}</td>
+            <td class="td-muted">{{ m.almacen }}</td>
+            <td>
+              <span class="badge" [class.badge-ok]="m.activo" [class.badge-off]="!m.activo">
+                {{ m.activo ? 'Activo' : 'Inactivo' }}
+              </span>
+            </td>
+            <td class="th-acc">
+              <div class="acciones">
+                <button class="btn-icon" (click)="abrirEditar(m)" title="Editar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                <button class="btn-icon btn-icon-danger" (click)="pedirEliminar(m)" title="Eliminar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+                    <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── Paginación ── -->
+    <div class="tabla-footer">
+      <span class="tf-info">
+        {{ materialesFiltrados.length }} material{{ materialesFiltrados.length !== 1 ? 'es' : '' }}
+        · página {{ pagina }} de {{ totalPaginas }}
+      </span>
+      <div class="tf-pager">
+        <button class="pg-btn" (click)="irPagina(pagina - 1)" [disabled]="pagina <= 1">‹</button>
+        <button class="pg-btn" (click)="irPagina(pagina + 1)" [disabled]="pagina >= totalPaginas">›</button>
+      </div>
+    </div>
+  }
+</section>
+
+<!-- ── Modal crear / editar ── -->
+@if (showModal) {
+  <app-material-form-modal
+    [material]="materialEnEdicion"
+    [guardando]="guardando"
+    (guardar)="onGuardar($event)"
+    (cerrar)="cerrarModal()">
+  </app-material-form-modal>
+}
+
+<!-- ── Confirmación de eliminación ── -->
+@if (materialAEliminar) {
+<div class="conf-overlay" (click)="cancelarEliminar()">
+  <div class="conf-dialog" (click)="$event.stopPropagation()">
+    <div class="conf-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />
+      </svg>
+    </div>
+    <h3>Eliminar material</h3>
+    <p>¿Seguro que deseas eliminar <strong>{{ materialAEliminar.nombre }}</strong>? Esta acción quedará registrada en auditoría.</p>
+    <div class="conf-actions">
+      <button class="lf-btn-cancel" (click)="cancelarEliminar()">Cancelar</button>
+      <button class="conf-btn-del" (click)="confirmarEliminar()" [disabled]="eliminando">
+        @if (eliminando) { <app-spinner [size]="15" theme="light"></app-spinner> Eliminando… }
+        @else { Eliminar }
+      </button>
+    </div>
+  </div>
+</div>
+}

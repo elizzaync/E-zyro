@@ -1,0 +1,84 @@
+:host {
+  display: block;
+  min-height: calc(100vh - 72px);
+  background-color: var(--page-bg, #f8fafc);
+}
+
+.log-layout {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 28px 32px;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── Cabecera ── */
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.log-header-main { display: flex; align-items: center; gap: 14px; }
+.log-header-icon {
+  width: 48px; height: 48px; flex-shrink: 0;
+  border-radius: 14px;
+  background: rgba(145, 211, 55, .14);
+  color: var(--brand-green, #5a8a20);
+  display: flex; align-items: center; justify-content: center;
+}
+.log-header-icon svg { width: 26px; height: 26px; }
+.log-title { font-size: 22px; font-weight: 800; color: var(--text-main, #0f172a); margin: 0; }
+.log-subtitle { font-size: 13px; color: var(--text-muted, #64748b); margin: 2px 0 0; }
+
+/* ── KPIs ── */
+.log-kpis { display: flex; gap: 10px; flex-wrap: wrap; }
+.kpi-chip {
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 84px;
+  padding: 10px 16px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e7eae6);
+  border-radius: 12px;
+}
+.kpi-val { font-size: 20px; font-weight: 800; color: var(--text-main, #0f172a); line-height: 1; }
+.kpi-lab { font-size: 11px; color: var(--text-muted, #64748b); margin-top: 4px; white-space: nowrap; }
+.kpi-warn { border-color: #fca5a5; background: #fef2f2; }
+.kpi-warn .kpi-val { color: #dc2626; }
+.kpi-info { border-color: #93c5fd; background: #eff6ff; }
+.kpi-info .kpi-val { color: #2563eb; }
+
+/* ── Tabs ── */
+.log-tabs {
+  display: flex; gap: 6px;
+  border-bottom: 1px solid var(--border-color, #e7eae6);
+  margin-bottom: 18px;
+}
+.log-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  font-size: 14px; font-weight: 700;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  transition: color .18s, border-color .18s;
+  font-family: 'Inter', sans-serif;
+}
+.log-tab svg { width: 17px; height: 17px; }
+.log-tab:hover { color: var(--text-main, #0f172a); }
+.log-tab.active {
+  color: var(--brand-green, #5a8a20);
+  border-bottom-color: var(--brand-green, #91d337);
+}
+
+:host-context([data-theme="dark"]) .kpi-warn { background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.4); }
+:host-context([data-theme="dark"]) .kpi-info { background: rgba(37,99,235,.12); border-color: rgba(37,99,235,.4); }
+
+@media (max-width: 768px) {
+  .log-layout { padding: 18px 14px; }
+  .log-header { gap: 14px; }
+  .log-kpis { width: 100%; }
+}

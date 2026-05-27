@@ -1,0 +1,125 @@
+<div class="lf-overlay" (click)="cerrar.emit()" role="dialog" aria-modal="true">
+  <div class="lf-modal" (click)="$event.stopPropagation()" [formGroup]="form">
+
+    <header class="lf-header">
+      <div>
+        <h2 class="lf-title">{{ esEdicion ? 'Editar Equipo / Herramienta' : 'Nuevo Equipo / Herramienta' }}</h2>
+        <p class="lf-subtitle">Registro del activo de inventario</p>
+      </div>
+      <button class="lf-close" (click)="cerrar.emit()" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="lf-body">
+      <div class="lf-grid">
+
+        <div class="lf-field">
+          <label class="lf-label">Código <span class="req">*</span></label>
+          <input class="lf-input" formControlName="codigo" placeholder="Ej: EQ-0005"
+                 [class.invalid]="ctrl('codigo')?.invalid && ctrl('codigo')?.touched">
+        </div>
+
+        <div class="lf-field lf-col-2">
+          <label class="lf-label">Nombre <span class="req">*</span></label>
+          <input class="lf-input" formControlName="nombre" placeholder="Ej: Taladro percutor Bosch"
+                 [class.invalid]="ctrl('nombre')?.invalid && ctrl('nombre')?.touched">
+        </div>
+
+        <!-- Clase: equipo vs herramienta (segmented) -->
+        <div class="lf-field lf-col-3">
+          <label class="lf-label">Clasificación <span class="req">*</span></label>
+          <div class="seg">
+            @for (c of clases; track c.value) {
+              <button type="button" class="seg-btn" [class.active]="ctrl('clase')?.value === c.value"
+                      (click)="ctrl('clase')?.setValue(c.value)">
+                {{ c.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Tipo / familia <span class="req">*</span></label>
+          <input class="lf-input" formControlName="tipo" placeholder="Ej: Instrumento de medición"
+                 [class.invalid]="ctrl('tipo')?.invalid && ctrl('tipo')?.touched">
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Marca</label>
+          <input class="lf-input" formControlName="marca" placeholder="Ej: Fluke">
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Modelo</label>
+          <input class="lf-input" formControlName="modelo" placeholder="Ej: 117">
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">N° de serie</label>
+          <input class="lf-input" formControlName="numeroSerie" placeholder="Ej: FLK-117-882">
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Cantidad <span class="req">*</span></label>
+          <input class="lf-input" type="number" min="0" formControlName="cantidad"
+                 [class.invalid]="ctrl('cantidad')?.invalid && ctrl('cantidad')?.touched">
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Estado</label>
+          <select class="lf-input" formControlName="estado">
+            @for (s of estados; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
+          </select>
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Ubicación</label>
+          <input class="lf-input" formControlName="ubicacion" placeholder="Ej: Almacén Central">
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Fecha de adquisición</label>
+          <input class="lf-input" type="date" formControlName="fechaAdquisicion">
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Ficha técnica</label>
+          <input class="lf-input" formControlName="fichaTecnica" placeholder="Ej: 550W, 13mm">
+        </div>
+
+        <!-- ── Mantenimiento ── -->
+        <div class="lf-field lf-col-3">
+          <div class="mant-box">
+            <label class="lf-check">
+              <input type="checkbox" formControlName="requiereMantenimiento">
+              Requiere mantenimiento periódico
+            </label>
+            <p class="mant-hint">Actívalo para equipos que necesitan mantenimiento mensual o trimestral. Las herramientas simples normalmente no lo requieren.</p>
+
+            @if (requiereMant) {
+            <div class="mant-grid">
+              <div class="lf-field">
+                <label class="lf-label">Frecuencia</label>
+                <select class="lf-input" formControlName="frecuenciaMantenimiento">
+                  @for (f of frecuencias; track f.value) { <option [value]="f.value">{{ f.label }}</option> }
+                </select>
+              </div>
+              <div class="lf-field">
+                <label class="lf-label">Próximo mantenimiento</label>
+                <input class="lf-input" type="date" formControlName="proximaFechaMantenimiento">
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <footer class="lf-footer">
+      <button class="lf-btn-cancel" (click)="cerrar.emit()">Cancelar</button>
+      <button class="lf-btn-save" (click)="onGuardar()" [disabled]="guardando">
+        @if (guardando) { <app-spinner [size]="16" theme="light"></app-spinner> Guardando… }
+        @else { {{ esEdicion ? 'Guardar cambios' : 'Crear registro' }} }
+      </button>
+    </footer>
+
+  </div>
+</div>

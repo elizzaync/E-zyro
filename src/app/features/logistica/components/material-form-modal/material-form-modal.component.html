@@ -1,0 +1,93 @@
+<div class="lf-overlay" (click)="cerrar.emit()" role="dialog" aria-modal="true">
+  <div class="lf-modal" (click)="$event.stopPropagation()" [formGroup]="form">
+
+    <header class="lf-header">
+      <div>
+        <h2 class="lf-title">{{ esEdicion ? 'Editar Material' : 'Nuevo Material' }}</h2>
+        <p class="lf-subtitle">Datos del insumo de almacén</p>
+      </div>
+      <button class="lf-close" (click)="cerrar.emit()" aria-label="Cerrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </header>
+
+    <div class="lf-body">
+      <div class="lf-grid">
+
+        <div class="lf-field">
+          <label class="lf-label">Código <span class="req">*</span></label>
+          <input class="lf-input" formControlName="codigo" placeholder="Ej: MAT-0007"
+                 [class.invalid]="ctrl('codigo')?.invalid && ctrl('codigo')?.touched">
+        </div>
+
+        <div class="lf-field lf-col-2">
+          <label class="lf-label">Nombre <span class="req">*</span></label>
+          <input class="lf-input" formControlName="nombre" placeholder="Ej: Cable UTP Cat6"
+                 [class.invalid]="ctrl('nombre')?.invalid && ctrl('nombre')?.touched">
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Categoría <span class="req">*</span></label>
+          <input class="lf-input" formControlName="categoria" placeholder="Ej: Redes"
+                 [class.invalid]="ctrl('categoria')?.invalid && ctrl('categoria')?.touched">
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Unidad <span class="req">*</span></label>
+          <select class="lf-input" formControlName="unidad">
+            @for (u of unidades; track u) { <option [value]="u">{{ u }}</option> }
+          </select>
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Almacén <span class="req">*</span></label>
+          <select class="lf-input" formControlName="almacen">
+            @for (a of almacenes; track a) { <option [value]="a">{{ a }}</option> }
+          </select>
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Cantidad (stock) <span class="req">*</span></label>
+          <input class="lf-input" type="number" min="0" formControlName="cantidad"
+                 [class.invalid]="ctrl('cantidad')?.invalid && ctrl('cantidad')?.touched">
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Stock mínimo <span class="req">*</span></label>
+          <input class="lf-input" type="number" min="0" formControlName="stockMinimo"
+                 [class.invalid]="ctrl('stockMinimo')?.invalid && ctrl('stockMinimo')?.touched">
+        </div>
+
+        <div class="lf-field">
+          <label class="lf-label">Precio referencial</label>
+          <input class="lf-input" type="number" min="0" step="0.01" formControlName="precio" placeholder="0.00">
+        </div>
+
+        <div class="lf-field lf-col-3">
+          <label class="lf-label">Descripción</label>
+          <textarea class="lf-input" rows="2" formControlName="descripcion"
+                    placeholder="Detalle del material…"></textarea>
+        </div>
+
+        <div class="lf-field lf-col-3">
+          <label class="lf-check">
+            <input type="checkbox" formControlName="activo">
+            Material activo (disponible para solicitudes)
+          </label>
+        </div>
+
+      </div>
+    </div>
+
+    <footer class="lf-footer">
+      <button class="lf-btn-cancel" (click)="cerrar.emit()">Cancelar</button>
+      <button class="lf-btn-save" (click)="onGuardar()" [disabled]="guardando">
+        @if (guardando) { <app-spinner [size]="16" theme="light"></app-spinner> Guardando… }
+        @else { {{ esEdicion ? 'Guardar cambios' : 'Crear material' }} }
+      </button>
+    </footer>
+
+  </div>
+</div>
