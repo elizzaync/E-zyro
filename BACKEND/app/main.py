@@ -15,6 +15,7 @@ from app.routers import chat_ws         as chat_ws_router
 from app.routers import notificaciones  as notificaciones_router
 from app.routers import requerimientos  as requerimientos_router
 from app.routers import auditoria       as auditoria_router
+from app.routers import logistica       as logistica_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -137,6 +138,52 @@ def _run_migrations():
                 END IF;
             END $$;
         """))
+
+        # ── HU-15 LOGÍSTICA 2026-05-27 ───────────────────────────────────────
+        # Material: precio referencial
+        conn.execute(text(
+            "ALTER TABLE material "
+            "ADD COLUMN IF NOT EXISTS precio NUMERIC(10,2)"
+        ))
+        # Equipo: clase (equipo|herramienta), mantenimiento, etc.
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS clase VARCHAR(20) NOT NULL DEFAULT 'equipo'"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS cantidad INTEGER NOT NULL DEFAULT 1"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS tipo VARCHAR(120)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS fecha_adquisicion DATE"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS ficha_tecnica TEXT"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS requiere_mantenimiento BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS frecuencia_mantenimiento VARCHAR(20) NOT NULL DEFAULT 'ninguno'"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS proxima_fecha_mantenimiento DATE"
+        ))
+        # tipo_equipo_id antes era NOT NULL; ahora opcional (logística puede
+        # registrar equipos/herramientas sin amarrarlos a un TipoEquipo formal).
+        conn.execute(text(
+            "ALTER TABLE equipo ALTER COLUMN tipo_equipo_id DROP NOT NULL"
+        ))
+
         conn.commit()
 
 
@@ -179,6 +226,7 @@ app.include_router(chat_ws_router.router)
 app.include_router(notificaciones_router.router)
 app.include_router(requerimientos_router.router)
 app.include_router(auditoria_router.router)
+app.include_router(logistica_router.router)
 
 
 @app.get("/")

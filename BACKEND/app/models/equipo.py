@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer, Date, Text
 from app.db.database import Base
 
 def _uuid():
@@ -11,7 +11,7 @@ class Equipo(Base):
 
     id               = Column(String(36), primary_key=True, default=_uuid)
     empresa_id       = Column(String(36), ForeignKey("empresa.id"), nullable=False)
-    tipo_equipo_id   = Column(String(36), ForeignKey("tipo_equipo.id"), nullable=False)
+    tipo_equipo_id   = Column(String(36), ForeignKey("tipo_equipo.id"), nullable=True)
     proyecto_id      = Column(String(36), ForeignKey("proyecto.id"), nullable=True)
     cliente_id       = Column(String(36), ForeignKey("cliente.id"), nullable=True)
     tipo_asignacion  = Column(String(20), nullable=True)   # activo_cliente | proyecto
@@ -22,5 +22,19 @@ class Equipo(Base):
     numero_serie     = Column(String(100), nullable=True)
     ubicacion        = Column(String(200), nullable=True)
     estado           = Column(String(20), nullable=False, default="operativo")  # operativo|en_mantenimiento|fuera_de_servicio|baja
+
+    # ── Logística (HU-15) ──────────────────────────────────────────────────
+    # En el sistema anterior todo iba en la tabla `articulos`. Aquí separamos:
+    #   clase = 'equipo'      → activo que normalmente requiere mantenimiento
+    #   clase = 'herramienta' → herramienta manual (la mayoría no lo requiere)
+    clase                       = Column(String(20), nullable=False, default="equipo")
+    cantidad                    = Column(Integer,    nullable=False, default=1)
+    tipo                        = Column(String(120), nullable=True)   # familia/tipo libre (ej "Instrumento de medición")
+    fecha_adquisicion           = Column(Date,       nullable=True)
+    ficha_tecnica               = Column(Text,       nullable=True)
+    requiere_mantenimiento      = Column(Boolean,    nullable=False, default=False)
+    frecuencia_mantenimiento    = Column(String(20), nullable=False, default="ninguno")  # ninguno|mensual|trimestral|semestral|anual
+    proxima_fecha_mantenimiento = Column(Date,       nullable=True)
+
     created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at       = Column(DateTime, nullable=True)
