@@ -40,6 +40,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   // Registros offline pendientes de sincronización
   int _pendientesSinc = 0;
+  bool _syncingBanner = false; // true mientras se ejecuta sync manual
   final _localRepo = AsistenciaLocalRepo();
 
   // ── Getters derivados ──────────────────────────────────────────────────────
@@ -99,6 +100,27 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     if (mounted) setState(() { _service = svc; _userName = prefs.getString('user_name') ?? 'Usuario'; });
     await _cargarDatos(svc);
     await _refreshPendientes();
+    // Auto-sync al abrir la pantalla si hay registros pendientes
+    if (_pendientesSinc > 0) _triggerSync();
+  }
+
+  /// Sincroniza los registros pendientes verificando primero que Railway es
+  /// alcanzable. Actualiza el banner con spinner durante el proceso.
+  Future<void> _triggerSync() async {
+    if (_service == null || _syncingBanner) return;
+    if (mounted) setState(() => _syncingBanner = true);
+    try {
+      if (await _service!.canReachServer()) {
+        await _service!.sincronizarPendientes();
+        await _refreshPendientes();
+        // Si se enviaron todos, refrescar el estado del día desde el servidor
+        if (mounted && _pendientesSinc == 0) {
+          await _cargarDatos(_service!);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _syncingBanner = false);
+    }
   }
 
   Future<void> _refreshPendientes() async {
@@ -814,11 +836,21 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       ),
       child: Row(
         children: [
-          Icon(Icons.cloud_sync_outlined, color: Colors.amber.shade700, size: 18),
+          _syncingBanner
+              ? SizedBox(
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.amber.shade700),
+                  ),
+                )
+              : Icon(Icons.cloud_sync_outlined, color: Colors.amber.shade700, size: 18),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '$_pendientesSinc ${_pendientesSinc == 1 ? 'registro pendiente' : 'registros pendientes'} de sincronización',
+              _syncingBanner
+                  ? 'Sincronizando con el servidor...'
+                  : '$_pendientesSinc ${_pendientesSinc == 1 ? 'registro pendiente' : 'registros pendientes'} de sincronización',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.amber.shade800,
@@ -826,6 +858,26 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               ),
             ),
           ),
+          if (!_syncingBanner) ...[
+            const SizedBox(width: 6),
+            TextButton(
+              onPressed: _triggerSync,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: Colors.amber.shade800,
+              ),
+              child: Text(
+                'Sincronizar',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.amber.shade800,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -22,6 +22,24 @@ class AsistenciaService {
 
   AsistenciaService(this._client);
 
+  /// Guard global: evita que dos llamadas concurrentes a sincronizarPendientes
+  /// procesen el mismo registro dos veces.
+  static bool _isSyncing = false;
+
+  /// Verifica que el servidor de Railway es alcanzable (no solo que hay red).
+  /// Usa GET /asistencia/estado-hoy con timeout corto — cualquier respuesta
+  /// HTTP (incluso 401/403) indica que el servidor responde.
+  Future<bool> canReachServer() async {
+    try {
+      final r = await _client
+          .get('/asistencia/estado-hoy')
+          .timeout(const Duration(seconds: 5));
+      return r.statusCode < 500;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Actualiza el notifier global con el conteo real de pendientes.
   Future<void> _actualizarNotifier() async {
     pendientesAsistenciaNotifier.value = await _repo.contarPendientes();
@@ -141,6 +159,16 @@ class AsistenciaService {
   // ── Sincronización manual de pendientes (llamado por SyncService) ─────────
 
   Future<int> sincronizarPendientes() async {
+    if (_isSyncing) return 0; // evitar ejecuciones concurrentes
+    _isSyncing = true;
+    try {
+      return await _sincronizarInterno();
+    } finally {
+      _isSyncing = false;
+    }
+  }
+
+  Future<int> _sincronizarInterno() async {
     final pendientes = await _repo.obtenerPendientes();
     if (pendientes.isEmpty) return 0;
 

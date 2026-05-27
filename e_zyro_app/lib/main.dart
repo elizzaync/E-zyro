@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -299,6 +300,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   late int _currentIndex;
+  Timer? _syncTimer;
 
   // Operaciones (índice 1) funciona offline con datos en memoria.
   // El resto requiere red → OfflineOverlay los bloquea automáticamente.
@@ -317,12 +319,21 @@ class _MainShellState extends State<MainShell> {
     tabNotifier.addListener(_onTabChanged);
     // Disparar sync de asistencias al volver a tener red
     isOnlineNotifier.addListener(_onConnectivityChanged);
+
+    // ── Sync al arrancar: si hay pendientes acumulados, enviarlos de inmediato
+    WidgetsBinding.instance.addPostFrameCallback((_) => _triggerAsistenciaSync());
+
+    // ── Sync periódico cada 5 min mientras la app esté abierta
+    _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+      if (isOnlineNotifier.value) _triggerAsistenciaSync();
+    });
   }
 
   @override
   void dispose() {
     tabNotifier.removeListener(_onTabChanged);
     isOnlineNotifier.removeListener(_onConnectivityChanged);
+    _syncTimer?.cancel();
     super.dispose();
   }
 
@@ -344,7 +355,11 @@ class _MainShellState extends State<MainShell> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final svc = AsistenciaService(ApiClient(prefs));
-      await svc.sincronizarPendientes();
+      // Solo sincronizar si hay pendientes Y el servidor Railway es alcanzable
+      final pendientes = await svc.contarPendientes();
+      if (pendientes > 0 && await svc.canReachServer()) {
+        await svc.sincronizarPendientes();
+      }
     } catch (_) {}
   }
 
