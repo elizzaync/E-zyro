@@ -4,7 +4,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/auth_models.dart';
+import '../repositories/cache_repo.dart';
 import '../utils/app_session.dart';
+import 'asistencia_service.dart';
+import 'dashboard_service.dart';
 
 String get _devicePlatform {
   if (kIsWeb) return 'web';
@@ -198,6 +201,11 @@ class AuthService {
     await _prefs.remove('user_rol');
     await _prefs.remove('user_permisos');
     await _prefs.remove('user_foto_url');
+    // Limpiar caché offline para no mezclar datos entre usuarios.
+    for (final k in [...AsistenciaService.cacheKeys, ...DashboardService.cacheKeys]) {
+      await _prefs.remove(k);
+    }
+    await CacheRepo().clearAll();
     if (!kIsWeb) await _secure.delete(key: _tokenKey);
     AppSession.clear();
   }

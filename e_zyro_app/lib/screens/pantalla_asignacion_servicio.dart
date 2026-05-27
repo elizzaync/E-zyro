@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/proyecto_models.dart';
@@ -685,7 +686,7 @@ class _PantallaAsignacionServicioState
     return CircleAvatar(
       radius: radius,
       backgroundColor: _green.withValues(alpha: 0.18),
-      backgroundImage: t.fotoUrl.isNotEmpty ? NetworkImage(t.fotoUrl) : null,
+      backgroundImage: t.fotoUrl.isNotEmpty ? CachedNetworkImageProvider(t.fotoUrl) : null,
       child: t.fotoUrl.isEmpty
           ? Text(t.iniciales,
               style: TextStyle(

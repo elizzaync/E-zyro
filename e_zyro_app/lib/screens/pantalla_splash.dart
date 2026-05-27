@@ -88,21 +88,23 @@ class _SplashScreenState extends State<SplashScreen>
     final prefs = await SharedPreferences.getInstance();
     await AuthService.restoreTokenIfNeeded(prefs);
     await AppSession.load();
-    final hasToken  = prefs.getString('auth_token') != null;
-    final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
+    final bioEnabled  = prefs.getBool('biometric_enabled') ?? false;
+    // Validar el JWT localmente (sin red): expirado → login para renovar.
+    final tokenValido = AuthService(ApiClient(prefs), prefs).isStoredTokenValid();
+    // Con biométrico vamos a /login para desbloquear con huella (que ya maneja
+    // el caso offline). Sin biométrico, entramos directo si el token sigue
+    // vigente, incluso sin internet.
+    final irHome = !bioEnabled && tokenValido;
     if (!mounted) return;
 
-    if (hasToken && !bioEnabled) {
+    if (irHome) {
       FcmFlutterService.initialize(
         client: ApiClient(prefs),
         navKey: ESystemApp.navigatorKey,
       );
     }
 
-    Navigator.pushReplacementNamed(
-      context,
-      (!hasToken || bioEnabled) ? '/login' : '/',
-    );
+    Navigator.pushReplacementNamed(context, irHome ? '/' : '/login');
   }
 
   @override

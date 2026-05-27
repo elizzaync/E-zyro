@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
@@ -305,10 +306,10 @@ class _ProfileTabState extends State<_ProfileTab> {
                   ),
                   child: ClipOval(
                     child: _fotoUrl.isNotEmpty
-                        ? Image.network(
-                            _fotoUrl,
+                        ? CachedNetworkImage(
+                            imageUrl: _fotoUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, _) => Center(
+                            errorWidget: (context, error, _) => Center(
                               child: Text(
                                 _initials,
                                 style: const TextStyle(

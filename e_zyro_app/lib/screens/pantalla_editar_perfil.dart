@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -139,10 +140,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                               child: ClipOval(
                                 child: _fotoUrl.isNotEmpty
-                                    ? Image.network(
-                                        _fotoUrl,
+                                    ? CachedNetworkImage(
+                                        imageUrl: _fotoUrl,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, _) =>
+                                        errorWidget: (context, error, _) =>
                                             const Icon(Icons.person, size: 50, color: _green),
                                       )
                                     : const Icon(Icons.person, size: 50, color: _green),

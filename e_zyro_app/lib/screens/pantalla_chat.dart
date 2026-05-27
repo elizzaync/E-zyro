@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -556,7 +557,7 @@ class _Avatar extends StatelessWidget {
       return CircleAvatar(
         radius: 14,
         backgroundColor: _color.withValues(alpha: 0.15),
-        backgroundImage: NetworkImage(fotoUrl!),
+        backgroundImage: CachedNetworkImageProvider(fotoUrl!),
         onBackgroundImageError: (_, __) {},
       );
     }

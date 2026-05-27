@@ -119,6 +119,32 @@ class EstadoHoy {
     jornadaCompleta: false,
   );
 
+  /// Claves snake_case para round-trip con [EstadoHoy.fromJson] (caché local).
+  Map<String, dynamic> toJson() => {
+    'tiene_entrada': tieneEntrada,
+    'tiene_salida': tieneSalida,
+    'tiene_foto_base': tieneFotoBase,
+    'entrada_hora': entradaHora,
+    'salida_hora': salidaHora,
+    'jornada_completa': jornadaCompleta,
+  };
+
+  EstadoHoy copyWith({
+    bool? tieneEntrada,
+    bool? tieneSalida,
+    bool? tieneFotoBase,
+    String? entradaHora,
+    String? salidaHora,
+    bool? jornadaCompleta,
+  }) => EstadoHoy(
+    tieneEntrada: tieneEntrada ?? this.tieneEntrada,
+    tieneSalida: tieneSalida ?? this.tieneSalida,
+    tieneFotoBase: tieneFotoBase ?? this.tieneFotoBase,
+    entradaHora: entradaHora ?? this.entradaHora,
+    salidaHora: salidaHora ?? this.salidaHora,
+    jornadaCompleta: jornadaCompleta ?? this.jornadaCompleta,
+  );
+
   String? get tipoProximo {
     if (!tieneEntrada) return 'ENTRADA';
     if (!tieneSalida) return 'SALIDA';

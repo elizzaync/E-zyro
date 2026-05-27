@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, debugPrint;
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
 import '../core/app_constants.dart';
+import '../core/sync_logger.dart';
 import '../core/trusted_clock.dart';
 import '../models/asistencia_models.dart';
 import '../models/registro_asistencia_local.dart';
@@ -26,17 +29,37 @@ class AsistenciaService {
   /// procesen el mismo registro dos veces.
   static bool _isSyncing = false;
 
-  /// Verifica que el servidor de Railway es alcanzable (no solo que hay red).
-  /// Usa GET /asistencia/estado-hoy con timeout corto — cualquier respuesta
-  /// HTTP (incluso 401/403) indica que el servidor responde.
+  // Claves de caché local (offline-first) para el estado de asistencia.
+  static const _estadoCacheKey   = 'asistencia_estado_cache';
+  static const _fotoBaseCacheKey = 'asistencia_foto_base_cache';
+
+  // Claves de caché que deben limpiarse al cerrar sesión.
+  static const List<String> cacheKeys = [_estadoCacheKey, _fotoBaseCacheKey];
+
+  // ── Conectividad al servidor ──────────────────────────────────────────────
+
+  /// Verifica que el servidor de Railway es alcanzable usando HTTP crudo
+  /// SIN token de autenticación. Cualquier respuesta HTTP (incluyendo 401)
+  /// indica que el servidor está UP — solo las excepciones de red indican DOWN.
+  ///
+  /// IMPORTANTE: NO usa ApiClient para evitar que una sesión vencida sea
+  /// interpretada erróneamente como "servidor caído".
   Future<bool> canReachServer() async {
+    final client = http.Client();
     try {
-      final r = await _client
-          .get('/asistencia/estado-hoy')
+      // GET a la raíz del servidor sin Authorization header.
+      // Respuestas esperadas: 404 / 422 / 200 (según qué tenga el backend en /).
+      // Todas son válidas — significan que el servidor responde.
+      await client
+          .get(Uri.parse(AppConstants.baseUrl))
           .timeout(const Duration(seconds: 5));
-      return r.statusCode < 500;
-    } catch (_) {
+      return true;
+    } catch (e) {
+      // Solo falla si no hay ruta de red, timeout TCP, o DNS falla.
+      debugPrint('[AsistenciaService] canReachServer → sin respuesta: $e');
       return false;
+    } finally {
+      client.close();
     }
   }
 
@@ -51,10 +74,15 @@ class AsistenciaService {
     try {
       final r = await _client.get('/asistencia/tiene-foto-base');
       if (r.statusCode == 200) {
-        return (jsonDecode(r.body)['tiene_foto_base'] as bool?) ?? false;
+        final v = (jsonDecode(r.body)['tiene_foto_base'] as bool?) ?? false;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(_fotoBaseCacheKey, v);
+        return v;
       }
     } catch (_) {}
-    return false;
+    // Offline / error → último valor conocido (la foto base persiste).
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_fotoBaseCacheKey) ?? false;
   }
 
   Future<void> subirFotoBase(File foto) async {
@@ -78,26 +106,24 @@ class AsistenciaService {
     final clientUuid = const Uuid().v4();
 
     // Intentar sincronizar NTP antes de capturar la hora (si hay red).
-    // Es una consulta UDP de ~20ms; no bloquea perceptiblemente la UI.
     await TrustedClock.sync().timeout(
       const Duration(seconds: 3),
       onTimeout: () => false,
     );
 
     final trustedTs = TrustedClock.now();
-    final ahora = trustedTs.time; // UTC, inmune a cambios del reloj del SO
+    final ahora = trustedTs.time;
 
-    // 1a. Copiar selfie a directorio estable (los archivos de cámara en /cache
-    //     pueden ser borrados por el SO antes de que se sincronice el registro)
+    // 1a. Copiar selfie a directorio estable
     String? stablePath;
     try {
-      final appDir = await getApplicationDocumentsDirectory();
+      final appDir   = await getApplicationDocumentsDirectory();
       final selfieDir = Directory('${appDir.path}/attendance_selfies');
       await selfieDir.create(recursive: true);
       stablePath = '${selfieDir.path}/$clientUuid.jpg';
       await selfieFile.copy(stablePath);
     } catch (_) {
-      stablePath = selfieFile.path; // fallback a ruta original si falla la copia
+      stablePath = selfieFile.path;
     }
 
     // 1b. Guardar localmente PRIMERO antes de intentar la red
@@ -111,6 +137,7 @@ class AsistenciaService {
       fuenteTiempo: trustedTs.etiqueta,
     ));
     await _actualizarNotifier();
+    await _aplicarMarcaLocalAlCache(tipo, ahora);
 
     // 2. Intentar enviar de inmediato
     try {
@@ -118,15 +145,15 @@ class AsistenciaService {
 
       final body = <String, dynamic>{
         'imagen_selfie': b64,
-        'tipo': tipo.toLowerCase(),
-        'uuid_cliente': clientUuid,
-        'timestamp': ahora.toIso8601String(),
+        'tipo':          tipo.toLowerCase(),
+        'uuid_cliente':  clientUuid,
+        'timestamp':     ahora.toIso8601String(),
         'fuente_tiempo': trustedTs.etiqueta,
       };
-      if (latitud != null)   body['latitud']    = latitud;
-      if (longitud != null)  body['longitud']   = longitud;
+      if (latitud    != null) body['latitud']     = latitud;
+      if (longitud   != null) body['longitud']    = longitud;
       if (precisionM != null) body['precision_m'] = precisionM;
-      if (altitud != null)   body['altitud']    = altitud;
+      if (altitud    != null) body['altitud']     = altitud;
 
       final r = await _client.post(
         '/asistencia/marcar',
@@ -135,31 +162,51 @@ class AsistenciaService {
       );
       _client.checkResponse(r, fallback: 'Error al registrar asistencia');
 
-      // 3. Éxito — marcar como enviado y actualizar badge
+      // 3. Éxito — marcar como enviado
       await _repo.marcarEnviado(clientUuid);
       await _actualizarNotifier();
+      await SyncLogger.log(SyncLogEntry(
+        id:            SyncLogger.newId(),
+        timestamp:     DateTime.now(),
+        uuid:          clientUuid,
+        tipoMarcacion: tipo.toLowerCase(),
+        status:        SyncLogStatus.enviado,
+        httpCode:      200,
+      ));
 
       return MarcarResponse.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
-    } catch (_) {
-      // Sin red o error transitorio: el registro queda pendiente en BD local.
-      // Devolver respuesta "offline" para que la UI lo informe correctamente.
+    } catch (e) {
+      // Determinar tipo de fallo para el log
+      final isSession = _isSessionError(e.toString());
+      await SyncLogger.log(SyncLogEntry(
+        id:            SyncLogger.newId(),
+        timestamp:     DateTime.now(),
+        uuid:          clientUuid,
+        tipoMarcacion: tipo.toLowerCase(),
+        status:        isSession ? SyncLogStatus.sesionVencida : SyncLogStatus.falloRed,
+        errorMessage:  _cleanError(e.toString()),
+      ));
+
       return MarcarResponse(
-        registroId: clientUuid,
-        status: 'PENDIENTE_SYNC',
-        score: 0,
-        motivo: 'Asistencia guardada localmente. Se enviará al servidor cuando recuperes conexión.',
-        timestamp: ahora,
+        registroId:  clientUuid,
+        status:      'PENDIENTE_SYNC',
+        score:       0,
+        motivo:      'Asistencia guardada localmente. Se enviará al servidor cuando recuperes conexión.',
+        timestamp:   ahora,
         gpsGuardado: latitud != null,
-        fotoUrl: null,
+        fotoUrl:     null,
         resultadoIa: 'pendiente',
       );
     }
   }
 
-  // ── Sincronización manual de pendientes (llamado por SyncService) ─────────
+  // ── Sincronización manual de pendientes ───────────────────────────────────
 
   Future<int> sincronizarPendientes() async {
-    if (_isSyncing) return 0; // evitar ejecuciones concurrentes
+    if (_isSyncing) {
+      debugPrint('[AsistenciaService] sincronizarPendientes → ya en progreso, omitiendo');
+      return 0;
+    }
     _isSyncing = true;
     try {
       return await _sincronizarInterno();
@@ -170,33 +217,54 @@ class AsistenciaService {
 
   Future<int> _sincronizarInterno() async {
     final pendientes = await _repo.obtenerPendientes();
-    if (pendientes.isEmpty) return 0;
+    if (pendientes.isEmpty) {
+      debugPrint('[AsistenciaService] _sincronizarInterno → sin pendientes');
+      return 0;
+    }
 
+    debugPrint('[AsistenciaService] _sincronizarInterno → procesando ${pendientes.length} registros');
     int enviados = 0;
+
     for (final r in pendientes) {
-      if (r.retryCount >= 5) continue; // abandonar tras 5 fallos
+      if (r.retryCount >= 5) {
+        debugPrint('[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → abandonado (5 reintentos)');
+        continue;
+      }
+
+      debugPrint(
+        '[AsistenciaService] Intentando enviar ${r.tipoMarcacion.toUpperCase()} '
+        'uuid=${r.uuid.substring(0, 8)} retry=${r.retryCount}',
+      );
 
       await _repo.marcarEnviando(r.uuid);
 
+      // Log de inicio del intento
+      await SyncLogger.log(SyncLogEntry(
+        id:            SyncLogger.newId(),
+        timestamp:     DateTime.now(),
+        uuid:          r.uuid,
+        tipoMarcacion: r.tipoMarcacion,
+        status:        SyncLogStatus.iniciando,
+        errorMessage:  'retry #${r.retryCount + 1}',
+      ));
+
       try {
-        // La selfie puede ya no estar en disco (limpieza del SO)
         final evidenciaExiste = r.evidenciaPath != null &&
             File(r.evidenciaPath!).existsSync();
 
         final body = <String, dynamic>{
-          'tipo': r.tipoMarcacion,
-          'uuid_cliente': r.uuid,
-          'timestamp': r.timestampDispositivo.toIso8601String(),
+          'tipo':          r.tipoMarcacion,
+          'uuid_cliente':  r.uuid,
+          'timestamp':     r.timestampDispositivo.toIso8601String(),
           'fuente_tiempo': r.fuenteTiempo,
-          if (r.latitud != 0) 'latitud': r.latitud,
+          if (r.latitud  != 0) 'latitud':  r.latitud,
           if (r.longitud != 0) 'longitud': r.longitud,
         };
 
         if (evidenciaExiste) {
-          body['imagen_selfie'] =
-              await compute(_fileToBase64, r.evidenciaPath!);
+          body['imagen_selfie'] = await compute(_fileToBase64, r.evidenciaPath!);
         } else {
-          // Sin selfie: enviar marcación sin imagen (backend lo acepta sin foto_url)
+          debugPrint('[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → sin selfie en disco, enviando sin imagen');
           body['imagen_selfie'] = '';
         }
 
@@ -206,24 +274,107 @@ class AsistenciaService {
           timeout: AppConstants.uploadTimeout,
         );
 
+        debugPrint(
+          '[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → HTTP ${resp.statusCode}',
+        );
+
         if (resp.statusCode == 200) {
           await _repo.marcarEnviado(r.uuid);
           enviados++;
+          await SyncLogger.log(SyncLogEntry(
+            id:            SyncLogger.newId(),
+            timestamp:     DateTime.now(),
+            uuid:          r.uuid,
+            tipoMarcacion: r.tipoMarcacion,
+            status:        SyncLogStatus.enviado,
+            httpCode:      200,
+          ));
         } else {
-          await _repo.registrarFallo(r.uuid);
+          final serverMsg = _extractServerMessage(resp.body);
+          final code      = resp.statusCode;
+
+          // 4xx (excepto 401 que se captura como excepción): error permanente.
+          // Reintentar es inútil — el servidor rechaza estos datos definitivamente.
+          final esPermanente = code >= 400 && code < 500;
+
+          debugPrint(
+            '[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → '
+            '${esPermanente ? "ERROR PERMANENTE" : "fallo"} HTTP $code: $serverMsg',
+          );
+
+          if (esPermanente) {
+            await _repo.marcarErrorPermanente(r.uuid);
+          } else {
+            await _repo.registrarFallo(r.uuid);
+          }
+
+          await SyncLogger.log(SyncLogEntry(
+            id:            SyncLogger.newId(),
+            timestamp:     DateTime.now(),
+            uuid:          r.uuid,
+            tipoMarcacion: r.tipoMarcacion,
+            status:        SyncLogStatus.falloServidor,
+            httpCode:      code,
+            errorMessage:  '${esPermanente ? "⛔ Error permanente: " : ""}'
+                           '${serverMsg.isNotEmpty ? serverMsg : "HTTP $code"}',
+          ));
         }
-      } catch (_) {
+      } catch (e) {
+        final errStr     = e.toString();
+        final isSession  = _isSessionError(errStr);
+        final logStatus  = isSession
+            ? SyncLogStatus.sesionVencida
+            : SyncLogStatus.falloRed;
+
+        debugPrint(
+          '[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → '
+          'excepción (${isSession ? "SESIÓN VENCIDA" : "RED/OTRO"}): $errStr',
+        );
+
         await _repo.registrarFallo(r.uuid);
+        await SyncLogger.log(SyncLogEntry(
+          id:            SyncLogger.newId(),
+          timestamp:     DateTime.now(),
+          uuid:          r.uuid,
+          tipoMarcacion: r.tipoMarcacion,
+          status:        logStatus,
+          errorMessage:  _cleanError(errStr),
+        ));
+
+        if (isSession) {
+          // Notificar a la UI que la sesión venció — no hay caso de reintentar
+          // los registros siguientes con el mismo token inválido.
+          debugPrint('[AsistenciaService] ⚠ SESIÓN VENCIDA detectada → deteniendo sync');
+          sessionExpiredSyncNotifier.value++;
+          break;
+        }
+        // Para errores de red continuamos con el siguiente registro
       }
     }
 
-    // Limpiar enviados antiguos y actualizar el badge global
     await _repo.limpiarEnviados();
     await _actualizarNotifier();
+    debugPrint('[AsistenciaService] _sincronizarInterno → $enviados enviados');
     return enviados;
   }
 
   Future<int> contarPendientes() => _repo.contarPendientes();
+
+  Future<int> contarAbandonados()        => _repo.contarAbandonados();
+  Future<int> contarErroresPermanentes() => _repo.contarErroresPermanentes();
+
+  /// Resetea los registros abandonados por errores transitorios (red, 5xx)
+  /// para que puedan reintentarse. NO afecta errores permanentes (4xx).
+  Future<int> resetParaReintentar() => _repo.resetParaReintentar();
+
+  /// Resetea los registros con error permanente (4xx) a pendientes para
+  /// reintentarlos. Úsalo cuando la causa del rechazo (p. ej. un bug del
+  /// backend) ya fue corregida.
+  Future<int> resetErroresPermanentes() => _repo.resetErroresPermanentes();
+
+  /// Descarta (borra) registros con error permanente del servidor (4xx).
+  /// Úsalo cuando el usuario acepta que esos registros no pueden enviarse.
+  Future<int> descartarErroresPermanentes() => _repo.descartarErroresPermanentes();
 
   // ── Estado de hoy ─────────────────────────────────────────────────────────
 
@@ -231,10 +382,12 @@ class AsistenciaService {
     try {
       final r = await _client.get('/asistencia/estado-hoy');
       if (r.statusCode == 200) {
-        return EstadoHoy.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+        final e = EstadoHoy.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+        await _guardarEstadoCache(e);
+        return e;
       }
     } catch (_) {}
-    return EstadoHoy.empty();
+    return _leerEstadoCache();
   }
 
   // ── Historial ─────────────────────────────────────────────────────────────
@@ -253,5 +406,94 @@ class AsistenciaService {
       }
     } catch (_) {}
     return [];
+  }
+
+  // ── Caché local del estado de asistencia (offline-first) ──────────────────
+
+  static String _hoyKey() {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _guardarEstadoCache(EstadoHoy e) async {
+    final prefs = await SharedPreferences.getInstance();
+    final map = e.toJson()..['_fecha'] = _hoyKey();
+    await prefs.setString(_estadoCacheKey, jsonEncode(map));
+    await prefs.setBool(_fotoBaseCacheKey, e.tieneFotoBase);
+  }
+
+  /// Lee el estado cacheado. La foto base persiste entre días; la entrada/salida
+  /// solo son válidas si el caché es de hoy (cada día la jornada se reinicia).
+  Future<EstadoHoy> _leerEstadoCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final fotoBase = prefs.getBool(_fotoBaseCacheKey) ?? false;
+    final raw = prefs.getString(_estadoCacheKey);
+    if (raw != null) {
+      try {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        if (map['_fecha'] == _hoyKey()) {
+          return EstadoHoy.fromJson(map);
+        }
+      } catch (_) {}
+    }
+    return EstadoHoy(
+      tieneEntrada: false,
+      tieneSalida: false,
+      tieneFotoBase: fotoBase,
+      jornadaCompleta: false,
+    );
+  }
+
+  /// Refleja en el caché una marcación hecha localmente, para que la UI muestre
+  /// el avance (entrada → salida) sin esperar al servidor.
+  Future<void> _aplicarMarcaLocalAlCache(String tipo, DateTime ts) async {
+    final actual = await _leerEstadoCache();
+    final hhmm = '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}';
+    final t = tipo.toLowerCase();
+    final actualizado = actual.copyWith(
+      tieneEntrada: t == 'entrada' ? true : actual.tieneEntrada,
+      tieneSalida:  t == 'salida'  ? true : actual.tieneSalida,
+      entradaHora:  t == 'entrada' ? hhmm : actual.entradaHora,
+      salidaHora:   t == 'salida'  ? hhmm : actual.salidaHora,
+    );
+    await _guardarEstadoCache(
+      actualizado.copyWith(
+        jornadaCompleta: actualizado.tieneEntrada && actualizado.tieneSalida,
+      ),
+    );
+  }
+
+  // ── Helpers privados ──────────────────────────────────────────────────────
+
+  /// Detecta si una excepción corresponde a sesión vencida / token inválido.
+  static bool _isSessionError(String error) {
+    final lower = error.toLowerCase();
+    return lower.contains('sesión expirada') ||
+        lower.contains('session') ||
+        lower.contains('401') ||
+        lower.contains('token') ||
+        lower.contains('unauthorized') ||
+        lower.contains('no auth');
+  }
+
+  /// Limpia el prefijo "Exception: " de los mensajes de error para mostrarlos.
+  static String _cleanError(String error) =>
+      error.replaceAll('Exception: ', '').trim();
+
+  /// Extrae el campo `detail` del body JSON del servidor para mostrarlo en logs.
+  static String _extractServerMessage(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final detail = decoded['detail'];
+        if (detail is String) return detail;
+        if (detail is List && detail.isNotEmpty) {
+          return (detail.first as Map)['msg']?.toString() ?? '';
+        }
+        final msg = decoded['message'] ?? decoded['msg'] ?? decoded['error'];
+        if (msg is String) return msg;
+      }
+    } catch (_) {}
+    return '';
   }
 }

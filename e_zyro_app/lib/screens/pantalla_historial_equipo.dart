@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -471,32 +472,29 @@ class _FotoThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        Image.network(
-          foto.url,
+        CachedNetworkImage(
+          imageUrl: foto.url,
           width: 56,
           height: 56,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
+          errorWidget: (_, _, _) => Container(
             width: 56,
             height: 56,
             color: Colors.grey.shade200,
             child: const Icon(Icons.broken_image_outlined,
                 color: Colors.grey, size: 20),
           ),
-          loadingBuilder: (_, child, progress) {
-            if (progress == null) return child;
-            return Container(
-              width: 56,
-              height: 56,
-              color: Colors.grey.shade100,
-              child: const Center(
-                child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
-            );
-          },
+          placeholder: (_, _) => Container(
+            width: 56,
+            height: 56,
+            color: Colors.grey.shade100,
+            child: const Center(
+              child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+          ),
         ),
         Positioned(
           bottom: 0,
@@ -557,10 +555,10 @@ class _GaleriaEvidenciasScreen extends StatelessWidget {
                   minScale: 0.5,
                   maxScale: 4.0,
                   child: Center(
-                    child: Image.network(
-                      foto.url,
+                    child: CachedNetworkImage(
+                      imageUrl: foto.url,
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorWidget: (_, _, _) => const Icon(
                         Icons.broken_image_outlined,
                         color: Colors.white38,
                         size: 64,

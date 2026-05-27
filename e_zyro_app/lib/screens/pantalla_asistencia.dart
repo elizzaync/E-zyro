@@ -10,6 +10,7 @@ import '../repositories/asistencia_local_repo.dart';
 import '../services/asistencia_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_notifiers.dart';
+import '../widgets/sync_log_panel.dart';
 
 class AsistenciaScreen extends StatefulWidget {
   const AsistenciaScreen({super.key});
@@ -21,10 +22,6 @@ class AsistenciaScreen extends StatefulWidget {
 class _AsistenciaScreenState extends State<AsistenciaScreen> {
   AsistenciaService? _service;
   String _userName = '';
-
-  // Reloj en vivo
-  Timer? _clockTimer;
-  DateTime _now = DateTime.now();
 
   // GPS y dirección
   Position? _position;
@@ -73,25 +70,26 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   @override
   void initState() {
     super.initState();
-    _clockTimer = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) { if (mounted) setState(() => _now = DateTime.now()); },
-    );
-    // Escuchar el notifier global para actualizar el badge cuando el sync externo termine
+    // Escuchar notifiers globales
     pendientesAsistenciaNotifier.addListener(_onPendientesChanged);
+    sessionExpiredSyncNotifier.addListener(_onSessionExpiredChanged);
     _init();
     _fetchLocation();
   }
 
   @override
   void dispose() {
-    _clockTimer?.cancel();
     pendientesAsistenciaNotifier.removeListener(_onPendientesChanged);
+    sessionExpiredSyncNotifier.removeListener(_onSessionExpiredChanged);
     super.dispose();
   }
 
   void _onPendientesChanged() {
     if (mounted) setState(() => _pendientesSinc = pendientesAsistenciaNotifier.value);
+  }
+
+  void _onSessionExpiredChanged() {
+    if (mounted) setState(() {}); // Redibuja el banner con el chip de sesión vencida
   }
 
   Future<void> _init() async {
@@ -213,17 +211,16 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   String get _greeting {
-    final h = _now.hour;
+    final h = DateTime.now().hour;
     if (h < 12) return 'Buenos días';
     if (h < 18) return 'Buenas tardes';
     return 'Buenas noches';
   }
 
-  String get _fechaFormateada =>
-      '${_dias[_now.weekday - 1]} ${_now.day} de ${_meses[_now.month - 1]}, ${_now.year}';
-
-  String get _hora =>
-      '${_pad(_now.hour)}:${_pad(_now.minute)}:${_pad(_now.second)}';
+  String get _fechaFormateada {
+    final n = DateTime.now();
+    return '${_dias[n.weekday - 1]} ${n.day} de ${_meses[n.month - 1]}, ${n.year}';
+  }
 
   String _pad(int n) => n.toString().padLeft(2, '0');
 
@@ -522,7 +519,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             spacing: 8, runSpacing: 6,
             children: [
               _chip(Icons.calendar_today, _fechaFormateada),
-              _chip(Icons.access_time, _hora),
+              // Reloj autocontenido: solo este chip se repinta cada segundo,
+              // no toda la pantalla.
+              const _LiveClockChip(),
             ],
           ),
         ],
@@ -825,57 +824,131 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
+  // ── Panel de logs ──────────────────────────────────────────────────────────
+  void _openSyncLogs() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const SyncLogPanel(),
+    );
+  }
+
   // ── Banner: registros offline pendientes ──────────────────────────────────
   Widget _buildPendingBanner() {
+    // Detectar si la última razón de fallo fue sesión vencida
+    final sessionExpired = sessionExpiredSyncNotifier.value > 0;
+    final bannerColor    = sessionExpired ? Colors.purple : Colors.amber;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.amber.shade50,
+        color: sessionExpired ? Colors.purple.shade50 : Colors.amber.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.shade300),
+        border: Border.all(
+          color: sessionExpired ? Colors.purple.shade300 : Colors.amber.shade300,
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _syncingBanner
-              ? SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.amber.shade700),
-                  ),
-                )
-              : Icon(Icons.cloud_sync_outlined, color: Colors.amber.shade700, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
+          Row(
+            children: [
               _syncingBanner
-                  ? 'Sincronizando con el servidor...'
-                  : '$_pendientesSinc ${_pendientesSinc == 1 ? 'registro pendiente' : 'registros pendientes'} de sincronización',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.amber.shade800,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          if (!_syncingBanner) ...[
-            const SizedBox(width: 6),
-            TextButton(
-              onPressed: _triggerSync,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: Colors.amber.shade800,
-              ),
-              child: Text(
-                'Sincronizar',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.amber.shade800,
+                  ? SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        valueColor: AlwaysStoppedAnimation<Color>(bannerColor.shade700),
+                      ),
+                    )
+                  : Icon(
+                      sessionExpired
+                          ? Icons.lock_outline_rounded
+                          : Icons.cloud_sync_outlined,
+                      color: bannerColor.shade700,
+                      size: 18,
+                    ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _syncingBanner
+                      ? 'Sincronizando con el servidor...'
+                      : '$_pendientesSinc ${_pendientesSinc == 1 ? 'registro pendiente' : 'registros pendientes'} de sincronización',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: bannerColor.shade800,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
+              // Botón Ver logs
+              IconButton(
+                icon: const Icon(Icons.terminal_rounded, size: 18),
+                color: bannerColor.shade700,
+                tooltip: 'Ver logs de sync',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: _openSyncLogs,
+              ),
+            ],
+          ),
+          // Chip de sesión vencida
+          if (sessionExpired && !_syncingBanner) ...[
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () => Navigator.pushNamedAndRemoveUntil(
+                context, '/login', (r) => false,
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lock_outline_rounded,
+                        size: 13, color: Colors.purple),
+                    const SizedBox(width: 5),
+                    const Text(
+                      'Sesión vencida — toca para iniciar sesión',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.purple,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ] else if (!_syncingBanner) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _triggerSync,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    foregroundColor: bannerColor.shade800,
+                  ),
+                  child: Text(
+                    'Sincronizar ahora',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: bannerColor.shade800,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
@@ -1867,6 +1940,61 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Reloj en vivo (chip autocontenido) ──────────────────────────────────────
+// Maneja su propio Timer y solo se repinta a sí mismo cada segundo, evitando
+// reconstruir toda la pantalla de asistencia.
+class _LiveClockChip extends StatefulWidget {
+  const _LiveClockChip();
+
+  @override
+  State<_LiveClockChip> createState() => _LiveClockChipState();
+}
+
+class _LiveClockChipState extends State<_LiveClockChip> {
+  late Timer _timer;
+  late DateTime _now;
+
+  @override
+  void initState() {
+    super.initState();
+    _now = DateTime.now();
+    _timer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) {
+        if (mounted) setState(() => _now = DateTime.now());
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _pad(int n) => n.toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context) {
+    final hora = '${_pad(_now.hour)}:${_pad(_now.minute)}:${_pad(_now.second)}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.access_time, color: Colors.white, size: 13),
+          const SizedBox(width: 5),
+          Text(hora, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)),
         ],
       ),
     );

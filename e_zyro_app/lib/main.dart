@@ -7,7 +7,10 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/api_client.dart';
 import 'core/connectivity_service.dart';
+import 'repositories/asistencia_local_repo.dart';
 import 'services/asistencia_service.dart';
+import 'services/auth_service.dart';
+import 'services/proyecto_service.dart';
 import 'utils/app_notifiers.dart';
 import 'widgets/offline_overlay.dart';
 import 'screens/pantalla_splash.dart';
@@ -302,10 +305,10 @@ class _MainShellState extends State<MainShell> {
   late int _currentIndex;
   Timer? _syncTimer;
 
-  // Operaciones (índice 1) funciona offline con datos en memoria.
-  // El resto requiere red → OfflineOverlay los bloquea automáticamente.
+  // Inicio (0) y Operaciones (1) funcionan offline con datos cacheados.
+  // El resto aún requiere red → OfflineOverlay los bloquea automáticamente.
   static const List<Widget> _screens = [
-    OfflineOverlay(child: HomeScreen()),
+    HomeScreen(),
     OperationsScreen(),
     OfflineOverlay(child: LogisticsScreen()),
     OfflineOverlay(child: PersonalScreen()),
@@ -317,15 +320,15 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     _currentIndex = widget.initialIndex;
     tabNotifier.addListener(_onTabChanged);
-    // Disparar sync de asistencias al volver a tener red
     isOnlineNotifier.addListener(_onConnectivityChanged);
+    sessionExpiredSyncNotifier.addListener(_onSessionExpiredDuringSync);
 
     // ── Sync al arrancar: si hay pendientes acumulados, enviarlos de inmediato
-    WidgetsBinding.instance.addPostFrameCallback((_) => _triggerAsistenciaSync());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _triggerSync());
 
     // ── Sync periódico cada 5 min mientras la app esté abierta
     _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      if (isOnlineNotifier.value) _triggerAsistenciaSync();
+      if (isOnlineNotifier.value) _triggerSync();
     });
   }
 
@@ -333,6 +336,7 @@ class _MainShellState extends State<MainShell> {
   void dispose() {
     tabNotifier.removeListener(_onTabChanged);
     isOnlineNotifier.removeListener(_onConnectivityChanged);
+    sessionExpiredSyncNotifier.removeListener(_onSessionExpiredDuringSync);
     _syncTimer?.cancel();
     super.dispose();
   }
@@ -346,26 +350,116 @@ class _MainShellState extends State<MainShell> {
   void _onConnectivityChanged() {
     if (!mounted) return;
     if (isOnlineNotifier.value) {
-      // Volvió la red → disparar sync de asistencias en background
-      _triggerAsistenciaSync();
+      _triggerSync();
+      _refreshTokenSilencioso();
     }
   }
 
-  Future<void> _triggerAsistenciaSync() async {
+  // Throttle del refresh para no renovar en cada parpadeo de conexión.
+  static DateTime? _ultimoRefresh;
+
+  /// Renueva el token al recuperar conexión (extiende la ventana de 7 días)
+  /// si el JWT sigue vigente. Silencioso: si falla, el manejo de 401 ya cubre
+  /// la expiración real.
+  Future<void> _refreshTokenSilencioso() async {
+    final ahora = DateTime.now();
+    if (_ultimoRefresh != null &&
+        ahora.difference(_ultimoRefresh!) < const Duration(minutes: 30)) {
+      return;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
-      final svc = AsistenciaService(ApiClient(prefs));
-      // Solo sincronizar si hay pendientes Y el servidor Railway es alcanzable
-      final pendientes = await svc.contarPendientes();
-      if (pendientes > 0 && await svc.canReachServer()) {
-        await svc.sincronizarPendientes();
-      }
+      final auth  = AuthService(ApiClient(prefs), prefs);
+      if (!auth.isStoredTokenValid()) return; // expirado → no hay qué renovar
+      await auth.refreshToken();
+      _ultimoRefresh = ahora;
+    } catch (_) {
+      // Sin red o sesión revocada: se ignora; el flujo de 401 lo gestiona.
+    }
+  }
+
+  /// Se dispara cuando el sync detectó un 401 — la sesión del usuario venció
+  /// mientras había registros locales pendientes de enviar.
+  Future<void> _onSessionExpiredDuringSync() async {
+    if (!mounted) return;
+
+    // Contar cuántos registros quedaron pendientes para mostrarlo al usuario
+    int pendientes = 0;
+    try {
+      pendientes = await AsistenciaLocalRepo().contarPendientes();
     } catch (_) {}
+
+    // Notificación local (visible aunque la app esté en segundo plano)
+    try {
+      await NotificationService.show(
+        id:    99,
+        title: 'Sesión expirada',
+        body:  pendientes > 0
+            ? 'Tienes $pendientes ${pendientes == 1 ? "asistencia pendiente" : "asistencias pendientes"} de enviar. Inicia sesión para sincronizar.'
+            : 'Tu sesión venció. Vuelve a iniciar sesión.',
+      );
+    } catch (_) {}
+
+    // SnackBar en pantalla con botón de acción directo
+    if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.lock_outline_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  pendientes > 0
+                      ? 'Sesión expirada · $pendientes ${pendientes == 1 ? "registro pendiente" : "registros pendientes"}'
+                      : 'Sesión expirada. Inicia sesión nuevamente.',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          action: SnackBarAction(
+            label:     'Iniciar sesión',
+            textColor: const Color(0xFF8FD11B),
+            onPressed: () {
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/login',
+                (route) => false,
+              );
+            },
+          ),
+          backgroundColor: Colors.purple.shade800,
+          behavior:        SnackBarBehavior.floating,
+          duration:        const Duration(seconds: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _triggerSync() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final asis  = AsistenciaService(ApiClient(prefs));
+      final proy  = ProyectoService(ApiClient(prefs));
+      // Solo sincronizar si hay pendientes (asistencia o evidencias) Y el
+      // servidor Railway es alcanzable. Un solo probe canReachServer() para
+      // ambas colas (HTTP crudo sin token → no falla con 401).
+      final pendAsis = await asis.contarPendientes();
+      final pendEvid = await proy.contarEvidenciasPendientes();
+      if ((pendAsis > 0 || pendEvid > 0) && await asis.canReachServer()) {
+        if (pendAsis > 0) await asis.sincronizarPendientes();
+        if (pendEvid > 0) await proy.sincronizarEvidencias();
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('[MainShell] _triggerSync error: $e');
+    }
   }
 
   void _onTabTappedWithOfflineCheck(int index) {
-    // Informar al usuario si intenta acceder a una tab bloqueada sin red
-    if (!isOnlineNotifier.value && index != 1) {
+    // Inicio (0) y Operaciones (1) funcionan offline; el resto requiere red.
+    if (!isOnlineNotifier.value && index != 0 && index != 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(
@@ -374,7 +468,7 @@ class _MainShellState extends State<MainShell> {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Sin conexión. Solo Operaciones disponible offline.',
+                  'Sin conexión. Solo Inicio, Operaciones y Asistencia están disponibles.',
                   style: TextStyle(fontSize: 13),
                 ),
               ),
@@ -398,7 +492,16 @@ class _MainShellState extends State<MainShell> {
         children: [
           const OfflineBanner(),
           Expanded(
-            child: IndexedStack(index: _currentIndex, children: _screens),
+            // TickerMode mutea las animaciones (incluido el fondo TopoBackground)
+            // de las pestañas ocultas del IndexedStack → no repintan a 60fps en
+            // segundo plano. Se reanudan al volver a la pestaña.
+            child: IndexedStack(
+              index: _currentIndex,
+              children: [
+                for (int i = 0; i < _screens.length; i++)
+                  TickerMode(enabled: _currentIndex == i, child: _screens[i]),
+              ],
+            ),
           ),
         ],
       ),

@@ -1,4 +1,5 @@
 import 'package:e_zyro_app/screens/pantalla_tramites.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -397,10 +398,10 @@ class _MoreScreenState extends State<MoreScreen> {
                   ),
                   child: ClipOval(
                     child: _fotoUrl.isNotEmpty
-                        ? Image.network(
-                            _fotoUrl,
+                        ? CachedNetworkImage(
+                            imageUrl: _fotoUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (context2, err, stack) => _avatarFallback(),
+                            errorWidget: (context2, err, stack) => _avatarFallback(),
                           )
                         : _avatarFallback(),
                   ),

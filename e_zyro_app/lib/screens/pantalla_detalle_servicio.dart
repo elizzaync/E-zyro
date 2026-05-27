@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/proyecto_models.dart';
@@ -616,9 +617,11 @@ class _EvidenciaSheetState extends State<_EvidenciaSheet> {
     'despues': 'Después',
   };
   String? _subiendo; // etapa en curso
+  final Set<String> _encoladas = {}; // etapas guardadas offline (pendientes)
 
   bool _tieneEtapa(String etapa) =>
-      widget.proc.evidencias.any((e) => e.etapaLower == etapa);
+      widget.proc.evidencias.any((e) => e.etapaLower == etapa) ||
+      _encoladas.contains(etapa);
 
   Future<void> _capturar(String etapa) async {
     final source = await showModalBottomSheet<ImageSource>(
@@ -648,11 +651,18 @@ class _EvidenciaSheetState extends State<_EvidenciaSheet> {
     if (picked == null) return;
 
     setState(() => _subiendo = etapa);
-    final url = await widget.service
-        .subirEvidencia(widget.proc.id, etapa, picked.path);
+    final subida = await widget.service.encolarEvidencia(
+      procedimientoId: widget.proc.id,
+      etapa: etapa,
+      fotoPath: picked.path,
+    );
     if (!mounted) return;
-    setState(() => _subiendo = null);
-    if (url != null) {
+    setState(() {
+      _subiendo = null;
+      if (!subida) _encoladas.add(etapa);
+    });
+    if (subida) {
+      // Subida directa (con conexión).
       await widget.onUploaded();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -664,10 +674,14 @@ class _EvidenciaSheetState extends State<_EvidenciaSheet> {
       );
       Navigator.pop(context);
     } else {
+      // Sin conexión: guardada en cola, se enviará al reconectar.
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error al subir la evidencia'),
-          backgroundColor: _danger,
+        SnackBar(
+          content: Text(
+            'Evidencia "${_labels[etapa]}" guardada · se subirá al reconectar',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.amber.shade700,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -765,12 +779,12 @@ class _EvidenciaThumb extends StatelessWidget {
       onTap: () => _showFullImage(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          ev.urlCloudinary,
+        child: CachedNetworkImage(
+          imageUrl: ev.urlCloudinary,
           width: 64,
           height: 64,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Container(
+          errorWidget: (_, _, _) => Container(
             width: 64,
             height: 64,
             color: Colors.grey.shade200,
@@ -796,7 +810,7 @@ class _EvidenciaThumb extends StatelessWidget {
                 onPressed: () => Navigator.pop(context),
               ),
             ),
-            Image.network(ev.urlCloudinary, fit: BoxFit.contain),
+            CachedNetworkImage(imageUrl: ev.urlCloudinary, fit: BoxFit.contain),
             if (ev.descripcion.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(12),
@@ -929,7 +943,7 @@ class _MiembroCard extends StatelessWidget {
           CircleAvatar(
             radius: 22,
             backgroundImage:
-                miembro.fotoUrl.isNotEmpty ? NetworkImage(miembro.fotoUrl) : null,
+                miembro.fotoUrl.isNotEmpty ? CachedNetworkImageProvider(miembro.fotoUrl) : null,
             backgroundColor:
                 isDark ? _green.withValues(alpha: 0.20) : const Color(0xFFEFFAE0),
             child: miembro.fotoUrl.isEmpty

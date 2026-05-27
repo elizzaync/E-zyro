@@ -1,20 +1,44 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
+import '../models/evidencia_pendiente.dart';
 import '../models/proyecto_models.dart';
+import '../repositories/cache_repo.dart';
+import '../repositories/evidencia_local_repo.dart';
+import '../utils/app_notifiers.dart';
 
 class ProyectoService {
   final ApiClient _client;
+  final _cache = CacheRepo();
+  final _evidenciaRepo = EvidenciaLocalRepo();
   ProyectoService(this._client);
+
+  // Claves de caché read-through (offline-first) para lecturas de operaciones.
+  static const _kProyectos = 'op_proyectos';
+  static String _kServicios(String pid) => 'op_servicios_$pid';
+  static String _kDetalle(String sid) => 'op_detalle_$sid';
 
   // GET /operaciones/proyectos
   Future<ProyectosConKpis?> getProyectos() async {
     try {
       final r = await _client.get('/operaciones/proyectos');
       if (r.statusCode == 200) {
+        await _cache.put(_kProyectos, r.body);
         return ProyectosConKpis.fromJson(
             jsonDecode(r.body) as Map<String, dynamic>);
       }
     } catch (_) {}
+    // Offline / error → caché.
+    final cached = await _cache.get(_kProyectos);
+    if (cached != null) {
+      try {
+        return ProyectosConKpis.fromJson(
+            jsonDecode(cached) as Map<String, dynamic>);
+      } catch (_) {}
+    }
     return null;
   }
 
@@ -23,12 +47,22 @@ class ProyectoService {
     try {
       final r = await _client.get('/operaciones/proyecto/$proyectoId/servicios');
       if (r.statusCode == 200) {
+        await _cache.put(_kServicios(proyectoId), r.body);
         final list = jsonDecode(r.body) as List? ?? [];
         return list
             .map((e) => ServicioItem.fromJson(e as Map<String, dynamic>))
             .toList();
       }
     } catch (_) {}
+    final cached = await _cache.get(_kServicios(proyectoId));
+    if (cached != null) {
+      try {
+        final list = jsonDecode(cached) as List? ?? [];
+        return list
+            .map((e) => ServicioItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (_) {}
+    }
     return [];
   }
 
@@ -37,10 +71,18 @@ class ProyectoService {
     try {
       final r = await _client.get('/operaciones/servicio/$servicioId');
       if (r.statusCode == 200) {
+        await _cache.put(_kDetalle(servicioId), r.body);
         return ServicioDetalle.fromJson(
             jsonDecode(r.body) as Map<String, dynamic>);
       }
     } catch (_) {}
+    final cached = await _cache.get(_kDetalle(servicioId));
+    if (cached != null) {
+      try {
+        return ServicioDetalle.fromJson(
+            jsonDecode(cached) as Map<String, dynamic>);
+      } catch (_) {}
+    }
     return null;
   }
 
@@ -89,6 +131,132 @@ class ProyectoService {
       }
     } catch (_) {}
     return null;
+  }
+
+  // ── Evidencias offline-first (cola local + subida diferida) ─────────────────
+
+  static bool _isSyncingEvidencias = false;
+
+  Future<int> contarEvidenciasPendientes() =>
+      _evidenciaRepo.contarPendientes();
+
+  Future<int> contarEvidenciasAbandonadas() =>
+      _evidenciaRepo.contarAbandonadas();
+
+  /// Reinicia las evidencias abandonadas (5 reintentos) para reenviarlas.
+  Future<int> resetEvidenciasParaReintentar() =>
+      _evidenciaRepo.resetParaReintentar();
+
+  /// Descarta (borra fila + archivo) las evidencias abandonadas irrecuperables.
+  Future<int> descartarEvidenciasAbandonadas() async {
+    final abandonadas = await _evidenciaRepo.obtenerAbandonadas();
+    for (final e in abandonadas) {
+      _borrarArchivo(e.fotoPath);
+      await _evidenciaRepo.eliminar(e.uuid);
+    }
+    await _actualizarNotifierEvidencias();
+    return abandonadas.length;
+  }
+
+  Future<void> _actualizarNotifierEvidencias() async {
+    pendientesEvidenciaNotifier.value = await _evidenciaRepo.contarPendientes();
+  }
+
+  void _borrarArchivo(String path) {
+    try {
+      final f = File(path);
+      if (f.existsSync()) f.deleteSync();
+    } catch (_) {}
+  }
+
+  /// Guarda la evidencia localmente y la intenta subir de inmediato.
+  /// Devuelve true si se subió ya; false si quedó en cola para reenviar.
+  Future<bool> encolarEvidencia({
+    required String procedimientoId,
+    String? servicioId,
+    required String etapa,
+    required String fotoPath,
+    String descripcion = '',
+  }) async {
+    final uuid = const Uuid().v4();
+
+    // Copiar la foto a un directorio estable (la de ImagePicker es temporal).
+    String stablePath = fotoPath;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final dir = Directory('${appDir.path}/evidence_photos');
+      await dir.create(recursive: true);
+      stablePath = '${dir.path}/$uuid.jpg';
+      await File(fotoPath).copy(stablePath);
+    } catch (_) {
+      stablePath = fotoPath;
+    }
+
+    await _evidenciaRepo.insertarPendiente(EvidenciaPendiente(
+      uuid: uuid,
+      procedimientoId: procedimientoId,
+      servicioId: servicioId,
+      etapa: etapa,
+      descripcion: descripcion.isEmpty ? null : descripcion,
+      fotoPath: stablePath,
+      createdAt: DateTime.now(),
+    ));
+    await _actualizarNotifierEvidencias();
+
+    // Intento inmediato de subida.
+    final url = await subirEvidencia(
+      procedimientoId,
+      etapa,
+      stablePath,
+      descripcion: descripcion,
+    );
+    if (url != null) {
+      await _evidenciaRepo.eliminar(uuid);
+      _borrarArchivo(stablePath);
+      await _actualizarNotifierEvidencias();
+      return true;
+    }
+    return false;
+  }
+
+  /// Drena la cola de evidencias pendientes. Reintenta hasta 5 veces por
+  /// evidencia; al subir borra la fila y su archivo local.
+  Future<int> sincronizarEvidencias() async {
+    if (_isSyncingEvidencias) return 0;
+    _isSyncingEvidencias = true;
+    try {
+      final pendientes = await _evidenciaRepo.obtenerPendientes();
+      int enviadas = 0;
+      for (final e in pendientes) {
+        if (e.retryCount >= 5) continue; // abandonada tras 5 intentos
+        await _evidenciaRepo.marcarEnviando(e.uuid);
+
+        // Si la foto ya no existe en disco, descartar para no reintentar infinito.
+        if (!File(e.fotoPath).existsSync()) {
+          debugPrint('[ProyectoService] evidencia ${e.uuid} → foto perdida, descartada');
+          await _evidenciaRepo.eliminar(e.uuid);
+          continue;
+        }
+
+        final url = await subirEvidencia(
+          e.procedimientoId,
+          e.etapa,
+          e.fotoPath,
+          descripcion: e.descripcion ?? '',
+        );
+        if (url != null) {
+          await _evidenciaRepo.eliminar(e.uuid);
+          _borrarArchivo(e.fotoPath);
+          enviadas++;
+        } else {
+          await _evidenciaRepo.registrarFallo(e.uuid);
+        }
+      }
+      await _actualizarNotifierEvidencias();
+      return enviadas;
+    } finally {
+      _isSyncingEvidencias = false;
+    }
   }
 
   // GET /operaciones/materiales/buscar?q=
