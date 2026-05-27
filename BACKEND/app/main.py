@@ -112,12 +112,34 @@ def _run_migrations():
             "ALTER TABLE procedimiento "
             "ADD COLUMN IF NOT EXISTS fecha_inicio_tarea DATE"
         ))
+        conn.execute(text(
+            "ALTER TABLE procedimiento "
+            "ADD COLUMN IF NOT EXISTS fecha_limite DATE"
+        ))
+        # ── Refactor proyecto_servicio 2026-05-26 ────────────────────────────
+        # Estas columnas viven ahora a nivel servicio (antes en proyecto_detalle).
+        # Sin ellas, cualquier SELECT del ORM sobre proyecto_servicio falla con
+        # UndefinedColumn → HTTP 500 al listar servicios / abrir detalle / configurar.
+        # Idempotente (IF NOT EXISTS); se aplica solo si faltan.
+        conn.execute(text("""
+            ALTER TABLE proyecto_servicio
+                ADD COLUMN IF NOT EXISTS lider_id               UUID,
+                ADD COLUMN IF NOT EXISTS zona_ejecucion         VARCHAR(255),
+                ADD COLUMN IF NOT EXISTS alcance                TEXT,
+                ADD COLUMN IF NOT EXISTS tipo_documento_cliente VARCHAR(20),
+                ADD COLUMN IF NOT EXISTS nro_documento          VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS nro_conformidad        VARCHAR(100) DEFAULT 'En Espera',
+                ADD COLUMN IF NOT EXISTS acta_url               VARCHAR(500),
+                ADD COLUMN IF NOT EXISTS public_id_cloudinary   VARCHAR(255)
+        """))
         # ── Notas por servicio 2026-05-26 ────────────────────────────────────
         # Liga la nota (seguimiento) a un servicio concreto. NULL = nota antigua
         # a nivel proyecto. create_all() no altera tablas existentes.
+        # NOTA: proyecto_servicio.id es UUID en Postgres → la FK debe ser UUID,
+        # no VARCHAR(36); de lo contrario Postgres lanza DatatypeMismatch.
         conn.execute(text(
             "ALTER TABLE seguimiento_proyecto "
-            "ADD COLUMN IF NOT EXISTS proyecto_servicio_id VARCHAR(36) "
+            "ADD COLUMN IF NOT EXISTS proyecto_servicio_id UUID "
             "REFERENCES proyecto_servicio(id)"
         ))
         conn.execute(text("""
