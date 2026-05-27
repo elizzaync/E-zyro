@@ -134,9 +134,11 @@ def _run_migrations():
         # ── Notas por servicio 2026-05-26 ────────────────────────────────────
         # Liga la nota (seguimiento) a un servicio concreto. NULL = nota antigua
         # a nivel proyecto. create_all() no altera tablas existentes.
+        # NOTA: proyecto_servicio.id es UUID en Postgres → la FK debe ser UUID,
+        # no VARCHAR(36); de lo contrario Postgres lanza DatatypeMismatch.
         conn.execute(text(
             "ALTER TABLE seguimiento_proyecto "
-            "ADD COLUMN IF NOT EXISTS proyecto_servicio_id VARCHAR(36) "
+            "ADD COLUMN IF NOT EXISTS proyecto_servicio_id UUID "
             "REFERENCES proyecto_servicio(id)"
         ))
         conn.execute(text("""
