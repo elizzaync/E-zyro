@@ -90,8 +90,8 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       descripcion:            ['', Validators.maxLength(1000)],
 
       // Liderazgo
-      lider_id:               ['', Validators.required],   // Líder del Servicio (obligatorio, solo jefes)
-      responsable_id:         [''],                         // Técnico Líder (opcional)
+      lider_id:               [''],   // Líder del Servicio (opcional: si se omite, el jefe que configura queda como líder)
+      responsable_id:         [''],   // Técnico Líder (opcional)
       zona_ejecucion:         ['', Validators.maxLength(255)],
       alcance:                ['', Validators.maxLength(4000)],
       tipo_documento_cliente: ['SIN_OC' as TipoDocumentoCliente],
@@ -201,10 +201,6 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
     }
 
     const v = this.form.getRawValue();
-    if (!v.lider_id) {
-      this.errorMsg = 'Selecciona el Líder del Servicio (Jefe de Operaciones o Proyecto).';
-      return;
-    }
     if (v.fecha_inicio && v.fecha_fin && v.fecha_fin < v.fecha_inicio) {
       this.errorMsg = 'La fecha de fin no puede ser anterior a la de inicio.';
       return;
@@ -220,7 +216,7 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       catalogo_servicio_id:   v.catalogo_servicio_id,
       descripcion:            v.descripcion || null,
 
-      lider_id:               v.lider_id,
+      lider_id:               v.lider_id || null,
       responsable_id:         v.responsable_id || null,
       zona_ejecucion:         v.zona_ejecucion || null,
       alcance:                v.alcance || null,

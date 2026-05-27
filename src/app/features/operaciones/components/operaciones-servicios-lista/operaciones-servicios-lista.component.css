@@ -286,22 +286,22 @@
 }
 
 .step-node {
-  width: 26px; height: 26px;
+  width: 24px; height: 24px;
   border-radius: 50%;
   border: 2px solid #e2e8f0;
   background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #cbd5e1;
   transition: background 0.25s, border-color 0.25s, color 0.25s;
 }
-.step-node svg { width: 12px; height: 12px; }
+.step-node svg { width: 11px; height: 11px; }
 
 .step-label {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   color: #cbd5e1;
   white-space: nowrap;
@@ -312,7 +312,7 @@
   flex: 1;
   height: 2px;
   background: #e2e8f0;
-  margin-top: 12px;   /* alinea con el centro del nodo (26px / 2 - 1px) */
+  margin-top: 11px;   /* alinea con el centro del nodo (24px / 2 - 1px) */
   margin-bottom: 21px; /* espacio para el label debajo */
   transition: background 0.3s;
 }

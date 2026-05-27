@@ -152,61 +152,27 @@
       <p class="sc-descripcion">{{ servicio.descripcion }}</p>
       }
 
-      <!-- STEPPER DE ETAPAS -->
+      <!-- STEPPER DE ETAPAS (mismas 4 fases que el detalle del servicio) -->
       <div [class]="'sc-stepper sc-stepper--' + servicio.estado.toLowerCase().replace('_', '-')">
-
-        <!-- Paso 1: Pendiente -->
-        <div class="step"
-             [class.done]="servicio.estado === 'En_Proceso' || servicio.estado === 'Completado'"
-             [class.current]="servicio.estado === 'Pendiente'">
-          <div class="step-node">
-            @if (servicio.estado === 'En_Proceso' || servicio.estado === 'Completado') {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            } @else {
-              <span>1</span>
-            }
+        @for (f of fasesServicio; track f.n; let last = $last) {
+          <div class="step"
+               [class.done]="faseClaseCard(f.n, servicio) === 'done'"
+               [class.current]="faseClaseCard(f.n, servicio) === 'current'">
+            <div class="step-node">
+              @if (faseClaseCard(f.n, servicio) === 'done') {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              } @else {
+                <span>{{ f.n }}</span>
+              }
+            </div>
+            <span class="step-label">{{ f.nombre }}</span>
           </div>
-          <span class="step-label">Pendiente</span>
-        </div>
-
-        <div class="step-line"
-             [class.active]="servicio.estado === 'En_Proceso' || servicio.estado === 'Completado'">
-        </div>
-
-        <!-- Paso 2: En Proceso -->
-        <div class="step"
-             [class.done]="servicio.estado === 'Completado'"
-             [class.current]="servicio.estado === 'En_Proceso'">
-          <div class="step-node">
-            @if (servicio.estado === 'Completado') {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            } @else {
-              <span>2</span>
-            }
-          </div>
-          <span class="step-label">En Proceso</span>
-        </div>
-
-        <div class="step-line" [class.active]="servicio.estado === 'Completado'"></div>
-
-        <!-- Paso 3: Completado -->
-        <div class="step" [class.done]="servicio.estado === 'Completado'">
-          <div class="step-node">
-            @if (servicio.estado === 'Completado') {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            } @else {
-              <span>3</span>
-            }
-          </div>
-          <span class="step-label">Completado</span>
-        </div>
-
+          @if (!last) {
+            <div class="step-line" [class.active]="faseClaseCard(f.n, servicio) === 'done'"></div>
+          }
+        }
       </div>
 
       <!-- FOOTER: fecha + dot semáforo -->

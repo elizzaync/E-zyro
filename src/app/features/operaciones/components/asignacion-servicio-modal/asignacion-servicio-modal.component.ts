@@ -84,6 +84,19 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   servicio: ServicioResumen | null = null;
   cargandoServicio = false;
 
+  // ── Líder del servicio (el asignado al CREAR el servicio, no el usuario logueado) ──
+  liderId           = '';
+  liderNombre       = '';
+  liderCargo        = '';
+  liderFoto         = '';
+  // Técnico Líder (opcional, también definido al crear el servicio)
+  tecnicoLiderId     = '';
+  tecnicoLiderNombre = '';
+  tecnicoLiderCargo  = '';
+
+  /** empleado.id → datos básicos, para resolver nombre/foto del líder y técnico líder. */
+  private _personasMap = new Map<string, { nombre: string; apellido: string; cargo: string; fotoUrl: string }>();
+
   // Técnicos — source of truth (never mutated after load)
   todosTecnicos: TecnicoDisponible[]     = [];
   // Renderizado en la columna izquierda (disponibles minus seleccionados, filtrado por búsqueda)
@@ -138,6 +151,7 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     this._cargarUsuario();
     this._initForm();
     this._cargarTecnicos();
+    this._cargarLideresYResponsables();
     this._cargarServicio();
   }
 
@@ -188,6 +202,16 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
           fechaStr:    raw.fecha_str     ?? '—',
         };
 
+        // Líder y técnico líder definidos al crear el servicio (concordancia)
+        this.liderId            = String(raw.lider_id ?? '');
+        this.liderNombre        = String(raw.lider_nombre ?? '');
+        this.liderCargo         = String(raw.lider_cargo ?? '');
+        this.liderFoto          = String(raw.lider_foto ?? raw.lider_foto_url ?? '');
+        this.tecnicoLiderId     = String(raw.responsable_id ?? '');
+        this.tecnicoLiderNombre = String(raw.responsable_nombre ?? '');
+        this.tecnicoLiderCargo  = String(raw.responsable_cargo ?? '');
+        this._resolverLider();
+
         // Modo editar: precarga equipo y procedimientos existentes
         if (this.mode === 'editar') {
           this._precargarEquipo(raw.equipo ?? []);
@@ -197,6 +221,83 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
       },
       error: () => { this.cargandoServicio = false; }
     });
+  }
+
+  /**
+   * Carga las listas de posibles líderes y responsables para poder resolver
+   * el nombre/foto del líder asignado al servicio a partir de su `lider_id`.
+   */
+  private _cargarLideresYResponsables(): void {
+    this.svc.getLideresServicio().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        this._indexarPersonas(Array.isArray(res) ? res : (res?.lideres ?? []));
+        this._resolverLider();
+      }
+    });
+    this.svc.getResponsablesServicio().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        this._indexarPersonas(Array.isArray(res) ? res : (res?.responsables ?? []));
+        this._resolverLider();
+      }
+    });
+  }
+
+  private _indexarPersonas(list: any[]): void {
+    for (const p of list ?? []) {
+      const id = String(p.id ?? p.usuario_id ?? '');
+      if (!id) continue;
+      this._personasMap.set(id, {
+        nombre:   String(p.nombre   ?? ''),
+        apellido: String(p.apellido ?? ''),
+        cargo:    String(p.cargo    ?? ''),
+        fotoUrl:  String(p.foto_url ?? ''),
+      });
+    }
+  }
+
+  /** Rellena nombre/foto del líder y técnico líder desde el mapa de personas. */
+  private _resolverLider(): void {
+    if (this.liderId) {
+      const p = this._personasMap.get(this.liderId);
+      if (p) {
+        this.liderNombre = `${p.nombre} ${p.apellido}`.trim() || this.liderNombre;
+        this.liderCargo  = p.cargo   || this.liderCargo;
+        this.liderFoto   = p.fotoUrl || this.liderFoto;
+      }
+    }
+    if (this.tecnicoLiderId) {
+      const p = this._personasMap.get(this.tecnicoLiderId);
+      if (p) {
+        this.tecnicoLiderNombre = `${p.nombre} ${p.apellido}`.trim() || this.tecnicoLiderNombre;
+        this.tecnicoLiderCargo  = p.cargo || this.tecnicoLiderCargo;
+      }
+    }
+  }
+
+  /** true si el servicio ya trae un líder definido desde su creación. */
+  get tieneLiderAsignado(): boolean {
+    return !!this.liderId;
+  }
+
+  /** Nombre a mostrar: el líder asignado, o el usuario actual (que quedará como líder). */
+  get liderDisplayNombre(): string {
+    if (this.tieneLiderAsignado) return this.liderNombre || 'Líder asignado';
+    return this.usuarioActual.nombre || 'Tú';
+  }
+
+  get liderDisplayFoto(): string {
+    return this.tieneLiderAsignado ? this.liderFoto : this.usuarioActual.fotoUrl;
+  }
+
+  get liderDisplayCargo(): string {
+    if (this.tieneLiderAsignado) return this.liderCargo || 'Líder asignado al crear el servicio';
+    return 'Tú serás el líder — asignado al configurar este servicio';
+  }
+
+  getInicialesLider(): string {
+    const p = (this.liderDisplayNombre || '').trim().split(/\s+/).filter(Boolean);
+    if (p.length >= 2) return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+    return (p[0]?.[0] ?? 'L').toUpperCase();
   }
 
   private _cargarTecnicos(): void {
@@ -557,8 +658,9 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
 
     const payload = {
       equipo:  this.equipoSeleccionado.map(e => e.id),
-      // HU-13: Auto-liderazgo — enviar el empleado.id del usuario actual
-      lider_id: this.currentUserEmpleadoId || undefined,
+      // El líder es el asignado al CREAR el servicio (no el usuario logueado).
+      // Respaldo al usuario actual solo si el servicio no tiene líder definido.
+      lider_id: this.liderId || this.currentUserEmpleadoId || undefined,
       procedimientos: this.procedimientosArray.value.map((p: TareaForm) => ({
         ...(p.id ? { id: p.id } : {}),
         nombre:         p.nombre,
@@ -597,12 +699,6 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     let h = 0;
     for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
     return palette[Math.abs(h) % palette.length];
-  }
-
-  getInicialesUser(): string {
-    const p = this.usuarioActual.nombre.trim().split(/\s+/);
-    if (p.length >= 2) return (p[0][0] + p[p.length - 1][0]).toUpperCase();
-    return (p[0]?.[0] ?? 'J').toUpperCase();
   }
 
   estadoBadgeClass(estado: string): string {

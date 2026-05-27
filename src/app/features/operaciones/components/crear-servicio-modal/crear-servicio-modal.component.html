@@ -235,13 +235,14 @@
             Ejecución
           </h4>
 
-          <!-- Líder del Servicio (obligatorio · solo jefes) -->
+          <!-- Líder del Servicio (opcional · si se omite, lo asume quien configure) -->
           <div class="field-group">
             <label class="field-label" for="csm_lider">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
               </svg>
-              Líder del Servicio <span class="label-required">*</span>
+              Líder del Servicio
+              <span class="label-optional">(opcional)</span>
             </label>
             @if (cargandoLideres) {
               <div class="field-loading">
@@ -253,9 +254,8 @@
                 id="csm_lider"
                 class="field-select"
                 formControlName="lider_id"
-                [class.invalid]="ctrl('lider_id')?.invalid && ctrl('lider_id')?.touched"
               >
-                <option value="" disabled>— Seleccionar líder —</option>
+                <option value="">— Sin asignar —</option>
                 @for (u of lideres; track u.id) {
                   <option [value]="u.id">
                     {{ u.nombre }} {{ u.apellido }}{{ u.cargo ? ' · ' + u.cargo : '' }}
@@ -263,9 +263,9 @@
                 }
               </select>
             }
-            @if (ctrl('lider_id')?.invalid && ctrl('lider_id')?.touched) {
-              <span class="field-error">El servicio debe tener un líder responsable.</span>
-            }
+            <span class="field-hint">
+              Si lo dejas sin asignar, el Jefe de Operaciones que tome el servicio quedará como líder al configurar el equipo y las tareas.
+            </span>
             @if (!cargandoLideres && lideres.length === 0) {
               <span class="field-warn">No hay Jefes de Operaciones / Proyecto registrados para liderar.</span>
             }

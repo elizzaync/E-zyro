@@ -110,6 +110,70 @@
     }
   </div>
 
+  <!-- ═══════════════ CHECKLIST DE PREPARACIÓN (Fase 1) ═══════════════ -->
+  @if (servicio.estado === 'Pendiente') {
+  <div class="prep-checklist">
+    <div class="prep-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9 11l3 3L22 4"></path>
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+      </svg>
+      <div class="prep-head-text">
+        <strong>Fase 1 · Preparación</strong>
+        <span>Completa estos pasos en orden para poder iniciar el servicio.</span>
+      </div>
+    </div>
+
+    <ul class="prep-steps">
+      <li class="prep-step" [class.ok]="prepEquipoListo">
+        <span class="prep-mark">
+          @if (prepEquipoListo) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          } @else { 1 }
+        </span>
+        <span class="prep-label">Asignar equipo técnico</span>
+        <span class="prep-state">{{ prepEquipoListo ? (servicio.equipo.length + ' técnico(s)') : 'Pendiente' }}</span>
+      </li>
+
+      <li class="prep-step" [class.ok]="prepTareasListo">
+        <span class="prep-mark">
+          @if (prepTareasListo) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          } @else { 2 }
+        </span>
+        <span class="prep-label">Repartir tareas (con responsable)</span>
+        <span class="prep-state">
+          {{ prepTareasListo ? (servicio.procedimientos.length + ' tarea(s)') : 'Pendiente' }}
+        </span>
+      </li>
+
+      <li class="prep-step" [class.ok]="prepMaterialesListo">
+        <span class="prep-mark">
+          @if (prepMaterialesListo) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          } @else { 3 }
+        </span>
+        <span class="prep-label">Elegir materiales y herramientas</span>
+        <span class="prep-state">{{ prepMaterialesHint }}</span>
+      </li>
+    </ul>
+
+    @if (!puedeIniciar) {
+    <p class="prep-note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      El servicio sigue en <strong>Preparación</strong>. Falta: {{ motivosInicio.join(' · ') }}.
+    </p>
+    } @else {
+    <p class="prep-note prep-note--ok">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      Todo listo. Ya puedes iniciar el servicio.
+    </p>
+    }
+  </div>
+  }
+
   @if (servicio.estado === 'Completado') {
   <div class="banner-completado">
     <div class="banner-completado-icon">

@@ -388,6 +388,20 @@
 }
 .lider-badge svg { width: 12px; height: 12px; }
 
+/* Técnico Líder (opcional) — variante neutra para diferenciarlo del líder */
+.lider-card--tecnico {
+  border-color: rgba(148,163,184,.30);
+  box-shadow: none;
+}
+.lider-card--tecnico .lider-avatar-fallback {
+  background: linear-gradient(135deg, #64748b, #475569);
+}
+.lider-badge--tecnico {
+  background: rgba(148,163,184,.15);
+  border-color: rgba(148,163,184,.35);
+  color: var(--asm-muted);
+}
+
 /* ─── S2: Team Picker (two-column) ───────────────────────────────────── */
 .team-picker {
   display: grid;

@@ -22,6 +22,10 @@ interface ProcedimientoCronograma {
   descripcion?: string;
   orden: number;
   estado: string;
+  responsableId?: string | null;
+  responsableNombre?: string;
+  responsableFoto?: string;
+  responsableCargo?: string;
 }
 
 interface ServicioCronograma {
@@ -59,6 +63,9 @@ interface GanttRow {
   procedimientoId?: string;
   fechaInicioLabel: string;
   fechaFinLabel:    string;
+  responsableNombre?: string;
+  responsableFoto?:   string;
+  responsableCargo?:  string;
 }
 
 interface MonthHeader {
@@ -293,6 +300,9 @@ export class OperacionesCronogramaComponent implements OnInit {
                 procedimientoId:  proc.id,
                 fechaInicioLabel: this.formatDate(srv.fecha_programada),
                 fechaFinLabel:    '—',
+                responsableNombre: proc.responsableNombre,
+                responsableFoto:   proc.responsableFoto,
+                responsableCargo:  proc.responsableCargo,
               });
           });
         }
@@ -309,11 +319,22 @@ export class OperacionesCronogramaComponent implements OnInit {
       this.rebuildFlatRows();
       this.svc.getDetalleServicio(srv.id).subscribe({
         next: (raw: any) => {
-          srv.procedimientos = (raw.procedimientos ?? []).map((p: any) => ({
-            id: p.id, nombre: p.nombre,
-            descripcion: p.descripcion ?? undefined,
-            orden: p.orden, estado: p.estado,
-          }));
+          // Mapa empleado.id → datos del técnico (para resolver el responsable de cada tarea)
+          const equipoMap = new Map<string, any>();
+          for (const m of (raw.equipo ?? [])) equipoMap.set(String(m.id), m);
+
+          srv.procedimientos = (raw.procedimientos ?? []).map((p: any) => {
+            const resp = p.responsable_id ? equipoMap.get(String(p.responsable_id)) : null;
+            return {
+              id: p.id, nombre: p.nombre,
+              descripcion: p.descripcion ?? undefined,
+              orden: p.orden, estado: p.estado,
+              responsableId:     p.responsable_id ?? null,
+              responsableNombre: resp ? `${resp.nombre ?? ''} ${resp.apellido ?? ''}`.trim() : '',
+              responsableFoto:   resp?.foto_url ?? '',
+              responsableCargo:  resp?.cargo ?? '',
+            };
+          });
           srv.cargandoProcedimientos = false;
           this.rebuildFlatRows();
         },
@@ -340,6 +361,22 @@ export class OperacionesCronogramaComponent implements OnInit {
 
   getSrvById(id: string): ServicioCronograma | undefined {
     return this.servicios.find(s => s.id === id);
+  }
+
+  /** Iniciales (2 letras) de un nombre completo para el avatar de respaldo. */
+  getIniciales(nombre: string | undefined): string {
+    const p = (nombre ?? '').trim().split(/\s+/).filter(Boolean);
+    if (p.length >= 2) return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+    return (p[0]?.[0] ?? '?').toUpperCase();
+  }
+
+  /** Color estable del avatar de respaldo a partir de un id. */
+  getAvatarColor(id: string | undefined): string {
+    const palette = ['#91d337', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#ef4444', '#14b8a6'];
+    if (!id) return '#64748b';
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = id.charCodeAt(i) + ((h << 5) - h);
+    return palette[Math.abs(h) % palette.length];
   }
 
   /**

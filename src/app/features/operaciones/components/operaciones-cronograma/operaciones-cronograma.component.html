@@ -156,6 +156,23 @@
                 @if (row.descripcion && row.type !== 'procedimiento') {
                 <span class="row-desc">{{ row.descripcion }}</span>
                 }
+                @if (row.type === 'procedimiento') {
+                  @if (row.responsableNombre) {
+                  <span class="row-tecnico" [title]="row.responsableCargo || row.responsableNombre">
+                    @if (row.responsableFoto) {
+                    <img class="row-tec-avatar" [src]="row.responsableFoto" [alt]="row.responsableNombre">
+                    } @else {
+                    <span class="row-tec-avatar row-tec-fallback"
+                          [style.background]="getAvatarColor(row.procedimientoId || row.id)">
+                      {{ getIniciales(row.responsableNombre) }}
+                    </span>
+                    }
+                    <span class="row-tec-nombre">{{ row.responsableNombre }}</span>
+                  </span>
+                  } @else {
+                  <span class="row-tecnico row-tecnico--none">Sin responsable asignado</span>
+                  }
+                }
                 }
               </div>
 
@@ -193,6 +210,16 @@
                 @if (row.type === 'servicio' && row.barWidth > 12) {
                 <span class="bar-inner-label">{{ row.nombre }}</span>
                 }
+                @if (row.type === 'procedimiento' && row.responsableNombre && row.barWidth > 6) {
+                  @if (row.responsableFoto) {
+                  <img class="bar-tec-avatar" [src]="row.responsableFoto" [alt]="row.responsableNombre">
+                  } @else {
+                  <span class="bar-tec-avatar bar-tec-fallback"
+                        [style.background]="getAvatarColor(row.procedimientoId || row.id)">
+                    {{ getIniciales(row.responsableNombre) }}
+                  </span>
+                  }
+                }
                 @if (row.type === 'procedimiento' && row.procedimientoId) {
                 <span class="bar-proc-arrow">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="9" height="9">
@@ -218,6 +245,19 @@
                   @if (row.fechaFinLabel && row.fechaFinLabel !== '—') {
                   → {{ row.fechaFinLabel }}
                   }
+                </div>
+                }
+                @if (row.type === 'procedimiento' && row.responsableNombre) {
+                <div class="tt-tecnico">
+                  @if (row.responsableFoto) {
+                  <img class="tt-tec-avatar" [src]="row.responsableFoto" [alt]="row.responsableNombre">
+                  } @else {
+                  <span class="tt-tec-avatar tt-tec-fallback"
+                        [style.background]="getAvatarColor(row.procedimientoId || row.id)">
+                    {{ getIniciales(row.responsableNombre) }}
+                  </span>
+                  }
+                  <span>{{ row.responsableNombre }}{{ row.responsableCargo ? ' · ' + row.responsableCargo : '' }}</span>
                 </div>
                 }
                 @if (row.descripcion && row.type === 'procedimiento') {

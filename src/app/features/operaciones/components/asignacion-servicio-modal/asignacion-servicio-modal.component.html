@@ -84,7 +84,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          Confirma el servicio a configurar. Tú serás asignado automáticamente como Líder Responsable.
+          Confirma el servicio a configurar. Si no tiene un líder definido al crearlo, tú quedarás como líder al configurarlo.
         </p>
 
         <!-- Servicio info card -->
@@ -151,28 +151,24 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
             </svg>
-            Responsable / Líder del Servicio
+            Líder del Servicio
           </div>
           <div class="lider-card">
-            @if (usuarioActual.fotoUrl) {
-              <img class="lider-avatar" [src]="usuarioActual.fotoUrl" [alt]="usuarioActual.nombre">
+            @if (liderDisplayFoto) {
+              <img class="lider-avatar" [src]="liderDisplayFoto" [alt]="liderDisplayNombre">
             } @else {
               <div class="lider-avatar lider-avatar-fallback">
-                {{ getInicialesUser() }}
+                {{ getInicialesLider() }}
               </div>
             }
             <div class="lider-info">
-              <span class="lider-nombre">{{ usuarioActual.nombre }}</span>
-              @if (currentUserEmpleadoId) {
-                <span class="lider-rol lider-rol--confirmed">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                  Tú eres el Líder — asignado automáticamente
-                </span>
-              } @else {
-                <span class="lider-rol">Jefe de Operaciones — Asignado automáticamente</span>
-              }
+              <span class="lider-nombre">{{ liderDisplayNombre }}</span>
+              <span class="lider-rol lider-rol--confirmed">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                {{ liderDisplayCargo }}
+              </span>
             </div>
             <span class="lider-badge">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -181,6 +177,22 @@
               Líder
             </span>
           </div>
+
+          <!-- Técnico Líder (opcional) -->
+          @if (tecnicoLiderId) {
+          <div class="lider-card lider-card--tecnico">
+            <div class="lider-avatar lider-avatar-fallback">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+            </div>
+            <div class="lider-info">
+              <span class="lider-nombre">{{ tecnicoLiderNombre || 'Técnico líder asignado' }}</span>
+              <span class="lider-rol">{{ tecnicoLiderCargo || 'Técnico Líder (opcional)' }}</span>
+            </div>
+            <span class="lider-badge lider-badge--tecnico">Técnico Líder</span>
+          </div>
+          }
         </div>
 
       </div>

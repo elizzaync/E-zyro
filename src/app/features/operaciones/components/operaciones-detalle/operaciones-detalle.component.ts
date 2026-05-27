@@ -10,6 +10,7 @@ import { Subscription } from 'rxjs';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { FASES_SERVICIO, faseClase as faseClaseServicio } from '../../fase-servicio';
 
 export interface MiembroEquipo {
   id: string;
@@ -280,30 +281,11 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   // ==========================================================
   // STEPPER DE FASES + ACCIÓN DE INICIO
   // ==========================================================
-  fasesLista = [
-    { n: 1, nombre: 'Preparación', sub: 'Equipo y materiales' },
-    { n: 2, nombre: 'En sitio',    sub: 'Inspección y medición' },
-    { n: 3, nombre: 'Ejecución',   sub: 'Aplicación y pruebas' },
-    { n: 4, nombre: 'Cierre',      sub: 'Informe y firma' },
-  ];
-
-  /** Paso activo (1-4) derivado del estado + progreso del servicio. */
-  get pasoFase(): number {
-    if (!this.servicio) return 1;
-    switch (this.servicio.estado) {
-      case 'Pendiente':  return 1;
-      case 'En_Proceso': return this.servicio.progreso >= 50 ? 3 : 2;
-      case 'Completado': return 4;
-      default:           return 1;
-    }
-  }
+  fasesLista = FASES_SERVICIO;
 
   faseClase(n: number): 'done' | 'active' | 'muted' {
-    const p = this.pasoFase;
-    if (this.servicio?.estado === 'Completado') return 'done';
-    if (n < p) return 'done';
-    if (n === p) return 'active';
-    return 'muted';
+    if (!this.servicio) return n === 1 ? 'active' : 'muted';
+    return faseClaseServicio(n, this.servicio.estado, this.servicio.progreso);
   }
 
   get totalMateriales(): number {
@@ -322,6 +304,39 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     return todos.filter(m => m.estadoReq === 'pendiente' || m.estadoReq === 'aprobado').length;
   }
 
+  // ── Sub-pasos de la Fase 1 (Preparación) ────────────────────────────────
+  /** El equipo técnico ya fue asignado. */
+  get prepEquipoListo(): boolean {
+    return (this.servicio?.equipo.length ?? 0) > 0;
+  }
+
+  /** Todas las tareas existen y tienen responsable (tareas repartidas). */
+  get prepTareasListo(): boolean {
+    const procs = this.servicio?.procedimientos ?? [];
+    return procs.length > 0 && procs.every(p => !!p.responsableId);
+  }
+
+  /** Materiales/herramientas elegidos, enviados a Logística y entregados. */
+  get prepMaterialesListo(): boolean {
+    return this.totalMateriales > 0
+        && this.materialesBorrador.length === 0
+        && this.materialesPendientesEntrega === 0;
+  }
+
+  /** Texto de ayuda del sub-paso de materiales. */
+  get prepMaterialesHint(): string {
+    if (this.materialesBorrador.length > 0) {
+      return `${this.materialesBorrador.length} en borrador sin enviar a Logística`;
+    }
+    if (this.materialesPendientesEntrega > 0) {
+      return `Esperando entrega de ${this.materialesPendientesEntrega}`;
+    }
+    if (this.totalMateriales === 0) {
+      return 'Aún no se eligen materiales ni herramientas';
+    }
+    return `${this.totalMateriales} material(es)/herramienta(s) listos`;
+  }
+
   /** Requisitos que faltan para poder iniciar el servicio. */
   get motivosInicio(): string[] {
     const m: string[] = [];
@@ -333,6 +348,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
       m.push('repartir las tareas del servicio');
     } else if (this.servicio.procedimientos.some(p => !p.responsableId)) {
       m.push('asignar un responsable a todas las tareas');
+    }
+    // El equipo debe elegir los materiales/herramientas antes de avanzar de fase.
+    if (this.totalMateriales === 0 && this.materialesBorrador.length === 0) {
+      m.push('elegir los materiales y herramientas necesarios');
     }
     if (this.materialesBorrador.length > 0) {
       m.push('enviar el borrador de materiales a Logística');

@@ -9,9 +9,9 @@
 }
 
 .detalle-layout {
-  padding: 28px 40px;
-  max-width: 1440px;
-  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 28px 32px;
   font-family: 'Inter', sans-serif;
 }
 
@@ -136,6 +136,13 @@
   .svc-headbar { flex-wrap: wrap; }
   .hb-progress { border-left: none; padding: 0; flex-direction: row; gap: 10px; }
   .svc-stepper { grid-template-columns: 1fr 1fr; gap: 12px 0; }
+  .detalle-layout { padding: 20px 16px; }
+  .action-footer-bar { padding: 0 16px; }
+}
+
+@media (max-width: 480px) {
+  .detalle-layout { padding: 16px 12px; }
+  .action-footer-bar { padding: 0 12px; }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -504,6 +511,53 @@
 
 :host-context([data-theme="dark"]) .banner-completado { background: rgba(145,211,55,.08); border-color: rgba(145,211,55,.4); }
 
+/* ── Checklist de Preparación (Fase 1) ── */
+.prep-checklist {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e7eae6);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+.prep-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.prep-head > svg { width: 22px; height: 22px; color: var(--brand-green, #5a8a20); flex-shrink: 0; }
+.prep-head-text { display: flex; flex-direction: column; gap: 2px; }
+.prep-head-text strong { font-size: 14px; font-weight: 800; color: var(--text-main, #0f172a); }
+.prep-head-text span { font-size: 12.5px; color: var(--text-muted, #64748b); }
+
+.prep-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.prep-step {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color, #e7eae6);
+  border-radius: 10px;
+  background: var(--surface-soft, #f8fafc);
+}
+.prep-mark {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800;
+  background: #e2e8f0; color: #94a3b8;
+  transition: background .2s, color .2s;
+}
+.prep-mark svg { width: 13px; height: 13px; }
+.prep-label { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--text-main, #334155); }
+.prep-state { font-size: 12px; color: var(--text-muted, #94a3b8); white-space: nowrap; }
+
+.prep-step.ok { border-color: rgba(145,211,55,.35); background: rgba(145,211,55,.08); }
+.prep-step.ok .prep-mark { background: var(--brand-green, #91d337); color: #fff; }
+.prep-step.ok .prep-state { color: #5a8a20; font-weight: 600; }
+
+.prep-note {
+  display: flex; align-items: center; gap: 8px;
+  margin: 12px 0 0; font-size: 12.5px; color: #92400e;
+}
+.prep-note svg { width: 15px; height: 15px; flex-shrink: 0; }
+.prep-note--ok { color: #15803d; }
+
+:host-context([data-theme="dark"]) .prep-checklist { background: #0f172a; border-color: #334155; }
+:host-context([data-theme="dark"]) .prep-step { background: #1e293b; border-color: #334155; }
+
 .btn-solid-green {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 11px 22px; border: none; background: var(--brand-green,#91d337);
@@ -862,7 +916,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 40px;
+  padding: 0 32px;
   z-index: 900;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.05);
   font-family: 'Inter', sans-serif;

@@ -6,6 +6,7 @@ import { OperacionesService } from '../../../../core/services/operaciones.servic
 import { ToastService } from '../../../../core/services/toast.service';
 import { AsignacionServicioModalComponent } from '../asignacion-servicio-modal/asignacion-servicio-modal.component';
 import { CrearServicioModalComponent } from '../crear-servicio-modal/crear-servicio-modal.component';
+import { FASES_SERVICIO, faseClase as faseClaseServicio } from '../../fase-servicio';
 
 export interface ServicioProyecto {
   id: string;
@@ -15,6 +16,8 @@ export interface ServicioProyecto {
   orden: number;
   fecha_programada: string | null;
   estado_color: 'rojo' | 'amarillo' | 'verde';
+  /** Progreso 0-100 si el backend lo provee; afina la fase mostrada en la tarjeta. */
+  progreso?: number;
 }
 
 @Component({
@@ -37,6 +40,9 @@ export class OperacionesServiciosListaComponent implements OnInit {
 
   filtros      = ['Todos', 'Pendiente', 'En_Proceso', 'Completado'];
   filtroActual = 'Todos';
+
+  // Mismas 4 fases que el detalle del servicio (fuente única de verdad)
+  fasesServicio = FASES_SERVICIO;
 
   // ── Modal de asignación (HU-13) ──────────────────────────────────────
   showAsignacionModal = false;
@@ -90,6 +96,12 @@ export class OperacionesServiciosListaComponent implements OnInit {
   estadoLabel(estado: string): string {
     const map: Record<string, string> = { 'En_Proceso': 'En Proceso' };
     return map[estado] ?? estado;
+  }
+
+  /** Clase del paso `n` en el stepper de la tarjeta ('done' | 'current' | ''). */
+  faseClaseCard(n: number, servicio: ServicioProyecto): string {
+    const c = faseClaseServicio(n, servicio.estado, servicio.progreso ?? 0);
+    return c === 'active' ? 'current' : c === 'done' ? 'done' : '';
   }
 
   // ── HU-13: Métodos del modal ─────────────────────────────────────────

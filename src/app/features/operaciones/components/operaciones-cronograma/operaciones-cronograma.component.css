@@ -451,6 +451,92 @@
   font-family: 'Inter', sans-serif !important;
 }
 
+/* Técnico responsable de la tarea (fila de procedimiento) */
+.row-tecnico {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  max-width: 100%;
+}
+.row-tec-avatar {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.row-tec-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  font-family: 'Inter', sans-serif !important;
+}
+.row-tec-nombre {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  font-family: 'Inter', sans-serif !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:host-context([data-theme="dark"]) .row-tec-nombre { color: #94a3b8; }
+.row-tecnico--none {
+  font-size: 10.5px;
+  font-style: italic;
+  color: #f59e0b;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Mini-avatar dentro de la barra de la tarea */
+.bar-tec-avatar {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-right: auto;
+  margin-left: 2px;
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,.85);
+}
+.bar-tec-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 7px;
+  font-weight: 800;
+  font-family: 'Inter', sans-serif !important;
+}
+
+/* Técnico en el tooltip */
+.tt-tecnico {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #cbd5e1;
+  font-family: 'Inter', sans-serif !important;
+  margin-top: 6px;
+}
+.tt-tec-avatar {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.tt-tec-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  font-family: 'Inter', sans-serif !important;
+}
+
 /* State badge */
 .row-badge {
   display: inline-block;
