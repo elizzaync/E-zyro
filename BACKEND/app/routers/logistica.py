@@ -1,17 +1,15 @@
 """
 Router: /logistica
-Módulo de Logística (HU-15) — Materiales y Equipos/Herramientas con CRUD.
-
-* Materiales: catálogo (tabla `material`) + stock agregado (tabla `stock`).
-* Equipos/Herramientas: tabla `equipo` ampliada con `clase`, mantenimiento
-  y campos heredados del legacy `articulos`.
+Módulo de Logística (HU-15) — Materiales y Equipos/Herramientas con CRUD,
+catálogos de soporte (categorías, almacenes, unidades, tipos, marcas, modelos)
+y auto-generación de códigos correlativos.
 
 Toda escritura queda registrada por el listener global de auditoría
-(`app/core/audit_listener.py`) sobre la tabla `auditoria`, con `modulo`
-mapeado a "INVENTARIO" / "MANTENIMIENTO".
+(`app/core/audit_listener.py`) sobre la tabla `auditoria`.
 """
 from __future__ import annotations
 
+import re
 import uuid as _uuid
 from datetime import datetime
 from typing import List, Optional
@@ -27,11 +25,19 @@ from ..models.material import Material, Stock
 from ..models.categoria_material import CategoriaMaterial
 from ..models.almacen import Almacen
 from ..models.equipo import Equipo
+from ..models.tipo_equipo import TipoEquipo
+from ..models.marca import Marca
+from ..models.modelo_equipo import ModeloEquipo
+from ..models.unidad_medida import UnidadMedida
 
 from ..schemas.logistica import (
     MaterialIn, MaterialPatch, MaterialOut, MaterialesListResponse,
     EquipoIn,   EquipoPatch,   EquipoOut,   EquiposListResponse,
     LogisticaKpis,
+    CatalogoItem, CatalogoIn,
+    AlmacenOut, AlmacenIn,
+    UnidadOut,  UnidadIn,
+    ModeloOut,  ModeloIn,
 )
 
 
@@ -43,45 +49,93 @@ router = APIRouter(prefix="/logistica", tags=["logistica"])
 # ──────────────────────────────────────────────────────────────────────────
 
 def _autorizar_logistica(payload: dict) -> None:
-    """Solo logística / admin / superadmin pueden mutar inventario."""
+    """Solo logística / admin / superadmin pueden mutar inventario y catálogos."""
     rol = (payload.get("rol") or "").lower()
     if rol in ("logística", "logistica", "administrador", "admin", "superadmin"):
         return
-    raise HTTPException(status_code=403, detail="Sin permiso para operar sobre inventario")
+    raise HTTPException(status_code=403, detail="Sin permiso para operar sobre logística")
 
 
-def _categoria_get_or_create(db: Session, empresa_id: str, nombre: str) -> CategoriaMaterial:
-    nombre = (nombre or "Sin categoría").strip() or "Sin categoría"
-    cat = db.query(CategoriaMaterial).filter(
-        CategoriaMaterial.empresa_id == empresa_id,
-        func.lower(CategoriaMaterial.nombre) == nombre.lower(),
-    ).first()
-    if cat:
-        return cat
-    cat = CategoriaMaterial(
-        id=str(_uuid.uuid4()), empresa_id=empresa_id, nombre=nombre,
+def _siguiente_codigo(db: Session, empresa_id: str, prefijo: str, modelo) -> str:
+    """
+    Genera el siguiente código correlativo `<PREFIJO>-NNNN` para la empresa.
+    Lee el máximo número usado y suma 1. Mismo patrón que los servicios.
+    """
+    rows = (
+        db.query(modelo.codigo)
+        .filter(modelo.empresa_id == empresa_id, modelo.codigo.ilike(f"{prefijo}-%"))
+        .all()
     )
-    db.add(cat)
-    db.flush()
+    max_n = 0
+    pat = re.compile(rf"^{re.escape(prefijo)}-(\d+)$", re.IGNORECASE)
+    for (c,) in rows:
+        if not c:
+            continue
+        m = pat.match(c.strip())
+        if m:
+            n = int(m.group(1))
+            if n > max_n:
+                max_n = n
+    return f"{prefijo}-{(max_n + 1):04d}"
+
+
+def _categoria_or_404(db: Session, empresa_id: str, categoria_id: str) -> CategoriaMaterial:
+    cat = db.query(CategoriaMaterial).filter(
+        CategoriaMaterial.id == categoria_id,
+        CategoriaMaterial.empresa_id == empresa_id,
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
     return cat
 
 
-def _almacen_get_or_create(db: Session, empresa_id: str, nombre: str) -> Almacen:
-    nombre = (nombre or "Almacén Central").strip() or "Almacén Central"
+def _almacen_or_404(db: Session, empresa_id: str, almacen_id: str) -> Almacen:
     alm = db.query(Almacen).filter(
-        Almacen.empresa_id == empresa_id,
-        func.lower(Almacen.nombre) == nombre.lower(),
+        Almacen.id == almacen_id, Almacen.empresa_id == empresa_id
     ).first()
-    if alm:
-        return alm
-    alm = Almacen(id=str(_uuid.uuid4()), empresa_id=empresa_id, nombre=nombre, activo=True)
-    db.add(alm)
-    db.flush()
+    if not alm:
+        raise HTTPException(status_code=404, detail="Almacén no encontrado")
     return alm
 
 
-def _stock_total(db: Session, material_id: str, empresa_id: str) -> tuple[int, int, Optional[str], Optional[str]]:
-    """Devuelve (cantidad_total, stock_minimo_max, almacen_id_principal, almacen_nombre)."""
+def _unidad_or_404(db: Session, empresa_id: str, unidad_id: str) -> UnidadMedida:
+    u = db.query(UnidadMedida).filter(
+        UnidadMedida.id == unidad_id, UnidadMedida.empresa_id == empresa_id
+    ).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Unidad no encontrada")
+    return u
+
+
+def _tipo_or_404(db: Session, empresa_id: str, tipo_id: str) -> TipoEquipo:
+    t = db.query(TipoEquipo).filter(
+        TipoEquipo.id == tipo_id, TipoEquipo.empresa_id == empresa_id
+    ).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Tipo / familia no encontrada")
+    return t
+
+
+def _marca_or_404(db: Session, empresa_id: str, marca_id: str) -> Marca:
+    m = db.query(Marca).filter(
+        Marca.id == marca_id, Marca.empresa_id == empresa_id
+    ).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Marca no encontrada")
+    return m
+
+
+def _modelo_or_404(db: Session, empresa_id: str, modelo_id: str) -> ModeloEquipo:
+    m = db.query(ModeloEquipo).filter(
+        ModeloEquipo.id == modelo_id, ModeloEquipo.empresa_id == empresa_id
+    ).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="Modelo no encontrado")
+    return m
+
+
+def _stock_principal(db: Session, material_id: str, empresa_id: str):
+    """Devuelve (total, minimo, almacen_id, almacen_nombre) del material."""
     rows = (
         db.query(Stock, Almacen.nombre)
         .outerjoin(Almacen, Almacen.id == Stock.almacen_id)
@@ -89,28 +143,39 @@ def _stock_total(db: Session, material_id: str, empresa_id: str) -> tuple[int, i
         .all()
     )
     if not rows:
-        return 0, 0, None, None
+        return 0, 0, None, ""
     total = sum(int(s.cantidad or 0) for s, _ in rows)
     minimo = max(int(s.cantidad_minima or 0) for s, _ in rows)
     principal_stock, principal_nombre = rows[0]
-    return total, minimo, str(principal_stock.almacen_id), principal_nombre or "Almacén"
+    return total, minimo, str(principal_stock.almacen_id), principal_nombre or ""
 
 
-def _material_out(db: Session, mat: Material, empresa_id: str, cat_cache: dict[str, str]) -> MaterialOut:
-    total, minimo, alm_id, alm_nombre = _stock_total(db, mat.id, empresa_id)
+def _material_out(db: Session, mat: Material, empresa_id: str) -> MaterialOut:
+    total, minimo, alm_id, alm_nombre = _stock_principal(db, mat.id, empresa_id)
+
     cat_nombre = "Sin categoría"
     if mat.categoria_id:
-        if mat.categoria_id not in cat_cache:
-            c = db.query(CategoriaMaterial).filter(CategoriaMaterial.id == mat.categoria_id).first()
-            cat_cache[mat.categoria_id] = c.nombre if c else "Sin categoría"
-        cat_nombre = cat_cache[mat.categoria_id]
+        c = db.query(CategoriaMaterial).filter(CategoriaMaterial.id == mat.categoria_id).first()
+        if c:
+            cat_nombre = c.nombre
+
+    # `unidad` en Material es String; resolvemos el id buscándolo por nombre
+    unidad_id = None
+    if mat.unidad:
+        u = db.query(UnidadMedida).filter(
+            UnidadMedida.empresa_id == empresa_id,
+            func.lower(UnidadMedida.nombre) == mat.unidad.lower(),
+        ).first()
+        unidad_id = str(u.id) if u else None
+
     return MaterialOut(
         id=str(mat.id), codigo=mat.codigo or "", nombre=mat.nombre,
         categoriaId=str(mat.categoria_id) if mat.categoria_id else None,
-        categoria=cat_nombre, unidad=mat.unidad,
+        categoria=cat_nombre,
+        unidadId=unidad_id, unidad=mat.unidad,
         descripcion=mat.descripcion,
         cantidad=total, stockMinimo=minimo,
-        almacenId=alm_id, almacen=alm_nombre or "Almacén Central",
+        almacenId=alm_id, almacen=alm_nombre or "",
         precio=float(mat.precio) if mat.precio is not None else None,
         activo=bool(mat.activo),
     )
@@ -120,8 +185,14 @@ def _equipo_out(e: Equipo) -> EquipoOut:
     return EquipoOut(
         id=str(e.id), codigo=e.codigo or "", nombre=e.nombre,
         clase=e.clase or "equipo",
+        tipoId=str(e.tipo_equipo_id) if e.tipo_equipo_id else None,
         tipo=e.tipo or "",
-        marca=e.marca, modelo=e.modelo, numeroSerie=e.numero_serie,
+        marcaId=str(e.marca_id) if e.marca_id else None,
+        marca=e.marca,
+        modeloId=str(e.modelo_id) if e.modelo_id else None,
+        modelo=e.modelo,
+        numeroSerie=e.numero_serie,
+        almacenId=str(e.almacen_id) if e.almacen_id else None,
         ubicacion=e.ubicacion, cantidad=int(e.cantidad or 1),
         estado=e.estado or "operativo",
         requiereMantenimiento=bool(e.requiere_mantenimiento),
@@ -133,13 +204,234 @@ def _equipo_out(e: Equipo) -> EquipoOut:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# CATÁLOGOS — categorías, almacenes, unidades, tipos, marcas, modelos
+# ══════════════════════════════════════════════════════════════════════════
+
+# ── Categorías de material ─────────────────────────────────────────────────
+@router.get("/categorias", response_model=List[CatalogoItem])
+def listar_categorias(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(CategoriaMaterial)
+        .filter(CategoriaMaterial.empresa_id == empresa_id)
+        .order_by(CategoriaMaterial.nombre)
+        .all()
+    )
+    return [CatalogoItem(id=str(r.id), nombre=r.nombre) for r in rows]
+
+
+@router.post("/categorias", response_model=CatalogoItem, status_code=201)
+def crear_categoria(body: CatalogoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+
+    existente = db.query(CategoriaMaterial).filter(
+        CategoriaMaterial.empresa_id == empresa_id,
+        func.lower(CategoriaMaterial.nombre) == nombre.lower(),
+    ).first()
+    if existente:
+        return CatalogoItem(id=str(existente.id), nombre=existente.nombre)
+
+    cat = CategoriaMaterial(id=str(_uuid.uuid4()), empresa_id=empresa_id, nombre=nombre)
+    db.add(cat)
+    db.commit()
+    return CatalogoItem(id=str(cat.id), nombre=cat.nombre)
+
+
+# ── Almacenes ──────────────────────────────────────────────────────────────
+@router.get("/almacenes", response_model=List[AlmacenOut])
+def listar_almacenes(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(Almacen)
+        .filter(Almacen.empresa_id == empresa_id, Almacen.activo.is_(True))
+        .order_by(Almacen.nombre)
+        .all()
+    )
+    return [AlmacenOut(id=str(r.id), nombre=r.nombre, ubicacion=r.ubicacion) for r in rows]
+
+
+@router.post("/almacenes", response_model=AlmacenOut, status_code=201)
+def crear_almacen(body: AlmacenIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+
+    existente = db.query(Almacen).filter(
+        Almacen.empresa_id == empresa_id,
+        func.lower(Almacen.nombre) == nombre.lower(),
+    ).first()
+    if existente:
+        return AlmacenOut(id=str(existente.id), nombre=existente.nombre, ubicacion=existente.ubicacion)
+
+    alm = Almacen(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        nombre=nombre, ubicacion=body.ubicacion, activo=True,
+    )
+    db.add(alm)
+    db.commit()
+    return AlmacenOut(id=str(alm.id), nombre=alm.nombre, ubicacion=alm.ubicacion)
+
+
+# ── Unidades de medida ─────────────────────────────────────────────────────
+@router.get("/unidades", response_model=List[UnidadOut])
+def listar_unidades(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(UnidadMedida)
+        .filter(UnidadMedida.empresa_id == empresa_id)
+        .order_by(UnidadMedida.nombre)
+        .all()
+    )
+    return [UnidadOut(id=str(r.id), nombre=r.nombre, abreviatura=r.abreviatura) for r in rows]
+
+
+@router.post("/unidades", response_model=UnidadOut, status_code=201)
+def crear_unidad(body: UnidadIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+
+    existente = db.query(UnidadMedida).filter(
+        UnidadMedida.empresa_id == empresa_id,
+        func.lower(UnidadMedida.nombre) == nombre.lower(),
+    ).first()
+    if existente:
+        return UnidadOut(id=str(existente.id), nombre=existente.nombre, abreviatura=existente.abreviatura)
+
+    u = UnidadMedida(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        nombre=nombre, abreviatura=body.abreviatura,
+    )
+    db.add(u)
+    db.commit()
+    return UnidadOut(id=str(u.id), nombre=u.nombre, abreviatura=u.abreviatura)
+
+
+# ── Tipos / familias de equipo ─────────────────────────────────────────────
+@router.get("/tipos-equipo", response_model=List[CatalogoItem])
+def listar_tipos_equipo(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(TipoEquipo)
+        .filter(TipoEquipo.empresa_id == empresa_id)
+        .order_by(TipoEquipo.nombre)
+        .all()
+    )
+    return [CatalogoItem(id=str(r.id), nombre=r.nombre) for r in rows]
+
+
+@router.post("/tipos-equipo", response_model=CatalogoItem, status_code=201)
+def crear_tipo_equipo(body: CatalogoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+
+    existente = db.query(TipoEquipo).filter(
+        TipoEquipo.empresa_id == empresa_id,
+        func.lower(TipoEquipo.nombre) == nombre.lower(),
+    ).first()
+    if existente:
+        return CatalogoItem(id=str(existente.id), nombre=existente.nombre)
+
+    t = TipoEquipo(id=str(_uuid.uuid4()), empresa_id=empresa_id, nombre=nombre)
+    db.add(t)
+    db.commit()
+    return CatalogoItem(id=str(t.id), nombre=t.nombre)
+
+
+# ── Marcas ─────────────────────────────────────────────────────────────────
+@router.get("/marcas", response_model=List[CatalogoItem])
+def listar_marcas(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(Marca)
+        .filter(Marca.empresa_id == empresa_id)
+        .order_by(Marca.nombre)
+        .all()
+    )
+    return [CatalogoItem(id=str(r.id), nombre=r.nombre) for r in rows]
+
+
+@router.post("/marcas", response_model=CatalogoItem, status_code=201)
+def crear_marca(body: CatalogoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+
+    existente = db.query(Marca).filter(
+        Marca.empresa_id == empresa_id,
+        func.lower(Marca.nombre) == nombre.lower(),
+    ).first()
+    if existente:
+        return CatalogoItem(id=str(existente.id), nombre=existente.nombre)
+
+    m = Marca(id=str(_uuid.uuid4()), empresa_id=empresa_id, nombre=nombre)
+    db.add(m)
+    db.commit()
+    return CatalogoItem(id=str(m.id), nombre=m.nombre)
+
+
+# ── Modelos (filtrables por marca) ─────────────────────────────────────────
+@router.get("/modelos", response_model=List[ModeloOut])
+def listar_modelos(
+    marca_id: Optional[str] = Query(None),
+    payload:  dict    = Depends(verificar_token),
+    db:       Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    q = db.query(ModeloEquipo).filter(ModeloEquipo.empresa_id == empresa_id)
+    if marca_id:
+        q = q.filter(ModeloEquipo.marca_id == marca_id)
+    rows = q.order_by(ModeloEquipo.nombre).all()
+    return [ModeloOut(id=str(r.id), nombre=r.nombre, marcaId=str(r.marca_id)) for r in rows]
+
+
+@router.post("/modelos", response_model=ModeloOut, status_code=201)
+def crear_modelo(body: ModeloIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+    _marca_or_404(db, empresa_id, body.marcaId)
+
+    existente = db.query(ModeloEquipo).filter(
+        ModeloEquipo.empresa_id == empresa_id,
+        ModeloEquipo.marca_id == body.marcaId,
+        func.lower(ModeloEquipo.nombre) == nombre.lower(),
+    ).first()
+    if existente:
+        return ModeloOut(id=str(existente.id), nombre=existente.nombre, marcaId=str(existente.marca_id))
+
+    m = ModeloEquipo(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        marca_id=body.marcaId, nombre=nombre,
+    )
+    db.add(m)
+    db.commit()
+    return ModeloOut(id=str(m.id), nombre=m.nombre, marcaId=str(m.marca_id))
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # MATERIALES
 # ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/materiales", response_model=MaterialesListResponse)
 def listar_materiales(
     q:         str = Query("", description="texto a buscar en nombre/código"),
-    categoria: str = Query("", description="filtrar por categoría exacta"),
+    categoria: str = Query("", description="filtrar por nombre exacto de categoría"),
     estado:    str = Query("todos", description="todos|activos|inactivos|stock_bajo"),
     page:      int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=200),
@@ -170,18 +462,14 @@ def listar_materiales(
         base = base.filter(Material.activo.is_(False))
 
     total = base.count()
-
     rows = (
         base.order_by(Material.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
     )
+    items = [_material_out(db, m, empresa_id) for m in rows]
 
-    cat_cache: dict[str, str] = {}
-    items = [_material_out(db, m, empresa_id, cat_cache) for m in rows]
-
-    # Filtro stock_bajo se aplica en memoria (necesita el stock agregado)
     if estado == "stock_bajo":
         items = [m for m in items if m.cantidad <= m.stockMinimo]
 
@@ -197,16 +485,19 @@ def crear_material(
     _autorizar_logistica(payload)
     empresa_id = payload["empresa_id"]
 
-    cat = _categoria_get_or_create(db, empresa_id, body.categoria)
-    alm = _almacen_get_or_create(db, empresa_id, body.almacen)
+    cat = _categoria_or_404(db, empresa_id, body.categoriaId)
+    alm = _almacen_or_404(db, empresa_id, body.almacenId)
+    uni = _unidad_or_404(db, empresa_id, body.unidadId)
+
+    codigo = (body.codigo or "").strip() or _siguiente_codigo(db, empresa_id, "MAT", Material)
 
     mat = Material(
         id           = str(_uuid.uuid4()),
         empresa_id   = empresa_id,
         categoria_id = cat.id,
         nombre       = body.nombre.strip(),
-        codigo       = (body.codigo or "").strip() or None,
-        unidad       = body.unidad.strip() or "Unidad",
+        codigo       = codigo,
+        unidad       = uni.nombre,           # cache denormalizado
         descripcion  = (body.descripcion or "").strip() or None,
         precio       = body.precio,
         activo       = body.activo,
@@ -224,7 +515,7 @@ def crear_material(
     ))
 
     db.commit()
-    return _material_out(db, mat, empresa_id, {})
+    return _material_out(db, mat, empresa_id)
 
 
 @router.patch("/materiales/{material_id}", response_model=MaterialOut)
@@ -243,42 +534,43 @@ def actualizar_material(
     if not mat:
         raise HTTPException(status_code=404, detail="Material no encontrado")
 
-    if body.codigo      is not None: mat.codigo      = (body.codigo or "").strip() or None
+    if body.codigo      is not None: mat.codigo      = (body.codigo or "").strip() or mat.codigo
     if body.nombre      is not None: mat.nombre      = body.nombre.strip() or mat.nombre
-    if body.unidad      is not None: mat.unidad      = body.unidad.strip() or mat.unidad
     if body.descripcion is not None: mat.descripcion = (body.descripcion or "").strip() or None
     if body.precio      is not None: mat.precio      = body.precio
     if body.activo      is not None: mat.activo      = bool(body.activo)
-    if body.categoria   is not None:
-        cat = _categoria_get_or_create(db, empresa_id, body.categoria)
+    if body.categoriaId is not None:
+        cat = _categoria_or_404(db, empresa_id, body.categoriaId)
         mat.categoria_id = cat.id
+    if body.unidadId is not None:
+        uni = _unidad_or_404(db, empresa_id, body.unidadId)
+        mat.unidad = uni.nombre
 
-    # Stock / almacén
-    if body.cantidad is not None or body.stockMinimo is not None or body.almacen is not None:
-        alm_nombre = body.almacen if body.almacen is not None else None
-        alm = _almacen_get_or_create(db, empresa_id, alm_nombre) if alm_nombre else None
+    if body.cantidad is not None or body.stockMinimo is not None or body.almacenId is not None:
+        alm = _almacen_or_404(db, empresa_id, body.almacenId) if body.almacenId else None
 
         stock = db.query(Stock).filter(
             Stock.material_id == mat.id, Stock.empresa_id == empresa_id
         ).first()
         if not stock:
             if not alm:
-                alm = _almacen_get_or_create(db, empresa_id, "Almacén Central")
+                # Crear en el primer almacén disponible si aún no hay stock
+                alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
             stock = Stock(
-                material_id=mat.id, empresa_id=empresa_id, almacen_id=alm.id,
+                material_id=mat.id, empresa_id=empresa_id,
+                almacen_id=alm.id if alm else None,
                 cantidad=0, cantidad_minima=0,
             )
             db.add(stock)
 
         if body.cantidad     is not None: stock.cantidad        = max(0, int(body.cantidad))
         if body.stockMinimo  is not None: stock.cantidad_minima = max(0, int(body.stockMinimo))
-        # cambio de almacén: si se pidió uno distinto al actual, lo migramos
         if alm and stock.almacen_id != alm.id:
             stock.almacen_id = alm.id
         stock.updated_at = datetime.utcnow()
 
     db.commit()
-    return _material_out(db, mat, empresa_id, {})
+    return _material_out(db, mat, empresa_id)
 
 
 @router.delete("/materiales/{material_id}", status_code=204)
@@ -289,17 +581,14 @@ def eliminar_material(
 ):
     _autorizar_logistica(payload)
     empresa_id = payload["empresa_id"]
-
     mat = db.query(Material).filter(
         Material.id == material_id, Material.empresa_id == empresa_id
     ).first()
     if not mat:
         raise HTTPException(status_code=404, detail="Material no encontrado")
-
     db.query(Stock).filter(
         Stock.material_id == mat.id, Stock.empresa_id == empresa_id
     ).delete(synchronize_session=False)
-
     db.delete(mat)
     db.commit()
     return
@@ -357,17 +646,45 @@ def crear_equipo(
     _autorizar_logistica(payload)
     empresa_id = payload["empresa_id"]
 
+    # Resolver FKs opcionales (cache denormalizado por nombre)
+    tipo_nombre = None
+    if body.tipoId:
+        t = _tipo_or_404(db, empresa_id, body.tipoId)
+        tipo_nombre = t.nombre
+
+    marca_nombre = None
+    if body.marcaId:
+        ma = _marca_or_404(db, empresa_id, body.marcaId)
+        marca_nombre = ma.nombre
+
+    modelo_nombre = None
+    if body.modeloId:
+        mo = _modelo_or_404(db, empresa_id, body.modeloId)
+        if body.marcaId and mo.marca_id != body.marcaId:
+            raise HTTPException(status_code=400, detail="El modelo no pertenece a la marca indicada")
+        modelo_nombre = mo.nombre
+
+    if body.almacenId:
+        _almacen_or_404(db, empresa_id, body.almacenId)
+
+    # Autogeneración de código: EQ-NNNN o HR-NNNN según clase
+    prefijo = "EQ" if body.clase == "equipo" else "HR"
+    codigo = (body.codigo or "").strip() or _siguiente_codigo(db, empresa_id, prefijo, Equipo)
+
     e = Equipo(
         id           = str(_uuid.uuid4()),
         empresa_id   = empresa_id,
         nombre       = body.nombre.strip(),
-        codigo       = (body.codigo or "").strip() or None,
+        codigo       = codigo,
         clase        = body.clase,
-        tipo         = (body.tipo or "").strip() or None,
-        marca        = (body.marca or "").strip() or None,
-        modelo       = (body.modelo or "").strip() or None,
+        tipo_equipo_id = body.tipoId,
+        tipo         = tipo_nombre,
+        marca_id     = body.marcaId,
+        marca        = marca_nombre,
+        modelo_id    = body.modeloId,
+        modelo       = modelo_nombre,
         numero_serie = (body.numeroSerie or "").strip() or None,
-        ubicacion    = (body.ubicacion or "").strip() or None,
+        almacen_id   = body.almacenId,
         cantidad     = max(0, int(body.cantidad)),
         estado       = body.estado,
         requiere_mantenimiento     = bool(body.requiereMantenimiento),
@@ -397,18 +714,53 @@ def actualizar_equipo(
     if not e:
         raise HTTPException(status_code=404, detail="Equipo/Herramienta no encontrada")
 
-    if body.codigo      is not None: e.codigo      = (body.codigo or "").strip() or None
+    if body.codigo      is not None: e.codigo      = (body.codigo or "").strip() or e.codigo
     if body.nombre      is not None: e.nombre      = body.nombre.strip() or e.nombre
     if body.clase       is not None: e.clase       = body.clase
-    if body.tipo        is not None: e.tipo        = (body.tipo or "").strip() or None
-    if body.marca       is not None: e.marca       = (body.marca or "").strip() or None
-    if body.modelo      is not None: e.modelo      = (body.modelo or "").strip() or None
     if body.numeroSerie is not None: e.numero_serie= (body.numeroSerie or "").strip() or None
-    if body.ubicacion   is not None: e.ubicacion   = (body.ubicacion or "").strip() or None
     if body.cantidad    is not None: e.cantidad    = max(0, int(body.cantidad))
     if body.estado      is not None: e.estado      = body.estado
     if body.fechaAdquisicion is not None: e.fecha_adquisicion = body.fechaAdquisicion
     if body.fichaTecnica     is not None: e.ficha_tecnica     = (body.fichaTecnica or "").strip() or None
+
+    if body.tipoId is not None:
+        if body.tipoId == "":
+            e.tipo_equipo_id = None; e.tipo = None
+        else:
+            t = _tipo_or_404(db, empresa_id, body.tipoId)
+            e.tipo_equipo_id = t.id; e.tipo = t.nombre
+    if body.marcaId is not None:
+        if body.marcaId == "":
+            e.marca_id = None; e.marca = None
+            e.modelo_id = None; e.modelo = None
+        else:
+            ma = _marca_or_404(db, empresa_id, body.marcaId)
+            e.marca_id = ma.id; e.marca = ma.nombre
+            # Si la marca cambia, invalidar modelo si ya no le pertenece
+            if e.modelo_id:
+                mo_actual = db.query(ModeloEquipo).filter(ModeloEquipo.id == e.modelo_id).first()
+                if not mo_actual or mo_actual.marca_id != ma.id:
+                    e.modelo_id = None; e.modelo = None
+    if body.modeloId is not None:
+        if body.modeloId == "":
+            e.modelo_id = None; e.modelo = None
+        else:
+            mo = _modelo_or_404(db, empresa_id, body.modeloId)
+            if e.marca_id and mo.marca_id != e.marca_id:
+                raise HTTPException(status_code=400, detail="El modelo no pertenece a la marca indicada")
+            e.modelo_id = mo.id; e.modelo = mo.nombre
+            # Si no tenía marca, la inferimos desde el modelo
+            if not e.marca_id:
+                ma_inf = db.query(Marca).filter(Marca.id == mo.marca_id).first()
+                if ma_inf:
+                    e.marca_id = ma_inf.id; e.marca = ma_inf.nombre
+    if body.almacenId is not None:
+        if body.almacenId == "":
+            e.almacen_id = None; e.ubicacion = None
+        else:
+            alm = _almacen_or_404(db, empresa_id, body.almacenId)
+            e.almacen_id = alm.id
+            e.ubicacion = alm.nombre
 
     if body.requiereMantenimiento is not None:
         e.requiere_mantenimiento = bool(body.requiereMantenimiento)
@@ -445,21 +797,17 @@ def eliminar_equipo(
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# KPIs
+# KPIs + Siguiente código (preview para el frontend)
 # ══════════════════════════════════════════════════════════════════════════
 
 @router.get("/kpis", response_model=LogisticaKpis)
-def kpis(
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
+def kpis(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     empresa_id = payload["empresa_id"]
 
     total_mat = db.query(func.count(Material.id)).filter(
         Material.empresa_id == empresa_id
     ).scalar() or 0
 
-    # Stock bajo: agrupando por material, total <= max(cantidad_minima)
     stock_agg = (
         db.query(
             Stock.material_id,
@@ -489,3 +837,21 @@ def kpis(
         totalHerramientas   = int(total_herr),
         enMantenimiento     = int(en_mant),
     )
+
+
+@router.get("/siguiente-codigo")
+def siguiente_codigo(
+    tipo:    str = Query(..., description="material|equipo|herramienta"),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Devuelve el próximo código que se asignará (preview para el formulario)."""
+    empresa_id = payload["empresa_id"]
+    t = tipo.lower()
+    if t == "material":
+        return {"codigo": _siguiente_codigo(db, empresa_id, "MAT", Material)}
+    if t == "equipo":
+        return {"codigo": _siguiente_codigo(db, empresa_id, "EQ",  Equipo)}
+    if t == "herramienta":
+        return {"codigo": _siguiente_codigo(db, empresa_id, "HR",  Equipo)}
+    raise HTTPException(status_code=400, detail="tipo debe ser material|equipo|herramienta")

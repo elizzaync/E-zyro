@@ -21,6 +21,12 @@ class Equipo(Base):
     marca            = Column(String(100), nullable=True)
     numero_serie     = Column(String(100), nullable=True)
     ubicacion        = Column(String(200), nullable=True)
+    # FKs a catálogos de marca/modelo. Las columnas `marca` y `modelo` se
+    # mantienen como caché denormalizada para listados rápidos.
+    marca_id         = Column(String(36), ForeignKey("marca.id"), nullable=True)
+    modelo_id        = Column(String(36), ForeignKey("modelo_equipo.id"), nullable=True)
+    # FK al almacén donde reside el equipo/herramienta
+    almacen_id       = Column(String(36), ForeignKey("almacen.id"), nullable=True)
     estado           = Column(String(20), nullable=False, default="operativo")  # operativo|en_mantenimiento|fuera_de_servicio|baja
 
     # ── Logística (HU-15) ──────────────────────────────────────────────────

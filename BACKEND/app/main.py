@@ -47,6 +47,7 @@ from app.models import (  # noqa: F401
     requerimiento, requerimiento_entrega,
     # Inventario: material.py contiene Stock; categoria_material.py y almacen.py son dependencias
     categoria_material, almacen, material, movimiento_inventario,
+    unidad_medida, marca, modelo_equipo,
     # Compras
     proveedor, orden_compra, recepcion_compra,
     # Comunicados
@@ -206,6 +207,96 @@ def _run_migrations():
             "ALTER TABLE equipo ALTER COLUMN tipo_equipo_id DROP NOT NULL"
         ))
 
+        # ── Catálogos de Logística (Marca, Modelo, Unidad) ───────────────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS marca (
+                id          VARCHAR(36) PRIMARY KEY,
+                empresa_id  VARCHAR(36) NOT NULL REFERENCES empresa(id),
+                nombre      VARCHAR(120) NOT NULL,
+                created_at  TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_marca_empresa_nombre "
+            "ON marca (empresa_id, lower(nombre))"
+        ))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS modelo_equipo (
+                id          VARCHAR(36) PRIMARY KEY,
+                empresa_id  VARCHAR(36) NOT NULL REFERENCES empresa(id),
+                marca_id    VARCHAR(36) NOT NULL REFERENCES marca(id),
+                nombre      VARCHAR(120) NOT NULL,
+                created_at  TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_modelo_marca_nombre "
+            "ON modelo_equipo (marca_id, lower(nombre))"
+        ))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS unidad_medida (
+                id          VARCHAR(36) PRIMARY KEY,
+                empresa_id  VARCHAR(36) NOT NULL REFERENCES empresa(id),
+                nombre      VARCHAR(60) NOT NULL,
+                abreviatura VARCHAR(15),
+                created_at  TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_unidad_empresa_nombre "
+            "ON unidad_medida (empresa_id, lower(nombre))"
+        ))
+        # FK marca_id/modelo_id/almacen_id en equipo
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS marca_id    VARCHAR(36) REFERENCES marca(id)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS modelo_id   VARCHAR(36) REFERENCES modelo_equipo(id)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS almacen_id  VARCHAR(36) REFERENCES almacen(id)"
+        ))
+
+        # Índices únicos para evitar duplicados de categoría/almacén por empresa
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_categoria_material_empresa_nombre "
+            "ON categoria_material (empresa_id, lower(nombre))"
+        ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_almacen_empresa_nombre "
+            "ON almacen (empresa_id, lower(nombre))"
+        ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_tipo_equipo_empresa_nombre "
+            "ON tipo_equipo (empresa_id, lower(nombre))"
+        ))
+
+        conn.commit()
+
+        # ── Semillas básicas: unidades por defecto si la empresa no tiene ─────
+        # Se ejecuta una sola vez por empresa cuando aún no hay unidades cargadas.
+        conn.execute(text("""
+            INSERT INTO unidad_medida (id, empresa_id, nombre, abreviatura)
+            SELECT uuid_generate_v4()::text, e.id, u.nombre, u.abrev
+            FROM empresa e
+            CROSS JOIN (VALUES
+                ('Unidad',     'und'),
+                ('Par',        'par'),
+                ('Metros',     'm'),
+                ('Litros',     'l'),
+                ('Kilogramos', 'kg'),
+                ('Cajas',      'caja'),
+                ('Rollos',     'rollo'),
+                ('Juego',      'jgo')
+            ) AS u(nombre, abrev)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM unidad_medida um
+                WHERE um.empresa_id = e.id AND lower(um.nombre) = lower(u.nombre)
+            )
+        """))
         conn.commit()
 
 

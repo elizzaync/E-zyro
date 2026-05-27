@@ -23,6 +23,7 @@ class MaterialOut(BaseModel):
     nombre:       str
     categoriaId:  Optional[str] = None
     categoria:    str
+    unidadId:     Optional[str] = None
     unidad:       str
     descripcion:  Optional[str] = None
     cantidad:     int                 # stock total agregado (sum almacenes)
@@ -37,14 +38,15 @@ class MaterialOut(BaseModel):
 
 
 class MaterialIn(BaseModel):
-    codigo:       str
+    # codigo es opcional: si no viene, el backend lo autogenera (MAT-NNNN)
+    codigo:       Optional[str] = None
     nombre:       str
-    categoria:    str
-    unidad:       str
+    categoriaId:  str
+    unidadId:     str
     descripcion:  Optional[str] = None
     cantidad:     int = 0
     stockMinimo: int = 0
-    almacen:     str = "Almacén Central"
+    almacenId:   str
     precio:      Optional[float] = None
     activo:      bool = True
 
@@ -52,12 +54,12 @@ class MaterialIn(BaseModel):
 class MaterialPatch(BaseModel):
     codigo:       Optional[str] = None
     nombre:       Optional[str] = None
-    categoria:    Optional[str] = None
-    unidad:       Optional[str] = None
+    categoriaId:  Optional[str] = None
+    unidadId:     Optional[str] = None
     descripcion:  Optional[str] = None
     cantidad:     Optional[int] = None
     stockMinimo: Optional[int] = None
-    almacen:     Optional[str] = None
+    almacenId:   Optional[str] = None
     precio:      Optional[float] = None
     activo:      Optional[bool] = None
 
@@ -83,10 +85,14 @@ class EquipoOut(BaseModel):
     codigo:      str
     nombre:      str
     clase:       ClaseArticulo
+    tipoId:      Optional[str] = None
     tipo:        str
+    marcaId:     Optional[str] = None
     marca:       Optional[str] = None
+    modeloId:    Optional[str] = None
     modelo:      Optional[str] = None
     numeroSerie: Optional[str] = None
+    almacenId:   Optional[str] = None
     ubicacion:   Optional[str] = None
     cantidad:    int
     estado:      EstadoEquipo
@@ -98,14 +104,15 @@ class EquipoOut(BaseModel):
 
 
 class EquipoIn(BaseModel):
-    codigo:      str
+    # codigo autogenerado si viene vacío
+    codigo:      Optional[str] = None
     nombre:      str
     clase:       ClaseArticulo = "equipo"
-    tipo:        str
-    marca:       Optional[str] = None
-    modelo:      Optional[str] = None
+    tipoId:      Optional[str] = None      # FK → tipo_equipo.id (familia)
+    marcaId:     Optional[str] = None
+    modeloId:    Optional[str] = None
     numeroSerie: Optional[str] = None
-    ubicacion:   Optional[str] = None
+    almacenId:   Optional[str] = None
     cantidad:    int = 1
     estado:      EstadoEquipo = "operativo"
     requiereMantenimiento:     bool = False
@@ -119,11 +126,11 @@ class EquipoPatch(BaseModel):
     codigo:      Optional[str] = None
     nombre:      Optional[str] = None
     clase:       Optional[ClaseArticulo] = None
-    tipo:        Optional[str] = None
-    marca:       Optional[str] = None
-    modelo:      Optional[str] = None
+    tipoId:      Optional[str] = None
+    marcaId:     Optional[str] = None
+    modeloId:    Optional[str] = None
     numeroSerie: Optional[str] = None
-    ubicacion:   Optional[str] = None
+    almacenId:   Optional[str] = None
     cantidad:    Optional[int] = None
     estado:      Optional[EstadoEquipo] = None
     requiereMantenimiento:     Optional[bool] = None
@@ -150,3 +157,45 @@ class LogisticaKpis(BaseModel):
     totalEquipos:        int
     totalHerramientas:   int
     enMantenimiento:     int
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CATÁLOGOS (categoria, almacén, tipo, marca, modelo, unidad)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CatalogoItem(BaseModel):
+    """Salida estándar para selects del frontend."""
+    id:     str
+    nombre: str
+
+
+class CatalogoIn(BaseModel):
+    nombre: str
+
+
+class AlmacenOut(CatalogoItem):
+    ubicacion: Optional[str] = None
+
+
+class AlmacenIn(BaseModel):
+    nombre:    str
+    ubicacion: Optional[str] = None
+
+
+class UnidadOut(CatalogoItem):
+    abreviatura: Optional[str] = None
+
+
+class UnidadIn(BaseModel):
+    nombre:      str
+    abreviatura: Optional[str] = None
+
+
+class ModeloOut(CatalogoItem):
+    marcaId: str
+
+
+class ModeloIn(BaseModel):
+    nombre:  str
+    marcaId: str
+
