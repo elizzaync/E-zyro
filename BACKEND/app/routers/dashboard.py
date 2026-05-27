@@ -38,7 +38,7 @@ from app.models.contrato import Contrato
 from app.models.documento_laboral import DocumentoLaboral
 
 # Servicios y Seguridad
-from app.core.security import verificar_token
+from app.core.security import verificar_token, es_superadmin
 from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 from app.services.fcm_service import (
     enviar_push_a_usuario,
@@ -99,7 +99,9 @@ def obtener_resumen_kpis(current_user: dict = Depends(verificar_token), db: Sess
 
         # ── Servicios completados ──────────────────────────────────────────────
         filtros = [Proyecto.empresa_id == empresa_id]
-        if empleado:
+        # Admins/superadmins ven todos los proyectos de su empresa (sin acotar
+        # al empleado); el resto solo ve los proyectos donde participa.
+        if empleado and not es_superadmin(current_user):
             filtros.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
                 Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
@@ -170,7 +172,9 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
             Proyecto.fecha_inicio >= hoy,
             Proyecto.estado.in_(['En_Proceso', 'Pendiente'])
         ]
-        if empleado:
+        # Admins/superadmins ven todos los proyectos de su empresa (sin acotar
+        # al empleado); el resto solo ve los proyectos donde participa.
+        if empleado and not es_superadmin(current_user):
             filtros.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
                 Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
@@ -217,7 +221,9 @@ def obtener_rendimiento_mensual(current_user: dict = Depends(verificar_token), d
             Proyecto.fecha_inicio >= primer_dia,
             Proyecto.fecha_inicio <= ultimo_dia
         ]
-        if empleado:
+        # Admins/superadmins ven todos los proyectos de su empresa (sin acotar
+        # al empleado); el resto solo ve los proyectos donde participa.
+        if empleado and not es_superadmin(current_user):
             filtros.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
                 Proyecto.id.in_(db.query(ProyectoMiembro.proyecto_id).filter(ProyectoMiembro.empleado_id == empleado.id))
@@ -266,7 +272,8 @@ def obtener_calendario(current_user: dict = Depends(verificar_token), db: Sessio
 
         # ── IDs de proyectos accesibles por el usuario ──────────────────────
         filtros_proy = [Proyecto.empresa_id == empresa_id]
-        if empleado:
+        # Admins ven todos los proyectos de su empresa; el resto solo los suyos.
+        if empleado and not es_superadmin(current_user):
             filtros_proy.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
                 Proyecto.id.in_(
@@ -492,7 +499,8 @@ def obtener_detalle_servicio_dia(fecha: str, current_user: dict = Depends(verifi
 
         # IDs de proyectos accesibles
         filtros_proy = [Proyecto.empresa_id == empresa_id]
-        if empleado:
+        # Admins ven todos los proyectos de su empresa; el resto solo los suyos.
+        if empleado and not es_superadmin(current_user):
             filtros_proy.append(or_(
                 Proyecto.jefe_operaciones_id == empleado.id,
                 Proyecto.id.in_(
