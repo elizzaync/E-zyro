@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_servicios.dart';
+import 'pantalla_crear_proyecto.dart';
 
 class OperationsScreen extends StatefulWidget {
   const OperationsScreen({super.key});
@@ -47,6 +49,21 @@ class _OperationsScreenState extends State<OperationsScreen> {
     return list.where((p) => p.estado == _selectedFilter).toList();
   }
 
+  bool get _puedeCrear =>
+      AppSession.i.isJefeOperaciones || AppSession.i.isAdmin;
+
+  Future<void> _nuevoProyecto() async {
+    if (_service == null) return;
+    final creado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            PantallaCrearProyecto(service: _service!, mode: 'crear'),
+      ),
+    );
+    if (creado == true) await _loadData();
+  }
+
   @override
   Widget build(BuildContext context) {
     final kpis = _data?.kpis;
@@ -70,15 +87,43 @@ class _OperationsScreenState extends State<OperationsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Operaciones',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  kpis != null
-                      ? '${kpis.totalProyectos} proyectos asignados'
-                      : 'Cargando...',
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Operaciones',
+                            style: TextStyle(
+                                fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            kpis != null
+                                ? '${kpis.totalProyectos} proyectos asignados'
+                                : 'Cargando...',
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_puedeCrear)
+                      ElevatedButton.icon(
+                        onPressed: _nuevoProyecto,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF8FD11B),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Nuevo',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 20),
 

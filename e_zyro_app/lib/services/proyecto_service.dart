@@ -189,39 +189,190 @@ class ProyectoService {
     }
   }
 
-  // ── Gestión de equipo ──────────────────────────────────────────────────────
+  // ── Asignación de equipo + cronograma (HU-13) ───────────────────────────────
 
-  // GET /operaciones/proyecto/{id}/tecnicos-disponibles
-  Future<List<UsuarioTecnico>> getTecnicosDisponibles(String proyectoId) async {
+  // GET /operaciones/personal/tecnicos → { tecnicos:[...], grupos:[...] }
+  Future<PersonalTecnicos> getPersonalTecnicos() async {
     try {
-      final r = await _client
-          .get('/operaciones/proyecto/$proyectoId/tecnicos-disponibles');
+      final r = await _client.get('/operaciones/personal/tecnicos');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
-        return list
-            .map((e) => UsuarioTecnico.fromJson(e as Map<String, dynamic>))
-            .toList();
+        return PersonalTecnicos.fromJson(
+            jsonDecode(r.body) as Map<String, dynamic>);
       }
     } catch (_) {}
-    return [];
+    return const PersonalTecnicos(tecnicos: [], grupos: []);
   }
 
-  // POST /operaciones/proyecto/{id}/equipo
-  Future<bool> agregarMiembro(String proyectoId, String userId) async {
+  // POST /operaciones/personal/validar-horario
+  // Devuelve null si no hay conflicto (o error de red); un mensaje si lo hay.
+  Future<ConflictoHorario?> validarHorario({
+    required String empleadoId,
+    required String fechaInicio,
+    required String fechaFin,
+    String? excluirServicioId,
+  }) async {
     try {
-      final r = await _client
-          .post('/operaciones/proyecto/$proyectoId/equipo', {'user_id': userId});
+      final r = await _client.post('/operaciones/personal/validar-horario', {
+        'empleado_id': empleadoId,
+        'fecha_inicio': fechaInicio,
+        'fecha_fin': fechaFin,
+        if (excluirServicioId != null) 'excluir_servicio_id': excluirServicioId,
+      });
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        if (body['conflicto'] == true && body['detalle'] != null) {
+          return ConflictoHorario.fromJson(
+              body['detalle'] as Map<String, dynamic>);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // POST /operaciones/servicio/{id}/configurar
+  // procedimientos: [{ id?, nombre, responsable_id, fecha_inicio, fecha_fin }]
+  // lider_id se omite a propósito: el backend lo deriva del usuario autenticado.
+  Future<bool> configurarServicio(
+    String servicioId, {
+    required List<String> equipo,
+    required List<Map<String, dynamic>> procedimientos,
+  }) async {
+    try {
+      final r = await _client.post(
+        '/operaciones/servicio/$servicioId/configurar',
+        {'equipo': equipo, 'procedimientos': procedimientos},
+      );
       return r.statusCode == 200 || r.statusCode == 201;
     } catch (_) {
       return false;
     }
   }
 
-  // DELETE /operaciones/proyecto/{id}/equipo/{userId}
-  Future<bool> removerMiembro(String proyectoId, String userId) async {
+  // ── Catálogos de soporte (crear/editar) ─────────────────────────────────────
+
+  // GET /operaciones/clientes
+  Future<List<ClienteBasico>> getClientes() async {
     try {
-      final r = await _client
-          .delete('/operaciones/proyecto/$proyectoId/equipo/$userId');
+      final r = await _client.get('/operaciones/clientes');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => ClienteBasico.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // GET /operaciones/catalogo-servicios
+  Future<List<CatalogoServicio>> getCatalogoServicios() async {
+    try {
+      final r = await _client.get('/operaciones/catalogo-servicios');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => CatalogoServicio.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // GET /operaciones/lideres-servicio
+  Future<List<PersonaServicio>> getLideresServicio() async {
+    return _getPersonas('/operaciones/lideres-servicio');
+  }
+
+  // GET /operaciones/responsables-servicio
+  Future<List<PersonaServicio>> getResponsablesServicio() async {
+    return _getPersonas('/operaciones/responsables-servicio');
+  }
+
+  Future<List<PersonaServicio>> _getPersonas(String path) async {
+    try {
+      final r = await _client.get(path);
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => PersonaServicio.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // GET /operaciones/proyectos/siguiente-orden → { orden_trabajo }
+  Future<String?> getSiguienteOrden() async {
+    try {
+      final r = await _client.get('/operaciones/proyectos/siguiente-orden');
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return body['orden_trabajo'] as String?;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // GET /operaciones/proyecto/{id}  (datos para editar)
+  Future<ProyectoEdit?> getDetalleProyecto(String proyectoId) async {
+    try {
+      final r = await _client.get('/operaciones/proyecto/$proyectoId');
+      if (r.statusCode == 200) {
+        return ProyectoEdit.fromJson(
+            jsonDecode(r.body) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // ── CRUD Proyecto ───────────────────────────────────────────────────────────
+
+  // POST /operaciones/proyectos → { ok, id, orden_trabajo }
+  Future<String?> crearProyecto(Map<String, dynamic> payload) async {
+    try {
+      final r = await _client.post('/operaciones/proyectos', payload);
+      if (r.statusCode == 200 || r.statusCode == 201) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return body['id'] as String?;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // PATCH /operaciones/proyecto/{id}
+  Future<bool> actualizarProyecto(
+      String proyectoId, Map<String, dynamic> payload) async {
+    try {
+      final r =
+          await _client.patch('/operaciones/proyecto/$proyectoId', payload);
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── CRUD Servicio ─────────────────────────────────────────────────────────
+
+  // POST /operaciones/proyecto/{id}/servicios → { ok, id }
+  Future<String?> crearServicio(
+      String proyectoId, Map<String, dynamic> payload) async {
+    try {
+      final r = await _client.post(
+          '/operaciones/proyecto/$proyectoId/servicios', payload);
+      if (r.statusCode == 200 || r.statusCode == 201) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return body['id'] as String?;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // PATCH /operaciones/servicio/{id}
+  Future<bool> actualizarServicio(
+      String servicioId, Map<String, dynamic> payload) async {
+    try {
+      final r =
+          await _client.patch('/operaciones/servicio/$servicioId', payload);
       return r.statusCode == 200;
     } catch (_) {
       return false;

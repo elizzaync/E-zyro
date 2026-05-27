@@ -48,16 +48,48 @@ void main() async {
   runApp(const ESystemApp());
 }
 
+// ── Paleta de marca "E-System" ────────────────────────────────────────────
+const Color _kLime = Color(0xFF8FD11B); // verde lima (acento neón)
+const Color _kForest = Color(0xFF5A9A00); // verde bosque (acento profundo)
+
 ThemeData _buildTheme(Brightness brightness) {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFF8FD11B),
+  final isDark = brightness == Brightness.dark;
+
+  var scheme = ColorScheme.fromSeed(
+    seedColor: _kLime,
     brightness: brightness,
   );
+
+  // ── Estilo artístico de modo oscuro (estilo logística, app-wide) ─────────
+  // Recolorea las superficies M3 hacia un verde-bosque profundo en vez del
+  // gris-violáceo por defecto. Se propaga a TODA la app porque las pantallas
+  // ya leen scheme.surface / scaffoldBackgroundColor.
+  if (isDark) {
+    scheme = scheme.copyWith(
+      primary: _kLime,
+      onPrimary: const Color(0xFF0C1506),
+      onSurface: const Color(0xFFE7F2D8),
+      onSurfaceVariant: const Color(0xFF9FB58B),
+      outline: _kLime.withValues(alpha: 0.28),
+      outlineVariant: _kLime.withValues(alpha: 0.14),
+      surface: const Color(0xFF16240C),
+      surfaceContainerLowest: const Color(0xFF0B1305),
+      surfaceContainerLow: const Color(0xFF0F1A08),
+      surfaceContainer: const Color(0xFF16240C),
+      surfaceContainerHigh: const Color(0xFF1D2F11),
+      surfaceContainerHighest: const Color(0xFF243A15),
+    );
+  }
+
+  final accentSel = isDark ? _kLime : _kForest;
+
   return ThemeData(
     colorScheme: scheme,
     useMaterial3: true,
     scaffoldBackgroundColor: scheme.surfaceContainerLow,
     cardColor: scheme.surface,
+    dividerColor:
+        isDark ? _kLime.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
     // ── Transiciones de página suaves (Material 3 Zoom) ──────────────────
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
@@ -66,22 +98,96 @@ ThemeData _buildTheme(Brightness brightness) {
         TargetPlatform.windows: ZoomPageTransitionsBuilder(),
       },
     ),
+    // ── AppBar ────────────────────────────────────────────────────────────
+    appBarTheme: AppBarTheme(
+      backgroundColor: scheme.surfaceContainerLow,
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+    ),
+    // ── Tarjetas: bordes neón en oscuro (estilo "cuadro" de logística) ────
+    cardTheme: CardThemeData(
+      color: scheme.surface,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: isDark
+            ? BorderSide(color: _kLime.withValues(alpha: 0.22), width: 1)
+            : BorderSide.none,
+      ),
+    ),
+    // ── Botones ───────────────────────────────────────────────────────────
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _kLime,
+        foregroundColor: isDark ? const Color(0xFF0C1506) : Colors.white,
+        elevation: isDark ? 0 : 1,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+      ),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: _kLime,
+        foregroundColor: isDark ? const Color(0xFF0C1506) : Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: accentSel,
+        side: BorderSide(color: _kLime.withValues(alpha: isDark ? 0.55 : 0.8)),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: accentSel),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: _kLime,
+      foregroundColor: isDark ? const Color(0xFF0C1506) : Colors.white,
+    ),
+    // ── Diálogos / hojas / snackbars ──────────────────────────────────────
+    dialogTheme: DialogThemeData(
+      backgroundColor: scheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: scheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ),
+    chipTheme: ChipThemeData(
+      side: BorderSide(
+          color: _kLime.withValues(alpha: isDark ? 0.30 : 0.20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    ),
     // ── NavigationBar (Material 3) ───────────────────────────────────────
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: scheme.surface,
-      indicatorColor: const Color(0xFF8FD11B).withValues(alpha: 0.15),
+      indicatorColor: _kLime.withValues(alpha: isDark ? 0.22 : 0.15),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
           fontSize: 11,
           fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          color: selected ? const Color(0xFF5A9A00) : scheme.onSurfaceVariant,
+          color: selected ? accentSel : scheme.onSurfaceVariant,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
-          color: selected ? const Color(0xFF5A9A00) : scheme.onSurfaceVariant,
+          color: selected ? accentSel : scheme.onSurfaceVariant,
           size: 24,
         );
       }),
@@ -98,11 +204,13 @@ ThemeData _buildTheme(Brightness brightness) {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        borderSide: isDark
+            ? BorderSide(color: _kLime.withValues(alpha: 0.18))
+            : BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF8FD11B), width: 1.5),
+        borderSide: const BorderSide(color: _kLime, width: 1.5),
       ),
     ),
   );
@@ -114,51 +222,68 @@ class ESystemApp extends StatelessWidget {
   /// NavigatorKey global — lo usa FcmFlutterService para navegar al tocar push.
   static final navigatorKey = GlobalKey<NavigatorState>();
 
+  Map<String, WidgetBuilder> _routes() => {
+        '/splash': (context) => const SplashScreen(),
+        '/login': (context) => const LoginScreen(),
+        '/recovery': (context) => const PasswordRecoveryScreen(),
+        '/': (context) => const MainShell(),
+        '/home': (context) => const MainShell(initialIndex: 0),
+        '/operations': (context) => const MainShell(initialIndex: 1),
+        '/logistics': (context) => const MainShell(initialIndex: 2),
+        '/personal': (context) => const MainShell(initialIndex: 3),
+        '/more': (context) => const MainShell(initialIndex: 4),
+        '/calendario': (context) => const CalendarioScreen(),
+        '/notificaciones': (context) => const NotificacionesScreen(),
+        '/asistencia': (context) => Scaffold(
+              appBar: AppBar(
+                leading: const BackButton(),
+                title: const Text('Asistencia',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                elevation: 0,
+                backgroundColor: Colors.transparent,
+              ),
+              body: const AsistenciaScreen(),
+            ),
+        '/auditoria': (_) => const PantallaAuditoria(),
+        '/mantenimientos': (_) => const PantallaMantenimientos(),
+        '/historial-equipo': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, String>?;
+          return PantallaHistorialEquipo(
+            equipoId: args?['equipoId'] ?? '',
+            equipoNombre: args?['equipoNombre'] ?? 'Equipo',
+          );
+        },
+      };
+
+  MaterialApp _materialApp({
+    required ThemeData theme,
+    ThemeData? darkTheme,
+    required ThemeMode themeMode,
+    TransitionBuilder? builder,
+  }) {
+    return MaterialApp(
+      title: 'E-System TIC',
+      debugShowCheckedModeBanner: false,
+      navigatorKey: ESystemApp.navigatorKey,
+      themeMode: themeMode,
+      theme: theme,
+      darkTheme: darkTheme,
+      builder: builder,
+      initialRoute: '/splash',
+      routes: _routes(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
-      builder: (_, mode, _) => MaterialApp(
-        title: 'E-System TIC',
-        debugShowCheckedModeBanner: false,
-        navigatorKey: ESystemApp.navigatorKey,
-        themeMode: mode,
+      builder: (_, mode, _) => _materialApp(
         theme: _buildTheme(Brightness.light),
         darkTheme: _buildTheme(Brightness.dark),
-        initialRoute: '/splash',
-        routes: {
-          '/splash': (context) => const SplashScreen(),
-          '/login': (context) => const LoginScreen(),
-          '/recovery': (context) => const PasswordRecoveryScreen(),
-          '/': (context) => const MainShell(),
-          '/home': (context) => const MainShell(initialIndex: 0),
-          '/operations': (context) => const MainShell(initialIndex: 1),
-          '/logistics': (context) => const MainShell(initialIndex: 2),
-          '/personal': (context) => const MainShell(initialIndex: 3),
-          '/more': (context) => const MainShell(initialIndex: 4),
-          '/calendario': (context) => const CalendarioScreen(),
-          '/notificaciones': (context) => const NotificacionesScreen(),
-          '/asistencia': (context) => Scaffold(
-            appBar: AppBar(
-              leading: const BackButton(),
-              title: const Text('Asistencia',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              elevation: 0,
-              backgroundColor: Colors.transparent,
-            ),
-            body: const AsistenciaScreen(),
-          ),
-          '/auditoria': (_) => const PantallaAuditoria(),
-          '/mantenimientos': (_) => const PantallaMantenimientos(),
-          '/historial-equipo': (context) {
-            final args = ModalRoute.of(context)?.settings.arguments
-                as Map<String, String>?;
-            return PantallaHistorialEquipo(
-              equipoId: args?['equipoId'] ?? '',
-              equipoNombre: args?['equipoNombre'] ?? 'Equipo',
-            );
-          },
-        },
+        themeMode: mode,
       ),
     );
   }

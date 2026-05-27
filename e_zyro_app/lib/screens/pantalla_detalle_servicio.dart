@@ -11,6 +11,8 @@ import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import '../templates/informe_servicio_pdf.dart';
 import 'pantalla_chat.dart';
+import 'pantalla_asignacion_servicio.dart';
+import 'pantalla_crear_servicio.dart';
 
 const _green = Color(0xFF8FD11B);
 const _amber = Color(0xFFF59E0B);
@@ -149,6 +151,21 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
         _ => e,
       };
 
+  Future<void> _editarServicio() async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PantallaCrearServicio(
+          service: widget.service,
+          proyectoId: widget.proyectoId,
+          mode: 'editar',
+          servicioId: widget.servicioId,
+        ),
+      ),
+    );
+    if (ok == true) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = _detalle;
@@ -176,6 +193,20 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                 PopupMenuItem(value: 'Completado', child: Text('Completado')),
                 PopupMenuItem(value: 'Cancelado', child: Text('Cancelado')),
               ],
+            ),
+          if (d != null &&
+              (AppSession.i.isJefeOperaciones || AppSession.i.isAdmin))
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              tooltip: 'Editar servicio',
+              onPressed: _editarServicio,
+            ),
+          if (d != null && _puedeFinalizar && d.estado != 'Completado')
+            IconButton(
+              icon: const Icon(Icons.task_alt_outlined, size: 20),
+              tooltip: 'Finalizar y generar informe',
+              color: d.progreso >= 100 ? _green : null,
+              onPressed: _finalizarServicio,
             ),
           IconButton(
             icon: const Icon(Icons.refresh_outlined, size: 20),
@@ -247,6 +278,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                           ),
                           _EquipoTab(
                             equipo: d.equipo,
+                            servicioId: d.id,
                             proyectoId: d.proyectoId,
                             service: widget.service,
                             onChanged: _reloadDetalle,
@@ -273,16 +305,6 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                     ),
                   ],
                 ),
-      floatingActionButton: (d != null && _puedeFinalizar && d.estado != 'Completado')
-          ? FloatingActionButton.extended(
-              onPressed: _finalizarServicio,
-              backgroundColor: d.progreso >= 100 ? _green : Colors.grey,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.task_alt_outlined),
-              label: const Text('Finalizar',
-                  style: TextStyle(fontWeight: FontWeight.w700)),
-            )
-          : null,
     );
   }
 }
@@ -793,12 +815,14 @@ class _EvidenciaThumb extends StatelessWidget {
 
 class _EquipoTab extends StatefulWidget {
   final List<MiembroEquipo> equipo;
+  final String servicioId;
   final String proyectoId;
   final ProyectoService service;
   final Future<void> Function() onChanged;
 
   const _EquipoTab({
     required this.equipo,
+    required this.servicioId,
     required this.proyectoId,
     required this.service,
     required this.onChanged,
@@ -809,258 +833,27 @@ class _EquipoTab extends StatefulWidget {
 }
 
 class _EquipoTabState extends State<_EquipoTab> {
-  bool get _esJefe => AppSession.i.isJefeOperaciones;
+  bool get _puedeAsignar =>
+      AppSession.i.isJefeOperaciones || AppSession.i.isAdmin;
 
-  // ── Abre el bottom sheet para añadir un técnico ─────────────────────────────
-  Future<void> _openAgregarTecnico() async {
-    List<UsuarioTecnico> disponibles = [];
-    bool cargando = true;
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx2, setS) {
-            if (cargando) {
-              widget.service
-                  .getTecnicosDisponibles(widget.proyectoId)
-                  .then((list) {
-                if (ctx2.mounted) {
-                  setS(() {
-                    disponibles = list;
-                    cargando = false;
-                  });
-                }
-              });
-            }
-
-            final isDark = Theme.of(ctx2).brightness == Brightness.dark;
-            final surface = Theme.of(ctx2).colorScheme.surface;
-
-            return Container(
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx2).viewInsets.bottom,
-              ),
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(ctx2).size.height * 0.75,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Handle
-                  Container(
-                    margin: const EdgeInsets.only(top: 10, bottom: 6),
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withValues(alpha: 0.4),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: _green.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.person_add_rounded,
-                              size: 18, color: _green),
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Añadir Técnico al Equipo',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  Flexible(
-                    child: cargando
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(32),
-                              child: CircularProgressIndicator(
-                                  color: _green),
-                            ),
-                          )
-                        : disponibles.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.all(32),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.group_off_outlined,
-                                        size: 42, color: Colors.grey),
-                                    SizedBox(height: 10),
-                                    Text(
-                                      'No hay técnicos disponibles\npara agregar.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : ListView.separated(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 10),
-                                itemCount: disponibles.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 8),
-                                itemBuilder: (_, i) {
-                                  final t = disponibles[i];
-                                  return Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      borderRadius:
-                                          BorderRadius.circular(12),
-                                      onTap: () async {
-                                        final ok = await widget.service
-                                            .agregarMiembro(
-                                                widget.proyectoId, t.id);
-                                        if (!ctx2.mounted) return;
-                                        Navigator.pop(ctx2);
-                                        if (ok) {
-                                          await widget.onChanged();
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(SnackBar(
-                                              content: Text(
-                                                  '${t.nombreCompleto} añadido al equipo'),
-                                              backgroundColor: _green,
-                                              behavior:
-                                                  SnackBarBehavior.floating,
-                                            ));
-                                          }
-                                        } else {
-                                          ScaffoldMessenger.of(ctx2)
-                                              .showSnackBar(const SnackBar(
-                                            content: Text(
-                                                'No se pudo agregar el técnico'),
-                                            backgroundColor: _danger,
-                                            behavior:
-                                                SnackBarBehavior.floating,
-                                          ));
-                                        }
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: isDark
-                                              ? Colors.white
-                                                  .withValues(alpha: 0.05)
-                                              : Colors.grey
-                                                  .withValues(alpha: 0.06),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            CircleAvatar(
-                                              radius: 20,
-                                              backgroundImage: t
-                                                      .fotoUrl.isNotEmpty
-                                                  ? NetworkImage(t.fotoUrl)
-                                                  : null,
-                                              backgroundColor: _green
-                                                  .withValues(alpha: 0.15),
-                                              child: t.fotoUrl.isEmpty
-                                                  ? Text(
-                                                      t.nombre.isNotEmpty
-                                                          ? t.nombre[0]
-                                                              .toUpperCase()
-                                                          : '?',
-                                                      style: const TextStyle(
-                                                          color: _green,
-                                                          fontWeight:
-                                                              FontWeight
-                                                                  .bold),
-                                                    )
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(t.nombreCompleto,
-                                                      style: const TextStyle(
-                                                          fontSize: 14,
-                                                          fontWeight:
-                                                              FontWeight
-                                                                  .w600)),
-                                                  Text(t.cargo,
-                                                      style: const TextStyle(
-                                                          fontSize: 12,
-                                                          color:
-                                                              Colors.grey)),
-                                                ],
-                                              ),
-                                            ),
-                                            const Icon(
-                                                Icons.add_circle_outline,
-                                                color: _green),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ── Confirmación para remover un miembro ────────────────────────────────────
-  Future<void> _confirmarRemover(MiembroEquipo m) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remover del Equipo'),
-        content: Text(
-            '¿Retirar a ${m.nombreCompleto} del equipo de este servicio?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Remover',
-                  style: TextStyle(color: _danger))),
-        ],
+  // ── Abre la pantalla de configuración (equipo + cronograma) ─────────────────
+  Future<void> _abrirAsignacion() async {
+    final guardado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PantallaAsignacionServicio(
+          servicioId: widget.servicioId,
+          service: widget.service,
+          mode: 'editar',
+        ),
       ),
     );
-    if (ok != true || !mounted) return;
-    final success =
-        await widget.service.removerMiembro(widget.proyectoId, m.id);
-    if (!mounted) return;
-    if (success) {
+    if (guardado == true) {
       await widget.onChanged();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${m.nombreCompleto} removido del equipo'),
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Asignación actualizada'),
+        backgroundColor: _green,
         behavior: SnackBarBehavior.floating,
       ));
     }
@@ -1068,36 +861,37 @@ class _EquipoTabState extends State<_EquipoTab> {
 
   @override
   Widget build(BuildContext context) {
+    final tieneEquipo = widget.equipo.isNotEmpty;
     return Stack(
       children: [
         widget.equipo.isEmpty
             ? const _EmptyTab(
                 icon: Icons.group_outlined,
-                label: 'Sin miembros de equipo')
+                label: 'Sin equipo asignado')
             : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
                 itemCount: widget.equipo.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (_, i) => _MiembroCard(
                   miembro: widget.equipo[i],
-                  onRemove: _esJefe
-                      ? () => _confirmarRemover(widget.equipo[i])
-                      : null,
                 ),
               ),
-        // FAB solo para el Jefe de Operaciones
-        if (_esJefe)
+        // FAB de configuración solo para Jefe de Operaciones / Admin
+        if (_puedeAsignar)
           Positioned(
             bottom: 16,
             right: 16,
             child: FloatingActionButton.extended(
               heroTag: 'fab_equipo',
-              onPressed: _openAgregarTecnico,
+              onPressed: _abrirAsignacion,
               backgroundColor: _green,
               foregroundColor: Colors.white,
-              icon: const Icon(Icons.person_add_rounded),
-              label: const Text('Añadir Técnico',
-                  style: TextStyle(fontWeight: FontWeight.w600)),
+              icon: Icon(tieneEquipo
+                  ? Icons.edit_calendar_outlined
+                  : Icons.group_add_outlined),
+              label: Text(
+                  tieneEquipo ? 'Editar asignación' : 'Configurar asignación',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
       ],
@@ -1107,8 +901,7 @@ class _EquipoTabState extends State<_EquipoTab> {
 
 class _MiembroCard extends StatelessWidget {
   final MiembroEquipo miembro;
-  final VoidCallback? onRemove;
-  const _MiembroCard({required this.miembro, this.onRemove});
+  const _MiembroCard({required this.miembro});
 
   @override
   Widget build(BuildContext context) {
@@ -1175,21 +968,6 @@ class _MiembroCard extends StatelessWidget {
                     fontSize: 11,
                     fontWeight: FontWeight.w500)),
           ),
-          if (onRemove != null) ...[
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: onRemove,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: _danger.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.person_remove_outlined,
-                    size: 16, color: _danger),
-              ),
-            ),
-          ],
         ],
       ),
     );

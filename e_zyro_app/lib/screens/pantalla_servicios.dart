@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
+import '../utils/app_session.dart';
 import 'pantalla_detalle_servicio.dart';
 import 'pantalla_equipos.dart';
 import 'pantalla_gantt.dart';
+import 'pantalla_crear_proyecto.dart';
+import 'pantalla_crear_servicio.dart';
 
 class ServiciosScreen extends StatefulWidget {
   final ProyectoItem proyecto;
@@ -51,6 +54,37 @@ class _ServiciosScreenState extends State<ServiciosScreen>
     });
   }
 
+  bool get _puedeGestionar =>
+      AppSession.i.isJefeOperaciones || AppSession.i.isAdmin;
+
+  Future<void> _editarProyecto() async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PantallaCrearProyecto(
+          service: widget.service,
+          mode: 'editar',
+          proyectoId: widget.proyecto.id,
+        ),
+      ),
+    );
+    if (ok == true) await _load();
+  }
+
+  Future<void> _nuevoServicio() async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PantallaCrearServicio(
+          service: widget.service,
+          proyectoId: widget.proyecto.id,
+          mode: 'crear',
+        ),
+      ),
+    );
+    if (ok == true) await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final proyecto = widget.proyecto;
@@ -86,6 +120,32 @@ class _ServiciosScreenState extends State<ServiciosScreen>
               ),
             ),
           ),
+          if (_puedeGestionar)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (v) {
+                if (v == 'nuevo_servicio') _nuevoServicio();
+                if (v == 'editar_proyecto') _editarProyecto();
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'nuevo_servicio',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.add_task_outlined, color: _green),
+                    title: Text('Nuevo servicio'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'editar_proyecto',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.edit_outlined),
+                    title: Text('Editar proyecto'),
+                  ),
+                ),
+              ],
+            ),
         ],
         bottom: TabBar(
           controller: _tabController,

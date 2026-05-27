@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../models/requerimiento_models.dart';
 import '../services/requerimiento_service.dart';
 import '../utils/api_provider.dart';
-import '../widgets/topo_background.dart';
+import '../widgets/paper.dart';
 import 'pantalla_solicitudes_logistica.dart';
 import 'pantalla_movimientos_logistica.dart';
 import 'pantalla_materiales_logistica.dart';
@@ -10,14 +11,8 @@ import 'pantalla_compras_logistica.dart';
 import 'pantalla_proveedores_logistica.dart';
 import 'pantalla_transferencias_logistica.dart';
 
-const _kGreen = Color(0xFF8FD11B);
-const _kRed = Color(0xFFEF4444);
-const _kAmber = Color(0xFFF59E0B);
-const _kBlue = Color(0xFF3B82F6);
-
 /// Panel del encargado de logística — dashboard de inventario + accesos a la
-/// gestión (solicitudes, movimientos, compras, etc.). Cada acceso se irá
-/// activando por fases.
+/// gestión. Usa el estilo "Paper Dots" (bitácora) de forma permanente.
 class PantallaInventarioPanel extends StatefulWidget {
   const PantallaInventarioPanel({super.key});
 
@@ -53,63 +48,49 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
     });
   }
 
-  void _proximamente(String funcion) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$funcion estará disponible próximamente'),
-        backgroundColor: _kAmber,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        leading: const BackButton(),
-        title: const Text('Panel de Logística',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        leading: const BackButton(color: kPaperInk),
+        title: Text('Panel de Logística',
+            style: GoogleFonts.outfit(
+                fontWeight: FontWeight.w700, fontSize: 18, color: kPaperInk)),
         elevation: 0,
         backgroundColor: Colors.transparent,
+        foregroundColor: kPaperInk,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, size: 20),
+            icon: const Icon(Icons.refresh_rounded, size: 20, color: kPaperInk),
             onPressed: _load,
           ),
         ],
       ),
-      body: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
-        count: 16,
-        amp: 9,
-        stroke: 0.38,
-        speed: 0.45,
+      body: PaperBackground(
         child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: _kGreen))
+            ? const Center(child: CircularProgressIndicator(color: kPaperLimeDeep))
             : RefreshIndicator(
                 onRefresh: _load,
-                color: _kGreen,
+                color: kPaperLimeDeep,
+                backgroundColor: Colors.white,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildKpis(isDark),
+                      _buildHero(),
+                      const SizedBox(height: 16),
+                      _buildKpis(),
                       const SizedBox(height: 22),
-                      _buildGestion(isDark),
+                      const PaperSectionHeader(title: 'Gestión', trailing: '06 áreas'),
+                      const SizedBox(height: 12),
+                      _buildGestion(),
                       const SizedBox(height: 22),
-                      _buildAlertas(isDark),
+                      _buildAlertas(),
                       const SizedBox(height: 22),
-                      _buildIaPlaceholder(isDark),
+                      _buildIaPlaceholder(),
                     ],
                   ),
                 ),
@@ -118,36 +99,83 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
     );
   }
 
-  // ── KPIs ────────────────────────────────────────────────────────────────────
-  Widget _buildKpis(bool isDark) {
+  // ── Hero ──────────────────────────────────────────────────────────────────
+  Widget _buildHero() {
+    final bajo = _resumen.bajoStock;
+    final sin = _resumen.sinStock;
+    final todoOk = bajo == 0 && sin == 0;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: _KpiCard(
-            icon: Icons.inventory_2_outlined,
-            color: _kBlue,
-            value: '${_resumen.totalItems}',
-            label: 'Items totales',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Panel de\nLogística',
+                  style: GoogleFonts.outfit(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      height: 1.05,
+                      color: kPaperInk)),
+              const SizedBox(height: 4),
+              const PaperUnderline(width: 120),
+              const SizedBox(height: 8),
+              Text(
+                todoOk
+                    ? '${_resumen.totalItems} materiales en bodega · todo en orden.'
+                    : '$bajo bajo el mínimo${sin > 0 ? ', $sin agotado' : ''}.',
+                style: GoogleFonts.workSans(
+                    fontSize: 11.5,
+                    fontStyle: FontStyle.italic,
+                    color: kPaperInkSoft),
+              ),
+            ],
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
+        PaperSticker(
+          text: todoOk ? 'Al día' : 'Revisar',
+          bg: todoOk ? kPaperLime : kPaperWarm,
+          rotate: 5,
+        ),
+      ],
+    );
+  }
+
+  // ── KPIs ────────────────────────────────────────────────────────────────────
+  Widget _buildKpis() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Expanded(
-          child: _KpiCard(
+          child: _PaperKpi(
+            icon: Icons.inventory_2_outlined,
+            value: '${_resumen.totalItems}',
+            label: 'Items',
+            sub: 'totales',
+            rotate: -2,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _PaperKpi(
             icon: Icons.warning_amber_rounded,
-            color: _kAmber,
             value: '${_resumen.bajoStock}',
             label: 'Bajo stock',
-            highlight: _resumen.bajoStock > 0,
+            sub: _resumen.bajoStock > 0 ? 'bajo mínimo' : 'sin alerta',
+            bg: _resumen.bajoStock > 0 ? kPaperWarm : Colors.white,
+            rotate: 1.5,
           ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 8),
         Expanded(
-          child: _KpiCard(
+          child: _PaperKpi(
             icon: Icons.remove_shopping_cart_outlined,
-            color: _kRed,
             value: '${_resumen.sinStock}',
             label: 'Sin stock',
-            highlight: _resumen.sinStock > 0,
+            sub: _resumen.sinStock > 0 ? 'agotado' : 'todo OK',
+            bg: _resumen.sinStock > 0 ? kPaperRose : Colors.white,
+            rotate: -1.2,
           ),
         ),
       ],
@@ -155,187 +183,137 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
   }
 
   // ── Accesos de gestión ────────────────────────────────────────────────────
-  Widget _buildGestion(bool isDark) {
+  Widget _buildGestion() {
     final accesos = <_AccesoData>[
       _AccesoData(
         icon: Icons.inbox_outlined,
-        color: _kGreen,
+        color: kPaperLime,
         label: 'Solicitudes',
         subtitle: 'Aprobar / entregar',
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PantallaSolicitudesLogistica(),
-          ),
-        ),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaSolicitudesLogistica())),
       ),
       _AccesoData(
         icon: Icons.swap_vert_rounded,
-        color: _kBlue,
+        color: kPaperSky,
         label: 'Movimientos',
         subtitle: 'Ajuste de stock',
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PantallaMovimientosLogistica(),
-          ),
-        ),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaMovimientosLogistica())),
       ),
       _AccesoData(
         icon: Icons.shopping_cart_checkout_rounded,
-        color: const Color(0xFF8B5CF6),
+        color: kPaperLilac,
         label: 'Compras',
         subtitle: 'Órdenes',
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PantallaComprasLogistica(),
-          ),
-        ),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaComprasLogistica())),
       ),
       _AccesoData(
         icon: Icons.local_shipping_outlined,
-        color: _kAmber,
+        color: kPaperWarm,
         label: 'Proveedores',
         subtitle: 'Directorio',
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PantallaProveedoresLogistica(),
-          ),
-        ),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaProveedoresLogistica())),
       ),
       _AccesoData(
         icon: Icons.compare_arrows_rounded,
-        color: const Color(0xFF06B6D4),
+        color: kPaperLime,
         label: 'Transferencias',
         subtitle: 'Entre almacenes',
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PantallaTransferenciasLogistica(),
-          ),
-        ),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaTransferenciasLogistica())),
       ),
       _AccesoData(
         icon: Icons.category_outlined,
-        color: const Color(0xFFEC4899),
+        color: kPaperRose,
         label: 'Materiales',
         subtitle: 'Editar / categorías',
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const PantallaMaterialesLogistica(),
-          ),
-        ),
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaMaterialesLogistica())),
       ),
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle('Gestión'),
-        const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 0.92,
-          ),
-          itemCount: accesos.length,
-          itemBuilder: (_, i) => _AccesoCard(data: accesos[i], isDark: isDark),
-        ),
-      ],
+    const rots = [-1.5, 1.5, -1.2, 1.5, -1.5, 1.5];
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.9,
+      ),
+      itemCount: accesos.length,
+      itemBuilder: (_, i) => _AccesoCard(data: accesos[i], rotate: rots[i % rots.length]),
     );
   }
 
   // ── Alertas de bajo stock ─────────────────────────────────────────────────
-  Widget _buildAlertas(bool isDark) {
-    final surface = Theme.of(context).colorScheme.surface;
+  Widget _buildAlertas() {
     final items = _resumen.itemsBajoStock;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            _sectionTitle('Alertas de bajo stock'),
-            const Spacer(),
-            if (items.isNotEmpty)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: _kRed.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text('${items.length}',
-                    style: const TextStyle(
-                        color: _kRed,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold)),
-              ),
-          ],
+        PaperSectionHeader(
+          title: 'Alertas de bajo stock',
+          trailing: items.isEmpty ? null : '${items.length} items',
+          underlineWidth: 120,
         ),
         const SizedBox(height: 12),
         if (items.isEmpty)
-          Container(
-            width: double.infinity,
+          PaperCard(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: BorderRadius.circular(14),
-              border: isDark
-                  ? Border.all(color: _kGreen.withValues(alpha: 0.25))
-                  : null,
-            ),
-            child: Column(
+            child: Row(
               children: [
-                Icon(Icons.check_circle_outline,
-                    size: 36, color: _kGreen.withValues(alpha: 0.7)),
-                const SizedBox(height: 8),
-                const Text('Todo el inventario está por encima del mínimo',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, fontSize: 13)),
+                const Icon(Icons.check_circle_outline,
+                    size: 30, color: kPaperLimeDeep),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Todo el inventario está por encima del mínimo.',
+                    style: GoogleFonts.workSans(
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                        color: kPaperInkSoft),
+                  ),
+                ),
               ],
             ),
           )
         else
-          ...items.map((m) => _AlertaCard(item: m, isDark: isDark)),
+          ...items.map((m) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _AlertaCard(item: m),
+              )),
       ],
     );
   }
 
   // ── Placeholder IA de predicción ──────────────────────────────────────────
-  Widget _buildIaPlaceholder(bool isDark) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1A2A0A), const Color(0xFF0D1A06)]
-              : [const Color(0xFFF0FAE0), const Color(0xFFE6F5D0)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kGreen.withValues(alpha: 0.35)),
-      ),
+  Widget _buildIaPlaceholder() {
+    return PaperCard(
+      bg: const Color(0xFFF1F6E4),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: _kGreen.withValues(alpha: 0.18),
-              shape: BoxShape.circle,
+          Transform.rotate(
+            angle: -4 * 3.1415926 / 180,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: kPaperLime,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: kPaperInk, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(color: kPaperInk, offset: Offset(2, 2), blurRadius: 0),
+                ],
+              ),
+              child: const Icon(Icons.auto_awesome_rounded,
+                  color: kPaperInk, size: 22),
             ),
-            child: const Icon(Icons.auto_awesome_rounded,
-                color: _kGreen, size: 24),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -344,36 +322,22 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
               children: [
                 Row(
                   children: [
-                    const Flexible(
+                    Flexible(
                       child: Text('Predicción de stock con IA',
-                          style: TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.bold)),
+                          style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: kPaperInk)),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _kGreen,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text('Pronto',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold)),
-                    ),
+                    const PaperSticker(text: 'Pronto', bg: kPaperWarm, rotate: 4),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Anticipará faltantes de material según el consumo histórico y los servicios programados.',
-                  style: TextStyle(
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600,
-                      fontSize: 12,
-                      height: 1.4),
+                  'Anticipará faltantes según el consumo histórico y los servicios programados.',
+                  style: GoogleFonts.workSans(
+                      color: kPaperInkSoft, fontSize: 12, height: 1.4),
                 ),
               ],
             ),
@@ -382,75 +346,65 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
       ),
     );
   }
-
-  Widget _sectionTitle(String t) => Text(
-        t,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      );
 }
 
-// ── KPI card ───────────────────────────────────────────────────────────────────
-class _KpiCard extends StatelessWidget {
+// ── KPI card (paper) ────────────────────────────────────────────────────────
+class _PaperKpi extends StatelessWidget {
   final IconData icon;
-  final Color color;
   final String value;
   final String label;
-  final bool highlight;
+  final String sub;
+  final Color bg;
+  final double rotate;
 
-  const _KpiCard({
+  const _PaperKpi({
     required this.icon,
-    required this.color,
     required this.value,
     required this.label,
-    this.highlight = false,
+    required this.sub,
+    this.bg = Colors.white,
+    this.rotate = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-      decoration: BoxDecoration(
-        color: highlight
-            ? color.withValues(alpha: isDark ? 0.15 : 0.10)
-            : surface,
-        borderRadius: BorderRadius.circular(14),
-        border: highlight
-            ? Border.all(color: color.withValues(alpha: 0.4))
-            : (isDark
-                ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                : null),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2))
-              ],
-      ),
+    return PaperCard(
+      bg: bg,
+      rotate: rotate,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: isDark ? 0.18 : 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 19),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 18, color: kPaperInk),
+              Text('UNID.',
+                  style: GoogleFonts.jetBrainsMono(
+                      fontSize: 9, letterSpacing: 1, color: kPaperInkSoft)),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(value,
-              style: TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          const SizedBox(height: 2),
+              style: GoogleFonts.outfit(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
+                  color: kPaperInk)),
+          const SizedBox(height: 4),
           Text(label,
-              textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              style: GoogleFonts.workSans(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: kPaperInk)),
+          Text(sub,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.workSans(
+                  fontSize: 10,
+                  fontStyle: FontStyle.italic,
+                  color: kPaperInkSoft)),
         ],
       ),
     );
@@ -475,56 +429,54 @@ class _AccesoData {
 
 class _AccesoCard extends StatelessWidget {
   final _AccesoData data;
-  final bool isDark;
-  const _AccesoCard({required this.data, required this.isDark});
+  final double rotate;
+  const _AccesoCard({required this.data, this.rotate = 0});
 
   @override
   Widget build(BuildContext context) {
-    final surface = Theme.of(context).colorScheme.surface;
     return GestureDetector(
       onTap: data.onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        decoration: BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(14),
-          border: isDark
-              ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-              : null,
-          boxShadow: isDark
-              ? null
-              : [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
-        ),
+      child: PaperCard(
+        rotate: rotate,
+        radius: 14,
+        padding: const EdgeInsets.fromLTRB(8, 14, 8, 12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: data.color.withValues(alpha: isDark ? 0.18 : 0.12),
-                shape: BoxShape.circle,
+            Transform.rotate(
+              angle: -4 * 3.1415926 / 180,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: data.color,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: kPaperInk, width: 1.5),
+                  boxShadow: const [
+                    BoxShadow(color: kPaperInk, offset: Offset(2, 2), blurRadius: 0),
+                  ],
+                ),
+                child: Icon(data.icon, color: kPaperInk, size: 22),
               ),
-              child: Icon(data.icon, color: data.color, size: 22),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 9),
             Text(data.label,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.w600)),
+                style: GoogleFonts.outfit(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: kPaperInk)),
             const SizedBox(height: 1),
             Text(data.subtitle,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                style: GoogleFonts.workSans(
+                    fontSize: 9,
+                    fontStyle: FontStyle.italic,
+                    color: kPaperInkSoft)),
           ],
         ),
       ),
@@ -532,93 +484,109 @@ class _AccesoCard extends StatelessWidget {
   }
 }
 
-// ── Card de alerta de bajo stock ──────────────────────────────────────────────
+// ── Card de alerta de bajo stock (paper) ──────────────────────────────────────
 class _AlertaCard extends StatelessWidget {
   final MaterialBajoStock item;
-  final bool isDark;
-  const _AlertaCard({required this.item, required this.isDark});
+  const _AlertaCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    final surface = Theme.of(context).colorScheme.surface;
     final agotado = item.stock == 0;
-    final color = agotado ? _kRed : _kAmber;
-    final ratio = item.minimo > 0
-        ? (item.stock / item.minimo).clamp(0.0, 1.0)
-        : 0.0;
+    final color = agotado ? kPaperRose : kPaperWarm;
+    final ratio =
+        item.minimo > 0 ? (item.stock / item.minimo).clamp(0.0, 1.0) : 0.0;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        PaperCard(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(item.nombre,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600)),
-                    if (item.categoria != null) ...[
-                      const SizedBox(height: 2),
-                      Text(item.categoria!,
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 11)),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: isDark ? 0.15 : 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(agotado ? 'Agotado' : 'Bajo stock',
-                    style: TextStyle(
+              Row(
+                children: [
+                  Transform.rotate(
+                    angle: -4 * 3.1415926 / 180,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
                         color: color,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600)),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: kPaperInk, width: 1.5),
+                      ),
+                      child: Icon(
+                          agotado
+                              ? Icons.remove_shopping_cart_outlined
+                              : Icons.warning_amber_rounded,
+                          color: kPaperInk,
+                          size: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.nombre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: kPaperInk)),
+                        if (item.categoria != null)
+                          Text(item.categoria!,
+                              style: GoogleFonts.workSans(
+                                  color: kPaperInkSoft,
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic)),
+                      ],
+                    ),
+                  ),
+                  PaperSticker(
+                    text: agotado ? 'Agotado' : 'Bajo',
+                    bg: color,
+                    rotate: 3,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 7,
+                  backgroundColor: kPaperHair,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      agotado ? kPaperRose : kPaperLimeDeep),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Stock: ${item.stock} ${item.unidad}',
+                      style: GoogleFonts.jetBrainsMono(
+                          color: kPaperInk,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                  Text('Mín: ${item.minimo} ${item.unidad}',
+                      style: GoogleFonts.jetBrainsMono(
+                          color: kPaperInkSoft, fontSize: 11)),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: ratio,
-              minHeight: 6,
-              backgroundColor:
-                  isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Stock: ${item.stock} ${item.unidad}',
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
-              Text('Mín: ${item.minimo} ${item.unidad}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 11)),
-            ],
-          ),
-        ],
-      ),
+        ),
+        // Cinta washi decorativa
+        Positioned(
+          top: -6,
+          left: 18,
+          child: PaperTape(color: color, width: 46, rotate: -3),
+        ),
+      ],
     );
   }
 }

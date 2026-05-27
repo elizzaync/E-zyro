@@ -162,6 +162,10 @@ class ProcedimientoDetalle {
   final int orden;
   final String estado;
   final List<EvidenciaDetalle> evidencias;
+  // Cronograma (asignación) — el backend los entrega en /operaciones/servicio/{id}
+  final String? responsableId; // empleado.id responsable de la tarea
+  final String? fechaInicioTarea; // YYYY-MM-DD
+  final String? fechaLimite; // YYYY-MM-DD
 
   const ProcedimientoDetalle({
     required this.id,
@@ -170,6 +174,9 @@ class ProcedimientoDetalle {
     required this.orden,
     required this.estado,
     required this.evidencias,
+    this.responsableId,
+    this.fechaInicioTarea,
+    this.fechaLimite,
   });
 
   factory ProcedimientoDetalle.fromJson(Map<String, dynamic> j) =>
@@ -182,6 +189,9 @@ class ProcedimientoDetalle {
         evidencias: (j['evidencias'] as List? ?? [])
             .map((e) => EvidenciaDetalle.fromJson(e as Map<String, dynamic>))
             .toList(),
+        responsableId: j['responsable_id'] as String?,
+        fechaInicioTarea: j['fecha_inicio_tarea'] as String?,
+        fechaLimite: j['fecha_limite'] as String?,
       );
 }
 
@@ -216,31 +226,234 @@ class MiembroEquipo {
       );
 }
 
-// ── Usuario técnico disponible para asignación ───────────────────────────────
+// ── Técnico disponible para asignación (HU-13) ───────────────────────────────
 
-class UsuarioTecnico {
-  final String id;
+class TecnicoDisponible {
+  final String id; // empleado.id
+  final String usuarioId;
   final String nombre;
   final String apellido;
-  final String fotoUrl;
   final String cargo;
+  final String fotoUrl;
 
-  const UsuarioTecnico({
+  /// Nombre del grupo de trabajo al que ya pertenece (null si ninguno).
+  /// Si no es null, al seleccionarlo se pide confirmación (alerta de grupo).
+  final String? grupoActual;
+
+  const TecnicoDisponible({
     required this.id,
+    required this.usuarioId,
     required this.nombre,
     required this.apellido,
-    required this.fotoUrl,
     required this.cargo,
+    required this.fotoUrl,
+    this.grupoActual,
   });
 
   String get nombreCompleto => '$nombre $apellido'.trim();
 
-  factory UsuarioTecnico.fromJson(Map<String, dynamic> j) => UsuarioTecnico(
-        id: j['id'] as String? ?? '',
+  String get iniciales {
+    final n = nombre.isNotEmpty ? nombre[0] : '';
+    final a = apellido.isNotEmpty ? apellido[0] : '';
+    final ini = '$n$a'.toUpperCase();
+    return ini.isNotEmpty ? ini : '?';
+  }
+
+  factory TecnicoDisponible.fromJson(Map<String, dynamic> j) =>
+      TecnicoDisponible(
+        id: (j['id'] ?? '').toString(),
+        usuarioId: (j['usuario_id'] ?? '').toString(),
         nombre: j['nombre'] as String? ?? '',
         apellido: j['apellido'] as String? ?? '',
+        cargo: j['cargo'] as String? ?? 'Técnico',
         fotoUrl: j['foto_url'] as String? ?? '',
-        cargo: j['cargo'] as String? ?? 'Técnico de Campo',
+        grupoActual:
+            (j['grupo_actual'] ?? j['grupo_nombre']) as String?,
+      );
+
+  /// Construye un técnico a partir de un miembro de equipo del servicio
+  /// (usado en modo editar para precargar el equipo ya asignado).
+  factory TecnicoDisponible.fromMiembro(MiembroEquipo m) => TecnicoDisponible(
+        id: m.id,
+        usuarioId: '',
+        nombre: m.nombre,
+        apellido: m.apellido,
+        cargo: m.cargo,
+        fotoUrl: m.fotoUrl,
+        grupoActual: null,
+      );
+}
+
+class GrupoDisponible {
+  final String id;
+  final String nombre;
+  final String jefeNombre;
+  final List<TecnicoDisponible> miembros;
+
+  const GrupoDisponible({
+    required this.id,
+    required this.nombre,
+    required this.jefeNombre,
+    required this.miembros,
+  });
+
+  factory GrupoDisponible.fromJson(Map<String, dynamic> j) => GrupoDisponible(
+        id: (j['id'] ?? '').toString(),
+        nombre: j['nombre'] as String? ?? '',
+        jefeNombre: j['jefe_nombre'] as String? ?? '',
+        miembros: (j['miembros'] as List? ?? [])
+            .map((e) => TecnicoDisponible.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+class PersonalTecnicos {
+  final List<TecnicoDisponible> tecnicos;
+  final List<GrupoDisponible> grupos;
+
+  const PersonalTecnicos({required this.tecnicos, required this.grupos});
+
+  factory PersonalTecnicos.fromJson(Map<String, dynamic> j) => PersonalTecnicos(
+        tecnicos: (j['tecnicos'] as List? ?? [])
+            .map((e) => TecnicoDisponible.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        grupos: (j['grupos'] as List? ?? [])
+            .map((e) => GrupoDisponible.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+/// Detalle de un cruce de horario detectado al asignar un técnico a una tarea.
+class ConflictoHorario {
+  final String tarea;
+  final String servicioNombre;
+  final String fechaInicio;
+  final String fechaFin;
+  final String estado;
+
+  const ConflictoHorario({
+    required this.tarea,
+    required this.servicioNombre,
+    required this.fechaInicio,
+    required this.fechaFin,
+    required this.estado,
+  });
+
+  factory ConflictoHorario.fromJson(Map<String, dynamic> j) => ConflictoHorario(
+        tarea: j['tarea'] as String? ?? '',
+        servicioNombre: j['servicio_nombre'] as String? ?? '',
+        fechaInicio: (j['fecha_inicio'] ?? '').toString(),
+        fechaFin: (j['fecha_fin'] ?? '').toString(),
+        estado: j['estado'] as String? ?? '',
+      );
+
+  String get mensaje =>
+      'Ya tiene la tarea "$tarea" en "$servicioNombre" ($fechaInicio → $fechaFin).';
+}
+
+// ── Cliente (para crear/editar proyecto) ──────────────────────────────────────
+
+class ClienteBasico {
+  final String id;
+  final String razonSocial;
+  final String? ruc;
+
+  const ClienteBasico({
+    required this.id,
+    required this.razonSocial,
+    this.ruc,
+  });
+
+  factory ClienteBasico.fromJson(Map<String, dynamic> j) => ClienteBasico(
+        id: (j['id'] ?? '').toString(),
+        razonSocial: j['razon_social'] as String? ?? '',
+        ruc: j['ruc'] as String?,
+      );
+}
+
+// ── Servicio del catálogo (para crear/editar servicio) ────────────────────────
+
+class CatalogoServicio {
+  final String id;
+  final String nombre;
+  final String tipoTrabajo;
+  final String? descripcion;
+
+  const CatalogoServicio({
+    required this.id,
+    required this.nombre,
+    required this.tipoTrabajo,
+    this.descripcion,
+  });
+
+  factory CatalogoServicio.fromJson(Map<String, dynamic> j) => CatalogoServicio(
+        id: (j['id'] ?? '').toString(),
+        nombre: j['nombre'] as String? ?? '',
+        tipoTrabajo: j['tipo_trabajo'] as String? ?? '',
+        descripcion: j['descripcion'] as String?,
+      );
+}
+
+// ── Persona elegible como Líder / Responsable del servicio ────────────────────
+
+class PersonaServicio {
+  final String id; // empleado.id
+  final String nombre;
+  final String apellido;
+  final String? cargo;
+  final String? fotoUrl;
+
+  const PersonaServicio({
+    required this.id,
+    required this.nombre,
+    required this.apellido,
+    this.cargo,
+    this.fotoUrl,
+  });
+
+  String get nombreCompleto => '$nombre $apellido'.trim();
+
+  factory PersonaServicio.fromJson(Map<String, dynamic> j) => PersonaServicio(
+        id: (j['id'] ?? '').toString(),
+        nombre: j['nombre'] as String? ?? '',
+        apellido: j['apellido'] as String? ?? '',
+        cargo: j['cargo'] as String?,
+        fotoUrl: j['foto_url'] as String?,
+      );
+}
+
+// ── Detalle de proyecto (para edición) ────────────────────────────────────────
+
+class ProyectoEdit {
+  final String id;
+  final String nombreProyecto;
+  final String clienteId;
+  final String ordenTrabajo;
+  final String estado;
+  final String? fechaInicio;
+  final String? fechaFinEstimada;
+  final String? ordenCompraCliente;
+
+  const ProyectoEdit({
+    required this.id,
+    required this.nombreProyecto,
+    required this.clienteId,
+    required this.ordenTrabajo,
+    required this.estado,
+    this.fechaInicio,
+    this.fechaFinEstimada,
+    this.ordenCompraCliente,
+  });
+
+  factory ProyectoEdit.fromJson(Map<String, dynamic> j) => ProyectoEdit(
+        id: (j['id'] ?? '').toString(),
+        nombreProyecto: j['nombre_proyecto'] as String? ?? '',
+        clienteId: (j['cliente_id'] ?? '').toString(),
+        ordenTrabajo: j['orden_trabajo'] as String? ?? '',
+        estado: j['estado'] as String? ?? 'Pendiente',
+        fechaInicio: j['fecha_inicio'] as String?,
+        fechaFinEstimada: j['fecha_fin_estimada'] as String?,
+        ordenCompraCliente: j['orden_compra_cliente'] as String?,
       );
 }
 
@@ -402,6 +615,17 @@ class ServicioDetalle {
   final List<ItemMaterial> materialesAsignados;
   final List<ItemMaterial> materialesSolicitados;
   final List<NotaSeguimiento> notas;
+  // Metadatos para el modal de edición de servicio
+  final String? catalogoServicioId;
+  final String? fechaProgramada;
+  final String? fechaInicio;
+  final String? fechaFin;
+  final String? liderId;
+  final String? responsableId;
+  final String? zonaEjecucion;
+  final String? alcance;
+  final String? tipoDocumentoCliente;
+  final String? nroDocumento;
 
   const ServicioDetalle({
     required this.id,
@@ -419,6 +643,16 @@ class ServicioDetalle {
     required this.materialesAsignados,
     required this.materialesSolicitados,
     required this.notas,
+    this.catalogoServicioId,
+    this.fechaProgramada,
+    this.fechaInicio,
+    this.fechaFin,
+    this.liderId,
+    this.responsableId,
+    this.zonaEjecucion,
+    this.alcance,
+    this.tipoDocumentoCliente,
+    this.nroDocumento,
   });
 
   factory ServicioDetalle.fromJson(Map<String, dynamic> j) => ServicioDetalle(
@@ -448,6 +682,16 @@ class ServicioDetalle {
         notas: (j['notas'] as List? ?? [])
             .map((e) => NotaSeguimiento.fromJson(e as Map<String, dynamic>))
             .toList(),
+        catalogoServicioId: j['catalogo_servicio_id'] as String?,
+        fechaProgramada: j['fecha_programada'] as String?,
+        fechaInicio: j['fecha_inicio'] as String?,
+        fechaFin: j['fecha_fin'] as String?,
+        liderId: j['lider_id'] as String?,
+        responsableId: j['responsable_id'] as String?,
+        zonaEjecucion: j['zona_ejecucion'] as String?,
+        alcance: j['alcance'] as String?,
+        tipoDocumentoCliente: j['tipo_documento_cliente'] as String?,
+        nroDocumento: j['nro_documento'] as String?,
       );
 }
 

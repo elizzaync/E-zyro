@@ -189,13 +189,17 @@ class _GanttScreenState extends State<GanttScreen> {
       ));
       if (_expanded.contains(s.id)) {
         for (final proc in (_procs[s.id] ?? [])) {
+          // Usa las fechas reales de la tarea (asignación). Si falta el inicio,
+          // cae al del servicio para no perder su lugar en la línea de tiempo.
+          final pStart = _parseDate(proc.fechaInicioTarea) ?? sd;
+          final pEnd = _parseDate(proc.fechaLimite);
           list.add(_GRow(
             type: _RowType.procedure,
             id: proc.id,
             name: proc.nombre,
             estado: proc.estado,
-            dateStart: sd,
-            dateEnd: null,
+            dateStart: pStart,
+            dateEnd: pEnd,
           ));
         }
       }
