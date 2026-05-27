@@ -237,11 +237,9 @@ def marcar_asistencia(
             )
 
     # 1 ── Empleado
-    # usuario_id es UNIQUE en empleado, así que identifica al empleado sin
-    # filtrar por empresa_id; hacerlo rompía la marcación cuando
-    # empleado.empresa_id divergía de usuario.empresa_id (UUIDs regenerados al migrar).
     empleado = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
         Empleado.activo.is_(True),
     ).first()
     if not empleado:
@@ -288,29 +286,6 @@ def marcar_asistencia(
         score, resultado_ia = _comparar(True, enc_selfie)
         aprobado = resultado_ia == "aprobado"
 
-    # Timestamps: hora del dispositivo (offline-first); si no llega, hora del servidor.
-    # Siempre se almacena como hora Lima sin tzinfo.
-    if body.timestamp:
-        try:
-            ts_raw = datetime.fromisoformat(body.timestamp.replace("Z", "+00:00"))
-            ahora = ts_raw.astimezone(ZoneInfo("America/Lima")).replace(tzinfo=None)
-        except (ValueError, AttributeError):
-            ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
-    else:
-        ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
-
-    # Auditoría: cuándo llegó al servidor (para detectar deltas sospechosos)
-    timestamp_servidor = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
-
-    # Motivo base según el resultado de la comparación facial
-    _motivos = {
-        "aprobado":              f"Identidad verificada · Similitud {score:.1f}%",
-        "revision_manual":       f"Similitud baja ({score:.1f}%) · Requiere revisión del supervisor",
-        "rechazado":             f"Identidad no verificada · Similitud insuficiente ({score:.1f}%)",
-        "sin_evidencia_offline": "Registro sincronizado offline · Sin selfie · Verificado por JWT+GPS",
-    }
-    motivo = _motivos.get(resultado_ia, "")
-
     # ── Validación de la fuente de tiempo ────────────────────────────────────
     fuente = (body.fuente_tiempo or "device_only").strip().lower()
 
@@ -338,6 +313,28 @@ def marcar_asistencia(
             resultado_ia = "revision_manual"
             aprobado = True
             motivo = f"Delta tiempo inusual ({delta_horas:.1f}h). Revisión recomendada."
+    
+    # Usar timestamp del dispositivo si viene en el payload (registros offline-first).
+    # Si no, usar la hora del servidor. Siempre almacenar como hora Lima sin tzinfo.
+    if body.timestamp:
+        try:
+            ts_raw = datetime.fromisoformat(body.timestamp.replace("Z", "+00:00"))
+            ahora = ts_raw.astimezone(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        except (ValueError, AttributeError):
+            ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+    else:
+        ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+
+    # Auditoría: guardar cuándo llegó al servidor para detectar deltas sospechosos
+    timestamp_servidor = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+
+    _motivos = {
+        "aprobado":              f"Identidad verificada · Similitud {score:.1f}%",
+        "revision_manual":       f"Similitud baja ({score:.1f}%) · Requiere revisión del supervisor",
+        "rechazado":             f"Identidad no verificada · Similitud insuficiente ({score:.1f}%)",
+        "sin_evidencia_offline": "Registro sincronizado offline · Sin selfie · Verificado por JWT+GPS",
+    }
+    motivo = _motivos.get(resultado_ia, motivo if 'motivo' in dir() else "")
 
     # 7 ── Subir selfie a Cloudinary (fallo no bloquea el registro)
     selfie_url:       Optional[str] = None
@@ -442,6 +439,7 @@ def estado_hoy(
 
     empleado = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
     ).first()
 
     if not empleado:
@@ -496,6 +494,7 @@ def historial(
 
     empleado = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
     ).first()
     if not empleado:
         return {"registros": [], "total": 0, "pagina": pagina, "hay_mas": False}
