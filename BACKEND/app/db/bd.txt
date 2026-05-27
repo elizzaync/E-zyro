@@ -914,15 +914,18 @@ CREATE TABLE requerimiento_entrega (
     created_at           TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
+-- Notas / seguimiento. proyecto_servicio_id liga la nota a un servicio
+-- concreto (NULL = nota a nivel proyecto, registros legacy).
 CREATE TABLE seguimiento_proyecto (
-    id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    proyecto_id       UUID          NOT NULL,
-    empresa_id        UUID          NOT NULL,
-    porcentaje_avance DECIMAL(5,2)  NOT NULL,
-    descripcion       TEXT,
-    fecha             DATE          NOT NULL,
-    registrado_por    UUID          NOT NULL,
-    created_at        TIMESTAMP     NOT NULL DEFAULT NOW(),
+    id                   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    proyecto_id          UUID          NOT NULL,
+    proyecto_servicio_id UUID,
+    empresa_id           UUID          NOT NULL,
+    porcentaje_avance    DECIMAL(5,2)  NOT NULL,
+    descripcion          TEXT,
+    fecha                DATE          NOT NULL,
+    registrado_por       UUID          NOT NULL,
+    created_at           TIMESTAMP     NOT NULL DEFAULT NOW(),
     CONSTRAINT chk_avance_rango CHECK (porcentaje_avance BETWEEN 0 AND 100)
 );
 
@@ -1317,6 +1320,7 @@ ALTER TABLE requerimiento_entrega ADD CONSTRAINT fk_re_empresa          FOREIGN 
 ALTER TABLE requerimiento_entrega ADD CONSTRAINT fk_re_entregado        FOREIGN KEY (entregado_por_id)   REFERENCES empleado(id);
 ALTER TABLE requerimiento_entrega ADD CONSTRAINT fk_re_recibido         FOREIGN KEY (recibido_por_id)    REFERENCES empleado(id);
 ALTER TABLE seguimiento_proyecto  ADD CONSTRAINT fk_seg_proyecto        FOREIGN KEY (proyecto_id)        REFERENCES proyecto(id);
+ALTER TABLE seguimiento_proyecto  ADD CONSTRAINT fk_seg_ps              FOREIGN KEY (proyecto_servicio_id) REFERENCES proyecto_servicio(id);
 ALTER TABLE seguimiento_proyecto  ADD CONSTRAINT fk_seg_empresa         FOREIGN KEY (empresa_id)         REFERENCES empresa(id);
 ALTER TABLE seguimiento_proyecto  ADD CONSTRAINT fk_seg_registrado      FOREIGN KEY (registrado_por)     REFERENCES empleado(id);
 ALTER TABLE calificacion_cliente  ADD CONSTRAINT fk_cal_cliente         FOREIGN KEY (cliente_id)         REFERENCES cliente(id);
@@ -1388,6 +1392,7 @@ CREATE INDEX idx_proyecto_servicio_estado  ON proyecto_servicio(proyecto_id, est
 CREATE INDEX idx_proyecto_servicio_doc     ON proyecto_servicio(empresa_id, tipo_documento_cliente, nro_documento);
 CREATE INDEX idx_proyecto_servicio_resp    ON proyecto_servicio(responsable_id);
 CREATE INDEX idx_proyecto_servicio_lider   ON proyecto_servicio(lider_id);
+CREATE INDEX idx_seguimiento_ps            ON seguimiento_proyecto(proyecto_servicio_id);
 CREATE INDEX idx_procedimiento_ps          ON procedimiento(proyecto_servicio_id);
 CREATE INDEX idx_procedimiento_estado      ON procedimiento(proyecto_servicio_id, estado);
 
