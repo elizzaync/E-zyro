@@ -1282,9 +1282,10 @@ async def firmar_requerimiento(
     db:      Session = Depends(get_db),
 ):
     """
-    El técnico (líder / jefe ops, recomendado) confirma recepción desde el
-    detalle del servicio con su firma virtual. El requerimiento pasa a 'listo'
-    y se notifica a Logística para que despache.
+    El técnico (líder / jefe ops, recomendado) confirma la RECEPCIÓN de los
+    materiales desde el detalle del servicio con su firma virtual. El
+    requerimiento pasa a 'aprobado' (= recibido por el equipo) — estado final.
+    Solo se firma lo que ya está 'listo' (en stock o compra ya llegada).
     """
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
@@ -1293,8 +1294,11 @@ async def firmar_requerimiento(
     ).first()
     if not req:
         raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
-    if req.estado not in ("aprobado", "listo", "comprando"):
-        raise HTTPException(status_code=409, detail="Solo se firman requerimientos procesados")
+    if req.estado != "listo":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se firma la recepción de requerimientos en estado 'listo'.",
+        )
 
     # Firmante: el indicado o, por defecto, el empleado del usuario logueado
     if body.recibidoPorId:
@@ -1311,7 +1315,7 @@ async def firmar_requerimiento(
     req.firma_receptor_url    = body.firmaUrl
     req.firma_recibido_por_id = receptor.id
     req.firma_fecha           = datetime.utcnow()
-    req.estado                = "listo"
+    req.estado                = "aprobado"   # recibido por el equipo (estado final)
     req.updated_at            = datetime.utcnow()
     db.commit()
 
@@ -1327,8 +1331,8 @@ async def firmar_requerimiento(
             db.add(Notificacion(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=u.id,
                 tipo="info", categoria="logistica",
-                titulo="Requerimiento listo para entrega",
-                mensaje="Un técnico firmó la recepción. Despacha los materiales.",
+                titulo="Materiales recibidos por el equipo",
+                mensaje="Un técnico firmó la recepción de los materiales.",
                 leido=False, enviado=False,
                 referencia_tabla="requerimiento", referencia_id=str(req.id),
             ))
@@ -1336,7 +1340,7 @@ async def firmar_requerimiento(
     except Exception:
         db.rollback()
 
-    # Recepción en vivo: avisar al room del servicio (otros ven "firmado").
+    # Recepción en vivo: avisar al room del servicio (otros ven "recibido").
     await _notificar_servicio_ws(req.proyecto_servicio_id)
 
     db.refresh(req)
@@ -1887,7 +1891,7 @@ def registrar_ingreso_compra(
     # Auto-transition requerimiento a "listo" cuando no quedan items para_compra
     if tc.requerimiento_id:
         req = db.query(Requerimiento).filter(Requerimiento.id == tc.requerimiento_id).first()
-        if req and req.estado in ("comprando", "aprobado"):
+        if req and req.estado == "comprando":
             pendientes = db.query(RequerimientoDetalle).filter(
                 RequerimientoDetalle.requerimiento_id == req.id,
                 RequerimientoDetalle.estado_item == "para_compra",
