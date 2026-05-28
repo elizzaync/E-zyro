@@ -449,8 +449,11 @@ class _MainShellState extends State<MainShell> {
       final pendAsis = await asis.contarPendientes();
       final pendEvid = await proy.contarEvidenciasPendientes();
       if ((pendAsis > 0 || pendEvid > 0) && await asis.canReachServer()) {
-        if (pendAsis > 0) await asis.sincronizarPendientes();
-        if (pendEvid > 0) await proy.sincronizarEvidencias();
+        bool enviado = false;
+        if (pendAsis > 0) { await asis.sincronizarPendientes(); enviado = true; }
+        if (pendEvid > 0) { await proy.sincronizarEvidencias();  enviado = true; }
+        // Notificar a las pantallas que escuchan para que se refresquen
+        if (enviado) syncCompletedNotifier.value++;
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[MainShell] _triggerSync error: $e');

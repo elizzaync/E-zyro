@@ -42,19 +42,35 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _bannerTimer;
 
   StreamSubscription<RemoteMessage>? _fcmSub;
+  DateTime? _lastKpiRefresh;
 
   @override
   void initState() {
     super.initState();
     _init();
     _fcmSub = FcmFlutterService.messageStream.listen(_silentRefresh);
+    syncCompletedNotifier.addListener(_onSyncCompleted);
   }
 
   @override
   void dispose() {
     _bannerTimer?.cancel();
     _fcmSub?.cancel();
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
     super.dispose();
+  }
+
+  /// Cuando el sync background envía datos, refrescar KPIs y servicios.
+  /// Throttled a 30 s para no saturar la API si varios syncs ocurren seguidos.
+  void _onSyncCompleted() {
+    if (!mounted) return;
+    final ahora = DateTime.now();
+    if (_lastKpiRefresh != null &&
+        ahora.difference(_lastKpiRefresh!) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastKpiRefresh = ahora;
+    _loadData();
   }
 
   Future<void> _init() async {
@@ -113,14 +129,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _silentRefresh(RemoteMessage msg) async {
-    await _refreshUnreadCount();
+    final tipo = msg.data['tipo'] as String? ?? '';
+
+    // Notificaciones de servicio o asignación implican cambios en KPIs y
+    // en la lista de próximos servicios → refrescar todo el dashboard.
+    final afectaKpis = tipo == 'servicio' ||
+        tipo == 'asignacion_proyecto' ||
+        tipo == 'asignacion_servicio';
+
+    if (afectaKpis) {
+      _lastKpiRefresh = DateTime.now();
+      await _loadData();
+    } else {
+      await _refreshUnreadCount();
+    }
     if (!mounted) return;
 
     final title = msg.notification?.title ??
         msg.data['titulo'] as String? ??
         'Nueva notificación';
     final body = msg.notification?.body ?? msg.data['mensaje'] as String? ?? '';
-    final tipo = msg.data['tipo'] as String? ?? '';
 
     _bannerTimer?.cancel();
     setState(() {

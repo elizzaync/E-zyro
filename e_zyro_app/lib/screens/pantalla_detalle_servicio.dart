@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/proyecto_models.dart';
 import '../models/comunicado_models.dart';
 import '../services/proyecto_service.dart';
+import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../services/comunicado_service.dart';
 import '../services/fcm_flutter_service.dart';
@@ -45,6 +46,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   bool _puedeFinalizar = false;
   bool _cambiandoEstado = false;
   late TabController _tabController;
+  DateTime? _lastDetailLoad;
 
   @override
   void initState() {
@@ -52,12 +54,32 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     _tabController = TabController(length: 6, vsync: this);
     _checkRol();
     _load();
+    pendientesEvidenciaNotifier.addListener(_onEvidenciaSync);
+    syncCompletedNotifier.addListener(_onSyncCompleted);
   }
 
   @override
   void dispose() {
+    pendientesEvidenciaNotifier.removeListener(_onEvidenciaSync);
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Cuando las evidencias pendientes cambian (o el sync completa), recargar
+  /// el detalle del servicio para reflejar los procedimientos actualizados.
+  void _onEvidenciaSync() => _throttledDetailLoad();
+  void _onSyncCompleted() => _throttledDetailLoad();
+
+  void _throttledDetailLoad() {
+    if (!mounted) return;
+    final ahora = DateTime.now();
+    if (_lastDetailLoad != null &&
+        ahora.difference(_lastDetailLoad!) < const Duration(seconds: 15)) {
+      return;
+    }
+    _lastDetailLoad = ahora;
+    _reloadDetalle();
   }
 
   Future<void> _checkRol() async {

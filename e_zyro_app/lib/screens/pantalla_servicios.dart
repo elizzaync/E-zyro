@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
+import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import 'pantalla_detalle_servicio.dart';
 import 'pantalla_equipos.dart';
@@ -27,6 +28,7 @@ class _ServiciosScreenState extends State<ServiciosScreen>
   List<ServicioItem> _servicios = [];
   bool _isLoading = true;
   late TabController _tabController;
+  DateTime? _lastLoad;
 
   static const _green = Color(0xFF8FD11B);
 
@@ -35,12 +37,25 @@ class _ServiciosScreenState extends State<ServiciosScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _load();
+    syncCompletedNotifier.addListener(_onSyncCompleted);
   }
 
   @override
   void dispose() {
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _onSyncCompleted() {
+    if (!mounted) return;
+    final ahora = DateTime.now();
+    if (_lastLoad != null &&
+        ahora.difference(_lastLoad!) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastLoad = ahora;
+    _load();
   }
 
   Future<void> _load() async {

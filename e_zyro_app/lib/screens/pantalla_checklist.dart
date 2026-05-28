@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/mantenimiento_models.dart';
 import '../services/mantenimiento_service.dart';
 import '../services/sync_service.dart';
+import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
 import 'pantalla_camara_evidencia.dart';
 
@@ -26,6 +27,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   int _pendingCount = 0;
   MantenimientoService? _service;
   final _sync = SyncService();
+  DateTime? _lastSyncLoad;
 
   String get _progressKey => 'checklist_${widget.equipo.id}';
 
@@ -37,6 +39,25 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   void initState() {
     super.initState();
     _init();
+    syncCompletedNotifier.addListener(_onSyncCompleted);
+  }
+
+  @override
+  void dispose() {
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
+    super.dispose();
+  }
+
+  void _onSyncCompleted() {
+    if (!mounted) return;
+    final ahora = DateTime.now();
+    if (_lastSyncLoad != null &&
+        ahora.difference(_lastSyncLoad!) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastSyncLoad = ahora;
+    _fetchChecklist();
+    _refreshPendingCount();
   }
 
   Future<void> _init() async {
@@ -97,6 +118,8 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     if (!mounted) return;
     setState(() => _isSyncing = false);
     if (uploaded > 0) {
+      // Notificar a otras pantallas (ej. mantenimientos) que el sync completó
+      syncCompletedNotifier.value++;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('$uploaded evidencia(s) sincronizada(s)'),

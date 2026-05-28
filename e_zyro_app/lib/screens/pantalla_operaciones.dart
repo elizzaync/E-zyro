@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
+import '../services/fcm_flutter_service.dart';
 import '../services/proyecto_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_servicios.dart';
@@ -21,10 +25,44 @@ class _OperationsScreenState extends State<OperationsScreen> {
   String _selectedFilter = 'Todos';
   final List<String> _filters = ['Todos', 'Pendiente', 'En Proceso', 'Completado'];
 
+  StreamSubscription<RemoteMessage>? _fcmSub;
+  DateTime? _lastLoad;
+
   @override
   void initState() {
     super.initState();
     _init();
+    _fcmSub = FcmFlutterService.messageStream.listen(_onFcmMessage);
+    syncCompletedNotifier.addListener(_onSyncCompleted);
+  }
+
+  @override
+  void dispose() {
+    _fcmSub?.cancel();
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
+    super.dispose();
+  }
+
+  void _onFcmMessage(RemoteMessage msg) {
+    final tipo = msg.data['tipo'] as String? ?? '';
+    if (tipo == 'asignacion_proyecto' ||
+        tipo == 'asignacion_servicio' ||
+        tipo == 'servicio') {
+      _throttledLoad();
+    }
+  }
+
+  void _onSyncCompleted() => _throttledLoad();
+
+  void _throttledLoad() {
+    if (!mounted) return;
+    final ahora = DateTime.now();
+    if (_lastLoad != null &&
+        ahora.difference(_lastLoad!) < const Duration(seconds: 30)) {
+      return;
+    }
+    _lastLoad = ahora;
+    _loadData();
   }
 
   Future<void> _init() async {

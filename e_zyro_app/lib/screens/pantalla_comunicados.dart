@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../models/comunicado_models.dart';
 import '../services/comunicado_service.dart';
+import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
 
@@ -19,11 +22,24 @@ class _ComunicadosScreenState extends State<ComunicadosScreen> {
   ComunicadoService? _service;
   List<Comunicado> _comunicados = [];
   bool _isLoading = true;
+  StreamSubscription<RemoteMessage>? _fcmSub;
 
   @override
   void initState() {
     super.initState();
     _init();
+    _fcmSub = FcmFlutterService.messageStream.listen(_onFcmMessage);
+  }
+
+  @override
+  void dispose() {
+    _fcmSub?.cancel();
+    super.dispose();
+  }
+
+  void _onFcmMessage(RemoteMessage msg) {
+    final tipo = msg.data['tipo'] as String? ?? '';
+    if (tipo == 'comunicado' || tipo == 'comunicado_proyecto') _load();
   }
 
   Future<void> _init() async {

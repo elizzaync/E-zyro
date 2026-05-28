@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../models/asistencia_models.dart';
 import '../models/comunicado_models.dart';
 import '../models/dashboard_models.dart';
+import '../services/fcm_flutter_service.dart';
+import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
 
 // ── Tipos de evento ───────────────────────────────────────────────────────────
@@ -52,11 +56,44 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
   bool _isLoading    = true;
   bool _loadDetalle  = false;
   bool _savingNota   = false;
+  StreamSubscription<RemoteMessage>? _fcmSub;
+  DateTime? _lastFullLoad;
 
   @override
   void initState() {
     super.initState();
     _selectedDay = _dayKey(DateTime.now());
+    _loadAll();
+    _fcmSub = FcmFlutterService.messageStream.listen(_onFcmMessage);
+    syncCompletedNotifier.addListener(_onSyncCompleted);
+  }
+
+  @override
+  void dispose() {
+    _fcmSub?.cancel();
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
+    super.dispose();
+  }
+
+  void _onFcmMessage(RemoteMessage msg) {
+    final tipo = msg.data['tipo'] as String? ?? '';
+    if (tipo == 'recordatorio' ||
+        tipo == 'asignacion_servicio' ||
+        tipo == 'asignacion_proyecto') {
+      _throttledLoad();
+    }
+  }
+
+  void _onSyncCompleted() => _throttledLoad();
+
+  void _throttledLoad() {
+    if (!mounted) return;
+    final ahora = DateTime.now();
+    if (_lastFullLoad != null &&
+        ahora.difference(_lastFullLoad!) < const Duration(seconds: 60)) {
+      return;
+    }
+    _lastFullLoad = ahora;
     _loadAll();
   }
 

@@ -21,3 +21,8 @@ final pendientesEvidenciaNotifier = ValueNotifier<int>(0);
 /// MainShell escucha este notifier para mostrar SnackBar + notificación local
 /// y redirigir al usuario al login.
 final sessionExpiredSyncNotifier = ValueNotifier<int>(0);
+
+/// Se incrementa cada vez que un ciclo de sync envió datos al servidor
+/// (asistencias o evidencias). Las pantallas lo escuchan para refrescarse
+/// automáticamente sin que el usuario tenga que hacer pull-to-refresh.
+final syncCompletedNotifier = ValueNotifier<int>(0);

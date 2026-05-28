@@ -72,9 +72,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   @override
   void initState() {
     super.initState();
-    // Escuchar notifiers globales
     pendientesAsistenciaNotifier.addListener(_onPendientesChanged);
     sessionExpiredSyncNotifier.addListener(_onSessionExpiredChanged);
+    syncCompletedNotifier.addListener(_onSyncCompleted);
     _init();
     _fetchLocation();
   }
@@ -83,15 +83,32 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   void dispose() {
     pendientesAsistenciaNotifier.removeListener(_onPendientesChanged);
     sessionExpiredSyncNotifier.removeListener(_onSessionExpiredChanged);
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
     super.dispose();
   }
 
   void _onPendientesChanged() {
-    if (mounted) setState(() => _pendientesSinc = pendientesAsistenciaNotifier.value);
+    if (!mounted) return;
+    final anterior = _pendientesSinc;
+    final nuevo = pendientesAsistenciaNotifier.value;
+    setState(() => _pendientesSinc = nuevo);
+    // Si el conteo llegó a 0 desde un valor mayor, recargar el estado del día
+    // para que el historial muestre los registros como confirmados por el servidor.
+    if (nuevo == 0 && anterior > 0 && _service != null) {
+      _cargarDatos(_service!);
+    }
   }
 
   void _onSessionExpiredChanged() {
-    if (mounted) setState(() {}); // Redibuja el banner con el chip de sesión vencida
+    if (mounted) setState(() {});
+  }
+
+  /// Cuando el MainShell completa un ciclo de sync, refrescar historial y
+  /// estado del día para reflejar los cambios confirmados por el servidor.
+  void _onSyncCompleted() {
+    if (!mounted || _service == null) return;
+    _refreshPendientes();
+    _cargarDatos(_service!);
   }
 
   Future<void> _init() async {

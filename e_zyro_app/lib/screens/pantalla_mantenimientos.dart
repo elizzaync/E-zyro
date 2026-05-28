@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/mantenimiento_models.dart';
 import '../services/mantenimiento_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_notifiers.dart';
 import '../widgets/topo_background.dart';
 
 const _kGreen  = Color(0xFF8FD11B);
@@ -22,11 +23,30 @@ class _PantallaMantenimientosState extends State<PantallaMantenimientos> {
   List<MantenimientoGeneral> _filtrados = [];
   bool _isLoading = true;
   String _filtro = 'todos'; // 'todos' | 'vigente' | 'vencido' | 'proximo'
+  DateTime? _lastLoad;
 
   @override
   void initState() {
     super.initState();
     _init();
+    syncCompletedNotifier.addListener(_onSyncCompleted);
+  }
+
+  @override
+  void dispose() {
+    syncCompletedNotifier.removeListener(_onSyncCompleted);
+    super.dispose();
+  }
+
+  void _onSyncCompleted() {
+    if (!mounted) return;
+    final ahora = DateTime.now();
+    if (_lastLoad != null &&
+        ahora.difference(_lastLoad!) < const Duration(seconds: 60)) {
+      return;
+    }
+    _lastLoad = ahora;
+    _load();
   }
 
   Future<void> _init() async {
