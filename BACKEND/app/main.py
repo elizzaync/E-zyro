@@ -343,6 +343,24 @@ def _run_migrations():
             "ALTER TABLE requerimiento "
             "ADD COLUMN IF NOT EXISTS firma_fecha TIMESTAMP"
         ))
+        # HU-16 ext: cinema-seat signature locking
+        conn.execute(text(
+            "ALTER TABLE requerimiento "
+            "ADD COLUMN IF NOT EXISTS firmando_por_id VARCHAR(36)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE requerimiento "
+            "ADD COLUMN IF NOT EXISTS firmando_desde TIMESTAMP"
+        ))
+        conn.execute(text(
+            "ALTER TABLE requerimiento "
+            "ADD COLUMN IF NOT EXISTS firma_entregador_url VARCHAR(500)"
+        ))
+        # HU-17 ext: firma del entregador en entrega
+        conn.execute(text(
+            "ALTER TABLE requerimiento_entrega "
+            "ADD COLUMN IF NOT EXISTS firma_entregador_url VARCHAR(500)"
+        ))
 
         # Índices únicos para evitar duplicados de categoría/almacén por empresa
         conn.execute(text(

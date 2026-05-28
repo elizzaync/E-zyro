@@ -27,6 +27,10 @@ class Requerimiento(Base):
     firma_receptor_url   = Column(String(500), nullable=True)
     firma_recibido_por_id = Column(String(36), ForeignKey("empleado.id"), nullable=True)
     firma_fecha          = Column(DateTime, nullable=True)
+    # HU-16 ext: firma cinema-seat locking (2-minute timeout)
+    firmando_por_id   = Column(String(36), nullable=True)
+    firmando_desde    = Column(DateTime, nullable=True)
+    firma_entregador_url = Column(String(500), nullable=True)
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at           = Column(DateTime)
 

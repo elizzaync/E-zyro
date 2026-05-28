@@ -16,6 +16,7 @@ class RequerimientoEntrega(Base):
     recibido_por_id     = Column(String(36), ForeignKey("empleado.id"), nullable=False)
     firma_receptor_url  = Column(String(500), nullable=True)
     firma_public_id     = Column(String(255), nullable=True)
+    firma_entregador_url = Column(String(500), nullable=True)
     fecha_entrega       = Column(DateTime, nullable=False)
     notas               = Column(Text, nullable=True)
     created_at          = Column(DateTime, nullable=False, default=datetime.utcnow)

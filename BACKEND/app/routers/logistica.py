@@ -949,12 +949,19 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
         .order_by(RequerimientoEntrega.created_at.desc())
         .first()
     )
-    entregado_nombre = recibido_nombre = firma_url = fecha_entrega = None
+    entregado_nombre = recibido_nombre = firma_url = firma_entregador_url = fecha_entrega = None
     if entrega:
         entregado_nombre, _ = _nombre_empleado(db, entrega.entregado_por_id)
         recibido_nombre, _  = _nombre_empleado(db, entrega.recibido_por_id)
         firma_url = entrega.firma_receptor_url
+        firma_entregador_url = entrega.firma_entregador_url if entrega else None
         fecha_entrega = entrega.fecha_entrega.isoformat() if entrega.fecha_entrega else None
+    # Cinema-seat lock info
+    firmando_por_nombre = None
+    firmando_desde_iso = None
+    if getattr(req, "firmando_por_id", None):
+        firmando_por_nombre, _ = _nombre_empleado(db, req.firmando_por_id)
+        firmando_desde_iso = req.firmando_desde.isoformat() if req.firmando_desde else None
 
     return RequerimientoOut(
         id=str(req.id), estado=req.estado or "pendiente",
@@ -972,13 +979,16 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
         entregadoPorNombre=entregado_nombre,
         recibidoPorNombre=recibido_nombre,
         firmaUrl=firma_url,
+        firmaEntregadorUrl=firma_entregador_url,
+        firmandoPorNombre=firmando_por_nombre,
+        firmandoDesde=firmando_desde_iso,
         fechaEntrega=fecha_entrega,
     )
 
 
 @router.get("/requerimientos", response_model=RequerimientosListResponse)
 def listar_requerimientos(
-    estado:      str = Query("pendiente", description="pendiente|aprobado|listo|entregado|rechazado|todos"),
+    estado:      str = Query("pendiente", description="pendiente|comprando|listo|aprobado|entregado|rechazado|activos|todos"),
     proyecto_id: str = Query(""),
     servicio_id: str = Query(""),
     q:           str = Query(""),
@@ -993,8 +1003,12 @@ def listar_requerimientos(
         Requerimiento.empresa_id == empresa_id,
         Requerimiento.estado != "borrador",
     )
-    if estado and estado != "todos":
+    if estado == "activos":
+        base = base.filter(Requerimiento.estado.in_(["pendiente", "comprando", "listo"]))
+    elif estado and estado != "todos":
         base = base.filter(Requerimiento.estado == estado)
+
+
     if proyecto_id:
         base = base.filter(Requerimiento.proyecto_id == proyecto_id)
     if servicio_id:
@@ -1035,7 +1049,7 @@ def historial_requerimientos(
     empresa_id = payload["empresa_id"]
     base = db.query(Requerimiento).filter(
         Requerimiento.empresa_id == empresa_id,
-        Requerimiento.estado.in_(["aprobado", "listo", "entregado", "rechazado"]),
+        Requerimiento.estado.in_(["comprando", "aprobado", "listo", "entregado", "rechazado"]),
     )
     if proyecto_id:
         base = base.filter(Requerimiento.proyecto_id == proyecto_id)
@@ -1173,7 +1187,12 @@ def aprobar_requerimiento(
 
     hay_para_compra  = any(d.estado_item == "para_compra"  for d in detalles)
     todos_rechazados = all(d.estado_item == "rechazado" for d in detalles)
-    req.estado = "rechazado" if todos_rechazados else "aprobado"
+    if todos_rechazados:
+        req.estado = "rechazado"
+    elif hay_para_compra:
+        req.estado = "comprando"
+    else:
+        req.estado = "listo"
     if body.observacion:
         req.observacion_logistico = body.observacion
     req.aprobado_por = emp_log.id if emp_log else None
@@ -1260,8 +1279,8 @@ def firmar_requerimiento(
     ).first()
     if not req:
         raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
-    if req.estado not in ("aprobado", "listo"):
-        raise HTTPException(status_code=409, detail="Solo se firman requerimientos aprobados")
+    if req.estado not in ("aprobado", "listo", "comprando"):
+        raise HTTPException(status_code=409, detail="Solo se firman requerimientos procesados")
 
     # Firmante: el indicado o, por defecto, el empleado del usuario logueado
     if body.recibidoPorId:
@@ -1328,8 +1347,8 @@ def entregar_requerimiento(
     ).first()
     if not req:
         raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
-    if req.estado not in ("aprobado", "listo"):
-        raise HTTPException(status_code=409, detail="Solo se entregan requerimientos aprobados")
+    if req.estado not in ("listo", "comprando", "aprobado"):
+        raise HTTPException(status_code=409, detail="El requerimiento no está listo para entregar")
 
     emp_log = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
@@ -1352,10 +1371,12 @@ def entregar_requerimiento(
     db.add(RequerimientoEntrega(
         id=str(_uuid.uuid4()), requerimiento_id=req.id, empresa_id=empresa_id,
         entregado_por_id=emp_log.id, recibido_por_id=receptor.id,
-        firma_receptor_url=firma, fecha_entrega=datetime.utcnow(),
+        firma_receptor_url=firma, firma_entregador_url=body.firmaEntregadorUrl, fecha_entrega=datetime.utcnow(),
         notas=body.notas,
     ))
     req.estado = "entregado"
+    req.firmando_por_id = None
+    req.firmando_desde = None
     req.updated_at = datetime.utcnow()
     db.commit()
 
@@ -1366,6 +1387,63 @@ def entregar_requerimiento(
     )
     db.refresh(req)
     return _req_out(db, req, empresa_id)
+
+
+
+
+@router.post("/requerimientos/{req_id}/bloquear-firma")
+def bloquear_firma_requerimiento(
+    req_id:  str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Bloquea la firma (cinema-seat, 2-min timeout). 409 si ya bloqueado."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
+    ahora = datetime.utcnow()
+    firmando_por = getattr(req, "firmando_por_id", None)
+    firmando_desde = getattr(req, "firmando_desde", None)
+    if firmando_por and firmando_desde:
+        segundos = (ahora - firmando_desde).total_seconds()
+        if segundos < 120 and firmando_por != usuario_id:
+            nombre, _ = _nombre_empleado(db, firmando_por)
+            raise HTTPException(status_code=409, detail=f"firmando_por:{nombre or 'otro usuario'}")
+    try:
+        req.firmando_por_id = usuario_id
+        req.firmando_desde  = ahora
+        req.updated_at      = ahora
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="No se pudo bloquear la firma")
+    return {"ok": True}
+
+
+@router.delete("/requerimientos/{req_id}/bloquear-firma")
+def liberar_firma_requerimiento(
+    req_id:  str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Libera el bloqueo de firma."""
+    empresa_id = payload["empresa_id"]
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
+    ).first()
+    if req:
+        try:
+            req.firmando_por_id = None
+            req.firmando_desde  = None
+            req.updated_at      = datetime.utcnow()
+            db.commit()
+        except Exception:
+            db.rollback()
+    return {"ok": True}
 
 
 def _notificar_solicitante(db: Session, req: Requerimiento, empresa_id: str, titulo: str, mensaje: str) -> None:
@@ -1788,6 +1866,24 @@ def registrar_ingreso_compra(
         it.estado_item = "comprado"
 
     db.commit()
+
+    # Auto-transition requerimiento a "listo" cuando no quedan items para_compra
+    if tc.requerimiento_id:
+        req = db.query(Requerimiento).filter(Requerimiento.id == tc.requerimiento_id).first()
+        if req and req.estado in ("comprando", "aprobado"):
+            pendientes = db.query(RequerimientoDetalle).filter(
+                RequerimientoDetalle.requerimiento_id == req.id,
+                RequerimientoDetalle.estado_item == "para_compra",
+            ).count()
+            if pendientes == 0:
+                req.estado = "listo"
+                req.updated_at = datetime.utcnow()
+                _notificar_solicitante(
+                    db, req, str(req.empresa_id),
+                    titulo="Materiales listos para retirar",
+                    mensaje="Todos los materiales de tu pedido estan disponibles para retiro.",
+                )
+    db.commit()
     db.refresh(tc)
     return _ticket_out(db, tc)
 
@@ -1931,6 +2027,9 @@ def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> Salid
         entregadoPorNombre=entregado_nombre,
         recibidoPorNombre=recibido_nombre,
         firmaUrl=firma_url,
+        firmaEntregadorUrl=firma_entregador_url,
+        firmandoPorNombre=firmando_por_nombre,
+        firmandoDesde=firmando_desde_iso,
         observacion=req.observacion_logistico,
         items=items,
         totalItems=len(items),

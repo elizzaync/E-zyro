@@ -237,6 +237,9 @@ class RequerimientoOut(BaseModel):
     entregadoPorNombre: Optional[str] = None
     recibidoPorNombre:  Optional[str] = None
     firmaUrl:           Optional[str] = None
+    firmaEntregadorUrl: Optional[str] = None
+    firmandoPorNombre:  Optional[str] = None
+    firmandoDesde:      Optional[str] = None
     fechaEntrega:       Optional[str] = None
 
 
@@ -264,8 +267,9 @@ class RechazarBody(BaseModel):
 
 
 class EntregarBody(BaseModel):
-    recibidoPorId: Optional[str] = None       # si None usa el receptor que firmó
-    firmaUrl:      Optional[str] = None        # si None usa la firma ya capturada
+    recibidoPorId:      Optional[str] = None
+    firmaEntregadorUrl: Optional[str] = None
+    firmaUrl:           Optional[str] = None
     notas:         Optional[str] = None
 
 
