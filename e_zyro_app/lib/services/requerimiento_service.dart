@@ -16,7 +16,7 @@ class RequerimientoService {
     try {
       final params = <String, String>{
         if (q.trim().isNotEmpty) 'q': q.trim(),
-        if (categoria != null) 'categoria': categoria,
+        'categoria': ?categoria,
         'page': page.toString(),
         'page_size': pageSize.toString(),
       };
@@ -29,9 +29,7 @@ class RequerimientoService {
         final bodyMap = body is Map ? body : null;
         final list = body is List
             ? body
-            : bodyMap?['items'] as List? ??
-                bodyMap?['data'] as List? ??
-                [];
+            : bodyMap?['items'] as List? ?? bodyMap?['data'] as List? ?? [];
         return list
             .map((e) => CatalogoItem.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -78,14 +76,17 @@ class RequerimientoService {
       final r = await _client.get('/requerimientos/inventario/resumen');
       if (r.statusCode == 200) {
         return InventarioResumen.fromJson(
-            jsonDecode(r.body) as Map<String, dynamic>);
+          jsonDecode(r.body) as Map<String, dynamic>,
+        );
       }
     } catch (_) {}
     return const InventarioResumen();
   }
 
   // Bandeja del encargado: solicitudes pendientes/gestionables
-  Future<List<SolicitudGestion>> getSolicitudesPendientes({String? estado}) async {
+  Future<List<SolicitudGestion>> getSolicitudesPendientes({
+    String? estado,
+  }) async {
     try {
       final query = (estado != null && estado.isNotEmpty)
           ? '?estado=${Uri.encodeComponent(estado)}'
@@ -143,7 +144,7 @@ class RequerimientoService {
         'tipo': tipo,
         'cantidad': cantidad,
         if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
-        if (almacenId != null) 'almacen_id': almacenId,
+        'almacen_id': ?almacenId,
       });
       return r.statusCode == 200 || r.statusCode == 201;
     } catch (_) {
@@ -157,7 +158,9 @@ class RequerimientoService {
       final query = (materialId != null && materialId.isNotEmpty)
           ? '?material_id=${Uri.encodeComponent(materialId)}'
           : '';
-      final r = await _client.get('/requerimientos/inventario/movimientos$query');
+      final r = await _client.get(
+        '/requerimientos/inventario/movimientos$query',
+      );
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List? ?? [];
         return list
@@ -180,15 +183,17 @@ class RequerimientoService {
   }) async {
     try {
       final body = <String, dynamic>{
-        if (nombre != null) 'nombre': nombre,
-        if (codigo != null) 'codigo': codigo,
-        if (unidad != null) 'unidad': unidad,
-        if (descripcion != null) 'descripcion': descripcion,
-        if (categoriaId != null) 'categoria_id': categoriaId,
-        if (cantidadMinima != null) 'cantidad_minima': cantidadMinima,
+        'nombre': ?nombre,
+        'codigo': ?codigo,
+        'unidad': ?unidad,
+        'descripcion': ?descripcion,
+        'categoria_id': ?categoriaId,
+        'cantidad_minima': ?cantidadMinima,
       };
       final r = await _client.patch(
-          '/requerimientos/inventario/material/$materialId', body);
+        '/requerimientos/inventario/material/$materialId',
+        body,
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -198,8 +203,9 @@ class RequerimientoService {
   // Fase 4: baja lógica de material
   Future<bool> eliminarMaterial(String materialId) async {
     try {
-      final r =
-          await _client.delete('/requerimientos/inventario/material/$materialId');
+      final r = await _client.delete(
+        '/requerimientos/inventario/material/$materialId',
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -221,7 +227,9 @@ class RequerimientoService {
   }
 
   // Fase 4: eliminar categoría (falla si tiene materiales)
-  Future<({bool ok, String? error})> eliminarCategoria(String categoriaId) async {
+  Future<({bool ok, String? error})> eliminarCategoria(
+    String categoriaId,
+  ) async {
     try {
       final r = await _client.delete('/requerimientos/categorias/$categoriaId');
       if (r.statusCode == 200) return (ok: true, error: null);
@@ -272,7 +280,9 @@ class RequerimientoService {
       final r = await _client.get('/requerimientos/categorias');
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List;
-        return list.map((e) => CategoriaItem.fromJson(e as Map<String, dynamic>)).toList();
+        return list
+            .map((e) => CategoriaItem.fromJson(e as Map<String, dynamic>))
+            .toList();
       }
     } catch (_) {}
     return [];
@@ -283,7 +293,9 @@ class RequerimientoService {
       final r = await _client.get('/requerimientos/almacenes');
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List;
-        return list.map((e) => AlmacenItem.fromJson(e as Map<String, dynamic>)).toList();
+        return list
+            .map((e) => AlmacenItem.fromJson(e as Map<String, dynamic>))
+            .toList();
       }
     } catch (_) {}
     return [];
@@ -304,9 +316,10 @@ class RequerimientoService {
         if (codigo != null && codigo.isNotEmpty) 'codigo': codigo,
         'unidad': unidad,
         'categoria_id': categoriaId,
-        if (descripcion != null && descripcion.isNotEmpty) 'descripcion': descripcion,
+        if (descripcion != null && descripcion.isNotEmpty)
+          'descripcion': descripcion,
         'cantidad_inicial': cantidadInicial,
-        if (almacenId != null) 'almacen_id': almacenId,
+        'almacen_id': ?almacenId,
       });
       return r.statusCode == 201;
     } catch (_) {

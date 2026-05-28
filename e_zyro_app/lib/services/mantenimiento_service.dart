@@ -26,7 +26,8 @@ class MantenimientoService {
       final r = await _client.get('/operaciones/equipo/$equipoId/checklist');
       if (r.statusCode == 200) {
         return ChecklistEquipo.fromJson(
-            jsonDecode(r.body) as Map<String, dynamic>);
+          jsonDecode(r.body) as Map<String, dynamic>,
+        );
       }
     } catch (_) {}
     return null;
@@ -46,7 +47,7 @@ class MantenimientoService {
         'tipo': tipo.apiValue,
         if (lat != null) 'lat': lat.toStringAsFixed(7),
         if (lng != null) 'lng': lng.toStringAsFixed(7),
-        if (takenAt != null) 'taken_at': takenAt,
+        'taken_at': ?takenAt,
       };
       final r = await _client.postMultipart(
         '/operaciones/paso/$pasoId/evidencia',
@@ -76,13 +77,13 @@ class MantenimientoService {
   // GET /operaciones/mantenimientos/general  (Jefe de Operaciones / Admin)
   Future<List<MantenimientoGeneral>> getMantenimientosGenerales() async {
     try {
-      final r =
-          await _client.get('/operaciones/mantenimientos/general');
+      final r = await _client.get('/operaciones/mantenimientos/general');
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List? ?? [];
         return list
-            .map((e) =>
-                MantenimientoGeneral.fromJson(e as Map<String, dynamic>))
+            .map(
+              (e) => MantenimientoGeneral.fromJson(e as Map<String, dynamic>),
+            )
             .toList();
       }
     } catch (_) {}

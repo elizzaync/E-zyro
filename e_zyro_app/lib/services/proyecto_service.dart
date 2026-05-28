@@ -28,7 +28,8 @@ class ProyectoService {
       if (r.statusCode == 200) {
         await _cache.put(_kProyectos, r.body);
         return ProyectosConKpis.fromJson(
-            jsonDecode(r.body) as Map<String, dynamic>);
+          jsonDecode(r.body) as Map<String, dynamic>,
+        );
       }
     } catch (_) {}
     // Offline / error → caché.
@@ -36,7 +37,8 @@ class ProyectoService {
     if (cached != null) {
       try {
         return ProyectosConKpis.fromJson(
-            jsonDecode(cached) as Map<String, dynamic>);
+          jsonDecode(cached) as Map<String, dynamic>,
+        );
       } catch (_) {}
     }
     return null;
@@ -45,7 +47,9 @@ class ProyectoService {
   // GET /operaciones/proyecto/{proyecto_id}/servicios
   Future<List<ServicioItem>> getServiciosProyecto(String proyectoId) async {
     try {
-      final r = await _client.get('/operaciones/proyecto/$proyectoId/servicios');
+      final r = await _client.get(
+        '/operaciones/proyecto/$proyectoId/servicios',
+      );
       if (r.statusCode == 200) {
         await _cache.put(_kServicios(proyectoId), r.body);
         final list = jsonDecode(r.body) as List? ?? [];
@@ -73,14 +77,16 @@ class ProyectoService {
       if (r.statusCode == 200) {
         await _cache.put(_kDetalle(servicioId), r.body);
         return ServicioDetalle.fromJson(
-            jsonDecode(r.body) as Map<String, dynamic>);
+          jsonDecode(r.body) as Map<String, dynamic>,
+        );
       }
     } catch (_) {}
     final cached = await _cache.get(_kDetalle(servicioId));
     if (cached != null) {
       try {
         return ServicioDetalle.fromJson(
-            jsonDecode(cached) as Map<String, dynamic>);
+          jsonDecode(cached) as Map<String, dynamic>,
+        );
       } catch (_) {}
     }
     return null;
@@ -91,8 +97,10 @@ class ProyectoService {
   // PATCH /operaciones/servicio/{id}/estado
   Future<bool> cambiarEstadoServicio(String servicioId, String estado) async {
     try {
-      final r = await _client
-          .patch('/operaciones/servicio/$servicioId/estado', {'estado': estado});
+      final r = await _client.patch(
+        '/operaciones/servicio/$servicioId/estado',
+        {'estado': estado},
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -102,8 +110,10 @@ class ProyectoService {
   // PATCH /operaciones/procedimiento/{id}/estado
   Future<bool> toggleProcedimiento(String procId, String estado) async {
     try {
-      final r = await _client
-          .patch('/operaciones/procedimiento/$procId/estado', {'estado': estado});
+      final r = await _client.patch(
+        '/operaciones/procedimiento/$procId/estado',
+        {'estado': estado},
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -121,7 +131,10 @@ class ProyectoService {
     try {
       final r = await _client.postMultipart(
         '/operaciones/procedimiento/$procId/evidencia',
-        {'etapa': etapa, if (descripcion.isNotEmpty) 'descripcion': descripcion},
+        {
+          'etapa': etapa,
+          if (descripcion.isNotEmpty) 'descripcion': descripcion,
+        },
         'archivo',
         filePath,
       );
@@ -137,8 +150,7 @@ class ProyectoService {
 
   static bool _isSyncingEvidencias = false;
 
-  Future<int> contarEvidenciasPendientes() =>
-      _evidenciaRepo.contarPendientes();
+  Future<int> contarEvidenciasPendientes() => _evidenciaRepo.contarPendientes();
 
   Future<int> contarEvidenciasAbandonadas() =>
       _evidenciaRepo.contarAbandonadas();
@@ -192,15 +204,17 @@ class ProyectoService {
       stablePath = fotoPath;
     }
 
-    await _evidenciaRepo.insertarPendiente(EvidenciaPendiente(
-      uuid: uuid,
-      procedimientoId: procedimientoId,
-      servicioId: servicioId,
-      etapa: etapa,
-      descripcion: descripcion.isEmpty ? null : descripcion,
-      fotoPath: stablePath,
-      createdAt: DateTime.now(),
-    ));
+    await _evidenciaRepo.insertarPendiente(
+      EvidenciaPendiente(
+        uuid: uuid,
+        procedimientoId: procedimientoId,
+        servicioId: servicioId,
+        etapa: etapa,
+        descripcion: descripcion.isEmpty ? null : descripcion,
+        fotoPath: stablePath,
+        createdAt: DateTime.now(),
+      ),
+    );
     await _actualizarNotifierEvidencias();
 
     // Intento inmediato de subida.
@@ -233,7 +247,9 @@ class ProyectoService {
 
         // Si la foto ya no existe en disco, descartar para no reintentar infinito.
         if (!File(e.fotoPath).existsSync()) {
-          debugPrint('[ProyectoService] evidencia ${e.uuid} → foto perdida, descartada');
+          debugPrint(
+            '[ProyectoService] evidencia ${e.uuid} → foto perdida, descartada',
+          );
           await _evidenciaRepo.eliminar(e.uuid);
           continue;
         }
@@ -263,8 +279,9 @@ class ProyectoService {
   Future<List<MaterialBusqueda>> buscarMateriales(String q) async {
     if (q.trim().length < 2) return [];
     try {
-      final r = await _client
-          .get('/operaciones/materiales/buscar?q=${Uri.encodeComponent(q.trim())}');
+      final r = await _client.get(
+        '/operaciones/materiales/buscar?q=${Uri.encodeComponent(q.trim())}',
+      );
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List? ?? [];
         return list
@@ -296,17 +313,15 @@ class ProyectoService {
     String? especificacion,
   }) async {
     try {
-      final r = await _client.post(
-        '/operaciones/servicio/$servicioId/borrador/item',
-        {
-          'material_id': materialId,
-          'nombre': nombre,
-          'unidad': unidad,
-          'cantidad': cantidad,
-          if (especificacion != null && especificacion.isNotEmpty)
-            'especificacion': especificacion,
-        },
-      );
+      final r = await _client
+          .post('/operaciones/servicio/$servicioId/borrador/item', {
+            'material_id': materialId,
+            'nombre': nombre,
+            'unidad': unidad,
+            'cantidad': cantidad,
+            if (especificacion != null && especificacion.isNotEmpty)
+              'especificacion': especificacion,
+          });
       if (r.statusCode == 200 || r.statusCode == 201) {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         return body['detalle_id'] as String?;
@@ -324,12 +339,14 @@ class ProyectoService {
   }) async {
     try {
       final body = <String, dynamic>{
-        if (cantidad != null) 'cantidad': cantidad,
-        if (nombre != null) 'nombre': nombre,
-        if (especificacion != null) 'especificacion': especificacion,
+        'cantidad': ?cantidad,
+        'nombre': ?nombre,
+        'especificacion': ?especificacion,
       };
-      final r =
-          await _client.patch('/operaciones/requerimiento-detalle/$rdId', body);
+      final r = await _client.patch(
+        '/operaciones/requerimiento-detalle/$rdId',
+        body,
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -349,8 +366,10 @@ class ProyectoService {
   // POST /operaciones/servicio/{id}/borrador/enviar
   Future<bool> enviarBorrador(String servicioId) async {
     try {
-      final r =
-          await _client.post('/operaciones/servicio/$servicioId/borrador/enviar', {});
+      final r = await _client.post(
+        '/operaciones/servicio/$servicioId/borrador/enviar',
+        {},
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -365,7 +384,8 @@ class ProyectoService {
       final r = await _client.get('/operaciones/personal/tecnicos');
       if (r.statusCode == 200) {
         return PersonalTecnicos.fromJson(
-            jsonDecode(r.body) as Map<String, dynamic>);
+          jsonDecode(r.body) as Map<String, dynamic>,
+        );
       }
     } catch (_) {}
     return const PersonalTecnicos(tecnicos: [], grupos: []);
@@ -384,13 +404,14 @@ class ProyectoService {
         'empleado_id': empleadoId,
         'fecha_inicio': fechaInicio,
         'fecha_fin': fechaFin,
-        if (excluirServicioId != null) 'excluir_servicio_id': excluirServicioId,
+        'excluir_servicio_id': ?excluirServicioId,
       });
       if (r.statusCode == 200) {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         if (body['conflicto'] == true && body['detalle'] != null) {
           return ConflictoHorario.fromJson(
-              body['detalle'] as Map<String, dynamic>);
+            body['detalle'] as Map<String, dynamic>,
+          );
         }
       }
     } catch (_) {}
@@ -487,7 +508,8 @@ class ProyectoService {
       final r = await _client.get('/operaciones/proyecto/$proyectoId');
       if (r.statusCode == 200) {
         return ProyectoEdit.fromJson(
-            jsonDecode(r.body) as Map<String, dynamic>);
+          jsonDecode(r.body) as Map<String, dynamic>,
+        );
       }
     } catch (_) {}
     return null;
@@ -509,10 +531,14 @@ class ProyectoService {
 
   // PATCH /operaciones/proyecto/{id}
   Future<bool> actualizarProyecto(
-      String proyectoId, Map<String, dynamic> payload) async {
+    String proyectoId,
+    Map<String, dynamic> payload,
+  ) async {
     try {
-      final r =
-          await _client.patch('/operaciones/proyecto/$proyectoId', payload);
+      final r = await _client.patch(
+        '/operaciones/proyecto/$proyectoId',
+        payload,
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -523,10 +549,14 @@ class ProyectoService {
 
   // POST /operaciones/proyecto/{id}/servicios → { ok, id }
   Future<String?> crearServicio(
-      String proyectoId, Map<String, dynamic> payload) async {
+    String proyectoId,
+    Map<String, dynamic> payload,
+  ) async {
     try {
       final r = await _client.post(
-          '/operaciones/proyecto/$proyectoId/servicios', payload);
+        '/operaciones/proyecto/$proyectoId/servicios',
+        payload,
+      );
       if (r.statusCode == 200 || r.statusCode == 201) {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         return body['id'] as String?;
@@ -537,10 +567,14 @@ class ProyectoService {
 
   // PATCH /operaciones/servicio/{id}
   Future<bool> actualizarServicio(
-      String servicioId, Map<String, dynamic> payload) async {
+    String servicioId,
+    Map<String, dynamic> payload,
+  ) async {
     try {
-      final r =
-          await _client.patch('/operaciones/servicio/$servicioId', payload);
+      final r = await _client.patch(
+        '/operaciones/servicio/$servicioId',
+        payload,
+      );
       return r.statusCode == 200;
     } catch (_) {
       return false;

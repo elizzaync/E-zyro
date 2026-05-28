@@ -15,11 +15,7 @@ class ChatTab extends StatefulWidget {
   /// El backend no envía la foto en el WS, así que se resuelve localmente.
   final Map<String, String> fotosPorId;
 
-  const ChatTab({
-    super.key,
-    required this.room,
-    this.fotosPorId = const {},
-  });
+  const ChatTab({super.key, required this.room, this.fotosPorId = const {}});
 
   @override
   State<ChatTab> createState() => _ChatTabState();
@@ -34,7 +30,7 @@ class _ChatTabState extends State<ChatTab>
 
   bool _isConnected = false;
   bool _showFab = false;
-  String _myId = '';   // UUID del usuario actual (del JWT)
+  String _myId = ''; // UUID del usuario actual (del JWT)
   String _myName = ''; // nombre para fallback
 
   StreamSubscription<MensajeChat>? _msgSub;
@@ -91,10 +87,7 @@ class _ChatTabState extends State<ChatTab>
       final parts = token.split('.');
       if (parts.length != 3) return '';
       final payload = parts[1];
-      final padded = payload.padRight(
-        (payload.length + 3) & ~3,
-        '=',
-      );
+      final padded = payload.padRight((payload.length + 3) & ~3, '=');
       final decoded = utf8.decode(base64.decode(padded));
       final json = jsonDecode(decoded) as Map<String, dynamic>;
       return json['id'] as String? ?? json['sub'] as String? ?? '';
@@ -184,40 +177,39 @@ class _ChatTabState extends State<ChatTab>
                   children: [
                     ListView.builder(
                       controller: _scrollCtrl,
-                      padding:
-                          const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                       itemCount: _mensajes.length,
                       itemBuilder: (_, i) {
                         final msg = _mensajes[i];
-                        final isMine = msg.tipo == TipoMensaje.mensaje &&
+                        final isMine =
+                            msg.tipo == TipoMensaje.mensaje &&
                             (_myId.isNotEmpty
                                 ? msg.remitenteId == _myId
                                 : msg.autor == _myName);
 
                         // Show author header only on first message of a group
-                        final showAuthor = !isMine &&
+                        final showAuthor =
+                            !isMine &&
                             msg.tipo == TipoMensaje.mensaje &&
                             (i == 0 ||
                                 _mensajes[i - 1].autor != msg.autor ||
-                                _mensajes[i - 1].tipo ==
-                                    TipoMensaje.sistema);
+                                _mensajes[i - 1].tipo == TipoMensaje.sistema);
 
                         // Show date separator when day changes
-                        final showDate = i == 0 ||
-                            !_sameDay(
-                                _mensajes[i - 1].fecha, msg.fecha);
+                        final showDate =
+                            i == 0 ||
+                            !_sameDay(_mensajes[i - 1].fecha, msg.fecha);
 
                         // Resuelve la foto: primero del WS, luego del mapa de equipo
                         final fotoUrl = (msg.fotoUrl?.isNotEmpty == true)
                             ? msg.fotoUrl
                             : (msg.remitenteId != null
-                                ? widget.fotosPorId[msg.remitenteId!]
-                                : null);
+                                  ? widget.fotosPorId[msg.remitenteId!]
+                                  : null);
 
                         return Column(
                           children: [
-                            if (showDate)
-                              _DateChip(fecha: msg.fecha),
+                            if (showDate) _DateChip(fecha: msg.fecha),
                             _MessageBubble(
                               msg: msg,
                               isMine: isMine,
@@ -241,8 +233,7 @@ class _ChatTabState extends State<ChatTab>
                           backgroundColor: _green,
                           foregroundColor: Colors.black,
                           elevation: 4,
-                          child: const Icon(Icons.arrow_downward,
-                              size: 18),
+                          child: const Icon(Icons.arrow_downward, size: 18),
                         ),
                       ),
                   ],
@@ -270,10 +261,7 @@ class _ConnectionBar extends StatelessWidget {
   final bool isConnected;
   final VoidCallback onReconnect;
 
-  const _ConnectionBar({
-    required this.isConnected,
-    required this.onReconnect,
-  });
+  const _ConnectionBar({required this.isConnected, required this.onReconnect});
 
   static const _green = Color(0xFF8FD11B);
   static const _amber = Color(0xFFF59E0B);
@@ -287,8 +275,7 @@ class _ConnectionBar extends StatelessWidget {
       color: isConnected
           ? _green.withValues(alpha: isDark ? 0.12 : 0.08)
           : _amber.withValues(alpha: isDark ? 0.15 : 0.10),
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Row(
         children: [
           AnimatedContainer(
@@ -317,17 +304,17 @@ class _ConnectionBar extends StatelessWidget {
             TextButton(
               onPressed: onReconnect,
               style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
                 'Reconectar',
                 style: TextStyle(
-                    color: _amber,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600),
+                  color: _amber,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
         ],
@@ -357,8 +344,7 @@ class _DateChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Center(
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: Colors.grey.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(12),
@@ -366,9 +352,10 @@ class _DateChip extends StatelessWidget {
           child: Text(
             _label(),
             style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 11,
-                fontWeight: FontWeight.w500),
+              color: Colors.grey,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
       ),
@@ -403,8 +390,7 @@ class _MessageBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Center(
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.grey.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
@@ -412,9 +398,10 @@ class _MessageBubble extends StatelessWidget {
             child: Text(
               msg.texto,
               style: const TextStyle(
-                  color: Colors.grey,
-                  fontSize: 11,
-                  fontStyle: FontStyle.italic),
+                color: Colors.grey,
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -423,14 +410,12 @@ class _MessageBubble extends StatelessWidget {
     }
 
     return Padding(
-      padding: EdgeInsets.only(
-        top: showAuthor ? 8 : 2,
-        bottom: 2,
-      ),
+      padding: EdgeInsets.only(top: showAuthor ? 8 : 2, bottom: 2),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment:
-            isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           // Avatar (only for others)
           if (!isMine)
@@ -462,17 +447,18 @@ class _MessageBubble extends StatelessWidget {
                   ),
                 Container(
                   constraints: BoxConstraints(
-                    maxWidth:
-                        MediaQuery.of(context).size.width * 0.72,
+                    maxWidth: MediaQuery.of(context).size.width * 0.72,
                   ),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isMine
                         ? _green
                         : isDark
-                            ? Colors.grey.shade800
-                            : Colors.grey.shade100,
+                        ? Colors.grey.shade800
+                        : Colors.grey.shade100,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
                       topRight: const Radius.circular(16),
@@ -489,9 +475,7 @@ class _MessageBubble extends StatelessWidget {
                           fontSize: 14,
                           color: isMine
                               ? Colors.black
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .onSurface,
+                              : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -499,9 +483,7 @@ class _MessageBubble extends StatelessWidget {
                         DateFormat('HH:mm').format(msg.fecha),
                         style: TextStyle(
                           fontSize: 10,
-                          color: isMine
-                              ? Colors.black54
-                              : Colors.grey.shade500,
+                          color: isMine ? Colors.black54 : Colors.grey.shade500,
                         ),
                       ),
                     ],
@@ -558,7 +540,7 @@ class _Avatar extends StatelessWidget {
         radius: 14,
         backgroundColor: _color.withValues(alpha: 0.15),
         backgroundImage: CachedNetworkImageProvider(fotoUrl!),
-        onBackgroundImageError: (_, __) {},
+        onBackgroundImageError: (_, _) {},
       );
     }
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
@@ -602,9 +584,7 @@ class _InputBar extends StatelessWidget {
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(
           top: BorderSide(
-            color: isDark
-                ? Colors.grey.shade800
-                : Colors.grey.shade200,
+            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
           ),
         ),
       ),
@@ -616,9 +596,7 @@ class _InputBar extends StatelessWidget {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.grey.shade800
-                      : Colors.grey.shade100,
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: TextField(
@@ -634,9 +612,13 @@ class _InputBar extends StatelessWidget {
                         ? 'Escribe un mensaje…'
                         : 'Sin conexión',
                     hintStyle: const TextStyle(
-                        color: Colors.grey, fontSize: 14),
+                      color: Colors.grey,
+                      fontSize: 14,
+                    ),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     border: InputBorder.none,
                   ),
                 ),
@@ -682,9 +664,7 @@ class _EmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isConnected
-                ? Icons.chat_bubble_outline
-                : Icons.wifi_off_outlined,
+            isConnected ? Icons.chat_bubble_outline : Icons.wifi_off_outlined,
             size: 52,
             color: Colors.grey.shade400,
           ),
@@ -693,8 +673,7 @@ class _EmptyState extends StatelessWidget {
             isConnected
                 ? 'No hay mensajes aún.\n¡Sé el primero en escribir!'
                 : 'Conectando al chat…',
-            style:
-                const TextStyle(color: Colors.grey, fontSize: 14),
+            style: const TextStyle(color: Colors.grey, fontSize: 14),
             textAlign: TextAlign.center,
           ),
           if (!isConnected) ...[

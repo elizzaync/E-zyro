@@ -73,11 +73,29 @@ class AsistenciaLocalRepo {
   Future<void> limpiarEnviados() async {
     final db = await LocalDb.instance.database;
     if (db == null) return;
-    final cutoff = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
+    final cutoff30 = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
+    final cutoff7  = DateTime.now().subtract(const Duration(days: 7)).toIso8601String();
     await db.delete(
       _table,
       where: 'estado_sync = ? AND timestamp_disp < ?',
-      whereArgs: [EstadoSync.enviado.index, cutoff],
+      whereArgs: [EstadoSync.enviado.index, cutoff30],
+    );
+    // Auto-limpiar registros abandonados con más de 7 días (no recuperables).
+    await db.rawDelete('''
+      DELETE FROM $_table
+      WHERE retry_count >= 5 AND estado_sync != ? AND timestamp_disp < ?
+    ''', [EstadoSync.enviado.index, cutoff7]);
+  }
+
+  /// Elimina todos los registros en estado fallido (incluye abandonados y
+  /// errores permanentes). Llamar cuando el usuario decide limpiar la cola.
+  Future<int> descartarTodosLosFallidos() async {
+    final db = await LocalDb.instance.database;
+    if (db == null) return 0;
+    return db.delete(
+      _table,
+      where: 'estado_sync = ?',
+      whereArgs: [EstadoSync.fallido.index],
     );
   }
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show compute, debugPrint;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -140,6 +141,7 @@ class AsistenciaService {
     await _aplicarMarcaLocalAlCache(tipo, ahora);
 
     // 2. Intentar enviar de inmediato
+    late http.Response resp;
     try {
       final b64 = await compute(_fileToBase64, selfieFile.path);
 
@@ -155,28 +157,13 @@ class AsistenciaService {
       if (precisionM != null) body['precision_m'] = precisionM;
       if (altitud    != null) body['altitud']     = altitud;
 
-      final r = await _client.post(
+      resp = await _client.post(
         '/asistencia/marcar',
         body,
         timeout: AppConstants.uploadTimeout,
       );
-      _client.checkResponse(r, fallback: 'Error al registrar asistencia');
-
-      // 3. Éxito — marcar como enviado
-      await _repo.marcarEnviado(clientUuid);
-      await _actualizarNotifier();
-      await SyncLogger.log(SyncLogEntry(
-        id:            SyncLogger.newId(),
-        timestamp:     DateTime.now(),
-        uuid:          clientUuid,
-        tipoMarcacion: tipo.toLowerCase(),
-        status:        SyncLogStatus.enviado,
-        httpCode:      200,
-      ));
-
-      return MarcarResponse.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
     } catch (e) {
-      // Determinar tipo de fallo para el log
+      // Error de red / timeout / sesión → dejar en cola para reintento
       final isSession = _isSessionError(e.toString());
       await SyncLogger.log(SyncLogEntry(
         id:            SyncLogger.newId(),
@@ -186,7 +173,7 @@ class AsistenciaService {
         status:        isSession ? SyncLogStatus.sesionVencida : SyncLogStatus.falloRed,
         errorMessage:  _cleanError(e.toString()),
       ));
-
+      if (isSession) sessionExpiredSyncNotifier.value++;
       return MarcarResponse(
         registroId:  clientUuid,
         status:      'PENDIENTE_SYNC',
@@ -198,6 +185,65 @@ class AsistenciaService {
         resultadoIa: 'pendiente',
       );
     }
+
+    // Obtuvimos respuesta HTTP — manejar por código de estado
+    if (resp.statusCode == 200) {
+      // 3. Éxito — marcar como enviado
+      await _repo.marcarEnviado(clientUuid);
+      await _actualizarNotifier();
+      await SyncLogger.log(SyncLogEntry(
+        id:            SyncLogger.newId(),
+        timestamp:     DateTime.now(),
+        uuid:          clientUuid,
+        tipoMarcacion: tipo.toLowerCase(),
+        status:        SyncLogStatus.enviado,
+        httpCode:      200,
+      ));
+      return MarcarResponse.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    }
+
+    final serverMsg = _extractServerMessage(resp.body);
+
+    if (resp.statusCode >= 400 && resp.statusCode < 500) {
+      // Rechazo permanente del servidor (ej. 422 sin rostro detectado).
+      // No tiene sentido reintentar — marcar y lanzar para que la UI lo informe.
+      await _repo.marcarErrorPermanente(clientUuid);
+      await _actualizarNotifier();
+      await SyncLogger.log(SyncLogEntry(
+        id:            SyncLogger.newId(),
+        timestamp:     DateTime.now(),
+        uuid:          clientUuid,
+        tipoMarcacion: tipo.toLowerCase(),
+        status:        SyncLogStatus.falloServidor,
+        httpCode:      resp.statusCode,
+        errorMessage:  '⛔ ${serverMsg.isNotEmpty ? serverMsg : "HTTP ${resp.statusCode}"}',
+      ));
+      throw Exception(serverMsg.isNotEmpty
+          ? serverMsg
+          : 'Registro rechazado por el servidor (${resp.statusCode})');
+    }
+
+    // 5xx — error transitorio del servidor, dejar en cola para reintento
+    debugPrint('[AsistenciaService] uuid=${clientUuid.substring(0, 8)} → HTTP ${resp.statusCode}, dejando pendiente');
+    await SyncLogger.log(SyncLogEntry(
+      id:            SyncLogger.newId(),
+      timestamp:     DateTime.now(),
+      uuid:          clientUuid,
+      tipoMarcacion: tipo.toLowerCase(),
+      status:        SyncLogStatus.falloServidor,
+      httpCode:      resp.statusCode,
+      errorMessage:  serverMsg.isNotEmpty ? serverMsg : 'Error del servidor (${resp.statusCode})',
+    ));
+    return MarcarResponse(
+      registroId:  clientUuid,
+      status:      'ERROR_SERVIDOR',
+      score:       0,
+      motivo:      'El servidor tuvo un error interno. Tu asistencia está guardada y se reenviará automáticamente.',
+      timestamp:   ahora,
+      gpsGuardado: latitud != null,
+      fotoUrl:     null,
+      resultadoIa: 'pendiente',
+    );
   }
 
   // ── Sincronización manual de pendientes ───────────────────────────────────
@@ -262,10 +308,30 @@ class AsistenciaService {
         };
 
         if (evidenciaExiste) {
-          body['imagen_selfie'] = await compute(_fileToBase64, r.evidenciaPath!);
+          // Comprimir antes de codificar para reducir payload (fix 500 por imagen grande).
+          final tmpDir  = await getTemporaryDirectory();
+          final tmpPath = '${tmpDir.path}/sync_${r.uuid.substring(0, 8)}.jpg';
+          final compressed = await FlutterImageCompress.compressAndGetFile(
+            r.evidenciaPath!, tmpPath,
+            quality: 85, minWidth: 800, minHeight: 600,
+          );
+          final encPath = compressed?.path ?? r.evidenciaPath!;
+          body['imagen_selfie'] = await compute(_fileToBase64, encPath);
+          try { if (compressed != null) File(tmpPath).deleteSync(); } catch (_) {}
         } else {
-          debugPrint('[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → sin selfie en disco, enviando sin imagen');
-          body['imagen_selfie'] = '';
+          // Sin imagen en disco → marcar como error permanente y saltar.
+          // Enviar imagen_selfie vacía causa 500 en el backend.
+          debugPrint('[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → selfie no encontrada, descartando');
+          await _repo.marcarErrorPermanente(r.uuid);
+          await SyncLogger.log(SyncLogEntry(
+            id:            SyncLogger.newId(),
+            timestamp:     DateTime.now(),
+            uuid:          r.uuid,
+            tipoMarcacion: r.tipoMarcacion,
+            status:        SyncLogStatus.falloServidor,
+            errorMessage:  '⛔ Selfie eliminada del disco — registro descartado',
+          ));
+          continue;
         }
 
         final resp = await _client.post(
@@ -375,6 +441,14 @@ class AsistenciaService {
   /// Descarta (borra) registros con error permanente del servidor (4xx).
   /// Úsalo cuando el usuario acepta que esos registros no pueden enviarse.
   Future<int> descartarErroresPermanentes() => _repo.descartarErroresPermanentes();
+
+  /// Descarta todos los registros fallidos (abandonados + errores permanentes).
+  /// Actualiza el notifier global al terminar.
+  Future<int> descartarTodosLosFallidos() async {
+    final result = await _repo.descartarTodosLosFallidos();
+    await _actualizarNotifier();
+    return result;
+  }
 
   // ── Estado de hoy ─────────────────────────────────────────────────────────
 

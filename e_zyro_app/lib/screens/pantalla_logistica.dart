@@ -80,7 +80,8 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
 
   Future<void> _checkRol() async {
     await AppSession.load();
-    if (mounted) setState(() => _puedeGestionar = AppSession.i.canGestInventario);
+    if (mounted)
+      setState(() => _puedeGestionar = AppSession.i.canGestInventario);
   }
 
   Future<void> _init() async {
@@ -118,12 +119,9 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
       if (_selectedCategoria == null &&
           _searchCtrl.text.isEmpty &&
           _categorias.isEmpty) {
-        final cats = items
-            .map((e) => e.categoria)
-            .whereType<String>()
-            .toSet()
-            .toList()
-          ..sort();
+        final cats =
+            items.map((e) => e.categoria).whereType<String>().toSet().toList()
+              ..sort();
         _categorias = cats;
       }
       _loadingCatalogo = false;
@@ -279,12 +277,16 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
         service: _service!,
         onCreado: () {
           _loadCatalogo();
-          messenger.showSnackBar(SnackBar(
-            content: const Text('Material agregado al inventario'),
-            backgroundColor: _green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ));
+          messenger.showSnackBar(
+            SnackBar(
+              content: const Text('Material agregado al inventario'),
+              backgroundColor: _green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
         },
       ),
     );
@@ -306,219 +308,236 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
       stroke: 0.40,
       speed: 0.5,
       child: SafeArea(
-      child: Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text(
-                          'Logística',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                        // Acceso al panel del encargado (solo logística/admin)
-                        if (_puedeGestionar)
-                          GestureDetector(
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const PantallaInventarioPanel(),
-                              ),
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: _green,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _green.withValues(alpha: 0.35),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.dashboard_customize_outlined,
-                                      color: Colors.white, size: 16),
-                                  SizedBox(width: 6),
-                                  Text('Panel',
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600)),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    Container(
-                      decoration: BoxDecoration(
-                        color: toggleBg,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      padding: const EdgeInsets.all(4),
-                      child: Row(
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          _ToggleTab(
-                            label: 'Catálogo',
-                            isSelected: _showCatalogo,
-                            onTap: () => _switchTab(true),
+                          const Text(
+                            'Logística',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                          _ToggleTab(
-                            label: 'Mis Solicitudes',
-                            isSelected: !_showCatalogo,
-                            onTap: () => _switchTab(false),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    if (_showCatalogo) ...[
-                      TextField(
-                        controller: _searchCtrl,
-                        onChanged: _onSearchChanged,
-                        decoration: InputDecoration(
-                          hintText: 'Buscar materiales...',
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Colors.grey,
-                          ),
-                          suffixIcon: _searchCtrl.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(
-                                    Icons.clear,
-                                    size: 18,
-                                    color: Colors.grey,
-                                  ),
-                                  onPressed: () {
-                                    _searchCtrl.clear();
-                                    _loadCatalogo();
-                                  },
-                                )
-                              : null,
-                          filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                      if (_categorias.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          height: 34,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: [
-                              _CategoriaChip(
-                                label: 'Todos',
-                                selected: _selectedCategoria == null,
-                                onTap: () => _selectCategoria(null),
-                              ),
-                              ..._categorias.map(
-                                (cat) => _CategoriaChip(
-                                  label: cat,
-                                  selected: _selectedCategoria == cat,
-                                  onTap: () => _selectCategoria(cat),
+                          const Spacer(),
+                          // Acceso al panel del encargado (solo logística/admin)
+                          if (_puedeGestionar)
+                            GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const PantallaInventarioPanel(),
                                 ),
                               ),
-                            ],
-                          ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _green,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _green.withValues(alpha: 0.35),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.dashboard_customize_outlined,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Panel',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      Container(
+                        decoration: BoxDecoration(
+                          color: toggleBg,
+                          borderRadius: BorderRadius.circular(30),
                         ),
-                      ],
-                    ],
-                    const SizedBox(height: 16),
-                  ],
-                ),
-              ),
-
-              Expanded(
-                child: _showCatalogo ? _buildCatalogo() : _buildSolicitudes(),
-              ),
-            ],
-          ),
-
-          // FABs
-          Positioned(
-            right: 20,
-            bottom: 20,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                // FAB agregar al inventario (solo logística/admin)
-                if (_puedeGestionar && _showCatalogo) ...[
-                  FloatingActionButton(
-                    heroTag: 'fab_inventario',
-                    onPressed: () => _openNuevoMaterialSheet(),
-                    backgroundColor: Colors.white,
-                    foregroundColor: _green,
-                    elevation: 3,
-                    mini: true,
-                    tooltip: 'Agregar al inventario',
-                    child: const Icon(Icons.add_box_outlined),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                // FAB solicitar materiales
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    FloatingActionButton.extended(
-                      heroTag: 'fab_solicitar',
-                      onPressed: _openCarritoSheet,
-                      backgroundColor: _green,
-                      foregroundColor: Colors.white,
-                      elevation: 4,
-                      icon: const Icon(Icons.shopping_cart_outlined),
-                      label: const Text('Solicitar',
-                          style: TextStyle(fontWeight: FontWeight.w600)),
-                    ),
-                    if (_carritoCount > 0)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: const BoxDecoration(
-                              color: Colors.red, shape: BoxShape.circle),
-                          child: Text('$_carritoCount',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold)),
+                        padding: const EdgeInsets.all(4),
+                        child: Row(
+                          children: [
+                            _ToggleTab(
+                              label: 'Catálogo',
+                              isSelected: _showCatalogo,
+                              onTap: () => _switchTab(true),
+                            ),
+                            _ToggleTab(
+                              label: 'Mis Solicitudes',
+                              isSelected: !_showCatalogo,
+                              onTap: () => _switchTab(false),
+                            ),
+                          ],
                         ),
                       ),
-                  ],
+                      const SizedBox(height: 16),
+
+                      if (_showCatalogo) ...[
+                        TextField(
+                          controller: _searchCtrl,
+                          onChanged: _onSearchChanged,
+                          decoration: InputDecoration(
+                            hintText: 'Buscar materiales...',
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              color: Colors.grey,
+                            ),
+                            suffixIcon: _searchCtrl.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(
+                                      Icons.clear,
+                                      size: 18,
+                                      color: Colors.grey,
+                                    ),
+                                    onPressed: () {
+                                      _searchCtrl.clear();
+                                      _loadCatalogo();
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: Theme.of(context).colorScheme.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                        if (_categorias.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            height: 34,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: [
+                                _CategoriaChip(
+                                  label: 'Todos',
+                                  selected: _selectedCategoria == null,
+                                  onTap: () => _selectCategoria(null),
+                                ),
+                                ..._categorias.map(
+                                  (cat) => _CategoriaChip(
+                                    label: cat,
+                                    selected: _selectedCategoria == cat,
+                                    onTap: () => _selectCategoria(cat),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+
+                Expanded(
+                  child: _showCatalogo ? _buildCatalogo() : _buildSolicitudes(),
                 ),
               ],
             ),
-          ),
-        ],
+
+            // FABs
+            Positioned(
+              right: 20,
+              bottom: 20,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // FAB agregar al inventario (solo logística/admin)
+                  if (_puedeGestionar && _showCatalogo) ...[
+                    FloatingActionButton(
+                      heroTag: 'fab_inventario',
+                      onPressed: () => _openNuevoMaterialSheet(),
+                      backgroundColor: Colors.white,
+                      foregroundColor: _green,
+                      elevation: 3,
+                      mini: true,
+                      tooltip: 'Agregar al inventario',
+                      child: const Icon(Icons.add_box_outlined),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  // FAB solicitar materiales
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      FloatingActionButton.extended(
+                        heroTag: 'fab_solicitar',
+                        onPressed: _openCarritoSheet,
+                        backgroundColor: _green,
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        icon: const Icon(Icons.shopping_cart_outlined),
+                        label: const Text(
+                          'Solicitar',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (_carritoCount > 0)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$_carritoCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ));
+    );
   }
 
   Widget _buildCatalogo() {
@@ -640,9 +659,7 @@ class _CategoriaChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? green : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? green : Colors.grey.shade300,
-          ),
+          border: Border.all(color: selected ? green : Colors.grey.shade300),
         ),
         child: Text(
           label,
@@ -1062,8 +1079,10 @@ class _MiSolicitudCard extends StatelessWidget {
                 item.observacionLogistico!.isNotEmpty) ...[
               const SizedBox(height: 6),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: item.estado == 'rechazado'
                       ? Colors.red.withValues(alpha: 0.08)
@@ -1914,9 +1933,9 @@ class _NuevoMaterialSheet extends StatefulWidget {
 class _NuevoMaterialSheetState extends State<_NuevoMaterialSheet> {
   static const _green = Color(0xFF8FD11B);
 
-  final _nombreCtrl   = TextEditingController();
-  final _codigoCtrl   = TextEditingController();
-  final _descCtrl     = TextEditingController();
+  final _nombreCtrl = TextEditingController();
+  final _codigoCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
   final _cantidadCtrl = TextEditingController(text: '0');
 
   String? _categoriaId;
@@ -1925,8 +1944,15 @@ class _NuevoMaterialSheetState extends State<_NuevoMaterialSheet> {
   bool _sending = false;
 
   static const _unidades = [
-    'Unidades', 'Metros', 'Rollos', 'Barras', 'Pares',
-    'Sets', 'Litros', 'Kilogramos', 'Cajas',
+    'Unidades',
+    'Metros',
+    'Rollos',
+    'Barras',
+    'Pares',
+    'Sets',
+    'Litros',
+    'Kilogramos',
+    'Cajas',
   ];
 
   @override
@@ -1940,8 +1966,14 @@ class _NuevoMaterialSheetState extends State<_NuevoMaterialSheet> {
 
   Future<void> _guardar() async {
     final nombre = _nombreCtrl.text.trim();
-    if (nombre.isEmpty) { _snack('Ingresa el nombre del material'); return; }
-    if (_categoriaId == null) { _snack('Selecciona una categoría'); return; }
+    if (nombre.isEmpty) {
+      _snack('Ingresa el nombre del material');
+      return;
+    }
+    if (_categoriaId == null) {
+      _snack('Selecciona una categoría');
+      return;
+    }
     final cantidad = int.tryParse(_cantidadCtrl.text) ?? 0;
 
     setState(() => _sending = true);
@@ -1965,21 +1997,28 @@ class _NuevoMaterialSheetState extends State<_NuevoMaterialSheet> {
   }
 
   void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating));
+    SnackBar(content: Text(msg), behavior: SnackBarBehavior.floating),
+  );
 
   @override
   Widget build(BuildContext context) {
     final surface = Theme.of(context).colorScheme.surface;
     final inputBg = Theme.of(context).colorScheme.surfaceContainerHighest;
     final inputDec = InputDecoration(
-      filled: true, fillColor: inputBg,
+      filled: true,
+      fillColor: inputBg,
       border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
 
     return DraggableScrollableSheet(
-      expand: false, initialChildSize: 0.85, minChildSize: 0.5, maxChildSize: 0.95,
+      expand: false,
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
       builder: (_, scrollCtrl) => Container(
         decoration: BoxDecoration(
           color: surface,
@@ -1988,97 +2027,172 @@ class _NuevoMaterialSheetState extends State<_NuevoMaterialSheet> {
         child: ListView(
           controller: scrollCtrl,
           padding: EdgeInsets.only(
-            left: 24, right: 24, top: 12,
+            left: 24,
+            right: 24,
+            top: 12,
             bottom: MediaQuery.of(context).viewInsets.bottom + 32,
           ),
           children: [
-            Center(child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: _green.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.add_box_outlined, color: _green, size: 22),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-              const SizedBox(width: 12),
-              const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Nuevo Material',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                Text('Agregar al inventario',
-                    style: TextStyle(color: Colors.grey, fontSize: 12)),
-              ]),
-            ]),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _green.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.add_box_outlined,
+                    color: _green,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Nuevo Material',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'Agregar al inventario',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
             const SizedBox(height: 24),
             _label('Nombre *'),
-            TextField(controller: _nombreCtrl,
-                decoration: inputDec.copyWith(hintText: 'Ej: Cable THW 12 AWG')),
+            TextField(
+              controller: _nombreCtrl,
+              decoration: inputDec.copyWith(hintText: 'Ej: Cable THW 12 AWG'),
+            ),
             const SizedBox(height: 14),
             _label('Código (opcional)'),
-            TextField(controller: _codigoCtrl,
-                decoration: inputDec.copyWith(hintText: 'Ej: CBL-THW-12')),
+            TextField(
+              controller: _codigoCtrl,
+              decoration: inputDec.copyWith(hintText: 'Ej: CBL-THW-12'),
+            ),
             const SizedBox(height: 14),
             _label('Categoría *'),
             DropdownButtonFormField<String>(
-              value: _categoriaId,
+              initialValue: _categoriaId,
               hint: const Text('Selecciona categoría'),
               decoration: inputDec,
-              items: widget.categorias.map((c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.nombre, style: const TextStyle(fontSize: 13)))).toList(),
+              items: widget.categorias
+                  .map(
+                    (c) => DropdownMenuItem(
+                      value: c.id,
+                      child: Text(
+                        c.nombre,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  )
+                  .toList(),
               onChanged: (v) => setState(() => _categoriaId = v),
             ),
             const SizedBox(height: 14),
             _label('Unidad de medida'),
             DropdownButtonFormField<String>(
-              value: _unidad,
+              initialValue: _unidad,
               decoration: inputDec,
-              items: _unidades.map((u) => DropdownMenuItem(
-                  value: u, child: Text(u, style: const TextStyle(fontSize: 13)))).toList(),
+              items: _unidades
+                  .map(
+                    (u) => DropdownMenuItem(
+                      value: u,
+                      child: Text(u, style: const TextStyle(fontSize: 13)),
+                    ),
+                  )
+                  .toList(),
               onChanged: (v) => setState(() => _unidad = v ?? 'Unidades'),
             ),
             const SizedBox(height: 14),
             _label('Descripción (opcional)'),
-            TextField(controller: _descCtrl, maxLines: 2,
-                decoration: inputDec.copyWith(hintText: 'Especificaciones técnicas...')),
+            TextField(
+              controller: _descCtrl,
+              maxLines: 2,
+              decoration: inputDec.copyWith(
+                hintText: 'Especificaciones técnicas...',
+              ),
+            ),
             const SizedBox(height: 14),
             _label('Cantidad inicial en stock'),
-            TextField(controller: _cantidadCtrl,
-                keyboardType: TextInputType.number,
-                decoration: inputDec.copyWith(hintText: '0')),
+            TextField(
+              controller: _cantidadCtrl,
+              keyboardType: TextInputType.number,
+              decoration: inputDec.copyWith(hintText: '0'),
+            ),
             const SizedBox(height: 14),
             if (widget.almacenes.isNotEmpty) ...[
               _label('Almacén (opcional)'),
               DropdownButtonFormField<String>(
-                value: _almacenId,
+                initialValue: _almacenId,
                 hint: const Text('Almacén principal por defecto'),
                 decoration: inputDec,
-                items: widget.almacenes.map((a) => DropdownMenuItem(
-                    value: a.id,
-                    child: Text(
-                      a.ubicacion != null ? '${a.nombre} — ${a.ubicacion}' : a.nombre,
-                      style: const TextStyle(fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                    ))).toList(),
+                items: widget.almacenes
+                    .map(
+                      (a) => DropdownMenuItem(
+                        value: a.id,
+                        child: Text(
+                          a.ubicacion != null
+                              ? '${a.nombre} — ${a.ubicacion}'
+                              : a.nombre,
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
                 onChanged: (v) => setState(() => _almacenId = v),
               ),
             ],
             const SizedBox(height: 24),
             SizedBox(
-              width: double.infinity, height: 50,
+              width: double.infinity,
+              height: 50,
               child: ElevatedButton(
                 onPressed: _sending ? null : _guardar,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _green, foregroundColor: Colors.white, elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  backgroundColor: _green,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
                 child: _sending
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Guardar en Inventario',
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Guardar en Inventario',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -2089,7 +2203,13 @@ class _NuevoMaterialSheetState extends State<_NuevoMaterialSheet> {
 
   Widget _label(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
-    child: Text(text, style: const TextStyle(
-        fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Colors.grey,
+      ),
+    ),
   );
 }

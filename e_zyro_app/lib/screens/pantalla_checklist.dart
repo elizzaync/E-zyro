@@ -53,8 +53,10 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
       try {
         final map = jsonDecode(raw) as Map<String, dynamic>;
         setState(() {
-          _progress = map.map((k, v) =>
-              MapEntry(k, FotosMaquina.fromJson(v as Map<String, dynamic>)));
+          _progress = map.map(
+            (k, v) =>
+                MapEntry(k, FotosMaquina.fromJson(v as Map<String, dynamic>)),
+          );
         });
       } catch (_) {}
     }
@@ -102,9 +104,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         ),
       );
     } else if (_pendingCount == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Todo sincronizado')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Todo sincronizado')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sin conexión — se sincronizará después')),
@@ -186,15 +188,17 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
       } else {
         setState(() => _isFinalizing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al finalizar. Intenta nuevamente.')),
+          const SnackBar(
+            content: Text('Error al finalizar. Intenta nuevamente.'),
+          ),
         );
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isFinalizing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
@@ -228,9 +232,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation(_green)),
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(_green),
+                          ),
                         )
                       : const Icon(Icons.cloud_upload_outlined),
                   onPressed: _syncNow,
@@ -258,91 +262,87 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               ),
             )
           : _checklist == null
-              ? _EmptyState(onRetry: _fetchChecklist)
-              : Stack(
-                  children: [
-                    RefreshIndicator(
-                      onRefresh: () async {
-                        await _fetchChecklist();
-                        await _syncNow();
-                      },
-                      color: _green,
-                      child: CustomScrollView(
-                        slivers: [
-                          SliverToBoxAdapter(
-                            child: _ProgressHeader(
-                              completed: completed,
-                              total: total,
-                              progress: progress,
-                              isDark: isDark,
-                            ),
-                          ),
-                          SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (_, i) {
-                                final paso = _checklist!.pasos[i];
-                                final fotos =
-                                    _progress[paso.id] ?? FotosMaquina();
-                                final isBlocked = i > 0 &&
-                                    !(_progress[_checklist!.pasos[i - 1].id] ??
-                                            FotosMaquina())
-                                        .isComplete;
-                                return _PasoCard(
-                                  paso: paso,
-                                  fotos: fotos,
-                                  isDark: isDark,
-                                  isBlocked: isBlocked,
-                                  onCapture: (tipo) =>
-                                      _capturePhoto(paso, tipo),
-                                );
-                              },
-                              childCount: _checklist!.pasos.length,
-                            ),
-                          ),
-                          SliverPadding(
-                            padding: EdgeInsets.only(
-                              bottom: progress >= 1.0 ? 88 : 32,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // HU-18: Botón visible solo cuando todo el checklist está completo
-                    if (progress >= 1.0)
-                      Positioned(
-                        left: 20,
-                        right: 20,
-                        bottom: 20,
-                        child: FilledButton.icon(
-                          onPressed: _isFinalizing ? null : _finalizar,
-                          icon: _isFinalizing
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.check_circle_outline),
-                          label: Text(
-                            _isFinalizing
-                                ? 'Finalizando...'
-                                : 'Finalizar y Generar Informe',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _green,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
+          ? _EmptyState(onRetry: _fetchChecklist)
+          : Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: () async {
+                    await _fetchChecklist();
+                    await _syncNow();
+                  },
+                  color: _green,
+                  child: CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _ProgressHeader(
+                          completed: completed,
+                          total: total,
+                          progress: progress,
+                          isDark: isDark,
                         ),
                       ),
-                  ],
+                      SliverList(
+                        delegate: SliverChildBuilderDelegate((_, i) {
+                          final paso = _checklist!.pasos[i];
+                          final fotos = _progress[paso.id] ?? FotosMaquina();
+                          final isBlocked =
+                              i > 0 &&
+                              !(_progress[_checklist!.pasos[i - 1].id] ??
+                                      FotosMaquina())
+                                  .isComplete;
+                          return _PasoCard(
+                            paso: paso,
+                            fotos: fotos,
+                            isDark: isDark,
+                            isBlocked: isBlocked,
+                            onCapture: (tipo) => _capturePhoto(paso, tipo),
+                          );
+                        }, childCount: _checklist!.pasos.length),
+                      ),
+                      SliverPadding(
+                        padding: EdgeInsets.only(
+                          bottom: progress >= 1.0 ? 88 : 32,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                // HU-18: Botón visible solo cuando todo el checklist está completo
+                if (progress >= 1.0)
+                  Positioned(
+                    left: 20,
+                    right: 20,
+                    bottom: 20,
+                    child: FilledButton.icon(
+                      onPressed: _isFinalizing ? null : _finalizar,
+                      icon: _isFinalizing
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.check_circle_outline),
+                      label: Text(
+                        _isFinalizing
+                            ? 'Finalizando...'
+                            : 'Finalizar y Generar Informe',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _green,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }
@@ -374,7 +374,9 @@ class _ProgressHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
-        border: isDark ? Border.all(color: green.withValues(alpha: 0.25)) : null,
+        border: isDark
+            ? Border.all(color: green.withValues(alpha: 0.25))
+            : null,
         boxShadow: isDark
             ? null
             : [
@@ -382,7 +384,7 @@ class _ProgressHeader extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
-                )
+                ),
               ],
       ),
       child: Column(
@@ -394,12 +396,17 @@ class _ProgressHeader extends StatelessWidget {
               Text(
                 'Progreso del checklist',
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               Text(
                 '$completed / $total pasos',
-                style: TextStyle(color: color, fontSize: 13,
-                    fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -408,8 +415,9 @@ class _ProgressHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor:
-                  isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              backgroundColor: isDark
+                  ? Colors.grey.shade800
+                  : Colors.grey.shade200,
               valueColor: AlwaysStoppedAnimation<Color>(color),
               minHeight: 6,
             ),
@@ -423,7 +431,10 @@ class _ProgressHeader extends StatelessWidget {
                 const Text(
                   '¡Checklist completado!',
                   style: TextStyle(
-                      color: green, fontSize: 12, fontWeight: FontWeight.w600),
+                    color: green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -488,7 +499,7 @@ class _PasoCard extends StatelessWidget {
                   color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
-                )
+                ),
               ],
       ),
       child: Column(
@@ -512,9 +523,10 @@ class _PasoCard extends StatelessWidget {
                       : Text(
                           '${paso.orden}',
                           style: const TextStyle(
-                              color: _amber,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold),
+                            color: _amber,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                 ),
               ),
@@ -526,13 +538,17 @@ class _PasoCard extends StatelessWidget {
                     Text(
                       paso.nombre,
                       style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     if (paso.descripcion.isNotEmpty)
                       Text(
                         paso.descripcion,
                         style: const TextStyle(
-                            color: Colors.grey, fontSize: 12),
+                          color: Colors.grey,
+                          fontSize: 12,
+                        ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -555,7 +571,9 @@ class _PasoCard extends StatelessWidget {
                     tipo: tipo,
                     fotos: fotos,
                     isDark: isDark,
-                    onTap: fotos.canCapture(tipo) ? () => onCapture(tipo) : null,
+                    onTap: fotos.canCapture(tipo)
+                        ? () => onCapture(tipo)
+                        : null,
                   ),
                 ),
               );
@@ -624,8 +642,8 @@ class _FotoButton extends StatelessWidget {
             color: captured
                 ? _green.withValues(alpha: 0.40)
                 : canCapture
-                    ? _amber.withValues(alpha: 0.35)
-                    : Colors.grey.withValues(alpha: 0.2),
+                ? _amber.withValues(alpha: 0.35)
+                : Colors.grey.withValues(alpha: 0.2),
           ),
         ),
         child: Column(
@@ -657,9 +675,11 @@ class _ThumbnailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paths = [fotos.antes, fotos.durante, fotos.despues]
-        .whereType<String>()
-        .toList();
+    final paths = [
+      fotos.antes,
+      fotos.durante,
+      fotos.despues,
+    ].whereType<String>().toList();
 
     if (paths.isEmpty) return const SizedBox.shrink();
 
@@ -676,12 +696,15 @@ class _ThumbnailRow extends StatelessWidget {
                 width: 56,
                 height: 56,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   width: 56,
                   height: 56,
                   color: Colors.grey.shade200,
-                  child: const Icon(Icons.broken_image_outlined,
-                      color: Colors.grey, size: 20),
+                  child: const Icon(
+                    Icons.broken_image_outlined,
+                    color: Colors.grey,
+                    size: 20,
+                  ),
                 ),
               ),
             ),
@@ -705,8 +728,7 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.checklist_outlined,
-              size: 56, color: Colors.grey.shade400),
+          Icon(Icons.checklist_outlined, size: 56, color: Colors.grey.shade400),
           const SizedBox(height: 12),
           const Text(
             'No se pudo cargar el checklist',

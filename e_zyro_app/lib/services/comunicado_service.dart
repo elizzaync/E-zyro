@@ -31,7 +31,8 @@ class ComunicadoService {
   // HU-13: Canal de difusión por proyecto
   // GET /comunicados/proyecto/{proyecto_id}
   Future<List<ComunicadoProyecto>> getComunicadosProyecto(
-      String proyectoId) async {
+    String proyectoId,
+  ) async {
     // Deja propagar sesión expirada al caller
     final r = await _client.get('/comunicados/proyecto/$proyectoId');
     if (r.statusCode == 200) {
@@ -61,14 +62,11 @@ class ComunicadoService {
     String? adjuntoUrl,
   }) async {
     try {
-      final r = await _client.post(
-        '/comunicados/proyecto/$proyectoId/nuevo',
-        {
-          'titulo': titulo,
-          'mensaje': mensaje,
-          if (adjuntoUrl != null) 'adjunto_url': adjuntoUrl,
-        },
-      );
+      final r = await _client.post('/comunicados/proyecto/$proyectoId/nuevo', {
+        'titulo': titulo,
+        'mensaje': mensaje,
+        'adjunto_url': ?adjuntoUrl,
+      });
       return r.statusCode == 201 || r.statusCode == 200;
     } catch (_) {}
     return false;

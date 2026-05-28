@@ -84,8 +84,7 @@ class ComprasService {
     try {
       final r = await _client.post('/compras/ordenes', {
         'proveedor_id': proveedorId,
-        if (fechaEntregaEstimada != null)
-          'fecha_entrega_estimada': fechaEntregaEstimada,
+        'fecha_entrega_estimada': ?fechaEntregaEstimada,
         'items': items,
       });
       return r.statusCode == 201;
@@ -115,9 +114,9 @@ class ComprasService {
   }) async {
     try {
       final r = await _client.post('/compras/ordenes/$id/recibir', {
-        if (almacenId != null) 'almacen_id': almacenId,
+        'almacen_id': ?almacenId,
         if (notas != null && notas.isNotEmpty) 'notas': notas,
-        if (items != null) 'items': items,
+        'items': ?items,
       });
       return r.statusCode == 200 || r.statusCode == 201;
     } catch (_) {
