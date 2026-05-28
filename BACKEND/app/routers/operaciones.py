@@ -599,6 +599,25 @@ def get_detalle_servicio(
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
 
+def _motivos_inicio(db: Session, servicio_id: str) -> list[str]:
+    """Requisitos mínimos para iniciar un servicio (checklist de Preparación).
+
+    Devuelve la lista de lo que falta; vacía = se puede iniciar. Se valida en el
+    servidor para que la regla no dependa solo de la UI (web o móvil).
+    """
+    motivos: list[str] = []
+    procs = (
+        db.query(Procedimiento)
+        .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+        .all()
+    )
+    if not procs:
+        motivos.append("repartir las tareas del servicio")
+    elif any(not p.responsable_id for p in procs):
+        motivos.append("asignar un responsable a todas las tareas")
+    return motivos
+
+
 @router.patch("/servicio/{servicio_id}/estado")
 def actualizar_estado_servicio(
     servicio_id: str,
@@ -617,10 +636,52 @@ def actualizar_estado_servicio(
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    ps.estado     = body.estado
+    estado_actual = ps.estado
+    nuevo         = body.estado
+    es_lider      = _rol_es_lider(payload.get("rol"))
+
+    # Las reglas solo aplican cuando hay cambio real de estado.
+    if estado_actual != nuevo:
+        # 1. Un servicio cerrado es inmutable salvo reapertura por líder/admin.
+        if estado_actual == "Completado" and not es_lider:
+            raise HTTPException(
+                status_code=403,
+                detail="El servicio está cerrado. Solo el Jefe de Operaciones puede reabrirlo.",
+            )
+
+        # 2. Finalizar o cancelar: solo Jefe de Operaciones / Admin.
+        if nuevo in ("Completado", "Cancelado") and not es_lider:
+            raise HTTPException(
+                status_code=403,
+                detail="Solo el Jefe de Operaciones puede finalizar o cancelar el servicio.",
+            )
+
+        # 3. Finalizar requiere el 100% de las tareas completadas.
+        if nuevo == "Completado":
+            procs = (
+                db.query(Procedimiento)
+                .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+                .all()
+            )
+            if not procs or any(p.estado != "completado" for p in procs):
+                raise HTTPException(
+                    status_code=409,
+                    detail="No puedes finalizar el servicio: faltan tareas por completar.",
+                )
+
+        # 4. Iniciar (Pendiente → En_Proceso) exige el checklist de Preparación.
+        if nuevo == "En_Proceso" and estado_actual == "Pendiente":
+            faltan = _motivos_inicio(db, servicio_id)
+            if faltan:
+                raise HTTPException(
+                    status_code=409,
+                    detail="No puedes iniciar el servicio. Falta: " + " · ".join(faltan) + ".",
+                )
+
+    ps.estado     = nuevo
     ps.updated_at = datetime.utcnow()
     db.commit()
-    return {"ok": True, "estado": body.estado}
+    return {"ok": True, "estado": nuevo}
 
 
 # ── PATCH /operaciones/procedimiento/{id}/estado ──────────────────────────────

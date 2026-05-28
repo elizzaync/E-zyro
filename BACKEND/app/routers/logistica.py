@@ -904,6 +904,20 @@ def _nombre_empleado(db: Session, empleado_id: str | None) -> tuple[str, str | N
     return f"{row[0]} {row[1]}".strip(), row[2]
 
 
+async def _notificar_servicio_ws(servicio_id) -> None:
+    """Emite un evento de control al room WS del servicio para que el detalle
+    (web/móvil) refresque la recepción de materiales en tiempo real."""
+    if not servicio_id:
+        return
+    try:
+        from .chat_ws import manager as _ws_manager
+        await _ws_manager.broadcast_servicio(
+            str(servicio_id), {"tipo": "requerimiento_actualizado"}
+        )
+    except Exception:
+        pass
+
+
 def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoOut:
     # Proyecto / servicio
     proyecto = db.query(Proyecto).filter(Proyecto.id == req.proyecto_id).first()
@@ -1085,7 +1099,7 @@ def detalle_requerimiento(
 
 
 @router.post("/requerimientos/{req_id}/aprobar", response_model=RequerimientoOut)
-def aprobar_requerimiento(
+async def aprobar_requerimiento(
     req_id:  str,
     body:    AprobarBody,
     payload: dict    = Depends(verificar_token),
@@ -1206,8 +1220,6 @@ def aprobar_requerimiento(
     db.commit()
 
     # Notificar al solicitante
-    _notificar_solicitante(
-    # Notificar al solicitante
     if todos_rechazados:
         _msg = "Tu pedido de materiales fue rechazado por Logística."
     elif hay_aprobado and hay_para_compra:
@@ -1221,6 +1233,8 @@ def aprobar_requerimiento(
         titulo="Requerimiento procesado",
         mensaje=_msg,
     )
+    # Recepción en vivo: avisar al room del servicio para refrescar la firma.
+    await _notificar_servicio_ws(req.proyecto_servicio_id)
     db.refresh(req)
     return _req_out(db, req, empresa_id)
 
@@ -1261,7 +1275,7 @@ def rechazar_requerimiento(
 
 
 @router.post("/requerimientos/{req_id}/firmar", response_model=RequerimientoOut)
-def firmar_requerimiento(
+async def firmar_requerimiento(
     req_id:  str,
     body:    FirmarBody,
     payload: dict    = Depends(verificar_token),
@@ -1321,6 +1335,9 @@ def firmar_requerimiento(
         db.commit()
     except Exception:
         db.rollback()
+
+    # Recepción en vivo: avisar al room del servicio (otros ven "firmado").
+    await _notificar_servicio_ws(req.proyecto_servicio_id)
 
     db.refresh(req)
     return _req_out(db, req, empresa_id)
