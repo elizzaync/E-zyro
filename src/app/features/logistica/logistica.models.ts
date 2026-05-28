@@ -225,6 +225,41 @@ export const CLASES_ARTICULO: { value: ClaseArticulo; label: string }[] = [
   { value: 'herramienta', label: 'Herramienta' },
 ];
 
+// ── Salidas de Materiales (HU-18) ──────────────────────────────────────────
+
+export interface SalidaItem {
+  id: string;
+  nombre: string;
+  unidad: string;
+  cantidadSolicitada: number;
+  cantidadEntregada: number;
+}
+
+export interface Salida {
+  id: string;
+  fechaSolicitud: string | null;
+  fechaSalida: string | null;
+  proyectoId: string | null;
+  proyectoNombre: string;
+  servicioId: string | null;
+  servicioNombre: string | null;
+  solicitanteNombre: string;       // quien pidio (jefe de proyecto)
+  entregadoPorNombre: string | null; // quien entrego (logística)
+  recibidoPorNombre: string | null;  // quien retiró (técnico en campo)
+  firmaUrl: string | null;
+  observacion: string | null;
+  items: SalidaItem[];
+  totalItems: number;
+  totalUnidades: number;
+}
+
+export interface SalidasKpis {
+  totalSalidas: number;
+  totalUnidadesEntregadas: number;
+  salidasEsteMes: number;
+  proyectosAtendidos: number;
+}
+
 /** KPIs de la cabecera de Logística. */
 export interface LogisticaKpis {
   totalMateriales: number;

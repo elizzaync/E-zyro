@@ -4,13 +4,14 @@ import { LogisticaService } from '../../core/services/logistica.service';
 import { LogisticaKpis } from './logistica.models';
 import { MaterialesTablaComponent } from './components/materiales-tabla/materiales-tabla.component';
 import { EquiposTablaComponent } from './components/equipos-tabla/equipos-tabla.component';
+import { SalidasComponent } from './components/salidas/salidas.component';
 
-type TabLogistica = 'materiales' | 'equipos';
+type TabLogistica = 'materiales' | 'equipos' | 'salidas';
 
 @Component({
   selector: 'app-logistica',
   standalone: true,
-  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent],
+  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, SalidasComponent],
   templateUrl: './logistica.component.html',
   styleUrls: ['./logistica.component.css']
 })

@@ -16,6 +16,8 @@ import {
   EstadoCompra,
   ProcesarCompraPayload,
   Proveedor,
+  Salida,
+  SalidasKpis,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -290,5 +292,35 @@ export class LogisticaService {
 
   cancelarCompra(id: string, motivo?: string): Observable<TicketCompra> {
     return this.http.post<TicketCompra>(`${this.api}/logistica/compras/${id}/cancelar`, { motivo: motivo ?? null });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SALIDAS DE MATERIALES (HU-18)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  getSalidasKpis(): Observable<SalidasKpis> {
+    return this.http.get<SalidasKpis>(`${this.api}/logistica/salidas/kpis`);
+  }
+
+  getSalidas(filtros: {
+    q?: string;
+    proyectoId?: string;
+    desde?: string;
+    hasta?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}): Observable<{ items: Salida[]; total: number }> {
+    let params = new HttpParams()
+      .set('page',      String(filtros.page     ?? 1))
+      .set('page_size', String(filtros.pageSize ?? 30));
+    if (filtros.q)          params = params.set('q',           filtros.q);
+    if (filtros.proyectoId) params = params.set('proyecto_id', filtros.proyectoId);
+    if (filtros.desde)      params = params.set('desde',       filtros.desde);
+    if (filtros.hasta)      params = params.set('hasta',       filtros.hasta);
+    return this.http
+      .get<{ items: Salida[]; total: number; page: number; pageSize: number }>(
+        `${this.api}/logistica/salidas`, { params }
+      )
+      .pipe(map(r => ({ items: r.items, total: r.total })));
   }
 }
