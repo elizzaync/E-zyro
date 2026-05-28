@@ -274,3 +274,111 @@ class FirmarBody(BaseModel):
     recibidoPorId: Optional[str] = None        # si None usa el empleado del usuario logueado
     firmaUrl:      str                         # data-url de la firma
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# COMPRAS (HU-17 — tickets de compra generados desde requerimientos)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TicketCompraItemOut(BaseModel):
+    id:                 str
+    ticketId:           str
+    materialId:         Optional[str] = None
+    nombre:             str
+    cantidad:           int
+    cantidadComprada:   Optional[int]   = None
+    unidad:             str             = ""
+    precioUnitario:     Optional[float] = None
+    totalItem:          Optional[float] = None
+    proveedorId:        Optional[str]   = None
+    proveedorNombre:    Optional[str]   = None
+    canalPersonalizado: Optional[str]   = None
+    factura:            Optional[str]   = None
+    estadoItem:         str             = "pendiente"
+    nota:               Optional[str]   = None
+
+
+class TicketCompraOut(BaseModel):
+    id:                   str
+    codigo:               str
+    requerimientoId:      Optional[str] = None
+    proyectoId:           Optional[str] = None
+    proyectoNombre:       str
+    servicioId:           Optional[str] = None
+    servicioNombre:       Optional[str] = None
+    solicitanteNombre:    str
+    estado:               str
+    items:                List[TicketCompraItemOut]
+    modoUnificado:        Optional[bool]  = None
+    proveedorUnicoId:     Optional[str]   = None
+    proveedorUnicoNombre: Optional[str]   = None
+    canalUnico:           Optional[str]   = None
+    totalEstimado:        Optional[float] = None
+    totalReal:            Optional[float] = None
+    responsableId:        Optional[str]   = None
+    responsableNombre:    Optional[str]   = None
+    nota:                 Optional[str]   = None
+    creadoEn:             str
+    actualizadoEn:        Optional[str]   = None
+
+
+class ComprasListResponse(BaseModel):
+    items:    List[TicketCompraOut]
+    total:    int
+    page:     int
+    pageSize: int
+
+
+class ProcesarCompraItemBody(BaseModel):
+    itemId:             str
+    cantidadComprada:   int = 0
+    precioUnitario:     Optional[float] = None
+    proveedorId:        Optional[str]   = None
+    proveedorNombre:    Optional[str]   = None
+    canalPersonalizado: Optional[str]   = None
+    factura:            Optional[str]   = None
+    nota:               Optional[str]   = None
+
+
+class ProcesarCompraBody(BaseModel):
+    modoUnificado:        bool
+    proveedorUnicoId:     Optional[str]   = None
+    proveedorUnicoNombre: Optional[str]   = None
+    canalUnico:           Optional[str]   = None
+    nota:                 Optional[str]   = None
+    completado:           bool            = False
+    items:                List[ProcesarCompraItemBody] = []
+
+
+class CancelarCompraBody(BaseModel):
+    motivo: Optional[str] = None
+
+
+class ComprasResumen(BaseModel):
+    pendiente:  int = 0
+    en_proceso: int = 0
+    completado: int = 0
+    cancelado:  int = 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PROVEEDORES
+# ═══════════════════════════════════════════════════════════════════════════
+
+class ProveedorOut(BaseModel):
+    id:        str
+    nombre:    str
+    ruc:       Optional[str] = None
+    contacto:  Optional[str] = None
+    email:     Optional[str] = None
+    rating:    int = 0
+    categorias: List[str] = []
+    activo:    bool = True
+
+
+class ProveedorIn(BaseModel):
+    nombre:   str
+    ruc:      Optional[str] = None
+    contacto: Optional[str] = None
+    email:    Optional[str] = None
+    rating:   int = 0
+

@@ -32,12 +32,14 @@ from ..models.unidad_medida import UnidadMedida
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.requerimiento_entrega import RequerimientoEntrega
 from ..models.movimiento_inventario import MovimientoInventario
+from ..models.ticket_compra import TicketCompra, TicketCompraItem
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.proyecto import Proyecto
 from ..models.proyecto_servicio import ProyectoServicio
 from ..models.firma_digital import FirmaDigital
 from ..models.notificacion import Notificacion
+from ..models.proveedor import Proveedor as ProveedorModel, ProveedorCategoria
 
 from ..schemas.logistica import (
     MaterialIn, MaterialPatch, MaterialOut, MaterialesListResponse,
@@ -49,6 +51,9 @@ from ..schemas.logistica import (
     ModeloOut,  ModeloIn,
     RequerimientoItemOut, RequerimientoOut, RequerimientosListResponse,
     AprobarBody, RechazarBody, EntregarBody, FirmarBody,
+    TicketCompraItemOut, TicketCompraOut, ComprasListResponse,
+    ProcesarCompraBody, CancelarCompraBody, ComprasResumen,
+    ProveedorOut, ProveedorIn,
 )
 from datetime import date as _date
 
@@ -1169,6 +1174,12 @@ def aprobar_requerimiento(
         req.observacion_logistico = body.observacion
     req.aprobado_por = emp_log.id if emp_log else None
     req.updated_at = datetime.utcnow()
+
+    # Auto-crear TicketCompra para los ítems marcados para_compra
+    detalles_compra = [d for d in detalles if d.estado_item == "para_compra"]
+    if detalles_compra:
+        _crear_ticket_compra(db, req, empresa_id, detalles_compra)
+
     db.commit()
 
     # Notificar al solicitante
@@ -1362,3 +1373,394 @@ def _notificar_solicitante(db: Session, req: Requerimiento, empresa_id: str, tit
         db.commit()
     except Exception:
         db.rollback()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# COMPRAS (HU-17) — Tickets generados desde requerimientos aprobados
+# ══════════════════════════════════════════════════════════════════════════
+
+def _siguiente_codigo_ticket(db: Session, empresa_id: str) -> str:
+    rows = db.query(TicketCompra.codigo).filter(
+        TicketCompra.empresa_id == empresa_id,
+        TicketCompra.codigo.ilike("TC-%"),
+    ).all()
+    max_n = 0
+    pat = re.compile(r"^TC-(\d+)$", re.IGNORECASE)
+    for (c,) in rows:
+        if c:
+            m = pat.match(c.strip())
+            if m:
+                n = int(m.group(1))
+                if n > max_n:
+                    max_n = n
+    return f"TC-{(max_n + 1):04d}"
+
+
+def _ticket_item_out(it: TicketCompraItem) -> TicketCompraItemOut:
+    return TicketCompraItemOut(
+        id=str(it.id),
+        ticketId=str(it.ticket_id),
+        materialId=it.material_id,
+        nombre=it.nombre,
+        cantidad=int(it.cantidad or 0),
+        cantidadComprada=int(it.cantidad_comprada) if it.cantidad_comprada is not None else None,
+        unidad=it.unidad or "",
+        precioUnitario=float(it.precio_unitario) if it.precio_unitario is not None else None,
+        totalItem=float(it.total_item) if it.total_item is not None else None,
+        proveedorId=it.proveedor_id,
+        proveedorNombre=it.proveedor_nombre,
+        canalPersonalizado=it.canal_personalizado,
+        factura=it.factura,
+        estadoItem=it.estado_item or "pendiente",
+        nota=it.nota,
+    )
+
+
+def _ticket_out(db: Session, tc: TicketCompra) -> TicketCompraOut:
+    items_db = (
+        db.query(TicketCompraItem)
+        .filter(TicketCompraItem.ticket_id == tc.id)
+        .all()
+    )
+    return TicketCompraOut(
+        id=str(tc.id),
+        codigo=tc.codigo,
+        requerimientoId=tc.requerimiento_id,
+        proyectoId=tc.proyecto_id,
+        proyectoNombre=tc.proyecto_nombre or "—",
+        servicioId=tc.proyecto_servicio_id,
+        servicioNombre=tc.servicio_nombre,
+        solicitanteNombre=tc.solicitante_nombre or "—",
+        estado=tc.estado or "pendiente",
+        items=[_ticket_item_out(it) for it in items_db],
+        modoUnificado=tc.modo_unificado,
+        proveedorUnicoId=tc.proveedor_unico_id,
+        proveedorUnicoNombre=tc.proveedor_unico_nombre,
+        canalUnico=tc.canal_unico,
+        totalEstimado=float(tc.total_estimado) if tc.total_estimado is not None else None,
+        totalReal=float(tc.total_real) if tc.total_real is not None else None,
+        responsableId=tc.responsable_id,
+        responsableNombre=None,
+        nota=tc.nota,
+        creadoEn=tc.created_at.isoformat() if tc.created_at else "",
+        actualizadoEn=tc.updated_at.isoformat() if tc.updated_at else None,
+    )
+
+
+def _crear_ticket_compra(
+    db: Session,
+    req: Requerimiento,
+    empresa_id: str,
+    detalles_compra: list,
+) -> TicketCompra | None:
+    """Crea un TicketCompra con los ítems marcados 'para_compra'. Idempotente."""
+    if not detalles_compra:
+        return None
+
+    # Si ya existe un ticket para este requerimiento, no duplicar
+    existente = db.query(TicketCompra).filter(
+        TicketCompra.requerimiento_id == req.id,
+        TicketCompra.empresa_id == empresa_id,
+        TicketCompra.estado != "cancelado",
+    ).first()
+    if existente:
+        return existente
+
+    # Datos de contexto
+    proyecto = db.query(Proyecto).filter(Proyecto.id == req.proyecto_id).first()
+    proyecto_nombre = proyecto.nombre_proyecto if proyecto else "Proyecto"
+    servicio_nombre = None
+    if req.proyecto_servicio_id:
+        srv = db.query(ProyectoServicio).filter(ProyectoServicio.id == req.proyecto_servicio_id).first()
+        servicio_nombre = srv.nombre if srv else None
+    sol_nombre, _ = _nombre_empleado(db, req.solicitante_id)
+
+    codigo = _siguiente_codigo_ticket(db, empresa_id)
+    tc = TicketCompra(
+        id=str(_uuid.uuid4()),
+        empresa_id=empresa_id,
+        requerimiento_id=str(req.id),
+        codigo=codigo,
+        estado="pendiente",
+        proyecto_id=str(req.proyecto_id) if req.proyecto_id else None,
+        proyecto_servicio_id=str(req.proyecto_servicio_id) if req.proyecto_servicio_id else None,
+        proyecto_nombre=proyecto_nombre,
+        servicio_nombre=servicio_nombre,
+        solicitante_nombre=sol_nombre,
+        created_at=datetime.utcnow(),
+    )
+    db.add(tc)
+    db.flush()  # necesitamos tc.id para los ítems
+
+    for d in detalles_compra:
+        nombre = d.nombre_libre or "—"
+        unidad = d.unidad_libre or ""
+        if d.material_id:
+            mat = db.query(Material).filter(Material.id == d.material_id).first()
+            if mat:
+                nombre = mat.nombre
+                unidad = mat.unidad or unidad
+        db.add(TicketCompraItem(
+            id=str(_uuid.uuid4()),
+            ticket_id=tc.id,
+            requerimiento_detalle_id=str(d.id),
+            material_id=str(d.material_id) if d.material_id else None,
+            nombre=nombre,
+            cantidad=int(d.cantidad or 0),
+            unidad=unidad,
+            estado_item="pendiente",
+        ))
+
+    return tc
+
+
+@router.get("/compras", response_model=ComprasListResponse)
+def listar_compras(
+    estado:      str = Query("pendiente", description="pendiente|en_proceso|completado|cancelado|todos"),
+    proyecto_id: str = Query(""),
+    q:           str = Query(""),
+    page:        int = Query(1, ge=1),
+    page_size:   int = Query(50, ge=1, le=200),
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    base = db.query(TicketCompra).filter(TicketCompra.empresa_id == empresa_id)
+
+    if estado and estado != "todos":
+        base = base.filter(TicketCompra.estado == estado)
+    if proyecto_id:
+        base = base.filter(TicketCompra.proyecto_id == proyecto_id)
+
+    total = base.count()
+    rows = (
+        base.order_by(TicketCompra.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    items = [_ticket_out(db, tc) for tc in rows]
+
+    if q:
+        ql = q.lower()
+        items = [
+            it for it in items
+            if ql in it.proyectoNombre.lower()
+            or ql in (it.servicioNombre or "").lower()
+            or ql in it.solicitanteNombre.lower()
+            or ql in it.codigo.lower()
+            or any(ql in i.nombre.lower() for i in it.items)
+        ]
+
+    return ComprasListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+@router.get("/compras/resumen", response_model=ComprasResumen)
+def resumen_compras(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Conteo de tickets por estado para los KPIs del encabezado."""
+    empresa_id = payload["empresa_id"]
+    from sqlalchemy import case as sql_case
+
+    row = db.query(
+        func.count(sql_case((TicketCompra.estado == "pendiente",  1))).label("pendiente"),
+        func.count(sql_case((TicketCompra.estado == "en_proceso", 1))).label("en_proceso"),
+        func.count(sql_case((TicketCompra.estado == "completado", 1))).label("completado"),
+        func.count(sql_case((TicketCompra.estado == "cancelado",  1))).label("cancelado"),
+    ).filter(TicketCompra.empresa_id == empresa_id).first()
+
+    return ComprasResumen(
+        pendiente  = row.pendiente  or 0,
+        en_proceso = row.en_proceso or 0,
+        completado = row.completado or 0,
+        cancelado  = row.cancelado  or 0,
+    )
+
+
+@router.get("/compras/{ticket_id}", response_model=TicketCompraOut)
+def detalle_compra(
+    ticket_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    tc = db.query(TicketCompra).filter(
+        TicketCompra.id == ticket_id,
+        TicketCompra.empresa_id == empresa_id,
+    ).first()
+    if not tc:
+        raise HTTPException(status_code=404, detail="Ticket de compra no encontrado")
+    return _ticket_out(db, tc)
+
+
+@router.patch("/compras/{ticket_id}/procesar", response_model=TicketCompraOut)
+def procesar_compra(
+    ticket_id: str,
+    body:      ProcesarCompraBody,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    tc = db.query(TicketCompra).filter(
+        TicketCompra.id == ticket_id,
+        TicketCompra.empresa_id == empresa_id,
+    ).first()
+    if not tc:
+        raise HTTPException(status_code=404, detail="Ticket de compra no encontrado")
+    if tc.estado in ("completado", "cancelado"):
+        raise HTTPException(status_code=409, detail=f"El ticket ya está {tc.estado}")
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    # Mapa itemId → body
+    items_map = {b.itemId: b for b in body.items}
+
+    total_real = 0.0
+    for it in db.query(TicketCompraItem).filter(TicketCompraItem.ticket_id == tc.id).all():
+        b = items_map.get(str(it.id))
+        if b is None:
+            continue
+        it.cantidad_comprada = b.cantidadComprada
+        it.precio_unitario   = b.precioUnitario
+        it.total_item        = (b.cantidadComprada or 0) * (b.precioUnitario or 0)
+        it.factura           = b.factura
+        it.nota              = b.nota
+
+        # Proveedor / canal
+        if body.modoUnificado:
+            it.proveedor_id        = body.proveedorUnicoId
+            it.proveedor_nombre    = body.proveedorUnicoNombre
+            it.canal_personalizado = body.canalUnico
+        else:
+            it.proveedor_id        = b.proveedorId
+            it.proveedor_nombre    = b.proveedorNombre
+            it.canal_personalizado = b.canalPersonalizado
+
+        it.estado_item = "comprado" if (b.cantidadComprada or 0) > 0 else "pendiente"
+        total_real += float(it.total_item or 0)
+
+    # Actualizar cabecera del ticket
+    tc.modo_unificado         = body.modoUnificado
+    tc.proveedor_unico_id     = body.proveedorUnicoId if body.modoUnificado else None
+    tc.proveedor_unico_nombre = body.proveedorUnicoNombre if body.modoUnificado else None
+    tc.canal_unico            = body.canalUnico if body.modoUnificado else None
+    tc.nota                   = body.nota
+    tc.total_real             = total_real
+    tc.responsable_id         = str(emp.id) if emp else None
+    tc.estado                 = "completado" if body.completado else "en_proceso"
+    tc.updated_at             = datetime.utcnow()
+
+    db.commit()
+    db.refresh(tc)
+    return _ticket_out(db, tc)
+
+
+@router.post("/compras/{ticket_id}/cancelar", response_model=TicketCompraOut)
+def cancelar_compra(
+    ticket_id: str,
+    body:      CancelarCompraBody,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+
+    tc = db.query(TicketCompra).filter(
+        TicketCompra.id == ticket_id,
+        TicketCompra.empresa_id == empresa_id,
+    ).first()
+    if not tc:
+        raise HTTPException(status_code=404, detail="Ticket de compra no encontrado")
+    if tc.estado == "cancelado":
+        raise HTTPException(status_code=409, detail="El ticket ya está cancelado")
+
+    tc.estado              = "cancelado"
+    tc.motivo_cancelacion  = body.motivo
+    tc.updated_at          = datetime.utcnow()
+    db.commit()
+    db.refresh(tc)
+    return _ticket_out(db, tc)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# PROVEEDORES — CRUD básico
+# ══════════════════════════════════════════════════════════════════════════
+
+def _prov_out(db: Session, p: ProveedorModel) -> ProveedorOut:
+    cats = (
+        db.query(CategoriaMaterial.nombre)
+        .join(ProveedorCategoria, ProveedorCategoria.categoria_id == CategoriaMaterial.id)
+        .filter(ProveedorCategoria.proveedor_id == p.id)
+        .all()
+    )
+    return ProveedorOut(
+        id       = str(p.id),
+        nombre   = p.razon_social,
+        ruc      = p.ruc,
+        contacto = p.telefono or p.contacto,
+        email    = p.email,
+        rating   = getattr(p, "rating", 0) or 0,
+        categorias = [c[0] for c in cats],
+        activo   = bool(p.activo),
+    )
+
+
+@router.get("/proveedores", response_model=List[ProveedorOut])
+def listar_proveedores(
+    solo_activos: bool = Query(True),
+    q:            str  = Query(""),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    base = db.query(ProveedorModel).filter(ProveedorModel.empresa_id == empresa_id)
+    if solo_activos:
+        base = base.filter(ProveedorModel.activo.is_(True))
+    if q:
+        like = f"%{q.lower()}%"
+        base = base.filter(func.lower(ProveedorModel.razon_social).like(like))
+    rows = base.order_by(ProveedorModel.razon_social).all()
+    return [_prov_out(db, p) for p in rows]
+
+
+@router.post("/proveedores", response_model=ProveedorOut, status_code=201)
+def crear_proveedor(
+    body:    ProveedorIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=400, detail="Nombre requerido")
+
+    existente = db.query(ProveedorModel).filter(
+        ProveedorModel.empresa_id == empresa_id,
+        func.lower(ProveedorModel.razon_social) == nombre.lower(),
+    ).first()
+    if existente:
+        return _prov_out(db, existente)
+
+    p = ProveedorModel(
+        id           = str(_uuid.uuid4()),
+        empresa_id   = empresa_id,
+        razon_social = nombre,
+        ruc          = (body.ruc or "").strip() or None,
+        contacto     = None,
+        telefono     = (body.contacto or "").strip() or None,
+        email        = (body.email or "").strip() or None,
+        activo       = True,
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return _prov_out(db, p)

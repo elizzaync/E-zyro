@@ -49,7 +49,7 @@ from app.models import (  # noqa: F401
     categoria_material, almacen, material, movimiento_inventario,
     unidad_medida, marca, modelo_equipo,
     # Compras
-    proveedor, orden_compra, recepcion_compra,
+    proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
     comunicado,
     # Equipos y mantenimiento
@@ -311,6 +311,53 @@ def _run_migrations():
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_tipo_equipo_empresa_nombre "
             "ON tipo_equipo (empresa_id, lower(nombre))"
         ))
+
+        # ── HU-17 COMPRAS 2026-05-28 — Tickets de compra ─────────────────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ticket_compra (
+                id                     VARCHAR(36)    PRIMARY KEY,
+                empresa_id             VARCHAR(36)    NOT NULL REFERENCES empresa(id),
+                requerimiento_id       VARCHAR(36)    REFERENCES requerimiento(id),
+                codigo                 VARCHAR(20)    NOT NULL,
+                estado                 VARCHAR(20)    NOT NULL DEFAULT 'pendiente',
+                proyecto_id            VARCHAR(36),
+                proyecto_servicio_id   VARCHAR(36),
+                proyecto_nombre        VARCHAR(300),
+                servicio_nombre        VARCHAR(300),
+                solicitante_nombre     VARCHAR(200),
+                modo_unificado         BOOLEAN,
+                proveedor_unico_id     VARCHAR(36),
+                proveedor_unico_nombre VARCHAR(200),
+                canal_unico            VARCHAR(200),
+                total_estimado         NUMERIC(12,2),
+                total_real             NUMERIC(12,2),
+                responsable_id         VARCHAR(36),
+                nota                   TEXT,
+                motivo_cancelacion     TEXT,
+                created_at             TIMESTAMP      NOT NULL DEFAULT now(),
+                updated_at             TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ticket_compra_item (
+                id                       VARCHAR(36)  PRIMARY KEY,
+                ticket_id                VARCHAR(36)  NOT NULL REFERENCES ticket_compra(id),
+                requerimiento_detalle_id VARCHAR(36),
+                material_id              VARCHAR(36),
+                nombre                   VARCHAR(300) NOT NULL,
+                cantidad                 INTEGER      NOT NULL DEFAULT 1,
+                unidad                   VARCHAR(50),
+                cantidad_comprada        INTEGER,
+                precio_unitario          NUMERIC(12,2),
+                total_item               NUMERIC(12,2),
+                proveedor_id             VARCHAR(36),
+                proveedor_nombre         VARCHAR(200),
+                canal_personalizado      VARCHAR(200),
+                factura                  VARCHAR(100),
+                estado_item              VARCHAR(20)  NOT NULL DEFAULT 'pendiente',
+                nota                     TEXT
+            )
+        """))
 
         conn.commit()
 
