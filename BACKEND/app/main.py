@@ -113,6 +113,52 @@ def _pre_create_migrations():
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_unidad_empresa_nombre "
             "ON unidad_medida (empresa_id, lower(nombre))"
         ))
+        # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ticket_compra (
+                id                     uuid           PRIMARY KEY,
+                empresa_id             uuid           NOT NULL REFERENCES empresa(id),
+                requerimiento_id       uuid           REFERENCES requerimiento(id),
+                codigo                 VARCHAR(20)    NOT NULL,
+                estado                 VARCHAR(20)    NOT NULL DEFAULT 'pendiente',
+                proyecto_id            uuid,
+                proyecto_servicio_id   uuid,
+                proyecto_nombre        VARCHAR(300),
+                servicio_nombre        VARCHAR(300),
+                solicitante_nombre     VARCHAR(200),
+                modo_unificado         BOOLEAN,
+                proveedor_unico_id     uuid,
+                proveedor_unico_nombre VARCHAR(200),
+                canal_unico            VARCHAR(200),
+                total_estimado         NUMERIC(12,2),
+                total_real             NUMERIC(12,2),
+                responsable_id         uuid,
+                nota                   TEXT,
+                motivo_cancelacion     TEXT,
+                created_at             TIMESTAMP      NOT NULL DEFAULT now(),
+                updated_at             TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ticket_compra_item (
+                id                       uuid         PRIMARY KEY,
+                ticket_id                uuid         NOT NULL REFERENCES ticket_compra(id),
+                requerimiento_detalle_id uuid,
+                material_id              uuid,
+                nombre                   VARCHAR(300) NOT NULL,
+                cantidad                 INTEGER      NOT NULL DEFAULT 1,
+                unidad                   VARCHAR(50),
+                cantidad_comprada        INTEGER,
+                precio_unitario          NUMERIC(12,2),
+                total_item               NUMERIC(12,2),
+                proveedor_id             uuid,
+                proveedor_nombre         VARCHAR(200),
+                canal_personalizado      VARCHAR(200),
+                factura                  VARCHAR(100),
+                estado_item              VARCHAR(20)  NOT NULL DEFAULT 'pendiente',
+                nota                     TEXT
+            )
+        """))
         conn.commit()
 
 
@@ -313,25 +359,26 @@ def _run_migrations():
         ))
 
         # ── HU-17 COMPRAS 2026-05-28 — Tickets de compra ─────────────────────
+        # Tablas creadas en _pre_create_migrations con uuid; IF NOT EXISTS es seguro
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ticket_compra (
-                id                     VARCHAR(36)    PRIMARY KEY,
-                empresa_id             VARCHAR(36)    NOT NULL REFERENCES empresa(id),
-                requerimiento_id       VARCHAR(36)    REFERENCES requerimiento(id),
+                id                     uuid           PRIMARY KEY,
+                empresa_id             uuid           NOT NULL REFERENCES empresa(id),
+                requerimiento_id       uuid           REFERENCES requerimiento(id),
                 codigo                 VARCHAR(20)    NOT NULL,
                 estado                 VARCHAR(20)    NOT NULL DEFAULT 'pendiente',
-                proyecto_id            VARCHAR(36),
-                proyecto_servicio_id   VARCHAR(36),
+                proyecto_id            uuid,
+                proyecto_servicio_id   uuid,
                 proyecto_nombre        VARCHAR(300),
                 servicio_nombre        VARCHAR(300),
                 solicitante_nombre     VARCHAR(200),
                 modo_unificado         BOOLEAN,
-                proveedor_unico_id     VARCHAR(36),
+                proveedor_unico_id     uuid,
                 proveedor_unico_nombre VARCHAR(200),
                 canal_unico            VARCHAR(200),
                 total_estimado         NUMERIC(12,2),
                 total_real             NUMERIC(12,2),
-                responsable_id         VARCHAR(36),
+                responsable_id         uuid,
                 nota                   TEXT,
                 motivo_cancelacion     TEXT,
                 created_at             TIMESTAMP      NOT NULL DEFAULT now(),
@@ -340,17 +387,17 @@ def _run_migrations():
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ticket_compra_item (
-                id                       VARCHAR(36)  PRIMARY KEY,
-                ticket_id                VARCHAR(36)  NOT NULL REFERENCES ticket_compra(id),
-                requerimiento_detalle_id VARCHAR(36),
-                material_id              VARCHAR(36),
+                id                       uuid         PRIMARY KEY,
+                ticket_id                uuid         NOT NULL REFERENCES ticket_compra(id),
+                requerimiento_detalle_id uuid,
+                material_id              uuid,
                 nombre                   VARCHAR(300) NOT NULL,
                 cantidad                 INTEGER      NOT NULL DEFAULT 1,
                 unidad                   VARCHAR(50),
                 cantidad_comprada        INTEGER,
                 precio_unitario          NUMERIC(12,2),
                 total_item               NUMERIC(12,2),
-                proveedor_id             VARCHAR(36),
+                proveedor_id             uuid,
                 proveedor_nombre         VARCHAR(200),
                 canal_personalizado      VARCHAR(200),
                 factura                  VARCHAR(100),
