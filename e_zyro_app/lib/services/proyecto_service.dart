@@ -1,11 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
+import '../core/api_result.dart';
+import '../models/accion_pendiente.dart';
 import '../models/evidencia_pendiente.dart';
 import '../models/proyecto_models.dart';
+import '../models/recepcion_models.dart';
+import '../repositories/accion_local_repo.dart';
 import '../repositories/cache_repo.dart';
 import '../repositories/evidencia_local_repo.dart';
 import '../utils/app_notifiers.dart';
@@ -14,7 +20,120 @@ class ProyectoService {
   final ApiClient _client;
   final _cache = CacheRepo();
   final _evidenciaRepo = EvidenciaLocalRepo();
+  final _accionRepo = AccionLocalRepo();
   ProyectoService(this._client);
+
+  // ── Cola offline de acciones (toggle, firma, notas) ─────────────────────────
+
+  /// Encola una acción para reintentarla al reconectar y actualiza el badge.
+  Future<void> _enqueueAccion(
+      String tipo, Map<String, dynamic> payload, String? servicioId) async {
+    await _accionRepo.insertar(AccionPendiente(
+      uuid: const Uuid().v4(),
+      tipo: tipo,
+      payload: payload,
+      servicioId: servicioId,
+    ));
+    pendientesAccionNotifier.value = await _accionRepo.contarPendientes();
+  }
+
+  /// Ejecuta online; si falla por **red**, encola la acción y devuelve
+  /// `enqueued` (se reintentará). Si falla por otra causa (403/409/…) NO
+  /// encola y propaga el error real.
+  Future<ApiResult<bool>> _runOrEnqueue(
+    Future<http.Response> Function() send,
+    String tipo,
+    Map<String, dynamic> payload,
+    String? servicioId,
+  ) async {
+    final res = await _run<bool>(send, (_) => true);
+    if (res.ok) return res;
+    if (res.error?.kind == ApiErrorKind.network) {
+      await _enqueueAccion(tipo, payload, servicioId);
+      return const ApiResult<bool>.enqueued();
+    }
+    return res;
+  }
+
+  Future<int> contarAccionesPendientes() => _accionRepo.contarPendientes();
+
+  /// Drena la cola de acciones (FIFO). Éxito → elimina; fallo de red →
+  /// reintentar luego; error permanente (4xx) → descarta para no atascar.
+  Future<int> sincronizarAcciones() async {
+    final pendientes = await _accionRepo.obtenerPendientes();
+    int enviadas = 0;
+    for (final a in pendientes) {
+      await _accionRepo.marcarEnviando(a.uuid);
+      final res = await _replayAccion(a);
+      if (res.ok) {
+        await _accionRepo.eliminar(a.uuid);
+        enviadas++;
+      } else if (res.error?.kind == ApiErrorKind.network) {
+        await _accionRepo.registrarFallo(a.uuid);
+      } else {
+        await _accionRepo.eliminar(a.uuid); // permanente → descartar
+      }
+    }
+    pendientesAccionNotifier.value = await _accionRepo.contarPendientes();
+    return enviadas;
+  }
+
+  Future<ApiResult<bool>> _replayAccion(AccionPendiente a) {
+    final p = a.payload;
+    switch (a.tipo) {
+      case TipoAccion.toggleProc:
+        return _run(
+            () => _client.patch('/operaciones/procedimiento/${p['procId']}/estado',
+                {'estado': p['estado']}),
+            (_) => true);
+      case TipoAccion.firmarReq:
+        return _run(
+            () => _client.post('/logistica/requerimientos/${p['reqId']}/firmar',
+                {'recibidoPorId': '', 'firmaUrl': p['firmaUrl']}),
+            (_) => true);
+      case TipoAccion.notaAdd:
+        return _run(
+            () => _client.post('/operaciones/servicio/${p['servicioId']}/nota',
+                {'descripcion': p['descripcion']}),
+            (_) => true);
+      case TipoAccion.notaUpdate:
+        return _run(
+            () => _client
+                .put('/operaciones/nota/${p['notaId']}', {'descripcion': p['descripcion']}),
+            (_) => true);
+      case TipoAccion.notaDelete:
+        return _run(
+            () => _client.delete('/operaciones/nota/${p['notaId']}'), (_) => true);
+      default:
+        return Future.value(
+            const ApiResult<bool>.fail(ApiError(ApiErrorKind.unknown)));
+    }
+  }
+
+  /// Ejecuta una petición y la traduce a [ApiResult], clasificando la causa del
+  /// fallo (red, sesión, permiso, conflicto, servidor) en vez de tragar el error.
+  Future<ApiResult<T>> _run<T>(
+    Future<http.Response> Function() send,
+    T Function(http.Response r) onOk,
+  ) async {
+    try {
+      final r = await send();
+      if (r.statusCode >= 200 && r.statusCode < 300) {
+        return ApiResult.ok(onOk(r));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } on TimeoutException {
+      return const ApiResult.fail(
+          ApiError(ApiErrorKind.network, 'La conexión tardó demasiado.'));
+    } catch (e) {
+      // ApiClient lanza Exception('Sesión expirada…') en 401/sin token.
+      final msg = e.toString();
+      if (msg.contains('Sesión') || msg.contains('login')) {
+        return const ApiResult.fail(ApiError(ApiErrorKind.auth));
+      }
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
 
   // Claves de caché read-through (offline-first) para lecturas de operaciones.
   static const _kProyectos = 'op_proyectos';
@@ -95,30 +214,27 @@ class ProyectoService {
   // ── Mutaciones de operaciones ───────────────────────────────────────────────
 
   // PATCH /operaciones/servicio/{id}/estado
-  Future<bool> cambiarEstadoServicio(String servicioId, String estado) async {
-    try {
-      final r = await _client.patch(
-        '/operaciones/servicio/$servicioId/estado',
-        {'estado': estado},
+  // Surface del motivo (detail del backend): 403 (rol) o 409 (checklist).
+  Future<ApiResult<bool>> cambiarEstadoServicio(
+    String servicioId,
+    String estado,
+  ) =>
+      _run(
+        () => _client.patch(
+            '/operaciones/servicio/$servicioId/estado', {'estado': estado}),
+        (_) => true,
       );
-      return r.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
 
-  // PATCH /operaciones/procedimiento/{id}/estado
-  Future<bool> toggleProcedimiento(String procId, String estado) async {
-    try {
-      final r = await _client.patch(
-        '/operaciones/procedimiento/$procId/estado',
-        {'estado': estado},
+  // PATCH /operaciones/procedimiento/{id}/estado  (encolable offline)
+  Future<ApiResult<bool>> toggleProcedimiento(String procId, String estado,
+          {String? servicioId}) =>
+      _runOrEnqueue(
+        () => _client.patch(
+            '/operaciones/procedimiento/$procId/estado', {'estado': estado}),
+        TipoAccion.toggleProc,
+        {'procId': procId, 'estado': estado},
+        servicioId,
       );
-      return r.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
 
   // POST /operaciones/procedimiento/{id}/evidencia  (multipart)
   // etapa: 'antes' | 'durante' | 'despues'. Devuelve la URL subida o null.
@@ -292,6 +408,26 @@ class ProyectoService {
     return [];
   }
 
+  // GET /logistica/equipos?q=&clase=todas&estado=operativo
+  // Busca equipos/herramientas operativos del inventario para solicitarlos.
+  Future<List<EquipoBusqueda>> buscarEquipos(String q) async {
+    if (q.trim().length < 2) return [];
+    try {
+      final r = await _client.get(
+        '/logistica/equipos?q=${Uri.encodeComponent(q.trim())}&estado=operativo&page_size=20',
+      );
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body);
+        final list = body is Map ? (body['items'] as List? ?? []) : (body as List? ?? []);
+        return list
+            .map((e) => EquipoBusqueda.fromJson(e as Map<String, dynamic>))
+            .where((e) => e.estado == 'operativo')
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   // GET /operaciones/servicio/{id}/borrador
   Future<Borrador> getBorrador(String servicioId) async {
     try {
@@ -304,77 +440,135 @@ class ProyectoService {
   }
 
   // POST /operaciones/servicio/{id}/borrador/item → {detalle_id, requerimiento_id}
-  Future<String?> agregarItemBorrador(
+  // data = detalle_id del ítem creado.
+  Future<ApiResult<String?>> agregarItemBorrador(
     String servicioId, {
     String? materialId,
     required String nombre,
     required String unidad,
     required int cantidad,
     String? especificacion,
-  }) async {
-    try {
-      final r = await _client
-          .post('/operaciones/servicio/$servicioId/borrador/item', {
-            'material_id': materialId,
-            'nombre': nombre,
-            'unidad': unidad,
-            'cantidad': cantidad,
-            if (especificacion != null && especificacion.isNotEmpty)
-              'especificacion': especificacion,
-          });
-      if (r.statusCode == 200 || r.statusCode == 201) {
-        final body = jsonDecode(r.body) as Map<String, dynamic>;
-        return body['detalle_id'] as String?;
-      }
-    } catch (_) {}
-    return null;
-  }
+  }) =>
+      _run(
+        () => _client.post('/operaciones/servicio/$servicioId/borrador/item', {
+          'material_id': materialId,
+          'nombre': nombre,
+          'unidad': unidad,
+          'cantidad': cantidad,
+          if (especificacion != null && especificacion.isNotEmpty)
+            'especificacion': especificacion,
+        }),
+        (r) => (jsonDecode(r.body) as Map<String, dynamic>)['detalle_id']
+            as String?,
+      );
 
   // PATCH /operaciones/requerimiento-detalle/{id}
-  Future<bool> actualizarReqDetalle(
+  Future<ApiResult<bool>> actualizarReqDetalle(
     String rdId, {
     int? cantidad,
     String? nombre,
     String? especificacion,
-  }) async {
-    try {
-      final body = <String, dynamic>{
-        'cantidad': ?cantidad,
-        'nombre': ?nombre,
-        'especificacion': ?especificacion,
-      };
-      final r = await _client.patch(
-        '/operaciones/requerimiento-detalle/$rdId',
-        body,
+  }) =>
+      _run(
+        () => _client.patch('/operaciones/requerimiento-detalle/$rdId', {
+          'cantidad': ?cantidad,
+          'nombre': ?nombre,
+          'especificacion': ?especificacion,
+        }),
+        (_) => true,
       );
-      return r.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
 
   // DELETE /operaciones/borrador-detalle/{id}
-  Future<bool> removerItemBorrador(String rdId) async {
-    try {
-      final r = await _client.delete('/operaciones/borrador-detalle/$rdId');
-      return r.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
+  Future<ApiResult<bool>> removerItemBorrador(String rdId) => _run(
+        () => _client.delete('/operaciones/borrador-detalle/$rdId'),
+        (_) => true,
+      );
 
   // POST /operaciones/servicio/{id}/borrador/enviar
-  Future<bool> enviarBorrador(String servicioId) async {
-    try {
-      final r = await _client.post(
-        '/operaciones/servicio/$servicioId/borrador/enviar',
-        {},
+  Future<ApiResult<bool>> enviarBorrador(String servicioId) => _run(
+        () => _client.post('/operaciones/servicio/$servicioId/borrador/enviar', {}),
+        (_) => true,
       );
-      return r.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
+
+  // ── Recepción de materiales (HU-16) — firma del técnico ─────────────────────
+
+  /// Requerimientos del servicio que ya fueron aprobados/firmados por Logística.
+  /// Se filtran a estado 'aprobado' (por firmar) o 'listo' (firmado) para
+  /// mostrar el bloque de recepción en el detalle del servicio.
+  // GET /logistica/requerimientos?estado=todos&servicio_id={id}
+  Future<List<ReqRecepcion>> getRequerimientosServicio(String servicioId) async {
+    try {
+      final r = await _client.get(
+        '/logistica/requerimientos?estado=todos&servicio_id=$servicioId',
+      );
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body);
+        final list = body is Map ? (body['items'] as List? ?? []) : (body as List? ?? []);
+        return list
+            .map((e) => ReqRecepcion.fromJson(e as Map<String, dynamic>))
+            .where((req) => req.estado == 'aprobado' || req.estado == 'listo')
+            .toList();
+      }
+    } catch (_) {}
+    return [];
   }
+
+  /// Firma la recepción de un requerimiento aprobado. [firmaUrl] puede ser una
+  /// URL en la nube (firma guardada) o un data-url base64 de la firma dibujada.
+  /// recibidoPorId vacío → el backend usa el empleado del usuario logueado.
+  // POST /logistica/requerimientos/{id}/firmar  (encolable offline)
+  Future<ApiResult<bool>> firmarRequerimiento(String reqId, String firmaUrl,
+          {String? servicioId}) =>
+      _runOrEnqueue(
+        () => _client.post('/logistica/requerimientos/$reqId/firmar',
+            {'recibidoPorId': '', 'firmaUrl': firmaUrl}),
+        TipoAccion.firmarReq,
+        {'reqId': reqId, 'firmaUrl': firmaUrl},
+        servicioId,
+      );
+
+  // ── Notas del servicio (CRUD) ───────────────────────────────────────────────
+
+  // GET /operaciones/servicio/{id}/notas
+  Future<List<NotaServicio>> getNotasServicio(String servicioId) async {
+    try {
+      final r = await _client.get('/operaciones/servicio/$servicioId/notas');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => NotaServicio.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // POST /operaciones/servicio/{id}/nota  (encolable offline)
+  Future<ApiResult<bool>> agregarNota(String servicioId, String descripcion) =>
+      _runOrEnqueue(
+        () => _client.post(
+            '/operaciones/servicio/$servicioId/nota', {'descripcion': descripcion}),
+        TipoAccion.notaAdd,
+        {'servicioId': servicioId, 'descripcion': descripcion},
+        servicioId,
+      );
+
+  // PUT /operaciones/nota/{id}  (encolable offline)
+  Future<ApiResult<bool>> actualizarNota(String notaId, String descripcion) =>
+      _runOrEnqueue(
+        () => _client.put('/operaciones/nota/$notaId', {'descripcion': descripcion}),
+        TipoAccion.notaUpdate,
+        {'notaId': notaId, 'descripcion': descripcion},
+        null,
+      );
+
+  // DELETE /operaciones/nota/{id}  (encolable offline)
+  Future<ApiResult<bool>> eliminarNota(String notaId) => _runOrEnqueue(
+        () => _client.delete('/operaciones/nota/$notaId'),
+        TipoAccion.notaDelete,
+        {'notaId': notaId},
+        null,
+      );
 
   // ── Asignación de equipo + cronograma (HU-13) ───────────────────────────────
 

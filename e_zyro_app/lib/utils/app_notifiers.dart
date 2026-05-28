@@ -17,6 +17,10 @@ final pendientesAsistenciaNotifier = ValueNotifier<int>(0);
 /// Lo actualiza ProyectoService al encolar offline y al terminar cada sync.
 final pendientesEvidenciaNotifier = ValueNotifier<int>(0);
 
+/// Cantidad de acciones de operaciones pendientes de sincronizar
+/// (toggle de tareas, firma de recepción, notas) hechas sin conexión.
+final pendientesAccionNotifier = ValueNotifier<int>(0);
+
 /// Se incrementa cada vez que un intento de sync falla con 401 / sesión vencida.
 /// MainShell escucha este notifier para mostrar SnackBar + notificación local
 /// y redirigir al usuario al login.

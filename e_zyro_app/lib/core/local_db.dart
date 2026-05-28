@@ -20,7 +20,7 @@ class LocalDb {
     final path = join(dir, 'ezyro_local.db');
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE registro_asistencia_local (
@@ -38,6 +38,7 @@ class LocalDb {
         ''');
         await _crearCacheKv(db);
         await _crearEvidenciaPendiente(db);
+        await _crearAccionPendiente(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -51,8 +52,29 @@ class LocalDb {
         if (oldVersion < 4) {
           await _crearEvidenciaPendiente(db);
         }
+        if (oldVersion < 5) {
+          await _crearAccionPendiente(db);
+        }
       },
     );
+  }
+
+  /// Cola genérica de acciones de operaciones pendientes de enviar (offline).
+  /// Acciones con ID de servidor estable y sin dependencias entre sí:
+  /// toggle de tarea, firma de recepción y notas (add/edit/delete).
+  static Future<void> _crearAccionPendiente(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS accion_pendiente (
+        uuid            TEXT PRIMARY KEY,
+        tipo            TEXT NOT NULL,
+        payload         TEXT NOT NULL,
+        servicio_id     TEXT,
+        estado_sync     INTEGER NOT NULL DEFAULT 0,
+        retry_count     INTEGER NOT NULL DEFAULT 0,
+        last_attempt_at TEXT,
+        created_at      TEXT NOT NULL
+      )
+    ''');
   }
 
   /// Cola de evidencias de procedimientos pendientes de subir (offline-first).

@@ -1,14 +1,23 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:signature/signature.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import '../core/app_constants.dart';
 import '../models/proyecto_models.dart';
 import '../models/comunicado_models.dart';
+import '../models/recepcion_models.dart';
 import '../services/proyecto_service.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
+import '../utils/fase_servicio.dart';
 import '../services/comunicado_service.dart';
+import '../services/chat_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import '../templates/informe_servicio_pdf.dart';
@@ -42,11 +51,16 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     with SingleTickerProviderStateMixin {
   ServicioDetalle? _detalle;
   Borrador _borrador = const Borrador(items: []);
+  List<ReqRecepcion> _reqsRecepcion = [];
   bool _isLoading = true;
   bool _puedeFinalizar = false;
   bool _cambiandoEstado = false;
   late TabController _tabController;
   DateTime? _lastDetailLoad;
+
+  // ── Tiempo real: WS del servicio para borrador y recepción ─────────────────
+  ChatService? _eventosWs;
+  Timer? _eventDebounce;
 
   @override
   void initState() {
@@ -54,6 +68,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     _tabController = TabController(length: 6, vsync: this);
     _checkRol();
     _load();
+    _conectarEventos();
     pendientesEvidenciaNotifier.addListener(_onEvidenciaSync);
     syncCompletedNotifier.addListener(_onSyncCompleted);
   }
@@ -62,8 +77,32 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   void dispose() {
     pendientesEvidenciaNotifier.removeListener(_onEvidenciaSync);
     syncCompletedNotifier.removeListener(_onSyncCompleted);
+    _eventDebounce?.cancel();
+    _eventosWs?.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Abre una conexión WS al room del servicio para recibir eventos en vivo
+  /// ('borrador_actualizado', 'requerimiento_actualizado') y refrescar el
+  /// borrador y la recepción sin que el técnico tenga que recargar. Cierra la
+  /// brecha anti-duplicidad: todos ven el borrador del equipo en tiempo real.
+  Future<void> _conectarEventos() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token') ?? '';
+    if (token.isEmpty || !mounted) return;
+    final ws = ChatService();
+    ws.connect('servicio/${widget.servicioId}', token);
+    ws.eventos.listen(_onEventoServidor);
+    _eventosWs = ws;
+  }
+
+  void _onEventoServidor(String tipo) {
+    // Coalescer ráfagas de eventos en una sola recarga.
+    _eventDebounce?.cancel();
+    _eventDebounce = Timer(const Duration(milliseconds: 700), () {
+      if (mounted) _reloadBorrador();
+    });
   }
 
   /// Cuando las evidencias pendientes cambian (o el sync completa), recargar
@@ -94,13 +133,18 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     final results = await Future.wait([
       widget.service.getDetalleServicio(widget.servicioId),
       widget.service.getBorrador(widget.servicioId),
+      widget.service.getRequerimientosServicio(widget.servicioId),
     ]);
     if (!mounted) return;
     setState(() {
       _detalle = results[0] as ServicioDetalle?;
       _borrador = results[1] as Borrador;
+      _reqsRecepcion = results[2] as List<ReqRecepcion>;
       _isLoading = false;
     });
+    // Refrescar el badge de acciones offline pendientes.
+    pendientesAccionNotifier.value =
+        await widget.service.contarAccionesPendientes();
   }
 
   Future<void> _reloadDetalle() async {
@@ -110,24 +154,144 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   }
 
   Future<void> _reloadBorrador() async {
-    final b = await widget.service.getBorrador(widget.servicioId);
+    final results = await Future.wait([
+      widget.service.getBorrador(widget.servicioId),
+      widget.service.getRequerimientosServicio(widget.servicioId),
+    ]);
     if (!mounted) return;
-    setState(() => _borrador = b);
+    setState(() {
+      _borrador = results[0] as Borrador;
+      _reqsRecepcion = results[1] as List<ReqRecepcion>;
+    });
+  }
+
+  /// Recarga lo que afecta al tab Materiales: detalle (asignados/solicitados),
+  /// borrador y requerimientos de recepción.
+  Future<void> _reloadMateriales() async {
+    await _reloadDetalle();
+    await _reloadBorrador();
+  }
+
+  // ── Checklist de Preparación (Fase 1) — mismo criterio que la web ───────────
+  List<String> get _motivosInicio {
+    final d = _detalle;
+    if (d == null) return const [];
+    final m = <String>[];
+    if (d.equipo.isEmpty) m.add('asignar el equipo técnico');
+    if (d.procedimientos.isEmpty) {
+      m.add('repartir las tareas del servicio');
+    } else if (d.procedimientos.any((p) => (p.responsableId ?? '').isEmpty)) {
+      m.add('asignar un responsable a todas las tareas');
+    }
+    final totalMat =
+        d.materialesAsignados.length + d.materialesSolicitados.length;
+    if (totalMat == 0 && _borrador.items.isEmpty) {
+      m.add('elegir los materiales y herramientas');
+    }
+    if (_borrador.items.isNotEmpty) {
+      m.add('enviar el borrador de materiales a Logística');
+    }
+    return m;
+  }
+
+  bool get _puedeIniciar => _motivosInicio.isEmpty;
+
+  // Sub-pasos de la Fase 1 (mismos criterios que la web).
+  bool get _prepEquipoListo => (_detalle?.equipo.isNotEmpty ?? false);
+  bool get _prepTareasListo {
+    final p = _detalle?.procedimientos ?? const [];
+    return p.isNotEmpty && p.every((t) => (t.responsableId ?? '').isNotEmpty);
+  }
+
+  bool get _prepMaterialesListo {
+    final d = _detalle;
+    if (d == null) return false;
+    final total = d.materialesAsignados.length + d.materialesSolicitados.length;
+    return total > 0 && _borrador.items.isEmpty;
+  }
+
+  double _calcProgreso(List<ProcedimientoDetalle> procs) {
+    if (procs.isEmpty) return 0;
+    final done = procs.where((p) => p.estado == 'completado').length;
+    return (done / procs.length) * 100;
+  }
+
+  // ── Toggle de tarea optimista (refleja al instante, revierte si falla) ──────
+  Future<void> _toggleOptimista(ProcedimientoDetalle proc) async {
+    final d = _detalle;
+    if (d == null) return;
+    if (d.estado == 'Completado') {
+      _snack('El servicio está cerrado (solo lectura).', _amber);
+      return;
+    }
+    final original = proc.estado;
+    final nuevo = original == 'completado' ? 'pendiente' : 'completado';
+    setState(() {
+      proc.estado = nuevo;
+      d.progreso = _calcProgreso(d.procedimientos);
+    });
+    final res =
+        await widget.service.toggleProcedimiento(proc.id, nuevo, servicioId: d.id);
+    if (!mounted) return;
+    if (!res.ok) {
+      setState(() {
+        proc.estado = original;
+        d.progreso = _calcProgreso(d.procedimientos);
+      });
+      _snack(res.errorMessage.isEmpty ? 'No se pudo actualizar la tarea' : res.errorMessage,
+          _danger);
+    } else if (res.queued) {
+      _snack('Tarea actualizada · se sincronizará al reconectar', _amber);
+    }
   }
 
   // ── Cambiar estado del servicio ─────────────────────────────────────────────
   Future<void> _cambiarEstado(String estado) async {
     if (_detalle == null || _cambiandoEstado) return;
     setState(() => _cambiandoEstado = true);
-    final ok = await widget.service.cambiarEstadoServicio(_detalle!.id, estado);
+    final res = await widget.service.cambiarEstadoServicio(_detalle!.id, estado);
     if (!mounted) return;
     setState(() => _cambiandoEstado = false);
-    if (ok) {
+    if (res.ok) {
       await _reloadDetalle();
       _snack('Estado actualizado a ${_estadoLabel(estado)}', _green);
     } else {
-      _snack('No se pudo cambiar el estado', _danger);
+      _snack(res.errorMessage.isEmpty ? 'No se pudo cambiar el estado' : res.errorMessage, _danger);
     }
+  }
+
+  // ── Iniciar servicio (Pendiente → En_Proceso) con checklist ─────────────────
+  Future<void> _iniciarServicio() async {
+    final d = _detalle;
+    if (d == null || d.estado != 'Pendiente') return;
+    final motivos = _motivosInicio;
+    if (motivos.isNotEmpty) {
+      _snack('No puedes iniciar aún. Falta: ${motivos.join(' · ')}.', _amber);
+      return;
+    }
+    await _cambiarEstado('En_Proceso');
+  }
+
+  // ── Cancelar / reabrir servicio (solo jefe / admin) ─────────────────────────
+  Future<void> _cancelarServicio() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar servicio'),
+        content: const Text(
+            '¿Seguro que deseas cancelar este servicio? Esta acción cambia su estado a Cancelado.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('No')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: _danger),
+              child: const Text('Sí, cancelar')),
+        ],
+      ),
+    );
+    if (confirmar == true) await _cambiarEstado('Cancelado');
   }
 
   // ── Finalizar servicio (solo jefe / admin) ──────────────────────────────────
@@ -143,9 +307,13 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
       return;
     }
     // Cerrar el servicio y abrir el pre-informe PDF
-    final ok = await widget.service.cambiarEstadoServicio(d.id, 'Completado');
+    final res = await widget.service.cambiarEstadoServicio(d.id, 'Completado');
     if (!mounted) return;
-    if (ok) await _reloadDetalle();
+    if (!res.ok) {
+      _snack(res.errorMessage.isEmpty ? 'No se pudo finalizar el servicio' : res.errorMessage, _danger);
+      return;
+    }
+    await _reloadDetalle();
     if (!mounted) return;
     await Navigator.push(
       context,
@@ -205,17 +373,16 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         actions: [
-          if (d != null && !_cambiandoEstado)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.flag_outlined, size: 20),
-              tooltip: 'Cambiar estado',
-              onSelected: _cambiarEstado,
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'Pendiente', child: Text('Pendiente')),
-                PopupMenuItem(value: 'En_Proceso', child: Text('En Proceso')),
-                PopupMenuItem(value: 'Completado', child: Text('Completado')),
-                PopupMenuItem(value: 'Cancelado', child: Text('Cancelado')),
-              ],
+          // Iniciar: solo en Pendiente. Bloqueado (gris) hasta cumplir checklist.
+          if (d != null && d.estado == 'Pendiente' && !_cambiandoEstado)
+            IconButton(
+              icon: Icon(_puedeIniciar ? Icons.play_circle_outline : Icons.lock_outline,
+                  size: 20),
+              tooltip: _puedeIniciar
+                  ? 'Iniciar servicio'
+                  : 'Falta: ${_motivosInicio.join(' · ')}',
+              color: _puedeIniciar ? _green : null,
+              onPressed: _iniciarServicio,
             ),
           if (d != null &&
               (AppSession.i.isJefeOperaciones || AppSession.i.isAdmin))
@@ -224,13 +391,70 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               tooltip: 'Editar servicio',
               onPressed: _editarServicio,
             ),
-          if (d != null && _puedeFinalizar && d.estado != 'Completado')
+          // Finalizar: solo jefe/admin, al 100%.
+          if (d != null && _puedeFinalizar && d.estado == 'En_Proceso')
             IconButton(
               icon: const Icon(Icons.task_alt_outlined, size: 20),
-              tooltip: 'Finalizar y generar informe',
+              tooltip: d.progreso >= 100
+                  ? 'Finalizar y generar informe'
+                  : 'Completa las tareas para finalizar',
               color: d.progreso >= 100 ? _green : null,
               onPressed: _finalizarServicio,
             ),
+          // Menú de líder: cancelar / reabrir (acciones terminales protegidas).
+          if (d != null &&
+              _puedeFinalizar &&
+              !_cambiandoEstado &&
+              d.estado != 'Cancelado')
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, size: 20),
+              tooltip: 'Más acciones',
+              onSelected: (v) {
+                if (v == 'cancelar') _cancelarServicio();
+                if (v == 'reabrir') _cambiarEstado('En_Proceso');
+              },
+              itemBuilder: (_) => [
+                if (d.estado != 'Cancelado' && d.estado != 'Completado')
+                  const PopupMenuItem(
+                      value: 'cancelar', child: Text('Cancelar servicio')),
+                if (d.estado == 'Completado')
+                  const PopupMenuItem(
+                      value: 'reabrir', child: Text('Reabrir servicio')),
+              ],
+            ),
+          // Badge de acciones offline pendientes de sincronizar.
+          ValueListenableBuilder<int>(
+            valueListenable: pendientesAccionNotifier,
+            builder: (_, n, _) {
+              if (n == 0) return const SizedBox.shrink();
+              return Center(
+                child: Tooltip(
+                  message: '$n acción(es) sin sincronizar',
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cloud_upload_outlined,
+                            size: 14, color: _amber),
+                        const SizedBox(width: 3),
+                        Text('$n',
+                            style: const TextStyle(
+                                color: _amber,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_outlined, size: 20),
             onPressed: _load,
@@ -248,7 +472,21 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               : Column(
                   children: [
                     _Header(detalle: d),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
+                    _FasesStepper(estado: d.estado, progreso: d.progreso),
+                    if (d.estado == 'Pendiente') ...[
+                      const SizedBox(height: 8),
+                      _ChecklistPreparacion(
+                        equipoListo: _prepEquipoListo,
+                        tareasListo: _prepTareasListo,
+                        materialesListo: _prepMaterialesListo,
+                        puedeIniciar: _puedeIniciar,
+                        motivos: _motivosInicio,
+                        iniciando: _cambiandoEstado,
+                        onIniciar: _iniciarServicio,
+                      ),
+                    ],
+                    const SizedBox(height: 10),
                     TabBar(
                       controller: _tabController,
                       isScrollable: true,
@@ -298,6 +536,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             procedimientos: d.procedimientos,
                             service: widget.service,
                             onChanged: _reloadDetalle,
+                            onToggle: _toggleOptimista,
                           ),
                           _EquipoTab(
                             equipo: d.equipo,
@@ -311,10 +550,15 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             asignados: d.materialesAsignados,
                             solicitados: d.materialesSolicitados,
                             borrador: _borrador,
+                            reqsRecepcion: _reqsRecepcion,
                             service: widget.service,
-                            onChanged: _reloadBorrador,
+                            onChanged: _reloadMateriales,
                           ),
-                          _NotasTab(notas: d.notas),
+                          _NotasTab(
+                            servicioId: d.id,
+                            notasIniciales: d.notas,
+                            service: widget.service,
+                          ),
                           ChatTab(
                             room: 'servicio/${widget.servicioId}',
                             fotosPorId: {
@@ -469,17 +713,244 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+// ─── Stepper de 4 fases (Preparación · En sitio · Ejecución · Cierre) ─────────
+
+class _FasesStepper extends StatelessWidget {
+  final String estado;
+  final double progreso;
+  const _FasesStepper({required this.estado, required this.progreso});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Row(
+        children: [
+          for (final f in fasesServicio) ...[
+            Builder(builder: (_) {
+              final clase = faseClase(f.n, estado, progreso);
+              final done = clase == 'done';
+              final active = clase == 'active';
+              final color = (done || active) ? _green : muted;
+              return Expanded(
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 3,
+                            color: f.n == 1
+                                ? Colors.transparent
+                                : (faseClase(f.n - 1, estado, progreso) != 'muted'
+                                    ? _green
+                                    : muted.withValues(alpha: 0.3)),
+                          ),
+                        ),
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: done
+                                ? _green
+                                : (active ? _green.withValues(alpha: 0.15) : Colors.transparent),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: color, width: 2),
+                          ),
+                          child: done
+                              ? const Icon(Icons.check, size: 13, color: Colors.white)
+                              : Center(
+                                  child: Text('${f.n}',
+                                      style: TextStyle(
+                                          color: color,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                        ),
+                        Expanded(
+                          child: Container(
+                            height: 3,
+                            color: f.n == fasesServicio.length
+                                ? Colors.transparent
+                                : (done ? _green : muted.withValues(alpha: 0.3)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(f.nombre,
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 9.5,
+                            height: 1.1,
+                            color: (done || active) ? null : muted,
+                            fontWeight:
+                                active ? FontWeight.w700 : FontWeight.w500)),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Checklist de Preparación (Fase 1) ────────────────────────────────────────
+
+class _ChecklistPreparacion extends StatelessWidget {
+  final bool equipoListo;
+  final bool tareasListo;
+  final bool materialesListo;
+  final bool puedeIniciar;
+  final bool iniciando;
+  final List<String> motivos;
+  final VoidCallback onIniciar;
+
+  const _ChecklistPreparacion({
+    required this.equipoListo,
+    required this.tareasListo,
+    required this.materialesListo,
+    required this.puedeIniciar,
+    required this.iniciando,
+    required this.motivos,
+    required this.onIniciar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: puedeIniciar
+                ? _green.withValues(alpha: 0.35)
+                : _amber.withValues(alpha: isDark ? 0.30 : 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.fact_check_outlined, size: 16, color: _amber),
+              SizedBox(width: 6),
+              Text('Fase 1 · Preparación',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _PrepStep(n: 1, ok: equipoListo, label: 'Asignar equipo técnico'),
+          _PrepStep(n: 2, ok: tareasListo, label: 'Repartir tareas (con responsable)'),
+          _PrepStep(n: 3, ok: materialesListo, label: 'Elegir materiales y herramientas'),
+          const SizedBox(height: 8),
+          if (!puedeIniciar)
+            Text('Falta: ${motivos.join(' · ')}.',
+                style: const TextStyle(
+                    color: _amber, fontSize: 11.5, fontWeight: FontWeight.w500))
+          else
+            const Text('Todo listo. Ya puedes iniciar el servicio.',
+                style: TextStyle(
+                    color: _green, fontSize: 11.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: (puedeIniciar && !iniciando) ? onIniciar : null,
+              icon: iniciando
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : Icon(puedeIniciar ? Icons.play_arrow_rounded : Icons.lock_outline,
+                      size: 18),
+              label: Text(puedeIniciar ? 'Iniciar servicio' : 'Iniciar (bloqueado)',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _green,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    Theme.of(context).disabledColor.withValues(alpha: 0.15),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrepStep extends StatelessWidget {
+  final int n;
+  final bool ok;
+  final String label;
+  const _PrepStep({required this.n, required this.ok, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              color: ok ? _green : Colors.transparent,
+              shape: BoxShape.circle,
+              border: Border.all(color: ok ? _green : Colors.grey, width: 1.5),
+            ),
+            child: ok
+                ? const Icon(Icons.check, size: 12, color: Colors.white)
+                : Center(
+                    child: Text('$n',
+                        style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w700)),
+                  ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    color: ok ? null : Colors.grey,
+                    fontWeight: ok ? FontWeight.w500 : FontWeight.w400)),
+          ),
+          if (ok) const Icon(Icons.check_circle, size: 14, color: _green),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Tab: Procedimientos (interactivo) ────────────────────────────────────────
 
 class _ProcedimientosTab extends StatelessWidget {
   final List<ProcedimientoDetalle> procedimientos;
   final ProyectoService service;
   final Future<void> Function() onChanged;
+  final void Function(ProcedimientoDetalle) onToggle;
 
   const _ProcedimientosTab({
     required this.procedimientos,
     required this.service,
     required this.onChanged,
+    required this.onToggle,
   });
 
   @override
@@ -498,6 +969,7 @@ class _ProcedimientosTab extends StatelessWidget {
         proc: procedimientos[i],
         service: service,
         onChanged: onChanged,
+        onToggle: onToggle,
       ),
     );
   }
@@ -507,11 +979,13 @@ class _ProcedimientoCard extends StatelessWidget {
   final ProcedimientoDetalle proc;
   final ProyectoService service;
   final Future<void> Function() onChanged;
+  final void Function(ProcedimientoDetalle) onToggle;
 
   const _ProcedimientoCard({
     required this.proc,
     required this.service,
     required this.onChanged,
+    required this.onToggle,
   });
 
   Color get _color => switch (proc.estado) {
@@ -527,12 +1001,6 @@ class _ProcedimientoCard extends StatelessWidget {
         'bloqueado' => Icons.block,
         _ => Icons.radio_button_unchecked,
       };
-
-  Future<void> _toggle() async {
-    final nuevo = proc.estado == 'completado' ? 'pendiente' : 'completado';
-    await service.toggleProcedimiento(proc.id, nuevo);
-    await onChanged();
-  }
 
   void _abrirEvidencia(BuildContext context) {
     showModalBottomSheet(
@@ -566,7 +1034,7 @@ class _ProcedimientoCard extends StatelessWidget {
           Row(
             children: [
               GestureDetector(
-                onTap: _toggle,
+                onTap: () => onToggle(proc),
                 child: Icon(_icon, color: _color, size: 22),
               ),
               const SizedBox(width: 8),
@@ -1017,6 +1485,7 @@ class _MaterialesTab extends StatefulWidget {
   final List<ItemMaterial> asignados;
   final List<ItemMaterial> solicitados;
   final Borrador borrador;
+  final List<ReqRecepcion> reqsRecepcion;
   final ProyectoService service;
   final Future<void> Function() onChanged;
 
@@ -1025,6 +1494,7 @@ class _MaterialesTab extends StatefulWidget {
     required this.asignados,
     required this.solicitados,
     required this.borrador,
+    required this.reqsRecepcion,
     required this.service,
     required this.onChanged,
   });
@@ -1035,6 +1505,8 @@ class _MaterialesTab extends StatefulWidget {
 
 class _MaterialesTabState extends State<_MaterialesTab> {
   bool _enviando = false;
+  bool _consenso = false;
+  String? _firmandoReqId;
 
   Future<void> _abrirSolicitar() async {
     await showModalBottomSheet(
@@ -1052,23 +1524,82 @@ class _MaterialesTabState extends State<_MaterialesTab> {
   Future<void> _enviarBorrador() async {
     if (widget.borrador.items.isEmpty) return;
     setState(() => _enviando = true);
-    final ok = await widget.service.enviarBorrador(widget.servicioId);
+    final res = await widget.service.enviarBorrador(widget.servicioId);
     if (!mounted) return;
     setState(() => _enviando = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(ok ? 'Solicitud enviada a Logística' : 'Error al enviar',
+        content: Text(
+            res.ok
+                ? 'Solicitud enviada a Logística'
+                : (res.errorMessage.isEmpty ? 'Error al enviar' : res.errorMessage),
             style: const TextStyle(color: Colors.white)),
-        backgroundColor: ok ? _green : _danger,
+        backgroundColor: res.ok ? _green : _danger,
         behavior: SnackBarBehavior.floating,
       ),
     );
-    if (ok) await widget.onChanged();
+    if (res.ok) {
+      _consenso = false;
+      await widget.onChanged();
+    }
   }
 
   Future<void> _quitar(BorradorItem item) async {
-    final ok = await widget.service.removerItemBorrador(item.id);
-    if (ok) await widget.onChanged();
+    final res = await widget.service.removerItemBorrador(item.id);
+    if (!mounted) return;
+    if (res.ok) {
+      await widget.onChanged();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              res.errorMessage.isEmpty ? 'No se pudo quitar el ítem' : res.errorMessage,
+              style: const TextStyle(color: Colors.white)),
+          backgroundColor: _danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // ── Firma de recepción de materiales (HU-16) ───────────────────────────────
+  // Un solo técnico firma para confirmar que recibió los materiales aprobados
+  // por Logística; evita errores de doble recepción.
+  Future<void> _firmarRecepcion(ReqRecepcion req) async {
+    final firmaUrl = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FirmaRecepcionSheet(req: req),
+    );
+    if (firmaUrl == null || firmaUrl.isEmpty) return;
+
+    setState(() => _firmandoReqId = req.id);
+    final res = await widget.service
+        .firmarRequerimiento(req.id, firmaUrl, servicioId: widget.servicioId);
+    if (!mounted) return;
+    setState(() => _firmandoReqId = null);
+    final String msg;
+    final Color color;
+    if (res.queued) {
+      msg = 'Firma guardada · se enviará a Logística al reconectar';
+      color = _amber;
+    } else if (res.ok) {
+      msg = 'Recepción firmada · Logística fue notificada';
+      color = _green;
+    } else {
+      msg = res.errorMessage.isEmpty ? 'No se pudo registrar la firma' : res.errorMessage;
+      color = _danger;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(color: Colors.white)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    // Solo recargar si se confirmó online (offline el servidor aún no cambió).
+    if (res.ok && !res.queued) await widget.onChanged();
   }
 
   @override
@@ -1079,6 +1610,19 @@ class _MaterialesTabState extends State<_MaterialesTab> {
         ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
           children: [
+            // ── Recepción de materiales (firma HU-16) ─────────────────────────
+            if (widget.reqsRecepcion.isNotEmpty) ...[
+              const _SectionTitle('Recepción de Materiales',
+                  Icons.assignment_turned_in_outlined, _green),
+              const SizedBox(height: 8),
+              ...widget.reqsRecepcion.map((req) => _RecepcionCard(
+                    req: req,
+                    firmando: _firmandoReqId == req.id,
+                    onFirmar: () => _firmarRecepcion(req),
+                  )),
+              const SizedBox(height: 20),
+            ],
+
             // ── Borrador en construcción ─────────────────────────────────────
             if (borrador.items.isNotEmpty) ...[
               Row(
@@ -1096,11 +1640,62 @@ class _MaterialesTabState extends State<_MaterialesTab> {
                     onRemove: () => _quitar(it),
                     onEdit: () => _editar(it),
                   )),
+              const SizedBox(height: 10),
+              // Aviso anti-duplicidad: solo un técnico debe consolidar y enviar.
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _amber.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _amber.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        size: 18, color: _amber),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        '¡Atención equipo! Solo un técnico debe consolidar y enviar '
+                        'la solicitud para evitar pedidos duplicados. Verifiquen entre '
+                        'todos antes de confirmar.',
+                        style: TextStyle(fontSize: 11.5, color: Colors.grey, height: 1.4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => setState(() => _consenso = !_consenso),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: _consenso,
+                        onChanged: (v) => setState(() => _consenso = v ?? false),
+                        activeColor: _green,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Confirmo que el equipo está de acuerdo con esta solicitud en lote',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _enviando ? null : _enviarBorrador,
+                  onPressed: (_enviando || !_consenso) ? null : _enviarBorrador,
                   icon: _enviando
                       ? const SizedBox(
                           width: 16,
@@ -1137,14 +1732,16 @@ class _MaterialesTabState extends State<_MaterialesTab> {
               const _SectionTitle(
                   'Materiales Asignados', Icons.check_circle_outline, _green),
               const SizedBox(height: 8),
-              ...widget.asignados.map((m) => _MaterialCard(item: m)),
+              ...widget.asignados.map((m) =>
+                  _MaterialCard(item: m, onEdit: () => _editarMaterial(m))),
               const SizedBox(height: 16),
             ],
             if (widget.solicitados.isNotEmpty) ...[
               const _SectionTitle(
                   'Materiales Solicitados', Icons.pending_outlined, _amber),
               const SizedBox(height: 8),
-              ...widget.solicitados.map((m) => _MaterialCard(item: m)),
+              ...widget.solicitados.map((m) =>
+                  _MaterialCard(item: m, onEdit: () => _editarMaterial(m))),
             ],
           ],
         ),
@@ -1162,6 +1759,55 @@ class _MaterialesTabState extends State<_MaterialesTab> {
           ),
         ),
       ],
+    );
+  }
+
+  // Editar cantidad de un material ya asignado/solicitado (si aún es editable).
+  Future<void> _editarMaterial(ItemMaterial m) async {
+    if (m.estadoReq == 'entregado' || m.estadoReq == 'aprobado') {
+      _snack('Este ítem ya fue ${m.estadoReq} y no se puede editar.', _amber);
+      return;
+    }
+    final cantCtrl = TextEditingController(text: '${m.cantidad}');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(m.nombre),
+        content: TextField(
+          controller: cantCtrl,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Cantidad'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final cant = int.tryParse(cantCtrl.text.trim()) ?? m.cantidad;
+    final res = await widget.service
+        .actualizarReqDetalle(m.id, cantidad: cant < 1 ? 1 : cant);
+    if (!mounted) return;
+    if (res.ok) {
+      await widget.onChanged();
+    } else {
+      _snack(res.errorMessage.isEmpty ? 'No se pudo editar' : res.errorMessage, _danger);
+    }
+  }
+
+  void _snack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(color: Colors.white)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -1205,13 +1851,26 @@ class _MaterialesTabState extends State<_MaterialesTab> {
     );
     if (ok != true) return;
     final cant = int.tryParse(cantCtrl.text.trim()) ?? item.cantidad;
-    await widget.service.actualizarReqDetalle(
+    final res = await widget.service.actualizarReqDetalle(
       item.id,
       cantidad: cant < 1 ? 1 : cant,
       nombre: item.esNuevo ? nombreCtrl.text.trim() : null,
       especificacion: item.esNuevo ? especCtrl.text.trim() : null,
     );
-    await widget.onChanged();
+    if (!mounted) return;
+    if (res.ok) {
+      await widget.onChanged();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              res.errorMessage.isEmpty ? 'No se pudo editar el ítem' : res.errorMessage,
+              style: const TextStyle(color: Colors.white)),
+          backgroundColor: _danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 
@@ -1289,7 +1948,7 @@ class _SolicitarMaterialSheet extends StatefulWidget {
 }
 
 class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
-  bool _externo = false;
+  int _modo = 0; // 0 = catálogo · 1 = equipos/herramientas · 2 = compra externa
   bool _guardando = false;
 
   // Catálogo
@@ -1298,6 +1957,13 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
   MaterialBusqueda? _elegido;
   int _cantidad = 1;
   Timer? _debounce;
+
+  // Equipos / Herramientas
+  final _busquedaEqCtrl = TextEditingController();
+  List<EquipoBusqueda> _resultadosEq = [];
+  EquipoBusqueda? _equipoElegido;
+  int _cantEquipo = 1;
+  Timer? _debounceEq;
 
   // Compra externa
   final _nombreCtrl = TextEditingController();
@@ -1308,7 +1974,9 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _debounceEq?.cancel();
     _busquedaCtrl.dispose();
+    _busquedaEqCtrl.dispose();
     _nombreCtrl.dispose();
     _especCtrl.dispose();
     super.dispose();
@@ -1322,10 +1990,51 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
     });
   }
 
+  void _onSearchEq(String q) {
+    _debounceEq?.cancel();
+    _debounceEq = Timer(const Duration(milliseconds: 350), () async {
+      final r = await widget.service.buscarEquipos(q);
+      if (mounted) setState(() => _resultadosEq = r);
+    });
+  }
+
+  Future<void> _agregarEquipo() async {
+    final eq = _equipoElegido;
+    if (eq == null) return;
+    setState(() => _guardando = true);
+    final etiqueta = eq.esHerramienta ? 'Herramienta' : 'Equipo';
+    final res = await widget.service.agregarItemBorrador(
+      widget.servicioId,
+      materialId: null,
+      nombre: eq.nombre,
+      unidad: 'Unidades',
+      cantidad: _cantEquipo,
+      especificacion: '[$etiqueta] ${eq.nombre} del inventario',
+    );
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (res.ok) {
+      await widget.onAgregado();
+      if (mounted) Navigator.pop(context);
+    } else {
+      _snackError(res.errorMessage.isEmpty ? 'No se pudo agregar' : res.errorMessage);
+    }
+  }
+
+  void _snackError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(color: Colors.white)),
+        backgroundColor: _danger,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _agregarCatalogo() async {
     if (_elegido == null) return;
     setState(() => _guardando = true);
-    final id = await widget.service.agregarItemBorrador(
+    final res = await widget.service.agregarItemBorrador(
       widget.servicioId,
       materialId: _elegido!.id,
       nombre: _elegido!.nombre,
@@ -1334,9 +2043,11 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
     );
     if (!mounted) return;
     setState(() => _guardando = false);
-    if (id != null) {
+    if (res.ok) {
       await widget.onAgregado();
       if (mounted) Navigator.pop(context);
+    } else {
+      _snackError(res.errorMessage.isEmpty ? 'No se pudo agregar' : res.errorMessage);
     }
   }
 
@@ -1345,7 +2056,7 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
     final espec = _especCtrl.text.trim();
     if (nombre.isEmpty || espec.isEmpty) return;
     setState(() => _guardando = true);
-    final id = await widget.service.agregarItemBorrador(
+    final res = await widget.service.agregarItemBorrador(
       widget.servicioId,
       materialId: null,
       nombre: nombre,
@@ -1355,9 +2066,11 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
     );
     if (!mounted) return;
     setState(() => _guardando = false);
-    if (id != null) {
+    if (res.ok) {
       await widget.onAgregado();
       if (mounted) Navigator.pop(context);
+    } else {
+      _snackError(res.errorMessage.isEmpty ? 'No se pudo agregar' : res.errorMessage);
     }
   }
 
@@ -1389,27 +2102,38 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
                   borderRadius: BorderRadius.circular(2)),
             ),
           ),
-          const Text('Solicitar Material',
+          const Text('Solicitar al Requerimiento',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          // Toggle catálogo / externo
+          // Toggle: catálogo / equipos-herramientas / compra externa
           Row(
             children: [
               _ToggleChip(
-                label: 'Del Catálogo',
-                selected: !_externo,
-                onTap: () => setState(() => _externo = false),
+                label: 'Material',
+                selected: _modo == 0,
+                onTap: () => setState(() => _modo = 0),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _ToggleChip(
-                label: 'Compra Externa',
-                selected: _externo,
-                onTap: () => setState(() => _externo = true),
+                label: 'Equipo/Herr.',
+                selected: _modo == 1,
+                onTap: () => setState(() => _modo = 1),
+              ),
+              const SizedBox(width: 6),
+              _ToggleChip(
+                label: 'Compra ext.',
+                selected: _modo == 2,
+                onTap: () => setState(() => _modo = 2),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          if (!_externo) ..._buildCatalogo() else ..._buildExterno(),
+          if (_modo == 0)
+            ..._buildCatalogo()
+          else if (_modo == 1)
+            ..._buildEquipos()
+          else
+            ..._buildExterno(),
         ],
       ),
     );
@@ -1491,6 +2215,100 @@ class _SolicitarMaterialSheetState extends State<_SolicitarMaterialSheet> {
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
               : const Text('Agregar al Borrador',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildEquipos() {
+    return [
+      TextField(
+        controller: _busquedaEqCtrl,
+        onChanged: _onSearchEq,
+        decoration: InputDecoration(
+          hintText: 'Buscar equipo o herramienta (mín. 2 letras)...',
+          prefixIcon: const Icon(Icons.handyman_outlined),
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none),
+        ),
+      ),
+      if (_equipoElegido == null && _resultadosEq.isNotEmpty)
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 200),
+          child: ListView(
+            shrinkWrap: true,
+            children: _resultadosEq
+                .map((e) => ListTile(
+                      dense: true,
+                      title: Text(e.nombre),
+                      subtitle: Text(
+                          '${e.esHerramienta ? 'Herramienta' : 'Equipo'} · Disponibles: ${e.cantidad}'),
+                      onTap: () => setState(() {
+                        _equipoElegido = e;
+                        _busquedaEqCtrl.text = e.nombre;
+                        _resultadosEq = [];
+                        _cantEquipo = 1;
+                      }),
+                    ))
+                .toList(),
+          ),
+        ),
+      if (_equipoElegido != null) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _green.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _green.withValues(alpha: 0.30)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_equipoElegido!.nombre,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text(
+                        '${_equipoElegido!.esHerramienta ? 'Herramienta' : 'Equipo'} · Disp.: ${_equipoElegido!.cantidad}',
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
+              ),
+              _QtyStepper(
+                value: _cantEquipo,
+                onChanged: (v) => setState(() => _cantEquipo = v),
+              ),
+            ],
+          ),
+        ),
+      ],
+      const SizedBox(height: 16),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed:
+              (_equipoElegido == null || _guardando) ? null : _agregarEquipo,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 13),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: _guardando
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: Colors.white))
+              : const Text('Añadir al Borrador',
                   style: TextStyle(fontWeight: FontWeight.w700)),
         ),
       ),
@@ -1660,70 +2478,699 @@ class _SectionTitle extends StatelessWidget {
 
 class _MaterialCard extends StatelessWidget {
   final ItemMaterial item;
-  const _MaterialCard({required this.item});
+  final VoidCallback? onEdit;
+  const _MaterialCard({required this.item, this.onEdit});
+
+  // No se edita lo ya entregado o aprobado por Logística.
+  bool get _editable =>
+      item.estadoReq != 'entregado' && item.estadoReq != 'aprobado';
+
+  Color _estadoColor() => switch (item.estadoReq) {
+        'entregado' => _green,
+        'aprobado' => const Color(0xFF3B82F6),
+        'rechazado' => _danger,
+        _ => _amber,
+      };
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
+    final tappable = _editable && onEdit != null;
+
+    return InkWell(
+      onTap: tappable ? onEdit : null,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+              color: isDark
+                  ? Colors.grey.withValues(alpha: 0.20)
+                  : Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.inventory_2_outlined, size: 16, color: Colors.grey),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(item.nombre,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 2),
+                  Text(item.estadoReq,
+                      style: TextStyle(
+                          color: _estadoColor(),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+            Text('${item.cantidad} ${item.unidad}',
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            if (tappable) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.edit_outlined, size: 16, color: Colors.grey),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Recepción de materiales: tarjeta + firma (HU-16) ─────────────────────────
+
+class _RecepcionCard extends StatelessWidget {
+  final ReqRecepcion req;
+  final bool firmando;
+  final VoidCallback onFirmar;
+
+  const _RecepcionCard({
+    required this.req,
+    required this.firmando,
+    required this.onFirmar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final firmado = req.firmado;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-            color: isDark
-                ? Colors.grey.withValues(alpha: 0.20)
-                : Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _green.withValues(alpha: isDark ? 0.30 : 0.25)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.inventory_2_outlined, size: 16, color: Colors.grey),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(item.nombre,
-                style:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          Row(
+            children: [
+              const Icon(Icons.inventory_2_outlined, size: 16, color: _green),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Aprobado por Logística',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: _green.withValues(alpha: isDark ? 1 : 0.9)),
+                ),
+              ),
+              Text('REQ ${req.id.substring(0, req.id.length >= 6 ? 6 : req.id.length).toUpperCase()}',
+                  style: const TextStyle(
+                      color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+            ],
           ),
-          Text('${item.cantidad} ${item.unidad}',
-              style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: req.itemsValidos
+                .map((it) => Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${it.nombre} × ${it.cantidadEfectiva} ${it.unidad}'
+                        '${it.esCompra ? ' (compra)' : ''}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 8),
+          Text('Solicitado por ${req.solicitanteNombre}${req.fecha != null ? ' · ${req.fecha}' : ''}',
+              style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          const SizedBox(height: 12),
+          if (firmado)
+            Row(
+              children: const [
+                Icon(Icons.check_circle, size: 16, color: _green),
+                SizedBox(width: 6),
+                Text('Firmado · esperando despacho',
+                    style: TextStyle(
+                        color: _green,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600)),
+              ],
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: firmando ? null : onFirmar,
+                icon: firmando
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.draw_outlined, size: 16),
+                label: Text(firmando ? 'Firmando...' : 'Firmar recepción',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 11),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-// ─── Tab: Notas ───────────────────────────────────────────────────────────────
+/// Bottom sheet de firma de recepción. Reutiliza el patrón de firma de
+/// Trámites/Permisos: dibujar con el dedo, usar la firma guardada en la nube,
+/// o subir una imagen. Devuelve la firma como URL (nube) o data-url base64.
+class _FirmaRecepcionSheet extends StatefulWidget {
+  final ReqRecepcion req;
+  const _FirmaRecepcionSheet({required this.req});
 
-class _NotasTab extends StatelessWidget {
-  final List<NotaSeguimiento> notas;
-  const _NotasTab({required this.notas});
+  @override
+  State<_FirmaRecepcionSheet> createState() => _FirmaRecepcionSheetState();
+}
+
+class _FirmaRecepcionSheetState extends State<_FirmaRecepcionSheet> {
+  late final SignatureController _controller;
+  String? _firmaGuardadaUrl;
+  bool _usarGuardada = false;
+  bool _cargandoGuardada = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = SignatureController(
+      penColor: Colors.black,
+      penStrokeWidth: 3.0,
+      exportBackgroundColor: Colors.white,
+    );
+    _cargarFirmaGuardada();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarFirmaGuardada() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? '';
+      final r = await http.get(
+        Uri.parse('${AppConstants.baseUrl}/permisos/mi-firma'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body);
+        final url = data['data']?['url_firma'] as String?;
+        if (url != null && url.isNotEmpty && mounted) {
+          setState(() {
+            _firmaGuardadaUrl = url;
+            _usarGuardada = true;
+          });
+        }
+      }
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _cargandoGuardada = false);
+    }
+  }
+
+  Future<void> _confirmar() async {
+    // Usar la firma guardada en la nube → enviar esa URL.
+    if (_usarGuardada && _firmaGuardadaUrl != null) {
+      Navigator.pop(context, _firmaGuardadaUrl);
+      return;
+    }
+    // Firma dibujada → exportar PNG como data-url base64.
+    if (_controller.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Dibuja tu firma o usa la guardada'),
+          backgroundColor: _danger,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final bytes = await _controller.toPngBytes();
+    if (bytes == null || !mounted) return;
+    final dataUrl = 'data:image/png;base64,${base64Encode(bytes)}';
+    Navigator.pop(context, dataUrl);
+  }
+
+  Future<void> _subirGaleria() async {
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image == null || !mounted) return;
+    final Uint8List bytes = await image.readAsBytes();
+    final dataUrl = 'data:image/png;base64,${base64Encode(bytes)}';
+    if (mounted) Navigator.pop(context, dataUrl);
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (notas.isEmpty) {
-      return _EmptyTab(
-          icon: Icons.notes_outlined, label: 'Sin notas de seguimiento');
+    final surface = Theme.of(context).colorScheme.surface;
+    final muted = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.55);
+    final usandoGuardada = _usarGuardada && _firmaGuardadaUrl != null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 14,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            Row(
+              children: [
+                const Icon(Icons.draw_outlined, color: _green, size: 20),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('Firmar recepción de materiales',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Icon(Icons.close, color: muted, size: 20),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text('Recibe: los ${widget.req.itemsValidos.length} ítem(s) aprobados',
+                style: TextStyle(color: muted, fontSize: 12)),
+            const SizedBox(height: 14),
+
+            // Toggle: usar guardada / dibujar nueva (si hay guardada)
+            if (_cargandoGuardada)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _green),
+                ),
+              )
+            else if (_firmaGuardadaUrl != null) ...[
+              Row(
+                children: [
+                  _firmaTab('Usar guardada', _usarGuardada,
+                      () => setState(() => _usarGuardada = true)),
+                  const SizedBox(width: 8),
+                  _firmaTab('Dibujar nueva', !_usarGuardada,
+                      () => setState(() => _usarGuardada = false)),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Lienzo o preview de firma guardada
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300, width: 2),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: usandoGuardada
+                    ? Image.network(_firmaGuardadaUrl!, fit: BoxFit.contain)
+                    : Signature(
+                        controller: _controller,
+                        backgroundColor: Colors.white,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (!usandoGuardada)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Firma en el recuadro con tu dedo',
+                      style: TextStyle(color: muted, fontSize: 12)),
+                  TextButton.icon(
+                    onPressed: () => _controller.clear(),
+                    icon: Icon(Icons.refresh, size: 15, color: muted),
+                    label: Text('Limpiar',
+                        style: TextStyle(color: muted, fontSize: 13)),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _subirGaleria,
+                    icon: const Icon(Icons.photo_library_outlined, size: 16),
+                    label: const Text('Galería'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: muted,
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: _confirmar,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Confirmar firma y notificar',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _firmaTab(String label, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? _green : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: active ? _green : Colors.grey.shade300),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: active ? Colors.white : Colors.grey,
+                fontSize: 12,
+                fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+// ─── Tab: Notas (CRUD) ────────────────────────────────────────────────────────
+
+class _NotasTab extends StatefulWidget {
+  final String servicioId;
+  final List<NotaSeguimiento> notasIniciales;
+  final ProyectoService service;
+
+  const _NotasTab({
+    required this.servicioId,
+    required this.notasIniciales,
+    required this.service,
+  });
+
+  @override
+  State<_NotasTab> createState() => _NotasTabState();
+}
+
+class _NotasTabState extends State<_NotasTab> {
+  final _nuevaCtrl = TextEditingController();
+  List<NotaServicio> _notas = [];
+  bool _cargando = true;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Semilla inmediata desde el detalle (sin permisos), luego refresco real.
+    _notas = widget.notasIniciales
+        .map((n) => NotaServicio(
+              id: n.id,
+              descripcion: n.texto,
+              autor: n.autor,
+              fecha: n.fecha,
+              puedeEditar: false,
+            ))
+        .toList();
+    _cargar();
+  }
+
+  @override
+  void dispose() {
+    _nuevaCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargar() async {
+    final data = await widget.service.getNotasServicio(widget.servicioId);
+    if (!mounted) return;
+    setState(() {
+      _notas = data;
+      _cargando = false;
+    });
+  }
+
+  Future<void> _agregar() async {
+    final texto = _nuevaCtrl.text.trim();
+    if (texto.isEmpty || _guardando) return;
+    setState(() => _guardando = true);
+    final res = await widget.service.agregarNota(widget.servicioId, texto);
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (res.ok) {
+      _nuevaCtrl.clear();
+      FocusScope.of(context).unfocus();
+      if (res.queued) {
+        _snack('Nota guardada · se enviará al reconectar', _amber);
+      } else {
+        await _cargar();
+      }
+    } else {
+      _snack(res.errorMessage.isEmpty ? 'No se pudo agregar la nota' : res.errorMessage, _danger);
     }
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: notas.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _NotaCard(nota: notas[i]),
+  }
+
+  Future<void> _editar(NotaServicio n) async {
+    final ctrl = TextEditingController(text: n.descripcion);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Editar nota'),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 4,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Texto de la nota…'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final texto = ctrl.text.trim();
+    if (texto.isEmpty) return;
+    final res = await widget.service.actualizarNota(n.id, texto);
+    if (!mounted) return;
+    if (res.ok) {
+      if (res.queued) {
+        _snack('Edición guardada · se enviará al reconectar', _amber);
+      } else {
+        await _cargar();
+      }
+    } else {
+      _snack(res.errorMessage.isEmpty ? 'No se pudo actualizar la nota' : res.errorMessage, _danger);
+    }
+  }
+
+  Future<void> _eliminar(NotaServicio n) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar nota'),
+        content: const Text('¿Seguro que deseas eliminar esta nota?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: _danger),
+              child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final res = await widget.service.eliminarNota(n.id);
+    if (!mounted) return;
+    if (res.ok) {
+      if (res.queued) {
+        setState(() => _notas.removeWhere((x) => x.id == n.id));
+        _snack('Nota eliminada · se sincronizará al reconectar', _amber);
+      } else {
+        await _cargar();
+      }
+    } else {
+      _snack(res.errorMessage.isEmpty ? 'No se pudo eliminar la nota' : res.errorMessage, _danger);
+    }
+  }
+
+  void _snack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(color: Colors.white)),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return Column(
+      children: [
+        // Campo de nueva nota
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _nuevaCtrl,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Observación, mejora o recordatorio…',
+                    filled: true,
+                    fillColor:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _guardando ? null : _agregar,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  child: _guardando
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.add),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _cargando
+              ? const Center(
+                  child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(_green)))
+              : _notas.isEmpty
+                  ? _EmptyTab(
+                      icon: Icons.notes_outlined,
+                      label: 'Sin notas de seguimiento')
+                  : RefreshIndicator(
+                      color: _green,
+                      onRefresh: _cargar,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _notas.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 10),
+                        itemBuilder: (_, i) => _NotaCard(
+                          nota: _notas[i],
+                          surface: surface,
+                          onEdit: () => _editar(_notas[i]),
+                          onDelete: () => _eliminar(_notas[i]),
+                        ),
+                      ),
+                    ),
+        ),
+      ],
     );
   }
 }
 
 class _NotaCard extends StatelessWidget {
-  final NotaSeguimiento nota;
-  const _NotaCard({required this.nota});
+  final NotaServicio nota;
+  final Color surface;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _NotaCard({
+    required this.nota,
+    required this.surface,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1754,8 +3201,7 @@ class _NotaCard extends StatelessWidget {
                       : const Color(0xFFEFFAE0),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.person_outline,
-                    size: 14, color: _green),
+                child: const Icon(Icons.person_outline, size: 14, color: _green),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1766,15 +3212,34 @@ class _NotaCard extends StatelessWidget {
                         style: const TextStyle(
                             fontSize: 13, fontWeight: FontWeight.w600)),
                     Text(nota.fecha,
-                        style: const TextStyle(
-                            color: Colors.grey, fontSize: 11)),
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 11)),
                   ],
                 ),
               ),
+              if (nota.puedeEditar) ...[
+                InkWell(
+                  onTap: onEdit,
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.edit_outlined,
+                        size: 18, color: Colors.grey),
+                  ),
+                ),
+                InkWell(
+                  onTap: onDelete,
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.delete_outline, size: 18, color: _danger),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 10),
-          Text(nota.texto,
+          Text(nota.descripcion,
               style: const TextStyle(fontSize: 13, color: Colors.grey)),
         ],
       ),

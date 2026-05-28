@@ -12,6 +12,12 @@ class ChatService {
   final _historialCtrl = StreamController<List<MensajeChat>>.broadcast();
   final _connectedCtrl = StreamController<bool>.broadcast();
 
+  /// Eventos de control del servidor (no son chat): p. ej.
+  /// 'borrador_actualizado', 'requerimiento_actualizado'. Permiten refrescar
+  /// el borrador / la recepción en tiempo real desde el detalle del servicio.
+  final _eventosCtrl = StreamController<String>.broadcast();
+  Stream<String> get eventos => _eventosCtrl.stream;
+
   bool _isConnected = false;
   bool _disposed = false;
   int _reconnectAttempts = 0;
@@ -80,6 +86,13 @@ class ChatService {
 
       if (decoded['tipo'] == 'error') return;
 
+      // Eventos de control del servidor (no son mensajes de chat).
+      final tipo = decoded['tipo'] as String?;
+      if (tipo == 'borrador_actualizado' || tipo == 'requerimiento_actualizado') {
+        if (!_eventosCtrl.isClosed) _eventosCtrl.add(tipo!);
+        return;
+      }
+
       final msg = MensajeChat.fromJson(decoded);
       if (!_mensajesCtrl.isClosed) _mensajesCtrl.add(msg);
     } catch (_) {}
@@ -129,5 +142,6 @@ class ChatService {
     _mensajesCtrl.close();
     _historialCtrl.close();
     _connectedCtrl.close();
+    _eventosCtrl.close();
   }
 }

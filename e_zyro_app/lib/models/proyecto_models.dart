@@ -160,14 +160,14 @@ class ProcedimientoDetalle {
   final String nombre;
   final String descripcion;
   final int orden;
-  final String estado;
+  String estado; // mutable: permite toggle optimista con rollback
   final List<EvidenciaDetalle> evidencias;
   // Cronograma (asignación) — el backend los entrega en /operaciones/servicio/{id}
   final String? responsableId; // empleado.id responsable de la tarea
   final String? fechaInicioTarea; // YYYY-MM-DD
   final String? fechaLimite; // YYYY-MM-DD
 
-  const ProcedimientoDetalle({
+  ProcedimientoDetalle({
     required this.id,
     required this.nombre,
     required this.descripcion,
@@ -509,6 +509,34 @@ class MaterialBusqueda {
       );
 }
 
+// ── Equipo / Herramienta del inventario (búsqueda para solicitar) ─────────────
+
+class EquipoBusqueda {
+  final String id;
+  final String nombre;
+  final String clase; // equipo | herramienta
+  final int cantidad;
+  final String estado;
+
+  const EquipoBusqueda({
+    required this.id,
+    required this.nombre,
+    required this.clase,
+    required this.cantidad,
+    required this.estado,
+  });
+
+  bool get esHerramienta => clase == 'herramienta';
+
+  factory EquipoBusqueda.fromJson(Map<String, dynamic> j) => EquipoBusqueda(
+        id: (j['id'] ?? '').toString(),
+        nombre: j['nombre'] as String? ?? '',
+        clase: j['clase'] as String? ?? 'equipo',
+        cantidad: (j['cantidad'] as num? ?? 0).toInt(),
+        estado: j['estado'] as String? ?? 'operativo',
+      );
+}
+
 // ── Item del borrador de materiales (persistente en BD) ───────────────────────
 
 class BorradorItem {
@@ -609,7 +637,7 @@ class ServicioDetalle {
   final String horaStr;
   final String descripcion;
   final String estado;
-  final double progreso;
+  double progreso; // mutable: refleja el progreso optimista al togglear tareas
   final List<MiembroEquipo> equipo;
   final List<ProcedimientoDetalle> procedimientos;
   final List<ItemMaterial> materialesAsignados;
@@ -627,7 +655,7 @@ class ServicioDetalle {
   final String? tipoDocumentoCliente;
   final String? nroDocumento;
 
-  const ServicioDetalle({
+  ServicioDetalle({
     required this.id,
     required this.proyectoId,
     required this.cliente,
