@@ -12,6 +12,9 @@ import {
   ModeloItem,
   Requerimiento,
   AprobarItemDecision,
+  TicketCompra,
+  EstadoCompra,
+  ProcesarCompraPayload,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -19,6 +22,21 @@ interface RequerimientosListResponse {
   total: number;
   page: number;
   pageSize: number;
+}
+
+interface ComprasListResponse {
+  items: TicketCompra[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ComprasFiltros {
+  estado?: EstadoCompra;
+  proyectoId?: string;
+  q?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -227,5 +245,33 @@ export class LogisticaService {
     recibidoPorId?: string; firmaUrl?: string; notas?: string;
   } = {}): Observable<Requerimiento> {
     return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/entregar`, body);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // COMPRAS (HU-17)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  getTicketsCompra(filtros: ComprasFiltros = {}): Observable<TicketCompra[]> {
+    let params = new HttpParams()
+      .set('page',      String(filtros.page     ?? 1))
+      .set('page_size', String(filtros.pageSize ?? 200));
+    if (filtros.estado)     params = params.set('estado',      filtros.estado);
+    if (filtros.proyectoId) params = params.set('proyecto_id', filtros.proyectoId);
+    if (filtros.q)          params = params.set('q',           filtros.q);
+    return this.http
+      .get<ComprasListResponse>(`${this.api}/logistica/compras`, { params })
+      .pipe(map(r => r.items));
+  }
+
+  getTicketCompra(id: string): Observable<TicketCompra> {
+    return this.http.get<TicketCompra>(`${this.api}/logistica/compras/${id}`);
+  }
+
+  procesarCompra(id: string, payload: ProcesarCompraPayload): Observable<TicketCompra> {
+    return this.http.patch<TicketCompra>(`${this.api}/logistica/compras/${id}/procesar`, payload);
+  }
+
+  cancelarCompra(id: string, motivo?: string): Observable<TicketCompra> {
+    return this.http.post<TicketCompra>(`${this.api}/logistica/compras/${id}/cancelar`, { motivo: motivo ?? null });
   }
 }

@@ -1,4 +1,4 @@
-.tabla-card {
+﻿.tabla-card {
   background: var(--card-bg, #fff);
   border: 1px solid var(--border-color, #e7eae6);
   border-radius: 16px;
@@ -60,7 +60,7 @@
   padding: 11px 14px;
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-muted, #94a3b8);
-  background: var(--page-bg, #f8fafc);
+  background: var(--bg-color);
   border-bottom: 1px solid var(--border-color, #e7eae6);
   white-space: nowrap;
 }
@@ -82,7 +82,7 @@
 
 .chip {
   display: inline-block; padding: 3px 10px;
-  background: var(--page-bg, #f1f5f9); border-radius: 20px;
+  background: var(--hover-bg); border-radius: 20px;
   font-size: 11.5px; font-weight: 600; color: var(--text-muted, #475569);
   white-space: nowrap;
 }
@@ -96,7 +96,7 @@
   font-size: 11px; font-weight: 700; white-space: nowrap;
 }
 .badge-ok  { background: rgba(145, 211, 55, .16); color: #4d7d18; }
-.badge-off { background: #f1f5f9; color: #94a3b8; }
+.badge-off { background: var(--hover-bg); color: var(--text-muted); }
 
 .acciones { display: flex; gap: 6px; justify-content: center; }
 .btn-icon {
@@ -162,3 +162,5 @@
 :host-context([data-theme="dark"]) .badge-off { background: #334155; color: #94a3b8; }
 :host-context([data-theme="dark"]) .conf-dialog { background: #1e293b; }
 :host-context([data-theme="dark"]) .conf-icon { background: rgba(220,38,38,.15); }
+
+

@@ -1,7 +1,7 @@
-:host {
+﻿:host {
   display: block;
   min-height: calc(100vh - 72px);
-  background-color: var(--page-bg, #f8fafc);
+  background-color: var(--bg-color);
 }
 
 .log-layout {
@@ -77,8 +77,14 @@
 :host-context([data-theme="dark"]) .kpi-warn { background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.4); }
 :host-context([data-theme="dark"]) .kpi-info { background: rgba(37,99,235,.12); border-color: rgba(37,99,235,.4); }
 
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .kpi-warn { background: rgba(220,38,38,.12); border-color: rgba(220,38,38,.4); }
+  :host-context(html:not([data-theme="light"])) .kpi-info { background: rgba(37,99,235,.12); border-color: rgba(37,99,235,.4); }
+}
+
 @media (max-width: 768px) {
   .log-layout { padding: 18px 14px; }
   .log-header { gap: 14px; }
   .log-kpis { width: 100%; }
 }
+

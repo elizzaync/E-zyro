@@ -57,6 +57,8 @@ export interface ItemMaterial {
   unidad: string;
   cantidad: number;
   estadoReq: 'pendiente' | 'aprobado' | 'rechazado' | 'entregado' | 'anulado';
+  clase?: 'material' | 'herramienta' | 'equipo';
+  estadoEquipo?: string;
 }
 
 export interface ServicioDetalle {
@@ -72,8 +74,8 @@ export interface ServicioDetalle {
   progreso: number;
   equipo: MiembroEquipo[];
   procedimientos: Procedimiento[];
-  materialesAsignados: ItemMaterial[];
-  materialesSolicitados: ItemMaterial[];
+  itemsAsignados: ItemMaterial[];
+  itemsSolicitados: ItemMaterial[];
 }
 
 export interface ComunicadoItem {
@@ -133,7 +135,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   procedimientoActivo: Procedimiento | null = null;
   subiendoEvidencia    = false;
   errorEvidencia       = '';
-// ── Borrador de Materiales (persistente en BD) ─────────────
+// ── Borrador de Materiales/Herramientas/Equipos (persistente en BD) ─────────
   materialesBorrador: Array<{
     id: string;
     material_id: string | null;
@@ -141,10 +143,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     unidad: string;
     cantidad: number;
     esNuevo: boolean;
+    clase?: 'material' | 'herramienta' | 'equipo';
     agregadoPor: string;
     agregadoPorFoto: string;
     especificacion?: string;
-    /** true cuando el <img> del avatar devuelve error (URL rota / no accesible) */
     _avatarError?: boolean;
   }> = [];
   // ── Edición inline de borrador ─────────────────────────────
@@ -175,8 +177,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   editCantidad = 1;
   guardandoMat = false;
 
-  // ── Modal 3: Solicitar Material ────────────────────────────
+  // ── Modal 3: Solicitar Material/Equipo (3 pestañas) ────────
   showModalSolicitar  = false;
+  tabSolicitar: 'materiales' | 'equipos' | 'compra' = 'materiales';
+
   busquedaMaterial    = '';
   resultadosBusqueda: Array<{ id: string; nombre: string; unidad: string; stock: number }> = [];
   materialElegido: { id: string; nombre: string; unidad: string; stock: number } | null = null;
@@ -184,12 +188,18 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   buscandoMaterial    = false;
   solicitando         = false;
 
-  // ── Modal 3: Compra Externa (pestaña dual) ─────────────────
-  modoCompraExterna    = false;
+  busquedaEquipo      = '';
+  resultadosEquipos: Array<{ id: string; nombre: string; clase: string; cantidad: number; estado: string }> = [];
+  equipoElegido: { id: string; nombre: string; clase: string; cantidad: number; estado: string } | null = null;
+  cantidadEquipo      = 1;
+  buscandoEquipo      = false;
+
   manualNombre         = '';
   manualCantidad       = 1;
   manualUnidad         = 'Unidades';
   manualEspecificacion = '';
+  // alias para compatibilidad con template existente
+  get modoCompraExterna(): boolean { return this.tabSolicitar === 'compra'; }
 
   // ── Modal 4: Pre-Informe PDF ───────────────────────────────
   showModalPDF  = false;
@@ -302,17 +312,17 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 
   get totalMateriales(): number {
     if (!this.servicio) return 0;
-    return this.servicio.materialesAsignados.length + this.servicio.materialesSolicitados.length;
+    return this.servicio.itemsAsignados.length + this.servicio.itemsSolicitados.length;
   }
 
   get tareasCompletadas(): number {
     return this.servicio?.procedimientos.filter(p => p.estado === 'completado').length ?? 0;
   }
 
-  /** Materiales/herramientas aún no entregados (pendientes o solo aprobados). */
+  /** Items (materiales + herramientas) aún no entregados (pendientes o solo aprobados). */
   get materialesPendientesEntrega(): number {
     if (!this.servicio) return 0;
-    const todos = [...this.servicio.materialesAsignados, ...this.servicio.materialesSolicitados];
+    const todos = [...this.servicio.itemsAsignados, ...this.servicio.itemsSolicitados];
     return todos.filter(m => m.estadoReq === 'pendiente' || m.estadoReq === 'aprobado').length;
   }
 
@@ -850,20 +860,33 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
           etapa:         (e.etapa as 'antes' | 'durante' | 'despues') ?? 'antes'
         }))
       })),
-      materialesAsignados:   this._mapMateriales(raw.materiales_asignados),
-      materialesSolicitados: this._mapMateriales(raw.materiales_solicitados),
+      itemsAsignados:   [
+        ...this._mapItems(raw.materiales_asignados, 'material'),
+        ...this._mapItems(raw.herramientas_asignadas, undefined),
+      ],
+      itemsSolicitados: [
+        ...this._mapItems(raw.materiales_solicitados, 'material'),
+        ...this._mapItems(raw.herramientas_solicitadas, undefined),
+      ],
     };
   }
 
-  private _mapMateriales(list: any[]): ItemMaterial[] {
+  private _mapItems(list: any[], defaultClase?: 'material'): ItemMaterial[] {
     return (list ?? []).map((m: any) => ({
       id:              m.id,
       requerimientoId: m.requerimiento_id,
       nombre:          m.nombre,
-      unidad:          m.unidad,
+      unidad:          m.unidad ?? 'Unidades',
       cantidad:        m.cantidad,
-      estadoReq:       m.estado_req
+      estadoReq:       m.estado_req,
+      clase:           m.clase ?? defaultClase ?? 'material',
+      estadoEquipo:    m.estado_equipo ?? m.estado ?? undefined,
     }));
+  }
+
+  claseLabel(clase?: string): string {
+    const m: Record<string, string> = { material: 'Material', herramienta: 'Herramienta', equipo: 'Equipo' };
+    return m[clase ?? 'material'] ?? 'Material';
   }
 
   // ==========================================================
@@ -1026,11 +1049,15 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   // MODAL 3 — SOLICITAR MATERIAL
   // ==========================================================
   abrirModalSolicitar(): void {
+    this.tabSolicitar        = 'materiales';
     this.busquedaMaterial    = '';
     this.resultadosBusqueda  = [];
     this.materialElegido     = null;
     this.cantidadSolicitar   = 1;
-    this.modoCompraExterna   = false;
+    this.busquedaEquipo      = '';
+    this.resultadosEquipos   = [];
+    this.equipoElegido       = null;
+    this.cantidadEquipo      = 1;
     this.manualNombre        = '';
     this.manualCantidad      = 1;
     this.manualUnidad        = 'Unidades';
@@ -1054,6 +1081,62 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.materialElegido    = mat;
     this.busquedaMaterial   = mat.nombre;
     this.resultadosBusqueda = [];
+  }
+
+  buscarEquipos(): void {
+    const q = this.busquedaEquipo.trim();
+    if (q.length < 2) { this.resultadosEquipos = []; return; }
+    this.buscandoEquipo = true;
+    this.logistica.getEquipos({ q }).subscribe({
+      next: items => {
+        this.resultadosEquipos = items
+          .filter(e => e.estado === 'operativo')
+          .map(e => ({ id: e.id, nombre: e.nombre, clase: e.clase, cantidad: e.cantidad, estado: e.estado }));
+        this.buscandoEquipo = false;
+      },
+      error: () => { this.buscandoEquipo = false; }
+    });
+  }
+
+  elegirEquipo(eq: { id: string; nombre: string; clase: string; cantidad: number; estado: string }): void {
+    this.equipoElegido    = eq;
+    this.busquedaEquipo   = eq.nombre;
+    this.resultadosEquipos = [];
+    this.cantidadEquipo   = 1;
+  }
+
+  solicitarEquipo(): void {
+    if (!this.equipoElegido || !this.servicioId) return;
+    this.solicitando = true;
+    const eq = this.equipoElegido;
+    this.svc.agregarItemBorrador(this.servicioId, {
+      material_id:    null,
+      nombre:         eq.nombre,
+      unidad:         'Unidades',
+      cantidad:       this.cantidadEquipo,
+      especificacion: `[${eq.clase === 'equipo' ? 'Equipo' : 'Herramienta'}] ${eq.nombre} del inventario`,
+    }).subscribe({
+      next: (res: any) => {
+        this.materialesBorrador.push({
+          id:              res.detalle_id,
+          material_id:     null,
+          nombre:          eq.nombre,
+          unidad:          'Unidades',
+          cantidad:        this.cantidadEquipo,
+          esNuevo:         false,
+          clase:           eq.clase as 'herramienta' | 'equipo',
+          agregadoPor:     this._nombreUsuario,
+          agregadoPorFoto: this._usuarioFoto,
+          especificacion:  `[${eq.clase}] ${eq.nombre}`,
+        });
+        this.equipoElegido    = null;
+        this.busquedaEquipo   = '';
+        this.resultadosEquipos = [];
+        this.cantidadEquipo   = 1;
+        this.solicitando      = false;
+      },
+      error: () => { this.solicitando = false; }
+    });
   }
 
   solicitarMaterial(): void {
@@ -1463,16 +1546,16 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         }
       };
 
-      if (s.materialesAsignados.length > 0) {
+      if (s.itemsAsignados.length > 0) {
         checkPage(26);
-        page.drawText('Materiales Asignados Originalmente',
+        page.drawText('Materiales y Herramientas Asignados Originalmente',
           { x: ML, y, size: 8.5, font: bold, color: INK });
         y -= 14;
-        renderMatTable(s.materialesAsignados);
+        renderMatTable(s.itemsAsignados);
         y -= 8;
       }
 
-      const matsExtra = s.materialesSolicitados.filter(m => ['aprobado', 'entregado'].includes(m.estadoReq));
+      const matsExtra = s.itemsSolicitados.filter((m: ItemMaterial) => ['aprobado', 'entregado'].includes(m.estadoReq));
       if (matsExtra.length > 0) {
         checkPage(26);
         page.drawText('Materiales Extra Aprobados  (Solicitudes / Compra Externa)',

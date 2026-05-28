@@ -1,0 +1,542 @@
+<div class="cp-layout fade-in">
+
+  <!-- Cabecera -->
+  <header class="cp-header">
+    <div class="cp-header-main">
+      <button class="cp-back" (click)="volverInventario()" title="Volver a Inventario">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+        </svg>
+      </button>
+      <div class="cp-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="cp-title">Compras</h1>
+        <p class="cp-subtitle">Gestión de tickets de compra y proveedores</p>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <div class="cp-kpis">
+      <div class="cp-kpi cp-kpi--warn">
+        <span class="cp-kpi-val">{{ kpiPendiente }}</span>
+        <span class="cp-kpi-lbl">Pendientes</span>
+      </div>
+      <div class="cp-kpi cp-kpi--blue">
+        <span class="cp-kpi-val">{{ kpiEnProceso }}</span>
+        <span class="cp-kpi-lbl">En proceso</span>
+      </div>
+      <div class="cp-kpi cp-kpi--ok">
+        <span class="cp-kpi-val">{{ kpiCompletado }}</span>
+        <span class="cp-kpi-lbl">Completados</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="cp-tabs">
+    <button class="cp-tab" [class.active]="tab === 'pendiente'"   (click)="setTab('pendiente')">Pendientes</button>
+    <button class="cp-tab" [class.active]="tab === 'en_proceso'"  (click)="setTab('en_proceso')">En proceso</button>
+    <button class="cp-tab" [class.active]="tab === 'completado'"  (click)="setTab('completado')">Completados</button>
+    <button class="cp-tab" [class.active]="tab === 'cancelado'"   (click)="setTab('cancelado')">Cancelados</button>
+  </nav>
+
+  <!-- Buscador -->
+  <div class="cp-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" [(ngModel)]="busqueda" placeholder="Buscar por código, proyecto, servicio, ítem…">
+    @if (busqueda) {
+      <button class="cp-search-clear" (click)="busqueda = ''">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    }
+  </div>
+
+  <!-- Tabla -->
+  @if (cargando) {
+    <div class="cp-estado"><app-spinner [size]="34"></app-spinner><span>Cargando…</span></div>
+  } @else if (lista.length === 0) {
+    <div class="cp-estado">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg>
+      <span>No hay tickets de compra en esta categoría.</span>
+      @if (busqueda) { <button class="cp-clear-btn" (click)="busqueda = ''">Limpiar búsqueda</button> }
+    </div>
+  } @else {
+    <div class="cp-table-wrap">
+      <table class="cp-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Proyecto / Servicio</th>
+            <th>Solicitante</th>
+            <th>Ítems</th>
+            <th>Total estimado</th>
+            <th>Estado</th>
+            <th>Fecha</th>
+            <th class="th-acc">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of lista; track t.id) {
+            <tr class="cp-row" [class.cp-row--pend]="t.estado === 'pendiente'">
+
+              <!-- Código -->
+              <td>
+                <span class="cp-codigo">{{ t.codigo }}</span>
+                @if (t.modoUnificado && t.proveedorUnicoNombre) {
+                  <div class="cp-prov-hint">{{ t.proveedorUnicoNombre }}</div>
+                } @else if (t.canalUnico) {
+                  <div class="cp-prov-hint">{{ t.canalUnico }}</div>
+                }
+              </td>
+
+              <!-- Proyecto / Servicio -->
+              <td>
+                <div class="cp-proyecto">{{ t.proyectoNombre }}</div>
+                @if (t.servicioNombre) { <div class="cp-servicio">{{ t.servicioNombre }}</div> }
+              </td>
+
+              <!-- Solicitante -->
+              <td class="cp-sol">{{ t.solicitanteNombre }}</td>
+
+              <!-- Ítems -->
+              <td>
+                <div class="cp-items-col">
+                  @for (it of t.items.slice(0, 3); track it.id) {
+                    <span class="cp-item-chip" [class.cp-chip--done]="it.estadoItem === 'comprado'">
+                      {{ it.nombre }} <em>×{{ it.cantidad }}</em>
+                    </span>
+                  }
+                  @if (t.items.length > 3) {
+                    <span class="cp-item-more">+{{ t.items.length - 3 }} más</span>
+                  }
+                  <div class="cp-item-progress">
+                    <div class="cp-prog-bar">
+                      <div class="cp-prog-fill"
+                           [style.width.%]="t.items.length ? (t.items.length - itemsPendientesCount(t)) / t.items.length * 100 : 0">
+                      </div>
+                    </div>
+                    <span>{{ t.items.length - itemsPendientesCount(t) }}/{{ t.items.length }}</span>
+                  </div>
+                </div>
+              </td>
+
+              <!-- Total estimado -->
+              <td class="cp-total">
+                @if (t.totalReal != null) {
+                  <span class="cp-total-real">S/ {{ t.totalReal | number:'1.2-2' }}</span>
+                } @else if (t.totalEstimado != null) {
+                  <span class="cp-total-est">≈ S/ {{ t.totalEstimado | number:'1.2-2' }}</span>
+                } @else {
+                  <span class="cp-total-nd">—</span>
+                }
+              </td>
+
+              <!-- Estado -->
+              <td>
+                <span class="cp-badge" [class]="estadoClase(t.estado)">{{ estadoLabel(t.estado) }}</span>
+              </td>
+
+              <!-- Fecha -->
+              <td class="cp-fecha">{{ t.creadoEn | date:'dd/MM/yy' }}</td>
+
+              <!-- Acciones -->
+              <td class="td-acc">
+                @if (t.estado === 'pendiente' || t.estado === 'en_proceso') {
+                  <button class="cp-btn cp-btn-process" (click)="abrirProceso(t)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    {{ t.estado === 'pendiente' ? 'Procesar' : 'Continuar' }}
+                  </button>
+                  <button class="cp-btn cp-btn-cancel" (click)="abrirCancelar(t)">Cancelar</button>
+                } @else if (t.estado === 'completado') {
+                  <button class="cp-btn cp-btn-view" (click)="abrirDetalle(t)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    Ver detalle
+                  </button>
+                } @else {
+                  <span class="cp-cancelado-lbl">Cancelado</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL DE PROCESO / COMPRA
+══════════════════════════════════════════════════════ -->
+@if (ticketActivo) {
+<div class="cp-overlay" (click)="cerrarProceso()">
+<div class="cp-modal cp-modal-xl" (click)="$event.stopPropagation()">
+
+  <!-- Header -->
+  <header class="cp-modal-header">
+    <div class="cp-modal-htop">
+      <div>
+        <h2 class="cp-modal-title">Registrar compra</h2>
+        <div class="cp-modal-chips">
+          <span class="cp-mchip cp-mchip--code">{{ ticketActivo.codigo }}</span>
+          <span class="cp-mchip">{{ ticketActivo.proyectoNombre }}</span>
+          @if (ticketActivo.servicioNombre) { <span class="cp-mchip">{{ ticketActivo.servicioNombre }}</span> }
+          <span class="cp-mchip cp-mchip--sol">{{ ticketActivo.solicitanteNombre }}</span>
+          <span class="cp-mchip cp-mchip--count">{{ ticketActivo.items.length }} ítems</span>
+        </div>
+      </div>
+      <button class="cp-modal-close" (click)="cerrarProceso()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Barra de modo -->
+    <div class="cp-mode-bar">
+      <div class="cp-mode-toggle">
+        <button [class.active]="modoUnificado"  (click)="modoUnificado = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Un proveedor para todo
+        </button>
+        <button [class.active]="!modoUnificado" (click)="modoUnificado = false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          Asignar por ítem
+        </button>
+      </div>
+
+      <!-- Proveedor unificado -->
+      @if (modoUnificado) {
+        <div class="cp-prov-unif">
+          @if (!canalUnicoCustom) {
+            <div class="cp-prov-chips">
+              @for (p of proveedores; track p.id) {
+                <button class="cp-prov-chip" [class.selected]="proveedorUnicoId === p.id"
+                        (click)="selProvUnico(p)">
+                  <span class="cp-prov-chip-name">{{ p.nombre }}</span>
+                  <span class="cp-prov-chip-stars">{{ starsText(p.rating) }}</span>
+                  @if (p.contacto) { <span class="cp-prov-chip-tel">{{ p.contacto }}</span> }
+                </button>
+              }
+            </div>
+            <button class="cp-canal-toggle" (click)="toggleCanalUnico()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Otro canal de compra
+            </button>
+          } @else {
+            <div class="cp-canal-custom-row">
+              <button class="cp-canal-back" (click)="toggleCanalUnico()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <input class="cp-input cp-input-canal"
+                     [(ngModel)]="canalUnicoTexto"
+                     placeholder="Ej: Mercado libre, ferretería local, importación directa…">
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </header>
+
+  <!-- Barra de búsqueda de ítems -->
+  <div class="cp-items-bar">
+    <div class="cp-items-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" [(ngModel)]="busquedaItems" placeholder="Filtrar ítems…">
+    </div>
+    <div class="cp-items-counter">
+      @if (busquedaItems) {
+        <span>{{ itemsFormFiltrados.length }} de {{ itemsForm.length }}</span>
+      } @else {
+        <span>{{ itemsIngresadosCount }}/{{ itemsForm.length }} ingresados</span>
+      }
+    </div>
+  </div>
+
+  <!-- Tabla de ítems (scrollable) -->
+  <div class="cp-items-scroll">
+    <table class="cp-items-table">
+      <thead class="cp-items-thead">
+        <tr>
+          <th class="th-i-num">#</th>
+          <th class="th-i-name">Ítem / Material</th>
+          <th class="th-i-req">Pedido</th>
+          <th class="th-i-buy">Comprando</th>
+          <th class="th-i-price">S/ Unitario</th>
+          @if (!modoUnificado) { <th class="th-i-source">Proveedor / Canal</th> }
+          <th class="th-i-inv">Factura / Ref.</th>
+          <th class="th-i-note">Nota</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (f of itemsFormFiltrados; track f.itemId; let idx = $index) {
+          <tr class="cp-item-row" [class.cp-item-row--done]="f.cantidadComprada > 0">
+            <td class="td-i-num">{{ idx + 1 }}</td>
+            <td class="td-i-name">{{ f.nombre }}</td>
+            <td class="td-i-req">{{ f.cantidad }} <em>{{ f.unidad }}</em></td>
+            <td class="td-i-buy">
+              <input type="number" class="cp-input cp-input-num"
+                     [min]="0" [step]="1"
+                     [(ngModel)]="f.cantidadComprada"
+                     placeholder="0">
+            </td>
+            <td class="td-i-price">
+              <input type="number" class="cp-input cp-input-num"
+                     [min]="0" [step]="0.01"
+                     [(ngModel)]="f.precioUnitario"
+                     placeholder="0.00">
+            </td>
+            @if (!modoUnificado) {
+              <td class="td-i-source">
+                @if (!f.modoCustom) {
+                  <div class="cp-source-row">
+                    <select class="cp-select"
+                            [ngModel]="f.proveedorId"
+                            (ngModelChange)="onProvItemChange(f, $event)">
+                      <option [ngValue]="null">— Sin asignar —</option>
+                      @for (p of proveedores; track p.id) {
+                        <option [ngValue]="p.id">{{ p.nombre }}</option>
+                      }
+                    </select>
+                    <button class="cp-src-toggle" (click)="toggleCustomItem(f)" title="Usar canal propio">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </div>
+                } @else {
+                  <div class="cp-source-row">
+                    <input type="text" class="cp-input cp-input-canal-sm"
+                           [(ngModel)]="f.canalCustom"
+                           placeholder="Canal / medio…">
+                    <button class="cp-src-toggle cp-src-toggle--back" (click)="toggleCustomItem(f)" title="Volver a proveedores">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="15 18 9 12 15 6"/>
+                      </svg>
+                    </button>
+                  </div>
+                }
+              </td>
+            }
+            <td class="td-i-inv">
+              <input type="text" class="cp-input cp-input-sm"
+                     [(ngModel)]="f.factura"
+                     placeholder="Nro. / ref.">
+            </td>
+            <td class="td-i-note">
+              <input type="text" class="cp-input cp-input-sm"
+                     [(ngModel)]="f.nota"
+                     placeholder="Obs.">
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Barra de resumen -->
+  <div class="cp-summary-bar">
+    <div class="cp-summary-left">
+      <span class="cp-summary-item">
+        <strong>{{ itemsIngresadosCount }}</strong>/{{ itemsForm.length }} ítems con cantidad
+      </span>
+      @if (totalEstimado > 0) {
+        <span class="cp-summary-total">Total estimado: <strong>S/ {{ totalEstimado | number:'1.2-2' }}</strong></span>
+      }
+    </div>
+    <div class="cp-summary-right">
+      <textarea class="cp-nota-input" rows="1" [(ngModel)]="notaTicket"
+                placeholder="Nota interna del ticket (opcional)…"></textarea>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="cp-modal-footer">
+    <button class="cp-btn-cancel-modal" (click)="cerrarProceso()">Cerrar</button>
+    <button class="cp-btn-save" (click)="guardarProgreso()" [disabled]="procesando || itemsIngresadosCount === 0">
+      @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> } Guardar progreso
+    </button>
+    <button class="cp-btn-complete" (click)="confirmarCompra()" [disabled]="procesando || !puedeCompletar">
+      @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+      @else {
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      }
+      Marcar como completado
+    </button>
+  </footer>
+
+</div>
+</div>
+}
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL DE DETALLE (ticket completado)
+══════════════════════════════════════════════════════ -->
+@if (ticketDetalle) {
+<div class="cp-overlay" (click)="cerrarDetalle()">
+<div class="cp-modal cp-modal-lg" (click)="$event.stopPropagation()">
+
+  <header class="cp-modal-header">
+    <div class="cp-modal-htop">
+      <div>
+        <h2 class="cp-modal-title">Detalle de compra</h2>
+        <div class="cp-modal-chips">
+          <span class="cp-mchip cp-mchip--code">{{ ticketDetalle.codigo }}</span>
+          <span class="cp-mchip">{{ ticketDetalle.proyectoNombre }}</span>
+          @if (ticketDetalle.servicioNombre) { <span class="cp-mchip">{{ ticketDetalle.servicioNombre }}</span> }
+          <span class="cp-badge cp-est-completado">Completado</span>
+        </div>
+      </div>
+      <button class="cp-modal-close" (click)="cerrarDetalle()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Info del proveedor unificado o canal -->
+  @if (ticketDetalle.modoUnificado) {
+    <div class="cp-det-prov-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <div>
+        <span class="cp-det-prov-label">Proveedor único:</span>
+        <strong>{{ ticketDetalle.proveedorUnicoNombre ?? ticketDetalle.canalUnico ?? '—' }}</strong>
+      </div>
+    </div>
+  }
+
+  <!-- Tabla de ítems (read-only) -->
+  <div class="cp-det-scroll">
+    <table class="cp-det-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Ítem</th>
+          <th>Pedido</th>
+          <th>Comprado</th>
+          <th>S/ Unit.</th>
+          <th>Total</th>
+          @if (!ticketDetalle.modoUnificado) { <th>Proveedor / Canal</th> }
+          <th>Factura</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (it of ticketDetalle.items; track it.id; let i = $index) {
+          <tr [class.cp-det-row-done]="it.estadoItem === 'comprado'">
+            <td class="cp-det-num">{{ i + 1 }}</td>
+            <td class="cp-det-nombre">{{ it.nombre }}</td>
+            <td class="cp-det-qty">{{ it.cantidad }} <em>{{ it.unidad }}</em></td>
+            <td class="cp-det-qty">{{ it.cantidadComprada ?? '—' }}</td>
+            <td class="cp-det-price">{{ it.precioUnitario != null ? ('S/ ' + (it.precioUnitario | number:'1.2-2')) : '—' }}</td>
+            <td class="cp-det-total">
+              {{ (it.cantidadComprada != null && it.precioUnitario != null)
+                  ? ('S/ ' + ((it.cantidadComprada * it.precioUnitario) | number:'1.2-2'))
+                  : '—' }}
+            </td>
+            @if (!ticketDetalle.modoUnificado) {
+              <td class="cp-det-prov">{{ it.proveedorNombre ?? it.canalPersonalizado ?? '—' }}</td>
+            }
+            <td class="cp-det-inv">{{ it.factura ?? '—' }}</td>
+            <td>
+              <span class="cp-item-est" [class.done]="it.estadoItem === 'comprado'">
+                {{ it.estadoItem === 'comprado' ? '✓ Comprado' : it.estadoItem }}
+              </span>
+            </td>
+          </tr>
+        }
+      </tbody>
+      <tfoot>
+        <tr class="cp-det-tfoot">
+          <td colspan="3">Total</td>
+          <td></td>
+          <td></td>
+          <td class="cp-det-total cp-det-grand">
+            <strong>S/ {{ totalTicket(ticketDetalle) | number:'1.2-2' }}</strong>
+          </td>
+          @if (!ticketDetalle.modoUnificado) { <td></td> }
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  @if (ticketDetalle.nota) {
+    <div class="cp-det-nota">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      </svg>
+      {{ ticketDetalle.nota }}
+    </div>
+  }
+
+  <footer class="cp-modal-footer">
+    <button class="cp-btn-cancel-modal" (click)="cerrarDetalle()">Cerrar</button>
+  </footer>
+
+</div>
+</div>
+}
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL DE CANCELACIÓN
+══════════════════════════════════════════════════════ -->
+@if (ticketCancelar) {
+<div class="cp-overlay" (click)="cerrarCancelar()">
+<div class="cp-modal cp-modal-sm" (click)="$event.stopPropagation()">
+  <header class="cp-modal-header">
+    <div class="cp-modal-htop">
+      <h2 class="cp-modal-title">Cancelar ticket</h2>
+      <button class="cp-modal-close" (click)="cerrarCancelar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+  <div class="cp-modal-body">
+    <p class="cp-cancel-info">
+      Cancelar <strong>{{ ticketCancelar.codigo }}</strong> · {{ ticketCancelar.proyectoNombre }}
+    </p>
+    <label class="cp-label">Motivo (opcional)</label>
+    <textarea class="cp-textarea" rows="3" [(ngModel)]="motivoCancelacion"
+              placeholder="Ej: Compra ya no requerida, presupuesto cancelado…"></textarea>
+  </div>
+  <footer class="cp-modal-footer">
+    <button class="cp-btn-cancel-modal" (click)="cerrarCancelar()">Volver</button>
+    <button class="cp-btn-danger" (click)="confirmarCancelacion()" [disabled]="procesando">
+      @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+      Confirmar cancelación
+    </button>
+  </footer>
+</div>
+</div>
+}

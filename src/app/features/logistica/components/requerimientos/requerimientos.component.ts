@@ -35,6 +35,9 @@ export class RequerimientosComponent implements OnInit {
   decisiones: Record<string, 'aprobar' | 'compra' | 'rechazar'> = {};
   procesando = false;
 
+  // ── Modal de detalle de ítems ──
+  reqDetalle: Requerimiento | null = null;
+
   // ── Modal de rechazo ──
   reqRechazar: Requerimiento | null = null;
   motivoRechazo = '';
@@ -90,6 +93,39 @@ export class RequerimientosComponent implements OnInit {
     return m[e] ?? e;
   }
 
+  // ── Getters reactivos para el panel de preview ──
+  get itemsDeStock(): RequerimientoItem[] {
+    if (!this.reqActivo) return [];
+    return this.reqActivo.items.filter(it => this.decisiones[it.id] === 'aprobar');
+  }
+  get itemsDeCompra(): RequerimientoItem[] {
+    if (!this.reqActivo) return [];
+    return this.reqActivo.items.filter(it => this.decisiones[it.id] === 'compra');
+  }
+  get itemsRechazados(): RequerimientoItem[] {
+    if (!this.reqActivo) return [];
+    return this.reqActivo.items.filter(it => this.decisiones[it.id] === 'rechazar');
+  }
+  get todasDecididas(): boolean {
+    if (!this.reqActivo) return false;
+    return this.reqActivo.items.every(it => !!this.decisiones[it.id]);
+  }
+
+  private readonly _proveedores = [
+    { nombre: 'Distribuidora TecnoPlus', estrellas: '★★★★☆', contacto: '01-234-5678' },
+    { nombre: 'Materiales Industriales Perú', estrellas: '★★★☆☆', contacto: '01-987-6543' },
+    { nombre: 'Soluciones Eléctricas SAC', estrellas: '★★★★★', contacto: '01-555-0101' },
+    { nombre: 'InduSupply Corp.', estrellas: '★★★★☆', contacto: '01-333-2244' },
+  ];
+
+  getProveedoresSugeridos(it: RequerimientoItem): { nombre: string; estrellas: string; contacto?: string }[] {
+    const seed = it.nombre.charCodeAt(0) % this._proveedores.length;
+    const count = (seed % 2) + 2;
+    return this._proveedores.slice(seed, seed + count).concat(
+      this._proveedores.slice(0, Math.max(0, count - (this._proveedores.length - seed)))
+    ).slice(0, count);
+  }
+
   // ── Modal de revisión ──
   abrirRevision(r: Requerimiento): void {
     this.reqActivo = r;
@@ -124,6 +160,28 @@ export class RequerimientosComponent implements OnInit {
         this.toast.mostrar(err?.error?.detail ?? 'No se pudo procesar.', 'error');
       }
     });
+  }
+
+  // ── Modal de detalle de ítems ──
+  abrirDetalle(r: Requerimiento): void { this.reqDetalle = r; }
+  cerrarDetalle(): void { this.reqDetalle = null; }
+
+  countItemsStock(r: Requerimiento): number {
+    return r.items.filter(it => !it.esCompraExterna).length;
+  }
+  countItemsCompra(r: Requerimiento): number {
+    return r.items.filter(it => it.esCompraExterna).length;
+  }
+
+  verReporte(r: Requerimiento): void {
+    if (r.firmaUrl) { window.open(r.firmaUrl, '_blank'); }
+  }
+
+  itemEstadoClase(e: string): string {
+    const m: Record<string, string> = {
+      pendiente: 'rie-pend', aprobado: 'rie-stock', para_compra: 'rie-compra', rechazado: 'rie-rech',
+    };
+    return m[e] ?? 'rie-pend';
   }
 
   // ── Modal de rechazo ──

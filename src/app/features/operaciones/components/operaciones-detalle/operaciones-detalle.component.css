@@ -119,7 +119,7 @@
 ══════════════════════════════════════════════════════════════ */
 .svc-grid {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  grid-template-columns: 370px minmax(0, 1fr) 320px;
   gap: 16px;
   align-items: start;
 }
@@ -127,7 +127,7 @@
 .svc-col .section-card { margin-bottom: 16px; }
 
 @media (max-width: 1200px) {
-  .svc-grid { grid-template-columns: 280px minmax(0, 1fr); }
+  .svc-grid { grid-template-columns: 340px minmax(0, 1fr); }
   .svc-col-right { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 }
 @media (max-width: 860px) {
@@ -397,6 +397,59 @@
 .btn-outline-dashed:hover { border-color: var(--brand-green,#91d337); color: var(--brand-green,#5a8a20); background: rgba(145,211,55,.05); }
 .mt-3  { margin-top: 14px; }
 .mt-4  { margin-top: 18px; }
+
+/* ══════════════════════════════════════════════════════════════
+   HERRAMIENTAS / EQUIPOS
+══════════════════════════════════════════════════════════════ */
+.herr-card { }
+.herr-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 28px 16px; color: var(--text-muted, #94a3b8); text-align: center;
+}
+.herr-empty svg  { width: 36px; height: 36px; opacity: .5; }
+.herr-empty span { font-size: 13px; }
+
+.herr-lista { display: flex; flex-direction: column; gap: 8px; }
+
+.herr-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 14px; border-radius: 12px;
+  background: var(--page-bg, #f8fafc); border: 1px solid var(--border-color, #e2e8f0);
+  transition: border-color .18s;
+}
+.herr-row:hover { border-color: rgba(145,211,55,.4); }
+
+.herr-icono {
+  width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(100,116,139,.1); color: #64748b;
+}
+.herr-icono svg { width: 17px; height: 17px; }
+.herr-icono--eq { background: rgba(59,130,246,.12); color: #2563eb; }
+
+.herr-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.herr-nombre { font-size: 13.5px; font-weight: 600; color: var(--text-main, #334155); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.herr-meta   { font-size: 11.5px; color: var(--text-muted, #94a3b8); }
+
+.herr-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.herr-clase {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  background: rgba(100,116,139,.1); color: #64748b; white-space: nowrap;
+}
+.herr-clase--eq { background: rgba(59,130,246,.12); color: #2563eb; }
+
+.herr-estado { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.hst-operativo         { background: rgba(145,211,55,.16); color: #4d7d18; }
+.hst-en_mantenimiento  { background: #fef3c7; color: #92400e; }
+.hst-fuera_de_servicio { background: #fee2e2; color: #b91c1c; }
+.hst-baja              { background: #e2e8f0; color: #475569; }
+
+:host-context([data-theme="dark"]) .herr-row     { background: #0b1425; border-color: #1e293b; }
+:host-context([data-theme="dark"]) .herr-nombre  { color: #cbd5e1; }
+:host-context([data-theme="dark"]) .herr-icono   { background: rgba(100,116,139,.18); color: #94a3b8; }
+:host-context([data-theme="dark"]) .herr-icono--eq { background: rgba(59,130,246,.18); color: #60a5fa; }
+:host-context([data-theme="dark"]) .herr-clase   { background: rgba(100,116,139,.18); color: #94a3b8; }
+:host-context([data-theme="dark"]) .herr-clase--eq { background: rgba(59,130,246,.18); color: #60a5fa; }
 
 /* ══════════════════════════════════════════════════════════════
    ESTADO DEL SERVICIO (solo lectura)

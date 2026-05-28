@@ -1,4 +1,4 @@
-.lf-overlay {
+﻿.lf-overlay {
   position: fixed; inset: 0; z-index: 1000;
   background: rgba(15, 23, 42, .55);
   backdrop-filter: blur(2px);
@@ -31,7 +31,7 @@
   color: var(--text-muted, #64748b);
   display: flex; align-items: center; justify-content: center;
 }
-.lf-close:hover { background: var(--page-bg, #f1f5f9); color: #ef4444; }
+.lf-close:hover { background: var(--hover-bg); color: #ef4444; }
 .lf-close svg { width: 18px; height: 18px; }
 
 .lf-body { padding: 20px 22px; overflow-y: auto; }
@@ -107,7 +107,7 @@ textarea.lf-input { resize: vertical; }
   font-family: 'Inter', sans-serif;
 }
 .lf-btn-cancel { background: transparent; border-color: var(--border-color, #e2e8f0); color: var(--text-muted, #64748b); }
-.lf-btn-cancel:hover { background: var(--page-bg, #f1f5f9); }
+.lf-btn-cancel:hover { background: var(--hover-bg); }
 .lf-btn-save { background: var(--brand-green, #91d337); color: #fff; }
 .lf-btn-save:hover:not(:disabled) { background: #7ab530; }
 .lf-btn-save:disabled { opacity: .7; cursor: not-allowed; }
@@ -119,3 +119,4 @@ textarea.lf-input { resize: vertical; }
   .lf-grid { grid-template-columns: 1fr 1fr; }
   .lf-col-2, .lf-col-3 { grid-column: span 2; }
 }
+

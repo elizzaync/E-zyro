@@ -105,6 +105,84 @@ export interface AprobarItemDecision {
   cantidadAprobada?: number | null;
 }
 
+// ── Compras (HU-17) ────────────────────────────────────────────────────────
+
+export type EstadoCompra = 'pendiente' | 'en_proceso' | 'completado' | 'cancelado';
+
+export interface Proveedor {
+  id: string;
+  nombre: string;
+  ruc: string | null;
+  contacto: string | null;
+  email: string | null;
+  rating: number;            // 1-5
+  categorias: string[];
+  activo: boolean;
+}
+
+export interface TicketCompraItem {
+  id: string;
+  ticketId: string;
+  materialId: string | null;
+  nombre: string;
+  cantidad: number;
+  cantidadComprada: number | null;
+  unidad: string;
+  precioUnitario: number | null;
+  totalItem: number | null;
+  proveedorId: string | null;
+  proveedorNombre: string | null;
+  canalPersonalizado: string | null;
+  factura: string | null;
+  estadoItem: 'pendiente' | 'comprado' | 'cancelado';
+  nota: string | null;
+}
+
+export interface TicketCompra {
+  id: string;
+  codigo: string;
+  requerimientoId: string;
+  proyectoId: string | null;
+  proyectoNombre: string;
+  servicioId: string | null;
+  servicioNombre: string | null;
+  solicitanteNombre: string;
+  estado: EstadoCompra;
+  items: TicketCompraItem[];
+  modoUnificado: boolean | null;
+  proveedorUnicoId: string | null;
+  proveedorUnicoNombre: string | null;
+  canalUnico: string | null;
+  totalEstimado: number | null;
+  totalReal: number | null;
+  responsableId: string | null;
+  responsableNombre: string | null;
+  nota: string | null;
+  creadoEn: string;
+  actualizadoEn: string | null;
+}
+
+export interface ProcesarCompraItemPayload {
+  itemId: string;
+  cantidadComprada: number;
+  precioUnitario: number | null;
+  proveedorId?: string | null;
+  proveedorNombre?: string | null;
+  canalPersonalizado?: string | null;
+  factura?: string | null;
+  nota?: string | null;
+}
+
+export interface ProcesarCompraPayload {
+  modoUnificado: boolean;
+  proveedorUnicoId?: string | null;
+  proveedorUnicoNombre?: string | null;
+  canalUnico?: string | null;
+  nota?: string | null;
+  completado: boolean;
+  items: ProcesarCompraItemPayload[];
+}
+
 export type ClaseArticulo = 'equipo' | 'herramienta';
 
 export type EstadoEquipo =

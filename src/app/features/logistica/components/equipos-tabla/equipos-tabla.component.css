@@ -1,4 +1,4 @@
-.tabla-card {
+﻿.tabla-card {
   background: var(--card-bg, #fff);
   border: 1px solid var(--border-color, #e7eae6);
   border-radius: 16px;
@@ -58,7 +58,7 @@
   text-align: left; padding: 11px 14px;
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-muted, #94a3b8);
-  background: var(--page-bg, #f8fafc);
+  background: var(--bg-color);
   border-bottom: 1px solid var(--border-color, #e7eae6);
   white-space: nowrap;
 }
@@ -92,7 +92,7 @@
 .est-operativo          { background: rgba(145, 211, 55, .16); color: #4d7d18; }
 .est-en-mantenimiento   { background: #fef3c7; color: #92400e; }
 .est-fuera-de-servicio  { background: #fee2e2; color: #b91c1c; }
-.est-baja               { background: #f1f5f9; color: #64748b; }
+.est-baja               { background: var(--hover-bg); color: var(--text-muted); }
 
 /* ── Celda de mantenimiento ── */
 .mant-cell { display: flex; flex-direction: column; gap: 2px; }
@@ -168,3 +168,5 @@
 :host-context([data-theme="dark"]) .est-en-mantenimiento { background: rgba(245,158,11,.18); color: #fbbf24; }
 :host-context([data-theme="dark"]) .conf-dialog { background: #1e293b; }
 :host-context([data-theme="dark"]) .conf-icon { background: rgba(220,38,38,.15); }
+
+

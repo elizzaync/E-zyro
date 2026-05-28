@@ -274,31 +274,53 @@
         }
       </section>
 
+      <!-- ═══════ MATERIALES Y HERRAMIENTAS ═══════ -->
       <section class="section-card">
-        <h3 class="section-title">Materiales del Servicio</h3>
+        <div class="mat-section-head">
+          <h3 class="section-title mb-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+              <path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/>
+            </svg>
+            Materiales y Herramientas
+          </h3>
+          <span class="mat-section-count">
+            {{ (servicio.itemsAsignados.length + servicio.itemsSolicitados.length) }} ítem{{(servicio.itemsAsignados.length + servicio.itemsSolicitados.length) !== 1 ? 's' : ''}}
+          </span>
+        </div>
 
         <div class="materiales-bloque">
-          <h4 class="sub-title">Asignados</h4>
-          @if (servicio.materialesAsignados.length === 0) {
-          <p class="empty-msg">Sin materiales asignados.</p>
+          <h4 class="sub-title">Asignados ({{ servicio.itemsAsignados.length }})</h4>
+          @if (servicio.itemsAsignados.length === 0) {
+          <p class="empty-msg">Sin ítems asignados.</p>
           } @else {
           <ul class="lista-materiales">
-            @for (mat of servicio.materialesAsignados; track mat.id) {
+            @for (mat of servicio.itemsAsignados; track mat.id) {
             <li class="mat-row" [class.clickable]="puedeEditar(mat)"
               (click)="puedeEditar(mat) && abrirModalEditarMat(mat)">
               <div class="mat-info">
-                <span class="mat-dot"></span>
-                <span class="mat-nombre">{{ mat.nombre }}</span>
-                <span class="mat-cant">× {{ mat.cantidad }} {{ mat.unidad }}</span>
+                <span class="mat-clase-icon" [ngClass]="'mc-' + (mat.clase ?? 'material')">
+                  @if (mat.clase === 'equipo') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  } @else if (mat.clase === 'herramienta') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
+                  }
+                </span>
+                <div class="mat-texto">
+                  <span class="mat-nombre">{{ mat.nombre }}</span>
+                  <span class="mat-cant">× {{ mat.cantidad }} {{ mat.unidad }}</span>
+                </div>
               </div>
               <div class="mat-acciones">
+                <span class="mat-clase-badge" [ngClass]="'mcb-' + (mat.clase ?? 'material')">{{ claseLabel(mat.clase) }}</span>
                 <span class="badge-estado" [ngClass]="'st-' + mat.estadoReq">{{ mat.estadoReq }}</span>
                 @if (puedeEditar(mat)) {
-                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)"
-                  title="Editar cantidad">
+                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)" title="Editar cantidad">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
                 }
@@ -310,27 +332,37 @@
         </div>
 
         <div class="materiales-bloque mt-4">
-          <h4 class="sub-title">Solicitados</h4>
-          @if (servicio.materialesSolicitados.length === 0) {
-          <p class="empty-msg">No hay materiales solicitados.</p>
+          <h4 class="sub-title">Solicitados ({{ servicio.itemsSolicitados.length }})</h4>
+          @if (servicio.itemsSolicitados.length === 0) {
+          <p class="empty-msg">No hay ítems solicitados.</p>
           } @else {
           <ul class="lista-materiales">
-            @for (mat of servicio.materialesSolicitados; track mat.id) {
+            @for (mat of servicio.itemsSolicitados; track mat.id) {
             <li class="mat-row" [class.clickable]="puedeEditar(mat)"
               (click)="puedeEditar(mat) && abrirModalEditarMat(mat)">
               <div class="mat-info">
-                <span class="mat-dot warn"></span>
-                <span class="mat-nombre">{{ mat.nombre }}</span>
-                <span class="mat-cant">× {{ mat.cantidad }} {{ mat.unidad }}</span>
+                <span class="mat-clase-icon" [ngClass]="'mc-' + (mat.clase ?? 'material')">
+                  @if (mat.clase === 'equipo') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  } @else if (mat.clase === 'herramienta') {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  } @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
+                  }
+                </span>
+                <div class="mat-texto">
+                  <span class="mat-nombre">{{ mat.nombre }}</span>
+                  <span class="mat-cant">× {{ mat.cantidad }} {{ mat.unidad }}</span>
+                </div>
               </div>
               <div class="mat-acciones">
+                <span class="mat-clase-badge" [ngClass]="'mcb-' + (mat.clase ?? 'material')">{{ claseLabel(mat.clase) }}</span>
                 <span class="badge-estado" [ngClass]="'st-' + mat.estadoReq">{{ mat.estadoReq }}</span>
                 @if (puedeEditar(mat)) {
-                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)"
-                  title="Editar cantidad">
+                <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)" title="Editar cantidad">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
                 }
@@ -345,7 +377,7 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            Buscar Material
+            Agregar Material / Herramienta
           </button>
 
           @if (materialesBorrador.length > 0) {
@@ -467,6 +499,7 @@
           }
         </div>
       </section>
+
 
     </div>
 
@@ -1084,7 +1117,7 @@
 
 
 <!-- ══════════════════════════════════════════════════════════
-     MODAL 3 — SOLICITAR MATERIAL (Catálogo + Compra Externa)
+     MODAL 3 — AGREGAR MATERIAL / HERRAMIENTA / EQUIPO
 ══════════════════════════════════════════════════════════ -->
 @if (showModalSolicitar) {
 <div class="modal-overlay" (click)="cerrarModalSolicitar()">
@@ -1092,166 +1125,203 @@
 
     <div class="modal-header">
       <div>
-        <h3 class="modal-title">Solicitar Material Extra</h3>
+        <h3 class="modal-title">Agregar al Requerimiento</h3>
         <p class="modal-subtitle">
-          @if (!modoCompraExterna) { Busca un ítem del inventario y especifica la cantidad }
-          @else { Solicita un material no disponible en el catálogo }
+          @if (tabSolicitar === 'materiales') { Busca un material en el inventario }
+          @else if (tabSolicitar === 'equipos') { Busca un equipo o herramienta del inventario }
+          @else { Solicita un ítem que no existe en inventario }
         </p>
       </div>
       <button class="modal-close" (click)="cerrarModalSolicitar()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
+          <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
         </svg>
       </button>
     </div>
 
     <div class="modal-body">
-
-      <!-- ── Pestañas ── -->
+      <!-- ── 3 Pestañas ── -->
       <div class="modal-tabs">
-        <button class="tab-btn" [class.active]="!modoCompraExterna" (click)="modoCompraExterna = false">
+        <button class="tab-btn" [class.active]="tabSolicitar === 'materiales'" (click)="tabSolicitar = 'materiales'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
-            <path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" />
+            <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+            <path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/>
           </svg>
-          Catálogo (Stock)
+          Materiales
         </button>
-        <button class="tab-btn" [class.active]="modoCompraExterna" (click)="modoCompraExterna = true">
+        <button class="tab-btn" [class.active]="tabSolicitar === 'equipos'" (click)="tabSolicitar = 'equipos'">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="9" cy="21" r="1" />
-            <circle cx="20" cy="21" r="1" />
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+          Equipos / Herramientas
+        </button>
+        <button class="tab-btn" [class.active]="tabSolicitar === 'compra'" (click)="tabSolicitar = 'compra'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
           </svg>
           Compra Externa
         </button>
       </div>
 
-      <!-- ── Pestaña: Catálogo ── -->
-      @if (!modoCompraExterna) {
-      <div class="form-field search-wrap">
-        <label class="form-label">Buscar en inventario</label>
-        <div class="search-input-wrap">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input class="form-input with-icon" type="text" [(ngModel)]="busquedaMaterial"
-            (ngModelChange)="buscarMateriales()" placeholder="Ej: Cable UTP, Switch…">
-          @if (buscandoMaterial) {
-          <span class="search-spinner-wrap"><app-spinner [size]="16"></app-spinner></span>
+      <!-- ── Tab: Materiales del inventario ── -->
+      @if (tabSolicitar === 'materiales') {
+        <div class="form-field search-wrap">
+          <label class="form-label">Buscar en catálogo de materiales</label>
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input class="form-input with-icon" type="text" [(ngModel)]="busquedaMaterial"
+              (ngModelChange)="buscarMateriales()" placeholder="Ej: Cable UTP, Cinta aislante…">
+            @if (buscandoMaterial) {
+              <span class="search-spinner-wrap"><app-spinner [size]="16"></app-spinner></span>
+            }
+          </div>
+          @if (resultadosBusqueda.length > 0) {
+            <ul class="search-dropdown">
+              @for (r of resultadosBusqueda; track r.id) {
+                <li (click)="elegirMaterial(r)">
+                  <span class="sd-nombre">{{ r.nombre }}</span>
+                  <span class="sd-info">{{ r.unidad }} · Stock: {{ r.stock }}</span>
+                </li>
+              }
+            </ul>
           }
         </div>
-        @if (resultadosBusqueda.length > 0) {
-        <ul class="search-dropdown">
-          @for (r of resultadosBusqueda; track r.id) {
-          <li (click)="elegirMaterial(r)">
-            <span class="sd-nombre">{{ r.nombre }}</span>
-            <span class="sd-info">{{ r.unidad }} · Stock: {{ r.stock }}</span>
-          </li>
-          }
-        </ul>
+        @if (materialElegido) {
+          <div class="mat-elegido">
+            <div class="me-info">
+              <span class="me-nombre">{{ materialElegido.nombre }}</span>
+              <span class="me-stock">Stock disponible: <strong>{{ materialElegido.stock }}</strong> {{ materialElegido.unidad }}</span>
+            </div>
+            <button class="file-remove" (click)="materialElegido = null; busquedaMaterial = ''">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
         }
-      </div>
-
-      @if (materialElegido) {
-      <div class="mat-elegido">
-        <div class="me-info">
-          <span class="me-nombre">{{ materialElegido.nombre }}</span>
-          <span class="me-stock">Stock disponible: <strong>{{ materialElegido.stock }}</strong> {{
-            materialElegido.unidad }}</span>
+        <div class="form-field mt-3">
+          <label class="form-label">Cantidad a solicitar</label>
+          <input class="form-input" type="number" [(ngModel)]="cantidadSolicitar" min="1" [max]="materialElegido?.stock ?? 9999">
         </div>
-        <button class="file-remove" (click)="materialElegido = null; busquedaMaterial = ''">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+      }
+
+      <!-- ── Tab: Equipos / Herramientas ── -->
+      @if (tabSolicitar === 'equipos') {
+        <div class="form-field search-wrap">
+          <label class="form-label">Buscar en inventario de equipos y herramientas</label>
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input class="form-input with-icon" type="text" [(ngModel)]="busquedaEquipo"
+              (ngModelChange)="buscarEquipos()" placeholder="Ej: Taladro, Multímetro, Destornillador…">
+            @if (buscandoEquipo) {
+              <span class="search-spinner-wrap"><app-spinner [size]="16"></app-spinner></span>
+            }
+          </div>
+          @if (resultadosEquipos.length > 0) {
+            <ul class="search-dropdown">
+              @for (eq of resultadosEquipos; track eq.id) {
+                <li (click)="elegirEquipo(eq)">
+                  <div class="sd-eq-row">
+                    <span class="sd-nombre">{{ eq.nombre }}</span>
+                    <span class="sd-eq-clase" [class.sd-eq-herr]="eq.clase === 'herramienta'">{{ eq.clase === 'equipo' ? 'Equipo' : 'Herramienta' }}</span>
+                  </div>
+                  <span class="sd-info">Disponibles: {{ eq.cantidad }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+        @if (equipoElegido) {
+          <div class="mat-elegido">
+            <div class="me-info">
+              <span class="me-nombre">{{ equipoElegido.nombre }}</span>
+              <span class="me-stock">
+                <span class="sd-eq-clase" [class.sd-eq-herr]="equipoElegido.clase === 'herramienta'">{{ equipoElegido.clase === 'equipo' ? 'Equipo' : 'Herramienta' }}</span>
+                · Disponibles: <strong>{{ equipoElegido.cantidad }}</strong>
+              </span>
+            </div>
+            <button class="file-remove" (click)="equipoElegido = null; busquedaEquipo = ''">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        }
+        <div class="form-field mt-3">
+          <label class="form-label">Cantidad</label>
+          <input class="form-input" type="number" [(ngModel)]="cantidadEquipo" min="1" [max]="equipoElegido?.cantidad ?? 999">
+        </div>
+      }
+
+      <!-- ── Tab: Compra Externa ── -->
+      @if (tabSolicitar === 'compra') {
+        <div class="banner-compra-externa">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
-        </button>
-      </div>
-      }
-
-      <div class="form-field mt-3">
-        <label class="form-label">Cantidad a solicitar</label>
-        <input class="form-input" type="number" [(ngModel)]="cantidadSolicitar" min="1"
-          [max]="materialElegido?.stock ?? 9999">
-      </div>
-      }
-
-      <!-- ── Pestaña: Compra Externa ── -->
-      @if (modoCompraExterna) {
-      <div class="banner-compra-externa">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-        <div>
-          <strong>Solicitud de Compra Externa</strong>
-          <p>Este ítem no está en el inventario. Se generará una orden de compra para Logística. Incluye
-            especificaciones técnicas exactas (modelo, código de parte, marca) para proceder.</p>
+          <div>
+            <strong>Solicitud de Compra Externa</strong>
+            <p>El ítem no está en inventario. Se generará una orden de compra para Logística. Incluye especificaciones exactas (modelo, código, marca).</p>
+          </div>
         </div>
-      </div>
-
-      <div class="form-field mt-3">
-        <label class="form-label">Nombre exacto del repuesto / material <span class="form-required">*</span></label>
-        <input class="form-input" type="text" [(ngModel)]="manualNombre"
-          placeholder="Ej: Rodamiento SKF 6205-2RS, Cable THHN 12AWG…">
-      </div>
-
-      <div class="form-row-2 mt-3">
-        <div class="form-field">
-          <label class="form-label">Cantidad <span class="form-required">*</span></label>
-          <input class="form-input" type="number" [(ngModel)]="manualCantidad" min="1">
+        <div class="form-field mt-3">
+          <label class="form-label">Nombre exacto del material / repuesto <span class="form-required">*</span></label>
+          <input class="form-input" type="text" [(ngModel)]="manualNombre" placeholder="Ej: Rodamiento SKF 6205-2RS…">
         </div>
-        <div class="form-field">
-          <label class="form-label">Unidad</label>
-          <select class="form-input" [(ngModel)]="manualUnidad">
-            <option>Unidades</option>
-            <option>Metros</option>
-            <option>Litros</option>
-            <option>Kilogramos</option>
-            <option>Cajas</option>
-            <option>Rollos</option>
-            <option>Juego</option>
-          </select>
+        <div class="form-row-2 mt-3">
+          <div class="form-field">
+            <label class="form-label">Cantidad <span class="form-required">*</span></label>
+            <input class="form-input" type="number" [(ngModel)]="manualCantidad" min="1">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Unidad</label>
+            <select class="form-input" [(ngModel)]="manualUnidad">
+              <option>Unidades</option><option>Metros</option><option>Litros</option>
+              <option>Kilogramos</option><option>Cajas</option><option>Rollos</option><option>Juego</option>
+            </select>
+          </div>
         </div>
-      </div>
-
-      <div class="form-field mt-3">
-        <label class="form-label">Especificaciones Técnicas / Justificación <span class="form-required">*</span></label>
-        <textarea class="form-input form-textarea" [(ngModel)]="manualEspecificacion" rows="3"
-          placeholder="Describe el modelo exacto, código de parte, para qué equipo es y por qué no está en stock…"></textarea>
-      </div>
+        <div class="form-field mt-3">
+          <label class="form-label">Especificaciones / Justificación <span class="form-required">*</span></label>
+          <textarea class="form-input form-textarea" [(ngModel)]="manualEspecificacion" rows="3"
+            placeholder="Modelo exacto, código de parte, para qué equipo es y por qué no está en stock…"></textarea>
+        </div>
       }
-
     </div>
 
     <div class="modal-footer">
       <button class="btn-cancel" (click)="cerrarModalSolicitar()">
-        @if (materialesBorrador.length > 0) {
-        Cerrar ({{ materialesBorrador.length }} en borrador)
-        } @else {
-        Cancelar
-        }
+        @if (materialesBorrador.length > 0) { Cerrar ({{ materialesBorrador.length }} en borrador) }
+        @else { Cancelar }
       </button>
-      @if (!modoCompraExterna) {
-      <button class="btn-primary" (click)="solicitarMaterial()" [disabled]="!materialElegido || cantidadSolicitar < 1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"></line>
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-        </svg>
-        Añadir al Borrador
-      </button>
+
+      @if (tabSolicitar === 'materiales') {
+        <button class="btn-primary" (click)="solicitarMaterial()"
+          [disabled]="!materialElegido || cantidadSolicitar < 1 || solicitando">
+          @if (solicitando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+          @else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> }
+          Añadir al Borrador
+        </button>
+      } @else if (tabSolicitar === 'equipos') {
+        <button class="btn-primary" (click)="solicitarEquipo()"
+          [disabled]="!equipoElegido || cantidadEquipo < 1 || solicitando">
+          @if (solicitando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+          @else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> }
+          Añadir al Borrador
+        </button>
       } @else {
-      <button class="btn-primary btn-compra-externa" (click)="solicitarMaterialManual()"
-        [disabled]="!manualNombre.trim() || !manualEspecificacion.trim() || manualCantidad < 1">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="9" cy="21" r="1" />
-          <circle cx="20" cy="21" r="1" />
-          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-        </svg>
-        Solicitar Compra Externa
-      </button>
+        <button class="btn-primary btn-compra-externa" (click)="solicitarMaterialManual()"
+          [disabled]="!manualNombre.trim() || !manualEspecificacion.trim() || manualCantidad < 1 || solicitando">
+          @if (solicitando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+          @else { <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg> }
+          Solicitar Compra Externa
+        </button>
       }
     </div>
   </div>
