@@ -539,4 +539,74 @@
   </footer>
 </div>
 </div>
+
+<!-- ═══════════════ MODAL INGRESO AL INVENTARIO ═══════════════ -->
+@if (ticketIngreso) {
+<div class="cp-overlay" (click)="cerrarIngreso()">
+  <div class="cp-modal cp-modal--ing" (click)="$event.stopPropagation()">
+    <header class="cp-modal-header">
+      <div class="cp-modal-title-row">
+        <div class="cp-modal-icon cp-modal-icon--green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="cp-modal-title">Registrar ingreso al inventario</h3>
+          <p class="cp-modal-sub">{{ ticketIngreso.codigo }} · {{ ticketIngreso.proyectoNombre }}</p>
+        </div>
+      </div>
+      <button class="cp-modal-close" (click)="cerrarIngreso()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="cp-modal-body">
+      <p class="cp-ing-info">
+        Confirma las cantidades recibidas. Los materiales se agregarán automáticamente al inventario y quedarán registrados como <strong>ingreso</strong>.
+      </p>
+
+      <table class="cp-ing-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Material / Ítem</th>
+            <th>Unidad</th>
+            <th class="th-right">Comprado</th>
+            <th class="th-right">Ingresar</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of itemsIngreso; track row.item.id; let idx = $index) {
+            <tr>
+              <td class="td-idx">{{ idx + 1 }}</td>
+              <td class="td-nombre">{{ row.item.nombre }}</td>
+              <td class="td-unidad">{{ row.item.unidad }}</td>
+              <td class="td-right">{{ row.item.cantidadComprada ?? row.item.cantidad }}</td>
+              <td class="td-right">
+                <input type="number" class="cp-ing-qty"
+                       [(ngModel)]="row.cantidad"
+                       [min]="0"
+                       [max]="row.item.cantidadComprada ?? row.item.cantidad"
+                       step="1" />
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="cp-modal-footer">
+      <button class="cp-btn-cancel-modal" (click)="cerrarIngreso()">Omitir</button>
+      <button class="cp-btn-ok" (click)="registrarIngreso()"
+              [disabled]="registrandoIngreso || !puedeRegistrarIngreso">
+        @if (registrandoIngreso) { <app-spinner [size]="14" theme="light"></app-spinner> }
+        Registrar ingreso
+      </button>
+    </footer>
+  </div>
+</div>
+}
 }

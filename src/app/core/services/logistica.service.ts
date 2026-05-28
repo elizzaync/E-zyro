@@ -12,12 +12,14 @@ import {
   ModeloItem,
   Requerimiento,
   AprobarItemDecision,
+  EntregarPayload,
   TicketCompra,
   EstadoCompra,
   ProcesarCompraPayload,
   Proveedor,
   Salida,
   SalidasKpis,
+  RegistrarIngresoPayload,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -244,10 +246,20 @@ export class LogisticaService {
     return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/firmar`, { recibidoPorId, firmaUrl });
   }
 
-  entregarRequerimiento(id: string, body: {
-    recibidoPorId?: string; firmaUrl?: string; notas?: string;
-  } = {}): Observable<Requerimiento> {
-    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/entregar`, body);
+  entregarRequerimiento(id: string, payload: EntregarPayload = {}): Observable<Requerimiento> {
+    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/entregar`, payload);
+  }
+
+  bloquearFirma(reqId: string): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${this.api}/logistica/requerimientos/${reqId}/bloquear-firma`, {});
+  }
+
+  liberarFirma(reqId: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`${this.api}/logistica/requerimientos/${reqId}/bloquear-firma`);
+  }
+
+  getFirmaGuardada(): Observable<{ url: string } | null> {
+    return this.http.get<{ url: string } | null>(`${this.api}/permisos/mi-firma`);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -292,6 +304,10 @@ export class LogisticaService {
 
   cancelarCompra(id: string, motivo?: string): Observable<TicketCompra> {
     return this.http.post<TicketCompra>(`${this.api}/logistica/compras/${id}/cancelar`, { motivo: motivo ?? null });
+  }
+
+  registrarIngreso(ticketId: string, payload: RegistrarIngresoPayload): Observable<TicketCompra> {
+    return this.http.post<TicketCompra>(`${this.api}/logistica/compras/${ticketId}/registrar-ingreso`, payload);
   }
 
   // ─────────────────────────────────────────────────────────────────────────

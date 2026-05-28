@@ -20,22 +20,22 @@
     </div>
 
     <!-- KPI rápido -->
-    @if (pendientes.length > 0) {
+    @if (pendientesCount > 0) {
       <div class="req-kpi-alert">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
-        <span>{{ pendientes.length }} solicitud{{ pendientes.length !== 1 ? 'es' : '' }} pendiente{{ pendientes.length !== 1 ? 's' : '' }} de revisión</span>
+        <span>{{ pendientesCount }} solicitud{{ pendientesCount !== 1 ? 'es' : '' }} pendiente{{ pendientesCount !== 1 ? 's' : '' }} de revisión</span>
       </div>
     }
   </header>
 
   <!-- Tabs -->
   <nav class="req-tabs">
-    <button class="req-tab" [class.active]="tab === 'pendientes'" (click)="setTab('pendientes')">
-      Pendientes
-      @if (pendientes.length > 0 && tab !== 'pendientes') { <span class="req-tab-badge">{{ pendientes.length }}</span> }
+    <button class="req-tab" [class.active]="tab === 'activos'" (click)="setTab('activos')">
+      Activos
+      @if (activos.length > 0 && tab !== 'activos') { <span class="req-tab-badge">{{ activos.length }}</span> }
     </button>
     <button class="req-tab" [class.active]="tab === 'historial'" (click)="setTab('historial')">
       Historial
@@ -58,7 +58,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="44" height="44">
         <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
       </svg>
-      <span>{{ tab === 'pendientes' ? 'No hay requerimientos pendientes.' : 'Sin historial de consumo.' }}</span>
+      <span>{{ tab === 'activos' ? 'No hay requerimientos activos.' : 'Sin historial de consumo.' }}</span>
     </div>
   } @else {
     <div class="req-table-wrap">
@@ -76,7 +76,7 @@
         </thead>
         <tbody>
           @for (r of lista; track r.id) {
-            <tr class="req-row" [class.req-row--pend]="r.estado === 'pendiente'">
+            <tr class="req-row" [class.req-row--pend]="r.estado === 'pendiente'" [class.req-row--listo]="r.estado === 'listo'">
 
               <!-- Solicitante -->
               <td>
@@ -116,18 +116,17 @@
 
               <!-- Reporte (firma de entrega) -->
               <td class="td-reporte">
-                @if (r.estado === 'entregado' || r.estado === 'listo') {
-                  @if (r.firmaUrl) {
-                    <span class="rc-badge-firma rc-firma-ok">✓ Firmado</span>
-                    <button class="rc-btn-ver-rep" (click)="verReporte(r)" title="Ver PDF de entrega">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                      </svg>
-                      Ver
-                    </button>
-                  } @else {
-                    <span class="rc-badge-firma rc-firma-pend">Sin firmar</span>
-                  }
+                @if (r.estado === 'entregado') {
+                  <button class="rc-btn-ver-rep" (click)="abrirReporte(r)" title="Ver comprobante de entrega">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Comprobante
+                  </button>
+                } @else if (r.estado === 'comprando') {
+                  <span class="rc-badge-estado rc-est-comprando">En compra</span>
+                } @else if (r.estado === 'listo') {
+                  <span class="rc-badge-estado rc-est-listo">✓ Listo</span>
                 } @else {
                   <span class="rc-reporte-na">—</span>
                 }
@@ -146,18 +145,28 @@
                 @if (r.estado === 'pendiente') {
                   <button class="rc-btn rc-btn-reject" (click)="abrirRechazo(r)">Rechazar</button>
                   <button class="rc-btn rc-btn-review" (click)="abrirRevision(r)">Revisar</button>
-                } @else if (r.estado === 'aprobado' || r.estado === 'listo') {
-                  @if (r.estado === 'listo' && r.firmaUrl) {
-                    <span class="rc-firmado">✓ Firmado</span>
-                  }
-                  <button class="rc-btn rc-btn-deliver" (click)="entregar(r)" [disabled]="procesando">
-                    Registrar entrega
+                } @else if (r.estado === 'comprando') {
+                  <span class="rc-estado-chip rc-chip-comprando">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                      <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                    </svg>
+                    Comprando…
+                  </span>
+                } @else if (r.estado === 'listo') {
+                  <button class="rc-btn rc-btn-deliver" (click)="abrirEntrega(r)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px">
+                      <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                    Entregar
                   </button>
                 } @else if (r.estado === 'entregado') {
-                  <span class="rt-delivered">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    Entregado
-                  </span>
+                  <button class="rc-btn rc-btn-report" (click)="abrirReporte(r)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Ver reporte
+                  </button>
                 }
               </td>
             </tr>
@@ -460,6 +469,294 @@
         @else { Rechazar pedido }
       </button>
     </footer>
+  </div>
+</div>
+}
+
+<!-- ═══════════════ MODAL ENTREGA CON FIRMA DUAL ═══════════════ -->
+@if (reqEntrega) {
+<div class="rm-overlay" (click)="cerrarEntrega()">
+  <div class="rm-modal rm-entrega" (click)="$event.stopPropagation()">
+    <header class="rm-header">
+      <div>
+        <h2 class="rm-title">Registrar entrega de materiales</h2>
+        <p class="rm-subtitle">{{ reqEntrega.proyectoNombre }}
+          @if (reqEntrega.servicioNombre) { · {{ reqEntrega.servicioNombre }} }
+        </p>
+      </div>
+      <button class="rm-close" (click)="cerrarEntrega()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="rm-entrega-body">
+
+      <!-- Items -->
+      <div class="rm-ent-section">
+        <h4 class="rm-ent-stitle">Materiales / Equipos a entregar</h4>
+        <table class="rm-ent-table">
+          <thead><tr><th>#</th><th>Descripción</th><th>Unidad</th><th class="th-r">Cant.</th><th>Estado</th></tr></thead>
+          <tbody>
+            @for (it of reqEntrega.items; track it.id; let i = $index) {
+              <tr [class.ent-row-ok]="it.estadoItem === 'aprobado'" [class.ent-row-compra]="it.estadoItem === 'para_compra'">
+                <td class="td-i">{{ i + 1 }}</td>
+                <td class="td-nombre">{{ it.nombre }}</td>
+                <td class="td-u">{{ it.unidad }}</td>
+                <td class="td-r">{{ it.cantidadAprobada ?? it.cantidad }}</td>
+                <td><span class="rie-chip" [class]="itemEstadoClase(it.estadoItem)">{{ itemEstadoLabel(it.estadoItem) }}</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Firmas -->
+      <div class="rm-firmas-grid">
+
+        <!-- Firma Entregador (logística) -->
+        <div class="rm-firma-bloque rm-firma-entregador">
+          <h4 class="rm-firma-titulo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
+              <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+            </svg>
+            Entregado por <span class="rm-firma-opt">(opcional)</span>
+          </h4>
+          <p class="rm-firma-desc">Responsable de logística que hace la entrega</p>
+
+          @if (padEntregador.bloqueadoPor && !padEntregador.firmando) {
+            <div class="rm-firma-bloqueada">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {{ padEntregador.bloqueadoPor }} está firmando…
+            </div>
+          } @else if (padEntregador.firma) {
+            <div class="rm-firma-preview-wrap">
+              <img [src]="padEntregador.firma" class="rm-firma-img" alt="Firma entregador">
+              <button class="rm-firma-quitar" (click)="quitarFirma('entregador')">Quitar firma</button>
+            </div>
+          } @else if (padEntregador.firmando) {
+            <div class="rm-canvas-wrap">
+              <div class="rm-canvas-timer">⏱ {{ padEntregador.timerSecs }}s</div>
+              <canvas #canvasRef width="320" height="140" class="rm-canvas"></canvas>
+              <div class="rm-canvas-btns">
+                <button class="rm-cbtn rm-cbtn-clear" (click)="limpiarFirma('entregador')">Limpiar</button>
+                <button class="rm-cbtn rm-cbtn-cancel" (click)="cancelarFirma('entregador')">Cancelar</button>
+                <button class="rm-cbtn rm-cbtn-ok" (click)="confirmarFirma('entregador')">Confirmar</button>
+              </div>
+            </div>
+          } @else {
+            <div class="rm-firma-acciones">
+              <button class="rm-firma-btn rm-firma-dibujar" (click)="iniciarFirma('entregador')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                Firmar
+              </button>
+              <button class="rm-firma-btn rm-firma-usar" (click)="usarFirmaGuardada('entregador')">Usar guardada</button>
+            </div>
+          }
+        </div>
+
+        <!-- Firma Receptor (técnico) -->
+        <div class="rm-firma-bloque rm-firma-receptor">
+          <h4 class="rm-firma-titulo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            Retirado por <span class="rm-firma-req">* requerido</span>
+          </h4>
+          <p class="rm-firma-desc">Técnico o responsable que recibe los materiales</p>
+
+          @if (padReceptor.bloqueadoPor && !padReceptor.firmando) {
+            <div class="rm-firma-bloqueada">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              {{ padReceptor.bloqueadoPor }} está firmando…
+            </div>
+          } @else if (padReceptor.firma) {
+            <div class="rm-firma-preview-wrap">
+              <img [src]="padReceptor.firma" class="rm-firma-img" alt="Firma receptor">
+              <button class="rm-firma-quitar" (click)="quitarFirma('receptor')">Quitar firma</button>
+            </div>
+          } @else if (padReceptor.firmando) {
+            <div class="rm-canvas-wrap">
+              <div class="rm-canvas-timer">⏱ {{ padReceptor.timerSecs }}s</div>
+              <canvas #canvasRef width="320" height="140" class="rm-canvas"></canvas>
+              <div class="rm-canvas-btns">
+                <button class="rm-cbtn rm-cbtn-clear" (click)="limpiarFirma('receptor')">Limpiar</button>
+                <button class="rm-cbtn rm-cbtn-cancel" (click)="cancelarFirma('receptor')">Cancelar</button>
+                <button class="rm-cbtn rm-cbtn-ok" (click)="confirmarFirma('receptor')">Confirmar</button>
+              </div>
+            </div>
+          } @else {
+            <div class="rm-firma-acciones">
+              <button class="rm-firma-btn rm-firma-dibujar" (click)="iniciarFirma('receptor')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                Firmar
+              </button>
+              <button class="rm-firma-btn rm-firma-usar" (click)="usarFirmaGuardada('receptor')">Usar guardada</button>
+            </div>
+          }
+        </div>
+
+      </div>
+
+      <!-- Notas -->
+      <div class="rm-ent-section">
+        <label class="rm-label">Observaciones / Notas de entrega <span class="rm-lbl-opt">(opcional)</span></label>
+        <textarea class="rm-textarea" rows="2" [(ngModel)]="notasEntrega" placeholder="Ej: Se entregaron herramientas adicionales, materiales en buen estado…"></textarea>
+      </div>
+
+    </div>
+
+    <footer class="rm-footer">
+      <button class="rm-btn-cancel" (click)="cerrarEntrega()">Cancelar</button>
+      <button class="rm-btn-deliver-confirm" (click)="confirmarEntrega()"
+              [disabled]="enviandoEntrega || !puedeEntregar">
+        @if (enviandoEntrega) { <app-spinner [size]="15" theme="light"></app-spinner> Registrando… }
+        @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polyline points="20 6 9 17 4 12"/></svg>
+          Confirmar entrega
+        }
+      </button>
+    </footer>
+  </div>
+</div>
+}
+
+<!-- ═══════════════ REPORTE / COMPROBANTE DE ENTREGA ═══════════════ -->
+@if (reqReporte) {
+<div class="rm-overlay no-print" (click)="cerrarReporte()">
+  <div class="rm-modal rm-modal-report" (click)="$event.stopPropagation()">
+    <!-- Barra de control -->
+    <div class="rm-report-ctrl no-print">
+      <button class="rm-btn-imprimir" (click)="imprimirReporte()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
+          <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Imprimir
+      </button>
+      <button class="rm-btn-cerrar-rep no-print" (click)="cerrarReporte()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Comprobante imprimible -->
+    <div class="rm-comprobante printable">
+
+      <!-- Marca de agua -->
+      <div class="comp-watermark">
+        <img src="assets/img/logo_difuminado.png" alt="" aria-hidden="true">
+      </div>
+
+      <!-- Encabezado -->
+      <header class="comp-hdr">
+        <div class="comp-logo-blq">
+          <img src="assets/img/index.png" alt="e-System Tic" class="comp-logo">
+        </div>
+        <div class="comp-titulo-blq">
+          <h1 class="comp-h1">COMPROBANTE DE SALIDA DE MATERIALES</h1>
+          <p class="comp-h2">e-System Tic · Gestión de Logística</p>
+        </div>
+        <div class="comp-meta-blq">
+          <p class="comp-meta-item"><strong>N°:</strong> {{ reqReporte.id.slice(-6).toUpperCase() }}</p>
+          <p class="comp-meta-item"><strong>Fecha:</strong> {{ reqReporte.fechaEntrega ? (reqReporte.fechaEntrega | date:'dd/MM/yyyy') : fechaHoy() }}</p>
+        </div>
+      </header>
+
+      <div class="comp-divider"></div>
+
+      <!-- Info del servicio -->
+      <section class="comp-seccion">
+        <h3 class="comp-sec-h">INFORMACIÓN DEL SERVICIO</h3>
+        <div class="comp-grid2">
+          <div class="comp-campo"><span class="comp-lbl">Proyecto</span><span class="comp-val">{{ reqReporte.proyectoNombre }}</span></div>
+          <div class="comp-campo"><span class="comp-lbl">Servicio</span><span class="comp-val">{{ reqReporte.servicioNombre || '—' }}</span></div>
+          <div class="comp-campo"><span class="comp-lbl">Solicitante</span><span class="comp-val">{{ reqReporte.solicitanteNombre }}</span></div>
+          <div class="comp-campo"><span class="comp-lbl">Fecha de Solicitud</span><span class="comp-val">{{ reqReporte.fecha || '—' }}</span></div>
+        </div>
+      </section>
+
+      <div class="comp-divider"></div>
+
+      <!-- Tabla de ítems -->
+      <section class="comp-seccion">
+        <h3 class="comp-sec-h">DETALLE DE MATERIALES / EQUIPOS ENTREGADOS</h3>
+        <table class="comp-tabla">
+          <thead>
+            <tr>
+              <th class="th-n">#</th>
+              <th>Descripción del Material / Equipo</th>
+              <th class="th-u">Unidad</th>
+              <th class="th-cant">Cant. Solicitada</th>
+              <th class="th-cant">Cant. Entregada</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (it of reqReporte.items; track it.id; let i = $index) {
+              <tr>
+                <td class="th-n">{{ i + 1 }}</td>
+                <td class="comp-td-desc">{{ it.nombre }}@if (it.especificacion) { <br><small>{{ it.especificacion }}</small> }</td>
+                <td class="th-u">{{ it.unidad }}</td>
+                <td class="th-cant">{{ it.cantidad }}</td>
+                <td class="th-cant">{{ it.cantidadAprobada ?? it.cantidad }}</td>
+                <td>{{ itemEstadoLabel(it.estadoItem) }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" class="tfoot-lbl">TOTAL ÍTEMS</td>
+              <td class="th-cant"><strong>{{ reqReporte.items.length }}</strong></td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </section>
+
+      @if (reqReporte.observacion) {
+        <div class="comp-obs">
+          <strong>Observaciones:</strong> {{ reqReporte.observacion }}
+        </div>
+      }
+
+      <div class="comp-divider"></div>
+
+      <!-- Firmas -->
+      <section class="comp-firmas">
+        <div class="comp-firma-blq">
+          <p class="comp-firma-titulo">ENTREGADO POR</p>
+          @if (reqReporte.firmaEntregadorUrl) {
+            <img [src]="reqReporte.firmaEntregadorUrl" class="comp-firma-img" alt="Firma entregador">
+          } @else {
+            <div class="comp-firma-espacio"></div>
+          }
+          <div class="comp-firma-linea"></div>
+          <p class="comp-firma-nombre">{{ reqReporte.entregadoPorNombre || '___________________________' }}</p>
+          <p class="comp-firma-cargo">Responsable de Logística</p>
+        </div>
+
+        <div class="comp-firma-blq">
+          <p class="comp-firma-titulo">RETIRADO POR</p>
+          @if (reqReporte.firmaUrl) {
+            <img [src]="reqReporte.firmaUrl" class="comp-firma-img" alt="Firma receptor">
+          } @else {
+            <div class="comp-firma-espacio"></div>
+          }
+          <div class="comp-firma-linea"></div>
+          <p class="comp-firma-nombre">{{ reqReporte.recibidoPorNombre || '___________________________' }}</p>
+          <p class="comp-firma-cargo">Técnico / Personal de Campo</p>
+        </div>
+      </section>
+
+      <!-- Footer del comprobante -->
+      <footer class="comp-footer">
+        <p>Documento generado por e-System Tic · Soluciones Innovadoras para tu Empresa</p>
+        <p>Este comprobante certifica la entrega física de los materiales indicados.</p>
+      </footer>
+
+    </div>
   </div>
 </div>
 }

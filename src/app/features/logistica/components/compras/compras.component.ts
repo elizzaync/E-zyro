@@ -6,7 +6,8 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import {
-  TicketCompra, Proveedor, EstadoCompra, ProcesarCompraPayload
+  TicketCompra, TicketCompraItem, Proveedor, EstadoCompra,
+  ProcesarCompraPayload, RegistrarIngresoPayload
 } from '../../logistica.models';
 
 interface ItemCompraForm {
@@ -61,6 +62,11 @@ export class ComprasComponent implements OnInit {
 
   // ── Modal de detalle ──
   ticketDetalle: TicketCompra | null = null;
+
+  // ── Modal de ingreso ──
+  ticketIngreso: TicketCompra | null = null;
+  itemsIngreso: { item: TicketCompraItem; cantidad: number }[] = [];
+  registrandoIngreso = false;
 
   // ── Modal de cancelación ──
   ticketCancelar: TicketCompra | null = null;
@@ -250,9 +256,54 @@ export class ComprasComponent implements OnInit {
   confirmarCompra(): void {
     if (!this.ticketActivo || !this.puedeCompletar) return;
     this.procesando = true;
-    this.svc.procesarCompra(this.ticketActivo.id, this._buildPayload(true)).subscribe({
-      next:  () => { this.procesando = false; this.toast.mostrar('Compra completada.', 'success'); this.cerrarProceso(); this.cargar(); this.cargarResumen(); },
+    const ticketId = this.ticketActivo.id;
+    this.svc.procesarCompra(ticketId, this._buildPayload(true)).subscribe({
+      next:  t => {
+        this.procesando = false;
+        this.toast.mostrar('Compra completada.', 'success');
+        this.cerrarProceso();
+        this.cargar();
+        this.cargarResumen();
+        // abrir modal de ingreso para registrar entrada al inventario
+        this.abrirIngreso(t);
+      },
       error: err => { this.procesando = false; this.toast.mostrar(err?.error?.detail ?? 'Error al completar.', 'error'); }
+    });
+  }
+
+  // ── Modal ingreso ──
+  abrirIngreso(t: TicketCompra): void {
+    this.ticketIngreso = t;
+    this.itemsIngreso = t.items
+      .filter(i => i.estadoItem !== 'cancelado')
+      .map(i => ({ item: i, cantidad: i.cantidadComprada ?? i.cantidad }));
+  }
+
+  cerrarIngreso(): void { this.ticketIngreso = null; this.itemsIngreso = []; }
+
+  get puedeRegistrarIngreso(): boolean {
+    return this.itemsIngreso.some(r => r.cantidad > 0);
+  }
+
+  registrarIngreso(): void {
+    if (!this.ticketIngreso || !this.puedeRegistrarIngreso) return;
+    this.registrandoIngreso = true;
+    const payload: RegistrarIngresoPayload = {
+      items: this.itemsIngreso
+        .filter(r => r.cantidad > 0)
+        .map(r => ({ itemId: r.item.id, cantidad: r.cantidad })),
+    };
+    this.svc.registrarIngreso(this.ticketIngreso.id, payload).subscribe({
+      next: () => {
+        this.registrandoIngreso = false;
+        this.toast.mostrar('Materiales ingresados al inventario.', 'success');
+        this.cerrarIngreso();
+        this.cargar();
+      },
+      error: err => {
+        this.registrandoIngreso = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al registrar ingreso.', 'error');
+      },
     });
   }
 

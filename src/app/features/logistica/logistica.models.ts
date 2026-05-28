@@ -81,7 +81,7 @@ export interface RequerimientoItem {
 
 export interface Requerimiento {
   id: string;
-  estado: string;              // pendiente | aprobado | listo | entregado | rechazado
+  estado: string;  // pendiente | comprando | listo | entregado | rechazado | aprobado
   fecha: string | null;
   observacion: string | null;
   observacionLogistico: string | null;
@@ -96,7 +96,17 @@ export interface Requerimiento {
   entregadoPorNombre: string | null;
   recibidoPorNombre: string | null;
   firmaUrl: string | null;
+  firmaEntregadorUrl: string | null;
   fechaEntrega: string | null;
+  firmandoPorNombre: string | null;
+  firmandoDesde: string | null;
+}
+
+export interface EntregarPayload {
+  recibidoPorId?: string | null;
+  firmaUrl?: string | null;
+  firmaEntregadorUrl?: string | null;
+  notas?: string | null;
 }
 
 export interface AprobarItemDecision {
@@ -258,6 +268,17 @@ export interface SalidasKpis {
   totalUnidadesEntregadas: number;
   salidasEsteMes: number;
   proyectosAtendidos: number;
+}
+
+// ── Ingreso de materiales comprados (HU-17 → inventario) ───────────────────
+
+export interface IngresoItem {
+  itemId: string;
+  cantidad: number;
+}
+
+export interface RegistrarIngresoPayload {
+  items: IngresoItem[];
 }
 
 /** KPIs de la cabecera de Logística. */
