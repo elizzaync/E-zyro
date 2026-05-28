@@ -1,8 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from sqlalchemy import text
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 from app.db.database import engine, Base
 from app.routers import auth, dashboard
@@ -333,7 +337,7 @@ def _run_migrations():
         # HU-16: firma del técnico receptor en el requerimiento
         conn.execute(text(
             "ALTER TABLE requerimiento "
-            "ADD COLUMN IF NOT EXISTS firma_receptor_url VARCHAR(500)"
+            "ADD COLUMN IF NOT EXISTS firma_receptor_url TEXT"
         ))
         conn.execute(text(
             "ALTER TABLE requerimiento "
@@ -354,13 +358,71 @@ def _run_migrations():
         ))
         conn.execute(text(
             "ALTER TABLE requerimiento "
-            "ADD COLUMN IF NOT EXISTS firma_entregador_url VARCHAR(500)"
+            "ADD COLUMN IF NOT EXISTS firma_entregador_url TEXT"
         ))
         # HU-17 ext: firma del entregador en entrega
         conn.execute(text(
             "ALTER TABLE requerimiento_entrega "
-            "ADD COLUMN IF NOT EXISTS firma_entregador_url VARCHAR(500)"
+            "ADD COLUMN IF NOT EXISTS firma_entregador_url TEXT"
         ))
+        # HU-16 fix: ampliar columnas VARCHAR(500) existentes a TEXT para firmas Base64
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='requerimiento'
+                      AND column_name='firma_receptor_url'
+                      AND character_maximum_length IS NOT NULL
+                ) THEN
+                    ALTER TABLE requerimiento
+                        ALTER COLUMN firma_receptor_url   TYPE TEXT,
+                        ALTER COLUMN firma_entregador_url TYPE TEXT;
+                END IF;
+            END $$;
+        """))
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='requerimiento_entrega'
+                      AND column_name='firma_entregador_url'
+                      AND character_maximum_length IS NOT NULL
+                ) THEN
+                    ALTER TABLE requerimiento_entrega
+                        ALTER COLUMN firma_receptor_url   TYPE TEXT,
+                        ALTER COLUMN firma_entregador_url TYPE TEXT;
+                END IF;
+            END $$;
+        """))
+
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='firma_digital'
+                      AND column_name='url_cloudinary'
+                      AND character_maximum_length IS NOT NULL
+                ) THEN
+                    ALTER TABLE firma_digital ALTER COLUMN url_cloudinary TYPE TEXT;
+                END IF;
+            END $$;
+        """))
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='historial_firma'
+                      AND column_name='url_cloudinary'
+                      AND character_maximum_length IS NOT NULL
+                ) THEN
+                    ALTER TABLE historial_firma ALTER COLUMN url_cloudinary TYPE TEXT;
+                END IF;
+            END $$;
+        """))
 
         # Índices únicos para evitar duplicados de categoría/almacén por empresa
         conn.execute(text(
@@ -478,6 +540,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(AuditContextMiddleware)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"{type(exc).__name__}: {exc}"},
+    )
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
