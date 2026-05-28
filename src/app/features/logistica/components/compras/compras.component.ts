@@ -39,11 +39,14 @@ export class ComprasComponent implements OnInit {
   private router = inject(Router);
 
   tab: TabCompra = 'pendiente';
-  cargando  = true;
+  cargando   = true;
   procesando = false;
 
   tickets: TicketCompra[] = [];
   busqueda = '';
+
+  // KPI globales (no dependen de la pestaña activa)
+  kpis = { pendiente: 0, en_proceso: 0, completado: 0, cancelado: 0 };
 
   // ── Modal de proceso ──
   ticketActivo: TicketCompra | null = null;
@@ -63,17 +66,14 @@ export class ComprasComponent implements OnInit {
   ticketCancelar: TicketCompra | null = null;
   motivoCancelacion = '';
 
-  // Proveedores demo — reemplazar con API getProveedores() cuando exista
-  readonly proveedores: Proveedor[] = [
-    { id: 'p1', nombre: 'Distribuidora TecnoPlus',      ruc: '20123456789', contacto: '01-234-5678', email: 'ventas@tecnoplus.pe',  rating: 4, categorias: ['materiales','equipos'],      activo: true },
-    { id: 'p2', nombre: 'Materiales Industriales Perú', ruc: '20987654321', contacto: '01-987-6543', email: 'pedidos@matind.pe',     rating: 3, categorias: ['materiales'],               activo: true },
-    { id: 'p3', nombre: 'Soluciones Eléctricas SAC',    ruc: '20555010101', contacto: '01-555-0101', email: 'info@solelec.pe',       rating: 5, categorias: ['equipos','herramientas'],   activo: true },
-    { id: 'p4', nombre: 'InduSupply Corp.',              ruc: '20333224400', contacto: '01-333-2244', email: 'supply@indusupply.pe',  rating: 4, categorias: ['materiales','herramientas'],activo: true },
-    { id: 'p5', nombre: 'Ferretería Central Lima',       ruc: '20111222333', contacto: '01-111-2233', email: 'ventas@fercentral.pe',  rating: 3, categorias: ['herramientas','materiales'],activo: true },
-    { id: 'p6', nombre: 'ProTech Equipos SAC',           ruc: '20444555666', contacto: '01-444-5566', email: 'ventas@protech.pe',     rating: 5, categorias: ['equipos'],                  activo: true },
-  ];
+  // Proveedores cargados desde la API
+  proveedores: Proveedor[] = [];
 
-  ngOnInit(): void { this.cargar(); }
+  ngOnInit(): void {
+    this.cargarResumen();
+    this.cargarProveedores();
+    this.cargar();
+  }
 
   setTab(t: TabCompra): void { this.tab = t; this.cargar(); }
 
@@ -82,6 +82,20 @@ export class ComprasComponent implements OnInit {
     this.svc.getTicketsCompra({ estado: this.tab }).subscribe({
       next:  d => { this.tickets = d; this.cargando = false; },
       error: () => { this.cargando = false; this.toast.mostrar('Error al cargar compras.', 'error'); }
+    });
+  }
+
+  cargarResumen(): void {
+    this.svc.getComprasResumen().subscribe({
+      next: r => { this.kpis = r; },
+      error: () => {}
+    });
+  }
+
+  cargarProveedores(): void {
+    this.svc.getProveedores().subscribe({
+      next: p => { this.proveedores = p; },
+      error: () => {}
     });
   }
 
@@ -228,7 +242,7 @@ export class ComprasComponent implements OnInit {
     if (!this.ticketActivo) return;
     this.procesando = true;
     this.svc.procesarCompra(this.ticketActivo.id, this._buildPayload(false)).subscribe({
-      next:  () => { this.procesando = false; this.toast.mostrar('Progreso guardado.', 'success'); this.cerrarProceso(); this.cargar(); },
+      next:  () => { this.procesando = false; this.toast.mostrar('Progreso guardado.', 'success'); this.cerrarProceso(); this.cargar(); this.cargarResumen(); },
       error: err => { this.procesando = false; this.toast.mostrar(err?.error?.detail ?? 'No se pudo guardar.', 'error'); }
     });
   }
@@ -237,7 +251,7 @@ export class ComprasComponent implements OnInit {
     if (!this.ticketActivo || !this.puedeCompletar) return;
     this.procesando = true;
     this.svc.procesarCompra(this.ticketActivo.id, this._buildPayload(true)).subscribe({
-      next:  () => { this.procesando = false; this.toast.mostrar('Compra completada.', 'success'); this.cerrarProceso(); this.cargar(); },
+      next:  () => { this.procesando = false; this.toast.mostrar('Compra completada.', 'success'); this.cerrarProceso(); this.cargar(); this.cargarResumen(); },
       error: err => { this.procesando = false; this.toast.mostrar(err?.error?.detail ?? 'Error al completar.', 'error'); }
     });
   }
@@ -250,7 +264,7 @@ export class ComprasComponent implements OnInit {
     if (!this.ticketCancelar) return;
     this.procesando = true;
     this.svc.cancelarCompra(this.ticketCancelar.id, this.motivoCancelacion.trim() || undefined).subscribe({
-      next:  () => { this.procesando = false; this.toast.mostrar('Ticket cancelado.', 'success'); this.cerrarCancelar(); this.cargar(); },
+      next:  () => { this.procesando = false; this.toast.mostrar('Ticket cancelado.', 'success'); this.cerrarCancelar(); this.cargar(); this.cargarResumen(); },
       error: () => { this.procesando = false; this.toast.mostrar('No se pudo cancelar.', 'error'); }
     });
   }
@@ -261,8 +275,8 @@ export class ComprasComponent implements OnInit {
 
   volverInventario(): void { this.router.navigate(['/logistica']); }
 
-  // KPI — calculated from ALL loaded tickets (regardless of tab filter)
-  get kpiPendiente():  number { return this.tickets.filter(t => t.estado === 'pendiente').length; }
-  get kpiEnProceso():  number { return this.tickets.filter(t => t.estado === 'en_proceso').length; }
-  get kpiCompletado(): number { return this.tickets.filter(t => t.estado === 'completado').length; }
+  // KPI — vienen del endpoint /compras/resumen (totales reales, independientes del tab)
+  get kpiPendiente():  number { return this.kpis.pendiente; }
+  get kpiEnProceso():  number { return this.kpis.en_proceso; }
+  get kpiCompletado(): number { return this.kpis.completado; }
 }

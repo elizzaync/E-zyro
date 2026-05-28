@@ -15,6 +15,7 @@ import {
   TicketCompra,
   EstadoCompra,
   ProcesarCompraPayload,
+  Proveedor,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -250,6 +251,22 @@ export class LogisticaService {
   // ─────────────────────────────────────────────────────────────────────────
   // COMPRAS (HU-17)
   // ─────────────────────────────────────────────────────────────────────────
+
+  getProveedores(q?: string): Observable<Proveedor[]> {
+    let params = new HttpParams().set('solo_activos', 'true');
+    if (q) params = params.set('q', q);
+    return this.http.get<Proveedor[]>(`${this.api}/logistica/proveedores`, { params });
+  }
+
+  crearProveedor(data: { nombre: string; ruc?: string; contacto?: string; email?: string }): Observable<Proveedor> {
+    return this.http.post<Proveedor>(`${this.api}/logistica/proveedores`, data);
+  }
+
+  getComprasResumen(): Observable<{ pendiente: number; en_proceso: number; completado: number; cancelado: number }> {
+    return this.http.get<{ pendiente: number; en_proceso: number; completado: number; cancelado: number }>(
+      `${this.api}/logistica/compras/resumen`
+    );
+  }
 
   getTicketsCompra(filtros: ComprasFiltros = {}): Observable<TicketCompra[]> {
     let params = new HttpParams()
