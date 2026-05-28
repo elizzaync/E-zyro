@@ -286,47 +286,45 @@ def marcar_asistencia(
         score, resultado_ia = _comparar(True, enc_selfie)
         aprobado = resultado_ia == "aprobado"
 
-    # ── Validación de la fuente de tiempo ────────────────────────────────────
-    fuente = (body.fuente_tiempo or "device_only").strip().lower()
-
-    if fuente == "sospechoso":
-        # El reloj del dispositivo retrocedió desde el último sync NTP.
-        # Registrar como pendiente de revisión obligatoria.
-        resultado_ia = "revision_manual"
-        aprobado = True
-        motivo = f"ALERTA: Posible manipulación de reloj detectada. {motivo}"
-
-    elif fuente == "device_only":
-        # Sin referencia NTP: el timestamp proviene solo del reloj del dispositivo.
-        # Marcar para revisión, pero no rechazar.
-        delta_horas = abs((timestamp_servidor - ahora).total_seconds()) / 3600
-        if delta_horas > 1:  # más de 1 hora de diferencia → sospechoso
-            resultado_ia = "revision_manual"
-            aprobado = True
-            motivo = f"Tiempo no verificado por NTP (δ={delta_horas:.1f}h). Requiere revisión. {motivo}"
-
-    else:
-        # ntp_monotonic o ntp_device: fuente confiable.
-        # Solo aplicar delta como red de seguridad extra (umbral más alto: 24h).
-        delta_horas = abs((timestamp_servidor - ahora).total_seconds()) / 3600
-        if delta_horas > 24:
-            resultado_ia = "revision_manual"
-            aprobado = True
-            motivo = f"Delta tiempo inusual ({delta_horas:.1f}h). Revisión recomendada."
-    
-    # Usar timestamp del dispositivo si viene en el payload (registros offline-first).
-    # Si no, usar la hora del servidor. Siempre almacenar como hora Lima sin tzinfo.
+    # ── Parsear timestamp del dispositivo (registros offline-first) ─────────
+    # timestamp_servidor = cuándo llegó la petición al servidor (siempre ahora).
+    # ahora             = hora reportada por el dispositivo, o servidor si no viene.
+    # Ambas se necesitan antes de la validación de fuente de tiempo.
+    timestamp_servidor = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
     if body.timestamp:
         try:
             ts_raw = datetime.fromisoformat(body.timestamp.replace("Z", "+00:00"))
             ahora = ts_raw.astimezone(ZoneInfo("America/Lima")).replace(tzinfo=None)
         except (ValueError, AttributeError):
-            ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+            ahora = timestamp_servidor
     else:
-        ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        ahora = timestamp_servidor
 
-    # Auditoría: guardar cuándo llegó al servidor para detectar deltas sospechosos
-    timestamp_servidor = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+    # ── Validación de la fuente de tiempo ────────────────────────────────────
+    fuente = (body.fuente_tiempo or "device_only").strip().lower()
+    motivo = ""
+
+    if fuente == "sospechoso":
+        # El reloj del dispositivo retrocedió desde el último sync NTP.
+        resultado_ia = "revision_manual"
+        aprobado = True
+        motivo = "ALERTA: Posible manipulación de reloj detectada."
+
+    elif fuente == "device_only":
+        # Sin referencia NTP: marcar para revisión si hay más de 1h de diferencia.
+        delta_horas = abs((timestamp_servidor - ahora).total_seconds()) / 3600
+        if delta_horas > 1:
+            resultado_ia = "revision_manual"
+            aprobado = True
+            motivo = f"Tiempo no verificado por NTP (δ={delta_horas:.1f}h). Requiere revisión."
+
+    else:
+        # ntp_monotonic o ntp_device: fuente confiable — solo alerta si delta > 24h.
+        delta_horas = abs((timestamp_servidor - ahora).total_seconds()) / 3600
+        if delta_horas > 24:
+            resultado_ia = "revision_manual"
+            aprobado = True
+            motivo = f"Delta tiempo inusual ({delta_horas:.1f}h). Revisión recomendada."
 
     _motivos = {
         "aprobado":              f"Identidad verificada · Similitud {score:.1f}%",
@@ -334,7 +332,7 @@ def marcar_asistencia(
         "rechazado":             f"Identidad no verificada · Similitud insuficiente ({score:.1f}%)",
         "sin_evidencia_offline": "Registro sincronizado offline · Sin selfie · Verificado por JWT+GPS",
     }
-    motivo = _motivos.get(resultado_ia, motivo if 'motivo' in dir() else "")
+    motivo = _motivos.get(resultado_ia, motivo)
 
     # 7 ── Subir selfie a Cloudinary (fallo no bloquea el registro)
     selfie_url:       Optional[str] = None
