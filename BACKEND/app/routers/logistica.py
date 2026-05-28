@@ -54,6 +54,7 @@ from ..schemas.logistica import (
     TicketCompraItemOut, TicketCompraOut, ComprasListResponse,
     ProcesarCompraBody, CancelarCompraBody, ComprasResumen,
     ProveedorOut, ProveedorIn,
+    IngresoItemBody, RegistrarIngresoBody,
     SalidaItemOut, SalidaOut, SalidasListResponse, SalidasKpis,
 )
 from datetime import date as _date
@@ -1170,7 +1171,9 @@ def aprobar_requerimiento(
             d.estado_item = "rechazado"
             d.cantidad_aprobada = 0
 
-    req.estado = "aprobado" if hay_aprobado else "rechazado"
+    hay_para_compra  = any(d.estado_item == "para_compra"  for d in detalles)
+    todos_rechazados = all(d.estado_item == "rechazado" for d in detalles)
+    req.estado = "rechazado" if todos_rechazados else "aprobado"
     if body.observacion:
         req.observacion_logistico = body.observacion
     req.aprobado_por = emp_log.id if emp_log else None
@@ -1185,11 +1188,20 @@ def aprobar_requerimiento(
 
     # Notificar al solicitante
     _notificar_solicitante(
+    # Notificar al solicitante
+    if todos_rechazados:
+        _msg = "Tu pedido de materiales fue rechazado por Logística."
+    elif hay_aprobado and hay_para_compra:
+        _msg = "Pedido parcialmente aprobado. Materiales pendientes están en compra."
+    elif hay_para_compra:
+        _msg = "Tu pedido fue aceptado. Los materiales están siendo adquiridos."
+    else:
+        _msg = "Tu pedido de materiales fue aprobado por Logística."
+    _notificar_solicitante(
         db, req, empresa_id,
         titulo="Requerimiento procesado",
-        mensaje=f"Tu pedido de materiales fue {'aprobado' if hay_aprobado else 'rechazado'} por Logística.",
+        mensaje=_msg,
     )
-
     db.refresh(req)
     return _req_out(db, req, empresa_id)
 
@@ -1691,6 +1703,95 @@ def cancelar_compra(
     return _ticket_out(db, tc)
 
 
+
+
+@router.post("/compras/{ticket_id}/registrar-ingreso", response_model=TicketCompraOut)
+def registrar_ingreso_compra(
+    ticket_id: str,
+    body:      RegistrarIngresoBody,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """
+    Registra la entrada de materiales comprados al inventario.
+    Para cada ítem: suma al stock, crea movimiento ingreso, marca el
+    RequerimientoDetalle como aprobado para que aparezca en salidas.
+    """
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    tc = db.query(TicketCompra).filter(
+        TicketCompra.id == ticket_id, TicketCompra.empresa_id == empresa_id
+    ).first()
+    if not tc:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if tc.estado != "completado":
+        raise HTTPException(status_code=409, detail="Solo tickets completados admiten ingreso")
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    # Almacén por defecto
+    almacen_default = body.almacenId
+    if not almacen_default:
+        alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
+        almacen_default = str(alm.id) if alm else None
+
+    items_map = {b.itemId: b for b in body.items}
+
+    for it in db.query(TicketCompraItem).filter(TicketCompraItem.ticket_id == tc.id).all():
+        b = items_map.get(str(it.id))
+        if b is None or not it.material_id:
+            continue
+        cant = max(0, b.cantidad)
+        if cant == 0:
+            continue
+        alm_id = b.almacenId or almacen_default
+
+        # Suma al stock
+        stock_row = db.query(Stock).filter(
+            Stock.material_id == it.material_id,
+            Stock.empresa_id == empresa_id,
+            Stock.almacen_id == alm_id,
+        ).first()
+        if stock_row:
+            stock_row.cantidad = int(stock_row.cantidad or 0) + cant
+            stock_row.updated_at = datetime.utcnow()
+        else:
+            db.add(Stock(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                material_id=it.material_id, almacen_id=alm_id,
+                cantidad=cant, updated_at=datetime.utcnow(),
+            ))
+
+        # Movimiento de ingreso
+        db.add(MovimientoInventario(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            material_id=it.material_id, almacen_id=alm_id,
+            tipo="ingreso", cantidad=cant,
+            referencia_id=str(tc.id), referencia_tipo="compra",
+            responsable_id=str(emp.id) if emp else None,
+            fecha=datetime.utcnow(),
+        ))
+
+        # Actualiza el RequerimientoDetalle correspondiente
+        if it.requerimiento_detalle_id:
+            det = db.query(RequerimientoDetalle).filter(
+                RequerimientoDetalle.id == it.requerimiento_detalle_id
+            ).first()
+            if det and det.estado_item == "para_compra":
+                det.estado_item       = "aprobado"
+                det.cantidad_aprobada = cant
+
+        it.estado_item = "comprado"
+
+    db.commit()
+    db.refresh(tc)
+    return _ticket_out(db, tc)
+
+
 # ══════════════════════════════════════════════════════════════════════════
 # PROVEEDORES — CRUD básico
 # ══════════════════════════════════════════════════════════════════════════
@@ -1788,7 +1889,7 @@ def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> Salid
         .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
         .filter(
             RequerimientoDetalle.requerimiento_id == req.id,
-            RequerimientoDetalle.estado_item == "aprobado",
+            RequerimientoDetalle.estado_item.notin_(["rechazado"]),
         )
         .all()
     )

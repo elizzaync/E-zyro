@@ -426,3 +426,18 @@ class SalidasKpis(BaseModel):
     totalUnidadesEntregadas: int = 0
     salidasEsteMes:          int = 0
     proyectosAtendidos:      int = 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# REGISTRO DE INGRESO (entrada a inventario desde compra completada)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class IngresoItemBody(BaseModel):
+    itemId:    str
+    cantidad:  int
+    almacenId: Optional[str] = None
+
+
+class RegistrarIngresoBody(BaseModel):
+    almacenId: Optional[str]      = None   # almacén por defecto
+    items:     List[IngresoItemBody] = []
