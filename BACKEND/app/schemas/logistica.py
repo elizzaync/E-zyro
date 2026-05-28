@@ -382,3 +382,47 @@ class ProveedorIn(BaseModel):
     email:    Optional[str] = None
     rating:   int = 0
 
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SALIDAS DE MATERIALES (HU-18 — registro de entregas desde requerimientos)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SalidaItemOut(BaseModel):
+    id:                 str
+    nombre:             str
+    unidad:             str
+    cantidadSolicitada: int
+    cantidadEntregada:  int
+
+
+class SalidaOut(BaseModel):
+    id:                  str
+    fechaSolicitud:      Optional[str] = None
+    fechaSalida:         Optional[str] = None
+    proyectoId:          Optional[str] = None
+    proyectoNombre:      str
+    servicioId:          Optional[str] = None
+    servicioNombre:      Optional[str] = None
+    solicitanteNombre:   str
+    entregadoPorNombre:  Optional[str] = None
+    recibidoPorNombre:   Optional[str] = None
+    firmaUrl:            Optional[str] = None
+    observacion:         Optional[str] = None
+    items:               List[SalidaItemOut]
+    totalItems:          int
+    totalUnidades:       int
+
+
+class SalidasListResponse(BaseModel):
+    items:    List[SalidaOut]
+    total:    int
+    page:     int
+    pageSize: int
+
+
+class SalidasKpis(BaseModel):
+    totalSalidas:            int = 0
+    totalUnidadesEntregadas: int = 0
+    salidasEsteMes:          int = 0
+    proyectosAtendidos:      int = 0

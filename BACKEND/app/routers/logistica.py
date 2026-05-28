@@ -54,6 +54,7 @@ from ..schemas.logistica import (
     TicketCompraItemOut, TicketCompraOut, ComprasListResponse,
     ProcesarCompraBody, CancelarCompraBody, ComprasResumen,
     ProveedorOut, ProveedorIn,
+    SalidaItemOut, SalidaOut, SalidasListResponse, SalidasKpis,
 )
 from datetime import date as _date
 
@@ -1764,3 +1765,186 @@ def crear_proveedor(
     db.commit()
     db.refresh(p)
     return _prov_out(db, p)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SALIDAS DE MATERIALES (HU-18)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> SalidaOut:
+    """Convierte un Requerimiento entregado en SalidaOut."""
+    proyecto = db.query(Proyecto).filter(Proyecto.id == req.proyecto_id).first()
+    proyecto_nombre = proyecto.nombre_proyecto if proyecto else "Proyecto"
+
+    servicio_nombre = None
+    if req.proyecto_servicio_id:
+        srv = db.query(ProyectoServicio).filter(ProyectoServicio.id == req.proyecto_servicio_id).first()
+        servicio_nombre = srv.nombre if srv else None
+
+    sol_nombre, _ = _nombre_empleado(db, req.solicitante_id)
+
+    detalles = (
+        db.query(RequerimientoDetalle, Material.nombre, Material.unidad)
+        .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
+        .filter(
+            RequerimientoDetalle.requerimiento_id == req.id,
+            RequerimientoDetalle.estado_item == "aprobado",
+        )
+        .all()
+    )
+    items: list[SalidaItemOut] = []
+    total_unidades = 0
+    for d, mat_nombre, mat_unidad in detalles:
+        cant = int(d.cantidad_aprobada or d.cantidad or 0)
+        total_unidades += cant
+        items.append(SalidaItemOut(
+            id=str(d.id),
+            nombre=mat_nombre or d.nombre_libre or "—",
+            unidad=mat_unidad or d.unidad_libre or "",
+            cantidadSolicitada=int(d.cantidad or 0),
+            cantidadEntregada=cant,
+        ))
+
+    entrega = (
+        db.query(RequerimientoEntrega)
+        .filter(RequerimientoEntrega.requerimiento_id == req.id)
+        .order_by(RequerimientoEntrega.created_at.desc())
+        .first()
+    )
+    entregado_nombre = recibido_nombre = firma_url = fecha_salida = None
+    if entrega:
+        entregado_nombre, _ = _nombre_empleado(db, entrega.entregado_por_id)
+        recibido_nombre, _  = _nombre_empleado(db, entrega.recibido_por_id)
+        firma_url  = entrega.firma_receptor_url
+        fecha_salida = entrega.fecha_entrega.isoformat() if entrega.fecha_entrega else None
+
+    return SalidaOut(
+        id=str(req.id),
+        fechaSolicitud=req.created_at.isoformat() if req.created_at else None,
+        fechaSalida=fecha_salida,
+        proyectoId=str(req.proyecto_id) if req.proyecto_id else None,
+        proyectoNombre=proyecto_nombre,
+        servicioId=str(req.proyecto_servicio_id) if req.proyecto_servicio_id else None,
+        servicioNombre=servicio_nombre,
+        solicitanteNombre=sol_nombre,
+        entregadoPorNombre=entregado_nombre,
+        recibidoPorNombre=recibido_nombre,
+        firmaUrl=firma_url,
+        observacion=req.observacion_logistico,
+        items=items,
+        totalItems=len(items),
+        totalUnidades=total_unidades,
+    )
+
+
+@router.get("/salidas/kpis", response_model=SalidasKpis)
+def salidas_kpis(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Métricas globales de salidas de materiales."""
+    empresa_id = payload["empresa_id"]
+
+    total = (
+        db.query(func.count(Requerimiento.id))
+        .filter(Requerimiento.empresa_id == empresa_id, Requerimiento.estado == "entregado")
+        .scalar() or 0
+    )
+
+    inicio_mes = datetime.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    este_mes = (
+        db.query(func.count(Requerimiento.id))
+        .join(RequerimientoEntrega, RequerimientoEntrega.requerimiento_id == Requerimiento.id)
+        .filter(
+            Requerimiento.empresa_id == empresa_id,
+            Requerimiento.estado == "entregado",
+            RequerimientoEntrega.fecha_entrega >= inicio_mes,
+        )
+        .scalar() or 0
+    )
+
+    total_unidades = (
+        db.query(func.coalesce(func.sum(RequerimientoDetalle.cantidad_aprobada), 0))
+        .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
+        .filter(
+            Requerimiento.empresa_id == empresa_id,
+            Requerimiento.estado == "entregado",
+            RequerimientoDetalle.estado_item == "aprobado",
+        )
+        .scalar() or 0
+    )
+
+    proyectos = (
+        db.query(func.count(func.distinct(Requerimiento.proyecto_id)))
+        .filter(Requerimiento.empresa_id == empresa_id, Requerimiento.estado == "entregado")
+        .scalar() or 0
+    )
+
+    return SalidasKpis(
+        totalSalidas=int(total),
+        totalUnidadesEntregadas=int(total_unidades),
+        salidasEsteMes=int(este_mes),
+        proyectosAtendidos=int(proyectos),
+    )
+
+
+@router.get("/salidas", response_model=SalidasListResponse)
+def listar_salidas(
+    q:          str           = Query(""),
+    proyecto_id: str          = Query(""),
+    desde:      Optional[str] = Query(None, description="YYYY-MM-DD"),
+    hasta:      Optional[str] = Query(None, description="YYYY-MM-DD"),
+    page:       int           = Query(1, ge=1),
+    page_size:  int           = Query(30, ge=1, le=200),
+    payload:    dict          = Depends(verificar_token),
+    db:         Session       = Depends(get_db),
+):
+    """Lista de requerimientos entregados (salidas de materiales al campo)."""
+    empresa_id = payload["empresa_id"]
+
+    base = db.query(Requerimiento).filter(
+        Requerimiento.empresa_id == empresa_id,
+        Requerimiento.estado == "entregado",
+    )
+    if proyecto_id:
+        base = base.filter(Requerimiento.proyecto_id == proyecto_id)
+
+    if desde or hasta:
+        base = base.join(
+            RequerimientoEntrega,
+            RequerimientoEntrega.requerimiento_id == Requerimiento.id,
+        )
+        if desde:
+            try:
+                d = datetime.strptime(desde, "%Y-%m-%d")
+                base = base.filter(RequerimientoEntrega.fecha_entrega >= d)
+            except ValueError:
+                pass
+        if hasta:
+            try:
+                h = datetime.strptime(hasta, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+                base = base.filter(RequerimientoEntrega.fecha_entrega <= h)
+            except ValueError:
+                pass
+
+    total = base.count()
+    rows = (
+        base.order_by(Requerimiento.updated_at.desc().nullslast(), Requerimiento.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    items = [_build_salida_out(db, r, empresa_id) for r in rows]
+
+    if q:
+        ql = q.lower()
+        items = [s for s in items if
+            ql in s.proyectoNombre.lower()
+            or ql in (s.servicioNombre or "").lower()
+            or ql in s.solicitanteNombre.lower()
+            or ql in (s.recibidoPorNombre or "").lower()
+            or any(ql in i.nombre.lower() for i in s.items)
+        ]
+
+    return SalidasListResponse(items=items, total=total, page=page, pageSize=page_size)
