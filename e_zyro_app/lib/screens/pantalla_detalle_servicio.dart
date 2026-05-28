@@ -2562,7 +2562,14 @@ class _RecepcionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
-    final firmado = req.firmado;
+
+    // Estado de la recepción según el flujo: comprando → listo → aprobado.
+    final (String titulo, Color colorEstado, IconData iconoEstado) =
+        req.recibido
+            ? ('Recibido por el equipo', _green, Icons.inventory_2_outlined)
+            : req.enCompra
+                ? ('En compra · llegará pronto', _amber, Icons.shopping_cart_outlined)
+                : ('Listo para recibir', _green, Icons.inventory_2_outlined);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -2570,22 +2577,22 @@ class _RecepcionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _green.withValues(alpha: isDark ? 0.30 : 0.25)),
+        border: Border.all(color: colorEstado.withValues(alpha: isDark ? 0.30 : 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.inventory_2_outlined, size: 16, color: _green),
+              Icon(iconoEstado, size: 16, color: colorEstado),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Aprobado por Logística',
+                  titulo,
                   style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
-                      color: _green.withValues(alpha: isDark ? 1 : 0.9)),
+                      color: colorEstado.withValues(alpha: isDark ? 1 : 0.9)),
                 ),
               ),
               Text('REQ ${req.id.substring(0, req.id.length >= 6 ? 6 : req.id.length).toUpperCase()}',
@@ -2619,16 +2626,30 @@ class _RecepcionCard extends StatelessWidget {
           Text('Solicitado por ${req.solicitanteNombre}${req.fecha != null ? ' · ${req.fecha}' : ''}',
               style: const TextStyle(color: Colors.grey, fontSize: 11)),
           const SizedBox(height: 12),
-          if (firmado)
+          if (req.recibido)
             Row(
               children: const [
                 Icon(Icons.check_circle, size: 16, color: _green),
                 SizedBox(width: 6),
-                Text('Firmado · esperando despacho',
+                Text('Recibido · firmado por el equipo',
                     style: TextStyle(
                         color: _green,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600)),
+              ],
+            )
+          else if (req.enCompra)
+            Row(
+              children: const [
+                Icon(Icons.schedule, size: 16, color: _amber),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text('Sin stock · en proceso de compra',
+                      style: TextStyle(
+                          color: _amber,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600)),
+                ),
               ],
             )
           else

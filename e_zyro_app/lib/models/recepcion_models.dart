@@ -64,11 +64,15 @@ class ReqRecepcion {
     required this.items,
   });
 
-  /// Aprobado por Logística → falta que un técnico firme la recepción.
-  bool get porFirmar => estado == 'aprobado';
+  /// 'listo' = materiales disponibles (de stock o compra ya llegada) →
+  /// el equipo puede firmar la recepción.
+  bool get porFirmar => estado == 'listo';
 
-  /// Ya firmado, esperando que Logística despache.
-  bool get firmado => estado == 'listo';
+  /// 'comprando' = sin stock, en proceso de compra (informativo, no firmable).
+  bool get enCompra => estado == 'comprando';
+
+  /// 'aprobado' = recibido por el equipo (firmado) — estado final.
+  bool get recibido => estado == 'aprobado';
 
   /// Ítems que efectivamente llegan (no rechazados).
   List<ReqRecepcionItem> get itemsValidos =>

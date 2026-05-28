@@ -506,7 +506,10 @@ class ProyectoService {
         final list = body is Map ? (body['items'] as List? ?? []) : (body as List? ?? []);
         return list
             .map((e) => ReqRecepcion.fromJson(e as Map<String, dynamic>))
-            .where((req) => req.estado == 'aprobado' || req.estado == 'listo')
+            .where((req) =>
+                req.estado == 'comprando' ||
+                req.estado == 'listo' ||
+                req.estado == 'aprobado')
             .toList();
       }
     } catch (_) {}
