@@ -173,7 +173,7 @@ class _ServiciosScreenState extends State<ServiciosScreen>
           unselectedLabelStyle: const TextStyle(fontSize: 13),
           tabs: [
             Tab(text: 'Servicios (${_servicios.length})'),
-            const Tab(text: 'Equipos'),
+            const Tab(text: 'Equipos Intervenidos'),
           ],
         ),
       ),

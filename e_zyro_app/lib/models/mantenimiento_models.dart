@@ -40,6 +40,14 @@ class EquipoItem {
   final String estado; // 'pendiente' | 'en_proceso' | 'completado'
   final String? tipo; // 'tablero' | 'ups' | 'pozo_tierra' | etc.
   final double? progresoPorcentaje;
+  // ── Equipos Intervenidos: periodicidad de mantenimiento (Fase A) ──────────
+  final bool requiereMantenimiento;
+  final String? frecuencia; // ninguno|mensual|trimestral|semestral|anual
+  final String? ultimaFecha; // ISO yyyy-mm-dd
+  final String? proximaFecha; // ISO yyyy-mm-dd
+  final int? diasRestantes; // + faltan / - vencido
+  final String? estadoMantenimiento; // vigente|proximo|vencido
+  final String? certificadoUrl;
 
   const EquipoItem({
     required this.id,
@@ -49,6 +57,13 @@ class EquipoItem {
     required this.estado,
     this.tipo,
     this.progresoPorcentaje,
+    this.requiereMantenimiento = false,
+    this.frecuencia,
+    this.ultimaFecha,
+    this.proximaFecha,
+    this.diasRestantes,
+    this.estadoMantenimiento,
+    this.certificadoUrl,
   });
 
   factory EquipoItem.fromJson(Map<String, dynamic> j) => EquipoItem(
@@ -59,6 +74,13 @@ class EquipoItem {
         estado: j['estado'] as String? ?? 'pendiente',
         tipo: j['tipo'] as String?,
         progresoPorcentaje: (j['progreso_porcentaje'] as num?)?.toDouble(),
+        requiereMantenimiento: j['requiere_mantenimiento'] as bool? ?? false,
+        frecuencia: j['frecuencia_mantenimiento'] as String?,
+        ultimaFecha: j['ultima_fecha_mantenimiento'] as String?,
+        proximaFecha: j['proxima_fecha_mantenimiento'] as String?,
+        diasRestantes: (j['dias_restantes'] as num?)?.toInt(),
+        estadoMantenimiento: j['estado_mantenimiento'] as String?,
+        certificadoUrl: j['certificado_url'] as String?,
       );
 }
 

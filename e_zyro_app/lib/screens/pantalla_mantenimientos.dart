@@ -462,6 +462,40 @@ class _MantenimientoCard extends StatelessWidget {
                   color: Colors.grey, size: 18),
             ],
           ),
+          // Próximo/vencido: recordatorio para contactar al cliente (manual).
+          if (item.estado != 'vigente') ...[
+            const SizedBox(height: 10),
+            Builder(
+              builder: (ctx) => SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _estadoColor,
+                    side: BorderSide(color: _estadoColor.withValues(alpha: 0.5)),
+                  ),
+                  onPressed: () => showDialog(
+                    context: ctx,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Contactar cliente'),
+                      content: Text(
+                        'Coordina la recontratación del mantenimiento con '
+                        '${item.cliente.isNotEmpty ? item.cliente : "el cliente"}'
+                        '${item.fechaProximo.isNotEmpty ? " (vence ${item.fechaProximo})" : ""}.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text('Cerrar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  icon: const Icon(Icons.call_outlined, size: 16),
+                  label: const Text('Contactar cliente'),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

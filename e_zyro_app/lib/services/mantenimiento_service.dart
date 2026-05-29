@@ -102,4 +102,28 @@ class MantenimientoService {
       return false;
     }
   }
+
+  // Equipos Intervenidos (Fase A): PATCH /operaciones/equipos/{id}/mantenimiento
+  // Solo Admin / Jefe de Operaciones. Devuelve el equipo actualizado o null.
+  Future<EquipoItem?> editarConfigMantenimiento(
+    String equipoId, {
+    bool? requiereMantenimiento,
+    String? frecuencia,
+    String? proximaFecha, // ISO yyyy-mm-dd
+  }) async {
+    try {
+      final r = await _client.patch(
+        '/operaciones/equipos/$equipoId/mantenimiento',
+        {
+          'requiere_mantenimiento': ?requiereMantenimiento,
+          'frecuencia_mantenimiento': ?frecuencia,
+          'proxima_fecha_mantenimiento': ?proximaFecha,
+        },
+      );
+      if (r.statusCode == 200) {
+        return EquipoItem.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return null;
+  }
 }
