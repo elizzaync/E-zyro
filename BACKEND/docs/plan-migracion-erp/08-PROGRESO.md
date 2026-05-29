@@ -7,7 +7,7 @@
 | Fase | Módulo | Estado | % puntos |
 |------|--------|--------|----------|
 | 0 | Fundaciones (convenciones, catálogos Zona/Ubicación/Área, seeds RBAC) | 🟦 backend ✅ / app ⬜ | 70% |
-| 1 | Cloudinary unificado + Galería Global | 🟦 backend ✅ / app ⬜ | 65% |
+| 1 | Cloudinary unificado + Galería Global | 🟦 backend ✅ / galería app ✅ | 90% |
 | 2 | EPP | ⬜ | 0% |
 | 3 | Calibraciones + Equipos Averiados | ⬜ | 0% |
 | 4 | Garantías/Correctivos + Observaciones | ⬜ | 0% |
@@ -29,7 +29,7 @@
 | 1.3 | Modelo+migración `recurso_cloudinary` | ✅ | ✅ Railway | `feat(galeria)` | _pre_create; CHECK solo en recurso_tipo |
 | 1.4 | Backfill re-indexado | ⬜ | — | — | pendiente (no bloquea; re-indexa assets ya existentes) |
 | 1.5 | API `/galeria` | ✅ | ✅ Railway | `feat(galeria)` | listar/filtrar/entidad/subir/borrar; e2e OK |
-| 1.6 | App `pantalla_galeria` + accesos contextuales | ⬜ | — | — | pendiente |
+| 1.6 | App `pantalla_galeria` + accesos contextuales | ✅ | n/a (front) | `feat(galeria)` app | model+service+pantalla (grid/visor/subida image_picker/borrado, modo global y contextual). `flutter analyze`: sin issues. Rama `feat/app-fase1-galeria`. |
 
 ### Fase 2 — EPP
 | Punto | Descripción | Estado | Arranque | Commit | Notas |
@@ -75,8 +75,10 @@
 | 2026-05-29 | Plan creado | Set de planificación inicial generado. |
 | 2026-05-29 | Fase 0 backend ✅ | Catálogos (ubicación/zona/área) + RBAC. Migración idempotente verificada x2 en Railway + e2e CRUD. Rama `feat/backend-fase0-catalogos-rbac`. |
 | 2026-05-29 | Fase 1 backend ✅ | Cloudinary unificado + índice `recurso_cloudinary` + API `/galeria`. Migración idempotente x2 + e2e listar/borrar. Mismo branch. |
+| 2026-05-29 | Fase 1 galería app ✅ | `pantalla_galeria` (grid/visor/subida/borrado, modo global+contextual). `flutter analyze` limpio. Rama `feat/app-fase1-galeria`. Backend pusheado a origin. |
 
 ## Pendientes inmediatos (próximos pasos)
-- **App Flutter**: `catalogos_service` + UI gestión (Fase 0); `galeria_service`/`models` + `pantalla_galeria` + accesos contextuales (Fase 1.6).
-- **Backend diferido (no bloquea)**: backfill `recurso_cloudinary` (1.4); refactor de call-sites Cloudinary antiguos al helper (1.1).
-- **Push**: los commits están en local (rama `feat/backend-fase0-catalogos-rbac`); pendiente confirmación para `git push` al remoto compartido.
+- **Fase 1 (cierre fino, no bloquea)**: backfill `recurso_cloudinary` (1.4); refactor de call-sites Cloudinary antiguos al helper (1.1). La galería ya es funcional end-to-end (operativa cuando el backend de Fase 1 se despliegue a producción).
+- **Fase 0 app**: `catalogos_service` + UI de gestión de catálogos (se hará cuando EPP/ITSE consuman los selects).
+- **Despliegue**: el front apunta a `e-zyro-production...`; los endpoints `/galeria` y `/catalogos` responden una vez se mergee/despliegue el backend.
+- **Siguiente fase**: Fase 2 — EPP (`docs/plan-migracion-erp/03-EPP.md`).
