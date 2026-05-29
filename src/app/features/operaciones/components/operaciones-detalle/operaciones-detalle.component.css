@@ -659,6 +659,68 @@
   background: rgba(139,92,246,.1); color: #7c3aed; flex-shrink: 0;
 }
 
+/* ── Nuevos estilos HU-16 ── */
+.firma-lock-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 10px; margin-bottom: 8px;
+  background: #fef3c7; border: 1px solid #fcd34d; font-size: 12.5px; color: #92400e;
+}
+.firma-items-resumen {
+  display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px;
+  max-height: 180px; overflow-y: auto;
+}
+.firma-item-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 10px; border-radius: 7px; font-size: 12px;
+  background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e7eae6);
+}
+.firma-item-compra { border-color: rgba(139,92,246,.2); background: rgba(139,92,246,.04); }
+.firma-item-nombre { flex: 1; font-weight: 600; color: var(--text-main, #0f172a); }
+.firma-item-cant   { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.firma-item-tag { padding: 1px 7px; border-radius: 10px; font-size: 10.5px; font-weight: 700; flex-shrink: 0; }
+.tag-ok   { background: rgba(145,211,55,.16); color: #4d7d18; }
+.tag-compra { background: rgba(139,92,246,.12); color: #7c3aed; }
+.firma-comprando-info {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 12px; border-radius: 9px;
+  background: rgba(139,92,246,.07); border: 1px solid rgba(139,92,246,.2);
+  font-size: 12px; color: #7c3aed; margin-bottom: 8px;
+}
+.firma-btn-global {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 18px; border: none; border-radius: 12px;
+  background: linear-gradient(135deg, #1e3a5f, #3b82f6);
+  color: #fff; font-size: 14px; font-weight: 800;
+  cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: opacity .15s;
+}
+.firma-btn-global:hover { opacity: .9; }
+.firma-btn-global svg { width: 16px; height: 16px; }
+
+/* Modal firma global */
+.modal-firma-global { max-width: 620px; }
+.modal-firma-body { display: flex; flex-direction: column; gap: 14px; }
+.firma-resp-nota {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 14px; border-radius: 9px;
+  background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.2);
+  font-size: 12.5px; color: #1e40af;
+}
+.firma-guardada-option {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 9px;
+  background: rgba(145,211,55,.08); border: 1px solid rgba(145,211,55,.3);
+  font-size: 13px;
+}
+.btn-usar-guardada {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 9px; font-size: 13px; font-weight: 700;
+  background: var(--brand-green, #91d337); color: #fff; border: none; cursor: pointer;
+  font-family: 'Inter', sans-serif; margin-left: auto;
+}
+.btn-usar-guardada:disabled { opacity: .6; cursor: not-allowed; }
+.firma-o-sep { font-size: 11.5px; color: var(--text-muted, #94a3b8); text-align: center; margin: 0; }
+
 /* Modal de firma */
 .modal-firma { max-width: 600px; }
 .salida-preview {

@@ -3,29 +3,28 @@
   <!-- Cabecera -->
   <header class="req-header">
     <div class="req-header-main">
-      <button class="req-back" (click)="volverInventario()" title="Volver a Inventario">
+      <button class="req-back" (click)="volverInventario()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
         </svg>
       </button>
       <div class="req-header-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+          <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
         </svg>
       </div>
       <div>
         <h1 class="req-title">Requerimientos</h1>
-        <p class="req-subtitle">Solicitudes de materiales de los equipos de campo · agrupadas por servicio</p>
+        <p class="req-subtitle">Solicitudes de materiales · agrupadas por servicio</p>
       </div>
     </div>
-
     @if (pendientesCount > 0) {
       <div class="req-kpi-alert">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
           <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
         </svg>
-        <span>{{ pendientesCount }} solicitud{{ pendientesCount !== 1 ? 'es' : '' }} pendiente{{ pendientesCount !== 1 ? 's' : '' }} de revisión</span>
+        <span>{{ pendientesCount }} pendiente{{ pendientesCount !== 1 ? 's' : '' }} de revisión</span>
       </div>
     }
   </header>
@@ -44,242 +43,368 @@
   <!-- Buscador -->
   <div class="req-search">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
     <input type="text" [(ngModel)]="busqueda" placeholder="Buscar por proyecto, servicio, solicitante o material…">
   </div>
 
-  <!-- Lista agrupada por servicio -->
+  <!-- ═════════════════════ LISTADO ═════════════════════ -->
   @if (cargando) {
     <div class="req-estado"><app-spinner [size]="34"></app-spinner><span>Cargando…</span></div>
   } @else if (lista.length === 0) {
     <div class="req-estado">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="44" height="44">
-        <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
       </svg>
-      <span>{{ tab === 'activos' ? 'No hay requerimientos activos.' : 'Sin historial de consumo.' }}</span>
+      <span>{{ tab === 'activos' ? 'No hay requerimientos activos.' : 'Sin historial.' }}</span>
     </div>
   } @else {
 
-    @for (grupo of gruposPorServicio; track grupo.key) {
-    <div class="req-grupo">
+    <!-- Cards por servicio -->
+    <div class="req-cards-grid">
+      @for (grupo of gruposPorServicio; track grupo.key) {
+        <div class="svc-card"
+             [class.svc-card--pend]="cuentaEstado(grupo, 'pendiente') > 0"
+             [class.svc-card--comp]="cuentaEstado(grupo, 'comprando') > 0 && cuentaEstado(grupo, 'pendiente') === 0"
+             [class.svc-card--listo]="todosListosParaEntregar(grupo)"
+             [class.svc-card--apro]="cuentaEstado(grupo, 'aprobado') > 0 && cuentaEstado(grupo, 'listo') === 0 && tab === 'historial'"
+             [class.svc-card--done]="cuentaEstado(grupo, 'entregado') === grupo.reqs.length">
 
-      <!-- Cabecera del grupo (servicio) -->
-      <div class="req-grupo-hdr">
-        <button class="req-grupo-toggle" (click)="toggleGrupo(grupo.key)" [title]="isGrupoExpandido(grupo.key) ? 'Colapsar' : 'Expandir'">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="req-grupo-chevron" [class.open]="isGrupoExpandido(grupo.key)">
-            <polyline points="6 9 12 15 18 9" />
+          <div class="svc-card-head">
+            <div class="svc-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+            </div>
+            <div class="svc-card-info">
+              <span class="svc-card-nombre">{{ grupo.servicioNombre }}</span>
+              <span class="svc-card-proy">{{ grupo.proyectoNombre }}</span>
+            </div>
+            <div class="svc-card-badges">
+              @if (cuentaEstado(grupo, 'pendiente') > 0) {
+                <span class="svc-badge svc-b-pend">{{ cuentaEstado(grupo, 'pendiente') }} pendiente</span>
+              }
+              @if (cuentaEstado(grupo, 'comprando') > 0) {
+                <span class="svc-badge svc-b-comp">{{ cuentaEstado(grupo, 'comprando') }} en compra</span>
+              }
+              @if (cuentaEstado(grupo, 'listo') > 0) {
+                <span class="svc-badge svc-b-listo">{{ cuentaEstado(grupo, 'listo') }} listo</span>
+              }
+              @if (cuentaEstado(grupo, 'aprobado') > 0) {
+                <span class="svc-badge svc-b-apro">{{ cuentaEstado(grupo, 'aprobado') }} esp. técnico</span>
+              }
+              @if (cuentaEstado(grupo, 'entregado') > 0) {
+                <span class="svc-badge svc-b-ok">{{ cuentaEstado(grupo, 'entregado') }} entregado</span>
+              }
+            </div>
+          </div>
+
+          <div class="svc-card-body">
+            <p class="svc-card-resumen">
+              {{ grupo.reqs.length }} requerimiento{{ grupo.reqs.length !== 1 ? 's' : '' }} ·
+              {{ itemsModalServicio(grupo).length }} ítem{{ itemsModalServicio(grupo).length !== 1 ? 's' : '' }} solicitados
+            </p>
+            @if (razonNoPuedeEntregar(grupo)) {
+              <p class="svc-card-warning">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                {{ razonNoPuedeEntregar(grupo) }}
+              </p>
+            }
+            @if (cuentaEstado(grupo, 'aprobado') > 0 && tab === 'historial') {
+              <p class="svc-card-waiting">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                Esperando firma del técnico
+              </p>
+            }
+          </div>
+
+          <div class="svc-card-footer">
+            <button class="svc-btn-ver" (click)="abrirModalServicio(grupo)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+              Ver solicitud
+            </button>
+            @if (cuentaEstado(grupo, 'entregado') > 0) {
+              <button class="svc-btn-pdf" (click)="generarPDFSalida(grupo)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                PDF
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+  }
+</div>
+
+
+<!-- ═══════════════════════ MODAL GESTIÓN DE SERVICIO ═══════════════════════ -->
+@if (servicioModal) {
+<div class="rm-overlay" (click)="cerrarModalServicio()">
+  <div class="rm-modal rm-modal-svc" (click)="$event.stopPropagation()">
+
+    <header class="rm-header">
+      <div>
+        <h2 class="rm-title">{{ servicioModal.servicioNombre }}</h2>
+        <p class="rm-subtitle">{{ servicioModal.proyectoNombre }} · {{ itemsModalServicio(servicioModal).length }} ítems solicitados</p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="rm-btn-actualizar" (click)="actualizarModalServicio()" title="Actualizar estado">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+          Actualizar
+        </button>
+        <button class="rm-close" (click)="cerrarModalServicio()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
-
-        <div class="req-grupo-info">
-          <span class="req-grupo-svc">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0">
-              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
-            {{ grupo.servicioNombre }}
-          </span>
-          <span class="req-grupo-proy">{{ grupo.proyectoNombre }}</span>
-        </div>
-
-        <!-- Conteos de estado -->
-        <div class="req-grupo-badges">
-          @if (cuentaEstado(grupo, 'pendiente') > 0) {
-            <span class="rg-badge rg-badge-pend">{{ cuentaEstado(grupo, 'pendiente') }} pendiente{{ cuentaEstado(grupo, 'pendiente') !== 1 ? 's' : '' }}</span>
-          }
-          @if (cuentaEstado(grupo, 'comprando') > 0) {
-            <span class="rg-badge rg-badge-comp">{{ cuentaEstado(grupo, 'comprando') }} comprando</span>
-          }
-          @if (cuentaEstado(grupo, 'listo') > 0) {
-            <span class="rg-badge rg-badge-firma">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
-              {{ cuentaEstado(grupo, 'listo') }} falta firma técnico
-            </span>
-          }
-          @if (cuentaEstado(grupo, 'aprobado') > 0) {
-            <span class="rg-badge rg-badge-apro">{{ cuentaEstado(grupo, 'aprobado') }} recibido{{ cuentaEstado(grupo, 'aprobado') !== 1 ? 's' : '' }}</span>
-          }
-          @if (cuentaEstado(grupo, 'entregado') > 0) {
-            <span class="rg-badge rg-badge-ok">{{ cuentaEstado(grupo, 'entregado') }} cerrado{{ cuentaEstado(grupo, 'entregado') !== 1 ? 's' : '' }}</span>
-          }
-        </div>
-
-        <!-- Acciones globales del grupo -->
-        <div class="req-grupo-actions">
-          <!-- Ver todos los ítems solicitados -->
-          <button class="req-btn-solicitado" (click)="toggleSolicitado(grupo.key)" [class.active]="isSolicitadoAbierto(grupo.key)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
-              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-              <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-            </svg>
-            Solicitado ({{ itemsTodosSolicitados(grupo).length }})
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;transition:transform .2s" [style.transform]="isSolicitadoAbierto(grupo.key) ? 'rotate(180deg)' : ''">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-
-          <!-- Cerrar entregas (cuando hay aprobados) -->
-          @if (grupoTieneAprobados(grupo)) {
-            <button class="rc-btn rc-btn-cerrar" (click)="abrirEntregaGlobal(grupo)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:4px">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-              Cerrar entrega{{ cuentaEstado(grupo, 'aprobado') > 1 ? 's (' + cuentaEstado(grupo, 'aprobado') + ')' : '' }}
-            </button>
-          }
-        </div>
       </div>
+    </header>
 
-      <!-- Ítems solicitados expandibles -->
-      @if (isSolicitadoAbierto(grupo.key)) {
-        <div class="req-solicitado">
-          <div class="req-sol-header">
-            <span class="req-sol-title">Lista completa de lo solicitado · {{ itemsTodosSolicitados(grupo).length }} ítems</span>
-            <span class="req-sol-nota">Los ítems marcados como "Compra" no pueden marcarse como listos hasta que llegue la compra.</span>
+    <div class="rm-svc-body">
+
+      <!-- ── Pendientes de aprobar ── -->
+      @for (r of servicioModal.reqs; track r.id) {
+        @if (r.estado === 'pendiente') {
+          <div class="svc-req-pend">
+            <div class="svc-req-pend-info">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:#d97706;flex-shrink:0">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <span>Requerimiento de <strong>{{ r.solicitanteNombre }}</strong> · {{ r.items.length }} ítems — pendiente de aprobación</span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="rc-btn rc-btn-reject" (click)="abrirRechazo(r)">Rechazar</button>
+              <button class="rc-btn rc-btn-auto" (click)="aprobarAuto(r)" [disabled]="procesando" title="Aprobar automáticamente según stock">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;margin-right:2px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Auto
+              </button>
+              <button class="rc-btn rc-btn-review" (click)="abrirRevision(r)">Revisar</button>
+            </div>
           </div>
-          <div class="req-sol-chips">
-            @for (it of itemsTodosSolicitados(grupo); track it.id) {
-              <div class="req-sol-chip" [class.req-sol-chip--compra]="it.estadoItem === 'para_compra'" [class.req-sol-chip--ok]="it.estadoItem === 'aprobado'">
-                <span class="rsc-nombre">{{ it.nombre }}</span>
-                <span class="rsc-cant">× {{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}</span>
-                <span class="rsc-estado" [class]="itemEstadoClase(it.estadoItem)">{{ itemEstadoLabel(it.estadoItem) }}</span>
-                @if (it.estadoItem === 'para_compra') {
-                  <span class="rsc-compra-lock" title="Pendiente llegada de compra">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  </span>
-                }
+        }
+      }
+
+      <!-- ── Lista de ítems agrupados ── -->
+      @if (itemsDeStock(servicioModal).length > 0) {
+        <div class="svc-items-section">
+          <div class="svc-items-title">
+            <span class="svc-items-dot svc-dot-ok"></span>
+            De inventario · {{ itemsDeStock(servicioModal).length }} ítem{{ itemsDeStock(servicioModal).length !== 1 ? 's' : '' }} listos
+          </div>
+          <div class="svc-items-list">
+            @for (it of itemsDeStock(servicioModal); track it.id) {
+              <div class="svc-item svc-item--ok">
+                <span class="svc-item-nombre">{{ it.nombre }}</span>
+                <span class="svc-item-cant">× {{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}</span>
+                <span class="svc-item-chip rie-stock">Listo</span>
               </div>
             }
           </div>
         </div>
       }
 
-      <!-- Filas de requerimientos individuales -->
-      @if (isGrupoExpandido(grupo.key)) {
-        <div class="req-grupo-rows">
-          @for (r of grupo.reqs; track r.id) {
-            <div class="req-row-card"
-                 [class.req-row-card--pend]="r.estado === 'pendiente'"
-                 [class.req-row-card--listo]="r.estado === 'listo'"
-                 [class.req-row-card--apro]="r.estado === 'aprobado'"
-                 [class.req-row-card--done]="r.estado === 'entregado'"
-                 [class.req-row-card--rech]="r.estado === 'rechazado'">
-
-              <div class="rrc-main">
-
-                <!-- Solicitante -->
-                <div class="rrc-sol">
-                  @if (r.solicitanteFoto) {
-                    <img class="rt-avatar" [src]="r.solicitanteFoto" [alt]="r.solicitanteNombre">
-                  } @else {
-                    <span class="rt-avatar rt-avatar-fb">{{ r.solicitanteNombre.charAt(0) }}</span>
-                  }
-                  <span class="rt-nombre">{{ r.solicitanteNombre }}</span>
-                </div>
-
-                <!-- Materiales (chips) -->
-                <div class="rrc-items">
-                  @for (it of r.items.slice(0, 2); track it.id) {
-                    <span class="rt-item-chip"
-                          [class.rt-chip--compra]="it.esCompraExterna"
-                          [class.rt-chip--sinstock]="!it.enStock && !it.esCompraExterna">
-                      {{ it.nombre }} <em>×{{ it.cantidad }}</em>
-                    </span>
-                  }
-                  @if (r.items.length > 2) {
-                    <button class="rt-mas-btn" (click)="abrirDetalle(r)">
-                      +{{ r.items.length - 2 }} más
-                    </button>
-                  }
-                </div>
-
-                <!-- Estado -->
-                <div class="rrc-estado">
-                  @if (r.estado === 'listo') {
-                    <span class="rc-chip-firma-pend">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                      </svg>
-                      Falta firma técnico
-                    </span>
-                  } @else {
-                    <span class="rc-badge" [class]="estadoClase(r.estado)">{{ estadoLabel(r.estado) }}</span>
-                  }
-                </div>
-
-                <!-- Fecha -->
-                <span class="rrc-fecha">{{ r.fecha }}</span>
-
-                <!-- Acciones -->
-                <div class="rrc-acciones">
-                  @if (r.estado === 'pendiente') {
-                    <button class="rc-btn rc-btn-reject" (click)="abrirRechazo(r)">Rechazar</button>
-                    <button class="rc-btn rc-btn-auto"   (click)="aprobarAuto(r)"   [disabled]="procesando" title="Aprueba automáticamente: ítems con stock de inventario, resto a compras">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;margin-right:3px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                      Auto
-                    </button>
-                    <button class="rc-btn rc-btn-review" (click)="abrirRevision(r)">Revisar</button>
-                  } @else if (r.estado === 'comprando') {
-                    <span class="rc-estado-chip rc-chip-comprando">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
-                        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-                      </svg>
-                      En compra…
-                    </span>
-                  } @else if (r.estado === 'listo') {
-                    <span class="rc-chip-firma-info">El técnico debe firmar desde Operaciones</span>
-                  } @else if (r.estado === 'aprobado') {
-                    <button class="rc-btn rc-btn-cerrar" (click)="abrirEntrega(r)">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:4px">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      Cerrar entrega
-                    </button>
-                  } @else if (r.estado === 'entregado') {
-                    <button class="rc-btn rc-btn-report" (click)="abrirReporte(r)">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                      </svg>
-                      Ver reporte
-                    </button>
-                  }
-                </div>
+      @if (itemsDeCompraRecibida(servicioModal).length > 0) {
+        <div class="svc-items-section">
+          <div class="svc-items-title">
+            <span class="svc-items-dot svc-dot-ok"></span>
+            Compra recibida · {{ itemsDeCompraRecibida(servicioModal).length }} ítem{{ itemsDeCompraRecibida(servicioModal).length !== 1 ? 's' : '' }} listos
+          </div>
+          <div class="svc-items-list">
+            @for (it of itemsDeCompraRecibida(servicioModal); track it.id) {
+              <div class="svc-item svc-item--ok">
+                <span class="svc-item-nombre">{{ it.nombre }}</span>
+                <span class="svc-item-cant">× {{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}</span>
+                <span class="svc-item-chip rie-stock">Compra ✓</span>
               </div>
-
-              <!-- Observaciones (si existen) -->
-              @if (r.observacion || r.observacionLogistico || (r.estado === 'entregado' && r.recibidoPorNombre)) {
-                <div class="rrc-obs">
-                  @if (r.observacion) {
-                    <span class="rt-obs-item"><strong>Nota técnico:</strong> {{ r.observacion }}</span>
-                  }
-                  @if (r.observacionLogistico) {
-                    <span class="rt-obs-item rt-obs-log"><strong>Logística:</strong> {{ r.observacionLogistico }}</span>
-                  }
-                  @if (r.estado === 'entregado' && r.recibidoPorNombre) {
-                    <span class="rt-obs-item rt-obs-ok">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>
-                      Entregado a <strong>{{ r.recibidoPorNombre }}</strong>
-                      @if (r.entregadoPorNombre) { · por {{ r.entregadoPorNombre }} }
-                    </span>
-                  }
-                </div>
-              }
-            </div>
-          }
+            }
+          </div>
         </div>
       }
 
-    </div>
-    }
+      @if (itemsEnCompra(servicioModal).length > 0) {
+        <div class="svc-items-section">
+          <div class="svc-items-title">
+            <span class="svc-items-dot svc-dot-comp"></span>
+            En proceso de compra · {{ itemsEnCompra(servicioModal).length }} ítem{{ itemsEnCompra(servicioModal).length !== 1 ? 's' : '' }} pendientes
+            <span class="svc-items-hint">Finaliza la compra en el módulo Compras y regístrala para que aparezcan aquí como listos.</span>
+          </div>
+          <div class="svc-items-list">
+            @for (it of itemsEnCompra(servicioModal); track it.id) {
+              <div class="svc-item svc-item--comp">
+                <span class="svc-item-nombre">{{ it.nombre }}</span>
+                <span class="svc-item-cant">× {{ it.cantidad }} {{ it.unidad }}</span>
+                <span class="svc-item-chip rie-compra">En compra</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
 
-  }
+      @if (itemsPendientes(servicioModal).length > 0) {
+        <div class="svc-items-section">
+          <div class="svc-items-title">
+            <span class="svc-items-dot svc-dot-pend"></span>
+            Pendientes de aprobación · {{ itemsPendientes(servicioModal).length }} ítem{{ itemsPendientes(servicioModal).length !== 1 ? 's' : '' }}
+          </div>
+          <div class="svc-items-list">
+            @for (it of itemsPendientes(servicioModal); track it.id) {
+              <div class="svc-item svc-item--pend">
+                <span class="svc-item-nombre">{{ it.nombre }}</span>
+                <span class="svc-item-cant">× {{ it.cantidad }} {{ it.unidad }}</span>
+                <span class="svc-item-chip rie-pend">Pendiente</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @if (itemsModalServicio(servicioModal).length === 0) {
+        <div class="svc-items-empty">Sin ítems en este servicio.</div>
+      }
+
+      <!-- ── Sección Para Entregar ── -->
+      @if (todosListosParaEntregar(servicioModal)) {
+        <div class="svc-entregar-section">
+          @if (!firmaModalAbierta) {
+            <div class="svc-entregar-banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px;color:#4d7d18;flex-shrink:0">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              <div>
+                <strong>Todo listo para entregar</strong>
+                <p>Al confirmar, los materiales quedan registrados como entregados y se notifica al equipo técnico para que firmen la recepción.</p>
+              </div>
+            </div>
+            <button class="svc-btn-entregar" (click)="abrirSeccionFirma()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+              </svg>
+              Para entregar — Firmar ahora
+            </button>
+          } @else {
+
+            <!-- Firma de logística -->
+            <div class="svc-firma-section">
+              <h4 class="svc-firma-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                </svg>
+                Firma del responsable de logística
+              </h4>
+              <p class="svc-firma-desc">Al firmar confirmas la entrega. El equipo técnico recibirá una notificación para firmar la recepción.</p>
+
+              @if (padFirma.firma) {
+                <!-- Firma capturada -->
+                <div class="svc-firma-preview">
+                  <img [src]="padFirma.firma" class="svc-firma-img" alt="Firma">
+                  <button class="rm-firma-quitar" (click)="quitarFirmaModal()">Quitar firma</button>
+                </div>
+              } @else if (padFirma.firmando) {
+                <!-- Canvas activo -->
+                <div class="rm-canvas-wrap">
+                  <div class="rm-canvas-timer">⏱ {{ padFirma.timerSecs }}s</div>
+                  <canvas #firmaModalCanvas width="360" height="130" class="rm-canvas"></canvas>
+                  <div class="rm-canvas-btns">
+                    <button class="rm-cbtn rm-cbtn-clear" (click)="limpiarFirmaModal()">Limpiar</button>
+                    <button class="rm-cbtn rm-cbtn-cancel" (click)="cancelarFirmaModal()">Cancelar</button>
+                    <button class="rm-cbtn rm-cbtn-ok" (click)="confirmarFirmaModal()">Confirmar</button>
+                  </div>
+                </div>
+              } @else {
+                <!-- Opciones de firma -->
+                <div class="svc-firma-opciones">
+                  @if (firmaGuardadaUrl) {
+                    <button class="svc-firma-guardada-btn" (click)="usarFirmaGuardadaModal()">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2h-2"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+                      </svg>
+                      Usar firma guardada en mi cuenta
+                    </button>
+                    <span class="svc-firma-o">o</span>
+                  }
+                  <button class="rm-firma-btn rm-firma-dibujar" (click)="iniciarFirmaModal()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                    </svg>
+                    Firmar ahora
+                  </button>
+                </div>
+              }
+
+              <div class="svc-firma-footer">
+                <button class="rm-btn-cancel" (click)="firmaModalAbierta = false">Cancelar</button>
+                <button class="rm-btn-deliver-confirm" (click)="confirmarEntregaServicio()"
+                        [disabled]="entregandoServicio || !padFirma.firma">
+                  @if (entregandoServicio) { <app-spinner [size]="14" theme="light"></app-spinner> Registrando… }
+                  @else {
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg>
+                    Confirmar entrega{{ servicioModal.reqs.filter(r => r.estado === 'listo').length > 1 ? ' (' + servicioModal.reqs.filter(r => r.estado === 'listo').length + ')' : '' }}
+                  }
+                </button>
+              </div>
+            </div>
+
+          }
+        </div>
+      } @else if (razonNoPuedeEntregar(servicioModal)) {
+        <div class="svc-no-entregar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          No se puede entregar: <strong>{{ razonNoPuedeEntregar(servicioModal) }}</strong>
+        </div>
+      }
+
+      <!-- Estado entregado / aprobado en historial -->
+      @if (cuentaEstado(servicioModal, 'entregado') > 0) {
+        <div class="svc-done-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:18px;height:18px;flex-shrink:0">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>
+            {{ cuentaEstado(servicioModal, 'entregado') === servicioModal.reqs.length
+              ? 'Todos los requerimientos entregados y confirmados.'
+              : cuentaEstado(servicioModal, 'entregado') + ' de ' + servicioModal.reqs.length + ' requerimientos entregados.' }}
+          </span>
+          <button class="svc-btn-pdf-sm" (click)="generarPDFSalida(servicioModal)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Descargar PDF
+          </button>
+        </div>
+      }
+
+      @if (cuentaEstado(servicioModal, 'aprobado') > 0) {
+        <div class="svc-apro-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>Logística confirmó la entrega. Esperando que el técnico firme la recepción.</span>
+        </div>
+      }
+
+    </div><!-- /.rm-svc-body -->
+  </div>
 </div>
+}
 
 
-<!-- ═══ MODAL DE REVISIÓN / APROBACIÓN ═══ -->
+<!-- ═══ MODAL REVISIÓN / APROBACIÓN ═══ -->
 @if (reqActivo) {
 <div class="rm-overlay" (click)="cerrarRevision()">
   <div class="rm-modal rm-modal-lg" (click)="$event.stopPropagation()">
@@ -292,16 +417,14 @@
       </div>
       <button class="rm-close" (click)="cerrarRevision()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </header>
 
     <div class="rm-body rm-body-split">
-
-      <!-- Panel izquierdo: decisiones por ítem -->
       <div class="rm-panel-items">
-        <p class="rm-hint">Define qué hacer con cada material: <strong>De stock</strong> (resta automática), <strong>Comprar</strong> (genera ticket de compra) o <strong>Rechazar</strong>.</p>
+        <p class="rm-hint">Define qué hacer con cada material: <strong>De stock</strong>, <strong>Comprar</strong> o <strong>Rechazar</strong>.</p>
         <div class="rm-items">
           @for (it of reqActivo.items; track it.id) {
           <div class="rm-item" [class.rm-item--compra]="decisiones[it.id] === 'compra'" [class.rm-item--rechaz]="decisiones[it.id] === 'rechazar'">
@@ -310,31 +433,22 @@
               <div class="rm-item-meta">
                 <span>Pedido: <strong>{{ it.cantidad }} {{ it.unidad }}</strong></span>
                 @if (!it.esCompraExterna) {
-                  <span>Stock actual: <strong [class.txt-warn]="!it.enStock">{{ it.stockDisponible }}</strong></span>
-                  @if (decisiones[it.id] === 'aprobar' && it.enStock) {
-                    <span>Quedará: <strong class="txt-ok">{{ proyeccion(it) }}</strong></span>
-                  }
+                  <span>Stock: <strong [class.txt-warn]="!it.enStock">{{ it.stockDisponible }}</strong></span>
                   @if (decisiones[it.id] === 'aprobar' && !it.enStock) {
                     <span class="rm-warn-tag">⚠ Stock insuficiente</span>
                   }
                 } @else {
                   <span class="rm-compra-tag">📦 Compra externa requerida</span>
                 }
-                @if (it.especificacion) {
-                  <span class="rm-espec">{{ it.especificacion }}</span>
-                }
+                @if (it.especificacion) { <span class="rm-espec">{{ it.especificacion }}</span> }
               </div>
             </div>
             <div class="rm-seg">
               <button class="rm-seg-btn" [class.on-ap]="decisiones[it.id] === 'aprobar'"
-                      [disabled]="it.esCompraExterna"
-                      [title]="it.esCompraExterna ? 'No disponible en stock' : 'Usar stock del inventario'"
-                      (click)="setDecision(it.id, 'aprobar')">De stock</button>
+                      [disabled]="it.esCompraExterna" (click)="setDecision(it.id, 'aprobar')">De stock</button>
               <button class="rm-seg-btn" [class.on-co]="decisiones[it.id] === 'compra'"
-                      title="Generar ticket de compra"
                       (click)="setDecision(it.id, 'compra')">Comprar</button>
               <button class="rm-seg-btn" [class.on-re]="decisiones[it.id] === 'rechazar'"
-                      title="Rechazar este ítem"
                       (click)="setDecision(it.id, 'rechazar')">Rechazar</button>
             </div>
           </div>
@@ -342,22 +456,20 @@
         </div>
       </div>
 
-      <!-- Panel derecho: preview de lo que pasará -->
       <div class="rm-panel-preview">
         <div class="rm-preview-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          Resumen de operaciones
+          Resumen
         </div>
-
-        @if (itemsDeStock.length > 0) {
+        @if (itemsDeStockRev.length > 0) {
           <div class="rm-preview-group">
             <span class="rm-preview-group-label rm-pg-stock">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/></svg>
               Se descontará del inventario
             </span>
-            @for (it of itemsDeStock; track it.id) {
+            @for (it of itemsDeStockRev; track it.id) {
               <div class="rm-preview-item">
                 <span class="rpi-nombre">{{ it.nombre }}</span>
                 <span class="rpi-cant">−{{ it.cantidad }} {{ it.unidad }}</span>
@@ -366,43 +478,36 @@
             }
           </div>
         }
-
-        @if (itemsDeCompra.length > 0) {
+        @if (itemsDeCompraRev.length > 0) {
           <div class="rm-preview-group">
             <span class="rm-preview-group-label rm-pg-compra">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-              Generará ticket{{ itemsDeCompra.length !== 1 ? 's' : '' }} de compra
+              Generará ticket de compra
             </span>
-            @for (it of itemsDeCompra; track it.id) {
+            @for (it of itemsDeCompraRev; track it.id) {
               <div class="rm-preview-item rm-pi-compra">
                 <span class="rpi-nombre">{{ it.nombre }}</span>
-                <span class="rpi-cant">× {{ it.cantidad }} {{ it.unidad }}</span>
+                <span class="rpi-cant">× {{ it.cantidad }}</span>
               </div>
               <div class="rm-proveedores">
-                <span class="rm-prov-label">Proveedores sugeridos:</span>
+                <span class="rm-prov-label">Sugeridos:</span>
                 @for (prov of getProveedoresSugeridos(it); track prov.nombre) {
                   <div class="rm-prov-chip">
                     <span class="rm-prov-nombre">{{ prov.nombre }}</span>
                     <span class="rm-prov-stars">{{ prov.estrellas }}</span>
-                    @if (prov.contacto) { <span class="rm-prov-contact">{{ prov.contacto }}</span> }
                   </div>
                 }
               </div>
             }
-            <p class="rm-compra-note">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              Los tickets quedarán visibles en el módulo de <strong>Compras</strong>.
-            </p>
           </div>
         }
-
-        @if (itemsRechazados.length > 0) {
+        @if (itemsRechazadosRev.length > 0) {
           <div class="rm-preview-group">
             <span class="rm-preview-group-label rm-pg-rechaz">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-              Rechazados (se notifica al técnico)
+              Rechazados
             </span>
-            @for (it of itemsRechazados; track it.id) {
+            @for (it of itemsRechazadosRev; track it.id) {
               <div class="rm-preview-item rm-pi-rechaz">
                 <span class="rpi-nombre">{{ it.nombre }}</span>
                 <span class="rpi-cant">× {{ it.cantidad }}</span>
@@ -410,9 +515,8 @@
             }
           </div>
         }
-
-        @if (itemsDeStock.length === 0 && itemsDeCompra.length === 0 && itemsRechazados.length === 0) {
-          <div class="rm-preview-empty">Asigna una decisión a cada material para ver el resumen.</div>
+        @if (itemsDeStockRev.length === 0 && itemsDeCompraRev.length === 0 && itemsRechazadosRev.length === 0) {
+          <div class="rm-preview-empty">Asigna una decisión a cada ítem.</div>
         }
       </div>
     </div>
@@ -422,7 +526,7 @@
       <button class="rm-btn-confirm" (click)="confirmarAprobacion()" [disabled]="procesando || !todasDecididas">
         @if (procesando) { <app-spinner [size]="15" theme="light"></app-spinner> Procesando… }
         @else if (!todasDecididas) { Decide todos los ítems }
-        @else { Confirmar · {{ itemsDeStock.length > 0 ? itemsDeStock.length + ' stock' : '' }}{{ itemsDeCompra.length > 0 ? (itemsDeStock.length > 0 ? ' + ' : '') + itemsDeCompra.length + ' compra' : '' }} }
+        @else { Confirmar }
       </button>
     </footer>
   </div>
@@ -430,79 +534,7 @@
 }
 
 
-<!-- ═══ MODAL DETALLE DE ÍTEMS ═══ -->
-@if (reqDetalle) {
-<div class="rm-overlay" (click)="cerrarDetalle()">
-  <div class="rm-modal rm-modal-items" (click)="$event.stopPropagation()">
-    <header class="rm-header">
-      <div>
-        <h2 class="rm-title">Ítems del requerimiento</h2>
-        <p class="rm-subtitle">
-          {{ reqDetalle.solicitanteNombre }} · {{ reqDetalle.proyectoNombre }}
-          @if (reqDetalle.servicioNombre) { · {{ reqDetalle.servicioNombre }} }
-          · <strong>{{ reqDetalle.items.length }} ítems</strong>
-        </p>
-      </div>
-      <button class="rm-close" (click)="cerrarDetalle()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-    </header>
-
-    <div class="rie-body">
-      <div class="rie-summary">
-        <span class="rie-sum-chip rie-sum-total">{{ reqDetalle.items.length }} ítems en total</span>
-        <span class="rie-sum-chip rie-sum-stock">{{ countItemsStock(reqDetalle) }} de stock</span>
-        <span class="rie-sum-chip rie-sum-compra">{{ countItemsCompra(reqDetalle) }} compra externa</span>
-      </div>
-
-      <div class="rie-table-wrap">
-        <table class="rie-table">
-          <thead>
-            <tr>
-              <th>#</th><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th>Tipo</th><th>Estado</th><th>Especificación</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (it of reqDetalle.items; track it.id; let idx = $index) {
-              <tr class="rie-row">
-                <td class="rie-num">{{ idx + 1 }}</td>
-                <td class="rie-nombre">{{ it.nombre }}</td>
-                <td class="rie-cant">{{ it.cantidad }}</td>
-                <td class="rie-unit">{{ it.unidad }}</td>
-                <td>
-                  @if (it.esCompraExterna) {
-                    <span class="rie-tipo rie-tipo-compra">Compra externa</span>
-                  } @else if (it.enStock) {
-                    <span class="rie-tipo rie-tipo-stock">En stock ({{ it.stockDisponible }})</span>
-                  } @else {
-                    <span class="rie-tipo rie-tipo-bajo">Sin stock</span>
-                  }
-                </td>
-                <td>
-                  <span class="rie-estado" [class]="itemEstadoClase(it.estadoItem)">{{ itemEstadoLabel(it.estadoItem) }}</span>
-                </td>
-                <td class="rie-espec">{{ it.especificacion ?? '—' }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <footer class="rm-footer">
-      <button class="rm-btn-cancel" (click)="cerrarDetalle()">Cerrar</button>
-      @if (reqDetalle.estado === 'pendiente') {
-        <button class="rm-btn-confirm" (click)="cerrarDetalle(); abrirRevision(reqDetalle)">Revisar requerimiento</button>
-      }
-    </footer>
-  </div>
-</div>
-}
-
-
-<!-- ═══ MODAL DE RECHAZO ═══ -->
+<!-- ═══ MODAL RECHAZO ═══ -->
 @if (reqRechazar) {
 <div class="rm-overlay" (click)="cerrarRechazo()">
   <div class="rm-modal rm-modal-sm" (click)="$event.stopPropagation()">
@@ -510,19 +542,19 @@
       <h2 class="rm-title">Rechazar requerimiento</h2>
       <button class="rm-close" (click)="cerrarRechazo()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </header>
     <div class="rm-body">
       <label class="rm-label">Motivo del rechazo (visible para el técnico)</label>
       <textarea class="rm-textarea" rows="3" [(ngModel)]="motivoRechazo"
-                placeholder="Ej: El material solicitado no corresponde al alcance del servicio…"></textarea>
+                placeholder="Ej: El material no corresponde al alcance del servicio…"></textarea>
     </div>
     <footer class="rm-footer">
       <button class="rm-btn-cancel" (click)="cerrarRechazo()">Cancelar</button>
       <button class="rm-btn-reject-confirm" (click)="confirmarRechazo()" [disabled]="procesando || !motivoRechazo.trim()">
-        @if (procesando) { <app-spinner [size]="15" theme="light"></app-spinner> Rechazando… }
+        @if (procesando) { <app-spinner [size]="15" theme="light"></app-spinner> }
         @else { Rechazar pedido }
       </button>
     </footer>
@@ -531,123 +563,7 @@
 }
 
 
-<!-- ═══ MODAL CIERRE DE ENTREGA (Híbrido paso 2 — firma logística) ═══ -->
-@if (reqEntrega) {
-<div class="rm-overlay" (click)="cerrarEntrega()">
-  <div class="rm-modal rm-entrega" (click)="$event.stopPropagation()">
-    <header class="rm-header">
-      <div>
-        <h2 class="rm-title">Cerrar entrega — firma de logística</h2>
-        <p class="rm-subtitle">
-          {{ reqEntrega.proyectoNombre }}
-          @if (reqEntrega.servicioNombre) { · {{ reqEntrega.servicioNombre }} }
-          @if (reqsEntregaGlobal.length > 1) { · <strong>{{ reqsEntregaGlobal.length }} requerimientos a cerrar</strong> }
-        </p>
-      </div>
-      <button class="rm-close" (click)="cerrarEntrega()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
-
-    <div class="rm-entrega-body">
-
-      <!-- Explicación del flujo Híbrido -->
-      <div class="rm-entrega-info">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;color:#3b82f6">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span>El técnico ya firmó la recepción. Como responsable de logística, firma aquí para cerrar el ciclo administrativo y generar el reporte de salida.</span>
-      </div>
-
-      <!-- Items -->
-      <div class="rm-ent-section">
-        <h4 class="rm-ent-stitle">Materiales / Equipos — Requerimiento{{ reqsEntregaGlobal.length > 1 ? 's' : '' }}</h4>
-        <table class="rm-ent-table">
-          <thead><tr><th>#</th><th>Descripción</th><th>Unidad</th><th class="th-r">Cant.</th><th>Estado</th></tr></thead>
-          <tbody>
-            @for (it of reqEntrega.items; track it.id; let i = $index) {
-              <tr [class.ent-row-ok]="it.estadoItem === 'aprobado'" [class.ent-row-compra]="it.estadoItem === 'para_compra'">
-                <td class="td-i">{{ i + 1 }}</td>
-                <td class="td-nombre">{{ it.nombre }}</td>
-                <td class="td-u">{{ it.unidad }}</td>
-                <td class="td-r">{{ it.cantidadAprobada ?? it.cantidad }}</td>
-                <td><span class="rie-chip" [class]="itemEstadoClase(it.estadoItem)">{{ itemEstadoLabel(it.estadoItem) }}</span></td>
-              </tr>
-            }
-          </tbody>
-        </table>
-        @if (reqsEntregaGlobal.length > 1) {
-          <p class="rm-entrega-otros">+ {{ reqsEntregaGlobal.length - 1 }} requerimiento{{ reqsEntregaGlobal.length - 1 !== 1 ? 's' : '' }} adicional{{ reqsEntregaGlobal.length - 1 !== 1 ? 'es' : '' }} serán cerrados con la misma firma.</p>
-        }
-      </div>
-
-      <!-- Firma del entregador (logística) -->
-      <div class="rm-firma-bloque rm-firma-entregador">
-        <h4 class="rm-firma-titulo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
-            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-          </svg>
-          Firma del responsable de logística <span class="rm-firma-req">* requerido</span>
-        </h4>
-        <p class="rm-firma-desc">Firma que certifica el despacho y cierra el ciclo administrativo</p>
-
-        @if (padEntregador.bloqueadoPor && !padEntregador.firmando) {
-          <div class="rm-firma-bloqueada">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            {{ padEntregador.bloqueadoPor }} está firmando…
-          </div>
-        } @else if (padEntregador.firma) {
-          <div class="rm-firma-preview-wrap">
-            <img [src]="padEntregador.firma" class="rm-firma-img" alt="Firma logística">
-            <button class="rm-firma-quitar" (click)="quitarFirma()">Quitar firma</button>
-          </div>
-        } @else if (padEntregador.firmando) {
-          <div class="rm-canvas-wrap">
-            <div class="rm-canvas-timer">⏱ {{ padEntregador.timerSecs }}s</div>
-            <canvas #canvasRef width="360" height="140" class="rm-canvas"></canvas>
-            <div class="rm-canvas-btns">
-              <button class="rm-cbtn rm-cbtn-clear" (click)="limpiarFirma()">Limpiar</button>
-              <button class="rm-cbtn rm-cbtn-cancel" (click)="cancelarFirma()">Cancelar</button>
-              <button class="rm-cbtn rm-cbtn-ok" (click)="confirmarFirma()">Confirmar</button>
-            </div>
-          </div>
-        } @else {
-          <div class="rm-firma-acciones">
-            <button class="rm-firma-btn rm-firma-dibujar" (click)="iniciarFirma()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-              Firmar
-            </button>
-            <button class="rm-firma-btn rm-firma-usar" (click)="usarFirmaGuardada()">Usar guardada</button>
-          </div>
-        }
-      </div>
-
-      <!-- Notas -->
-      <div class="rm-ent-section">
-        <label class="rm-label">Observaciones <span class="rm-lbl-opt">(opcional)</span></label>
-        <textarea class="rm-textarea" rows="2" [(ngModel)]="notasEntrega" placeholder="Ej: Entregado en almacén central, lote completo…"></textarea>
-      </div>
-
-    </div>
-
-    <footer class="rm-footer">
-      <button class="rm-btn-cancel" (click)="cerrarEntrega()">Cancelar</button>
-      <button class="rm-btn-deliver-confirm" (click)="confirmarEntrega()" [disabled]="enviandoEntrega || !puedeEntregar">
-        @if (enviandoEntrega) { <app-spinner [size]="15" theme="light"></app-spinner> Cerrando… }
-        @else {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polyline points="20 6 9 17 4 12"/></svg>
-          Confirmar cierre{{ reqsEntregaGlobal.length > 1 ? ' (' + reqsEntregaGlobal.length + ')' : '' }}
-        }
-      </button>
-    </footer>
-  </div>
-</div>
-}
-
-
-<!-- ═══ REPORTE / COMPROBANTE DE ENTREGA ═══ -->
+<!-- ═══ MODAL REPORTE / COMPROBANTE ═══ -->
 @if (reqReporte) {
 <div class="rm-overlay no-print" (click)="cerrarReporte()">
   <div class="rm-modal rm-modal-report" (click)="$event.stopPropagation()">
@@ -658,7 +574,7 @@
         </svg>
         Imprimir
       </button>
-      <button class="rm-btn-imprimir" (click)="generarPDFSalida(reqReporte)" style="margin-left:8px;background:#3b82f6">
+      <button class="rm-btn-imprimir rm-btn-pdf" (click)="generarPDFSalida(null, reqReporte)" style="background:#3b82f6;margin-left:6px">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
@@ -671,115 +587,117 @@
       </button>
     </div>
 
-    <div class="rm-comprobante printable">
+    <!-- Comprobante scrollable -->
+    <div class="rm-comprobante-scroll">
+      <div class="rm-comprobante printable">
 
-      <div class="comp-watermark">
-        <img src="assets/img/logo_difuminado.png" alt="" aria-hidden="true">
-      </div>
-
-      <header class="comp-hdr">
-        <div class="comp-logo-blq">
-          <img src="assets/img/index.png" alt="e-System Tic" class="comp-logo">
+        <div class="comp-watermark">
+          <img src="assets/img/logo_difuminado.png" alt="" aria-hidden="true">
         </div>
-        <div class="comp-titulo-blq">
-          <h1 class="comp-h1">COMPROBANTE DE SALIDA DE MATERIALES</h1>
-          <p class="comp-h2">e-System Tic · Gestión de Logística</p>
-        </div>
-        <div class="comp-meta-blq">
-          <p class="comp-meta-item"><strong>N°:</strong> {{ reqReporte.id.slice(-6).toUpperCase() }}</p>
-          <p class="comp-meta-item"><strong>Fecha:</strong> {{ reqReporte.fechaEntrega ? (reqReporte.fechaEntrega | date:'dd/MM/yyyy') : fechaHoy() }}</p>
-        </div>
-      </header>
 
-      <div class="comp-divider"></div>
+        <header class="comp-hdr">
+          <div class="comp-logo-blq">
+            <img src="assets/img/index.png" alt="e-System Tic" class="comp-logo">
+          </div>
+          <div class="comp-titulo-blq">
+            <h1 class="comp-h1">COMPROBANTE DE SALIDA DE MATERIALES</h1>
+            <p class="comp-h2">e-System Tic · Gestión de Logística</p>
+          </div>
+          <div class="comp-meta-blq">
+            <p class="comp-meta-item"><strong>N°:</strong> {{ reqReporte.id.slice(-6).toUpperCase() }}</p>
+            <p class="comp-meta-item"><strong>Fecha:</strong> {{ reqReporte.fechaEntrega ? (reqReporte.fechaEntrega | date:'dd/MM/yyyy') : fechaHoy() }}</p>
+          </div>
+        </header>
 
-      <section class="comp-seccion">
-        <h3 class="comp-sec-h">INFORMACIÓN DEL SERVICIO</h3>
-        <div class="comp-grid2">
-          <div class="comp-campo"><span class="comp-lbl">Proyecto</span><span class="comp-val">{{ reqReporte.proyectoNombre }}</span></div>
-          <div class="comp-campo"><span class="comp-lbl">Servicio</span><span class="comp-val">{{ reqReporte.servicioNombre || '—' }}</span></div>
-          <div class="comp-campo"><span class="comp-lbl">Solicitante</span><span class="comp-val">{{ reqReporte.solicitanteNombre }}</span></div>
-          <div class="comp-campo"><span class="comp-lbl">Fecha de Solicitud</span><span class="comp-val">{{ reqReporte.fecha || '—' }}</span></div>
-        </div>
-      </section>
+        <div class="comp-divider"></div>
 
-      <div class="comp-divider"></div>
+        <section class="comp-seccion">
+          <h3 class="comp-sec-h">INFORMACIÓN DEL SERVICIO</h3>
+          <div class="comp-grid2">
+            <div class="comp-campo"><span class="comp-lbl">Proyecto</span><span class="comp-val">{{ reqReporte.proyectoNombre }}</span></div>
+            <div class="comp-campo"><span class="comp-lbl">Servicio</span><span class="comp-val">{{ reqReporte.servicioNombre || '—' }}</span></div>
+            <div class="comp-campo"><span class="comp-lbl">Solicitante</span><span class="comp-val">{{ reqReporte.solicitanteNombre }}</span></div>
+            <div class="comp-campo"><span class="comp-lbl">Fecha Solicitud</span><span class="comp-val">{{ reqReporte.fecha || '—' }}</span></div>
+          </div>
+        </section>
 
-      <section class="comp-seccion">
-        <h3 class="comp-sec-h">DETALLE DE MATERIALES / EQUIPOS ENTREGADOS</h3>
-        <table class="comp-tabla">
-          <thead>
-            <tr>
-              <th class="th-n">#</th>
-              <th>Descripción del Material / Equipo</th>
-              <th class="th-u">Unidad</th>
-              <th class="th-cant">Cant. Solicitada</th>
-              <th class="th-cant">Cant. Entregada</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (it of reqReporte.items; track it.id; let i = $index) {
+        <div class="comp-divider"></div>
+
+        <section class="comp-seccion">
+          <h3 class="comp-sec-h">DETALLE DE MATERIALES / EQUIPOS ENTREGADOS</h3>
+          <table class="comp-tabla">
+            <thead>
               <tr>
-                <td class="th-n">{{ i + 1 }}</td>
-                <td class="comp-td-desc">{{ it.nombre }}@if (it.especificacion) { <br><small>{{ it.especificacion }}</small> }</td>
-                <td class="th-u">{{ it.unidad }}</td>
-                <td class="th-cant">{{ it.cantidad }}</td>
-                <td class="th-cant">{{ it.cantidadAprobada ?? it.cantidad }}</td>
-                <td>{{ itemEstadoLabel(it.estadoItem) }}</td>
+                <th class="th-n">#</th>
+                <th>Descripción</th>
+                <th class="th-u">Unidad</th>
+                <th class="th-cant">Solicitado</th>
+                <th class="th-cant">Entregado</th>
+                <th>Estado</th>
               </tr>
+            </thead>
+            <tbody>
+              @for (it of reqReporte.items; track it.id; let i = $index) {
+                <tr>
+                  <td class="th-n">{{ i + 1 }}</td>
+                  <td class="comp-td-desc">{{ it.nombre }}@if (it.especificacion) {<br><small>{{ it.especificacion }}</small>}</td>
+                  <td class="th-u">{{ it.unidad }}</td>
+                  <td class="th-cant">{{ it.cantidad }}</td>
+                  <td class="th-cant">{{ it.cantidadAprobada ?? it.cantidad }}</td>
+                  <td>{{ itemEstadoLabel(it.estadoItem) }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3" class="tfoot-lbl">TOTAL ÍTEMS</td>
+                <td class="th-cant"><strong>{{ reqReporte.items.length }}</strong></td>
+                <td colspan="2"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </section>
+
+        @if (reqReporte.observacion) {
+          <div class="comp-obs"><strong>Observaciones:</strong> {{ reqReporte.observacion }}</div>
+        }
+
+        <div class="comp-divider"></div>
+
+        <!-- Firmas con espacio propio -->
+        <section class="comp-firmas">
+          <div class="comp-firma-blq">
+            <p class="comp-firma-titulo">ENTREGADO POR (LOGÍSTICA)</p>
+            @if (reqReporte.firmaUrl) {
+              <img [src]="reqReporte.firmaUrl" class="comp-firma-img" alt="Firma logística">
+            } @else {
+              <div class="comp-firma-espacio"></div>
             }
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colspan="3" class="tfoot-lbl">TOTAL ÍTEMS</td>
-              <td class="th-cant"><strong>{{ reqReporte.items.length }}</strong></td>
-              <td colspan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
-      </section>
+            <div class="comp-firma-linea"></div>
+            <p class="comp-firma-nombre">{{ reqReporte.recibidoPorNombre || '___________________________' }}</p>
+            <p class="comp-firma-cargo">Responsable de Logística</p>
+          </div>
 
-      @if (reqReporte.observacion) {
-        <div class="comp-obs">
-          <strong>Observaciones:</strong> {{ reqReporte.observacion }}
-        </div>
-      }
+          <div class="comp-firma-blq">
+            <p class="comp-firma-titulo">RECIBIDO POR (TÉCNICO)</p>
+            @if (reqReporte.firmaEntregadorUrl) {
+              <img [src]="reqReporte.firmaEntregadorUrl" class="comp-firma-img" alt="Firma técnico">
+            } @else {
+              <div class="comp-firma-espacio"></div>
+            }
+            <div class="comp-firma-linea"></div>
+            <p class="comp-firma-nombre">{{ reqReporte.entregadoPorNombre || '___________________________' }}</p>
+            <p class="comp-firma-cargo">Técnico / Responsable de Campo</p>
+          </div>
+        </section>
 
-      <div class="comp-divider"></div>
+        <footer class="comp-footer">
+          <p>Documento generado por e-System Tic · Soluciones Innovadoras para tu Empresa</p>
+          <p>Este comprobante certifica la entrega física. El técnico receptor es responsable de los equipos y herramientas no consumibles.</p>
+        </footer>
 
-      <section class="comp-firmas">
-        <div class="comp-firma-blq">
-          <p class="comp-firma-titulo">ENTREGADO POR</p>
-          @if (reqReporte.firmaEntregadorUrl) {
-            <img [src]="reqReporte.firmaEntregadorUrl" class="comp-firma-img" alt="Firma entregador">
-          } @else {
-            <div class="comp-firma-espacio"></div>
-          }
-          <div class="comp-firma-linea"></div>
-          <p class="comp-firma-nombre">{{ reqReporte.entregadoPorNombre || '___________________________' }}</p>
-          <p class="comp-firma-cargo">Responsable de Logística</p>
-        </div>
-
-        <div class="comp-firma-blq">
-          <p class="comp-firma-titulo">RETIRADO POR</p>
-          @if (reqReporte.firmaUrl) {
-            <img [src]="reqReporte.firmaUrl" class="comp-firma-img" alt="Firma receptor">
-          } @else {
-            <div class="comp-firma-espacio"></div>
-          }
-          <div class="comp-firma-linea"></div>
-          <p class="comp-firma-nombre">{{ reqReporte.recibidoPorNombre || '___________________________' }}</p>
-          <p class="comp-firma-cargo">Técnico / Responsable de Campo</p>
-        </div>
-      </section>
-
-      <footer class="comp-footer">
-        <p>Documento generado por e-System Tic · Soluciones Innovadoras para tu Empresa</p>
-        <p>Este comprobante certifica la entrega física de los materiales indicados. El técnico receptor es responsable de los equipos y herramientas no consumibles.</p>
-      </footer>
-
-    </div>
+      </div><!-- /.rm-comprobante -->
+    </div><!-- /.rm-comprobante-scroll -->
   </div>
 </div>
 }

@@ -116,13 +116,19 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   @ViewChild('chatScroll') private chatScrollEl!: ElementRef<HTMLDivElement>;
   @ViewChild('firmaCanvas') private firmaCanvasEl?: ElementRef<HTMLCanvasElement>;
 
-  // ── HU-16: requerimientos aprobados listos para firmar ──
+  // ── HU-16: requerimientos entregados por logística, esperando firma del técnico ──
   reqsListos: Requerimiento[] = [];
-  showFirmaModal = false;
-  reqAFirmar: Requerimiento | null = null;
-  firmando = false;
+  showFirmaModal   = false;
+  reqAFirmar:  Requerimiento | null = null;
+  firmando         = false;
   private _dibujando = false;
-  private _hayTrazo = false;
+  private _hayTrazo  = false;
+
+  // ── Firma global por servicio (técnico confirma recepción) ──
+  showFirmaGlobalModal = false;
+  firmaGlobalEnCurso   = false;
+  firmaGlobalGuardada  = '';
+  firmandoPorNombreGlobal = '';   // cinema-seat display
 
   servicioId: string | null = null;
   servicio: ServicioDetalle | null = null;
@@ -461,16 +467,26 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     if (!this.servicioId) return;
     this.logistica.getRequerimientos({ estado: 'todos', servicioId: this.servicioId }).subscribe({
       next: (reqs) => {
+        // aprobado = logística firmó, técnico debe confirmar recepción
+        // comprando = en proceso de compra (informativo)
         this.reqsListos = reqs.filter(r =>
-          r.estado === 'listo' || r.estado === 'aprobado' || r.estado === 'comprando'
+          r.estado === 'aprobado' || r.estado === 'comprando' || r.estado === 'listo'
         );
+        // Actualizar cinema-seat display
+        const firmando = reqs.find(r => r.firmandoPorNombre && r.estado === 'aprobado');
+        this.firmandoPorNombreGlobal = firmando?.firmandoPorNombre ?? '';
       },
       error: () => { /* silencioso */ }
     });
   }
 
   get hayReqsPorFirmar(): boolean {
-    return this.reqsListos.some(r => r.estado === 'listo');
+    // aprobado = logística entregó, técnico debe confirmar
+    return this.reqsListos.some(r => r.estado === 'aprobado');
+  }
+
+  get reqsParaFirmar(): Requerimiento[] {
+    return this.reqsListos.filter(r => r.estado === 'aprobado');
   }
 
   abrirFirma(req: Requerimiento): void {
@@ -485,6 +501,99 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.showFirmaModal = false;
     this.reqAFirmar = null;
     document.body.style.overflow = '';
+  }
+
+  // ── Firma global del técnico (confirma recepción de todos los aprobados) ──
+  abrirFirmaGlobal(): void {
+    if (!this.reqsParaFirmar.length) return;
+    this.showFirmaGlobalModal = true;
+    this._hayTrazo = false;
+    this.firmaGlobalGuardada = '';
+    document.body.style.overflow = 'hidden';
+    // Obtener firma guardada del usuario
+    this.logistica.getFirmaGuardada().subscribe({
+      next: f => { if (f?.url) this.firmaGlobalGuardada = f.url; },
+      error: () => {},
+    });
+    // Cinema-seat: bloquear el primer req
+    const primer = this.reqsParaFirmar[0];
+    this.logistica.bloquearFirma(primer.id).subscribe({
+      next: () => setTimeout(() => this._initCanvas(), 80),
+      error: err => {
+        const d: string = err?.error?.detail ?? '';
+        if (d.startsWith('firmando_por:')) {
+          const quien = d.split(':')[1];
+          this.toast.mostrar(`${quien} está firmando ahora. Espera.`, 'info');
+          this.firmandoPorNombreGlobal = quien;
+          this.showFirmaGlobalModal = false;
+          document.body.style.overflow = '';
+        } else {
+          this.toast.mostrar('No se pudo iniciar la firma. Intenta de nuevo.', 'error');
+          this.showFirmaGlobalModal = false;
+          document.body.style.overflow = '';
+        }
+        this.cargarReqsListos();
+      },
+    });
+  }
+
+  cerrarFirmaGlobal(): void {
+    this.showFirmaGlobalModal = false;
+    this._hayTrazo = false;
+    document.body.style.overflow = '';
+    // Liberar cinema-seat lock
+    const primer = this.reqsParaFirmar[0];
+    if (primer) this.logistica.liberarFirma(primer.id).subscribe({ error: () => {} });
+    this.cargarReqsListos();
+  }
+
+  usarFirmaGuardadaGlobal(): void {
+    if (!this.firmaGlobalGuardada) return;
+    // Usar firma guardada como URL directamente → confirmar
+    this.firmaGlobalEnCurso = true;
+    this._entregarConFirma(this.firmaGlobalGuardada);
+  }
+
+  confirmarFirmaGlobal(): void {
+    if (!this._hayTrazo) {
+      this.toast.mostrar('Dibuja tu firma antes de confirmar.', 'error');
+      return;
+    }
+    const canvas = this.firmaCanvasEl?.nativeElement;
+    if (!canvas) return;
+    const dataUrl = canvas.toDataURL('image/png');
+    this.firmaGlobalEnCurso = true;
+    this._entregarConFirma(dataUrl);
+  }
+
+  private _entregarConFirma(firmaUrl: string): void {
+    const reqs = this.reqsParaFirmar;
+    let done = 0;
+    let lastReq: Requerimiento | null = null;
+
+    for (const req of reqs) {
+      this.logistica.entregarRequerimiento(req.id, { firmaEntregadorUrl: firmaUrl }).subscribe({
+        next: r => {
+          done++;
+          lastReq = r;
+          if (done === reqs.length) {
+            this.firmaGlobalEnCurso = false;
+            this.showFirmaGlobalModal = false;
+            document.body.style.overflow = '';
+            this.toast.mostrar('Recepción confirmada. Materiales recibidos.', 'success');
+            this.cargarReqsListos();
+            if (lastReq) this.generarPDFSalida(lastReq);
+          }
+        },
+        error: err => {
+          this.firmaGlobalEnCurso = false;
+          this.toast.mostrar(err?.error?.detail ?? 'No se pudo confirmar.', 'error');
+          // Liberar lock si falla
+          const primer = reqs[0];
+          if (primer) this.logistica.liberarFirma(primer.id).subscribe({ error: () => {} });
+        },
+      });
+    }
   }
 
   private _initCanvas(): void {
@@ -531,23 +640,24 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   }
 
   confirmarFirma(): void {
+    // Este método confirma la recepción individual (para el modal individual)
     if (!this.reqAFirmar || !this._hayTrazo) {
       this.toast.mostrar('Dibuja la firma antes de confirmar.', 'error');
       return;
     }
     const dataUrl = this.firmaCanvasEl!.nativeElement.toDataURL('image/png');
     this.firmando = true;
-    this.logistica.firmarRequerimiento(this.reqAFirmar.id, '', dataUrl).subscribe({
+    this.logistica.entregarRequerimiento(this.reqAFirmar.id, { firmaEntregadorUrl: dataUrl }).subscribe({
       next: (req) => {
         this.firmando = false;
-        this.toast.mostrar('Recepción firmada. Logística fue notificada.', 'success');
+        this.toast.mostrar('Recepción confirmada.', 'success');
         this.cerrarFirma();
         this.cargarReqsListos();
         this.generarPDFSalida(req);
       },
       error: (err: any) => {
         this.firmando = false;
-        this.toast.mostrar(err?.error?.detail ?? 'No se pudo firmar.', 'error');
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo confirmar.', 'error');
       }
     });
   }
@@ -909,6 +1019,11 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         if (msg.tipo === 'error') return;
         if (msg.tipo === 'borrador_actualizado') {
           this.cargarBorrador();
+          return;
+        }
+        if (msg.tipo === 'requerimiento_actualizado') {
+          // Actualizar en tiempo real el cinema-seat y estado de reqs
+          this.cargarReqsListos();
           return;
         }
         this.chatMensajes.push(this._mapMensaje(msg));

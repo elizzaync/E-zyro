@@ -177,57 +177,64 @@
   <!-- ═══════════════ HU-16: MATERIALES LISTOS PARA FIRMAR ═══════════════ -->
   @if (reqsListos.length > 0) {
   <div class="firma-card">
+    <!-- Encabezado del card -->
     <div class="firma-head">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+        <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
       </svg>
       <div class="firma-head-text">
-        <strong>Materiales de logística — estado de recepción</strong>
-        <span>Firma la recepción cuando los materiales estén listos para retiro. El firmante queda como responsable de equipos y herramientas.</span>
+        <strong>Materiales entregados por Logística</strong>
+        <span>Logística confirmó la entrega. Firma para confirmar la recepción. Quien firma es responsable de todos los equipos y herramientas.</span>
       </div>
     </div>
 
-    @for (req of reqsListos; track req.id) {
-    <div class="firma-req" [class.firma-req--listo]="req.estado === 'listo'" [class.firma-req--comprando]="req.estado === 'comprando'">
-      <div class="firma-req-info">
-        <div class="firma-req-items">
-          @for (it of req.items; track it.id) {
-            @if (it.estadoItem !== 'rechazado') {
-            <span class="firma-chip" [class.firma-chip--compra]="it.estadoItem === 'para_compra'">
-              {{ it.nombre }} × {{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}
-              @if (it.estadoItem === 'para_compra') { <em>(compra)</em> }
-            </span>
-            }
-          }
-        </div>
-        <span class="firma-req-meta">Solicitado por {{ req.solicitanteNombre }} · {{ req.fecha }}</span>
+    <!-- Cinema-seat: alguien ya está firmando -->
+    @if (firmandoPorNombreGlobal) {
+      <div class="firma-lock-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;flex-shrink:0">
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <span><strong>{{ firmandoPorNombreGlobal }}</strong> está firmando ahora mismo. Espera a que termine o cancele.</span>
       </div>
-      @if (req.estado === 'listo') {
-        @if (req.firmandoPorNombre) {
-          <div class="firma-en-proceso">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            {{ req.firmandoPorNombre }} está firmando…
-          </div>
-        } @else {
-          <button class="firma-btn" (click)="abrirFirma(req)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-            Firmar recepción
-          </button>
+    }
+
+    <!-- Lista compacta de ítems -->
+    <div class="firma-items-resumen">
+      @for (req of reqsListos; track req.id) {
+        @for (it of req.items; track it.id) {
+          @if (it.estadoItem !== 'rechazado') {
+            <div class="firma-item-row" [class.firma-item-compra]="it.estadoItem === 'para_compra'">
+              <span class="firma-item-nombre">{{ it.nombre }}</span>
+              <span class="firma-item-cant">× {{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}</span>
+              @if (it.estadoItem === 'para_compra') {
+                <span class="firma-item-tag tag-compra">En compra</span>
+              } @else {
+                <span class="firma-item-tag tag-ok">Listo</span>
+              }
+            </div>
+          }
         }
-      } @else if (req.estado === 'aprobado') {
-        <span class="firma-ok">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12" /></svg>
-          Firmado · pendiente cierre logística
-        </span>
-      } @else if (req.estado === 'comprando') {
-        <span class="firma-comprando">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-          En proceso de compra
-        </span>
       }
     </div>
+
+    <!-- Items en compra (informativos, no se puede firmar si hay pendientes) -->
+    @if (reqsListos.some(r => r.estado === 'comprando')) {
+      <div class="firma-comprando-info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg>
+        Hay materiales en proceso de compra. La firma estará disponible cuando todas las compras sean recibidas.
+      </div>
+    }
+
+    <!-- Botón global de firma (solo cuando hay aprobados y nadie está firmando) -->
+    @if (hayReqsPorFirmar && !firmandoPorNombreGlobal) {
+      <button class="firma-btn-global" (click)="abrirFirmaGlobal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+        </svg>
+        Confirmar recepción — Firmar ahora ({{ reqsParaFirmar.length }} requerimiento{{ reqsParaFirmar.length !== 1 ? 's' : '' }})
+      </button>
     }
   </div>
   }
@@ -1459,8 +1466,96 @@
     <div class="modal-footer">
       <button class="btn-cancel" (click)="cerrarFirma()">Cancelar</button>
       <button class="btn-primary" (click)="confirmarFirma()" [disabled]="firmando">
-        @if (firmando) { <app-spinner [size]="16" theme="light"></app-spinner> Firmando… }
-        @else { Confirmar firma y notificar a Logística }
+        @if (firmando) { <app-spinner [size]="16" theme="light"></app-spinner> Confirmando… }
+        @else { Confirmar recepción }
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+<!-- ══════════════════════════════════════════════════════════
+     HU-16 — MODAL DE FIRMA GLOBAL DEL TÉCNICO (confirmar recepción)
+══════════════════════════════════════════════════════════ -->
+@if (showFirmaGlobalModal) {
+<div class="modal-overlay" (click)="cerrarFirmaGlobal()">
+  <div class="modal-box modal-firma-global" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Confirmar recepción de materiales</h3>
+        <p class="modal-subtitle">
+          Logística entregó {{ reqsParaFirmar.length }} requerimiento{{ reqsParaFirmar.length !== 1 ? 's' : '' }} · Servicio: {{ servicio?.tipoServicio }}
+        </p>
+      </div>
+      <button class="modal-close" (click)="cerrarFirmaGlobal()">✕</button>
+    </div>
+
+    <div class="modal-body modal-firma-body">
+
+      <!-- Nota de responsabilidad -->
+      <div class="firma-resp-nota">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;flex-shrink:0;color:#2563eb">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>Al firmar confirmas la recepción de <strong>todos los materiales listados</strong>. El firmante queda como responsable de equipos y herramientas (no consumibles).</span>
+      </div>
+
+      <!-- Lista compacta de todos los ítems -->
+      <div class="salida-preview">
+        <div class="salida-hdr">
+          <span>Servicio:</span><b>{{ servicio?.tipoServicio }}</b>
+          <span>Cliente:</span><b>{{ servicio?.cliente }}</b>
+        </div>
+        <table class="salida-tabla">
+          <thead><tr><th>Material / Equipo</th><th>Cant.</th><th>Tipo</th></tr></thead>
+          <tbody>
+            @for (req of reqsParaFirmar; track req.id) {
+              @for (it of req.items; track it.id) {
+                @if (it.estadoItem !== 'rechazado') {
+                <tr>
+                  <td>{{ it.nombre }}</td>
+                  <td>{{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}</td>
+                  <td>{{ it.esCompraExterna ? 'Compra ext.' : (it.especificacion?.includes('quipo') ? 'Equipo' : it.especificacion?.includes('erramienta') ? 'Herramienta' : 'Material') }}</td>
+                </tr>
+                }
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Firma guardada disponible -->
+      @if (firmaGlobalGuardada) {
+        <div class="firma-guardada-option">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0;color:#4d7d18">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2h-2"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+          </svg>
+          <span>Tienes una firma guardada en tu cuenta.</span>
+          <button class="btn-usar-guardada" (click)="usarFirmaGuardadaGlobal()" [disabled]="firmaGlobalEnCurso">
+            @if (firmaGlobalEnCurso) { <app-spinner [size]="13" theme="light"></app-spinner> }
+            @else { Confirmar con firma guardada }
+          </button>
+        </div>
+        <p class="firma-o-sep">— o dibuja una nueva firma abajo —</p>
+      }
+
+      <!-- Canvas de firma -->
+      <div class="firma-pad-wrap">
+        <label class="firma-pad-label">Firma del receptor (técnico / jefe de operaciones)</label>
+        <canvas #firmaCanvas class="firma-pad" width="520" height="160"
+                (mousedown)="firmaStart($event)" (mousemove)="firmaMove($event)"
+                (mouseup)="firmaEnd()" (mouseleave)="firmaEnd()"
+                (touchstart)="firmaStart($event)" (touchmove)="firmaMove($event)"
+                (touchend)="firmaEnd()"></canvas>
+        <button class="firma-clear" (click)="limpiarFirma()">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel" (click)="cerrarFirmaGlobal()">Cancelar</button>
+      <button class="btn-primary" (click)="confirmarFirmaGlobal()" [disabled]="firmaGlobalEnCurso">
+        @if (firmaGlobalEnCurso) { <app-spinner [size]="16" theme="light"></app-spinner> Confirmando… }
+        @else { Confirmar recepción con firma }
       </button>
     </div>
   </div>
