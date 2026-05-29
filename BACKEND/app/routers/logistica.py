@@ -1377,8 +1377,10 @@ def entregar_requerimiento(
     if not emp_log:
         raise HTTPException(status_code=403, detail="No eres un empleado registrado")
 
-    # Receptor: el del body o el que firmó previamente
-    receptor_id = body.recibidoPorId or req.firma_recibido_por_id
+    # Receptor: el del body, el que firmó previamente, o el solicitante original.
+    # El fallback al solicitante habilita el flujo móvil "entrega rápida" sin
+    # firma virtual previa (la web requiere firma → siempre llega con receptor).
+    receptor_id = body.recibidoPorId or req.firma_recibido_por_id or req.solicitante_id
     if not receptor_id:
         raise HTTPException(status_code=422, detail="Falta el receptor de la entrega")
     receptor = db.query(Empleado).filter(
