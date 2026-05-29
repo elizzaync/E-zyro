@@ -85,8 +85,11 @@
 - `feat/backend-fase0-catalogos-rbac` (Fase 0+1 backend) · `feat/app-fase1-galeria` (galería app)
 - `feat/backend-fases-2-5` (Fases 2-5 backend, stack sobre fundaciones) · `feat/app-fases-2-5` (Fases 2-5 app, stack sobre galería)
 
+## Refinamiento — hecho
+- ✅ **Informes de servicio (PDF)**: pre-informe (estado actual: procedimientos + evidencias) e informe final (al cerrar, estado 'Completado'). Backend `feat/backend-refinamiento` (tabla `informe_servicio` + generador reportlab platypus + endpoints `/servicios/{id}/pre-informe|informe-final|informes`, verificado con PDF real). App `feat/app-refinamiento` (`PantallaInformesServicio` + acceso desde el AppBar del detalle de servicio).
+
 ## Pendientes (refinamiento — "commits paso a paso")
-- **PDFs**: constancia de entrega EPP, informe de correctivo, informe ITSE entregable (vía `pdf_service`).
+- **PDFs restantes**: constancia de entrega EPP, informe de correctivo, informe ITSE entregable (reutilizar `pdf_informe_servicio` como base / `pdf_service`).
 - **Flujos avanzados de app**: entrega EPP con selección de empleado+ítems+firma; detalle ITSE (tableros/ítems/fotos/finalizar); alta de calibración/correctivo con picker de equipo/servicio; subir certificado/informe desde la app.
 - **Fase 0 app**: UI de gestión de catálogos (ubicación/zona/área) y selects reutilizables.
 - **backfill foto_asistencia** (sin empresa_id directo; vía join).
