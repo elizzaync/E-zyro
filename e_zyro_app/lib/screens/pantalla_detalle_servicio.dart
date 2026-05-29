@@ -18,6 +18,7 @@ import '../utils/app_session.dart';
 import '../utils/fase_servicio.dart';
 import '../services/comunicado_service.dart';
 import '../services/chat_service.dart';
+import 'pantalla_informes_servicio.dart';
 import '../services/prestamo_service.dart';
 import 'pantalla_prestamos_servicio.dart';
 import '../services/fcm_flutter_service.dart';
@@ -375,6 +376,21 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         actions: [
+          // Informes del servicio (pre-informe / informe final en PDF).
+          if (d != null)
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+              tooltip: 'Informes del servicio',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PantallaInformesServicio(
+                    servicioId: widget.servicioId,
+                    estado: d.estado,
+                  ),
+                ),
+              ),
+            ),
           // Iniciar: solo en Pendiente. Bloqueado (gris) hasta cumplir checklist.
           if (d != null && d.estado == 'Pendiente' && !_cambiandoEstado)
             IconButton(
