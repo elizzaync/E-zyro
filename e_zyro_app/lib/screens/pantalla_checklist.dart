@@ -33,7 +33,6 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
 
   static const _green = Color(0xFF8FD11B);
   static const _amber = Color(0xFFF59E0B);
-  static const _blue = Color(0xFF3B82F6);
 
   @override
   void initState() {
@@ -633,7 +632,6 @@ class _FotoButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final captured = fotos.pathFor(tipo) != null;
     final canCapture = fotos.canCapture(tipo);
-    final isLocked = !captured && !canCapture;
 
     Color bgColor;
     Color textColor;

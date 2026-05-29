@@ -191,12 +191,13 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       );
       if (d == today) {
         groups['Hoy']!.add(item);
-      } else if (d == yesterday)
+      } else if (d == yesterday) {
         groups['Ayer']!.add(item);
-      else if (d.isAfter(weekAgo))
+      } else if (d.isAfter(weekAgo)) {
         groups['Esta semana']!.add(item);
-      else
+      } else {
         groups['Antes']!.add(item);
+      }
     }
     groups.removeWhere((_, v) => v.isEmpty);
     return groups;

@@ -3733,6 +3733,7 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
                               }
                               setSend(() => sending = true);
                               final messenger = ScaffoldMessenger.of(context);
+                              final navigator = Navigator.of(ctx);
                               final ok = await _service?.crearComunicado(
                                     proyectoId: widget.proyectoId,
                                     titulo: titulo,
@@ -3740,7 +3741,7 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
                                   ) ??
                                   false;
                               if (!mounted) return;
-                              Navigator.pop(ctx);
+                              navigator.pop();
                               if (ok) {
                                 _load();
                                 messenger.showSnackBar(
