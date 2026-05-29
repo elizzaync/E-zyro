@@ -25,6 +25,7 @@ from app.routers import seguridad       as seguridad_router
 from app.routers import prestamo        as prestamo_router
 from app.routers import catalogos       as catalogos_router
 from app.routers import galeria         as galeria_router
+from app.routers import epp             as epp_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -61,6 +62,8 @@ from app.models import (  # noqa: F401
     ubicacion, zona, area,
     # Galería global / índice de Cloudinary (Fase 1 — plan migración ERP)
     recurso_cloudinary,
+    # EPP (Fase 2 — plan migración ERP)
+    epp,
     # Compras
     proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
@@ -198,6 +201,73 @@ def _pre_create_migrations():
             "CREATE INDEX IF NOT EXISTS ix_recurso_empresa_fecha "
             "ON recurso_cloudinary (empresa_id, created_at)"
         ))
+
+        # ── EPP (Fase 2): catálogo + entregas + ingresos. FKs uuid → aquí ────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS epp (
+                id           uuid PRIMARY KEY,
+                empresa_id   uuid NOT NULL REFERENCES empresa(id),
+                nombre       VARCHAR(200) NOT NULL,
+                descripcion  VARCHAR(500),
+                marca_id     uuid REFERENCES marca(id),
+                unidad_id    uuid REFERENCES unidad_medida(id),
+                zona_id      uuid REFERENCES zona(id),
+                stock_actual INTEGER NOT NULL DEFAULT 0,
+                stock_min    INTEGER NOT NULL DEFAULT 0,
+                precio       NUMERIC(12,2),
+                imagen_url   TEXT,
+                activo       BOOLEAN NOT NULL DEFAULT true,
+                created_at   TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS epp_entrega (
+                id                uuid PRIMARY KEY,
+                empresa_id        uuid NOT NULL REFERENCES empresa(id),
+                empleado_id       uuid NOT NULL REFERENCES empleado(id),
+                fecha             DATE NOT NULL DEFAULT current_date,
+                registrado_por_id uuid REFERENCES empleado(id),
+                firma_url         TEXT,
+                pdf_url           TEXT,
+                observacion       VARCHAR(500),
+                estado            VARCHAR(20) NOT NULL DEFAULT 'registrada',
+                created_at        TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT chk_epp_entrega_estado CHECK (estado IN ('registrada','anulada'))
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS epp_entrega_detalle (
+                id          uuid PRIMARY KEY,
+                entrega_id  uuid NOT NULL REFERENCES epp_entrega(id),
+                epp_id      uuid NOT NULL REFERENCES epp(id),
+                cantidad    INTEGER NOT NULL DEFAULT 1
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS epp_ingreso (
+                id                 uuid PRIMARY KEY,
+                empresa_id         uuid NOT NULL REFERENCES empresa(id),
+                personal_compro_id uuid REFERENCES empleado(id),
+                proveedor_id       uuid REFERENCES proveedor(id),
+                fecha_compra       DATE NOT NULL DEFAULT current_date,
+                registrado_por_id  uuid REFERENCES empleado(id),
+                created_at         TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS epp_ingreso_detalle (
+                id              uuid PRIMARY KEY,
+                ingreso_id      uuid NOT NULL REFERENCES epp_ingreso(id),
+                epp_id          uuid NOT NULL REFERENCES epp(id),
+                cantidad        INTEGER NOT NULL DEFAULT 1,
+                precio_unitario NUMERIC(12,2)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_epp_empresa ON epp (empresa_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_epp_entrega_empresa ON epp_entrega (empresa_id, empleado_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_epp_entrega_det ON epp_entrega_detalle (entrega_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_epp_ingreso_det ON epp_ingreso_detalle (ingreso_id)"))
         # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ticket_compra (
@@ -312,6 +382,9 @@ def _run_migrations():
         # ── RBAC seed: permisos de la galería global (Fase 1) ────────────────
         sembrar_permisos(conn, "galeria", ["ver", "subir", "eliminar"],
                          descripcion_base="Galería global:")
+        # ── RBAC seed: EPP (Fase 2) ──────────────────────────────────────────
+        sembrar_permisos(conn, "epp", ["ver", "crear", "editar", "entregar", "ingresar", "eliminar"],
+                         descripcion_base="EPP:")
         conn.commit()
 
         conn.execute(text(
@@ -739,6 +812,7 @@ app.include_router(seguridad_router.router)
 app.include_router(prestamo_router.router)
 app.include_router(catalogos_router.router)
 app.include_router(galeria_router.router)
+app.include_router(epp_router.router)
 
 
 @app.get("/")
