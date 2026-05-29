@@ -200,10 +200,12 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   cantidadEquipo      = 1;
   buscandoEquipo      = false;
 
-  manualNombre         = '';
-  manualCantidad       = 1;
-  manualUnidad         = 'Unidades';
-  manualEspecificacion = '';
+  manualNombre          = '';
+  manualCantidad        = 1;
+  manualUnidad          = 'Unidades';
+  manualEspecificacion  = '';
+  manualTipoItem        = 'material';   // material | equipo | herramienta
+  manualPrecioEstimado: number | null = null;
   // alias para compatibilidad con template existente
   get modoCompraExterna(): boolean { return this.tabSolicitar === 'compra'; }
 
@@ -1300,11 +1302,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.resultadosEquipos   = [];
     this.equipoElegido       = null;
     this.cantidadEquipo      = 1;
-    this.manualNombre        = '';
-    this.manualCantidad      = 1;
-    this.manualUnidad        = 'Unidades';
-    this.manualEspecificacion = '';
-    this.showModalSolicitar  = true;
+    this.manualNombre          = '';
+    this.manualCantidad        = 1;
+    this.manualUnidad          = 'Unidades';
+    this.manualEspecificacion  = '';
+    this.manualTipoItem        = 'material';
+    this.manualPrecioEstimado  = null;
+    this.showModalSolicitar    = true;
   }
 
   cerrarModalSolicitar(): void { this.showModalSolicitar = false; }
@@ -1418,11 +1422,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     const nombre = this.manualNombre.trim();
     const espec  = this.manualEspecificacion.trim();
     this.svc.agregarItemBorrador(this.servicioId, {
-      material_id:    null,
+      material_id:      null,
       nombre,
-      unidad:         this.manualUnidad,
-      cantidad:       this.manualCantidad,
-      especificacion: espec,
+      unidad:           this.manualUnidad,
+      cantidad:         this.manualCantidad,
+      especificacion:   espec,
+      tipo_item_compra: this.manualTipoItem,
+      precio_estimado:  this.manualPrecioEstimado ?? undefined,
     }).subscribe({
       next: (res: any) => {
         this.materialesBorrador.push({
@@ -1436,11 +1442,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
           agregadoPorFoto: this._usuarioFoto,
           especificacion:  espec,
         });
-        this.manualNombre         = '';
-        this.manualCantidad       = 1;
-        this.manualUnidad         = 'Unidades';
-        this.manualEspecificacion = '';
-        this.solicitando          = false;
+        this.manualNombre          = '';
+        this.manualCantidad        = 1;
+        this.manualUnidad          = 'Unidades';
+        this.manualEspecificacion  = '';
+        this.manualTipoItem        = 'material';
+        this.manualPrecioEstimado  = null;
+        this.solicitando           = false;
       },
       error: () => { this.solicitando = false; }
     });

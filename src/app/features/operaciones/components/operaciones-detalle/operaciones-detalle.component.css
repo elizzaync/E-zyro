@@ -1847,6 +1847,23 @@
 /* ── Asterisco requerido ── */
 .form-required { color: #ef4444; font-size: 12px; }
 
+/* ── Selector de tipo de ítem (Compra Externa) ── */
+.tipo-item-selector {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.tipo-item-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 9px; font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  background: var(--card-bg, #fff); color: var(--text-muted, #64748b);
+  cursor: pointer; font-family: 'Inter', sans-serif; transition: all .15s;
+}
+.tipo-item-btn:hover { border-color: #7c3aed; color: #7c3aed; }
+.tipo-item-btn.active {
+  background: rgba(124,58,237,.1); border-color: #7c3aed; color: #7c3aed;
+}
+.form-opt { font-weight: 400; color: var(--text-muted, #94a3b8); font-size: 11.5px; }
+
 /* ── Botón Compra Externa (púrpura) ── */
 .btn-compra-externa {
   background: #7c3aed !important;
