@@ -90,9 +90,13 @@
 - ✅ **PDFs de módulos**: constancia de entrega EPP, informe de correctivo, informe ITSE entregable (con fotos). Módulo `services/pdf_docs.py` (reusa `pdf_informe_servicio`). Endpoints `POST /epp/entregas/{id}/constancia`, `/correctivos/{id}/generar-informe`, `/itse/{id}/informe` (+ auto al finalizar ITSE). App: botón PDF por fila (copia el enlace). Verificado: 3 PDFs válidos + import.
 
 - ✅ **Entrega EPP completa (app)**: `PantallaEppEntrega` — receptor (técnicos) + ítems con validación de stock + firma (`signature`) → registra entrega y genera constancia. Acceso desde el AppBar de EPP.
+- ✅ **Detalle ITSE completo (app)**: `PantallaItseDetalle` — tableros + hallazgos (resultado conforme/observado/no_conforme) + fotos (`image_picker` + galería contextual) + finalizar (genera informe). Tap en la lista ITSE.
 
 ## Pendientes (refinamiento — "commits paso a paso")
-- **Flujos avanzados de app restantes**: detalle ITSE (tableros/ítems/fotos/finalizar); alta de calibración/correctivo con picker de equipo/servicio; subir certificado/informe desde la app.
+- **Pickers de equipo/servicio**: alta de calibración (elige equipo) y de correctivo (elige servicio) desde la app.
+- **Subir certificado/informe desde la app** (calibración, correctivo) + `url_launcher` para abrir PDFs.
+- **Fase 0 app**: UI de gestión de catálogos.
+- **backfill foto_asistencia** (vía join).
 - **`url_launcher`**: abrir los PDFs directo (hoy se copia el enlace).
 - **Fase 0 app**: UI de gestión de catálogos.
 - **backfill foto_asistencia** (vía join).
