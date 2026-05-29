@@ -33,6 +33,8 @@ part 'detalle_servicio/header.dart';
 part 'detalle_servicio/tab_procedimientos.dart';
 part 'detalle_servicio/tab_equipo.dart';
 part 'detalle_servicio/tab_materiales.dart';
+part 'detalle_servicio/materiales_solicitar.dart';
+part 'detalle_servicio/materiales_recepcion.dart';
 part 'detalle_servicio/tab_notas.dart';
 part 'detalle_servicio/tab_comunicados.dart';
 part 'detalle_servicio/shared.dart';
