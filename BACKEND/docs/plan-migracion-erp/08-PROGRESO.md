@@ -89,8 +89,10 @@
 - ✅ **Informes de servicio (PDF)**: pre-informe (procedimientos + evidencias) e informe final (al cerrar). Backend `feat/backend-refinamiento` + App `feat/app-refinamiento` (`PantallaInformesServicio` desde el detalle).
 - ✅ **PDFs de módulos**: constancia de entrega EPP, informe de correctivo, informe ITSE entregable (con fotos). Módulo `services/pdf_docs.py` (reusa `pdf_informe_servicio`). Endpoints `POST /epp/entregas/{id}/constancia`, `/correctivos/{id}/generar-informe`, `/itse/{id}/informe` (+ auto al finalizar ITSE). App: botón PDF por fila (copia el enlace). Verificado: 3 PDFs válidos + import.
 
+- ✅ **Entrega EPP completa (app)**: `PantallaEppEntrega` — receptor (técnicos) + ítems con validación de stock + firma (`signature`) → registra entrega y genera constancia. Acceso desde el AppBar de EPP.
+
 ## Pendientes (refinamiento — "commits paso a paso")
-- **Flujos avanzados de app**: entrega EPP con empleado+ítems+firma; detalle ITSE (tableros/ítems/fotos/finalizar); alta de calibración/correctivo con picker de equipo/servicio; subir certificado/informe desde la app.
+- **Flujos avanzados de app restantes**: detalle ITSE (tableros/ítems/fotos/finalizar); alta de calibración/correctivo con picker de equipo/servicio; subir certificado/informe desde la app.
 - **`url_launcher`**: abrir los PDFs directo (hoy se copia el enlace).
 - **Fase 0 app**: UI de gestión de catálogos.
 - **backfill foto_asistencia** (vía join).
