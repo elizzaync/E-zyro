@@ -1196,14 +1196,14 @@ async def aprobar_requerimiento(
 
         if decision == "aprobar" and d.material_id:
             disponible = _stock_de_material(db, d.material_id, empresa_id)
-            cant_aprob = min(cant_aprob, disponible)
-            if cant_aprob <= 0:
-                # sin stock real → mandar a compra
+            if disponible < cant_aprob:
+                # Stock insuficiente para la cantidad completa solicitada.
+                # Regla: NO hacer deducción parcial — esperar la compra completa.
                 d.estado_item = "para_compra"
-                d.cantidad_aprobada = 0
+                d.cantidad_aprobada = int(d.cantidad or 0)
                 continue
 
-            # Resta de stock (del almacén con más cantidad disponible)
+            # Stock suficiente para todo → deducir del inventario
             restante = cant_aprob
             stocks = (
                 db.query(Stock)
@@ -1263,7 +1263,7 @@ async def aprobar_requerimiento(
     if todos_rechazados:
         _msg = "Tu pedido de materiales fue rechazado por Logística."
     elif hay_aprobado and hay_para_compra:
-        _msg = "Pedido parcialmente aprobado. Materiales pendientes están en compra."
+        _msg = "Pedido procesado. Ítems disponibles en stock ya reservados; el resto está en proceso de compra."
     elif hay_para_compra:
         _msg = "Tu pedido fue aceptado. Los materiales están siendo adquiridos."
     else:
@@ -1905,9 +1905,17 @@ def registrar_ingreso_compra(
     db:        Session = Depends(get_db),
 ):
     """
-    Registra la entrada de materiales comprados al inventario.
-    Para cada ítem: suma al stock, crea movimiento ingreso, marca el
-    RequerimientoDetalle como aprobado para que aparezca en salidas.
+    Registra la recepción de materiales comprados.
+
+    Dos rutas según el tipo de ítem:
+    - Ítem de catálogo (material_id presente): suma al stock del almacén indicado
+      y crea un MovimientoInventario de tipo 'ingreso'.
+    - Ítem de texto libre (compra externa sin material_id): no toca el inventario
+      (no existe registro en catálogo), solo registra la recepción.
+
+    En ambos casos: marca el ticket_compra_item como 'comprado', actualiza el
+    requerimiento_detalle a 'aprobado' y, si ya no quedan ítems en 'para_compra',
+    transiciona el requerimiento a 'listo' y notifica al solicitante.
     """
     _autorizar_logistica(payload)
     empresa_id = payload["empresa_id"]
@@ -1925,50 +1933,56 @@ def registrar_ingreso_compra(
         Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
     ).first()
 
-    # Almacén por defecto
+    # Almacén por defecto (primer almacén activo de la empresa)
     almacen_default = body.almacenId
     if not almacen_default:
-        alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
+        alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)).first()
         almacen_default = str(alm.id) if alm else None
 
     items_map = {b.itemId: b for b in body.items}
 
     for it in db.query(TicketCompraItem).filter(TicketCompraItem.ticket_id == tc.id).all():
         b = items_map.get(str(it.id))
-        if b is None or not it.material_id:
+        if b is None:
             continue
         cant = max(0, b.cantidad)
         if cant == 0:
             continue
-        alm_id = b.almacenId or almacen_default
 
-        # Suma al stock
-        stock_row = db.query(Stock).filter(
-            Stock.material_id == it.material_id,
-            Stock.empresa_id == empresa_id,
-            Stock.almacen_id == alm_id,
-        ).first()
-        if stock_row:
-            stock_row.cantidad = int(stock_row.cantidad or 0) + cant
-            stock_row.updated_at = datetime.utcnow()
-        else:
-            db.add(Stock(
+        if it.material_id:
+            # ── Ítem de catálogo ─────────────────────────────────────────────
+            alm_id = b.almacenId or almacen_default
+
+            stock_row = db.query(Stock).filter(
+                Stock.material_id == it.material_id,
+                Stock.empresa_id  == empresa_id,
+                Stock.almacen_id  == alm_id,
+            ).first()
+            if stock_row:
+                stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
+                stock_row.updated_at = datetime.utcnow()
+            else:
+                db.add(Stock(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    material_id=it.material_id, almacen_id=alm_id,
+                    cantidad=cant, cantidad_minima=0, updated_at=datetime.utcnow(),
+                ))
+
+            db.add(MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=it.material_id, almacen_id=alm_id,
-                cantidad=cant, updated_at=datetime.utcnow(),
+                tipo="ingreso", cantidad=cant,
+                referencia_id=str(tc.id), referencia_tipo="compra",
+                responsable_id=str(emp.id) if emp else None,
+                motivo=f"Ingreso por compra ticket {tc.codigo}",
+                fecha=datetime.utcnow(),
             ))
+        # else: ítem de texto libre — no existe en catálogo, no toca stock
 
-        # Movimiento de ingreso
-        db.add(MovimientoInventario(
-            id=str(_uuid.uuid4()), empresa_id=empresa_id,
-            material_id=it.material_id, almacen_id=alm_id,
-            tipo="ingreso", cantidad=cant,
-            referencia_id=str(tc.id), referencia_tipo="compra",
-            responsable_id=str(emp.id) if emp else None,
-            fecha=datetime.utcnow(),
-        ))
+        # Marcar el ítem del ticket como recibido
+        it.estado_item = "comprado"
 
-        # Actualiza el RequerimientoDetalle correspondiente
+        # Actualizar el detalle del requerimiento (aplica a catálogo Y texto libre)
         if it.requerimiento_detalle_id:
             det = db.query(RequerimientoDetalle).filter(
                 RequerimientoDetalle.id == it.requerimiento_detalle_id
@@ -1977,26 +1991,29 @@ def registrar_ingreso_compra(
                 det.estado_item       = "aprobado"
                 det.cantidad_aprobada = cant
 
-        it.estado_item = "comprado"
-
     db.commit()
 
-    # Auto-transition requerimiento a "listo" cuando no quedan items para_compra
+    # ── Transición automática comprando → listo ───────────────────────────
+    # Se activa cuando NO quedan ítems pendientes de llegar (para_compra = 0).
     if tc.requerimiento_id:
         req = db.query(Requerimiento).filter(Requerimiento.id == tc.requerimiento_id).first()
         if req and req.estado == "comprando":
             pendientes = db.query(RequerimientoDetalle).filter(
                 RequerimientoDetalle.requerimiento_id == req.id,
-                RequerimientoDetalle.estado_item == "para_compra",
+                RequerimientoDetalle.estado_item      == "para_compra",
             ).count()
             if pendientes == 0:
-                req.estado = "listo"
+                req.estado     = "listo"
                 req.updated_at = datetime.utcnow()
                 _notificar_solicitante(
                     db, req, str(req.empresa_id),
-                    titulo="Materiales listos para retirar",
-                    mensaje="Todos los materiales de tu pedido estan disponibles para retiro.",
+                    titulo  = "Materiales listos para retirar",
+                    mensaje = (
+                        "Todos los materiales de tu pedido están disponibles "
+                        "(stock + compras recibidas). Ya puedes retirarlos."
+                    ),
                 )
+
     db.commit()
     db.refresh(tc)
     return _ticket_out(db, tc)
