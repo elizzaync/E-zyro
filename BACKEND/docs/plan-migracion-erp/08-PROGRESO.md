@@ -8,10 +8,10 @@
 |------|--------|--------|----------|
 | 0 | Fundaciones (convenciones, catálogos Zona/Ubicación/Área, seeds RBAC) | 🟦 backend ✅ / app ⬜ | 70% |
 | 1 | Cloudinary unificado + Galería Global | ✅ completa | 100% |
-| 2 | EPP | ⬜ | 0% |
-| 3 | Calibraciones + Equipos Averiados | ⬜ | 0% |
-| 4 | Garantías/Correctivos + Observaciones | ⬜ | 0% |
-| 5 | Inspección ITSE | ⬜ | 0% |
+| 2 | EPP | 🟦 backend ✅ / app ✅ (core) | 85% |
+| 3 | Calibraciones + Equipos Averiados | 🟦 backend ✅ / app ✅ (core) | 85% |
+| 4 | Garantías/Correctivos + Observaciones | 🟦 backend ✅ / app ✅ (core) | 85% |
+| 5 | Inspección ITSE | 🟦 backend ✅ / app ✅ (lista/alta) | 75% |
 
 ## Detalle de puntos
 
@@ -78,7 +78,16 @@
 | 2026-05-29 | Fase 1 galería app ✅ | `pantalla_galeria` (grid/visor/subida/borrado, modo global+contextual). `flutter analyze` limpio. Rama `feat/app-fase1-galeria`. Backend pusheado a origin. |
 | 2026-05-29 | Fase 1 cierre fino ✅ | Refactor de 6 call-sites Cloudinary a raíz única (1.1) + backfill ejecutado (1.4). **Fase 1 al 100%.** Doc `10-INTEGRACION-Y-PRUEBAS.md` agregado. |
 
-## Pendientes inmediatos (próximos pasos)
-- **Integración/pruebas**: ver `10-INTEGRACION-Y-PRUEBAS.md`. Orden: mergear backend→`Backend` (deploy Railway) → verificar `/docs` + smoke → mergear app→`e-zyro-app` → APK → probar Galería.
-- **Fase 0 app**: `catalogos_service` + UI de gestión de catálogos (se hará cuando EPP/ITSE consuman los selects).
-- **Siguiente fase**: Fase 2 — EPP (`docs/plan-migracion-erp/03-EPP.md`).
+| 2026-05-29 | Fases 2-5 backend ✅ | EPP, Calibraciones+Estado, Correctivos+Observaciones, ITSE. Todas las migraciones idempotentes x2 en Railway + py_compile + import de routers. Rama `feat/backend-fases-2-5`. |
+| 2026-05-29 | Fases 2-5 app (core) ✅ | models+services + pantallas (EPP, Calibraciones, Correctivos, ITSE) en `Más>Módulos`. `flutter analyze` limpio. Rama `feat/app-fases-2-5`. |
+
+## Ramas creadas
+- `feat/backend-fase0-catalogos-rbac` (Fase 0+1 backend) · `feat/app-fase1-galeria` (galería app)
+- `feat/backend-fases-2-5` (Fases 2-5 backend, stack sobre fundaciones) · `feat/app-fases-2-5` (Fases 2-5 app, stack sobre galería)
+
+## Pendientes (refinamiento — "commits paso a paso")
+- **PDFs**: constancia de entrega EPP, informe de correctivo, informe ITSE entregable (vía `pdf_service`).
+- **Flujos avanzados de app**: entrega EPP con selección de empleado+ítems+firma; detalle ITSE (tableros/ítems/fotos/finalizar); alta de calibración/correctivo con picker de equipo/servicio; subir certificado/informe desde la app.
+- **Fase 0 app**: UI de gestión de catálogos (ubicación/zona/área) y selects reutilizables.
+- **backfill foto_asistencia** (sin empresa_id directo; vía join).
+- **Integración/pruebas**: ver `10-INTEGRACION-Y-PRUEBAS.md`. Orden por fase: mergear backend→`Backend` (deploy Railway) → smoke en `/docs` → mergear app→`e-zyro-app` → APK → probar.
