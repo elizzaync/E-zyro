@@ -7,7 +7,7 @@ import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import {
   TicketCompra, TicketCompraItem, Proveedor, EstadoCompra,
-  ProcesarCompraPayload, RegistrarIngresoPayload
+  ProcesarCompraPayload, RegistrarIngresoPayload, VincularInventarioPayload
 } from '../../logistica.models';
 
 interface ItemCompraForm {
@@ -67,6 +67,21 @@ export class ComprasComponent implements OnInit {
   ticketIngreso: TicketCompra | null = null;
   itemsIngreso: { item: TicketCompraItem; cantidad: number }[] = [];
   registrandoIngreso = false;
+
+  // ── Modal Nuevo en Inventario (Fase 2) ──
+  nuevoInvTicketId   = '';
+  nuevoInvItem: TicketCompraItem | null = null;
+  nuevoInvCola: TicketCompraItem[] = [];   // cola de ítems pendientes de vincular
+  vinculando = false;
+  // Campos del formulario
+  nuevNombre   = '';
+  nuevUnidad   = 'Unidades';
+  nuevModelo   = '';
+  nuevMarca    = '';
+  nuevSerie    = '';
+  nuevPrecio: number | null = null;
+  nuevStockMin = 0;
+  nuevDescripcion = '';
 
   // ── Modal de cancelación ──
   ticketCancelar: TicketCompra | null = null;
@@ -273,10 +288,100 @@ export class ComprasComponent implements OnInit {
 
   // ── Modal ingreso ──
   abrirIngreso(t: TicketCompra): void {
+    // Fase 2: detectar ítems sin vincular a inventario
+    const sinVincular = t.items.filter(i =>
+      i.estadoItem !== 'cancelado' &&
+      !i.materialId && !i.equipoId
+    );
+
+    if (sinVincular.length > 0) {
+      // Abrir modal de vinculación antes del ingreso
+      this.nuevoInvTicketId = t.id;
+      this.nuevoInvCola     = [...sinVincular];
+      this._abrirSiguienteVinculacion(t);
+      return;
+    }
+
+    // Sin ítems nuevos → abrir modal de ingreso directamente
+    this._abrirModalIngresoDirecto(t);
+  }
+
+  private _abrirModalIngresoDirecto(t: TicketCompra): void {
     this.ticketIngreso = t;
-    this.itemsIngreso = t.items
+    this.itemsIngreso  = t.items
       .filter(i => i.estadoItem !== 'cancelado')
       .map(i => ({ item: i, cantidad: i.cantidadComprada ?? i.cantidad }));
+  }
+
+  private _abrirSiguienteVinculacion(t: TicketCompra): void {
+    if (this.nuevoInvCola.length === 0) {
+      // Cola vacía → recargar ticket y abrir ingreso
+      this.svc.getTicketCompra(this.nuevoInvTicketId).subscribe({
+        next: fresh => this._abrirModalIngresoDirecto(fresh),
+        error: () => this._abrirModalIngresoDirecto(t),
+      });
+      return;
+    }
+    const item = this.nuevoInvCola[0];
+    this.nuevoInvItem    = item;
+    this.nuevNombre      = item.nombre;
+    this.nuevUnidad      = item.unidad || 'Unidades';
+    this.nuevModelo      = '';
+    this.nuevMarca       = '';
+    this.nuevSerie       = '';
+    this.nuevPrecio      = item.precioUnitario;
+    this.nuevStockMin    = 0;
+    this.nuevDescripcion = '';
+  }
+
+  cerrarNuevoInv(): void {
+    this.nuevoInvItem  = null;
+    this.nuevoInvCola  = [];
+  }
+
+  confirmarNuevoInv(): void {
+    if (!this.nuevoInvItem || !this.nuevNombre.trim()) return;
+    const item = this.nuevoInvItem;
+    const esEquipoHerramienta = item.tipoItem === 'equipo' || item.tipoItem === 'herramienta';
+
+    if (item.tipoItem === 'material' && !this.nuevUnidad.trim()) {
+      this.toast.mostrar('La unidad es obligatoria para materiales.', 'error');
+      return;
+    }
+
+    this.vinculando = true;
+    const body: VincularInventarioPayload = {
+      nombre:         this.nuevNombre.trim(),
+      descripcion:    this.nuevDescripcion.trim() || null,
+      precioUnitario: this.nuevPrecio,
+      ...(esEquipoHerramienta ? {
+        modelo: this.nuevModelo.trim() || null,
+        marca:  this.nuevMarca.trim()  || null,
+        numeroSerie: this.nuevSerie.trim() || null,
+      } : {
+        unidad:      this.nuevUnidad.trim(),
+        stockMinimo: this.nuevStockMin,
+      }),
+    };
+
+    this.svc.vincularInventario(this.nuevoInvTicketId, item.id, body).subscribe({
+      next: () => {
+        this.vinculando = false;
+        this.toast.mostrar(`${item.tipoItem} registrado en inventario.`, 'success');
+        this.nuevoInvCola.shift();   // sacar de la cola
+        const ticketActualRef = this.tickets.find(t => t.id === this.nuevoInvTicketId) ?? null;
+        this._abrirSiguienteVinculacion(ticketActualRef as TicketCompra);
+        if (this.nuevoInvCola.length > 0) {
+          this.nuevoInvItem = this.nuevoInvCola[0];
+        } else {
+          this.nuevoInvItem = null;
+        }
+      },
+      error: err => {
+        this.vinculando = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al vincular al inventario.', 'error');
+      },
+    });
   }
 
   cerrarIngreso(): void { this.ticketIngreso = null; this.itemsIngreso = []; }

@@ -610,3 +610,96 @@
 </div>
 }
 }
+
+
+<!-- ═══════════════ MODAL: NUEVO ÍTEM EN INVENTARIO (Fase 2) ═══════════════ -->
+@if (nuevoInvItem) {
+<div class="cp-overlay" (click)="cerrarNuevoInv()">
+  <div class="cp-modal cp-modal-nuevo-inv" (click)="$event.stopPropagation()">
+
+    <div class="cp-modal-header">
+      <div>
+        <h3 class="cp-modal-title">Nuevo ítem en inventario</h3>
+        <p class="cp-modal-sub">
+          <span class="tipo-badge tipo-badge--{{ nuevoInvItem.tipoItem }}">
+            {{ nuevoInvItem.tipoItem === 'material' ? 'Material' : nuevoInvItem.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
+          </span>
+          Este ítem no existe en el inventario. Completa los datos para registrarlo.
+          @if (nuevoInvCola.length > 1) {
+            <span class="cola-badge">{{ nuevoInvCola.length }} pendientes</span>
+          }
+        </p>
+      </div>
+      <button class="cp-modal-close" (click)="cerrarNuevoInv()">✕</button>
+    </div>
+
+    <div class="cp-modal-body">
+
+      <!-- Nombre -->
+      <div class="cp-form-row">
+        <label class="cp-form-label">Nombre <span class="req">*</span></label>
+        <input class="cp-form-input" type="text" [(ngModel)]="nuevNombre" placeholder="Nombre del ítem">
+      </div>
+
+      @if (nuevoInvItem.tipoItem === 'material') {
+        <!-- Material: unidad + precio + stock mínimo -->
+        <div class="cp-form-grid2">
+          <div class="cp-form-row">
+            <label class="cp-form-label">Unidad <span class="req">*</span></label>
+            <select class="cp-form-input" [(ngModel)]="nuevUnidad">
+              <option>Unidades</option><option>Metros</option><option>Kilogramos</option>
+              <option>Litros</option><option>Cajas</option><option>Rollos</option><option>Juego</option>
+            </select>
+          </div>
+          <div class="cp-form-row">
+            <label class="cp-form-label">Stock mínimo</label>
+            <input class="cp-form-input" type="number" [(ngModel)]="nuevStockMin" min="0">
+          </div>
+        </div>
+        <div class="cp-form-row">
+          <label class="cp-form-label">Precio unitario (S/) <span class="cp-opt">(opcional)</span></label>
+          <input class="cp-form-input" type="number" [(ngModel)]="nuevPrecio" min="0" step="0.01">
+        </div>
+      } @else {
+        <!-- Equipo / Herramienta -->
+        <div class="cp-form-grid2">
+          <div class="cp-form-row">
+            <label class="cp-form-label">Marca</label>
+            <input class="cp-form-input" type="text" [(ngModel)]="nuevMarca" placeholder="Ej: Fluke">
+          </div>
+          <div class="cp-form-row">
+            <label class="cp-form-label">Modelo</label>
+            <input class="cp-form-input" type="text" [(ngModel)]="nuevModelo" placeholder="Ej: 87V">
+          </div>
+        </div>
+        <div class="cp-form-row">
+          <label class="cp-form-label">N° de serie <span class="cp-opt">(opcional)</span></label>
+          <input class="cp-form-input" type="text" [(ngModel)]="nuevSerie" placeholder="Ej: SN-20240001">
+        </div>
+      }
+
+      <div class="cp-form-row">
+        <label class="cp-form-label">Descripción / Notas <span class="cp-opt">(opcional)</span></label>
+        <textarea class="cp-form-input cp-form-textarea" rows="2"
+                  [(ngModel)]="nuevDescripcion" placeholder="Notas adicionales…"></textarea>
+      </div>
+
+    </div>
+
+    <footer class="cp-modal-footer">
+      <button class="cp-btn-cancel-modal" (click)="cerrarNuevoInv()" [disabled]="vinculando">Omitir todo</button>
+      <button class="cp-btn-ok" (click)="confirmarNuevoInv()"
+              [disabled]="vinculando || !nuevNombre.trim()">
+        @if (vinculando) { <app-spinner [size]="14" theme="light"></app-spinner> Registrando… }
+        @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Registrar en inventario
+          @if (nuevoInvCola.length > 1) { ({{ nuevoInvCola.length - 1 }} más) }
+        }
+      </button>
+    </footer>
+  </div>
+</div>
+}

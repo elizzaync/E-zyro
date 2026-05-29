@@ -310,6 +310,12 @@ export class LogisticaService {
     return this.http.post<TicketCompra>(`${this.api}/logistica/compras/${ticketId}/registrar-ingreso`, payload);
   }
 
+  vincularInventario(ticketId: string, itemId: string, payload: import('../../features/logistica/logistica.models').VincularInventarioPayload): Observable<import('../../features/logistica/logistica.models').TicketCompraItem> {
+    return this.http.post<import('../../features/logistica/logistica.models').TicketCompraItem>(
+      `${this.api}/logistica/compras/${ticketId}/items/${itemId}/vincular-inventario`, payload
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // SALIDAS DE MATERIALES (HU-18)
   // ─────────────────────────────────────────────────────────────────────────

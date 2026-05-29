@@ -552,3 +552,37 @@
 :host-context([data-theme="dark"]) .cp-ing-table thead th { background: #0f172a; }
 :host-context([data-theme="dark"]) .cp-ing-table tbody td { border-color: #334155; }
 :host-context([data-theme="dark"]) .cp-ing-qty { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+
+/* ══════════════════════════════════════════════════════
+   MODAL NUEVO EN INVENTARIO (Fase 2)
+══════════════════════════════════════════════════════ */
+.cp-modal-nuevo-inv { max-width: 500px; }
+
+.cp-form-row  { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.cp-form-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cp-form-label { font-size: 12.5px; font-weight: 700; color: var(--text-muted, #64748b); }
+.cp-form-input {
+  padding: 9px 12px; border-radius: 9px; font-size: 13.5px;
+  border: 1px solid var(--border-color, #e2e8f0); background: var(--card-bg, #fff);
+  color: var(--text-main, #0f172a); font-family: 'Inter', sans-serif; outline: none;
+  width: 100%; box-sizing: border-box;
+}
+.cp-form-input:focus { border-color: var(--brand-green, #91d337); }
+.cp-form-textarea { resize: vertical; min-height: 60px; }
+.req  { color: #ef4444; }
+.cp-opt { font-weight: 400; color: var(--text-muted, #94a3b8); font-size: 11.5px; }
+
+.tipo-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 700;
+  margin-right: 6px;
+}
+.tipo-badge--material    { background: rgba(145,211,55,.16); color: #4d7d18; }
+.tipo-badge--equipo      { background: rgba(59,130,246,.14); color: #2563eb; }
+.tipo-badge--herramienta { background: rgba(139,92,246,.14); color: #7c3aed; }
+
+.cola-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 700;
+  background: #fef3c7; color: #92400e; margin-left: 6px;
+}

@@ -136,6 +136,7 @@ export interface TicketCompraItem {
   materialId: string | null;
   nombre: string;
   cantidad: number;
+  cantidadSugerida: number | null;
   cantidadComprada: number | null;
   unidad: string;
   precioUnitario: number | null;
@@ -146,6 +147,25 @@ export interface TicketCompraItem {
   factura: string | null;
   estadoItem: 'pendiente' | 'comprado' | 'cancelado';
   nota: string | null;
+  tipoItem: 'material' | 'equipo' | 'herramienta';
+  equipoId: string | null;
+}
+
+export interface VincularInventarioPayload {
+  nombre: string;
+  descripcion?: string | null;
+  almacenId?: string | null;
+  precioUnitario?: number | null;
+  // material
+  unidad?: string | null;
+  categoriaId?: string | null;
+  stockMinimo?: number | null;
+  codigo?: string | null;
+  // equipo / herramienta
+  modelo?: string | null;
+  marca?: string | null;
+  numeroSerie?: string | null;
+  ubicacion?: string | null;
 }
 
 export interface TicketCompra {
