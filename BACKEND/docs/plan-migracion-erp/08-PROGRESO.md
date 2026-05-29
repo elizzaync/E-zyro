@@ -92,13 +92,15 @@
 - ✅ **Entrega EPP completa (app)**: `PantallaEppEntrega` — receptor (técnicos) + ítems con validación de stock + firma (`signature`) → registra entrega y genera constancia. Acceso desde el AppBar de EPP.
 - ✅ **Detalle ITSE completo (app)**: `PantallaItseDetalle` — tableros + hallazgos (resultado conforme/observado/no_conforme) + fotos (`image_picker` + galería contextual) + finalizar (genera informe). Tap en la lista ITSE.
 
-## Pendientes (refinamiento — "commits paso a paso")
-- **Pickers de equipo/servicio**: alta de calibración (elige equipo) y de correctivo (elige servicio) desde la app.
-- **Subir certificado/informe desde la app** (calibración, correctivo) + `url_launcher` para abrir PDFs.
-- **Fase 0 app**: UI de gestión de catálogos.
-- **backfill foto_asistencia** (vía join).
-- **`url_launcher`**: abrir los PDFs directo (hoy se copia el enlace).
-- **Fase 0 app**: UI de gestión de catálogos.
+- ✅ **Pickers + altas (app)**: calibración con picker de equipo + subir certificado (`image_picker`); correctivo con picker proyecto→servicio.
+- ✅ **`url_launcher`**: los PDFs se **abren** en visor externo (fallback: copiar). `utils/abrir_enlace`.
+- ✅ **Fase 0 app**: `PantallaCatalogos` — CRUD de ubicaciones/zonas/áreas en `Más > Módulos`.
+
+## Refinamiento — COMPLETO ✅
+Todos los puntos implementados, `flutter analyze` limpio, pusheados (`feat/backend-refinamiento`, `feat/app-refinamiento`).
+
+## Pendiente menor (opcional, no bloquea)
+- **backfill foto_asistencia** (3 filas, sin empresa_id directo → vía join).
 - **backfill foto_asistencia** (vía join).
 - **Flujos avanzados de app**: entrega EPP con selección de empleado+ítems+firma; detalle ITSE (tableros/ítems/fotos/finalizar); alta de calibración/correctivo con picker de equipo/servicio; subir certificado/informe desde la app.
 - **Fase 0 app**: UI de gestión de catálogos (ubicación/zona/área) y selects reutilizables.
