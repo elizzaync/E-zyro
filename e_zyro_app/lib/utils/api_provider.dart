@@ -15,6 +15,10 @@ import '../services/auditoria_service.dart';
 import '../services/seguridad_service.dart';
 import '../services/prestamo_service.dart';
 import '../services/galeria_service.dart';
+import '../services/epp_service.dart';
+import '../services/calibracion_service.dart';
+import '../services/correctivo_service.dart';
+import '../services/itse_service.dart';
 
 Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
@@ -89,4 +93,24 @@ Future<PrestamoService> getPrestamoService() async {
 Future<GaleriaService> getGaleriaService() async {
   final prefs = await SharedPreferences.getInstance();
   return GaleriaService(ApiClient(prefs));
+}
+
+Future<EppService> getEppService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return EppService(ApiClient(prefs));
+}
+
+Future<CalibracionService> getCalibracionService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return CalibracionService(ApiClient(prefs));
+}
+
+Future<CorrectivoService> getCorrectivoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return CorrectivoService(ApiClient(prefs));
+}
+
+Future<ItseService> getItseService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return ItseService(ApiClient(prefs));
 }

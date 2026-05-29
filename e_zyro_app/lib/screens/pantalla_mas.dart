@@ -13,6 +13,10 @@ import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
 import 'pantalla_personal.dart';
 import 'pantalla_galeria.dart';
+import 'pantalla_epp.dart';
+import 'pantalla_calibraciones.dart';
+import 'pantalla_correctivos.dart';
+import 'pantalla_itse.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -276,6 +280,40 @@ class _MoreScreenState extends State<MoreScreen> {
                 ],
               ),
             ],
+            const SizedBox(height: 20),
+
+            // ── Módulos operativos (plan migración ERP) ────────────────
+            _buildSectionTitle('Módulos'),
+            const SizedBox(height: 10),
+            _buildMenuGroup(
+              surface: surface,
+              items: [
+                _MenuItem(
+                  icon: Icons.health_and_safety_outlined,
+                  label: 'EPP',
+                  onTap: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => const PantallaEpp())),
+                ),
+                _MenuItem(
+                  icon: Icons.straighten_outlined,
+                  label: 'Calibraciones',
+                  onTap: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => const PantallaCalibraciones())),
+                ),
+                _MenuItem(
+                  icon: Icons.build_outlined,
+                  label: 'Garantías / Correctivos',
+                  onTap: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => const PantallaCorrectivos())),
+                ),
+                _MenuItem(
+                  icon: Icons.fact_check_outlined,
+                  label: 'Inspección ITSE',
+                  onTap: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => const PantallaItse())),
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
 
             // ── Recursos ───────────────────────────────────────────────
