@@ -27,6 +27,7 @@ from app.routers import catalogos       as catalogos_router
 from app.routers import galeria         as galeria_router
 from app.routers import epp             as epp_router
 from app.routers import calibraciones   as calibraciones_router
+from app.routers import correctivos     as correctivos_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -67,6 +68,8 @@ from app.models import (  # noqa: F401
     epp,
     # Calibraciones + estado operativo de equipos (Fase 3)
     calibracion,
+    # Correctivos + observaciones/descargos (Fase 4)
+    correctivo,
     # Compras
     proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
@@ -303,6 +306,40 @@ def _pre_create_migrations():
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_calibracion_empresa_eq ON calibracion (empresa_id, equipo_id, fecha_proxima)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_equipo_estado_mov_eq ON equipo_estado_mov (empresa_id, equipo_id)"))
+
+        # ── Correctivos + observaciones (Fase 4). FK uuid a proyecto_servicio ─
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS servicio_correctivo (
+                id           uuid PRIMARY KEY,
+                empresa_id   uuid NOT NULL REFERENCES empresa(id),
+                servicio_id  uuid NOT NULL REFERENCES proyecto_servicio(id),
+                codigo       VARCHAR(30),
+                alcance      VARCHAR(500),
+                fecha_inicio DATE,
+                fecha_fin    DATE,
+                estado       VARCHAR(20) NOT NULL DEFAULT 'registrado',
+                informe_url  TEXT,
+                created_at   TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMP,
+                CONSTRAINT chk_correctivo_estado CHECK (estado IN
+                    ('registrado','en_proceso','en_revision','aprobado','desaprobado','finalizado','anulado'))
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS servicio_observacion (
+                id                uuid PRIMARY KEY,
+                empresa_id        uuid NOT NULL REFERENCES empresa(id),
+                servicio_id       uuid NOT NULL REFERENCES proyecto_servicio(id),
+                correctivo_id     uuid REFERENCES servicio_correctivo(id),
+                observaciones     TEXT,
+                recomendaciones   TEXT,
+                fecha_descargo    DATE NOT NULL DEFAULT current_date,
+                registrado_por_id uuid,
+                created_at        TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_correctivo_empresa_serv ON servicio_correctivo (empresa_id, servicio_id, estado)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_observacion_empresa_serv ON servicio_observacion (empresa_id, servicio_id)"))
         # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ticket_compra (
@@ -425,6 +462,11 @@ def _run_migrations():
                          descripcion_base="Calibración:")
         sembrar_permisos(conn, "equipo", ["marcar_inoperativo", "reactivar", "ver_estado"],
                          descripcion_base="Equipo estado:")
+        # ── Correctivos + observaciones (Fase 4) ─────────────────────────────
+        sembrar_permisos(conn, "correctivo", ["ver", "crear", "editar", "aprobar", "finalizar"],
+                         descripcion_base="Correctivo:")
+        sembrar_permisos(conn, "observacion", ["ver", "crear", "editar", "eliminar"],
+                         descripcion_base="Observación:")
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────
@@ -862,6 +904,7 @@ app.include_router(galeria_router.router)
 app.include_router(epp_router.router)
 app.include_router(calibraciones_router.router)
 app.include_router(calibraciones_router.router_estado)
+app.include_router(correctivos_router.router)
 
 
 @app.get("/")
