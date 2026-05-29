@@ -12,6 +12,7 @@ import 'pantalla_comunicados.dart';
 import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
 import 'pantalla_personal.dart';
+import 'pantalla_galeria.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -283,6 +284,14 @@ class _MoreScreenState extends State<MoreScreen> {
             _buildMenuGroup(
               surface: surface,
               items: [
+                _MenuItem(
+                  icon: Icons.photo_library_outlined,
+                  label: 'Galería',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaGaleria()),
+                  ),
+                ),
                 _MenuItem(
                   icon: Icons.description_outlined,
                   label: 'Documentación',
