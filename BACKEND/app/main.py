@@ -9,6 +9,7 @@ import time
 logger = logging.getLogger(__name__)
 
 from app.db.database import engine, Base
+from app.db.rbac_seed import sembrar_permisos
 from app.routers import auth, dashboard
 from app.routers import permisos        as permisos_router
 from app.routers import asistencia      as asistencia_router
@@ -22,6 +23,7 @@ from app.routers import auditoria       as auditoria_router
 from app.routers import logistica       as logistica_router
 from app.routers import seguridad       as seguridad_router
 from app.routers import prestamo        as prestamo_router
+from app.routers import catalogos       as catalogos_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -54,6 +56,8 @@ from app.models import (  # noqa: F401
     # Inventario: material.py contiene Stock; categoria_material.py y almacen.py son dependencias
     categoria_material, almacen, material, movimiento_inventario,
     unidad_medida, marca, modelo_equipo,
+    # Catálogos base (Fase 0 — plan migración ERP)
+    ubicacion, zona, area,
     # Compras
     proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
@@ -120,6 +124,48 @@ def _pre_create_migrations():
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_unidad_empresa_nombre "
             "ON unidad_medida (empresa_id, lower(nombre))"
+        ))
+
+        # ── Catálogos base (Fase 0 — plan migración ERP) ─────────────────────
+        # ubicacion → zona (FK) → area. FKs uuid a empresa(id), por eso van aquí.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ubicacion (
+                id          uuid PRIMARY KEY,
+                empresa_id  uuid NOT NULL REFERENCES empresa(id),
+                nombre      VARCHAR(150) NOT NULL,
+                region      VARCHAR(100),
+                created_at  TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS zona (
+                id           uuid PRIMARY KEY,
+                empresa_id   uuid NOT NULL REFERENCES empresa(id),
+                ubicacion_id uuid REFERENCES ubicacion(id),
+                nombre       VARCHAR(150) NOT NULL,
+                tipo         VARCHAR(50),
+                created_at   TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS area (
+                id          uuid PRIMARY KEY,
+                empresa_id  uuid NOT NULL REFERENCES empresa(id),
+                nombre      VARCHAR(150) NOT NULL,
+                created_at  TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_ubicacion_empresa_nombre "
+            "ON ubicacion (empresa_id, lower(nombre))"
+        ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_zona_empresa_ubic_nombre "
+            "ON zona (empresa_id, coalesce(ubicacion_id, '00000000-0000-0000-0000-000000000000'::uuid), lower(nombre))"
+        ))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_area_empresa_nombre "
+            "ON area (empresa_id, lower(nombre))"
         ))
         # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
         conn.execute(text("""
@@ -229,6 +275,11 @@ def _pre_create_migrations():
 def _run_migrations():
     """Aplica migraciones incrementales de forma segura (IF NOT EXISTS)."""
     with engine.connect() as conn:
+        # ── RBAC seed: permisos del módulo de catálogos (Fase 0) ─────────────
+        sembrar_permisos(conn, "catalogos", ["ver", "crear", "editar", "eliminar"],
+                         descripcion_base="Catálogos base:")
+        conn.commit()
+
         conn.execute(text(
             "ALTER TABLE solicitud_laboral "
             "ADD COLUMN IF NOT EXISTS url_pdf VARCHAR(500)"
@@ -652,6 +703,7 @@ app.include_router(auditoria_router.router)
 app.include_router(logistica_router.router)
 app.include_router(seguridad_router.router)
 app.include_router(prestamo_router.router)
+app.include_router(catalogos_router.router)
 
 
 @app.get("/")
