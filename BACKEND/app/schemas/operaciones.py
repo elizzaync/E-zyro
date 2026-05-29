@@ -190,11 +190,14 @@ class ActualizarReqDetalleBody(BaseModel):
 
 
 class AgregarBorradorBody(BaseModel):
-    material_id:    Optional[str] = None
-    nombre:         Optional[str] = None
-    unidad:         Optional[str] = None
-    cantidad:       int
-    especificacion: Optional[str] = None
+    material_id:      Optional[str]   = None
+    nombre:           Optional[str]   = None
+    unidad:           Optional[str]   = None
+    cantidad:         int
+    especificacion:   Optional[str]   = None
+    # Fase 1: solo para compras externas (material_id IS NULL)
+    tipo_item_compra: Optional[str]   = "material"   # material | equipo | herramienta
+    precio_estimado:  Optional[float] = None
 
 
 # ── HU-MANT: Checklist de equipo (pasos + evidencias) ────────────────────────

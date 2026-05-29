@@ -1713,6 +1713,7 @@ def _ticket_item_out(it: TicketCompraItem) -> TicketCompraItemOut:
         factura=it.factura,
         estadoItem=it.estado_item or "pendiente",
         nota=it.nota,
+        tipoItem=it.tipo_item or "material",
     )
 
 
@@ -1830,6 +1831,24 @@ def _crear_ticket_compra(
             # Ítem de texto libre: sin stock de referencia, comprar lo solicitado
             sugerida = qty_solicitada
 
+        # Clasificación del ítem: desde campo explícito o derivada del contexto
+        # - material_id presente → siempre 'material'
+        # - compra externa con tipo_item_compra → usar ese valor
+        # - equipo/herramienta de inventario (especificación heurística)
+        if d.material_id:
+            tipo_item = "material"
+        elif getattr(d, "tipo_item_compra", None):
+            tipo_item = d.tipo_item_compra
+        else:
+            # fallback: inferir de especificacion para ítems del tab 'equipos'
+            espec = (d.especificacion or "").lower()
+            if "[equipo]" in espec or "equipo" in espec:
+                tipo_item = "equipo"
+            elif "[herramienta]" in espec or "herramienta" in espec:
+                tipo_item = "herramienta"
+            else:
+                tipo_item = "material"
+
         db.add(TicketCompraItem(
             id=str(_uuid.uuid4()),
             ticket_id=tc.id,
@@ -1842,6 +1861,7 @@ def _crear_ticket_compra(
             cantidad_sugerida=sugerida,
             stock_al_aprobar=stock_snap,
             stock_minimo_al_aprobar=minimo_snap,
+            tipo_item=tipo_item,
         ))
 
     return tc

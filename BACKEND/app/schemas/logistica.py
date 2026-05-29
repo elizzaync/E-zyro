@@ -302,6 +302,8 @@ class TicketCompraItemOut(BaseModel):
     factura:              Optional[str]   = None
     estadoItem:           str             = "pendiente"
     nota:                 Optional[str]   = None
+    # Fase 1 — clasificación del ítem (material | equipo | herramienta)
+    tipoItem:             str             = "material"
 
 
 class TicketCompraOut(BaseModel):

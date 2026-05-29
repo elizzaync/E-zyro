@@ -931,6 +931,9 @@ def get_borrador(
                 "especificacion":      especificacion,
                 "agregado_por_nombre": autor.get("nombre", ""),
                 "agregado_por_foto":   autor.get("foto",   ""),
+                # Fase 1 — clasificación y precio estimado
+                "tipo_item_compra":    getattr(rd, "tipo_item_compra",  "material"),
+                "precio_estimado":     float(rd.precio_estimado) if getattr(rd, "precio_estimado", None) else None,
             })
 
         return {"requerimiento_id": borrador.id, "items": items}
@@ -1047,6 +1050,12 @@ async def agregar_item_borrador(
     if body.unidad:         rd.unidad_libre   = body.unidad
     if body.especificacion: rd.especificacion = body.especificacion
     rd.agregado_por_id = agregado_por_id   # None cuando admin sin empleado
+
+    # Fase 1 — clasificación y precio estimado (solo relevante para compras externas)
+    if body.material_id is None:
+        rd.tipo_item_compra = body.tipo_item_compra or "material"
+        if body.precio_estimado is not None:
+            rd.precio_estimado = body.precio_estimado
 
     try:
         db.add(rd)

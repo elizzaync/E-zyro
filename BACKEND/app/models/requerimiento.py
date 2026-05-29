@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Integer, Text, Date, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, Numeric, Text, Date, DateTime, ForeignKey
 from app.db.database import Base
 
 
@@ -51,3 +51,7 @@ class RequerimientoDetalle(Base):
     # HU-16: decisión de logística por ítem
     #   pendiente | aprobado (sale de stock) | para_compra (ticket) | rechazado
     estado_item       = Column(String(20), nullable=False, default="pendiente")
+    # Fase 1 — clasificación capturada al solicitar una compra externa
+    #   material | equipo | herramienta  (solo relevante cuando material_id IS NULL)
+    tipo_item_compra  = Column(String(20), nullable=True, default="material")
+    precio_estimado   = Column(Numeric(12, 2), nullable=True)

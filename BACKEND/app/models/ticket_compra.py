@@ -61,3 +61,6 @@ class TicketCompraItem(Base):
     cantidad_sugerida        = Column(Integer, nullable=True)
     stock_al_aprobar         = Column(Integer, nullable=True)
     stock_minimo_al_aprobar  = Column(Integer, nullable=True)
+    # Fase 1 — clasificación del ítem propagada desde requerimiento_detalle
+    #   material | equipo | herramienta
+    tipo_item                = Column(String(20), nullable=True, default="material")
