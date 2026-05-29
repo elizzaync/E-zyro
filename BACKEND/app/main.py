@@ -547,6 +547,20 @@ def _run_migrations():
         """))
 
         # ── MODELO HÍBRIDO (Requerimientos) ───────────────────────────────────
+        # Ampliar el CHECK de estado al set completo del modelo híbrido. El flujo
+        # de logística usa 'comprando' y 'listo', que el CHECK original no
+        # contemplaba; sin esta ampliación el UPDATE a 'listo' de más abajo viola
+        # chk_req_estado y la app no arranca. Idempotente (DROP IF EXISTS + ADD).
+        conn.execute(text(
+            "ALTER TABLE requerimiento DROP CONSTRAINT IF EXISTS chk_req_estado"
+        ))
+        conn.execute(text("""
+            ALTER TABLE requerimiento
+                ADD CONSTRAINT chk_req_estado
+                CHECK (estado IN ('borrador','pendiente','comprando','listo',
+                                  'aprobado','rechazado','entregado','anulado'))
+        """))
+
         # En el flujo anterior (modelo B) `estado='aprobado'` no se usaba; en
         # el modelo híbrido SÍ se usa (= recibido por el equipo, pendiente
         # cierre de logística). Cualquier registro 'aprobado' que NO tenga

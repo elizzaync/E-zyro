@@ -72,11 +72,12 @@ END$$;
 ALTER TABLE requerimiento
     ADD COLUMN IF NOT EXISTS observacion_logistico VARCHAR(500);
 
--- Ampliar el CHECK de estado para incluir 'borrador'
+-- Ampliar el CHECK de estado al set completo del modelo híbrido
+-- (incluye 'borrador', 'comprando' y 'listo')
 ALTER TABLE requerimiento DROP CONSTRAINT IF EXISTS chk_req_estado;
 ALTER TABLE requerimiento
     ADD CONSTRAINT chk_req_estado
-    CHECK (estado IN ('borrador','pendiente','aprobado','rechazado','entregado','anulado'));
+    CHECK (estado IN ('borrador','pendiente','comprando','listo','aprobado','rechazado','entregado','anulado'));
 
 -- ──────────────────────────────────────────────────────────────
 -- 6. requerimiento_detalle — material_id nullable + campos nuevos

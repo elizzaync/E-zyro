@@ -882,7 +882,7 @@ CREATE TABLE requerimiento (
     created_at            TIMESTAMP   NOT NULL DEFAULT NOW(),
     updated_at            TIMESTAMP,
     CONSTRAINT chk_req_tipo   CHECK (tipo IN ('material','herramienta','equipo_especial')),
-    CONSTRAINT chk_req_estado CHECK (estado IN ('borrador','pendiente','aprobado','rechazado','entregado','anulado'))
+    CONSTRAINT chk_req_estado CHECK (estado IN ('borrador','pendiente','comprando','listo','aprobado','rechazado','entregado','anulado'))
 );
 
 -- material_id nullable: permite compras externas (nombre_libre) donde no existe material en inventario
