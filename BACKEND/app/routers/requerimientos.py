@@ -310,6 +310,90 @@ def get_almacenes(
     return [AlmacenOut(id=str(r.id), nombre=r.nombre, ubicacion=r.ubicacion) for r in rows]
 
 
+# ── GET /requerimientos/inventario/resumen ────────────────────────────────────
+# Panel del encargado: KPIs de inventario + alertas de bajo stock.
+# Lo consume el móvil (pantalla_inventario_panel.dart).
+
+@router.get("/inventario/resumen")
+def resumen_inventario(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    # Stock agregado por material (suma cantidades de todos los almacenes; toma
+    # el máximo minimo configurado entre filas — el mismo criterio que /logistica/kpis).
+    stock_rows = (
+        db.query(
+            Stock.material_id.label("mid"),
+            func.coalesce(func.sum(Stock.cantidad), 0).label("total"),
+            func.coalesce(func.max(Stock.cantidad_minima), 0).label("minimo"),
+        )
+        .filter(Stock.empresa_id == empresa_id)
+        .group_by(Stock.material_id)
+        .subquery()
+    )
+
+    # Lista de materiales activos con su stock agregado (LEFT JOIN: incluir materiales sin stock).
+    rows = (
+        db.query(
+            Material.id,
+            Material.nombre,
+            Material.unidad,
+            CategoriaMaterial.nombre.label("categoria"),
+            func.coalesce(stock_rows.c.total, 0).label("stock"),
+            func.coalesce(stock_rows.c.minimo, 0).label("minimo"),
+        )
+        .outerjoin(stock_rows, stock_rows.c.mid == Material.id)
+        .outerjoin(CategoriaMaterial, CategoriaMaterial.id == Material.categoria_id)
+        .filter(
+            Material.empresa_id == empresa_id,
+            Material.activo.is_(True),
+        )
+        .all()
+    )
+
+    total_items = len(rows)
+    bajo = []   # stock <= minimo y minimo > 0 y stock > 0
+    sin = 0
+    for r in rows:
+        stock = int(r.stock or 0)
+        minimo = int(r.minimo or 0)
+        if stock == 0:
+            sin += 1
+            bajo.append(r)
+        elif minimo > 0 and stock <= minimo:
+            bajo.append(r)
+
+    # Orden: agotados primero, luego por ratio stock/minimo asc.
+    def _peso(r):
+        s = int(r.stock or 0)
+        m = int(r.minimo or 0)
+        if s == 0:
+            return (0, 0.0)
+        return (1, s / m if m > 0 else 1.0)
+    bajo.sort(key=_peso)
+
+    items_bajo_stock = [
+        {
+            "id": str(r.id),
+            "nombre": r.nombre or "",
+            "unidad": r.unidad or "und",
+            "categoria": r.categoria,
+            "stock": int(r.stock or 0),
+            "minimo": int(r.minimo or 0),
+        }
+        for r in bajo[:20]  # tope para no inflar el payload
+    ]
+
+    return {
+        "total_items": total_items,
+        "bajo_stock": len(bajo) - sin,   # solo los que están en alerta sin estar agotados
+        "sin_stock": sin,
+        "items_bajo_stock": items_bajo_stock,
+    }
+
+
 # ── POST /requerimientos/inventario/material ──────────────────────────────────
 # Crear un nuevo material con stock inicial — solo logística/admin
 

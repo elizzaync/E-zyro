@@ -1242,6 +1242,174 @@ def get_equipos_proyecto(
     ]
 
 
+# ── GET /operaciones/mantenimientos/general ───────────────────────────────────
+# Vista del Jefe de Operaciones: estado de mantenimiento de cada equipo que lo
+# requiere (vigente | proximo | vencido). Lo consume el móvil
+# (pantalla_mantenimientos.dart).
+
+@router.get("/mantenimientos/general")
+def mantenimientos_generales(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    hoy = date.today()
+    UMBRAL_PROXIMO_DIAS = 30  # ventana para considerar "Próximo"
+
+    equipos = (
+        db.query(
+            Equipo.id,
+            Equipo.codigo,
+            Equipo.nombre,
+            Equipo.tipo,
+            Equipo.ubicacion,
+            Equipo.frecuencia_mantenimiento,
+            Equipo.proxima_fecha_mantenimiento,
+            Equipo.proyecto_id,
+            Equipo.cliente_id,
+        )
+        .filter(
+            Equipo.empresa_id == empresa_id,
+            Equipo.requiere_mantenimiento.is_(True),
+        )
+        .all()
+    )
+    if not equipos:
+        return []
+
+    equipo_ids = [e.id for e in equipos]
+    proyecto_ids = {e.proyecto_id for e in equipos if e.proyecto_id}
+    cliente_ids_directos = {e.cliente_id for e in equipos if e.cliente_id}
+
+    # Última orden completada por equipo (fecha_fin más reciente con estado='completado').
+    sub_ultima = (
+        db.query(
+            OrdenMantenimiento.equipo_id.label("eq"),
+            func.max(OrdenMantenimiento.fecha_fin).label("ffin"),
+        )
+        .filter(
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.equipo_id.in_(equipo_ids),
+            OrdenMantenimiento.estado == "completado",
+            OrdenMantenimiento.fecha_fin.isnot(None),
+        )
+        .group_by(OrdenMantenimiento.equipo_id)
+        .subquery()
+    )
+
+    ordenes_rows = (
+        db.query(
+            OrdenMantenimiento.equipo_id,
+            OrdenMantenimiento.fecha_fin,
+            OrdenMantenimiento.tecnico_id,
+        )
+        .join(
+            sub_ultima,
+            (sub_ultima.c.eq == OrdenMantenimiento.equipo_id)
+            & (sub_ultima.c.ffin == OrdenMantenimiento.fecha_fin),
+        )
+        .filter(
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.estado == "completado",
+        )
+        .all()
+    )
+    ult_por_equipo = {r.equipo_id: (r.fecha_fin, r.tecnico_id) for r in ordenes_rows}
+
+    # Resolver nombres de técnicos (Empleado → Usuario.nombre/apellido).
+    tecnico_ids = {t for (_f, t) in ult_por_equipo.values() if t}
+    nombres_tecnico: dict[str, str] = {}
+    if tecnico_ids:
+        rows_tec = (
+            db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.id.in_(tecnico_ids))
+            .all()
+        )
+        for r in rows_tec:
+            nombres_tecnico[r.id] = f"{r.nombre or ''} {r.apellido or ''}".strip()
+
+    # Resolver proyecto → orden_trabajo + cliente
+    proy_info: dict[str, tuple[str, str | None]] = {}  # proyecto_id → (orden_trabajo, cliente_id)
+    if proyecto_ids:
+        rows_p = (
+            db.query(Proyecto.id, Proyecto.orden_trabajo, Proyecto.cliente_id)
+            .filter(Proyecto.id.in_(proyecto_ids))
+            .all()
+        )
+        for r in rows_p:
+            proy_info[r.id] = (r.orden_trabajo or "", r.cliente_id)
+
+    # Resolver clientes (los directos + los que vienen vía proyecto)
+    todos_los_clientes = set(cliente_ids_directos)
+    for (_ot, cid) in proy_info.values():
+        if cid:
+            todos_los_clientes.add(cid)
+    clientes: dict[str, str] = {}
+    if todos_los_clientes:
+        rows_c = (
+            db.query(Cliente.id, Cliente.razon_social)
+            .filter(Cliente.id.in_(todos_los_clientes))
+            .all()
+        )
+        clientes = {r.id: (r.razon_social or "") for r in rows_c}
+
+    def _fmt(d):
+        return d.strftime("%Y-%m-%d") if d else ""
+
+    def _estado(prox: "date | None") -> str:
+        if not prox:
+            return "vigente"
+        if prox < hoy:
+            return "vencido"
+        if (prox - hoy).days <= UMBRAL_PROXIMO_DIAS:
+            return "proximo"
+        return "vigente"
+
+    def _tipo_label(frec: str | None, tipo_libre: str | None) -> str:
+        f = (frec or "").lower()
+        etiqueta = {
+            "mensual":     "Mantenimiento Mensual",
+            "trimestral":  "Mantenimiento Trimestral",
+            "semestral":   "Mantenimiento Semestral",
+            "anual":       "Mantenimiento Anual",
+        }.get(f, "Mantenimiento")
+        if tipo_libre:
+            return f"{etiqueta} · {tipo_libre}"
+        return etiqueta
+
+    salida = []
+    for e in equipos:
+        ult_fecha, ult_tec_id = ult_por_equipo.get(e.id, (None, None))
+
+        # OT + cliente: del proyecto si está asignado; si no, del cliente directo
+        ot = ""
+        cliente_id = e.cliente_id
+        if e.proyecto_id and e.proyecto_id in proy_info:
+            ot_proy, cid_proy = proy_info[e.proyecto_id]
+            ot = ot_proy
+            cliente_id = cliente_id or cid_proy
+        if not ot:
+            ot = e.codigo or ""
+
+        salida.append({
+            "id":              str(e.id),
+            "ot":              ot,
+            "cliente":         clientes.get(cliente_id, "") if cliente_id else "",
+            "tipo":            _tipo_label(e.frecuencia_mantenimiento, e.tipo),
+            "zona":            e.ubicacion or "",
+            "tecnico_nombre":  nombres_tecnico.get(ult_tec_id, "") if ult_tec_id else "",
+            "fecha_realizado": _fmt(ult_fecha.date() if ult_fecha else None),
+            "fecha_proximo":   _fmt(e.proxima_fecha_mantenimiento),
+            "estado":          _estado(e.proxima_fecha_mantenimiento),
+        })
+
+    # Vencidos primero, luego próximos, luego vigentes; dentro de cada grupo, por fecha.
+    orden_estado = {"vencido": 0, "proximo": 1, "vigente": 2}
+    salida.sort(key=lambda r: (orden_estado.get(r["estado"], 9), r["fecha_proximo"] or "9999"))
+    return salida
+
+
 # ── POST /operaciones/mantenimientos/{equipo_id}/finalizar ────────────────────
 # HU-18: Cierra la orden activa, genera PDF y lo sube a Cloudinary
 
