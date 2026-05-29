@@ -29,6 +29,7 @@ from app.routers import epp             as epp_router
 from app.routers import calibraciones   as calibraciones_router
 from app.routers import correctivos     as correctivos_router
 from app.routers import itse            as itse_router
+from app.routers import informes_servicio as informes_servicio_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -73,6 +74,8 @@ from app.models import (  # noqa: F401
     correctivo,
     # Inspección ITSE (Fase 5)
     itse,
+    # Informes de servicio: pre-informe / informe final (refinamiento)
+    informe_servicio,
     # Compras
     proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
@@ -389,6 +392,24 @@ def _pre_create_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itse_empresa ON inspeccion_itse (empresa_id, estado)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itse_tablero ON inspeccion_tablero (inspeccion_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itse_item ON inspeccion_item (inspeccion_id)"))
+
+        # ── Informes de servicio: pre-informe / informe final (refinamiento) ─
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS informe_servicio (
+                id              uuid PRIMARY KEY,
+                empresa_id      uuid NOT NULL REFERENCES empresa(id),
+                servicio_id     uuid NOT NULL REFERENCES proyecto_servicio(id),
+                tipo            VARCHAR(10) NOT NULL DEFAULT 'pre',
+                titulo          VARCHAR(200),
+                url             TEXT,
+                public_id       VARCHAR(300),
+                generado_por_id uuid,
+                fecha           DATE NOT NULL DEFAULT current_date,
+                created_at      TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT chk_informe_servicio_tipo CHECK (tipo IN ('pre','final'))
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_informe_servicio ON informe_servicio (empresa_id, servicio_id, tipo)"))
         # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ticket_compra (
@@ -519,6 +540,9 @@ def _run_migrations():
         # ── Inspección ITSE (Fase 5) ─────────────────────────────────────────
         sembrar_permisos(conn, "itse", ["ver", "crear", "editar", "finalizar", "eliminar"],
                          descripcion_base="ITSE:")
+        # ── Informes de servicio (refinamiento) ──────────────────────────────
+        sembrar_permisos(conn, "informe_servicio", ["ver", "generar"],
+                         descripcion_base="Informe de servicio:")
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────
@@ -958,6 +982,7 @@ app.include_router(calibraciones_router.router)
 app.include_router(calibraciones_router.router_estado)
 app.include_router(correctivos_router.router)
 app.include_router(itse_router.router)
+app.include_router(informes_servicio_router.router)
 
 
 @app.get("/")
