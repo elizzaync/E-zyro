@@ -13,6 +13,8 @@ import '../services/asistencia_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_notifiers.dart';
 import '../widgets/sync_log_panel.dart';
+import '../pdf/pdf_service.dart';
+import '../pdf/pdf_preview_screen.dart';
 
 class AsistenciaScreen extends StatefulWidget {
   const AsistenciaScreen({super.key});
@@ -472,6 +474,19 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _exportarAsistenciaPdf() async {
+    final prefs = await SharedPreferences.getInstance();
+    final usuario = prefs.getString('user_name') ?? 'Colaborador';
+    final bytes = await PdfService.asistenciaUsuario(_historial, usuario: usuario);
+    if (!mounted) return;
+    await PdfPreviewScreen.abrir(
+      context,
+      bytes: bytes,
+      nombreArchivo: 'asistencia_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      titulo: 'Reporte de Asistencia',
     );
   }
 
@@ -1090,7 +1105,19 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Historial', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Historial', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            if (_historial.isNotEmpty)
+              TextButton.icon(
+                onPressed: _exportarAsistenciaPdf,
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('Exportar PDF'),
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF8FD11B)),
+              ),
+          ],
+        ),
         const SizedBox(height: 12),
         if (_cargandoInicial)
           Container(

@@ -23,7 +23,8 @@ import '../services/prestamo_service.dart';
 import 'pantalla_prestamos_servicio.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
-import '../templates/informe_servicio_pdf.dart';
+import '../pdf/pdf_service.dart';
+import '../pdf/pdf_preview_screen.dart';
 import 'pantalla_chat.dart';
 import 'pantalla_asignacion_servicio.dart';
 import 'pantalla_crear_servicio.dart';
@@ -318,11 +319,15 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     }
     await _reloadDetalle();
     if (!mounted) return;
-    await Navigator.push(
+    final detalle = _detalle ?? d;
+    final bytes = await PdfService.preInformeServicio(detalle);
+    if (!mounted) return;
+    await PdfPreviewScreen.abrir(
       context,
-      MaterialPageRoute(
-        builder: (_) => InformeServicioPreviewScreen(detalle: _detalle ?? d),
-      ),
+      bytes: bytes,
+      nombreArchivo:
+          'pre-informe-${detalle.cliente.replaceAll(' ', '-')}-${DateTime.now().millisecondsSinceEpoch}.pdf',
+      titulo: 'Pre-Informe de Conformidad',
     );
   }
 

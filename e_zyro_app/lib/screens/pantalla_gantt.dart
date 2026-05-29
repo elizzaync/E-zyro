@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
+import '../pdf/pdf_service.dart';
+import '../pdf/pdf_preview_screen.dart';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 const double _kLabelW = 150.0;
@@ -293,6 +295,24 @@ class _GanttScreenState extends State<GanttScreen> {
           ),
         ],
       ),
+      actions: [
+        IconButton(
+          tooltip: 'Exportar Gantt (PDF)',
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          onPressed: _servicios.isEmpty ? null : _exportarGanttPdf,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _exportarGanttPdf() async {
+    final bytes = await PdfService.gantt(widget.proyecto, _servicios);
+    if (!mounted) return;
+    await PdfPreviewScreen.abrir(
+      context,
+      bytes: bytes,
+      nombreArchivo: 'gantt_${widget.proyecto.ordenTrabajo}.pdf',
+      titulo: 'Cronograma Gantt',
     );
   }
 

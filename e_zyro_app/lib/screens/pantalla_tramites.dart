@@ -7,9 +7,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
-import 'package:printing/printing.dart';
 import '../core/app_constants.dart';
-import '../templates/permiso_pdf_template.dart';
+import '../pdf/pdf_service.dart';
+import '../pdf/pdf_preview_screen.dart';
 
 // ─────────────────────────────────────────────
 //  Paleta dinámica (light / dark)
@@ -264,15 +264,13 @@ class _PantallaTramitesState extends State<PantallaTramites>
           ? _model.fechaFin!.difference(_model.fechaInicio!).inDays + 1
           : 1,
     };
-    final pdfBytes = await PermisoPdfTemplate.generate(dataPdf, _firmaGuardada);
+    final pdfBytes = await PdfService.permiso(dataPdf, _firmaGuardada);
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => VistaPreviaPdfScreen(
-          pdfBytes: pdfBytes,
-          onConfirm: () => _subirSolicitud(pdfBytes),
-        ),
-      ),
+    PdfPreviewScreen.abrir(
+      context,
+      bytes: pdfBytes,
+      nombreArchivo: 'Solicitud_Permiso.pdf',
+      onConfirm: () => _subirSolicitud(pdfBytes),
     );
   }
 
@@ -1598,93 +1596,6 @@ class _ModalFirmaState extends State<_ModalFirma> {
             fontWeight: FontWeight.w600,
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-//  Vista previa PDF
-// ─────────────────────────────────────────────
-
-class VistaPreviaPdfScreen extends StatefulWidget {
-  final Uint8List pdfBytes;
-  final VoidCallback onConfirm;
-
-  const VistaPreviaPdfScreen({
-    super.key,
-    required this.pdfBytes,
-    required this.onConfirm,
-  });
-
-  @override
-  State<VistaPreviaPdfScreen> createState() => _VistaPreviaPdfScreenState();
-}
-
-class _VistaPreviaPdfScreenState extends State<VistaPreviaPdfScreen> {
-  double? _top;
-  double? _left;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C(context);
-    return Scaffold(
-      backgroundColor: c.scaffoldBg,
-      appBar: AppBar(
-        backgroundColor: c.scaffoldBg,
-        foregroundColor: c.textPrimary,
-        elevation: 0,
-        title: Text(
-          'Vista Previa',
-          style: TextStyle(color: c.textPrimary, fontSize: 16),
-        ),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          _top ??= constraints.maxHeight - 80;
-          _left ??= constraints.maxWidth - 220;
-
-          return Stack(
-            children: [
-              PdfPreview(
-                build: (format) => widget.pdfBytes,
-                allowPrinting: true,
-                allowSharing: true,
-                canChangeOrientation: false,
-                canChangePageFormat: false,
-                pdfFileName: 'Solicitud_Permiso.pdf',
-              ),
-              Positioned(
-                top: _top,
-                left: _left,
-                child: GestureDetector(
-                  onPanUpdate: (details) => setState(() {
-                    _top = (_top! + details.delta.dy).clamp(
-                      0.0,
-                      constraints.maxHeight - 60.0,
-                    );
-                    _left = (_left! + details.delta.dx).clamp(
-                      0.0,
-                      constraints.maxWidth - 210.0,
-                    );
-                  }),
-                  child: FloatingActionButton.extended(
-                    backgroundColor: _C.green,
-                    onPressed: widget.onConfirm,
-                    icon: const Icon(Icons.cloud_upload, color: Colors.black),
-                    label: const Text(
-                      'Confirmar y Enviar',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }

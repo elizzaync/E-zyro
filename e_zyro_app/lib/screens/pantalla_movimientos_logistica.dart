@@ -4,6 +4,8 @@ import '../models/requerimiento_models.dart';
 import '../services/requerimiento_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
+import '../pdf/pdf_service.dart';
+import '../pdf/pdf_preview_screen.dart';
 
 const _kGreen = Color(0xFF8FD11B);
 const _kRed = Color(0xFFEF4444);
@@ -47,6 +49,17 @@ class _PantallaMovimientosLogisticaState
     });
   }
 
+  Future<void> _exportarSalidasPdf() async {
+    final bytes = await PdfService.salidasLogistica(_movimientos);
+    if (!mounted) return;
+    await PdfPreviewScreen.abrir(
+      context,
+      bytes: bytes,
+      nombreArchivo: 'salidas_almacen_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      titulo: 'Reporte de Salidas',
+    );
+  }
+
   Future<void> _abrirAjuste() async {
     final ok = await showModalBottomSheet<bool>(
       context: context,
@@ -69,6 +82,13 @@ class _PantallaMovimientosLogisticaState
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         elevation: 0,
         backgroundColor: Colors.transparent,
+        actions: [
+          IconButton(
+            tooltip: 'Exportar salidas (PDF)',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: _movimientos.isEmpty ? null : _exportarSalidasPdf,
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _service == null ? null : _abrirAjuste,
