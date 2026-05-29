@@ -33,6 +33,9 @@ class TicketCompra(Base):
     motivo_cancelacion     = Column(Text, nullable=True)
     created_at             = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at             = Column(DateTime, nullable=True)
+    # Fase 3 — guard de idempotencia para el ingreso al inventario
+    ingreso_registrado     = Column("ingreso_registrado", __import__("sqlalchemy").Boolean,
+                                    nullable=False, default=False, server_default="false")
 
 
 class TicketCompraItem(Base):
