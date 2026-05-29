@@ -138,6 +138,14 @@ class EquipoItemOut(BaseModel):
     estado: str
     tipo: Optional[str] = None
     progreso_porcentaje: Optional[float] = None
+    # ── Equipos Intervenidos: periodicidad de mantenimiento (Fase A) ──────────
+    requiere_mantenimiento: bool = False
+    frecuencia_mantenimiento: Optional[str] = None      # ninguno|mensual|trimestral|semestral|anual
+    ultima_fecha_mantenimiento: Optional[str] = None     # ISO yyyy-mm-dd
+    proxima_fecha_mantenimiento: Optional[str] = None    # ISO; efectiva (calibración o equipo)
+    dias_restantes: Optional[int] = None                 # +faltan / -vencido
+    estado_mantenimiento: Optional[str] = None           # vigente|proximo|vencido
+    certificado_url: Optional[str] = None
 
 
 # ── HU-19: Historial de mantenimientos ───────────────────────────────────────

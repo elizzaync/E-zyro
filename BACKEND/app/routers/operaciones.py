@@ -15,7 +15,8 @@ from datetime import date, datetime
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, ProgrammingError
@@ -42,6 +43,7 @@ from ..models.material import Material, Stock
 from ..models.equipo import Equipo
 from ..models.tipo_equipo import TipoEquipo
 from ..models.orden_mantenimiento import OrdenMantenimiento
+from ..models.calibracion import Calibracion
 from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
 from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
@@ -1211,6 +1213,26 @@ def buscar_materiales(
 # ── GET /operaciones/proyecto/{proyecto_id}/equipos ───────────────────────────
 # HU-18: Lista de equipos del proyecto con tipo y progreso
 
+# Umbral (días) para considerar un mantenimiento "próximo a vencer".
+UMBRAL_PROXIMO_DIAS = 30
+
+
+def clasificar_mantenimiento(prox, hoy, umbral: int = UMBRAL_PROXIMO_DIAS):
+    """Devuelve (estado, dias_restantes) para una fecha de próximo mantenimiento.
+
+    estado ∈ {vigente, proximo, vencido}; dias_restantes None si no hay fecha
+    (positivo = faltan, negativo = vencido hace N).
+    """
+    if not prox:
+        return "vigente", None
+    dias = (prox - hoy).days
+    if dias < 0:
+        return "vencido", dias
+    if dias <= umbral:
+        return "proximo", dias
+    return "vigente", dias
+
+
 @router.get("/proyecto/{proyecto_id}/equipos", response_model=List[EquipoItemOut])
 def get_equipos_proyecto(
     proyecto_id: str,
@@ -1218,6 +1240,7 @@ def get_equipos_proyecto(
     db:          Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
+    hoy = date.today()
 
     rows = (
         db.query(Equipo, TipoEquipo.nombre.label("tipo_nombre"))
@@ -1228,19 +1251,180 @@ def get_equipos_proyecto(
         )
         .all()
     )
+    if not rows:
+        return []
 
-    return [
-        EquipoItemOut(
-            id=str(r.Equipo.id),
-            nombre=r.Equipo.nombre,
-            descripcion=r.Equipo.modelo,
-            ubicacion=r.Equipo.ubicacion,
-            estado=r.Equipo.estado,
+    equipo_ids = [str(r.Equipo.id) for r in rows]
+
+    # Última orden de mantenimiento completada por equipo (fecha_fin más reciente).
+    sub_ultima = (
+        db.query(
+            OrdenMantenimiento.equipo_id.label("eq"),
+            func.max(OrdenMantenimiento.fecha_fin).label("ffin"),
+        )
+        .filter(
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.equipo_id.in_(equipo_ids),
+            OrdenMantenimiento.estado == "completado",
+            OrdenMantenimiento.fecha_fin.isnot(None),
+        )
+        .group_by(OrdenMantenimiento.equipo_id)
+        .all()
+    )
+    ult_fin_por_equipo = {r.eq: r.ffin for r in sub_ultima}
+
+    # Calibración vigente por equipo (la de fecha_proxima más reciente): de ahí
+    # sale la fecha "fija" del certificado y la URL del certificado.
+    calib_rows = (
+        db.query(Calibracion)
+        .filter(
+            Calibracion.empresa_id == empresa_id,
+            Calibracion.equipo_id.in_(equipo_ids),
+        )
+        .all()
+    )
+    calib_por_equipo: dict[str, Calibracion] = {}
+    for c in calib_rows:
+        prev = calib_por_equipo.get(c.equipo_id)
+        if prev is None or (c.fecha_proxima or date.min) > (prev.fecha_proxima or date.min):
+            calib_por_equipo[c.equipo_id] = c
+
+    salida = []
+    for r in rows:
+        e = r.Equipo
+        eid = str(e.id)
+        calib = calib_por_equipo.get(eid)
+        # Próxima fecha efectiva: preferir la del certificado/calibración; si no,
+        # la del equipo.
+        prox = (calib.fecha_proxima if calib and calib.fecha_proxima
+                else e.proxima_fecha_mantenimiento)
+        estado_mant, dias = clasificar_mantenimiento(prox, hoy)
+        ult_fin = ult_fin_por_equipo.get(eid)
+
+        salida.append(EquipoItemOut(
+            id=eid,
+            nombre=e.nombre,
+            descripcion=e.modelo,
+            ubicacion=e.ubicacion,
+            estado=e.estado,
             tipo=r.tipo_nombre,
             progreso_porcentaje=None,
+            requiere_mantenimiento=bool(e.requiere_mantenimiento),
+            frecuencia_mantenimiento=e.frecuencia_mantenimiento,
+            ultima_fecha_mantenimiento=(ult_fin.date().isoformat() if ult_fin else None),
+            proxima_fecha_mantenimiento=(prox.isoformat() if prox else None),
+            dias_restantes=dias,
+            estado_mantenimiento=(estado_mant if e.requiere_mantenimiento else None),
+            certificado_url=(calib.certificado_url if calib else None),
+        ))
+    return salida
+
+
+# ── Helpers de periodicidad y edición de mantenimiento ────────────────────────
+_MESES_FRECUENCIA = {"mensual": 1, "trimestral": 3, "semestral": 6, "anual": 12}
+_ROLES_EDIT_MANT = {"administrador", "admin", "superadmin",
+                    "jefe de operaciones", "jefe_operaciones"}
+
+
+def _sumar_meses(d: date, meses: int) -> date:
+    """Suma `meses` a una fecha respetando el fin de mes (sin dependencias)."""
+    import calendar
+    total = (d.month - 1) + meses
+    y = d.year + total // 12
+    mo = total % 12 + 1
+    day = min(d.day, calendar.monthrange(y, mo)[1])
+    return date(y, mo, day)
+
+
+def _es_admin_o_jefe(payload: dict) -> bool:
+    return (payload.get("rol") or "").lower().strip() in _ROLES_EDIT_MANT
+
+
+def _build_equipo_item(db: Session, e: Equipo, empresa_id: str, hoy: date) -> EquipoItemOut:
+    """Construye el EquipoItemOut enriquecido para un solo equipo (reusa la
+    misma lógica que get_equipos_proyecto: última orden + calibración vigente)."""
+    ult_fin = (
+        db.query(func.max(OrdenMantenimiento.fecha_fin))
+        .filter(
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.equipo_id == str(e.id),
+            OrdenMantenimiento.estado == "completado",
+            OrdenMantenimiento.fecha_fin.isnot(None),
         )
-        for r in rows
-    ]
+        .scalar()
+    )
+    calib = (
+        db.query(Calibracion)
+        .filter(Calibracion.empresa_id == empresa_id, Calibracion.equipo_id == str(e.id))
+        .order_by(Calibracion.fecha_proxima.desc().nullslast())
+        .first()
+    )
+    prox = (calib.fecha_proxima if calib and calib.fecha_proxima
+            else e.proxima_fecha_mantenimiento)
+    estado_mant, dias = clasificar_mantenimiento(prox, hoy)
+    tipo_nombre = None
+    if e.tipo_equipo_id:
+        te = db.query(TipoEquipo).filter(TipoEquipo.id == e.tipo_equipo_id).first()
+        tipo_nombre = te.nombre if te else None
+    return EquipoItemOut(
+        id=str(e.id), nombre=e.nombre, descripcion=e.modelo, ubicacion=e.ubicacion,
+        estado=e.estado, tipo=tipo_nombre, progreso_porcentaje=None,
+        requiere_mantenimiento=bool(e.requiere_mantenimiento),
+        frecuencia_mantenimiento=e.frecuencia_mantenimiento,
+        ultima_fecha_mantenimiento=(ult_fin.date().isoformat() if ult_fin else None),
+        proxima_fecha_mantenimiento=(prox.isoformat() if prox else None),
+        dias_restantes=dias,
+        estado_mantenimiento=(estado_mant if e.requiere_mantenimiento else None),
+        certificado_url=(calib.certificado_url if calib else None),
+    )
+
+
+class _MantenimientoPatchBody(BaseModel):
+    requiere_mantenimiento: Optional[bool] = None
+    frecuencia_mantenimiento: Optional[str] = None   # ninguno|mensual|trimestral|semestral|anual
+    proxima_fecha_mantenimiento: Optional[str] = None  # ISO yyyy-mm-dd
+
+
+# ── PATCH /operaciones/equipos/{id}/mantenimiento ─────────────────────────────
+# Solo Admin / Jefe de Operaciones: configura periodicidad y próxima fecha del
+# equipo intervenido. El certificado adjunto se gestiona vía el módulo Calibraciones.
+
+@router.patch("/equipos/{equipo_id}/mantenimiento", response_model=EquipoItemOut)
+def editar_mantenimiento_equipo(
+    equipo_id: str,
+    body:      _MantenimientoPatchBody,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    if not _es_admin_o_jefe(payload):
+        raise HTTPException(status_code=403,
+                            detail="Solo Admin o Jefe de Operaciones puede editar el mantenimiento")
+    empresa_id = payload["empresa_id"]
+    equipo = db.query(Equipo).filter(
+        Equipo.id == equipo_id, Equipo.empresa_id == empresa_id,
+    ).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    if body.requiere_mantenimiento is not None:
+        equipo.requiere_mantenimiento = bool(body.requiere_mantenimiento)
+        if not equipo.requiere_mantenimiento:
+            equipo.frecuencia_mantenimiento = "ninguno"
+            equipo.proxima_fecha_mantenimiento = None
+    if equipo.requiere_mantenimiento and body.frecuencia_mantenimiento is not None:
+        equipo.frecuencia_mantenimiento = body.frecuencia_mantenimiento
+    if equipo.requiere_mantenimiento and body.proxima_fecha_mantenimiento is not None:
+        try:
+            equipo.proxima_fecha_mantenimiento = (
+                date.fromisoformat(body.proxima_fecha_mantenimiento)
+                if body.proxima_fecha_mantenimiento else None
+            )
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Fecha inválida (use yyyy-mm-dd)")
+    equipo.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(equipo)
+    return _build_equipo_item(db, equipo, empresa_id, date.today())
 
 
 # ── GET /operaciones/mantenimientos/general ───────────────────────────────────
@@ -1464,6 +1648,15 @@ def finalizar_mantenimiento(
             orden.tecnico_id = empleado.id
 
     equipo.estado = "operativo"
+
+    # Cierre de ciclo: si el equipo lleva mantenimiento periódico, programar la
+    # próxima fecha = fecha de cierre + frecuencia. Si existe una calibración con
+    # fecha de certificado, esa tiene prioridad en la lectura (get_equipos_proyecto).
+    if equipo.requiere_mantenimiento:
+        meses = _MESES_FRECUENCIA.get((equipo.frecuencia_mantenimiento or "").lower())
+        if meses:
+            base = (orden.fecha_fin or datetime.utcnow()).date()
+            equipo.proxima_fecha_mantenimiento = _sumar_meses(base, meses)
     db.flush()
 
     evidencias = (

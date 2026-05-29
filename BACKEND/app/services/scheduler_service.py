@@ -68,6 +68,132 @@ def _enviar_recordatorios_calendario():
         db.rollback()
     finally:
         db.close()
+def _alertas_mantenimiento_equipos():
+    """Equipos Intervenidos (Fase A): avisa a Admin / Jefe de Operaciones cuando
+    se acerca o vence el próximo mantenimiento de un equipo. Umbrales 30/15/7/vencido.
+
+    Idempotente por (equipo, fecha objetivo, umbral): no repite el mismo aviso.
+    El cliente NO se notifica todavía — hook futuro (otra empresa_id + correo).
+    """
+    from app.models.equipo import Equipo
+    from app.models.calibracion import Calibracion
+    from app.models.usuario import Usuario
+    from app.models.usuario_rol import UsuarioRol
+    from app.models.rol import Rol
+    from app.models.proyecto import Proyecto
+    from app.models.cliente import Cliente
+    import uuid as _uuid
+
+    ROLES_DESTINO = ["Administrador", "Jefe de Operaciones"]
+
+    def _umbral(dias: int):
+        if dias < 0:
+            return "vencido"
+        for lim in (7, 15, 30):
+            if dias <= lim:
+                return str(lim)
+        return None
+
+    db: Session = SessionLocal()
+    try:
+        hoy = date.today()
+        equipos = db.query(Equipo).filter(Equipo.requiere_mantenimiento.is_(True)).all()
+        if not equipos:
+            return
+
+        # Destinatarios Admin/JefeOp por empresa (cache).
+        dest_por_empresa: dict[str, list[str]] = {}
+
+        def _destinatarios(empresa_id: str) -> list[str]:
+            if empresa_id not in dest_por_empresa:
+                rows = (
+                    db.query(Usuario.id)
+                    .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
+                    .join(Rol, Rol.id == UsuarioRol.rol_id)
+                    .filter(Usuario.empresa_id == empresa_id,
+                            Usuario.activo.is_(True),
+                            Rol.nombre.in_(ROLES_DESTINO))
+                    .all()
+                )
+                dest_por_empresa[empresa_id] = [r.id for r in rows]
+            return dest_por_empresa[empresa_id]
+
+        enviados = 0
+        for e in equipos:
+            # Próxima fecha efectiva: calibración (certificado) > equipo.
+            calib = (
+                db.query(Calibracion)
+                .filter(Calibracion.empresa_id == e.empresa_id,
+                        Calibracion.equipo_id == str(e.id))
+                .order_by(Calibracion.fecha_proxima.desc().nullslast())
+                .first()
+            )
+            prox = (calib.fecha_proxima if calib and calib.fecha_proxima
+                    else e.proxima_fecha_mantenimiento)
+            if not prox:
+                continue
+            umbral = _umbral((prox - hoy).days)
+            if not umbral:
+                continue
+
+            ref_tabla = f"eqmant:{e.id}"          # ≤ 100
+            ref_id = f"{prox.isoformat()}:{umbral}"  # ≤ 36
+
+            ya = db.query(Notificacion.id).filter(
+                Notificacion.referencia_tabla == ref_tabla,
+                Notificacion.referencia_id == ref_id,
+            ).first()
+            if ya:
+                continue  # ya avisado este ciclo/umbral
+
+            # Cliente (para el texto): directo o vía proyecto.
+            cliente_nombre = ""
+            cid = e.cliente_id
+            if not cid and e.proyecto_id:
+                p = db.query(Proyecto.cliente_id).filter(Proyecto.id == e.proyecto_id).first()
+                cid = p.cliente_id if p else None
+            if cid:
+                c = db.query(Cliente.razon_social).filter(Cliente.id == cid).first()
+                cliente_nombre = (c.razon_social if c else "") or ""
+
+            if umbral == "vencido":
+                titulo = "⚠️ Mantenimiento vencido"
+                cuando = f"venció el {prox.isoformat()}"
+            else:
+                titulo = "🔧 Mantenimiento por vencer"
+                cuando = f"vence el {prox.isoformat()} (faltan {(prox - hoy).days} días)"
+            ref_cli = f" · Cliente: {cliente_nombre}" if cliente_nombre else ""
+            mensaje = (f"{e.nombre}{ref_cli}: {cuando}. "
+                       f"Contactar al cliente para coordinar la recontratación del mantenimiento.")
+
+            destinatarios = _destinatarios(e.empresa_id)
+            if not destinatarios:
+                continue
+            for uid in destinatarios:
+                db.add(Notificacion(
+                    id=str(_uuid.uuid4()), empresa_id=e.empresa_id, usuario_id=uid,
+                    tipo="warning", categoria="mantenimiento",
+                    titulo=titulo, mensaje=mensaje,
+                    leido=False, enviado=False, fecha_envio=datetime.utcnow(),
+                    referencia_tabla=ref_tabla, referencia_id=ref_id,
+                ))
+                try:
+                    enviar_push_a_usuario(usuario_id=uid, titulo=titulo, mensaje=mensaje, db=db)
+                except Exception:
+                    pass
+            enviados += 1
+            # TODO (futuro): notificar a la empresa solicitante (cliente con su
+            # propia empresa_id, multi-tenant) y/o enviar correo automático.
+
+        db.commit()
+        print(f"[Scheduler] 🔧 Alertas de mantenimiento emitidas: {enviados}")
+    except Exception as e:
+        print(f"[Scheduler] ❌ Error en alertas de mantenimiento: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def iniciar_scheduler():
     """Registra las tareas y arranca el scheduler. Llamar desde main.py."""
     # Recordatorio diario a las 08:00 AM
@@ -77,8 +203,15 @@ def iniciar_scheduler():
         id="recordatorio_calendario",
         replace_existing=True
     )
+    # Alertas de mantenimiento de equipos intervenidos, 08:15 AM
+    scheduler.add_job(
+        func=_alertas_mantenimiento_equipos,
+        trigger=CronTrigger(hour=8, minute=15),
+        id="alertas_mantenimiento",
+        replace_existing=True
+    )
     scheduler.start()
-    print("⏰ Scheduler iniciado → Recordatorios de calendario a las 08:00 AM")
+    print("⏰ Scheduler iniciado → recordatorios 08:00 + alertas mantenimiento 08:15")
 def detener_scheduler():
     """Detiene el scheduler al cerrar la app."""
     if scheduler.running:
