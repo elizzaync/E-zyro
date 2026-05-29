@@ -7,7 +7,7 @@
 | Fase | Módulo | Estado | % puntos |
 |------|--------|--------|----------|
 | 0 | Fundaciones (convenciones, catálogos Zona/Ubicación/Área, seeds RBAC) | 🟦 backend ✅ / app ⬜ | 70% |
-| 1 | Cloudinary unificado + Galería Global | 🟦 backend ✅ / galería app ✅ | 90% |
+| 1 | Cloudinary unificado + Galería Global | ✅ completa | 100% |
 | 2 | EPP | ⬜ | 0% |
 | 3 | Calibraciones + Equipos Averiados | ⬜ | 0% |
 | 4 | Garantías/Correctivos + Observaciones | ⬜ | 0% |
@@ -24,10 +24,10 @@
 ### Fase 1 — Cloudinary + Galería
 | Punto | Descripción | Estado | Arranque | Commit | Notas |
 |-------|-------------|--------|----------|--------|-------|
-| 1.1 | Helper `cloudinary_paths` (+ refactor call-sites) | ✅ helper / ⬜ refactor | ✅ Railway | `feat(galeria)` | Helper creado y usado por el código nuevo. Refactor de call-sites antiguos ('e_zyro/…','evidencias/…'): pendiente (tarea aparte, no bloquea). |
+| 1.1 | Helper `cloudinary_paths` + refactor call-sites | ✅ | ✅ Railway | `refactor(cloudinary)` | Helper + `carpeta_biometrico`. Refactorizados 6 call-sites (dashboard/perfil, permisos/firma, asistencia bio+selfie, operaciones evidencia+mantenimiento) a la raíz única. py_compile OK. |
 | 1.2 | Servicio `subir_e_indexar` (+ `registrar_recurso`, borrado) | ✅ | ✅ Railway | `feat(galeria)` | en `cloudinary_service.py` |
 | 1.3 | Modelo+migración `recurso_cloudinary` | ✅ | ✅ Railway | `feat(galeria)` | _pre_create; CHECK solo en recurso_tipo |
-| 1.4 | Backfill re-indexado | ⬜ | — | — | pendiente (no bloquea; re-indexa assets ya existentes) |
+| 1.4 | Backfill re-indexado | ✅ | ✅ Railway | `feat(galeria)` backfill | `migrations/backfill_recurso_cloudinary.py` (17 tablas, idempotente). Ejecutado en Railway: indexó los assets existentes (firma+biométrico). `foto_asistencia` omitido (sin empresa_id directo). |
 | 1.5 | API `/galeria` | ✅ | ✅ Railway | `feat(galeria)` | listar/filtrar/entidad/subir/borrar; e2e OK |
 | 1.6 | App `pantalla_galeria` + accesos contextuales | ✅ | n/a (front) | `feat(galeria)` app | model+service+pantalla (grid/visor/subida image_picker/borrado, modo global y contextual). `flutter analyze`: sin issues. Rama `feat/app-fase1-galeria`. |
 
@@ -76,9 +76,9 @@
 | 2026-05-29 | Fase 0 backend ✅ | Catálogos (ubicación/zona/área) + RBAC. Migración idempotente verificada x2 en Railway + e2e CRUD. Rama `feat/backend-fase0-catalogos-rbac`. |
 | 2026-05-29 | Fase 1 backend ✅ | Cloudinary unificado + índice `recurso_cloudinary` + API `/galeria`. Migración idempotente x2 + e2e listar/borrar. Mismo branch. |
 | 2026-05-29 | Fase 1 galería app ✅ | `pantalla_galeria` (grid/visor/subida/borrado, modo global+contextual). `flutter analyze` limpio. Rama `feat/app-fase1-galeria`. Backend pusheado a origin. |
+| 2026-05-29 | Fase 1 cierre fino ✅ | Refactor de 6 call-sites Cloudinary a raíz única (1.1) + backfill ejecutado (1.4). **Fase 1 al 100%.** Doc `10-INTEGRACION-Y-PRUEBAS.md` agregado. |
 
 ## Pendientes inmediatos (próximos pasos)
-- **Fase 1 (cierre fino, no bloquea)**: backfill `recurso_cloudinary` (1.4); refactor de call-sites Cloudinary antiguos al helper (1.1). La galería ya es funcional end-to-end (operativa cuando el backend de Fase 1 se despliegue a producción).
+- **Integración/pruebas**: ver `10-INTEGRACION-Y-PRUEBAS.md`. Orden: mergear backend→`Backend` (deploy Railway) → verificar `/docs` + smoke → mergear app→`e-zyro-app` → APK → probar Galería.
 - **Fase 0 app**: `catalogos_service` + UI de gestión de catálogos (se hará cuando EPP/ITSE consuman los selects).
-- **Despliegue**: el front apunta a `e-zyro-production...`; los endpoints `/galeria` y `/catalogos` responden una vez se mergee/despliegue el backend.
 - **Siguiente fase**: Fase 2 — EPP (`docs/plan-migracion-erp/03-EPP.md`).
