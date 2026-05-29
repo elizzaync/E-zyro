@@ -55,7 +55,7 @@ from ..schemas.logistica import (
     TicketCompraItemOut, TicketCompraOut, ComprasListResponse,
     ProcesarCompraBody, CancelarCompraBody, ComprasResumen,
     ProveedorOut, ProveedorIn,
-    IngresoItemBody, RegistrarIngresoBody,
+    IngresoItemBody, RegistrarIngresoBody, VincularInventarioBody,
     SalidaItemOut, SalidaOut, SalidasListResponse, SalidasKpis,
 )
 from datetime import date as _date
@@ -1714,6 +1714,7 @@ def _ticket_item_out(it: TicketCompraItem) -> TicketCompraItemOut:
         estadoItem=it.estado_item or "pendiente",
         nota=it.nota,
         tipoItem=it.tipo_item or "material",
+        equipoId=str(it.equipo_id) if it.equipo_id else None,
     )
 
 
@@ -1982,9 +1983,11 @@ async def _aplicar_ingreso_ticket(
         if cant <= 0:
             continue
 
-        if it.material_id:
-            alm_id = almacen_default
+        tipo = (it.tipo_item or "material").lower()
 
+        if tipo == "material" and it.material_id:
+            # ── Consumible de catálogo: actualizar stock ───────────────────
+            alm_id = almacen_default
             stock_row = db.query(Stock).filter(
                 Stock.material_id == it.material_id,
                 Stock.empresa_id  == empresa_id,
@@ -2000,7 +2003,6 @@ async def _aplicar_ingreso_ticket(
                     cantidad=cant, cantidad_minima=0,
                     updated_at=datetime.utcnow(),
                 ))
-
             db.add(MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=it.material_id, almacen_id=alm_id,
@@ -2010,7 +2012,20 @@ async def _aplicar_ingreso_ticket(
                 fecha=datetime.utcnow(),
             ))
 
-        # Catálogo y texto libre: marcar detalle como aprobado
+        elif tipo in ("equipo", "herramienta") and it.equipo_id:
+            # ── No-consumible: sumar cantidad en tabla equipo ──────────────
+            eq = db.query(Equipo).filter(
+                Equipo.id == it.equipo_id, Equipo.empresa_id == empresa_id
+            ).first()
+            if eq:
+                eq.cantidad    = int(eq.cantidad or 0) + cant
+                eq.updated_at  = datetime.utcnow()
+
+        # Ítems sin vínculo (material_id=None Y equipo_id=None):
+        # el usuario no ejecutó vincular-inventario → se omiten en el ingreso.
+        # El detalle queda como aprobado para no bloquear el requerimiento.
+
+        # Marcar detalle del requerimiento como aprobado
         if it.requerimiento_detalle_id:
             det = db.query(RequerimientoDetalle).filter(
                 RequerimientoDetalle.id == it.requerimiento_detalle_id
@@ -2048,6 +2063,104 @@ async def _aplicar_ingreso_ticket(
                 db.commit()
                 # Notificar en tiempo real al room del servicio
                 await _notificar_servicio_ws(req.proyecto_servicio_id)
+
+
+@router.post("/compras/{ticket_id}/items/{item_id}/vincular-inventario",
+             response_model=TicketCompraItemOut)
+def vincular_inventario(
+    ticket_id: str,
+    item_id:   str,
+    body:      VincularInventarioBody,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """
+    Fase 2 — Crea el ítem en su tabla de inventario y lo enlaza al ticket_compra_item.
+
+    Para tipo_item='material':
+      - Crea registro en `material` + fila en `stock` con cantidad=0.
+      - Asigna ticket_compra_item.material_id.
+
+    Para tipo_item='equipo'|'herramienta':
+      - Crea registro en `equipo` con la clase correspondiente y cantidad=0
+        (la cantidad real se suma al registrar el ingreso).
+      - Asigna ticket_compra_item.equipo_id.
+
+    Si el ítem ya tiene material_id o equipo_id, devuelve 409 (ya vinculado).
+    """
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+
+    it = db.query(TicketCompraItem).filter(
+        TicketCompraItem.id == item_id,
+        TicketCompraItem.ticket_id == ticket_id,
+    ).first()
+    if not it:
+        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+    if it.material_id or it.equipo_id:
+        raise HTTPException(
+            status_code=409,
+            detail="El ítem ya está vinculado a un registro de inventario.",
+        )
+
+    tipo = (it.tipo_item or "material").lower()
+    alm = db.query(Almacen).filter(
+        Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)
+    ).first()
+    alm_id = body.almacenId or (str(alm.id) if alm else None)
+
+    if tipo == "material":
+        if not body.unidad:
+            raise HTTPException(status_code=422, detail="Se requiere la unidad para crear un material.")
+
+        # Auto-código si no se proporciona
+        codigo = body.codigo
+        if not codigo:
+            from sqlalchemy import text as _sql_text
+            r = db.execute(_sql_text(
+                "SELECT COUNT(*) FROM material WHERE empresa_id = :eid"
+            ), {"eid": empresa_id}).scalar()
+            codigo = f"MAT-{int(r or 0) + 1:04d}"
+
+        mat = Material(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            nombre=body.nombre.strip(), unidad=body.unidad.strip(),
+            codigo=codigo, descripcion=body.descripcion,
+            categoria_id=body.categoriaId, precio=body.precioUnitario,
+            activo=True,
+        )
+        db.add(mat)
+        db.flush()
+
+        # Stock inicial = 0 (se sumará en registrar-ingreso)
+        db.add(Stock(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            material_id=mat.id, almacen_id=alm_id,
+            cantidad=0, cantidad_minima=int(body.stockMinimo or 0),
+            updated_at=datetime.utcnow(),
+        ))
+        it.material_id = mat.id
+
+    else:  # equipo o herramienta
+        clase = "herramienta" if tipo == "herramienta" else "equipo"
+        eq = Equipo(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            nombre=body.nombre.strip(), clase=clase,
+            modelo=body.modelo, marca=body.marca,
+            numero_serie=body.numeroSerie,
+            ubicacion=body.ubicacion or (alm.ubicacion if alm else None),
+            almacen_id=alm_id,
+            cantidad=0,               # se sumará al registrar-ingreso
+            estado="operativo",
+            estado_operativo="operativo",
+        )
+        db.add(eq)
+        db.flush()
+        it.equipo_id = eq.id
+
+    db.commit()
+    db.refresh(it)
+    return _ticket_item_out(it)
 
 
 @router.patch("/compras/{ticket_id}/procesar", response_model=TicketCompraOut)

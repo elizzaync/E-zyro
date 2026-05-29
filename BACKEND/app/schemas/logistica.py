@@ -304,6 +304,8 @@ class TicketCompraItemOut(BaseModel):
     nota:                 Optional[str]   = None
     # Fase 1 — clasificación del ítem (material | equipo | herramienta)
     tipoItem:             str             = "material"
+    # Fase 2 — ID del equipo/herramienta creado en inventario (solo para equipo/herramienta)
+    equipoId:             Optional[str]   = None
 
 
 class TicketCompraOut(BaseModel):
@@ -452,3 +454,34 @@ class IngresoItemBody(BaseModel):
 class RegistrarIngresoBody(BaseModel):
     almacenId: Optional[str]      = None   # almacén por defecto
     items:     List[IngresoItemBody] = []
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 2 — VINCULAR ÍTEM A INVENTARIO (crear/enlazar nuevo material o equipo)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class VincularInventarioBody(BaseModel):
+    """
+    Crea el ítem en su tabla de inventario y lo enlaza al ticket_compra_item.
+    Solo necesario cuando el ítem es 'nuevo' (sin material_id ni equipo_id).
+
+    Para tipo_item='material': requiere nombre y unidad.
+    Para tipo_item='equipo'|'herramienta': requiere nombre (clase se toma de tipo_item).
+    """
+    # Campos comunes
+    nombre:         str
+    descripcion:    Optional[str]   = None
+    almacenId:      Optional[str]   = None
+    precioUnitario: Optional[float] = None   # actualiza precio del material / equipo
+
+    # Solo para material
+    unidad:         Optional[str]   = None   # obligatorio si tipo_item='material'
+    categoriaId:    Optional[str]   = None
+    stockMinimo:    Optional[int]   = 0
+    codigo:         Optional[str]   = None
+
+    # Solo para equipo / herramienta
+    modelo:         Optional[str]   = None
+    marca:          Optional[str]   = None
+    numeroSerie:    Optional[str]   = None
+    ubicacion:      Optional[str]   = None

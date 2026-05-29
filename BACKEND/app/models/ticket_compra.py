@@ -64,3 +64,5 @@ class TicketCompraItem(Base):
     # Fase 1 — clasificación del ítem propagada desde requerimiento_detalle
     #   material | equipo | herramienta
     tipo_item                = Column(String(20), nullable=True, default="material")
+    # Fase 2 — FK al registro creado en equipo (solo para tipo_item equipo/herramienta)
+    equipo_id                = Column(__import__("sqlalchemy.dialects.postgresql", fromlist=["UUID"]).UUID(as_uuid=False), nullable=True)
