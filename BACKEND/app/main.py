@@ -167,6 +167,62 @@ def _pre_create_migrations():
                 nota                     TEXT
             )
         """))
+
+        # ── HU-FASE5: Préstamos de equipos/herramientas ──────────────────────
+        # Mismo patrón que ticket_compra: FKs a empresa/proyecto_servicio/
+        # empleado/equipo son uuid. Si SQLAlchemy crea las tablas desde el
+        # modelo (String(36) → VARCHAR(36)) Postgres rechaza los FKs por tipo
+        # incompatible. Por eso las creamos aquí con uuid explícito antes de
+        # Base.metadata.create_all.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS prestamo (
+                id                    uuid          PRIMARY KEY,
+                empresa_id            uuid          NOT NULL REFERENCES empresa(id),
+                proyecto_servicio_id  uuid          NOT NULL REFERENCES proyecto_servicio(id),
+                solicitante_id        uuid          NOT NULL REFERENCES empleado(id),
+                estado                VARCHAR(20)   NOT NULL DEFAULT 'solicitado',
+                observacion           TEXT,
+                observacion_logistico TEXT,
+                entregado_por_id      uuid          REFERENCES empleado(id),
+                devuelto_por_id       uuid          REFERENCES empleado(id),
+                confirmado_por_id     uuid          REFERENCES empleado(id),
+                fecha_solicitud       TIMESTAMP     NOT NULL DEFAULT now(),
+                fecha_entrega         TIMESTAMP,
+                fecha_devolucion      TIMESTAMP,
+                fecha_confirmacion    TIMESTAMP,
+                created_at            TIMESTAMP     NOT NULL DEFAULT now(),
+                updated_at            TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS prestamo_item (
+                id                  uuid          PRIMARY KEY,
+                prestamo_id         uuid          NOT NULL REFERENCES prestamo(id),
+                equipo_id           uuid          NOT NULL REFERENCES equipo(id),
+                cantidad_solicitada INTEGER       NOT NULL DEFAULT 1,
+                cantidad_entregada  INTEGER,
+                cantidad_devuelta   INTEGER,
+                cantidad_perdida    INTEGER       NOT NULL DEFAULT 0,
+                observacion         TEXT
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_prestamo_empresa_estado "
+            "ON prestamo (empresa_id, estado)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_prestamo_servicio "
+            "ON prestamo (proyecto_servicio_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_prestamo_item_prestamo "
+            "ON prestamo_item (prestamo_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_prestamo_item_equipo "
+            "ON prestamo_item (equipo_id)"
+        ))
+
         conn.commit()
 
 
