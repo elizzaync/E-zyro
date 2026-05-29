@@ -31,23 +31,33 @@ class AppSession {
       _rol == 'administrador';
 
   /// true si es admin O tiene el permiso específico en su lista.
-  bool hasPerm(String permiso) => isAdmin || _permisos.contains(permiso);
+  /// Comparación insensible a mayúsculas/acentos de formato: el backend emite
+  /// los permisos en minúsculas con formato `modulo:accion`.
+  bool hasPerm(String permiso) {
+    if (isAdmin) return true;
+    final p = permiso.toLowerCase().trim();
+    return _permisos.any((e) => e.toLowerCase().trim() == p);
+  }
 
   // ── Atajos para cada módulo ───────────────────────────────────────────────
 
-  bool get canVerAuditoria          => hasPerm('AUDITORIA:VER');
-  bool get canVerMantenimientoGeneral => isAdmin || _esJefeOp || hasPerm('MANTENIMIENTO:VER_GENERAL');
+  bool get canVerAuditoria          => hasPerm('auditoria:ver');
+  bool get canVerMantenimientoGeneral => isAdmin || _esJefeOp || hasPerm('mantenimiento:ver_general');
   bool get canEnviarComunicado => isAdmin || _esJefeOp;
-  bool get canGestInventario   => isAdmin || _esLogistica;
-  bool get canGestPersonal     => isAdmin || hasPerm('PERSONAL:GESTIONAR');
-  bool get canVerReportes      => hasPerm('REPORTES:VER');
-  bool get canGestClientes     => hasPerm('CLIENTES:GESTIONAR');
-  bool get canValidarAsistencia=> hasPerm('ASISTENCIA:VALIDAR');
+  // Logística: admin (bypass) · rol Logístico · o cualquiera con permiso de inventario.
+  bool get canGestInventario   =>
+      isAdmin || _esLogistica || hasPerm('inventario:ver') || hasPerm('inventario:gestionar');
+  bool get canGestPersonal     => isAdmin || hasPerm('empleados:gestionar') || hasPerm('personal:gestionar');
+  bool get canVerReportes      => hasPerm('reportes:ver');
+  bool get canGestClientes     => hasPerm('clientes:gestionar');
+  bool get canValidarAsistencia=> hasPerm('asistencia:validar');
 
   // ── Roles específicos ─────────────────────────────────────────────────────
 
   bool get _esJefeOp    => _rol == 'jefe de operaciones' || _rol == 'jefe_operaciones';
-  bool get _esLogistica => _rol == 'logística' || _rol == 'logistica';
+  bool get _esLogistica =>
+      _rol == 'logística' || _rol == 'logistica' ||
+      _rol == 'logístico' || _rol == 'logistico';
   bool get isTecnico    => _rol == 'técnico de campo' || _rol == 'tecnico de campo';
   bool get isSupervisor => _rol == 'supervisor de campo';
 

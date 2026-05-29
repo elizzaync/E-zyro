@@ -56,7 +56,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
       prefs.setString('user_name', _nameCtrl.text.trim()),
-      prefs.setString('user_rol', _rolCtrl.text.trim()),
+      // user_rol NO se persiste aquí: es autoritativo del login y determina los
+      // permisos (logística, etc.). Sobreescribirlo desde un campo de texto
+      // corrompería el RBAC local.
       prefs.setString('user_email', _emailCtrl.text.trim()),
       prefs.setString('user_phone', _phoneCtrl.text.trim()),
     ]);
@@ -197,6 +199,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               controller: _rolCtrl,
                               label: 'Cargo / Rol',
                               icon: Icons.work_outline,
+                              readOnly: true, // El rol es autoritativo del servidor
                             ),
                             const SizedBox(height: 4),
                           ],
@@ -334,6 +337,7 @@ class _ProfileField extends StatelessWidget {
   final IconData icon;
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
+  final bool readOnly;
 
   const _ProfileField({
     required this.controller,
@@ -341,6 +345,7 @@ class _ProfileField extends StatelessWidget {
     required this.icon,
     this.keyboardType,
     this.validator,
+    this.readOnly = false,
   });
 
   @override
@@ -351,6 +356,8 @@ class _ProfileField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
+      readOnly: readOnly,
+      enableInteractiveSelection: !readOnly,
       style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         labelText: label,

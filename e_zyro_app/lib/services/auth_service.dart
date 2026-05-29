@@ -229,14 +229,16 @@ class AuthService {
   List<String> get userPermisos => _prefs.getStringList('user_permisos') ?? [];
 
   bool hasPermiso(String permiso) {
-    final rol = (userRol ?? '').toLowerCase();
+    final rol = (userRol ?? '').toLowerCase().trim();
     if (rol == 'admin' || rol == 'administrador' || rol == 'superadmin') return true;
-    return userPermisos.contains(permiso);
+    final p = permiso.toLowerCase().trim();
+    return userPermisos.any((e) => e.toLowerCase().trim() == p);
   }
 
   static bool checkPermiso(SharedPreferences prefs, String permiso) {
-    final rol = (prefs.getString('user_rol') ?? '').toLowerCase();
+    final rol = (prefs.getString('user_rol') ?? '').toLowerCase().trim();
     if (rol == 'admin' || rol == 'administrador' || rol == 'superadmin') return true;
-    return (prefs.getStringList('user_permisos') ?? []).contains(permiso);
+    final p = permiso.toLowerCase().trim();
+    return (prefs.getStringList('user_permisos') ?? []).any((e) => e.toLowerCase().trim() == p);
   }
 }
