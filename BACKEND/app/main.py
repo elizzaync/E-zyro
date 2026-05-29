@@ -20,6 +20,8 @@ from app.routers import notificaciones  as notificaciones_router
 from app.routers import requerimientos  as requerimientos_router
 from app.routers import auditoria       as auditoria_router
 from app.routers import logistica       as logistica_router
+from app.routers import seguridad       as seguridad_router
+from app.routers import prestamo        as prestamo_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -60,6 +62,8 @@ from app.models import (  # noqa: F401
     tipo_equipo, equipo, plan_mantenimiento,
     orden_mantenimiento, evidencia_mantenimiento, informe_tecnico,
     paso_mantenimiento,
+    # Préstamos de equipos/herramientas (HU-FASE5)
+    prestamo,
     # Caja chica
     caja_chica,
     # Evaluación (contiene CriterioEvaluacion, Evaluacion, DetalleEvaluacion, CalificacionCliente)
@@ -486,6 +490,20 @@ def _run_migrations():
             )
         """))
 
+        # ── MODELO HÍBRIDO (Requerimientos) ───────────────────────────────────
+        # En el flujo anterior (modelo B) `estado='aprobado'` no se usaba; en
+        # el modelo híbrido SÍ se usa (= recibido por el equipo, pendiente
+        # cierre de logística). Cualquier registro 'aprobado' que NO tenga
+        # firma del receptor es inconsistente con el nuevo flujo: lo regresamos
+        # a 'listo' para que el técnico pueda firmar normalmente.
+        # Idempotente: solo afecta filas que cumplen ambas condiciones.
+        conn.execute(text("""
+            UPDATE requerimiento
+               SET estado = 'listo'
+             WHERE estado = 'aprobado'
+               AND firma_recibido_por_id IS NULL
+        """))
+
         conn.commit()
 
         # ── Semillas básicas: unidades por defecto si la empresa no tiene ─────
@@ -562,6 +580,8 @@ app.include_router(notificaciones_router.router)
 app.include_router(requerimientos_router.router)
 app.include_router(auditoria_router.router)
 app.include_router(logistica_router.router)
+app.include_router(seguridad_router.router)
+app.include_router(prestamo_router.router)
 
 
 @app.get("/")

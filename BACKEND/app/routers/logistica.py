@@ -260,6 +260,38 @@ def crear_categoria(body: CatalogoIn, payload: dict = Depends(verificar_token), 
     return CatalogoItem(id=str(cat.id), nombre=cat.nombre)
 
 
+@router.delete("/categorias/{categoria_id}", status_code=200)
+def eliminar_categoria(
+    categoria_id: str,
+    payload:      dict    = Depends(verificar_token),
+    db:           Session = Depends(get_db),
+):
+    """Baja una categoría. Falla con 409 si tiene materiales asociados."""
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+
+    cat = db.query(CategoriaMaterial).filter(
+        CategoriaMaterial.id == categoria_id,
+        CategoriaMaterial.empresa_id == empresa_id,
+    ).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    en_uso = db.query(func.count(Material.id)).filter(
+        Material.categoria_id == categoria_id,
+        Material.empresa_id == empresa_id,
+    ).scalar() or 0
+    if en_uso > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"La categoría está en uso por {en_uso} material(es)",
+        )
+
+    db.delete(cat)
+    db.commit()
+    return {"ok": True}
+
+
 # ── Almacenes ──────────────────────────────────────────────────────────────
 @router.get("/almacenes", response_model=List[AlmacenOut])
 def listar_almacenes(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
@@ -1282,10 +1314,16 @@ async def firmar_requerimiento(
     db:      Session = Depends(get_db),
 ):
     """
-    El técnico (líder / jefe ops, recomendado) confirma la RECEPCIÓN de los
-    materiales desde el detalle del servicio con su firma virtual. El
-    requerimiento pasa a 'aprobado' (= recibido por el equipo) — estado final.
-    Solo se firma lo que ya está 'listo' (en stock o compra ya llegada).
+    MODELO HÍBRIDO — paso 1 de cierre (técnico):
+    El técnico/líder confirma la RECEPCIÓN física de los materiales. El
+    requerimiento pasa a 'aprobado' (= recibido por el equipo). Estado FINAL
+    funcional para el campo. Luego logística debe cerrarlo con `entregar`
+    para alcanzar 'entregado' (estado FINAL contable).
+
+    Solo se firma lo que está 'listo'. Al firmar se libera el cinema-seat lock
+    para que el detalle se actualice en tiempo real en otros dispositivos.
+    Cualquier miembro del equipo puede firmar pero solo el primero cuenta
+    (el lock garantiza atomicidad).
     """
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
@@ -1315,7 +1353,11 @@ async def firmar_requerimiento(
     req.firma_receptor_url    = body.firmaUrl
     req.firma_recibido_por_id = receptor.id
     req.firma_fecha           = datetime.utcnow()
-    req.estado                = "aprobado"   # recibido por el equipo (estado final)
+    req.estado                = "aprobado"   # recibido por el equipo (estado funcional final)
+    # Liberar cinema-seat lock: la firma ya quedó atómicamente; el "ganador" fue
+    # el primero en llegar al commit. Los demás verán el nuevo estado por WS.
+    req.firmando_por_id       = None
+    req.firmando_desde        = None
     req.updated_at            = datetime.utcnow()
     db.commit()
 
@@ -1348,16 +1390,21 @@ async def firmar_requerimiento(
 
 
 @router.post("/requerimientos/{req_id}/entregar", response_model=RequerimientoOut)
-def entregar_requerimiento(
+async def entregar_requerimiento(
     req_id:  str,
     body:    EntregarBody,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
     """
-    Registra la entrega física: quién entrega (logística), quién recibe (técnico)
-    y la firma virtual del receptor. Marca el requerimiento como 'entregado'.
-    Usa la firma ya capturada en /firmar si el body no la trae.
+    MODELO HÍBRIDO — paso 2 de cierre (logística):
+    Cierra administrativamente un requerimiento que el técnico ya firmó
+    ('aprobado' → 'entregado'). Aporta la firma del entregador como segunda
+    firma (la del receptor ya está). Estado FINAL contable.
+
+    Precondición estricta: estado='aprobado' (= el técnico ya firmó).
+    Requiere `firmaEntregadorUrl` y reusa el receptor ya registrado en
+    `firma_recibido_por_id`. No se acepta cerrar sin firma del receptor previa.
     """
     _autorizar_logistica(payload)
     empresa_id = payload["empresa_id"]
@@ -1368,8 +1415,16 @@ def entregar_requerimiento(
     ).first()
     if not req:
         raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
-    if req.estado not in ("listo", "comprando", "aprobado"):
-        raise HTTPException(status_code=409, detail="El requerimiento no está listo para entregar")
+    if req.estado != "aprobado":
+        raise HTTPException(
+            status_code=409,
+            detail="Solo se cierra contablemente un requerimiento 'aprobado' (firmado por el técnico).",
+        )
+    if not body.firmaEntregadorUrl:
+        raise HTTPException(
+            status_code=422,
+            detail="Se requiere la firma del entregador (firmaEntregadorUrl).",
+        )
 
     emp_log = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
@@ -1377,37 +1432,43 @@ def entregar_requerimiento(
     if not emp_log:
         raise HTTPException(status_code=403, detail="No eres un empleado registrado")
 
-    # Receptor: el del body, el que firmó previamente, o el solicitante original.
-    # El fallback al solicitante habilita el flujo móvil "entrega rápida" sin
-    # firma virtual previa (la web requiere firma → siempre llega con receptor).
-    receptor_id = body.recibidoPorId or req.firma_recibido_por_id or req.solicitante_id
+    # Receptor: el ya firmante (garantizado por la precondición 'aprobado').
+    # Si por algún motivo no está (datos sucios), 422 explícito.
+    receptor_id = req.firma_recibido_por_id
     if not receptor_id:
-        raise HTTPException(status_code=422, detail="Falta el receptor de la entrega")
+        raise HTTPException(
+            status_code=422,
+            detail="El requerimiento no tiene firma de receptor (datos inconsistentes).",
+        )
     receptor = db.query(Empleado).filter(
         Empleado.id == receptor_id, Empleado.empresa_id == empresa_id
     ).first()
     if not receptor:
-        raise HTTPException(status_code=404, detail="Receptor no encontrado")
-
-    firma = body.firmaUrl or req.firma_receptor_url
+        raise HTTPException(status_code=404, detail="Receptor original no encontrado")
 
     db.add(RequerimientoEntrega(
         id=str(_uuid.uuid4()), requerimiento_id=req.id, empresa_id=empresa_id,
         entregado_por_id=emp_log.id, recibido_por_id=receptor.id,
-        firma_receptor_url=firma, firma_entregador_url=body.firmaEntregadorUrl, fecha_entrega=datetime.utcnow(),
+        firma_receptor_url=req.firma_receptor_url,
+        firma_entregador_url=body.firmaEntregadorUrl,
+        fecha_entrega=datetime.utcnow(),
         notas=body.notas,
     ))
+    req.firma_entregador_url = body.firmaEntregadorUrl
     req.estado = "entregado"
+    # El lock ya está liberado tras firmar; lo limpiamos por idempotencia.
     req.firmando_por_id = None
-    req.firmando_desde = None
+    req.firmando_desde  = None
     req.updated_at = datetime.utcnow()
     db.commit()
 
     _notificar_solicitante(
         db, req, empresa_id,
-        titulo="Materiales entregados",
-        mensaje="Logística registró la entrega de tus materiales.",
+        titulo="Entrega cerrada por logística",
+        mensaje="Logística cerró contablemente la entrega de tus materiales.",
     )
+    # Notificar en vivo al room del servicio (otros ven el cierre)
+    await _notificar_servicio_ws(req.proyecto_servicio_id)
     db.refresh(req)
     return _req_out(db, req, empresa_id)
 
@@ -1415,12 +1476,13 @@ def entregar_requerimiento(
 
 
 @router.post("/requerimientos/{req_id}/bloquear-firma")
-def bloquear_firma_requerimiento(
+async def bloquear_firma_requerimiento(
     req_id:  str,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Bloquea la firma (cinema-seat, 2-min timeout). 409 si ya bloqueado."""
+    """Bloquea la firma (cinema-seat, 2-min timeout). 409 si ya bloqueado.
+    Emite WS para que otros miembros vean 'X está firmando' sin recargar."""
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
     req = db.query(Requerimiento).filter(
@@ -1444,16 +1506,19 @@ def bloquear_firma_requerimiento(
     except Exception:
         db.rollback()
         raise HTTPException(status_code=409, detail="No se pudo bloquear la firma")
+    # Broadcast en vivo: los demás dispositivos del equipo ven el "alguien está firmando"
+    await _notificar_servicio_ws(req.proyecto_servicio_id)
     return {"ok": True}
 
 
 @router.delete("/requerimientos/{req_id}/bloquear-firma")
-def liberar_firma_requerimiento(
+async def liberar_firma_requerimiento(
     req_id:  str,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Libera el bloqueo de firma."""
+    """Libera el bloqueo de firma. Emite WS para que el detalle se refresque
+    en otros dispositivos (vuelve a estar disponible para firmar)."""
     empresa_id = payload["empresa_id"]
     req = db.query(Requerimiento).filter(
         Requerimiento.id == req_id, Requerimiento.empresa_id == empresa_id
@@ -1464,6 +1529,7 @@ def liberar_firma_requerimiento(
             req.firmando_desde  = None
             req.updated_at      = datetime.utcnow()
             db.commit()
+            await _notificar_servicio_ws(req.proyecto_servicio_id)
         except Exception:
             db.rollback()
     return {"ok": True}
@@ -2171,3 +2237,271 @@ def listar_salidas(
         ]
 
     return SalidasListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INVENTARIO — Ajuste manual de stock, transferencias y movimientos
+# Migrado desde /requerimientos/inventario/* (versión móvil). El móvil ya
+# consume estas rutas vía RequerimientoService.
+# ══════════════════════════════════════════════════════════════════════════
+
+def _almacen_default(db: Session, empresa_id: str) -> "Almacen | None":
+    return db.query(Almacen).filter(
+        Almacen.empresa_id == empresa_id,
+        Almacen.activo.is_(True),
+    ).order_by(Almacen.nombre).first()
+
+
+@router.post("/inventario/ajuste", status_code=201)
+def ajustar_stock(
+    body:    dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Ajuste manual de stock — solo log/admin.
+
+    Body: { material_id, tipo, cantidad, motivo?, almacen_id? }
+      * tipo='entrada': suma cantidad al stock del almacén
+      * tipo='salida' : resta cantidad; falla 422 si dejaría negativo
+      * tipo='ajuste' : fija la cantidad exacta del almacén (sobreescribe)
+    Registra siempre un MovimientoInventario.
+    """
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    material_id = (body.get("material_id") or "").strip()
+    tipo        = (body.get("tipo") or "").strip().lower()
+    motivo      = body.get("motivo")
+    almacen_id  = body.get("almacen_id")
+    try:
+        cantidad = int(body.get("cantidad") or 0)
+    except (TypeError, ValueError):
+        cantidad = 0
+
+    if not material_id or tipo not in ("entrada", "salida", "ajuste"):
+        raise HTTPException(status_code=422, detail="material_id y tipo (entrada|salida|ajuste) son requeridos")
+    if cantidad < 0:
+        raise HTTPException(status_code=422, detail="cantidad no puede ser negativa")
+
+    mat = db.query(Material).filter(
+        Material.id == material_id, Material.empresa_id == empresa_id
+    ).first()
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+
+    if not almacen_id:
+        alm = _almacen_default(db, empresa_id)
+        if not alm:
+            raise HTTPException(status_code=422, detail="No hay almacenes activos")
+        almacen_id = str(alm.id)
+
+    stock = db.query(Stock).filter(
+        Stock.material_id == material_id,
+        Stock.empresa_id  == empresa_id,
+        Stock.almacen_id  == almacen_id,
+    ).first()
+
+    if tipo == "entrada":
+        if stock:
+            stock.cantidad = int(stock.cantidad or 0) + cantidad
+            stock.updated_at = datetime.utcnow()
+        else:
+            stock = Stock(
+                material_id=material_id, empresa_id=empresa_id, almacen_id=almacen_id,
+                cantidad=cantidad, cantidad_minima=0, updated_at=datetime.utcnow(),
+            )
+            db.add(stock)
+        delta = cantidad
+
+    elif tipo == "salida":
+        actual = int(stock.cantidad or 0) if stock else 0
+        if cantidad > actual:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Stock insuficiente (disponible {actual}, solicitado {cantidad})",
+            )
+        stock.cantidad = actual - cantidad
+        stock.updated_at = datetime.utcnow()
+        delta = cantidad
+
+    else:  # ajuste — fija valor exacto
+        if stock:
+            stock.cantidad = cantidad
+            stock.updated_at = datetime.utcnow()
+        else:
+            db.add(Stock(
+                material_id=material_id, empresa_id=empresa_id, almacen_id=almacen_id,
+                cantidad=cantidad, cantidad_minima=0, updated_at=datetime.utcnow(),
+            ))
+        delta = cantidad
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+    db.add(MovimientoInventario(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        material_id=material_id, almacen_id=almacen_id,
+        tipo=tipo, cantidad=delta,
+        referencia_id=None, referencia_tipo="ajuste_manual",
+        responsable_id=emp.id if emp else None,
+        fecha=datetime.utcnow(),
+    ))
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/inventario/movimientos")
+def listar_movimientos(
+    material_id: str = Query("", description="filtrar por material"),
+    page:        int = Query(1, ge=1),
+    page_size:   int = Query(50, ge=1, le=200),
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Historial de movimientos de inventario (enriquecido para la UI móvil)."""
+    empresa_id = payload["empresa_id"]
+
+    base = db.query(MovimientoInventario).filter(
+        MovimientoInventario.empresa_id == empresa_id
+    )
+    if material_id:
+        base = base.filter(MovimientoInventario.material_id == material_id)
+
+    rows = (
+        base.order_by(MovimientoInventario.fecha.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    if not rows:
+        return []
+
+    mat_ids   = {r.material_id for r in rows if r.material_id}
+    alm_ids   = {r.almacen_id  for r in rows if r.almacen_id}
+    resp_ids  = {r.responsable_id for r in rows if r.responsable_id}
+
+    mats = {
+        m.id: (m.nombre, m.unidad)
+        for m in db.query(Material.id, Material.nombre, Material.unidad)
+                   .filter(Material.id.in_(mat_ids)).all()
+    } if mat_ids else {}
+    alms = {
+        a.id: a.nombre
+        for a in db.query(Almacen.id, Almacen.nombre)
+                   .filter(Almacen.id.in_(alm_ids)).all()
+    } if alm_ids else {}
+    resps: dict[str, str] = {}
+    if resp_ids:
+        rows_r = (
+            db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.id.in_(resp_ids))
+            .all()
+        )
+        for r in rows_r:
+            resps[r.id] = f"{r.nombre or ''} {r.apellido or ''}".strip()
+
+    return [
+        {
+            "id": str(r.id),
+            "material_id": str(r.material_id) if r.material_id else "",
+            "material_nombre": mats.get(r.material_id, ("", ""))[0],
+            "unidad": mats.get(r.material_id, ("", "und"))[1] or "und",
+            "tipo": r.tipo or "",
+            "cantidad": int(r.cantidad or 0),
+            "motivo": None,  # MovimientoInventario no guarda motivo libre hoy
+            "almacen_nombre": alms.get(r.almacen_id) if r.almacen_id else None,
+            "responsable_nombre": resps.get(r.responsable_id) if r.responsable_id else None,
+            "fecha": r.fecha.strftime("%Y-%m-%d %H:%M") if r.fecha else "",
+        }
+        for r in rows
+    ]
+
+
+@router.post("/inventario/transferencia", status_code=201)
+def transferir_stock(
+    body:    dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Transfiere stock de un almacén a otro (mismo material).
+    Body: { material_id, almacen_origen_id, almacen_destino_id, cantidad, motivo? }
+    Registra dos MovimientoInventario (salida en origen, entrada en destino).
+    """
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    material_id = (body.get("material_id") or "").strip()
+    origen_id   = (body.get("almacen_origen_id")  or "").strip()
+    destino_id  = (body.get("almacen_destino_id") or "").strip()
+    try:
+        cantidad = int(body.get("cantidad") or 0)
+    except (TypeError, ValueError):
+        cantidad = 0
+
+    if not material_id or not origen_id or not destino_id:
+        raise HTTPException(status_code=422, detail="material_id, almacen_origen_id y almacen_destino_id son requeridos")
+    if origen_id == destino_id:
+        raise HTTPException(status_code=422, detail="El almacén origen y destino deben ser distintos")
+    if cantidad <= 0:
+        raise HTTPException(status_code=422, detail="cantidad debe ser > 0")
+
+    # Validar pertenencia a la empresa
+    mat = db.query(Material).filter(
+        Material.id == material_id, Material.empresa_id == empresa_id
+    ).first()
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material no encontrado")
+    for aid in (origen_id, destino_id):
+        a = db.query(Almacen).filter(Almacen.id == aid, Almacen.empresa_id == empresa_id).first()
+        if not a:
+            raise HTTPException(status_code=404, detail=f"Almacén {aid} no encontrado")
+
+    stock_o = db.query(Stock).filter(
+        Stock.material_id == material_id, Stock.empresa_id == empresa_id, Stock.almacen_id == origen_id,
+    ).first()
+    actual = int(stock_o.cantidad or 0) if stock_o else 0
+    if cantidad > actual:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Stock insuficiente en origen (disponible {actual}, solicitado {cantidad})",
+        )
+
+    stock_d = db.query(Stock).filter(
+        Stock.material_id == material_id, Stock.empresa_id == empresa_id, Stock.almacen_id == destino_id,
+    ).first()
+
+    stock_o.cantidad = actual - cantidad
+    stock_o.updated_at = datetime.utcnow()
+    if stock_d:
+        stock_d.cantidad = int(stock_d.cantidad or 0) + cantidad
+        stock_d.updated_at = datetime.utcnow()
+    else:
+        db.add(Stock(
+            material_id=material_id, empresa_id=empresa_id, almacen_id=destino_id,
+            cantidad=cantidad, cantidad_minima=0, updated_at=datetime.utcnow(),
+        ))
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+    ref_id = str(_uuid.uuid4())  # par de movimientos comparten referencia
+    for almacen_id, tipo in ((origen_id, "salida"), (destino_id, "entrada")):
+        db.add(MovimientoInventario(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            material_id=material_id, almacen_id=almacen_id,
+            tipo="transferencia", cantidad=cantidad,
+            referencia_id=ref_id, referencia_tipo="transferencia",
+            responsable_id=emp.id if emp else None,
+            fecha=datetime.utcnow(),
+        ))
+        # tipo (entrada/salida) se infiere por el signo en consumidores; aquí
+        # marcamos ambas como "transferencia" para que el historial las agrupe.
+        _ = tipo
+
+    db.commit()
+    return {"ok": True}
