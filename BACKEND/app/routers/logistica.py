@@ -1393,6 +1393,92 @@ async def firmar_requerimiento(
     return _req_out(db, req, empresa_id)
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# FASE 4 — helper de salida de inventario al momento de entregar
+# ──────────────────────────────────────────────────────────────────────────
+
+async def _registrar_salidas_entrega(
+    db:         Session,
+    req:        Requerimiento,
+    empresa_id: str,
+    emp_log,
+) -> None:
+    """
+    Descuenta del inventario los ítems que llegaron vía compra y registra
+    el movimiento de salida vinculado al requerimiento y su servicio.
+
+    Regla de exclusión mutua con aprobar_requerimiento:
+    - Ítems de stock directo: su salida ya fue registrada en aprobar_requerimiento
+      (cuando stock >= solicitado). NO se tocan aquí.
+    - Ítems vía para_compra (tienen ticket_compra_item asociado): su stock fue
+      sumado en _aplicar_ingreso_ticket pero nunca se descontó para el servicio.
+      Se descuentan aquí al momento de la entrega formal.
+    - Ítems de texto libre (sin material_id): no existen en inventario, se omiten.
+    """
+    # Ítems con material que pasaron por el flujo de compra
+    detalles_compra = (
+        db.query(RequerimientoDetalle)
+        .join(TicketCompraItem,
+              TicketCompraItem.requerimiento_detalle_id == RequerimientoDetalle.id)
+        .filter(
+            RequerimientoDetalle.requerimiento_id == req.id,
+            RequerimientoDetalle.estado_item      == "aprobado",
+            RequerimientoDetalle.material_id.isnot(None),
+        )
+        .all()
+    )
+    if not detalles_compra:
+        return
+
+    # Almacén activo por defecto (desde el que se despacha)
+    alm = db.query(Almacen).filter(
+        Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)
+    ).first()
+    almacen_id = str(alm.id) if alm else None
+
+    servicio_label = str(req.proyecto_servicio_id or req.proyecto_id or "")
+
+    for d in detalles_compra:
+        cant = int(d.cantidad_aprobada or d.cantidad or 0)
+        if cant <= 0:
+            continue
+
+        # Descontar del almacén con más stock disponible (FIFO por cantidad)
+        stocks = (
+            db.query(Stock)
+            .filter(
+                Stock.material_id == d.material_id,
+                Stock.empresa_id  == empresa_id,
+                Stock.cantidad    > 0,
+            )
+            .order_by(Stock.cantidad.desc())
+            .all()
+        )
+        restante = cant
+        for s in stocks:
+            if restante <= 0:
+                break
+            quita       = min(int(s.cantidad), restante)
+            s.cantidad  = int(s.cantidad) - quita
+            s.updated_at = datetime.utcnow()
+            restante    -= quita
+
+        # Movimiento de salida — trazable al requerimiento Y al servicio
+        db.add(MovimientoInventario(
+            id              = str(_uuid.uuid4()),
+            empresa_id      = empresa_id,
+            material_id     = d.material_id,
+            almacen_id      = almacen_id,
+            tipo            = "salida",
+            cantidad        = cant,
+            referencia_id   = req.id,
+            referencia_tipo = "requerimiento",
+            responsable_id  = str(emp_log.id) if emp_log else None,
+            motivo          = f"Despacho al servicio {servicio_label}",
+            fecha           = datetime.utcnow(),
+        ))
+
+
 @router.post("/requerimientos/{req_id}/entregar", response_model=RequerimientoOut)
 async def entregar_requerimiento(
     req_id:  str,
@@ -1464,6 +1550,12 @@ async def entregar_requerimiento(
     req.firmando_por_id = None
     req.firmando_desde  = None
     req.updated_at = datetime.utcnow()
+
+    # ── Fase 4: descuento de stock para ítems vía compra ─────────────────
+    # Los ítems de stock directo ya fueron descontados en aprobar_requerimiento.
+    # Los ítems que pasaron por ticket_compra necesitan su salida aquí.
+    await _registrar_salidas_entrega(db, req, empresa_id, emp_log)
+
     db.commit()
 
     _notificar_solicitante(
@@ -2210,6 +2302,7 @@ def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> Salid
 
     sol_nombre, _ = _nombre_empleado(db, req.solicitante_id)
 
+    # Ítems no rechazados con su origen (stock directo vs vía compra)
     detalles = (
         db.query(RequerimientoDetalle, Material.nombre, Material.unidad)
         .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
@@ -2219,17 +2312,30 @@ def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> Salid
         )
         .all()
     )
+
+    # Conjunto de requerimiento_detalle_id que pasaron por ticket_compra
+    detalle_ids_via_compra = set(
+        str(r[0]) for r in
+        db.query(TicketCompraItem.requerimiento_detalle_id)
+        .filter(TicketCompraItem.requerimiento_detalle_id.isnot(None))
+        .join(TicketCompra, TicketCompra.id == TicketCompraItem.ticket_id)
+        .filter(TicketCompra.requerimiento_id == req.id)
+        .all()
+    )
+
     items: list[SalidaItemOut] = []
     total_unidades = 0
     for d, mat_nombre, mat_unidad in detalles:
         cant = int(d.cantidad_aprobada or d.cantidad or 0)
         total_unidades += cant
+        origen = "compra" if str(d.id) in detalle_ids_via_compra else "stock"
         items.append(SalidaItemOut(
             id=str(d.id),
             nombre=mat_nombre or d.nombre_libre or "—",
             unidad=mat_unidad or d.unidad_libre or "",
             cantidadSolicitada=int(d.cantidad or 0),
             cantidadEntregada=cant,
+            origenItem=origen,
         ))
 
     entrega = (
@@ -2320,16 +2426,21 @@ def salidas_kpis(
 
 @router.get("/salidas", response_model=SalidasListResponse)
 def listar_salidas(
-    q:          str           = Query(""),
-    proyecto_id: str          = Query(""),
-    desde:      Optional[str] = Query(None, description="YYYY-MM-DD"),
-    hasta:      Optional[str] = Query(None, description="YYYY-MM-DD"),
-    page:       int           = Query(1, ge=1),
-    page_size:  int           = Query(30, ge=1, le=200),
-    payload:    dict          = Depends(verificar_token),
-    db:         Session       = Depends(get_db),
+    q:           str           = Query(""),
+    proyecto_id: str           = Query(""),
+    servicio_id: str           = Query("", description="Filtrar por proyecto_servicio_id"),
+    desde:       Optional[str] = Query(None, description="YYYY-MM-DD"),
+    hasta:       Optional[str] = Query(None, description="YYYY-MM-DD"),
+    page:        int           = Query(1, ge=1),
+    page_size:   int           = Query(30, ge=1, le=200),
+    payload:     dict          = Depends(verificar_token),
+    db:          Session       = Depends(get_db),
 ):
-    """Lista de requerimientos entregados (salidas de materiales al campo)."""
+    """
+    Lista de requerimientos entregados (salidas de materiales al campo).
+    Filtros: proyecto_id, servicio_id (proyecto_servicio_id), desde/hasta, búsqueda libre.
+    Cada ítem incluye origenItem ('stock' | 'compra') para trazabilidad.
+    """
     empresa_id = payload["empresa_id"]
 
     base = db.query(Requerimiento).filter(
@@ -2338,6 +2449,8 @@ def listar_salidas(
     )
     if proyecto_id:
         base = base.filter(Requerimiento.proyecto_id == proyecto_id)
+    if servicio_id:
+        base = base.filter(Requerimiento.proyecto_servicio_id == servicio_id)
 
     if desde or hasta:
         base = base.join(

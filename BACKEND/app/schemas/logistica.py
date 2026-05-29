@@ -401,6 +401,8 @@ class SalidaItemOut(BaseModel):
     unidad:             str
     cantidadSolicitada: int
     cantidadEntregada:  int
+    # 'stock' = vino de inventario directamente | 'compra' = llegó vía ticket_compra
+    origenItem:         str = "stock"
 
 
 class SalidaOut(BaseModel):
