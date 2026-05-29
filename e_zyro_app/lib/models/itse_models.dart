@@ -34,3 +34,41 @@ class InspeccionItse {
         observaciones: j['observaciones']?.toString(),
       );
 }
+
+class InspeccionTablero {
+  final String id;
+  final String nombre;
+  final String? ambiente;
+  final String? descripcion;
+  const InspeccionTablero({required this.id, required this.nombre, this.ambiente, this.descripcion});
+
+  factory InspeccionTablero.fromJson(Map<String, dynamic> j) => InspeccionTablero(
+        id: j['id']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        ambiente: j['ambiente']?.toString(),
+        descripcion: j['descripcion']?.toString(),
+      );
+}
+
+class InspeccionItem {
+  final String id;
+  final String? tableroId;
+  final String descripcion;
+  final String resultado; // conforme | observado | no_conforme
+  final String? observacion;
+  const InspeccionItem({
+    required this.id,
+    this.tableroId,
+    required this.descripcion,
+    required this.resultado,
+    this.observacion,
+  });
+
+  factory InspeccionItem.fromJson(Map<String, dynamic> j) => InspeccionItem(
+        id: j['id']?.toString() ?? '',
+        tableroId: j['tablero_id']?.toString(),
+        descripcion: j['descripcion']?.toString() ?? '',
+        resultado: j['resultado']?.toString() ?? 'conforme',
+        observacion: j['observacion']?.toString(),
+      );
+}

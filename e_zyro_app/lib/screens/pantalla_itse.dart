@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/itse_models.dart';
 import '../services/itse_service.dart';
 import '../utils/api_provider.dart';
+import 'pantalla_itse_detalle.dart';
 
 /// Inspección ITSE (Fase 5). Lista + alta de inspección (borrador).
 /// El detalle (tableros/ítems/fotos/finalizar) se construye sobre esta base.
@@ -127,6 +128,16 @@ class _PantallaItseState extends State<PantallaItse> {
                         itemBuilder: (_, i) {
                           final it = _items[i];
                           return ListTile(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PantallaItseDetalle(
+                                    inspeccionId: it.id, modo: it.modo, estado: it.estado),
+                                ),
+                              );
+                              _cargar();
+                            },
                             leading: Icon(it.modo == 'zona' ? Icons.map_outlined : Icons.dashboard_outlined),
                             title: Text('Inspección ${it.modo} · ${it.fecha ?? ''}'),
                             subtitle: Text(it.observaciones ?? 'Sin observaciones'),
