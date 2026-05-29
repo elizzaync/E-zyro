@@ -1987,7 +1987,6 @@ async def _aplicar_ingreso_ticket(
                 tipo="ingreso", cantidad=cant,
                 referencia_id=str(tc.id), referencia_tipo="compra",
                 responsable_id=str(emp.id) if emp else None,
-                motivo=f"Ingreso por compra {tc.codigo}",
                 fecha=datetime.utcnow(),
             ))
 
