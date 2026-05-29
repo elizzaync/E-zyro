@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Security
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
@@ -52,6 +53,45 @@ def registrar_auditoria(db: Session, usuario_id: str, empresa_id: str, tabla: st
         fecha=datetime.now(ZONA_HORARIA)
     )
     db.add(nueva_auditoria)
+
+
+# =========================================================================
+# HELPER: rol + permisos efectivos de un usuario
+# =========================================================================
+def _rol_y_permisos(db: Session, usuario_id: str) -> tuple[str, list[str]]:
+    """Devuelve (nombre_rol, [\"modulo:accion\", ...]) del usuario.
+
+    Combina permisos vía rol (rol_permiso) y permisos directos (usuario_permiso).
+    Fuente única usada por /login y /auth/me para que la app siempre reciba lo
+    mismo y pueda autosanar su sesión.
+    """
+    rol_row = (
+        db.query(Rol)
+        .join(UsuarioRol, UsuarioRol.rol_id == Rol.id)
+        .filter(UsuarioRol.usuario_id == usuario_id)
+        .first()
+    )
+    nombre_rol = rol_row.nombre if rol_row else "Sin Rol Asignado"
+
+    rows = db.execute(
+        text(
+            """
+            SELECT p.modulo, p.accion FROM permiso p
+              JOIN rol_permiso rp ON rp.permiso_id = p.id
+              JOIN usuario_rol  ur ON ur.rol_id    = rp.rol_id
+             WHERE ur.usuario_id = :uid
+            UNION
+            SELECT p.modulo, p.accion FROM permiso p
+              JOIN usuario_permiso up ON up.permiso_id = p.id
+             WHERE up.usuario_id = :uid
+            """
+        ),
+        {"uid": str(usuario_id)},
+    ).all()
+    permisos = [f"{m}:{a}" for (m, a) in rows]
+    return nombre_rol, permisos
+
+
 # =========================================================================
 # LOGIN
 # =========================================================================
@@ -64,20 +104,7 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    rol_row = db.query(Rol).join(
-        UsuarioRol, UsuarioRol.rol_id == Rol.id
-    ).filter(UsuarioRol.usuario_id == usuario_db.id).first()
-    nombre_rol_real = rol_row.nombre if rol_row else "Sin Rol Asignado"
-
-    lista_permisos: list[str] = []
-    if rol_row:
-        permisos_rows = (
-            db.query(Permiso.modulo, Permiso.accion)
-            .join(RolPermiso, RolPermiso.permiso_id == Permiso.id)
-            .filter(RolPermiso.rol_id == rol_row.id)
-            .all()
-        )
-        lista_permisos = [f"{p.modulo}:{p.accion}" for p in permisos_rows]
+    nombre_rol_real, lista_permisos = _rol_y_permisos(db, usuario_db.id)
 
     datos_para_token = {
         "sub": usuario_db.username,
@@ -117,6 +144,29 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             "nombre_completo": f"{usuario_db.nombre} {usuario_db.apellido}",
             "rol":             nombre_rol_real,
             "token":           token_real,
+            "foto_url":        usuario_db.foto_url or "",
+            "permisos":        lista_permisos,
+        }
+    }
+
+
+# =========================================================================
+# /auth/me — rol y permisos actuales (para autosanar la sesión en la app)
+# =========================================================================
+@router.get("/me")
+def obtener_mi_sesion(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    usuario_id = payload.get("id")
+    usuario_db = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario_db:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    nombre_rol_real, lista_permisos = _rol_y_permisos(db, usuario_id)
+    return {
+        "status": "success",
+        "data": {
+            "id":              str(usuario_db.id),
+            "nombre_completo": f"{usuario_db.nombre} {usuario_db.apellido}",
+            "rol":             nombre_rol_real,
             "foto_url":        usuario_db.foto_url or "",
             "permisos":        lista_permisos,
         }

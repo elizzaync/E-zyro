@@ -37,6 +37,7 @@ from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.proyecto import Proyecto
 from ..models.proyecto_servicio import ProyectoServicio
+from ..models.proyecto_miembro import ProyectoMiembro
 from ..models.firma_digital import FirmaDigital
 from ..models.notificacion import Notificacion
 from ..models.proveedor import Proveedor as ProveedorModel, ProveedorCategoria
@@ -68,9 +69,15 @@ router = APIRouter(prefix="/logistica", tags=["logistica"])
 # ──────────────────────────────────────────────────────────────────────────
 
 def _autorizar_logistica(payload: dict) -> None:
-    """Solo logística / admin / superadmin pueden mutar inventario y catálogos."""
-    rol = (payload.get("rol") or "").lower()
-    if rol in ("logística", "logistica", "administrador", "admin", "superadmin"):
+    """Solo logística / admin / superadmin pueden mutar inventario y catálogos.
+
+    Acepta el nombre real del rol en BD ('Logístico') además de variantes; el
+    admin (administrador/admin/superadmin) siempre pasa. Equivale al permiso
+    inventario:gestionar dado el seed de rol_permiso.
+    """
+    rol = (payload.get("rol") or "").lower().strip()
+    if rol in ("logística", "logistica", "logístico", "logistico",
+               "administrador", "admin", "superadmin"):
         return
     raise HTTPException(status_code=403, detail="Sin permiso para operar sobre logística")
 
@@ -1362,17 +1369,13 @@ async def firmar_requerimiento(
     req.updated_at            = datetime.utcnow()
     db.commit()
 
-    # Notificar a Logística (responsables de almacén) — best effort: a todos
-    # los usuarios con rol logística/admin de la empresa.
+    # Notificar SOLO a los miembros del proyecto (no a toda la empresa): quien no
+    # participa en el proyecto no recibe ruido. El solicitante ya se notifica aparte.
     try:
-        logisticos = (
-            db.query(Usuario)
-            .filter(Usuario.empresa_id == empresa_id, Usuario.activo.is_(True))
-            .all()
-        )
-        for u in logisticos:
+        destinatarios = set(_usuarios_de_proyecto(db, req.proyecto_id))
+        for uid in destinatarios:
             db.add(Notificacion(
-                id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=u.id,
+                id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=uid,
                 tipo="info", categoria="logistica",
                 titulo="Materiales recibidos por el equipo",
                 mensaje="Un técnico firmó la recepción de los materiales.",
@@ -1534,6 +1537,27 @@ async def liberar_firma_requerimiento(
         except Exception:
             db.rollback()
     return {"ok": True}
+
+
+def _usuarios_de_proyecto(db: Session, proyecto_id) -> list[str]:
+    """usuario_id de los empleados miembros activos del proyecto.
+
+    Base para acotar notificaciones a quienes participan en el proyecto; un admin
+    que no es miembro no recibe la notificación.
+    """
+    if not proyecto_id:
+        return []
+    rows = (
+        db.query(Empleado.usuario_id)
+        .join(ProyectoMiembro, ProyectoMiembro.empleado_id == Empleado.id)
+        .filter(
+            ProyectoMiembro.proyecto_id == str(proyecto_id),
+            ProyectoMiembro.activo.is_(True),
+            Empleado.usuario_id.isnot(None),
+        )
+        .all()
+    )
+    return [r[0] for r in rows if r[0]]
 
 
 def _notificar_solicitante(db: Session, req: Requerimiento, empresa_id: str, titulo: str, mensaje: str) -> None:

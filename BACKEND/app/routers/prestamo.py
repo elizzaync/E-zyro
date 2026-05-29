@@ -25,6 +25,7 @@ from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.proyecto_servicio import ProyectoServicio
 from ..models.proyecto import Proyecto
+from ..models.proyecto_miembro import ProyectoMiembro
 from ..models.notificacion import Notificacion
 
 from ..schemas.prestamo import (
@@ -46,8 +47,9 @@ router = APIRouter(prefix="/prestamos", tags=["prestamos"])
 # ─────────────────────────────────────────────────────────────────────────
 
 def _autorizar_logistica(payload: dict) -> None:
-    rol = (payload.get("rol") or "").lower()
-    if rol in ("logística", "logistica", "administrador", "admin", "superadmin"):
+    rol = (payload.get("rol") or "").lower().strip()
+    if rol in ("logística", "logistica", "logístico", "logistico",
+               "administrador", "admin", "superadmin"):
         return
     raise HTTPException(status_code=403, detail="Sin permiso para operar como logística")
 
@@ -156,6 +158,29 @@ def _prestamo_out(db: Session, p: Prestamo) -> PrestamoOut:
         fecha_confirmacion=_fmt(p.fecha_confirmacion),
         items=items,
     )
+
+
+def _usuarios_de_servicio(db: Session, proyecto_servicio_id) -> list[str]:
+    """usuario_id de los miembros activos del proyecto al que pertenece el servicio.
+
+    Se usa para acotar las notificaciones a quienes participan en el proyecto.
+    """
+    if not proyecto_servicio_id:
+        return []
+    ps = db.query(ProyectoServicio).filter(ProyectoServicio.id == proyecto_servicio_id).first()
+    if not ps or not ps.proyecto_id:
+        return []
+    rows = (
+        db.query(Empleado.usuario_id)
+        .join(ProyectoMiembro, ProyectoMiembro.empleado_id == Empleado.id)
+        .filter(
+            ProyectoMiembro.proyecto_id == str(ps.proyecto_id),
+            ProyectoMiembro.activo.is_(True),
+            Empleado.usuario_id.isnot(None),
+        )
+        .all()
+    )
+    return [r[0] for r in rows if r[0]]
 
 
 def _notificar(db: Session, empresa_id: str, usuario_id: str, titulo: str, mensaje: str,
@@ -493,14 +518,9 @@ def devolver_prestamo(
         p.observacion = (p.observacion or "") + (f"\n[Devolución] {body.observacion}"
                                                   if p.observacion else body.observacion)
 
-    # Notificar a logística (a todos los activos con rol log; best-effort)
+    # Notificar SOLO a los miembros del proyecto del servicio (no a toda la empresa).
     try:
-        logisticos = (
-            db.query(Usuario.id)
-            .filter(Usuario.empresa_id == empresa_id, Usuario.activo.is_(True))
-            .all()
-        )
-        for (uid,) in logisticos:
+        for uid in set(_usuarios_de_servicio(db, p.proyecto_servicio_id)):
             _notificar(db, empresa_id, uid,
                        "Devolución de préstamo pendiente",
                        "Un técnico devolvió equipos. Falta confirmar la recepción.",
