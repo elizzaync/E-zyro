@@ -37,9 +37,12 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
     'requerimientos', 'asistencia', 'proyectos',
   ];
   static const _acciones = [
-    'Todas', 'LOGIN', 'LOGOUT', 'CREAR_COMUNICADO',
+    'Todas',
+    'INSERT', 'UPDATE', 'DELETE',
+    'LOGIN', 'LOGOUT',
+    'CREAR_COMUNICADO',
     'PASSWORD_CHANGED_SUCCESS', 'PASSWORD_RECOVERY_REQUEST',
-    'PASSWORD_RECOVERY_FAILED',
+    'PASSWORD_RECOVERY_FAILED', 'PASSWORD_RECOVERY_BLOCKED',
   ];
 
   @override
@@ -407,31 +410,87 @@ class _AuditoriaCard extends StatelessWidget {
   final AuditoriaItem item;
   const _AuditoriaCard({required this.item});
 
-  static const _green  = Color(0xFF8FD11B);
-  static const _amber  = Color(0xFFF59E0B);
-  static const _blue   = Color(0xFF3B82F6);
-  static const _red    = Color(0xFFEF4444);
-  static const _purple = Color(0xFF8B5CF6);
+  static const _green  = Color(0xFF8FD11B);  // crear / éxito
+  static const _amber  = Color(0xFFF59E0B);  // modificar / password
+  static const _blue   = Color(0xFF3B82F6);  // sesión / acceso
+  static const _red    = Color(0xFFEF4444);  // eliminar / fallar / rechazar
+  static const _purple = Color(0xFF8B5CF6);  // flujo de negocio (aprobar/firmar/entregar)
+  static const _teal   = Color(0xFF14B8A6);  // movimiento / transferencia
+  static const _gray   = Color(0xFF6B7280);  // logout / consulta
 
-  Color get _accionColor {
-    final a = item.accion.toUpperCase();
-    if (a.contains('FAILED') || a.contains('BLOCK')) return _red;
-    if (a.contains('LOGIN'))   return _blue;
-    if (a.contains('LOGOUT'))  return Colors.grey;
-    if (a.contains('CREAR'))   return _green;
-    if (a.contains('PASSWORD')) return _amber;
-    return _purple;
+  // Categoría visual de la acción. Se evalúa por palabras-clave de mayor a
+  // menor prioridad: lo peligroso (rojo) gana sobre lo neutro.
+  static _AccionCat _categoria(String accionRaw) {
+    final a = accionRaw.toUpperCase();
+
+    // Errores / accesos bloqueados / rechazos → rojo
+    if (a.contains('FAILED') || a.contains('BLOCK') || a.contains('DENIED') ||
+        a.contains('RECHAZ') || a.contains('CANCEL')) {
+      return _AccionCat.peligro;
+    }
+    // Eliminación → rojo
+    if (a == 'DELETE' || a.contains('ELIMINAR') || a.contains('REMOVER') ||
+        a.contains('BAJA')) {
+      return _AccionCat.eliminar;
+    }
+    // Sesión
+    if (a.contains('LOGIN') || a.contains('ACCESO')) return _AccionCat.login;
+    if (a.contains('LOGOUT'))                         return _AccionCat.logout;
+    // Password / recuperación
+    if (a.contains('PASSWORD') || a.contains('RECUPERAC')) {
+      return _AccionCat.password;
+    }
+    // Flujo de negocio (logística / operaciones)
+    if (a.contains('APROBAR') || a.contains('APROBADO') ||
+        a.contains('FIRMAR')  || a.contains('FIRMA')   ||
+        a.contains('ENTREGAR')|| a.contains('ENTREGADO')||
+        a.contains('FINALIZAR') || a.contains('GENERAR') ||
+        a.contains('PUBLICAR')) {
+      return _AccionCat.flujo;
+    }
+    // Movimientos de inventario / transferencias
+    if (a.contains('MOVIMIENTO') || a.contains('TRANSFER') ||
+        a.contains('AJUSTE')     || a.contains('STOCK')) {
+      return _AccionCat.movimiento;
+    }
+    // Modificación
+    if (a == 'UPDATE' || a.contains('ACTUALIZAR') || a.contains('EDITAR') ||
+        a.contains('MODIFICAR') || a.contains('CAMBIO')) {
+      return _AccionCat.modificar;
+    }
+    // Creación / inserción
+    if (a == 'INSERT' || a.contains('CREAR') || a.contains('AGREGAR') ||
+        a.contains('REGISTRAR') || a.contains('NUEVO')) {
+      return _AccionCat.crear;
+    }
+    return _AccionCat.otro;
   }
 
-  IconData get _accionIcon {
-    final a = item.accion.toUpperCase();
-    if (a.contains('FAILED') || a.contains('BLOCK')) return Icons.warning_amber_rounded;
-    if (a.contains('LOGIN'))    return Icons.login_rounded;
-    if (a.contains('LOGOUT'))   return Icons.logout_rounded;
-    if (a.contains('CREAR'))    return Icons.add_circle_outline_rounded;
-    if (a.contains('PASSWORD')) return Icons.lock_outline_rounded;
-    return Icons.history_rounded;
-  }
+  Color get _accionColor => switch (_categoria(item.accion)) {
+        _AccionCat.peligro    => _red,
+        _AccionCat.eliminar   => _red,
+        _AccionCat.login      => _blue,
+        _AccionCat.logout     => _gray,
+        _AccionCat.password   => _amber,
+        _AccionCat.flujo      => _purple,
+        _AccionCat.movimiento => _teal,
+        _AccionCat.modificar  => _amber,
+        _AccionCat.crear      => _green,
+        _AccionCat.otro       => _gray,
+      };
+
+  IconData get _accionIcon => switch (_categoria(item.accion)) {
+        _AccionCat.peligro    => Icons.warning_amber_rounded,
+        _AccionCat.eliminar   => Icons.delete_outline_rounded,
+        _AccionCat.login      => Icons.login_rounded,
+        _AccionCat.logout     => Icons.logout_rounded,
+        _AccionCat.password   => Icons.lock_outline_rounded,
+        _AccionCat.flujo      => Icons.workspace_premium_outlined,
+        _AccionCat.movimiento => Icons.swap_horiz_rounded,
+        _AccionCat.modificar  => Icons.edit_outlined,
+        _AccionCat.crear      => Icons.add_circle_outline_rounded,
+        _AccionCat.otro       => Icons.history_rounded,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -539,4 +598,17 @@ class _AuditoriaCard extends StatelessWidget {
       ),
     );
   }
+}
+
+enum _AccionCat {
+  crear,       // INSERT, CREAR, AGREGAR, REGISTRAR, NUEVO
+  modificar,   // UPDATE, ACTUALIZAR, EDITAR, MODIFICAR, CAMBIO
+  eliminar,    // DELETE, ELIMINAR, REMOVER, BAJA
+  login,       // LOGIN, ACCESO
+  logout,      // LOGOUT
+  password,    // PASSWORD, RECUPERACIÓN
+  flujo,       // APROBAR, FIRMAR, ENTREGAR, FINALIZAR, GENERAR, PUBLICAR
+  movimiento,  // MOVIMIENTO, TRANSFERENCIA, AJUSTE, STOCK
+  peligro,     // FAILED, BLOCK, DENIED, RECHAZAR, CANCEL
+  otro,
 }

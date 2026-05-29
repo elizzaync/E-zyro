@@ -12,6 +12,7 @@ import 'services/asistencia_service.dart';
 import 'services/auth_service.dart';
 import 'services/proyecto_service.dart';
 import 'utils/app_notifiers.dart';
+import 'utils/app_session.dart';
 import 'widgets/offline_overlay.dart';
 import 'screens/pantalla_splash.dart';
 import 'screens/pantalla_principal.dart';
@@ -304,6 +305,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late int _currentIndex;
   Timer? _syncTimer;
+  bool _puedeLogistica = false;
+
+  // Índice fijo de la pantalla de logística en _screens. Se mantiene en la
+  // lista aunque el usuario no tenga permiso para no descuadrar otros
+  // tabNotifier.value que se pasan entre módulos.
+  static const _logisticaScreenIdx = 2;
 
   // Inicio (0) y Operaciones (1) funcionan offline con datos cacheados.
   // El resto aún requiere red → OfflineOverlay los bloquea automáticamente.
@@ -323,6 +330,8 @@ class _MainShellState extends State<MainShell> {
     isOnlineNotifier.addListener(_onConnectivityChanged);
     sessionExpiredSyncNotifier.addListener(_onSessionExpiredDuringSync);
 
+    _cargarPermisos();
+
     // ── Sync al arrancar: si hay pendientes acumulados, enviarlos de inmediato
     WidgetsBinding.instance.addPostFrameCallback((_) => _triggerSync());
 
@@ -330,6 +339,19 @@ class _MainShellState extends State<MainShell> {
     _syncTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       if (isOnlineNotifier.value) _triggerSync();
     });
+  }
+
+  /// Carga los permisos relevantes para el bottom nav. Si el usuario inició en
+  /// una pestaña a la que ya no tiene acceso (p. ej. Logística), regresa al
+  /// Inicio para no dejarlo viendo una pantalla vacía.
+  Future<void> _cargarPermisos() async {
+    await AppSession.load();
+    if (!mounted) return;
+    final canLog = AppSession.i.canGestInventario;
+    setState(() => _puedeLogistica = canLog);
+    if (!canLog && _currentIndex == _logisticaScreenIdx) {
+      tabNotifier.value = 0;
+    }
   }
 
   @override
@@ -342,8 +364,15 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _onTabChanged() {
-    if (mounted && _currentIndex != tabNotifier.value) {
-      setState(() => _currentIndex = tabNotifier.value);
+    if (!mounted) return;
+    var target = tabNotifier.value;
+    // Bloqueo: si alguien intenta ir a logística sin permiso, redirigimos a Inicio.
+    if (!_puedeLogistica && target == _logisticaScreenIdx) {
+      tabNotifier.value = 0;
+      return;
+    }
+    if (_currentIndex != target) {
+      setState(() => _currentIndex = target);
     }
   }
 
@@ -462,9 +491,12 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  void _onTabTappedWithOfflineCheck(int index) {
+  /// Recibe el índice VISUAL del bottom nav (puede tener 4 ó 5 destinos según
+  /// permisos) y lo traduce al índice del array fijo `_screens`.
+  void _onTabTappedWithOfflineCheck(int visualIdx) {
+    final screenIdx = _navDestinations[visualIdx].screenIdx;
     // Inicio (0) y Operaciones (1) funcionan offline; el resto requiere red.
-    if (!isOnlineNotifier.value && index != 0 && index != 1) {
+    if (!isOnlineNotifier.value && screenIdx != 0 && screenIdx != 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(
@@ -487,7 +519,43 @@ class _MainShellState extends State<MainShell> {
         ),
       );
     }
-    tabNotifier.value = index;
+    tabNotifier.value = screenIdx;
+  }
+
+  /// Destinos del bottom nav. La pestaña Logística solo aparece para roles
+  /// con permiso de inventario (logística / admin / superadmin).
+  List<_NavDest> get _navDestinations => [
+        const _NavDest(
+          screenIdx: 0, label: 'Inicio',
+          icon: Icons.home_outlined, selectedIcon: Icons.home_rounded,
+        ),
+        const _NavDest(
+          screenIdx: 1, label: 'Operaciones',
+          icon: Icons.build_outlined, selectedIcon: Icons.build_rounded,
+        ),
+        if (_puedeLogistica)
+          const _NavDest(
+            screenIdx: _logisticaScreenIdx, label: 'Logística',
+            icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2_rounded,
+          ),
+        const _NavDest(
+          screenIdx: 3, label: 'Personal',
+          icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded,
+        ),
+        const _NavDest(
+          screenIdx: 4, label: 'Más',
+          icon: Icons.more_horiz_rounded, selectedIcon: Icons.more_horiz_rounded,
+        ),
+      ];
+
+  /// Traducción screen idx → posición en el nav visible. Si la pestaña actual
+  /// no está en el nav (no debería pasar tras `_cargarPermisos`), devuelve 0.
+  int get _visualSelectedIndex {
+    final dests = _navDestinations;
+    for (int i = 0; i < dests.length; i++) {
+      if (dests[i].screenIdx == _currentIndex) return i;
+    }
+    return 0;
   }
 
   @override
@@ -511,37 +579,33 @@ class _MainShellState extends State<MainShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
+        selectedIndex: _visualSelectedIndex,
         onDestinationSelected: _onTabTappedWithOfflineCheck,
         animationDuration: const Duration(milliseconds: 320),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home_rounded),
-            label: 'Inicio',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.build_outlined),
-            selectedIcon: Icon(Icons.build_rounded),
-            label: 'Operaciones',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.inventory_2_outlined),
-            selectedIcon: Icon(Icons.inventory_2_rounded),
-            label: 'Logística',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
-            label: 'Personal',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.more_horiz_rounded),
-            selectedIcon: Icon(Icons.more_horiz_rounded),
-            label: 'Más',
-          ),
+        destinations: [
+          for (final d in _navDestinations)
+            NavigationDestination(
+              icon: Icon(d.icon),
+              selectedIcon: Icon(d.selectedIcon),
+              label: d.label,
+            ),
         ],
       ),
     );
   }
+}
+
+/// Metadatos de un destino del bottom nav. `screenIdx` es la posición fija en
+/// `_MainShellState._screens` (no cambia entre roles).
+class _NavDest {
+  final int screenIdx;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  const _NavDest({
+    required this.screenIdx,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+  });
 }

@@ -18,6 +18,8 @@ import '../utils/app_session.dart';
 import '../utils/fase_servicio.dart';
 import '../services/comunicado_service.dart';
 import '../services/chat_service.dart';
+import '../services/prestamo_service.dart';
+import 'pantalla_prestamos_servicio.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import '../templates/informe_servicio_pdf.dart';
@@ -1508,6 +1510,43 @@ class _MaterialesTabState extends State<_MaterialesTab> {
   bool _consenso = false;
   String? _firmandoReqId;
 
+  // Préstamos del servicio (chip de aviso si hay devoluciones sin confirmar)
+  int _avisosPrestamoCount = 0;
+  PrestamoService? _prestamoService;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPrestamos();
+  }
+
+  Future<void> _initPrestamos() async {
+    _prestamoService = await getPrestamoService();
+    await _refrescarAvisosPrestamo();
+  }
+
+  Future<void> _refrescarAvisosPrestamo() async {
+    if (_prestamoService == null) return;
+    final avisos =
+        await _prestamoService!.getAvisosServicio(widget.servicioId);
+    if (!mounted) return;
+    setState(() => _avisosPrestamoCount = avisos.length);
+  }
+
+  Future<void> _abrirPrestamos() async {
+    // El nombre del servicio no viene en _MaterialesTab; usamos uno genérico.
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PantallaPrestamosServicio(
+          servicioId: widget.servicioId,
+          servicioNombre: 'Servicio',
+        ),
+      ),
+    );
+    if (mounted) await _refrescarAvisosPrestamo();
+  }
+
   Future<void> _abrirSolicitar() async {
     await showModalBottomSheet(
       context: context,
@@ -1562,23 +1601,65 @@ class _MaterialesTabState extends State<_MaterialesTab> {
     }
   }
 
-  // ── Firma de recepción de materiales (HU-16) ───────────────────────────────
-  // Un solo técnico firma para confirmar que recibió los materiales aprobados
-  // por Logística; evita errores de doble recepción.
+  // ── Firma de recepción de materiales (HU-16, modelo híbrido) ───────────────
+  // Cinema-seat: bloqueamos el lock ANTES de abrir la sheet para que ningún
+  // otro técnico del equipo pueda firmar a la vez (los demás verán el banner
+  // "X está firmando" en tiempo real por WS). Liberamos el lock si cancela o
+  // si la firma falla. Si todo va bien, el endpoint /firmar libera el lock
+  // automáticamente al hacer commit del nuevo estado 'aprobado'.
   Future<void> _firmarRecepcion(ReqRecepcion req) async {
+    // 1) Tomar el lock
+    final lock = await widget.service.bloquearFirmaRequerimiento(req.id);
+    if (!mounted) return;
+    if (!lock.ok) {
+      // El backend devuelve detail='firmando_por:Juan Pérez' cuando otro tiene el lock.
+      final quien = (lock.error ?? '').startsWith('firmando_por:')
+          ? lock.error!.substring('firmando_por:'.length)
+          : null;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          quien != null
+              ? '$quien está firmando ahora. Espera unos segundos…'
+              : 'No se pudo iniciar la firma. Reintenta en unos segundos.',
+          style: const TextStyle(color: Colors.white),
+        ),
+        backgroundColor: _amber,
+        behavior: SnackBarBehavior.floating,
+      ));
+      // Refrescar para que la UI pinte el banner "X está firmando"
+      await widget.onChanged();
+      return;
+    }
+
+    // 2) Abrir la sheet de firma (con el lock tomado)
     final firmaUrl = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _FirmaRecepcionSheet(req: req),
     );
-    if (firmaUrl == null || firmaUrl.isEmpty) return;
 
+    // 3) Si canceló (no devolvió firma), liberar el lock y salir
+    if (firmaUrl == null || firmaUrl.isEmpty) {
+      await widget.service.liberarFirmaRequerimiento(req.id);
+      return;
+    }
+
+    // 4) Enviar la firma — el backend libera el lock al hacer commit
     setState(() => _firmandoReqId = req.id);
     final res = await widget.service
         .firmarRequerimiento(req.id, firmaUrl, servicioId: widget.servicioId);
     if (!mounted) return;
     setState(() => _firmandoReqId = null);
+
+    // 5) Si el POST online falló, liberamos el lock manualmente (offline
+    // queda encolado: NO liberamos para no soltar el "asiento" durante la
+    // ventana hasta el reintento).
+    if (!res.ok && !res.queued) {
+      await widget.service.liberarFirmaRequerimiento(req.id);
+      if (!mounted) return;
+    }
+
     final String msg;
     final Color color;
     if (res.queued) {
@@ -1610,6 +1691,13 @@ class _MaterialesTabState extends State<_MaterialesTab> {
         ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
           children: [
+            // ── Equipos y herramientas (préstamos FASE 5) ─────────────────────
+            _EquiposHerramientasCard(
+              avisosCount: _avisosPrestamoCount,
+              onTap: _abrirPrestamos,
+            ),
+            const SizedBox(height: 16),
+
             // ── Recepción de materiales (firma HU-16) ─────────────────────────
             if (widget.reqsRecepcion.isNotEmpty) ...[
               const _SectionTitle('Recepción de Materiales',
@@ -2563,13 +2651,23 @@ class _RecepcionCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
 
-    // Estado de la recepción según el flujo: comprando → listo → aprobado.
+    // MODELO HÍBRIDO — flujo: comprando → listo → aprobado → entregado.
+    //   'comprando'  ámbar  → sin stock, en proceso de compra
+    //   'listo'      verde  → disponible, técnico puede firmar
+    //   'aprobado'   azul   → técnico firmó, pendiente cierre administrativo
+    //   'entregado'  verde  → logística cerró contablemente (final completo)
+    const kBlueRecepcion = Color(0xFF3B82F6);
     final (String titulo, Color colorEstado, IconData iconoEstado) =
-        req.recibido
-            ? ('Recibido por el equipo', _green, Icons.inventory_2_outlined)
-            : req.enCompra
-                ? ('En compra · llegará pronto', _amber, Icons.shopping_cart_outlined)
-                : ('Listo para recibir', _green, Icons.inventory_2_outlined);
+        req.cerrado
+            ? ('Cerrado por logística', _green, Icons.verified_outlined)
+            : req.recibido
+                ? ('Recibido · pendiente cierre log', kBlueRecepcion,
+                   Icons.assignment_turned_in_outlined)
+                : req.enCompra
+                    ? ('En compra · llegará pronto', _amber,
+                       Icons.shopping_cart_outlined)
+                    : ('Listo para recibir', _green,
+                       Icons.inventory_2_outlined);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -2626,16 +2724,30 @@ class _RecepcionCard extends StatelessWidget {
           Text('Solicitado por ${req.solicitanteNombre}${req.fecha != null ? ' · ${req.fecha}' : ''}',
               style: const TextStyle(color: Colors.grey, fontSize: 11)),
           const SizedBox(height: 12),
-          if (req.recibido)
+          if (req.cerrado)
             Row(
               children: const [
-                Icon(Icons.check_circle, size: 16, color: _green),
+                Icon(Icons.verified, size: 16, color: _green),
                 SizedBox(width: 6),
-                Text('Recibido · firmado por el equipo',
+                Text('Cerrado · doble firma archivada',
                     style: TextStyle(
-                        color: _green,
+                        color: _green, fontSize: 12.5, fontWeight: FontWeight.w600)),
+              ],
+            )
+          else if (req.recibido)
+            Row(
+              children: const [
+                Icon(Icons.check_circle, size: 16, color: kBlueRecepcion),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Firmado por el equipo · esperando cierre de logística',
+                    style: TextStyle(
+                        color: kBlueRecepcion,
                         fontSize: 12.5,
-                        fontWeight: FontWeight.w600)),
+                        fontWeight: FontWeight.w600),
+                  ),
+                ),
               ],
             )
           else if (req.enCompra)
@@ -2652,11 +2764,34 @@ class _RecepcionCard extends StatelessWidget {
                 ),
               ],
             )
-          else
+          else ...[
+            // Banner "X está firmando ahora" — actualizado en tiempo real por WS.
+            if (req.hayAlguienFirmando && !firmando) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _amber.withValues(alpha: 0.4)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.draw_outlined, size: 14, color: _amber),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${req.firmandoPorNombre} está firmando ahora…',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: _amber, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ]),
+              ),
+            ],
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: firmando ? null : onFirmar,
+                onPressed: (firmando || req.hayAlguienFirmando) ? null : onFirmar,
                 icon: firmando
                     ? const SizedBox(
                         width: 16,
@@ -2664,17 +2799,24 @@ class _RecepcionCard extends StatelessWidget {
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.draw_outlined, size: 16),
-                label: Text(firmando ? 'Firmando...' : 'Firmar recepción',
+                label: Text(
+                    firmando
+                        ? 'Firmando...'
+                        : (req.hayAlguienFirmando
+                            ? 'Otro técnico está firmando'
+                            : 'Firmar recepción'),
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _green,
                   foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade400,
                   padding: const EdgeInsets.symmetric(vertical: 11),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -3781,3 +3923,93 @@ class _ErrorView extends StatelessWidget {
     );
   }
 }
+
+// ─── Card de acceso a Equipos y Herramientas (FASE 5) ────────────────────────
+// Reemplaza la antigua "Solicitar materiales" desde pantalla_logistica: ahora
+// los préstamos viven vinculados al servicio.
+class _EquiposHerramientasCard extends StatelessWidget {
+  final int avisosCount;
+  final VoidCallback onTap;
+  const _EquiposHerramientasCard({
+    required this.avisosCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final hayAvisos = avisosCount > 0;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(14),
+          border: hayAvisos
+              ? Border.all(color: _amber.withValues(alpha: 0.5), width: 1.5)
+              : (isDark
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                  : null),
+          boxShadow: isDark
+              ? null
+              : [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2)),
+                ],
+        ),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _green.withValues(alpha: isDark ? 0.15 : 0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.handyman_outlined,
+                color: _green, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Equipos y herramientas',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14)),
+                SizedBox(height: 2),
+                Text(
+                    'Solicita y devuelve equipos para este servicio',
+                    style: TextStyle(color: Colors.grey, fontSize: 11.5)),
+              ],
+            ),
+          ),
+          if (hayAvisos)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _amber.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _amber.withValues(alpha: 0.4)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.warning_amber_rounded, size: 12, color: _amber),
+                const SizedBox(width: 4),
+                Text('$avisosCount sin confirmar',
+                    style: const TextStyle(
+                        color: _amber,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+        ]),
+      ),
+    );
+  }
+}
+

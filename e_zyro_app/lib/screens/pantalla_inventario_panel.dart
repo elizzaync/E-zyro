@@ -10,6 +10,7 @@ import 'pantalla_materiales_logistica.dart';
 import 'pantalla_compras_logistica.dart';
 import 'pantalla_proveedores_logistica.dart';
 import 'pantalla_transferencias_logistica.dart';
+import 'pantalla_prestamos_logistica.dart';
 
 /// Panel del encargado de logística — dashboard de inventario + accesos a la
 /// gestión. Usa el estilo "Paper Dots" (bitácora) de forma permanente.
@@ -84,7 +85,7 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
                       const SizedBox(height: 16),
                       _buildKpis(),
                       const SizedBox(height: 22),
-                      const PaperSectionHeader(title: 'Gestión', trailing: '06 áreas'),
+                      const PaperSectionHeader(title: 'Gestión', trailing: '07 áreas'),
                       const SizedBox(height: 12),
                       _buildGestion(),
                       const SizedBox(height: 22),
@@ -233,9 +234,17 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const PantallaMaterialesLogistica())),
       ),
+      _AccesoData(
+        icon: Icons.handyman_outlined,
+        color: kPaperSky,
+        label: 'Préstamos',
+        subtitle: 'Equipos / herram.',
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaPrestamosLogistica())),
+      ),
     ];
 
-    const rots = [-1.5, 1.5, -1.2, 1.5, -1.5, 1.5];
+    const rots = [-1.5, 1.5, -1.2, 1.5, -1.5, 1.5, -1.5];
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),

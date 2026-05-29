@@ -51,10 +51,15 @@ class ReqRecepcionItem {
 
 class ReqRecepcion {
   final String id;
-  final String estado; // pendiente | aprobado | listo | entregado | rechazado
+  final String estado; // pendiente | comprando | listo | aprobado | entregado | rechazado
   final String? fecha;
   final String solicitanteNombre;
   final List<ReqRecepcionItem> items;
+
+  /// MODELO HÍBRIDO — quién mantiene el lock de firma (si hay alguien firmando).
+  /// Se actualiza en tiempo real vía WS (`requerimiento_actualizado`).
+  final String? firmandoPorNombre;
+  final String? firmandoDesde;
 
   const ReqRecepcion({
     required this.id,
@@ -62,6 +67,8 @@ class ReqRecepcion {
     this.fecha,
     required this.solicitanteNombre,
     required this.items,
+    this.firmandoPorNombre,
+    this.firmandoDesde,
   });
 
   /// 'listo' = materiales disponibles (de stock o compra ya llegada) →
@@ -71,8 +78,19 @@ class ReqRecepcion {
   /// 'comprando' = sin stock, en proceso de compra (informativo, no firmable).
   bool get enCompra => estado == 'comprando';
 
-  /// 'aprobado' = recibido por el equipo (firmado) — estado final.
+  /// MODELO HÍBRIDO — 'aprobado' = el técnico firmó la recepción.
+  /// Estado funcional final desde el campo (el equipo ya tiene los materiales),
+  /// pero PENDIENTE de cierre administrativo por logística.
   bool get recibido => estado == 'aprobado';
+
+  /// MODELO HÍBRIDO — 'entregado' = logística cerró contablemente con su firma.
+  /// Estado final completo (las dos firmas están en `RequerimientoEntrega`).
+  bool get cerrado => estado == 'entregado';
+
+  /// True si hay un técnico activamente firmando ahora mismo (cinema-seat).
+  /// La UI debe deshabilitar el botón "Firmar" para los demás dispositivos.
+  bool get hayAlguienFirmando =>
+      firmandoPorNombre != null && firmandoPorNombre!.isNotEmpty;
 
   /// Ítems que efectivamente llegan (no rechazados).
   List<ReqRecepcionItem> get itemsValidos =>
@@ -86,6 +104,8 @@ class ReqRecepcion {
         items: (j['items'] as List? ?? [])
             .map((e) => ReqRecepcionItem.fromJson(e as Map<String, dynamic>))
             .toList(),
+        firmandoPorNombre: j['firmandoPorNombre'] as String?,
+        firmandoDesde: j['firmandoDesde'] as String?,
       );
 }
 

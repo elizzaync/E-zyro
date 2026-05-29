@@ -83,54 +83,115 @@ class RequerimientoService {
     return const InventarioResumen();
   }
 
-  // Bandeja del encargado: solicitudes pendientes/gestionables
+  // Bandeja del encargado: solicitudes pendientes/gestionables.
+  // Migrado a /logistica/requerimientos (HU-16 web). 'todos' o null = lista
+  // sin filtro de estado; cualquier otro valor se reenvía tal cual.
   Future<List<SolicitudGestion>> getSolicitudesPendientes({
     String? estado,
   }) async {
     try {
-      final query = (estado != null && estado.isNotEmpty)
-          ? '?estado=${Uri.encodeComponent(estado)}'
-          : '';
-      final r = await _client.get('/requerimientos/pendientes$query');
+      final params = <String, String>{
+        'estado': (estado == null || estado.isEmpty) ? 'todos' : estado,
+        'page_size': '200',
+      };
+      final query =
+          '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+      final r = await _client.get('/logistica/requerimientos$query');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        final list = (body['items'] as List? ?? []);
         return list
-            .map((e) => SolicitudGestion.fromJson(e as Map<String, dynamic>))
+            .map((e) => SolicitudGestion.fromJson(
+                _requerimientoToSnake(e as Map<String, dynamic>)))
             .toList();
       }
     } catch (_) {}
     return [];
   }
 
-  // Aprobar o rechazar una solicitud (accion: 'aprobar' | 'rechazar')
+  // Aprobar o rechazar una solicitud (accion: 'aprobar' | 'rechazar').
+  // Migrado a /logistica/requerimientos/{id}/aprobar|rechazar (HU-16 web).
+  // Para 'aprobar' se envía decisiones=[]: el backend auto-decide ítem por ítem
+  // (lo que está en stock → aprueba; lo que no → marca 'para_compra').
   Future<bool> gestionarSolicitud(
     String reqId,
     String accion, {
     String? observacion,
   }) async {
     try {
-      final r = await _client.patch('/requerimientos/$reqId/gestionar', {
-        'accion': accion,
-        if (observacion != null && observacion.isNotEmpty)
-          'observacion_logistico': observacion,
-      });
-      return r.statusCode == 200;
+      if (accion == 'aprobar') {
+        final body = <String, dynamic>{
+          'decisiones': <Map<String, dynamic>>[],
+          if (observacion != null && observacion.isNotEmpty)
+            'observacion': observacion,
+        };
+        final r = await _client.post(
+          '/logistica/requerimientos/$reqId/aprobar',
+          body,
+        );
+        return r.statusCode == 200;
+      }
+      if (accion == 'rechazar') {
+        final r = await _client.post(
+          '/logistica/requerimientos/$reqId/rechazar',
+          {
+            'observacion': (observacion != null && observacion.isNotEmpty)
+                ? observacion
+                : 'Rechazado por Logística',
+          },
+        );
+        return r.statusCode == 200;
+      }
+      return false;
     } catch (_) {
       return false;
     }
   }
 
-  // Marcar una solicitud como entregada (descuenta stock)
+  // Marcar una solicitud como entregada (descuenta stock).
+  // Migrado a /logistica/requerimientos/{id}/entregar. Sin firma virtual: el
+  // backend usa al solicitante como receptor por defecto (fallback móvil).
   Future<bool> entregarSolicitud(String reqId) async {
     try {
-      final r = await _client.post('/requerimientos/$reqId/entregar', {});
+      final r = await _client.post(
+        '/logistica/requerimientos/$reqId/entregar',
+        <String, dynamic>{},
+      );
       return r.statusCode == 200 || r.statusCode == 201;
     } catch (_) {
       return false;
     }
   }
 
-  // Fase 3: ajuste manual de stock (tipo: 'entrada' | 'salida' | 'ajuste')
+  // Convierte una respuesta RequerimientoOut (camelCase) al shape snake_case que
+  // espera SolicitudGestion.fromJson, sin tocar el modelo Dart.
+  Map<String, dynamic> _requerimientoToSnake(Map<String, dynamic> j) {
+    final items = (j['items'] as List? ?? [])
+        .map((it) {
+          final m = it as Map<String, dynamic>;
+          return <String, dynamic>{
+            'id': m['id'],
+            'material_id': m['materialId'],
+            'nombre': m['nombre'],
+            'unidad': m['unidad'],
+            'cantidad': m['cantidad'],
+            'cantidad_aprobada': m['cantidadAprobada'],
+          };
+        })
+        .toList();
+    return <String, dynamic>{
+      'id': j['id'],
+      'estado': j['estado'],
+      'fecha': j['fecha'] ?? '',
+      'observacion': j['observacion'],
+      'observacion_logistico': j['observacionLogistico'],
+      'proyecto_nombre': j['proyectoNombre'] ?? 'Proyecto',
+      'solicitante_nombre': j['solicitanteNombre'] ?? 'Sin nombre',
+      'items': items,
+    };
+  }
+
+  // Fase 3: ajuste manual de stock — migrado a POST /logistica/inventario/ajuste.
   Future<bool> ajustarStock({
     required String materialId,
     required String tipo,
@@ -139,7 +200,7 @@ class RequerimientoService {
     String? almacenId,
   }) async {
     try {
-      final r = await _client.post('/requerimientos/inventario/ajuste', {
+      final r = await _client.post('/logistica/inventario/ajuste', {
         'material_id': materialId,
         'tipo': tipo,
         'cantidad': cantidad,
@@ -152,14 +213,14 @@ class RequerimientoService {
     }
   }
 
-  // Fase 3: historial de movimientos (opcional filtro por material)
+  // Fase 3: historial de movimientos — migrado a GET /logistica/inventario/movimientos.
   Future<List<MovimientoStock>> getMovimientos({String? materialId}) async {
     try {
       final query = (materialId != null && materialId.isNotEmpty)
           ? '?material_id=${Uri.encodeComponent(materialId)}'
           : '';
       final r = await _client.get(
-        '/requerimientos/inventario/movimientos$query',
+        '/logistica/inventario/movimientos$query',
       );
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List? ?? [];
@@ -171,12 +232,15 @@ class RequerimientoService {
     return [];
   }
 
-  // Fase 4: editar material (cualquier campo opcional + cantidad_minima)
+  // Fase 4: editar material — migrado a PATCH /logistica/materiales/{id}.
+  // El parámetro `unidad` se ignora aquí porque la web modela la unidad como
+  // FK (unidadId) y el móvil solo conoce el string; cambiar unidad requiere
+  // pasar por el flujo completo con dropdown de catálogo.
   Future<bool> editarMaterial(
     String materialId, {
     String? nombre,
     String? codigo,
-    String? unidad,
+    String? unidad, // ignorado intencionalmente — ver comentario arriba
     String? descripcion,
     String? categoriaId,
     int? cantidadMinima,
@@ -185,13 +249,12 @@ class RequerimientoService {
       final body = <String, dynamic>{
         'nombre': ?nombre,
         'codigo': ?codigo,
-        'unidad': ?unidad,
         'descripcion': ?descripcion,
-        'categoria_id': ?categoriaId,
-        'cantidad_minima': ?cantidadMinima,
+        'categoriaId': ?categoriaId,
+        'stockMinimo': ?cantidadMinima,
       };
       final r = await _client.patch(
-        '/requerimientos/inventario/material/$materialId',
+        '/logistica/materiales/$materialId',
         body,
       );
       return r.statusCode == 200;
@@ -200,40 +263,40 @@ class RequerimientoService {
     }
   }
 
-  // Fase 4: baja lógica de material
+  // Fase 4: baja lógica de material — migrado a DELETE /logistica/materiales/{id}.
+  // La web devuelve 204 No Content.
   Future<bool> eliminarMaterial(String materialId) async {
     try {
-      final r = await _client.delete(
-        '/requerimientos/inventario/material/$materialId',
-      );
-      return r.statusCode == 200;
+      final r = await _client.delete('/logistica/materiales/$materialId');
+      return r.statusCode == 204 || r.statusCode == 200;
     } catch (_) {
       return false;
     }
   }
 
-  // Fase 4: crear categoría
+  // Fase 4: crear categoría — migrado a POST /logistica/categorias.
+  // El endpoint web no acepta `descripcion`; se omite si llega.
   Future<bool> crearCategoria(String nombre, {String? descripcion}) async {
     try {
-      final r = await _client.post('/requerimientos/categorias', {
+      final r = await _client.post('/logistica/categorias', {
         'nombre': nombre,
-        if (descripcion != null && descripcion.isNotEmpty)
-          'descripcion': descripcion,
       });
-      return r.statusCode == 201;
+      return r.statusCode == 200 || r.statusCode == 201;
     } catch (_) {
       return false;
     }
   }
 
-  // Fase 4: eliminar categoría (falla si tiene materiales)
+  // Fase 4: eliminar categoría — migrado a DELETE /logistica/categorias/{id}.
+  // Falla con 409 si la categoría tiene materiales asociados.
   Future<({bool ok, String? error})> eliminarCategoria(
     String categoriaId,
   ) async {
     try {
-      final r = await _client.delete('/requerimientos/categorias/$categoriaId');
-      if (r.statusCode == 200) return (ok: true, error: null);
-      // intentar extraer detalle
+      final r = await _client.delete('/logistica/categorias/$categoriaId');
+      if (r.statusCode == 200 || r.statusCode == 204) {
+        return (ok: true, error: null);
+      }
       try {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         return (ok: false, error: body['detail'] as String?);
@@ -245,7 +308,8 @@ class RequerimientoService {
     }
   }
 
-  // Fase 6: transferir stock entre almacenes
+  // Fase 6: transferir stock entre almacenes —
+  // migrado a POST /logistica/inventario/transferencia.
   Future<({bool ok, String? error})> transferirStock({
     required String materialId,
     required String almacenOrigenId,
@@ -254,7 +318,7 @@ class RequerimientoService {
     String? motivo,
   }) async {
     try {
-      final r = await _client.post('/requerimientos/inventario/transferencia', {
+      final r = await _client.post('/logistica/inventario/transferencia', {
         'material_id': materialId,
         'almacen_origen_id': almacenOrigenId,
         'almacen_destino_id': almacenDestinoId,

@@ -509,7 +509,8 @@ class ProyectoService {
             .where((req) =>
                 req.estado == 'comprando' ||
                 req.estado == 'listo' ||
-                req.estado == 'aprobado')
+                req.estado == 'aprobado' ||
+                req.estado == 'entregado')   // híbrido: mostrar el ciclo completo
             .toList();
       }
     } catch (_) {}
@@ -529,6 +530,42 @@ class ProyectoService {
         {'reqId': reqId, 'firmaUrl': firmaUrl},
         servicioId,
       );
+
+  /// Cinema-seat lock para firma — toma el "asiento" antes de abrir la sheet.
+  /// Devuelve `(ok: true)` si pude bloquear; `(ok: false, error: 'firmando_por:Juan')`
+  /// si otro técnico ya está firmando (con su nombre en el detail). El WS del
+  /// servicio emite `requerimiento_actualizado` para que los demás dispositivos
+  /// vean en vivo quién tomó el lock.
+  // POST /logistica/requerimientos/{id}/bloquear-firma
+  Future<({bool ok, String? error})> bloquearFirmaRequerimiento(String reqId) async {
+    try {
+      final r = await _client.post(
+        '/logistica/requerimientos/$reqId/bloquear-firma',
+        const <String, dynamic>{},
+      );
+      if (r.statusCode == 200) return (ok: true, error: null);
+      try {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return (ok: false, error: body['detail'] as String?);
+      } catch (_) {
+        return (ok: false, error: null);
+      }
+    } catch (_) {
+      return (ok: false, error: null);
+    }
+  }
+
+  /// Libera el cinema-seat lock (cuando el técnico cancela la sheet o falla
+  /// la firma). Best-effort: si falla la red, el timeout de 2 min del backend
+  /// lo libera automáticamente.
+  // DELETE /logistica/requerimientos/{id}/bloquear-firma
+  Future<void> liberarFirmaRequerimiento(String reqId) async {
+    try {
+      await _client.delete('/logistica/requerimientos/$reqId/bloquear-firma');
+    } catch (_) {
+      // best-effort: el timeout de 2 min cubre el caso
+    }
+  }
 
   // ── Notas del servicio (CRUD) ───────────────────────────────────────────────
 

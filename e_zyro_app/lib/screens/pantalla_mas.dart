@@ -10,6 +10,8 @@ import 'pantalla_auditoria.dart';
 import 'pantalla_mantenimientos.dart';
 import 'pantalla_comunicados.dart';
 import 'pantalla_editar_perfil.dart';
+import 'pantalla_mis_sesiones.dart';
+import 'pantalla_personal.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -24,6 +26,7 @@ class _MoreScreenState extends State<MoreScreen> {
   String _fotoUrl = '';
   bool _puedeVerAuditoria = false;
   bool _puedeVerMantenimiento = false;
+  bool _puedeVerPersonal = false;
 
   @override
   void initState() {
@@ -41,6 +44,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _fotoUrl  = prefs.getString('user_foto_url') ?? '';
         _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
         _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
+        _puedeVerPersonal    = AppSession.i.canGestPersonal;
       });
     }
   }
@@ -215,6 +219,14 @@ class _MoreScreenState extends State<MoreScreen> {
                   ),
                 ),
                 _MenuItem(
+                  icon: Icons.devices_other_outlined,
+                  label: 'Mis conexiones',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaMisSesiones()),
+                  ),
+                ),
+                _MenuItem(
                   icon: Icons.settings_outlined,
                   label: 'Configuración',
                   onTap: () => _showInfoDialog(
@@ -224,7 +236,7 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
               ],
             ),
-            if (_puedeVerAuditoria || _puedeVerMantenimiento) ...[
+            if (_puedeVerAuditoria || _puedeVerMantenimiento || _puedeVerPersonal) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
@@ -239,6 +251,15 @@ class _MoreScreenState extends State<MoreScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (_) => const PantallaMantenimientos()),
+                      ),
+                    ),
+                  if (_puedeVerPersonal)
+                    _MenuItem(
+                      icon: Icons.groups_2_outlined,
+                      label: 'Personal',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PantallaPersonal()),
                       ),
                     ),
                   if (_puedeVerAuditoria)
