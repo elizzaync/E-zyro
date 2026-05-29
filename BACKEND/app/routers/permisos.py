@@ -18,6 +18,7 @@ from app.services.cloudinary_service import (
     subir_imagen_cloudinary,
     subir_pdf_bytes_cloudinary,
 )
+from app.services.cloudinary_paths import carpeta_firma
 
 router = APIRouter(prefix="/permisos", tags=["Permisos"])
 
@@ -102,10 +103,11 @@ async def guardar_firma(
         usuario_id = current_user.get("id")
         empresa_id = current_user.get("empresa_id")
 
-        firma_public_id = f"e-zyro/firmas/firma_{usuario_id}"
+        _firma_folder = carpeta_firma(empresa_id, "permisos")
+        firma_public_id = f"{_firma_folder}/firma_{usuario_id}"
         firma_url = subir_imagen_cloudinary(
             base64_data=firma_base64,
-            folder="e-zyro/firmas",
+            folder=_firma_folder,
             public_id=f"firma_{usuario_id}",
         )
 

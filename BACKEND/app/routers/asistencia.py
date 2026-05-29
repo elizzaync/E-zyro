@@ -22,6 +22,7 @@ from ..models.geolocalizacion_asistencia    import GeolocalizacionAsistencia
 from ..models.registro_asistencia           import RegistroAsistencia
 
 from ..services.cloudinary_service import subir_imagen_cloudinary
+from ..services.cloudinary_paths import carpeta_biometrico, carpeta_asistencia
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,7 @@ def subir_foto_base(
     ).update({"activa": False}, synchronize_session=False)
 
     # Subir nueva foto a Cloudinary
-    bio_folder  = f"biometrico/{empresa_id}/{usuario_id}"
+    bio_folder  = carpeta_biometrico(empresa_id, usuario_id)
     bio_name    = f"base_{uuid.uuid4().hex[:10]}"
     public_id   = f"{bio_folder}/{bio_name}"
     try:
@@ -338,7 +339,7 @@ def marcar_asistencia(
     selfie_url:       Optional[str] = None
     selfie_public_id: Optional[str] = None
     try:
-        selfie_folder = f"asistencia/{empresa_id}/{empleado.id}"
+        selfie_folder = carpeta_asistencia(empresa_id, empleado.id, ahora.strftime('%Y-%m'))
         selfie_name   = f"{ahora.strftime('%Y%m%d')}_{uuid.uuid4().hex[:10]}"
         selfie_public_id = f"{selfie_folder}/{selfie_name}"
         selfie_url = subir_imagen_cloudinary(

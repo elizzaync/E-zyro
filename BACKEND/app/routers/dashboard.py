@@ -40,6 +40,7 @@ from app.models.documento_laboral import DocumentoLaboral
 # Servicios y Seguridad
 from app.core.security import verificar_token, es_superadmin
 from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
+from app.services.cloudinary_paths import carpeta_perfil
 from app.services.fcm_service import (
     enviar_push_a_usuario,
     notificar_asignacion_servicio,
@@ -1172,7 +1173,7 @@ def actualizar_perfil(datos: PerfilUpdate, current_user: dict = Depends(verifica
             nombre_archivo = f"{usuario.id}_{primer_nombre}"
             url_optimizada = subir_imagen_cloudinary(
                 base64_data=datos.fotoBase64,
-                folder="e-zyro/perfiles",
+                folder=carpeta_perfil(usuario.empresa_id),
                 public_id=nombre_archivo,
                 is_perfil=True
             )

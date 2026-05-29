@@ -25,6 +25,7 @@ from ..core.security import verificar_token, es_superadmin
 from ..db.database import get_db
 import requests as _requests
 from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary
+from ..services.cloudinary_paths import carpeta_evidencia, carpeta_mantenimiento
 
 # Modelos ORM
 from ..models.proyecto_servicio import ProyectoServicio
@@ -746,7 +747,7 @@ async def subir_evidencia(
         ProyectoServicio.id == proc.proyecto_servicio_id
     ).first()
 
-    folder = f"evidencias/{empresa_id}/{ps.proyecto_id}"
+    folder = carpeta_evidencia(empresa_id, ps.proyecto_id, ps.id)
     url    = await subir_archivo_cloudinary(archivo, folder)
     pub_id = _extract_public_id(url)
 
@@ -1941,7 +1942,7 @@ async def subir_evidencia_paso(
         orden.fecha_inicio = orden.fecha_inicio or datetime.utcnow()
 
     # Subir a Cloudinary
-    folder = f"e_zyro/{empresa_id}/mantenimiento/{equipo.id}"
+    folder = carpeta_mantenimiento(empresa_id, equipo.id)
     try:
         url = await subir_archivo_cloudinary(foto, folder)
     except Exception as exc:

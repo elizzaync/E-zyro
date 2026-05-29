@@ -28,6 +28,10 @@ def carpeta_asistencia(empresa_id: str, empleado_id: str, periodo_ym: str) -> st
     return f"{_emp(empresa_id)}/asistencia/{empleado_id}/{periodo_ym}"
 
 
+def carpeta_biometrico(empresa_id: str, usuario_id: str) -> str:
+    return f"{_emp(empresa_id)}/biometrico/{usuario_id}"
+
+
 def carpeta_evidencia(empresa_id: str, proyecto_id: str, servicio_id: str) -> str:
     return f"{_emp(empresa_id)}/evidencias/{proyecto_id}/{servicio_id}"
 
