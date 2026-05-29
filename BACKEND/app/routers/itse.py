@@ -18,8 +18,12 @@ from ..db.database import get_db
 from ..models.itse import InspeccionItse, InspeccionTablero, InspeccionItem
 from ..models.ubicacion import Ubicacion
 from ..models.zona import Zona
-from ..services.cloudinary_service import subir_e_indexar
+from ..services.cloudinary_service import subir_e_indexar, subir_pdf_bytes_cloudinary, registrar_recurso
 from ..services.cloudinary_paths import carpeta_itse
+from ..services.pdf_docs import generar_informe_itse
+from ..models.recurso_cloudinary import RecursoCloudinary
+from ..models.empresa import Empresa
+from ..models.cliente import Cliente
 from ..schemas.itse import (
     InspeccionIn, InspeccionOut, TableroIn, TableroOut,
     ItemIn, ItemOut, FotoIn,
@@ -53,6 +57,57 @@ def _out(i: InspeccionItse) -> InspeccionOut:
         fecha=(str(i.fecha) if i.fecha else None), estado=i.estado,
         pdf_url=i.pdf_url, observaciones=i.observaciones,
     )
+
+
+def _generar_informe_pdf(db: Session, payload: dict, i: InspeccionItse) -> str:
+    """Compila tableros + ítems + fotos de la inspección en un PDF, lo sube e indexa, y fija pdf_url."""
+    empresa_id = payload["empresa_id"]
+    empresa = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+    cliente = None
+    if i.cliente_id:
+        cli = db.query(Cliente).filter(Cliente.id == i.cliente_id).first()
+        if cli:
+            cliente = getattr(cli, "razon_social", None) or getattr(cli, "nombre", None)
+    ubic = db.query(Ubicacion.nombre).filter(Ubicacion.id == i.ubicacion_id).scalar() if i.ubicacion_id else None
+    zona = db.query(Zona.nombre).filter(Zona.id == i.zona_id).scalar() if i.zona_id else None
+    tableros = db.query(InspeccionTablero).filter(InspeccionTablero.inspeccion_id == i.id).all()
+    items = db.query(InspeccionItem).filter(InspeccionItem.inspeccion_id == i.id).all()
+    ent_ids = [str(i.id)] + [str(t.id) for t in tableros]
+    fotos = [
+        r[0] for r in db.query(RecursoCloudinary.secure_url).filter(
+            RecursoCloudinary.empresa_id == empresa_id,
+            RecursoCloudinary.entidad_tipo == "itse",
+            RecursoCloudinary.entidad_id.in_(ent_ids),
+        ).all()
+    ]
+    data = {
+        "empresa": empresa, "cliente": cliente, "ubicacion": ubic, "zona": zona,
+        "modo": i.modo, "fecha": str(i.fecha) if i.fecha else None, "estado": i.estado,
+        "observaciones": i.observaciones,
+        "tableros": [{"nombre": t.nombre, "ambiente": t.ambiente, "descripcion": t.descripcion} for t in tableros],
+        "items": [{"descripcion": x.descripcion, "resultado": x.resultado, "observacion": x.observacion} for x in items],
+        "fotos": fotos,
+    }
+    pdf = generar_informe_itse(data)
+    pid = f"e-zyro/{empresa_id}/itse/{i.id}/informe_{i.id}"
+    url = subir_pdf_bytes_cloudinary(pdf, pid)
+    registrar_recurso(
+        db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+        folder=carpeta_itse(empresa_id, str(i.id)), recurso_tipo="pdf",
+        entidad_tipo="itse", entidad_id=str(i.id), descripcion="Informe ITSE",
+        creado_por_id=payload.get("id"),
+    )
+    i.pdf_url = url
+    db.commit()
+    return url
+
+
+@router.post("/{iid}/informe", response_model=InspeccionOut)
+def generar_informe(iid: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    exigir_permiso(db, payload, "itse", "editar")
+    i = _insp_or_404(db, payload["empresa_id"], iid)
+    _generar_informe_pdf(db, payload, i)
+    return _out(i)
 
 
 # ── Inspecciones ─────────────────────────────────────────────────────────────
@@ -135,7 +190,10 @@ def finalizar(iid: str, payload: dict = Depends(verificar_token), db: Session = 
             raise HTTPException(status_code=409, detail="Una inspección por tablero requiere al menos un tablero")
     i.estado = "finalizada"
     db.commit()
-    # NOTA: generación del PDF entregable (pdf_url) en iteración posterior (pdf_service).
+    try:
+        _generar_informe_pdf(db, payload, i)  # genera el PDF entregable al finalizar
+    except Exception:  # noqa: BLE001 — no romper el cierre si falla la subida del PDF
+        pass
     return _out(i)
 
 

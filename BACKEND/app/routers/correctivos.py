@@ -17,8 +17,12 @@ from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.correctivo import ServicioCorrectivo, ServicioObservacion
 from ..models.proyecto_servicio import ProyectoServicio
-from ..services.cloudinary_service import subir_e_indexar, eliminar_imagen_cloudinary
+from ..services.cloudinary_service import (
+    subir_e_indexar, eliminar_imagen_cloudinary, subir_pdf_bytes_cloudinary, registrar_recurso,
+)
 from ..services.cloudinary_paths import carpeta_correctivo
+from ..services.pdf_docs import generar_informe_correctivo
+from ..models.empresa import Empresa
 from ..schemas.correctivos import (
     CorrectivoIn, CorrectivoOut, TransicionIn, InformeIn,
     ObservacionIn, ObservacionOut, TRANSICIONES,
@@ -145,6 +149,41 @@ def subir_informe(cid: str, body: InformeIn, payload: dict = Depends(verificar_t
         entidad_tipo="correctivo", entidad_id=cid, creado_por_id=payload.get("id"),
     )
     c.informe_url = rec.secure_url
+    db.commit()
+    return _out(c)
+
+
+@router.post("/{cid}/generar-informe", response_model=CorrectivoOut)
+def generar_informe(cid: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Genera un informe PDF del correctivo (datos + última observación) y lo fija como informe_url."""
+    exigir_permiso(db, payload, "correctivo", "editar")
+    empresa_id = payload["empresa_id"]
+    c = _correctivo_or_404(db, empresa_id, cid)
+    servicio = db.query(ProyectoServicio.nombre).filter(ProyectoServicio.id == c.servicio_id).scalar() or ""
+    empresa = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+    ult = (
+        db.query(ServicioObservacion)
+        .filter(ServicioObservacion.correctivo_id == cid)
+        .order_by(ServicioObservacion.created_at.desc()).first()
+    )
+    obs_txt = None
+    if ult:
+        obs_txt = " ".join(filter(None, [ult.observaciones, ult.recomendaciones])) or None
+    data = {
+        "empresa": empresa, "codigo": c.codigo, "servicio": servicio, "estado": c.estado,
+        "alcance": c.alcance, "fecha_inicio": c.fecha_inicio, "fecha_fin": c.fecha_fin,
+        "observaciones": obs_txt,
+    }
+    pdf = generar_informe_correctivo(data)
+    pid = f"e-zyro/{empresa_id}/correctivos/{cid}/informe_{cid}"
+    url = subir_pdf_bytes_cloudinary(pdf, pid)
+    registrar_recurso(
+        db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+        folder=carpeta_correctivo(empresa_id, cid), recurso_tipo="pdf",
+        entidad_tipo="correctivo", entidad_id=cid, descripcion="Informe de correctivo",
+        creado_por_id=payload.get("id"),
+    )
+    c.informe_url = url
     db.commit()
     return _out(c)
 

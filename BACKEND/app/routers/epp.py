@@ -18,8 +18,13 @@ from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.epp import Epp, EppEntrega, EppEntregaDetalle, EppIngreso, EppIngresoDetalle
 from ..models.empleado import Empleado
-from ..services.cloudinary_service import subir_e_indexar, eliminar_imagen_cloudinary
+from ..services.cloudinary_service import (
+    subir_e_indexar, eliminar_imagen_cloudinary, subir_pdf_bytes_cloudinary, registrar_recurso,
+)
 from ..services.cloudinary_paths import carpeta_epp, carpeta_epp_entrega
+from ..services.pdf_docs import generar_constancia_epp
+from ..models.usuario import Usuario
+from ..models.empresa import Empresa
 from ..schemas.epp import (
     EppIn, EppOut, EppImagenIn,
     EntregaIn, EntregaOut, EntregaItemOut,
@@ -219,6 +224,45 @@ def anular_entrega(entrega_id: str, payload: dict = Depends(verificar_token), db
         id=str(en.id), empleado_id=str(en.empleado_id), fecha=str(en.fecha),
         estado=en.estado, firma_url=en.firma_url, pdf_url=en.pdf_url,
         observacion=en.observacion, items=_items_out(db, detalles),
+    )
+
+
+@router.post("/entregas/{entrega_id}/constancia", response_model=EntregaOut)
+def generar_constancia(entrega_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    exigir_permiso(db, payload, "epp", "entregar")
+    empresa_id = payload["empresa_id"]
+    en = db.query(EppEntrega).filter(EppEntrega.id == entrega_id, EppEntrega.empresa_id == empresa_id).first()
+    if not en:
+        raise HTTPException(status_code=404, detail="Entrega no encontrada")
+    detalles = db.query(EppEntregaDetalle).filter(EppEntregaDetalle.entrega_id == en.id).all()
+    items = _items_out(db, detalles)
+    fila = (
+        db.query(Usuario.nombre, Usuario.apellido)
+        .join(Empleado, Empleado.usuario_id == Usuario.id)
+        .filter(Empleado.id == en.empleado_id).first()
+    )
+    receptor = f"{fila[0]} {fila[1] or ''}".strip() if fila else str(en.empleado_id)
+    empresa = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+    data = {
+        "empresa": empresa, "receptor": receptor, "fecha": str(en.fecha),
+        "observacion": en.observacion, "firma_url": en.firma_url,
+        "items": [{"nombre": it.nombre, "cantidad": it.cantidad} for it in items],
+    }
+    pdf = generar_constancia_epp(data)
+    pid = f"e-zyro/{empresa_id}/epp-entregas/{entrega_id}/constancia_{entrega_id}"
+    url = subir_pdf_bytes_cloudinary(pdf, pid)
+    registrar_recurso(
+        db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+        folder=carpeta_epp_entrega(empresa_id, entrega_id), recurso_tipo="pdf",
+        entidad_tipo="epp_entrega", entidad_id=entrega_id, descripcion="Constancia de entrega EPP",
+        creado_por_id=payload.get("id"),
+    )
+    en.pdf_url = url
+    db.commit()
+    return EntregaOut(
+        id=str(en.id), empleado_id=str(en.empleado_id), empleado_nombre=receptor,
+        fecha=str(en.fecha), estado=en.estado, firma_url=en.firma_url, pdf_url=en.pdf_url,
+        observacion=en.observacion, items=items,
     )
 
 
