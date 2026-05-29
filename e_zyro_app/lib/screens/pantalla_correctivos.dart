@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/correctivo_models.dart';
 import '../services/correctivo_service.dart';
@@ -69,6 +70,19 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
     }
   }
 
+  Future<void> _informe(Correctivo c) async {
+    final res = await _svc!.generarInforme(c.id);
+    if (!mounted) return;
+    if (res.ok) {
+      Clipboard.setData(ClipboardData(text: res.data ?? ''));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Informe generado · enlace copiado')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));
+    }
+  }
+
   Color _colorEstado(String estado) => switch (estado) {
         'finalizado' => Colors.green,
         'aprobado' => Colors.teal,
@@ -110,6 +124,11 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
                                   label: Text(c.estado, style: const TextStyle(fontSize: 11, color: Colors.white)),
                                   backgroundColor: _colorEstado(c.estado),
                                   visualDensity: VisualDensity.compact,
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                                  tooltip: 'Generar informe (PDF)',
+                                  onPressed: () => _informe(c),
                                 ),
                                 if (puedeAvanzar)
                                   IconButton(

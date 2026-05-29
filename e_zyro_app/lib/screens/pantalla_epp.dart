@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/epp_models.dart';
 import '../services/epp_service.dart';
@@ -137,6 +138,19 @@ class _PantallaEppState extends State<PantallaEpp> {
     );
   }
 
+  Future<void> _constancia(EppEntrega en) async {
+    final res = await _svc!.generarConstancia(en.id);
+    if (!mounted) return;
+    if (res.ok) {
+      Clipboard.setData(ClipboardData(text: res.data ?? ''));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Constancia generada · enlace copiado')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));
+    }
+  }
+
   Widget _entregasTab() {
     if (_entregas.isEmpty) {
       return const Center(child: Text('Sin entregas registradas.'));
@@ -153,7 +167,17 @@ class _PantallaEppState extends State<PantallaEpp> {
             leading: Icon(en.estado == 'anulada' ? Icons.cancel_outlined : Icons.assignment_turned_in_outlined),
             title: Text(resumen.isEmpty ? '(sin ítems)' : resumen),
             subtitle: Text('Fecha: ${en.fecha ?? '-'} · ${en.estado}'),
-            trailing: en.firmaUrl != null ? const Icon(Icons.draw_outlined, size: 18) : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (en.firmaUrl != null) const Icon(Icons.draw_outlined, size: 18),
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                  tooltip: 'Generar constancia (PDF)',
+                  onPressed: () => _constancia(en),
+                ),
+              ],
+            ),
           );
         },
       ),

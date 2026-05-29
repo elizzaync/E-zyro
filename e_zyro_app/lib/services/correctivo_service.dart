@@ -53,6 +53,21 @@ class CorrectivoService {
     }
   }
 
+  /// Genera el informe PDF del correctivo; devuelve la URL.
+  Future<ApiResult<String>> generarInforme(String id) async {
+    try {
+      final r = await _client.post('/correctivos/$id/generar-informe', {},
+          timeout: const Duration(seconds: 90));
+      if (r.statusCode == 200) {
+        final url = (jsonDecode(r.body) as Map)['informe_url']?.toString() ?? '';
+        return ApiResult.ok(url);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<Observacion>>> observaciones(String servicioId) async {
     try {
       final r = await _client.get('/correctivos/servicios/$servicioId/observaciones');

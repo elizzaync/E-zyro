@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/itse_models.dart';
 import '../services/itse_service.dart';
@@ -89,6 +90,19 @@ class _PantallaItseState extends State<PantallaItse> {
     }
   }
 
+  Future<void> _informe(InspeccionItse it) async {
+    final res = await _svc!.generarInforme(it.id);
+    if (!mounted) return;
+    if (res.ok) {
+      Clipboard.setData(ClipboardData(text: res.data ?? ''));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Informe ITSE generado · enlace copiado')));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -116,7 +130,17 @@ class _PantallaItseState extends State<PantallaItse> {
                             leading: Icon(it.modo == 'zona' ? Icons.map_outlined : Icons.dashboard_outlined),
                             title: Text('Inspección ${it.modo} · ${it.fecha ?? ''}'),
                             subtitle: Text(it.observaciones ?? 'Sin observaciones'),
-                            trailing: Chip(label: Text(it.estado, style: const TextStyle(fontSize: 11))),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Chip(label: Text(it.estado, style: const TextStyle(fontSize: 11))),
+                                IconButton(
+                                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                                  tooltip: 'Generar informe (PDF)',
+                                  onPressed: () => _informe(it),
+                                ),
+                              ],
+                            ),
                           );
                         },
                       ),

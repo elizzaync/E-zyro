@@ -50,6 +50,20 @@ class ItseService {
     }
   }
 
+  /// Genera el informe PDF de la inspección; devuelve la URL.
+  Future<ApiResult<String>> generarInforme(String id) async {
+    try {
+      final r = await _client.post('/itse/$id/informe', {}, timeout: const Duration(seconds: 90));
+      if (r.statusCode == 200) {
+        final url = (jsonDecode(r.body) as Map)['pdf_url']?.toString() ?? '';
+        return ApiResult.ok(url);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<InspeccionItse>> finalizar(String id) async {
     try {
       final r = await _client.post('/itse/$id/finalizar', {});
