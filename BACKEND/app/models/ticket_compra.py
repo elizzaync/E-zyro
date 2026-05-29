@@ -54,3 +54,7 @@ class TicketCompraItem(Base):
     factura                  = Column(String(100), nullable=True)
     estado_item              = Column(String(20), nullable=False, default="pendiente")
     nota                     = Column(Text, nullable=True)
+    # Fase 2 — sugerencia automática (snapshot inmutable para auditoría)
+    cantidad_sugerida        = Column(Integer, nullable=True)
+    stock_al_aprobar         = Column(Integer, nullable=True)
+    stock_minimo_al_aprobar  = Column(Integer, nullable=True)

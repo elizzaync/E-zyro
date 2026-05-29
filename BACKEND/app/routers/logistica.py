@@ -1608,6 +1608,9 @@ def _ticket_item_out(it: TicketCompraItem) -> TicketCompraItemOut:
         materialId=it.material_id,
         nombre=it.nombre,
         cantidad=int(it.cantidad or 0),
+        cantidadSugerida=int(it.cantidad_sugerida) if it.cantidad_sugerida is not None else None,
+        stockAlAprobar=int(it.stock_al_aprobar) if it.stock_al_aprobar is not None else None,
+        stockMinimoAlAprobar=int(it.stock_minimo_al_aprobar) if it.stock_minimo_al_aprobar is not None else None,
         cantidadComprada=int(it.cantidad_comprada) if it.cantidad_comprada is not None else None,
         unidad=it.unidad or "",
         precioUnitario=float(it.precio_unitario) if it.precio_unitario is not None else None,
@@ -1698,22 +1701,55 @@ def _crear_ticket_compra(
     db.flush()  # necesitamos tc.id para los ítems
 
     for d in detalles_compra:
-        nombre = d.nombre_libre or "—"
-        unidad = d.unidad_libre or ""
+        nombre          = d.nombre_libre or "—"
+        unidad          = d.unidad_libre or ""
+        qty_solicitada  = int(d.cantidad or 0)
+        cantidad_ticket = qty_solicitada   # valor que verá logística (editable)
+        sugerida        = None             # snapshot inmutable
+        stock_snap      = None
+        minimo_snap     = None
+
         if d.material_id:
             mat = db.query(Material).filter(Material.id == d.material_id).first()
             if mat:
                 nombre = mat.nombre
                 unidad = mat.unidad or unidad
+
+            # ── Fórmula de sugerencia automática (Fase 2) ─────────────────
+            # stock_actual y stock_minimo al momento de la aprobación
+            stock_total, stock_minimo, _, _ = _stock_principal(db, d.material_id, empresa_id)
+            stock_snap  = stock_total
+            minimo_snap = stock_minimo
+
+            # Faltante para cubrir el pedido
+            faltante   = max(0, qty_solicitada - stock_total)
+            # Reposición para dejar el stock por encima del mínimo en un 50 %
+            reposicion = int(stock_minimo * 1.5)
+            sugerida   = faltante + reposicion
+
+            # Si la sugerencia fuera 0 o negativa (edge case), usamos al menos
+            # la cantidad solicitada para no generar un ticket inútil
+            if sugerida <= 0:
+                sugerida = qty_solicitada
+
+            cantidad_ticket = sugerida  # logística parte de la sugerencia
+
+        else:
+            # Ítem de texto libre: sin stock de referencia, comprar lo solicitado
+            sugerida = qty_solicitada
+
         db.add(TicketCompraItem(
             id=str(_uuid.uuid4()),
             ticket_id=tc.id,
             requerimiento_detalle_id=str(d.id),
             material_id=str(d.material_id) if d.material_id else None,
             nombre=nombre,
-            cantidad=int(d.cantidad or 0),
+            cantidad=cantidad_ticket,
             unidad=unidad,
             estado_item="pendiente",
+            cantidad_sugerida=sugerida,
+            stock_al_aprobar=stock_snap,
+            stock_minimo_al_aprobar=minimo_snap,
         ))
 
     return tc

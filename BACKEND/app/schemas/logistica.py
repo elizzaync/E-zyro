@@ -284,21 +284,24 @@ class FirmarBody(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TicketCompraItemOut(BaseModel):
-    id:                 str
-    ticketId:           str
-    materialId:         Optional[str] = None
-    nombre:             str
-    cantidad:           int
-    cantidadComprada:   Optional[int]   = None
-    unidad:             str             = ""
-    precioUnitario:     Optional[float] = None
-    totalItem:          Optional[float] = None
-    proveedorId:        Optional[str]   = None
-    proveedorNombre:    Optional[str]   = None
-    canalPersonalizado: Optional[str]   = None
-    factura:            Optional[str]   = None
-    estadoItem:         str             = "pendiente"
-    nota:               Optional[str]   = None
+    id:                   str
+    ticketId:             str
+    materialId:           Optional[str] = None
+    nombre:               str
+    cantidad:             int            # cantidad a comprar (editable por logística)
+    cantidadSugerida:     Optional[int]  = None  # sugerencia automática (solo lectura)
+    stockAlAprobar:       Optional[int]  = None  # snapshot de stock al momento de aprobar
+    stockMinimoAlAprobar: Optional[int]  = None  # snapshot de mínimo al momento de aprobar
+    cantidadComprada:     Optional[int]  = None
+    unidad:               str            = ""
+    precioUnitario:       Optional[float] = None
+    totalItem:            Optional[float] = None
+    proveedorId:          Optional[str]   = None
+    proveedorNombre:      Optional[str]   = None
+    canalPersonalizado:   Optional[str]   = None
+    factura:              Optional[str]   = None
+    estadoItem:           str             = "pendiente"
+    nota:                 Optional[str]   = None
 
 
 class TicketCompraOut(BaseModel):
