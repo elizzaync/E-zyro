@@ -189,6 +189,171 @@
 .rc-btn-deliver { background: #3b82f6; color: #fff; }
 .rc-btn-deliver:hover:not(:disabled) { background: #2563eb; }
 .rc-btn-deliver:disabled { opacity: .6; cursor: not-allowed; }
+.rc-btn-auto    { background: #f59e0b; color: #fff; border-color: #f59e0b; }
+.rc-btn-auto:hover:not(:disabled) { background: #d97706; }
+.rc-btn-auto:disabled { opacity: .6; cursor: not-allowed; }
+.rc-btn-cerrar  { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+.rc-btn-cerrar:hover { background: #1e40af; }
+.rc-btn-report  { background: transparent; border-color: #e2e8f0; color: #64748b; }
+.rc-btn-report:hover { border-color: #3b82f6; color: #2563eb; background: rgba(59,130,246,.06); }
+.rc-btn-report svg { width: 12px; height: 12px; }
+
+/* ── Chips de acción ── */
+.rc-estado-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 700;
+}
+.rc-chip-comprando { background: rgba(139,92,246,.1); color: #7c3aed; }
+.rc-chip-firma-pend {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;
+  background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+}
+.rc-chip-firma-info { font-size: 11.5px; color: #94a3b8; font-style: italic; }
+
+/* ═══════════════════════════════════════════════════════
+   AGRUPACIÓN POR SERVICIO
+═══════════════════════════════════════════════════════ */
+.req-grupo {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e7eae6);
+  border-radius: 14px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+
+.req-grupo-hdr {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 18px;
+  background: var(--bg-color, #f8fafc);
+  border-bottom: 1px solid var(--border-color, #e7eae6);
+}
+
+.req-grupo-toggle {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  border: 1px solid var(--border-color, #e7eae6); background: var(--card-bg, #fff);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted, #64748b); padding: 0;
+}
+.req-grupo-toggle:hover { border-color: var(--brand-green, #91d337); }
+.req-grupo-chevron { width: 14px; height: 14px; transition: transform .2s; }
+.req-grupo-chevron.open { transform: rotate(180deg); }
+
+.req-grupo-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.req-grupo-svc  {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 14px; font-weight: 800; color: var(--text-main, #0f172a);
+}
+.req-grupo-proy { font-size: 11.5px; color: var(--text-muted, #64748b); }
+
+.req-grupo-badges { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; }
+.rg-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700;
+  white-space: nowrap;
+}
+.rg-badge-pend  { background: #fef3c7;              color: #92400e; }
+.rg-badge-comp  { background: rgba(139,92,246,.12); color: #7c3aed; }
+.rg-badge-firma { background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; }
+.rg-badge-apro  { background: rgba(59,130,246,.12); color: #2563eb; }
+.rg-badge-ok    { background: rgba(145,211,55,.16); color: #4d7d18; }
+
+.req-grupo-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+
+.req-btn-solicitado {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  background: transparent; border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-muted, #64748b); cursor: pointer; font-family: 'Inter', sans-serif;
+  transition: border-color .15s;
+}
+.req-btn-solicitado:hover, .req-btn-solicitado.active { border-color: #3b82f6; color: #2563eb; background: rgba(59,130,246,.06); }
+
+/* Ítems solicitados expandibles */
+.req-solicitado {
+  padding: 14px 18px;
+  background: rgba(59,130,246,.03);
+  border-bottom: 1px solid var(--border-color, #e7eae6);
+}
+.req-sol-header { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
+.req-sol-title  { font-size: 12px; font-weight: 700; color: var(--text-main, #334155); }
+.req-sol-nota   { font-size: 11px; color: var(--text-muted, #94a3b8); }
+
+.req-sol-chips  { display: flex; flex-wrap: wrap; gap: 6px; }
+.req-sol-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 8px; font-size: 11.5px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  color: var(--text-main, #334155);
+}
+.req-sol-chip--compra { border-color: rgba(139,92,246,.3); background: rgba(139,92,246,.06); }
+.req-sol-chip--ok     { border-color: rgba(145,211,55,.4); background: rgba(145,211,55,.08); }
+.rsc-nombre  { font-weight: 600; }
+.rsc-cant    { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.rsc-estado  { padding: 1px 7px; border-radius: 12px; font-size: 10.5px; font-weight: 700; }
+.rsc-compra-lock { color: #7c3aed; }
+
+/* Filas de requerimientos dentro del grupo */
+.req-grupo-rows { padding: 8px 0; }
+
+.req-row-card {
+  display: flex; flex-direction: column;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  padding: 0 18px;
+  transition: background .12s;
+}
+.req-row-card:last-child { border-bottom: none; }
+.req-row-card:hover { background: rgba(145,211,55,.03); }
+.req-row-card--pend { border-left: 3px solid #f59e0b; }
+.req-row-card--listo { border-left: 3px solid #f59e0b; }
+.req-row-card--apro  { border-left: 3px solid #3b82f6; }
+.req-row-card--done  { border-left: 3px solid #91d337; }
+.req-row-card--rech  { border-left: 3px solid #fca5a5; }
+
+.rrc-main {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 11px 0;
+}
+.rrc-sol   { display: flex; align-items: center; gap: 7px; min-width: 160px; }
+.rrc-items { display: flex; flex-wrap: wrap; gap: 5px; flex: 1; min-width: 0; }
+.rrc-estado { flex-shrink: 0; }
+.rrc-fecha  { font-size: 12px; color: var(--text-muted, #94a3b8); white-space: nowrap; flex-shrink: 0; }
+.rrc-acciones { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+
+.rrc-obs {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 0 0 10px;
+  background: var(--bg-color, #f8fafc); border-radius: 8px;
+  padding: 7px 10px; margin-bottom: 8px; font-size: 12px;
+}
+
+/* ── Info box en modal entrega ── */
+.rm-entrega-info {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 16px; border-radius: 10px;
+  background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.2);
+  font-size: 13px; color: #1e40af; margin-bottom: 16px;
+}
+.rm-entrega-otros {
+  font-size: 11.5px; color: #64748b; padding: 6px 0 0; font-style: italic;
+}
+
+/* ── Nuevo CSS para firmas operaciones ── */
+.firma-req--listo  { border-left: 3px solid #f59e0b; }
+.firma-req--comprando { border-left: 3px solid #8b5cf6; }
+.firma-chip--compra { background: rgba(139,92,246,.1); color: #7c3aed; border-color: rgba(139,92,246,.25); }
+.firma-en-proceso {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+}
+.firma-comprando {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  background: rgba(139,92,246,.1); color: #7c3aed;
+}
 
 /* ═══════════════════════════════════════════════════════
    MODAL DE REVISIÓN (layout split)

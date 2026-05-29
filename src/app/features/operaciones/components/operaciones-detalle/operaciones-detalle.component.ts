@@ -459,17 +459,18 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   // ──────────────────────────────────────────────────────────
   cargarReqsListos(): void {
     if (!this.servicioId) return;
-    // Trae aprobados y listos (los listos ya firmados, para mostrar estado)
     this.logistica.getRequerimientos({ estado: 'todos', servicioId: this.servicioId }).subscribe({
       next: (reqs) => {
-        this.reqsListos = reqs.filter(r => r.estado === 'aprobado' || r.estado === 'listo');
+        this.reqsListos = reqs.filter(r =>
+          r.estado === 'listo' || r.estado === 'aprobado' || r.estado === 'comprando'
+        );
       },
       error: () => { /* silencioso */ }
     });
   }
 
   get hayReqsPorFirmar(): boolean {
-    return this.reqsListos.some(r => r.estado === 'aprobado');
+    return this.reqsListos.some(r => r.estado === 'listo');
   }
 
   abrirFirma(req: Requerimiento): void {
@@ -537,17 +538,143 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     const dataUrl = this.firmaCanvasEl!.nativeElement.toDataURL('image/png');
     this.firmando = true;
     this.logistica.firmarRequerimiento(this.reqAFirmar.id, '', dataUrl).subscribe({
-      next: () => {
+      next: (req) => {
         this.firmando = false;
         this.toast.mostrar('Recepción firmada. Logística fue notificada.', 'success');
         this.cerrarFirma();
         this.cargarReqsListos();
+        this.generarPDFSalida(req);
       },
       error: (err: any) => {
         this.firmando = false;
         this.toast.mostrar(err?.error?.detail ?? 'No se pudo firmar.', 'error');
       }
     });
+  }
+
+  async generarPDFSalida(req: import('../../../logistica/logistica.models').Requerimiento): Promise<void> {
+    try {
+      const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
+      const INK    = rgb(0.09, 0.12, 0.18);
+      const MUTED  = rgb(0.40, 0.46, 0.56);
+      const RULE   = rgb(0.88, 0.90, 0.93);
+      const HDR_BG = rgb(0.96, 0.97, 0.98);
+      const ACCENT = rgb(0.569, 0.827, 0.216);
+      const PW = 595, PH = 842, ML = 44, MR = 44;
+      const BODY_W = PW - ML - MR;
+      const doc     = await PDFDocument.create();
+      const regular = await doc.embedFont(StandardFonts.Helvetica);
+      const bold    = await doc.embedFont(StandardFonts.HelveticaBold);
+      const page    = doc.addPage([PW, PH]);
+      let y = PH - 50;
+      const ROW_H = 20;
+      const ty = (topY: number) => topY - ROW_H + 6;
+      const hLine = (yy: number) => {
+        page.drawLine({ start: { x: ML, y: yy }, end: { x: PW - MR, y: yy }, thickness: 0.5, color: RULE });
+      };
+
+      page.drawText('REPORTE DE SALIDA DE EQUIPOS Y HERRAMIENTAS', { x: ML, y, size: 13, font: bold, color: INK });
+      y -= 18;
+      page.drawText('E-System TIC · Gestión de Logística de Campo', { x: ML, y, size: 8.5, font: regular, color: MUTED });
+      y -= 8;
+      page.drawLine({ start: { x: ML, y }, end: { x: PW - MR, y }, thickness: 1.5, color: ACCENT });
+      y -= 20;
+
+      const emitDate = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+      const C2 = ML + Math.floor(BODY_W / 2) + 8;
+      page.drawText('Proyecto', { x: ML, y, size: 7.5, font: regular, color: MUTED });
+      page.drawText('Fecha de emisión', { x: C2, y, size: 7.5, font: regular, color: MUTED });
+      y -= 13;
+      const proj = req.proyectoNombre.length > 38 ? req.proyectoNombre.slice(0, 35) + '…' : req.proyectoNombre;
+      page.drawText(proj, { x: ML, y, size: 9, font: bold, color: INK });
+      page.drawText(emitDate, { x: C2, y, size: 9, font: bold, color: INK });
+      y -= 18;
+      page.drawText('Servicio', { x: ML, y, size: 7.5, font: regular, color: MUTED });
+      page.drawText('N° Requerimiento', { x: C2, y, size: 7.5, font: regular, color: MUTED });
+      y -= 13;
+      page.drawText(req.servicioNombre ?? '—', { x: ML, y, size: 9, font: bold, color: INK });
+      page.drawText(req.id.slice(0, 8).toUpperCase(), { x: C2, y, size: 9, font: bold, color: INK });
+      y -= 18;
+      page.drawText('Responsable de recepción', { x: ML, y, size: 7.5, font: regular, color: MUTED });
+      page.drawText('Solicitado por', { x: C2, y, size: 7.5, font: regular, color: MUTED });
+      y -= 13;
+      page.drawText(req.recibidoPorNombre ?? this._nombreUsuario, { x: ML, y, size: 9, font: bold, color: INK });
+      page.drawText(req.solicitanteNombre, { x: C2, y, size: 9, font: bold, color: INK });
+      y -= 22;
+      hLine(y); y -= 14;
+
+      page.drawText(
+        'NOTA: El firmante es responsable de todos los productos no consumibles (equipos y herramientas).',
+        { x: ML, y, size: 7.5, font: regular, color: MUTED }
+      );
+      y -= 22;
+
+      page.drawText('DETALLE DE MATERIALES, EQUIPOS Y HERRAMIENTAS', { x: ML, y, size: 9, font: bold, color: INK });
+      y -= 14;
+      hLine(y);
+      page.drawRectangle({ x: ML, y: y - ROW_H, width: BODY_W, height: ROW_H, color: HDR_BG });
+      page.drawText('#',           { x: ML + 4,        y: ty(y), size: 7.5, font: bold, color: MUTED });
+      page.drawText('Descripción', { x: ML + 24,       y: ty(y), size: 7.5, font: bold, color: MUTED });
+      page.drawText('Tipo',        { x: PW - MR - 160, y: ty(y), size: 7.5, font: bold, color: MUTED });
+      page.drawText('Cant.',       { x: PW - MR - 80,  y: ty(y), size: 7.5, font: bold, color: MUTED });
+      page.drawText('Unidad',      { x: PW - MR - 46,  y: ty(y), size: 7.5, font: bold, color: MUTED });
+      y -= ROW_H; hLine(y);
+
+      const items = req.items.filter(it => it.estadoItem !== 'rechazado');
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (y - ROW_H < 160) break;
+        const nom = it.nombre.length > 46 ? it.nombre.slice(0, 43) + '…' : it.nombre;
+        const tipo = it.esCompraExterna ? 'Compra externa' :
+                     (it.especificacion?.toLowerCase().includes('equipo') ? 'Equipo' :
+                      it.especificacion?.toLowerCase().includes('herramienta') ? 'Herramienta' : 'Material');
+        const esNC = tipo === 'Equipo' || tipo === 'Herramienta';
+        page.drawText(`${i + 1}`, { x: ML + 4, y: ty(y), size: 8, font: regular, color: MUTED });
+        page.drawText(nom, { x: ML + 24, y: ty(y), size: 8, font: esNC ? bold : regular, color: INK });
+        page.drawText(tipo, { x: PW - MR - 160, y: ty(y), size: 7.5, font: regular, color: esNC ? rgb(0.56, 0.27, 0.87) : MUTED });
+        page.drawText(`${it.cantidadAprobada ?? it.cantidad}`, { x: PW - MR - 80, y: ty(y), size: 8, font: bold, color: INK });
+        page.drawText(it.unidad, { x: PW - MR - 46, y: ty(y), size: 7.5, font: regular, color: MUTED });
+        y -= ROW_H; hLine(y);
+      }
+      y -= 20;
+
+      const SIG_TOP = Math.max(y, 160);
+      hLine(SIG_TOP + 60);
+      const SIG_W = Math.floor(BODY_W / 2) - 20;
+      page.drawText('RECIBIDO POR (TÉCNICO RESPONSABLE)', { x: ML, y: SIG_TOP + 70, size: 7, font: bold, color: MUTED });
+      page.drawText('ENTREGADO POR (LOGÍSTICA)', { x: ML + SIG_W + 40, y: SIG_TOP + 70, size: 7, font: bold, color: MUTED });
+
+      if (req.firmaUrl?.startsWith('data:image')) {
+        try {
+          const b64 = req.firmaUrl.split(',')[1];
+          const imgB = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          const img = await doc.embedPng(imgB.buffer as ArrayBuffer);
+          const d = img.scaleToFit(SIG_W, 50);
+          page.drawImage(img, { x: ML, y: SIG_TOP + 8, width: d.width, height: d.height });
+        } catch { /* no se pudo embeber */ }
+      }
+
+      page.drawText(req.recibidoPorNombre ?? '________________________________', { x: ML, y: SIG_TOP - 4, size: 8, font: regular, color: INK });
+      page.drawText('Técnico / Responsable de Recepción', { x: ML, y: SIG_TOP - 16, size: 7.5, font: regular, color: MUTED });
+      page.drawText(req.entregadoPorNombre ?? '________________________________', { x: ML + SIG_W + 40, y: SIG_TOP - 4, size: 8, font: regular, color: INK });
+      page.drawText('Responsable de Logística', { x: ML + SIG_W + 40, y: SIG_TOP - 16, size: 7.5, font: regular, color: MUTED });
+
+      page.drawLine({ start: { x: ML, y: 46 }, end: { x: PW - MR, y: 46 }, thickness: 0.5, color: RULE });
+      page.drawText('E-System TIC Perú S.A.C. · Reporte de Salida de Materiales · Documento Oficial de Control', {
+        x: ML, y: 33, size: 7, font: regular, color: MUTED
+      });
+
+      const bytes = await doc.save();
+      const blob  = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement('a');
+      a.href     = url;
+      a.download = `salida-${req.proyectoNombre.replace(/\s+/g, '-').slice(0, 20)}-${req.id.slice(0, 6)}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    } catch (err) {
+      console.error('Error generando PDF de salida:', err);
+    }
   }
 
   cargarBorrador(): void {

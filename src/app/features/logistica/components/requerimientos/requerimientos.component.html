@@ -15,11 +15,10 @@
       </div>
       <div>
         <h1 class="req-title">Requerimientos</h1>
-        <p class="req-subtitle">Solicitudes de materiales de los equipos de campo</p>
+        <p class="req-subtitle">Solicitudes de materiales de los equipos de campo · agrupadas por servicio</p>
       </div>
     </div>
 
-    <!-- KPI rápido -->
     @if (pendientesCount > 0) {
       <div class="req-kpi-alert">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -50,7 +49,7 @@
     <input type="text" [(ngModel)]="busqueda" placeholder="Buscar por proyecto, servicio, solicitante o material…">
   </div>
 
-  <!-- Tabla de requerimientos -->
+  <!-- Lista agrupada por servicio -->
   @if (cargando) {
     <div class="req-estado"><app-spinner [size]="34"></app-spinner><span>Cargando…</span></div>
   } @else if (lista.length === 0) {
@@ -61,26 +60,117 @@
       <span>{{ tab === 'activos' ? 'No hay requerimientos activos.' : 'Sin historial de consumo.' }}</span>
     </div>
   } @else {
-    <div class="req-table-wrap">
-      <table class="req-table">
-        <thead>
-          <tr>
-            <th>Solicitante</th>
-            <th>Proyecto / Servicio</th>
-            <th>Materiales</th>
-            <th>Reporte</th>
-            <th>Estado</th>
-            <th>Fecha</th>
-            <th class="th-acciones">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (r of lista; track r.id) {
-            <tr class="req-row" [class.req-row--pend]="r.estado === 'pendiente'" [class.req-row--listo]="r.estado === 'listo'">
 
-              <!-- Solicitante -->
-              <td>
-                <div class="rt-sol">
+    @for (grupo of gruposPorServicio; track grupo.key) {
+    <div class="req-grupo">
+
+      <!-- Cabecera del grupo (servicio) -->
+      <div class="req-grupo-hdr">
+        <button class="req-grupo-toggle" (click)="toggleGrupo(grupo.key)" [title]="isGrupoExpandido(grupo.key) ? 'Colapsar' : 'Expandir'">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="req-grupo-chevron" [class.open]="isGrupoExpandido(grupo.key)">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
+        <div class="req-grupo-info">
+          <span class="req-grupo-svc">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            {{ grupo.servicioNombre }}
+          </span>
+          <span class="req-grupo-proy">{{ grupo.proyectoNombre }}</span>
+        </div>
+
+        <!-- Conteos de estado -->
+        <div class="req-grupo-badges">
+          @if (cuentaEstado(grupo, 'pendiente') > 0) {
+            <span class="rg-badge rg-badge-pend">{{ cuentaEstado(grupo, 'pendiente') }} pendiente{{ cuentaEstado(grupo, 'pendiente') !== 1 ? 's' : '' }}</span>
+          }
+          @if (cuentaEstado(grupo, 'comprando') > 0) {
+            <span class="rg-badge rg-badge-comp">{{ cuentaEstado(grupo, 'comprando') }} comprando</span>
+          }
+          @if (cuentaEstado(grupo, 'listo') > 0) {
+            <span class="rg-badge rg-badge-firma">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              {{ cuentaEstado(grupo, 'listo') }} falta firma técnico
+            </span>
+          }
+          @if (cuentaEstado(grupo, 'aprobado') > 0) {
+            <span class="rg-badge rg-badge-apro">{{ cuentaEstado(grupo, 'aprobado') }} recibido{{ cuentaEstado(grupo, 'aprobado') !== 1 ? 's' : '' }}</span>
+          }
+          @if (cuentaEstado(grupo, 'entregado') > 0) {
+            <span class="rg-badge rg-badge-ok">{{ cuentaEstado(grupo, 'entregado') }} cerrado{{ cuentaEstado(grupo, 'entregado') !== 1 ? 's' : '' }}</span>
+          }
+        </div>
+
+        <!-- Acciones globales del grupo -->
+        <div class="req-grupo-actions">
+          <!-- Ver todos los ítems solicitados -->
+          <button class="req-btn-solicitado" (click)="toggleSolicitado(grupo.key)" [class.active]="isSolicitadoAbierto(grupo.key)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+              <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+            Solicitado ({{ itemsTodosSolicitados(grupo).length }})
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px;transition:transform .2s" [style.transform]="isSolicitadoAbierto(grupo.key) ? 'rotate(180deg)' : ''">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
+          <!-- Cerrar entregas (cuando hay aprobados) -->
+          @if (grupoTieneAprobados(grupo)) {
+            <button class="rc-btn rc-btn-cerrar" (click)="abrirEntregaGlobal(grupo)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:4px">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Cerrar entrega{{ cuentaEstado(grupo, 'aprobado') > 1 ? 's (' + cuentaEstado(grupo, 'aprobado') + ')' : '' }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <!-- Ítems solicitados expandibles -->
+      @if (isSolicitadoAbierto(grupo.key)) {
+        <div class="req-solicitado">
+          <div class="req-sol-header">
+            <span class="req-sol-title">Lista completa de lo solicitado · {{ itemsTodosSolicitados(grupo).length }} ítems</span>
+            <span class="req-sol-nota">Los ítems marcados como "Compra" no pueden marcarse como listos hasta que llegue la compra.</span>
+          </div>
+          <div class="req-sol-chips">
+            @for (it of itemsTodosSolicitados(grupo); track it.id) {
+              <div class="req-sol-chip" [class.req-sol-chip--compra]="it.estadoItem === 'para_compra'" [class.req-sol-chip--ok]="it.estadoItem === 'aprobado'">
+                <span class="rsc-nombre">{{ it.nombre }}</span>
+                <span class="rsc-cant">× {{ it.cantidadAprobada ?? it.cantidad }} {{ it.unidad }}</span>
+                <span class="rsc-estado" [class]="itemEstadoClase(it.estadoItem)">{{ itemEstadoLabel(it.estadoItem) }}</span>
+                @if (it.estadoItem === 'para_compra') {
+                  <span class="rsc-compra-lock" title="Pendiente llegada de compra">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  </span>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Filas de requerimientos individuales -->
+      @if (isGrupoExpandido(grupo.key)) {
+        <div class="req-grupo-rows">
+          @for (r of grupo.reqs; track r.id) {
+            <div class="req-row-card"
+                 [class.req-row-card--pend]="r.estado === 'pendiente'"
+                 [class.req-row-card--listo]="r.estado === 'listo'"
+                 [class.req-row-card--apro]="r.estado === 'aprobado'"
+                 [class.req-row-card--done]="r.estado === 'entregado'"
+                 [class.req-row-card--rech]="r.estado === 'rechazado'">
+
+              <div class="rrc-main">
+
+                <!-- Solicitante -->
+                <div class="rrc-sol">
                   @if (r.solicitanteFoto) {
                     <img class="rt-avatar" [src]="r.solicitanteFoto" [alt]="r.solicitanteNombre">
                   } @else {
@@ -88,17 +178,9 @@
                   }
                   <span class="rt-nombre">{{ r.solicitanteNombre }}</span>
                 </div>
-              </td>
 
-              <!-- Proyecto / Servicio -->
-              <td>
-                <div class="rt-proyecto">{{ r.proyectoNombre }}</div>
-                @if (r.servicioNombre) { <div class="rt-servicio">{{ r.servicioNombre }}</div> }
-              </td>
-
-              <!-- Materiales (muestra hasta 2 chips + "Ver todos" si hay más) -->
-              <td>
-                <div class="rt-items">
+                <!-- Materiales (chips) -->
+                <div class="rrc-items">
                   @for (it of r.items.slice(0, 2); track it.id) {
                     <span class="rt-item-chip"
                           [class.rt-chip--compra]="it.esCompraExterna"
@@ -108,100 +190,96 @@
                   }
                   @if (r.items.length > 2) {
                     <button class="rt-mas-btn" (click)="abrirDetalle(r)">
-                      +{{ r.items.length - 2 }} más · Ver todos ({{ r.items.length }})
+                      +{{ r.items.length - 2 }} más
                     </button>
                   }
                 </div>
-              </td>
 
-              <!-- Reporte (firma de entrega) -->
-              <td class="td-reporte">
-                @if (r.estado === 'entregado') {
-                  <button class="rc-btn-ver-rep" (click)="abrirReporte(r)" title="Ver comprobante de entrega">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    Comprobante
-                  </button>
-                } @else if (r.estado === 'comprando') {
-                  <span class="rc-badge-estado rc-est-comprando">En compra</span>
-                } @else if (r.estado === 'listo') {
-                  <span class="rc-badge-estado rc-est-listo">✓ Listo</span>
-                } @else {
-                  <span class="rc-reporte-na">—</span>
-                }
-              </td>
+                <!-- Estado -->
+                <div class="rrc-estado">
+                  @if (r.estado === 'listo') {
+                    <span class="rc-chip-firma-pend">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                      </svg>
+                      Falta firma técnico
+                    </span>
+                  } @else {
+                    <span class="rc-badge" [class]="estadoClase(r.estado)">{{ estadoLabel(r.estado) }}</span>
+                  }
+                </div>
 
-              <!-- Estado -->
-              <td>
-                <span class="rc-badge" [class]="estadoClase(r.estado)">{{ estadoLabel(r.estado) }}</span>
-              </td>
+                <!-- Fecha -->
+                <span class="rrc-fecha">{{ r.fecha }}</span>
 
-              <!-- Fecha -->
-              <td class="rt-fecha">{{ r.fecha }}</td>
+                <!-- Acciones -->
+                <div class="rrc-acciones">
+                  @if (r.estado === 'pendiente') {
+                    <button class="rc-btn rc-btn-reject" (click)="abrirRechazo(r)">Rechazar</button>
+                    <button class="rc-btn rc-btn-auto"   (click)="aprobarAuto(r)"   [disabled]="procesando" title="Aprueba automáticamente: ítems con stock de inventario, resto a compras">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;margin-right:3px"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                      Auto
+                    </button>
+                    <button class="rc-btn rc-btn-review" (click)="abrirRevision(r)">Revisar</button>
+                  } @else if (r.estado === 'comprando') {
+                    <span class="rc-estado-chip rc-chip-comprando">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                      </svg>
+                      En compra…
+                    </span>
+                  } @else if (r.estado === 'listo') {
+                    <span class="rc-chip-firma-info">El técnico debe firmar desde Operaciones</span>
+                  } @else if (r.estado === 'aprobado') {
+                    <button class="rc-btn rc-btn-cerrar" (click)="abrirEntrega(r)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:4px">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Cerrar entrega
+                    </button>
+                  } @else if (r.estado === 'entregado') {
+                    <button class="rc-btn rc-btn-report" (click)="abrirReporte(r)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      Ver reporte
+                    </button>
+                  }
+                </div>
+              </div>
 
-              <!-- Acciones -->
-              <td class="td-acciones">
-                @if (r.estado === 'pendiente') {
-                  <button class="rc-btn rc-btn-reject" (click)="abrirRechazo(r)">Rechazar</button>
-                  <button class="rc-btn rc-btn-review" (click)="abrirRevision(r)">Revisar</button>
-                } @else if (r.estado === 'comprando') {
-                  <span class="rc-estado-chip rc-chip-comprando">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
-                      <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-                      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-                    </svg>
-                    Comprando…
-                  </span>
-                } @else if (r.estado === 'listo') {
-                  <button class="rc-btn rc-btn-deliver" (click)="abrirEntrega(r)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;margin-right:4px">
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                    Entregar
-                  </button>
-                } @else if (r.estado === 'entregado') {
-                  <button class="rc-btn rc-btn-report" (click)="abrirReporte(r)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    Ver reporte
-                  </button>
-                }
-              </td>
-            </tr>
-
-            <!-- Fila de observaciones (si existen, expansible) -->
-            @if (r.observacion || r.observacionLogistico || (r.estado === 'entregado' && r.recibidoPorNombre)) {
-              <tr class="req-row-obs">
-                <td colspan="7">
-                  <div class="rt-obs-bar">
-                    @if (r.observacion) {
-                      <span class="rt-obs-item"><strong>Nota técnico:</strong> {{ r.observacion }}</span>
-                    }
-                    @if (r.observacionLogistico) {
-                      <span class="rt-obs-item rt-obs-log"><strong>Logística:</strong> {{ r.observacionLogistico }}</span>
-                    }
-                    @if (r.estado === 'entregado' && r.recibidoPorNombre) {
-                      <span class="rt-obs-item rt-obs-ok">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>
-                        Entregado a <strong>{{ r.recibidoPorNombre }}</strong>
-                        @if (r.entregadoPorNombre) { · por {{ r.entregadoPorNombre }} }
-                      </span>
-                    }
-                  </div>
-                </td>
-              </tr>
-            }
+              <!-- Observaciones (si existen) -->
+              @if (r.observacion || r.observacionLogistico || (r.estado === 'entregado' && r.recibidoPorNombre)) {
+                <div class="rrc-obs">
+                  @if (r.observacion) {
+                    <span class="rt-obs-item"><strong>Nota técnico:</strong> {{ r.observacion }}</span>
+                  }
+                  @if (r.observacionLogistico) {
+                    <span class="rt-obs-item rt-obs-log"><strong>Logística:</strong> {{ r.observacionLogistico }}</span>
+                  }
+                  @if (r.estado === 'entregado' && r.recibidoPorNombre) {
+                    <span class="rt-obs-item rt-obs-ok">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>
+                      Entregado a <strong>{{ r.recibidoPorNombre }}</strong>
+                      @if (r.entregadoPorNombre) { · por {{ r.entregadoPorNombre }} }
+                    </span>
+                  }
+                </div>
+              }
+            </div>
           }
-        </tbody>
-      </table>
+        </div>
+      }
+
     </div>
+    }
+
   }
 </div>
 
 
-<!-- ═══ MODAL DE REVISIÓN / APROBACIÓN (mejorado con preview) ═══ -->
+<!-- ═══ MODAL DE REVISIÓN / APROBACIÓN ═══ -->
 @if (reqActivo) {
 <div class="rm-overlay" (click)="cerrarRevision()">
   <div class="rm-modal rm-modal-lg" (click)="$event.stopPropagation()">
@@ -273,7 +351,6 @@
           Resumen de operaciones
         </div>
 
-        <!-- Ítems de stock que se descontarán -->
         @if (itemsDeStock.length > 0) {
           <div class="rm-preview-group">
             <span class="rm-preview-group-label rm-pg-stock">
@@ -290,7 +367,6 @@
           </div>
         }
 
-        <!-- Ítems que generarán tickets de compra -->
         @if (itemsDeCompra.length > 0) {
           <div class="rm-preview-group">
             <span class="rm-preview-group-label rm-pg-compra">
@@ -302,7 +378,6 @@
                 <span class="rpi-nombre">{{ it.nombre }}</span>
                 <span class="rpi-cant">× {{ it.cantidad }} {{ it.unidad }}</span>
               </div>
-              <!-- Proveedores sugeridos para este ítem -->
               <div class="rm-proveedores">
                 <span class="rm-prov-label">Proveedores sugeridos:</span>
                 @for (prov of getProveedoresSugeridos(it); track prov.nombre) {
@@ -316,12 +391,11 @@
             }
             <p class="rm-compra-note">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              Los tickets de compra quedarán visibles en el módulo de <strong>Compras</strong> para su gestión.
+              Los tickets quedarán visibles en el módulo de <strong>Compras</strong>.
             </p>
           </div>
         }
 
-        <!-- Ítems rechazados -->
         @if (itemsRechazados.length > 0) {
           <div class="rm-preview-group">
             <span class="rm-preview-group-label rm-pg-rechaz">
@@ -377,66 +451,50 @@
     </header>
 
     <div class="rie-body">
-      <!-- Resumen rápido -->
       <div class="rie-summary">
         <span class="rie-sum-chip rie-sum-total">{{ reqDetalle.items.length }} ítems en total</span>
-        <span class="rie-sum-chip rie-sum-stock">
-          {{ countItemsStock(reqDetalle) }} de stock
-        </span>
-        <span class="rie-sum-chip rie-sum-compra">
-          {{ countItemsCompra(reqDetalle) }} compra externa
-        </span>
+        <span class="rie-sum-chip rie-sum-stock">{{ countItemsStock(reqDetalle) }} de stock</span>
+        <span class="rie-sum-chip rie-sum-compra">{{ countItemsCompra(reqDetalle) }} compra externa</span>
       </div>
 
-      <!-- Tabla de ítems (scrollable) -->
       <div class="rie-table-wrap">
-      <table class="rie-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Ítem</th>
-            <th>Cantidad</th>
-            <th>Unidad</th>
-            <th>Tipo</th>
-            <th>Estado</th>
-            <th>Especificación</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (it of reqDetalle.items; track it.id; let idx = $index) {
-            <tr class="rie-row">
-              <td class="rie-num">{{ idx + 1 }}</td>
-              <td class="rie-nombre">{{ it.nombre }}</td>
-              <td class="rie-cant">{{ it.cantidad }}</td>
-              <td class="rie-unit">{{ it.unidad }}</td>
-              <td>
-                @if (it.esCompraExterna) {
-                  <span class="rie-tipo rie-tipo-compra">Compra externa</span>
-                } @else if (it.enStock) {
-                  <span class="rie-tipo rie-tipo-stock">En stock ({{ it.stockDisponible }})</span>
-                } @else {
-                  <span class="rie-tipo rie-tipo-bajo">Sin stock</span>
-                }
-              </td>
-              <td>
-                <span class="rie-estado" [class]="itemEstadoClase(it.estadoItem)">
-                  {{ itemEstadoLabel(it.estadoItem) }}
-                </span>
-              </td>
-              <td class="rie-espec">{{ it.especificacion ?? '—' }}</td>
+        <table class="rie-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Ítem</th><th>Cantidad</th><th>Unidad</th><th>Tipo</th><th>Estado</th><th>Especificación</th>
             </tr>
-          }
-        </tbody>
-      </table>
-      </div><!-- /.rie-table-wrap -->
+          </thead>
+          <tbody>
+            @for (it of reqDetalle.items; track it.id; let idx = $index) {
+              <tr class="rie-row">
+                <td class="rie-num">{{ idx + 1 }}</td>
+                <td class="rie-nombre">{{ it.nombre }}</td>
+                <td class="rie-cant">{{ it.cantidad }}</td>
+                <td class="rie-unit">{{ it.unidad }}</td>
+                <td>
+                  @if (it.esCompraExterna) {
+                    <span class="rie-tipo rie-tipo-compra">Compra externa</span>
+                  } @else if (it.enStock) {
+                    <span class="rie-tipo rie-tipo-stock">En stock ({{ it.stockDisponible }})</span>
+                  } @else {
+                    <span class="rie-tipo rie-tipo-bajo">Sin stock</span>
+                  }
+                </td>
+                <td>
+                  <span class="rie-estado" [class]="itemEstadoClase(it.estadoItem)">{{ itemEstadoLabel(it.estadoItem) }}</span>
+                </td>
+                <td class="rie-espec">{{ it.especificacion ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <footer class="rm-footer">
       <button class="rm-btn-cancel" (click)="cerrarDetalle()">Cerrar</button>
       @if (reqDetalle.estado === 'pendiente') {
-        <button class="rm-btn-confirm" (click)="cerrarDetalle(); abrirRevision(reqDetalle)">
-          Revisar requerimiento
-        </button>
+        <button class="rm-btn-confirm" (click)="cerrarDetalle(); abrirRevision(reqDetalle)">Revisar requerimiento</button>
       }
     </footer>
   </div>
@@ -463,8 +521,7 @@
     </div>
     <footer class="rm-footer">
       <button class="rm-btn-cancel" (click)="cerrarRechazo()">Cancelar</button>
-      <button class="rm-btn-reject-confirm" (click)="confirmarRechazo()"
-              [disabled]="procesando || !motivoRechazo.trim()">
+      <button class="rm-btn-reject-confirm" (click)="confirmarRechazo()" [disabled]="procesando || !motivoRechazo.trim()">
         @if (procesando) { <app-spinner [size]="15" theme="light"></app-spinner> Rechazando… }
         @else { Rechazar pedido }
       </button>
@@ -473,15 +530,18 @@
 </div>
 }
 
-<!-- ═══════════════ MODAL ENTREGA CON FIRMA DUAL ═══════════════ -->
+
+<!-- ═══ MODAL CIERRE DE ENTREGA (Híbrido paso 2 — firma logística) ═══ -->
 @if (reqEntrega) {
 <div class="rm-overlay" (click)="cerrarEntrega()">
   <div class="rm-modal rm-entrega" (click)="$event.stopPropagation()">
     <header class="rm-header">
       <div>
-        <h2 class="rm-title">Registrar entrega de materiales</h2>
-        <p class="rm-subtitle">{{ reqEntrega.proyectoNombre }}
+        <h2 class="rm-title">Cerrar entrega — firma de logística</h2>
+        <p class="rm-subtitle">
+          {{ reqEntrega.proyectoNombre }}
           @if (reqEntrega.servicioNombre) { · {{ reqEntrega.servicioNombre }} }
+          @if (reqsEntregaGlobal.length > 1) { · <strong>{{ reqsEntregaGlobal.length }} requerimientos a cerrar</strong> }
         </p>
       </div>
       <button class="rm-close" (click)="cerrarEntrega()">
@@ -493,9 +553,17 @@
 
     <div class="rm-entrega-body">
 
+      <!-- Explicación del flujo Híbrido -->
+      <div class="rm-entrega-info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;flex-shrink:0;color:#3b82f6">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>El técnico ya firmó la recepción. Como responsable de logística, firma aquí para cerrar el ciclo administrativo y generar el reporte de salida.</span>
+      </div>
+
       <!-- Items -->
       <div class="rm-ent-section">
-        <h4 class="rm-ent-stitle">Materiales / Equipos a entregar</h4>
+        <h4 class="rm-ent-stitle">Materiales / Equipos — Requerimiento{{ reqsEntregaGlobal.length > 1 ? 's' : '' }}</h4>
         <table class="rm-ent-table">
           <thead><tr><th>#</th><th>Descripción</th><th>Unidad</th><th class="th-r">Cant.</th><th>Estado</th></tr></thead>
           <tbody>
@@ -510,111 +578,67 @@
             }
           </tbody>
         </table>
+        @if (reqsEntregaGlobal.length > 1) {
+          <p class="rm-entrega-otros">+ {{ reqsEntregaGlobal.length - 1 }} requerimiento{{ reqsEntregaGlobal.length - 1 !== 1 ? 's' : '' }} adicional{{ reqsEntregaGlobal.length - 1 !== 1 ? 'es' : '' }} serán cerrados con la misma firma.</p>
+        }
       </div>
 
-      <!-- Firmas -->
-      <div class="rm-firmas-grid">
+      <!-- Firma del entregador (logística) -->
+      <div class="rm-firma-bloque rm-firma-entregador">
+        <h4 class="rm-firma-titulo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
+            <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+          Firma del responsable de logística <span class="rm-firma-req">* requerido</span>
+        </h4>
+        <p class="rm-firma-desc">Firma que certifica el despacho y cierra el ciclo administrativo</p>
 
-        <!-- Firma Entregador (logística) -->
-        <div class="rm-firma-bloque rm-firma-entregador">
-          <h4 class="rm-firma-titulo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
-              <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-            </svg>
-            Entregado por <span class="rm-firma-opt">(opcional)</span>
-          </h4>
-          <p class="rm-firma-desc">Responsable de logística que hace la entrega</p>
-
-          @if (padEntregador.bloqueadoPor && !padEntregador.firmando) {
-            <div class="rm-firma-bloqueada">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              {{ padEntregador.bloqueadoPor }} está firmando…
+        @if (padEntregador.bloqueadoPor && !padEntregador.firmando) {
+          <div class="rm-firma-bloqueada">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            {{ padEntregador.bloqueadoPor }} está firmando…
+          </div>
+        } @else if (padEntregador.firma) {
+          <div class="rm-firma-preview-wrap">
+            <img [src]="padEntregador.firma" class="rm-firma-img" alt="Firma logística">
+            <button class="rm-firma-quitar" (click)="quitarFirma()">Quitar firma</button>
+          </div>
+        } @else if (padEntregador.firmando) {
+          <div class="rm-canvas-wrap">
+            <div class="rm-canvas-timer">⏱ {{ padEntregador.timerSecs }}s</div>
+            <canvas #canvasRef width="360" height="140" class="rm-canvas"></canvas>
+            <div class="rm-canvas-btns">
+              <button class="rm-cbtn rm-cbtn-clear" (click)="limpiarFirma()">Limpiar</button>
+              <button class="rm-cbtn rm-cbtn-cancel" (click)="cancelarFirma()">Cancelar</button>
+              <button class="rm-cbtn rm-cbtn-ok" (click)="confirmarFirma()">Confirmar</button>
             </div>
-          } @else if (padEntregador.firma) {
-            <div class="rm-firma-preview-wrap">
-              <img [src]="padEntregador.firma" class="rm-firma-img" alt="Firma entregador">
-              <button class="rm-firma-quitar" (click)="quitarFirma('entregador')">Quitar firma</button>
-            </div>
-          } @else if (padEntregador.firmando) {
-            <div class="rm-canvas-wrap">
-              <div class="rm-canvas-timer">⏱ {{ padEntregador.timerSecs }}s</div>
-              <canvas #canvasRef width="320" height="140" class="rm-canvas"></canvas>
-              <div class="rm-canvas-btns">
-                <button class="rm-cbtn rm-cbtn-clear" (click)="limpiarFirma('entregador')">Limpiar</button>
-                <button class="rm-cbtn rm-cbtn-cancel" (click)="cancelarFirma('entregador')">Cancelar</button>
-                <button class="rm-cbtn rm-cbtn-ok" (click)="confirmarFirma('entregador')">Confirmar</button>
-              </div>
-            </div>
-          } @else {
-            <div class="rm-firma-acciones">
-              <button class="rm-firma-btn rm-firma-dibujar" (click)="iniciarFirma('entregador')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-                Firmar
-              </button>
-              <button class="rm-firma-btn rm-firma-usar" (click)="usarFirmaGuardada('entregador')">Usar guardada</button>
-            </div>
-          }
-        </div>
-
-        <!-- Firma Receptor (técnico) -->
-        <div class="rm-firma-bloque rm-firma-receptor">
-          <h4 class="rm-firma-titulo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-            </svg>
-            Retirado por <span class="rm-firma-req">* requerido</span>
-          </h4>
-          <p class="rm-firma-desc">Técnico o responsable que recibe los materiales</p>
-
-          @if (padReceptor.bloqueadoPor && !padReceptor.firmando) {
-            <div class="rm-firma-bloqueada">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              {{ padReceptor.bloqueadoPor }} está firmando…
-            </div>
-          } @else if (padReceptor.firma) {
-            <div class="rm-firma-preview-wrap">
-              <img [src]="padReceptor.firma" class="rm-firma-img" alt="Firma receptor">
-              <button class="rm-firma-quitar" (click)="quitarFirma('receptor')">Quitar firma</button>
-            </div>
-          } @else if (padReceptor.firmando) {
-            <div class="rm-canvas-wrap">
-              <div class="rm-canvas-timer">⏱ {{ padReceptor.timerSecs }}s</div>
-              <canvas #canvasRef width="320" height="140" class="rm-canvas"></canvas>
-              <div class="rm-canvas-btns">
-                <button class="rm-cbtn rm-cbtn-clear" (click)="limpiarFirma('receptor')">Limpiar</button>
-                <button class="rm-cbtn rm-cbtn-cancel" (click)="cancelarFirma('receptor')">Cancelar</button>
-                <button class="rm-cbtn rm-cbtn-ok" (click)="confirmarFirma('receptor')">Confirmar</button>
-              </div>
-            </div>
-          } @else {
-            <div class="rm-firma-acciones">
-              <button class="rm-firma-btn rm-firma-dibujar" (click)="iniciarFirma('receptor')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
-                Firmar
-              </button>
-              <button class="rm-firma-btn rm-firma-usar" (click)="usarFirmaGuardada('receptor')">Usar guardada</button>
-            </div>
-          }
-        </div>
-
+          </div>
+        } @else {
+          <div class="rm-firma-acciones">
+            <button class="rm-firma-btn rm-firma-dibujar" (click)="iniciarFirma()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+              Firmar
+            </button>
+            <button class="rm-firma-btn rm-firma-usar" (click)="usarFirmaGuardada()">Usar guardada</button>
+          </div>
+        }
       </div>
 
       <!-- Notas -->
       <div class="rm-ent-section">
-        <label class="rm-label">Observaciones / Notas de entrega <span class="rm-lbl-opt">(opcional)</span></label>
-        <textarea class="rm-textarea" rows="2" [(ngModel)]="notasEntrega" placeholder="Ej: Se entregaron herramientas adicionales, materiales en buen estado…"></textarea>
+        <label class="rm-label">Observaciones <span class="rm-lbl-opt">(opcional)</span></label>
+        <textarea class="rm-textarea" rows="2" [(ngModel)]="notasEntrega" placeholder="Ej: Entregado en almacén central, lote completo…"></textarea>
       </div>
 
     </div>
 
     <footer class="rm-footer">
       <button class="rm-btn-cancel" (click)="cerrarEntrega()">Cancelar</button>
-      <button class="rm-btn-deliver-confirm" (click)="confirmarEntrega()"
-              [disabled]="enviandoEntrega || !puedeEntregar">
-        @if (enviandoEntrega) { <app-spinner [size]="15" theme="light"></app-spinner> Registrando… }
+      <button class="rm-btn-deliver-confirm" (click)="confirmarEntrega()" [disabled]="enviandoEntrega || !puedeEntregar">
+        @if (enviandoEntrega) { <app-spinner [size]="15" theme="light"></app-spinner> Cerrando… }
         @else {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><polyline points="20 6 9 17 4 12"/></svg>
-          Confirmar entrega
+          Confirmar cierre{{ reqsEntregaGlobal.length > 1 ? ' (' + reqsEntregaGlobal.length + ')' : '' }}
         }
       </button>
     </footer>
@@ -622,17 +646,23 @@
 </div>
 }
 
-<!-- ═══════════════ REPORTE / COMPROBANTE DE ENTREGA ═══════════════ -->
+
+<!-- ═══ REPORTE / COMPROBANTE DE ENTREGA ═══ -->
 @if (reqReporte) {
 <div class="rm-overlay no-print" (click)="cerrarReporte()">
   <div class="rm-modal rm-modal-report" (click)="$event.stopPropagation()">
-    <!-- Barra de control -->
     <div class="rm-report-ctrl no-print">
       <button class="rm-btn-imprimir" (click)="imprimirReporte()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
           <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
         </svg>
         Imprimir
+      </button>
+      <button class="rm-btn-imprimir" (click)="generarPDFSalida(reqReporte)" style="margin-left:8px;background:#3b82f6">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Descargar PDF
       </button>
       <button class="rm-btn-cerrar-rep no-print" (click)="cerrarReporte()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
@@ -641,15 +671,12 @@
       </button>
     </div>
 
-    <!-- Comprobante imprimible -->
     <div class="rm-comprobante printable">
 
-      <!-- Marca de agua -->
       <div class="comp-watermark">
         <img src="assets/img/logo_difuminado.png" alt="" aria-hidden="true">
       </div>
 
-      <!-- Encabezado -->
       <header class="comp-hdr">
         <div class="comp-logo-blq">
           <img src="assets/img/index.png" alt="e-System Tic" class="comp-logo">
@@ -666,7 +693,6 @@
 
       <div class="comp-divider"></div>
 
-      <!-- Info del servicio -->
       <section class="comp-seccion">
         <h3 class="comp-sec-h">INFORMACIÓN DEL SERVICIO</h3>
         <div class="comp-grid2">
@@ -679,7 +705,6 @@
 
       <div class="comp-divider"></div>
 
-      <!-- Tabla de ítems -->
       <section class="comp-seccion">
         <h3 class="comp-sec-h">DETALLE DE MATERIALES / EQUIPOS ENTREGADOS</h3>
         <table class="comp-tabla">
@@ -723,7 +748,6 @@
 
       <div class="comp-divider"></div>
 
-      <!-- Firmas -->
       <section class="comp-firmas">
         <div class="comp-firma-blq">
           <p class="comp-firma-titulo">ENTREGADO POR</p>
@@ -746,14 +770,13 @@
           }
           <div class="comp-firma-linea"></div>
           <p class="comp-firma-nombre">{{ reqReporte.recibidoPorNombre || '___________________________' }}</p>
-          <p class="comp-firma-cargo">Técnico / Personal de Campo</p>
+          <p class="comp-firma-cargo">Técnico / Responsable de Campo</p>
         </div>
       </section>
 
-      <!-- Footer del comprobante -->
       <footer class="comp-footer">
         <p>Documento generado por e-System Tic · Soluciones Innovadoras para tu Empresa</p>
-        <p>Este comprobante certifica la entrega física de los materiales indicados.</p>
+        <p>Este comprobante certifica la entrega física de los materiales indicados. El técnico receptor es responsable de los equipos y herramientas no consumibles.</p>
       </footer>
 
     </div>
