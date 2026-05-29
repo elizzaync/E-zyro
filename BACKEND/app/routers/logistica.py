@@ -1050,7 +1050,8 @@ def listar_requerimientos(
         Requerimiento.estado != "borrador",
     )
     if estado == "activos":
-        base = base.filter(Requerimiento.estado.in_(["pendiente", "comprando", "listo"]))
+        # 'aprobado' = técnico firmó, logística pendiente de cierre contable → sigue activo
+        base = base.filter(Requerimiento.estado.in_(["pendiente", "comprando", "listo", "aprobado"]))
     elif estado and estado != "todos":
         base = base.filter(Requerimiento.estado == estado)
 
