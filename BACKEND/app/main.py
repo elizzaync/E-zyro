@@ -26,6 +26,7 @@ from app.routers import prestamo        as prestamo_router
 from app.routers import catalogos       as catalogos_router
 from app.routers import galeria         as galeria_router
 from app.routers import epp             as epp_router
+from app.routers import calibraciones   as calibraciones_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -64,6 +65,8 @@ from app.models import (  # noqa: F401
     recurso_cloudinary,
     # EPP (Fase 2 — plan migración ERP)
     epp,
+    # Calibraciones + estado operativo de equipos (Fase 3)
+    calibracion,
     # Compras
     proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
@@ -268,6 +271,38 @@ def _pre_create_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_epp_entrega_empresa ON epp_entrega (empresa_id, empleado_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_epp_entrega_det ON epp_entrega_detalle (entrega_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_epp_ingreso_det ON epp_ingreso_detalle (ingreso_id)"))
+
+        # ── Calibraciones + bitácora de estado de equipos (Fase 3) ───────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS calibracion (
+                id                  uuid PRIMARY KEY,
+                empresa_id          uuid NOT NULL REFERENCES empresa(id),
+                equipo_id           uuid NOT NULL REFERENCES equipo(id),
+                fecha_ultima        DATE,
+                fecha_proxima       DATE,
+                empresa_responsable VARCHAR(200),
+                certificado_url     TEXT,
+                observacion         VARCHAR(500),
+                created_at          TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at          TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS equipo_estado_mov (
+                id                uuid PRIMARY KEY,
+                empresa_id        uuid NOT NULL REFERENCES empresa(id),
+                equipo_id         uuid NOT NULL REFERENCES equipo(id),
+                accion            VARCHAR(20) NOT NULL,
+                cantidad          INTEGER NOT NULL DEFAULT 1,
+                motivo            VARCHAR(300),
+                fecha             DATE NOT NULL DEFAULT current_date,
+                registrado_por_id uuid,
+                created_at        TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT chk_equipo_estado_accion CHECK (accion IN ('inoperativo','reactivar'))
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_calibracion_empresa_eq ON calibracion (empresa_id, equipo_id, fecha_proxima)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_equipo_estado_mov_eq ON equipo_estado_mov (empresa_id, equipo_id)"))
         # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ticket_compra (
@@ -385,6 +420,18 @@ def _run_migrations():
         # ── RBAC seed: EPP (Fase 2) ──────────────────────────────────────────
         sembrar_permisos(conn, "epp", ["ver", "crear", "editar", "entregar", "ingresar", "eliminar"],
                          descripcion_base="EPP:")
+        # ── Calibraciones + estado de equipos (Fase 3) ───────────────────────
+        sembrar_permisos(conn, "calibracion", ["ver", "crear", "editar", "eliminar"],
+                         descripcion_base="Calibración:")
+        sembrar_permisos(conn, "equipo", ["marcar_inoperativo", "reactivar", "ver_estado"],
+                         descripcion_base="Equipo estado:")
+        conn.commit()
+
+        # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────
+        conn.execute(text("ALTER TABLE equipo ADD COLUMN IF NOT EXISTS cantidad_inoperativa INTEGER NOT NULL DEFAULT 0"))
+        conn.execute(text("ALTER TABLE equipo ADD COLUMN IF NOT EXISTS estado_operativo VARCHAR(20) DEFAULT 'operativo'"))
+        conn.execute(text("ALTER TABLE equipo DROP CONSTRAINT IF EXISTS chk_equipo_estado_op"))
+        conn.execute(text("ALTER TABLE equipo ADD CONSTRAINT chk_equipo_estado_op CHECK (estado_operativo IN ('operativo','parcial','inoperativo'))"))
         conn.commit()
 
         conn.execute(text(
@@ -813,6 +860,8 @@ app.include_router(prestamo_router.router)
 app.include_router(catalogos_router.router)
 app.include_router(galeria_router.router)
 app.include_router(epp_router.router)
+app.include_router(calibraciones_router.router)
+app.include_router(calibraciones_router.router_estado)
 
 
 @app.get("/")

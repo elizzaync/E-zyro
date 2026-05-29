@@ -42,5 +42,9 @@ class Equipo(Base):
     frecuencia_mantenimiento    = Column(String(20), nullable=False, default="ninguno")  # ninguno|mensual|trimestral|semestral|anual
     proxima_fecha_mantenimiento = Column(Date,       nullable=True)
 
+    # ── Estado operativo / averiados (Fase 3) ──────────────────────────────
+    cantidad_inoperativa = Column(Integer,    nullable=False, default=0)
+    estado_operativo     = Column(String(20), nullable=True, default="operativo")  # operativo|parcial|inoperativo
+
     created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at       = Column(DateTime, nullable=True)
