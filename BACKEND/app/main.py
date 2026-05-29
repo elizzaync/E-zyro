@@ -28,6 +28,7 @@ from app.routers import galeria         as galeria_router
 from app.routers import epp             as epp_router
 from app.routers import calibraciones   as calibraciones_router
 from app.routers import correctivos     as correctivos_router
+from app.routers import itse            as itse_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -70,6 +71,8 @@ from app.models import (  # noqa: F401
     calibracion,
     # Correctivos + observaciones/descargos (Fase 4)
     correctivo,
+    # Inspección ITSE (Fase 5)
+    itse,
     # Compras
     proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
@@ -340,6 +343,52 @@ def _pre_create_migrations():
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_correctivo_empresa_serv ON servicio_correctivo (empresa_id, servicio_id, estado)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_observacion_empresa_serv ON servicio_observacion (empresa_id, servicio_id)"))
+
+        # ── Inspección ITSE (Fase 5). FKs uuid a empresa/cliente/ubicacion/zona ─
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS inspeccion_itse (
+                id                uuid PRIMARY KEY,
+                empresa_id        uuid NOT NULL REFERENCES empresa(id),
+                cliente_id        uuid REFERENCES cliente(id),
+                ubicacion_id      uuid REFERENCES ubicacion(id),
+                zona_id           uuid REFERENCES zona(id),
+                modo              VARCHAR(20) NOT NULL DEFAULT 'tablero',
+                fecha             DATE NOT NULL DEFAULT current_date,
+                estado            VARCHAR(20) NOT NULL DEFAULT 'borrador',
+                pdf_url           TEXT,
+                observaciones     TEXT,
+                registrado_por_id uuid,
+                created_at        TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at        TIMESTAMP,
+                CONSTRAINT chk_itse_modo   CHECK (modo IN ('tablero','zona')),
+                CONSTRAINT chk_itse_estado CHECK (estado IN ('borrador','en_proceso','finalizada','anulada'))
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS inspeccion_tablero (
+                id            uuid PRIMARY KEY,
+                inspeccion_id uuid NOT NULL REFERENCES inspeccion_itse(id),
+                nombre        VARCHAR(200) NOT NULL,
+                ambiente      VARCHAR(200),
+                descripcion   VARCHAR(500),
+                created_at    TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS inspeccion_item (
+                id            uuid PRIMARY KEY,
+                inspeccion_id uuid NOT NULL REFERENCES inspeccion_itse(id),
+                tablero_id    uuid REFERENCES inspeccion_tablero(id),
+                descripcion   VARCHAR(500) NOT NULL,
+                resultado     VARCHAR(20) NOT NULL DEFAULT 'conforme',
+                observacion   VARCHAR(500),
+                created_at    TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT chk_itse_item_resultado CHECK (resultado IN ('conforme','observado','no_conforme'))
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itse_empresa ON inspeccion_itse (empresa_id, estado)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itse_tablero ON inspeccion_tablero (inspeccion_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_itse_item ON inspeccion_item (inspeccion_id)"))
         # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS ticket_compra (
@@ -467,6 +516,9 @@ def _run_migrations():
                          descripcion_base="Correctivo:")
         sembrar_permisos(conn, "observacion", ["ver", "crear", "editar", "eliminar"],
                          descripcion_base="Observación:")
+        # ── Inspección ITSE (Fase 5) ─────────────────────────────────────────
+        sembrar_permisos(conn, "itse", ["ver", "crear", "editar", "finalizar", "eliminar"],
+                         descripcion_base="ITSE:")
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────
@@ -905,6 +957,7 @@ app.include_router(epp_router.router)
 app.include_router(calibraciones_router.router)
 app.include_router(calibraciones_router.router_estado)
 app.include_router(correctivos_router.router)
+app.include_router(itse_router.router)
 
 
 @app.get("/")
