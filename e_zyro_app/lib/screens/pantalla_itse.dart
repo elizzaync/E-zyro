@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/itse_models.dart';
 import '../services/itse_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/abrir_enlace.dart';
 import 'pantalla_itse_detalle.dart';
 
 /// Inspección ITSE (Fase 5). Lista + alta de inspección (borrador).
@@ -95,9 +95,9 @@ class _PantallaItseState extends State<PantallaItse> {
     final res = await _svc!.generarInforme(it.id);
     if (!mounted) return;
     if (res.ok) {
-      Clipboard.setData(ClipboardData(text: res.data ?? ''));
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Informe ITSE generado · enlace copiado')));
+          const SnackBar(content: Text('Informe ITSE generado')));
+      await abrirEnlace(res.data);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));

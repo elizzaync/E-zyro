@@ -17,6 +17,7 @@ import 'pantalla_epp.dart';
 import 'pantalla_calibraciones.dart';
 import 'pantalla_correctivos.dart';
 import 'pantalla_itse.dart';
+import 'pantalla_catalogos.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -311,6 +312,12 @@ class _MoreScreenState extends State<MoreScreen> {
                   label: 'Inspección ITSE',
                   onTap: () => Navigator.push(
                     context, MaterialPageRoute(builder: (_) => const PantallaItse())),
+                ),
+                _MenuItem(
+                  icon: Icons.category_outlined,
+                  label: 'Catálogos (ubicación/zona/área)',
+                  onTap: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => const PantallaCatalogos())),
                 ),
               ],
             ),

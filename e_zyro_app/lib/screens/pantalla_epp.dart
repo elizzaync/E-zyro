@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/epp_models.dart';
 import '../services/epp_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/abrir_enlace.dart';
 import 'pantalla_epp_entrega.dart';
 
 /// EPP — Equipos de Protección Personal (Fase 2).
@@ -156,9 +156,9 @@ class _PantallaEppState extends State<PantallaEpp> {
     final res = await _svc!.generarConstancia(en.id);
     if (!mounted) return;
     if (res.ok) {
-      Clipboard.setData(ClipboardData(text: res.data ?? ''));
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Constancia generada · enlace copiado')));
+          const SnackBar(content: Text('Constancia generada')));
+      await abrirEnlace(res.data);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));

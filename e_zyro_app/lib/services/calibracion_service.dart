@@ -45,6 +45,21 @@ class CalibracionService {
     }
   }
 
+  /// Sube el certificado (imagen base64) de una calibración; devuelve la URL.
+  Future<ApiResult<String>> subirCertificado(String calId, String archivoBase64) async {
+    try {
+      final r = await _client.post('/calibraciones/$calId/certificado',
+          {'archivo_base64': archivoBase64}, timeout: const Duration(seconds: 60));
+      if (r.statusCode == 200) {
+        final url = (jsonDecode(r.body) as Map)['certificado_url']?.toString() ?? '';
+        return ApiResult.ok(url);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<EquipoEstado>>> listarEstado({String? solo}) async {
     try {
       final r = await _client.get('/equipos/estado${solo != null ? '?solo=$solo' : ''}');

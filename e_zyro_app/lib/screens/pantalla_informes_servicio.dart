@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/informe_servicio_models.dart';
 import '../services/informe_servicio_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/abrir_enlace.dart';
 
 /// Informes de un servicio: pre-informe (estado actual) e informe final (al cerrar).
 class PantallaInformesServicio extends StatefulWidget {
@@ -61,15 +61,15 @@ class _PantallaInformesServicioState extends State<PantallaInformesServicio> {
     if (res.ok) {
       _snack(fin ? 'Informe final generado' : 'Pre-informe generado');
       await _cargar();
+      await abrirEnlace(res.data?.url);  // abre el PDF recién generado
     } else {
       _snack(res.errorMessage, error: true);
     }
   }
 
-  void _copiar(String? url) {
-    if (url == null || url.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: url));
-    _snack('Enlace copiado al portapapeles');
+  Future<void> _abrir(String? url) async {
+    final abierto = await abrirEnlace(url);
+    if (!abierto) _snack('Enlace copiado al portapapeles');
   }
 
   void _snack(String m, {bool error = false}) {
@@ -140,9 +140,9 @@ class _PantallaInformesServicioState extends State<PantallaInformesServicio> {
             title: Text(inf.titulo ?? (inf.esFinal ? 'Informe final' : 'Pre-informe')),
             subtitle: Text('${inf.esFinal ? 'Final' : 'Pre'} · ${inf.fecha ?? ''}'),
             trailing: IconButton(
-              icon: const Icon(Icons.copy_outlined),
-              tooltip: 'Copiar enlace del PDF',
-              onPressed: () => _copiar(inf.url),
+              icon: const Icon(Icons.open_in_new),
+              tooltip: 'Abrir PDF',
+              onPressed: () => _abrir(inf.url),
             ),
           );
         },

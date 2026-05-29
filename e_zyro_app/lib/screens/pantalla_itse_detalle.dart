@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/itse_models.dart';
 import '../services/itse_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/abrir_enlace.dart';
 import 'pantalla_galeria.dart';
 
 /// Detalle de una inspección ITSE: tableros + ítems (hallazgos) + fotos + finalizar.
@@ -182,9 +182,8 @@ class _PantallaItseDetalleState extends State<PantallaItseDetalle> {
     setState(() => _trabajando = false);
     if (res.ok) {
       setState(() => _estado = res.data?.estado ?? 'finalizada');
-      final url = res.data?.pdfUrl;
-      if (url != null && url.isNotEmpty) Clipboard.setData(ClipboardData(text: url));
-      _snack('Inspección finalizada · informe generado (enlace copiado)');
+      _snack('Inspección finalizada · informe generado');
+      await abrirEnlace(res.data?.pdfUrl);
     } else {
       _snack(res.errorMessage, error: true);
     }
@@ -194,8 +193,8 @@ class _PantallaItseDetalleState extends State<PantallaItseDetalle> {
     final res = await _svc!.generarInforme(widget.inspeccionId);
     if (!mounted) return;
     if (res.ok) {
-      Clipboard.setData(ClipboardData(text: res.data ?? ''));
-      _snack('Informe generado · enlace copiado');
+      _snack('Informe generado');
+      await abrirEnlace(res.data);
     } else {
       _snack(res.errorMessage, error: true);
     }

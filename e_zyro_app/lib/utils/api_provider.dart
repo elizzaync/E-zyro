@@ -20,6 +20,7 @@ import '../services/calibracion_service.dart';
 import '../services/correctivo_service.dart';
 import '../services/itse_service.dart';
 import '../services/informe_servicio_service.dart';
+import '../services/catalogo_service.dart';
 
 Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
@@ -119,4 +120,9 @@ Future<ItseService> getItseService() async {
 Future<InformeServicioService> getInformeServicioService() async {
   final prefs = await SharedPreferences.getInstance();
   return InformeServicioService(ApiClient(prefs));
+}
+
+Future<CatalogoService> getCatalogoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return CatalogoService(ApiClient(prefs));
 }

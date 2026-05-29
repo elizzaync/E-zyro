@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../models/correctivo_models.dart';
+import '../models/proyecto_models.dart';
 import '../services/correctivo_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/abrir_enlace.dart';
 
 /// Garantías/Correctivos (Fase 4). Lista global con su estado y transiciones.
 /// El alta se hace desde el detalle de un servicio (servicio_id requerido).
@@ -74,13 +75,84 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
     final res = await _svc!.generarInforme(c.id);
     if (!mounted) return;
     if (res.ok) {
-      Clipboard.setData(ClipboardData(text: res.data ?? ''));
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Informe generado · enlace copiado')));
+          const SnackBar(content: Text('Informe generado')));
+      await abrirEnlace(res.data);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));
     }
+  }
+
+  void _msg(String m, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(m), backgroundColor: error ? Colors.red.shade700 : null));
+  }
+
+  Future<void> _nuevoCorrectivo() async {
+    final proy = await getProyectoService();
+    final data = await proy.getProyectos();
+    if (!mounted) return;
+    final proyectos = data?.proyectos ?? [];
+    if (proyectos.isEmpty) {
+      _msg('No hay proyectos', error: true);
+      return;
+    }
+    String? proyectoId;
+    String? servicioId;
+    List<ServicioItem> servicios = [];
+    bool cargandoServ = false;
+    final alcance = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Nuevo correctivo'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: proyectoId,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Proyecto'),
+              items: proyectos.map((p) => DropdownMenuItem(value: p.id, child: Text(p.nombreProyecto, overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) async {
+                setLocal(() {
+                  proyectoId = v;
+                  servicioId = null;
+                  servicios = [];
+                  cargandoServ = true;
+                });
+                final s = await proy.getServiciosProyecto(v ?? '');
+                setLocal(() {
+                  servicios = s;
+                  cargandoServ = false;
+                });
+              },
+            ),
+            if (cargandoServ) const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator()),
+            DropdownButtonFormField<String>(
+              initialValue: servicioId,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Servicio'),
+              items: servicios.map((s) => DropdownMenuItem(value: s.id, child: Text(s.nombre, overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (v) => setLocal(() => servicioId = v),
+            ),
+            TextField(controller: alcance, decoration: const InputDecoration(labelText: 'Alcance')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Crear')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || servicioId == null) {
+      if (ok == true) _msg('Selecciona un servicio', error: true);
+      return;
+    }
+    final res = await _svc!.crear(servicioId: servicioId!, alcance: alcance.text);
+    if (!mounted) return;
+    res.ok ? _cargar() : _msg(res.errorMessage, error: true);
   }
 
   Color _colorEstado(String estado) => switch (estado) {
@@ -98,6 +170,9 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
       appBar: AppBar(
         title: const Text('Garantías / Correctivos', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _nuevoCorrectivo, icon: const Icon(Icons.add), label: const Text('Nuevo'),
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
