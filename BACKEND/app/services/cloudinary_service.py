@@ -150,3 +150,55 @@ def subir_pdf_cloudinary(base64_data: str, public_id: str) -> str:
     except Exception as e:
         logging.error(f"Error subiendo PDF a Cloudinary: {str(e)}")
         raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Subida + indexado en recurso_cloudinary (Fase 1 — Galería Global)
+# ──────────────────────────────────────────────────────────────────────────
+def registrar_recurso(db, *, empresa_id, public_id, secure_url, folder,
+                      entidad_tipo, entidad_id=None, recurso_tipo="imagen",
+                      descripcion=None, bytes=None, formato=None, creado_por_id=None):
+    """Inserta (sin subir) una fila de índice. Útil para backfill o cuando el
+    asset ya fue subido por otra vía."""
+    import uuid as _uuid
+    from app.models.recurso_cloudinary import RecursoCloudinary
+    rec = RecursoCloudinary(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id, public_id=public_id,
+        secure_url=secure_url, folder=folder, recurso_tipo=recurso_tipo,
+        entidad_tipo=entidad_tipo, entidad_id=entidad_id, descripcion=descripcion,
+        bytes=bytes, formato=formato, creado_por_id=creado_por_id,
+    )
+    db.add(rec)
+    db.commit()
+    return rec
+
+
+def subir_e_indexar(db, *, empresa_id, base64_data, folder, public_id,
+                    entidad_tipo, entidad_id=None, descripcion=None,
+                    creado_por_id=None, is_perfil=False):
+    """Sube una imagen a `folder` e indexa el recurso. Devuelve la fila RecursoCloudinary."""
+    if not base64_data.startswith("data:"):
+        base64_data = f"data:image/jpeg;base64,{base64_data}"
+    params = {"folder": folder, "public_id": public_id, "overwrite": True, "invalidate": True}
+    if is_perfil:
+        params["transformation"] = [
+            {"crop": "fill", "gravity": "face", "width": 400, "height": 400, "quality": "auto:good"}
+        ]
+    res = cloudinary.uploader.upload(base64_data, **params)
+    return registrar_recurso(
+        db, empresa_id=empresa_id, public_id=res.get("public_id"),
+        secure_url=res.get("secure_url"), folder=folder, entidad_tipo=entidad_tipo,
+        entidad_id=entidad_id, recurso_tipo="imagen", descripcion=descripcion,
+        bytes=res.get("bytes"), formato=res.get("format"), creado_por_id=creado_por_id,
+    )
+
+
+def eliminar_recurso_por_public_id(public_id: str, resource_type: str = "image"):
+    """Destruye un asset por su public_id. Resiliente: no lanza si Cloudinary falla."""
+    if not public_id:
+        return
+    try:
+        cloudinary_uploader.destroy(public_id, resource_type=resource_type, invalidate=True)
+        logging.info(f"Recurso Cloudinary eliminado: {public_id}")
+    except Exception as e:
+        logging.error(f"No se pudo eliminar recurso Cloudinary {public_id}: {e}")

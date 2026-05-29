@@ -24,6 +24,7 @@ from app.routers import logistica       as logistica_router
 from app.routers import seguridad       as seguridad_router
 from app.routers import prestamo        as prestamo_router
 from app.routers import catalogos       as catalogos_router
+from app.routers import galeria         as galeria_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -58,6 +59,8 @@ from app.models import (  # noqa: F401
     unidad_medida, marca, modelo_equipo,
     # Catálogos base (Fase 0 — plan migración ERP)
     ubicacion, zona, area,
+    # Galería global / índice de Cloudinary (Fase 1 — plan migración ERP)
+    recurso_cloudinary,
     # Compras
     proveedor, orden_compra, recepcion_compra, ticket_compra,
     # Comunicados
@@ -166,6 +169,34 @@ def _pre_create_migrations():
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_area_empresa_nombre "
             "ON area (empresa_id, lower(nombre))"
+        ))
+
+        # ── Galería global: índice de recursos Cloudinary (Fase 1) ───────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS recurso_cloudinary (
+                id            uuid PRIMARY KEY,
+                empresa_id    uuid NOT NULL REFERENCES empresa(id),
+                public_id     VARCHAR(300) NOT NULL,
+                secure_url    TEXT NOT NULL,
+                folder        VARCHAR(300),
+                recurso_tipo  VARCHAR(20) NOT NULL DEFAULT 'imagen',
+                entidad_tipo  VARCHAR(40) NOT NULL,
+                entidad_id    uuid,
+                descripcion   VARCHAR(300),
+                bytes         INTEGER,
+                formato       VARCHAR(10),
+                creado_por_id uuid,
+                created_at    TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT chk_recurso_tipo CHECK (recurso_tipo IN ('imagen','pdf','raw','video'))
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_recurso_empresa_entidad "
+            "ON recurso_cloudinary (empresa_id, entidad_tipo, entidad_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_recurso_empresa_fecha "
+            "ON recurso_cloudinary (empresa_id, created_at)"
         ))
         # ticket_compra referencia empresa(id) que es uuid — mismo patrón que marca/unidad_medida
         conn.execute(text("""
@@ -278,6 +309,9 @@ def _run_migrations():
         # ── RBAC seed: permisos del módulo de catálogos (Fase 0) ─────────────
         sembrar_permisos(conn, "catalogos", ["ver", "crear", "editar", "eliminar"],
                          descripcion_base="Catálogos base:")
+        # ── RBAC seed: permisos de la galería global (Fase 1) ────────────────
+        sembrar_permisos(conn, "galeria", ["ver", "subir", "eliminar"],
+                         descripcion_base="Galería global:")
         conn.commit()
 
         conn.execute(text(
@@ -704,6 +738,7 @@ app.include_router(logistica_router.router)
 app.include_router(seguridad_router.router)
 app.include_router(prestamo_router.router)
 app.include_router(catalogos_router.router)
+app.include_router(galeria_router.router)
 
 
 @app.get("/")
