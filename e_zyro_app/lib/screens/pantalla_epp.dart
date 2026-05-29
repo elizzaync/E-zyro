@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../models/epp_models.dart';
 import '../services/epp_service.dart';
 import '../utils/api_provider.dart';
+import 'pantalla_epp_entrega.dart';
 
 /// EPP — Equipos de Protección Personal (Fase 2).
 /// Tabs: Catálogo (stock + alta) e Historial de entregas.
@@ -97,7 +98,20 @@ class _PantallaEppState extends State<PantallaEpp> {
         appBar: AppBar(
           title: const Text('EPP', style: TextStyle(fontWeight: FontWeight.bold)),
           bottom: const TabBar(tabs: [Tab(text: 'Catálogo'), Tab(text: 'Entregas')]),
-          actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.assignment_add),
+              tooltip: 'Nueva entrega',
+              onPressed: () async {
+                final ok = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PantallaEppEntrega()),
+                );
+                if (ok == true) _cargar();
+              },
+            ),
+            IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh)),
+          ],
         ),
         floatingActionButton: FloatingActionButton.extended(
           onPressed: _nuevoEpp,
