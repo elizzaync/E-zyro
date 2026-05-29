@@ -1057,8 +1057,8 @@ def listar_requerimientos(
         Requerimiento.estado != "borrador",
     )
     if estado == "activos":
-        # 'aprobado' = técnico firmó, logística pendiente de cierre contable → sigue activo
-        base = base.filter(Requerimiento.estado.in_(["pendiente", "comprando", "listo", "aprobado"]))
+        # 'aprobado' = logística firmó la entrega, pasa a historial esperando firma del técnico
+        base = base.filter(Requerimiento.estado.in_(["pendiente", "comprando", "listo"]))
     elif estado and estado != "todos":
         base = base.filter(Requerimiento.estado == estado)
 
@@ -1410,7 +1410,7 @@ async def entregar_requerimiento(
     Requiere `firmaEntregadorUrl` y reusa el receptor ya registrado en
     `firma_recibido_por_id`. No se acepta cerrar sin firma del receptor previa.
     """
-    _autorizar_logistica(payload)
+    # Cualquier usuario autenticado puede confirmar la recepción (técnico o logística)
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -1422,7 +1422,7 @@ async def entregar_requerimiento(
     if req.estado != "aprobado":
         raise HTTPException(
             status_code=409,
-            detail="Solo se cierra contablemente un requerimiento 'aprobado' (firmado por el técnico).",
+            detail="Solo se confirma la recepción de un requerimiento 'aprobado' (entregado por logística).",
         )
     if not body.firmaEntregadorUrl:
         raise HTTPException(
