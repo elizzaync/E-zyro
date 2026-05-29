@@ -6,6 +6,7 @@ import '../models/itse_models.dart';
 import '../services/itse_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/abrir_enlace.dart';
+import '../utils/app_session.dart';
 import 'pantalla_galeria.dart';
 
 /// Detalle de una inspección ITSE: tableros + ítems (hallazgos) + fotos + finalizar.
@@ -245,11 +246,13 @@ class _PantallaItseDetalleState extends State<PantallaItseDetalle> {
                 const Divider(),
                 Row(children: [
                   Expanded(child: OutlinedButton.icon(onPressed: _finalizada ? null : _addFoto, icon: const Icon(Icons.add_a_photo_outlined), label: const Text('Agregar foto'))),
-                  const SizedBox(width: 8),
-                  Expanded(child: FilledButton.icon(
-                    onPressed: (_finalizada || _trabajando) ? null : _finalizar,
-                    icon: const Icon(Icons.task_alt),
-                    label: Text(_finalizada ? 'Finalizada' : 'Finalizar'))),
+                  if (AppSession.i.canFinalizarItse) ...[
+                    const SizedBox(width: 8),
+                    Expanded(child: FilledButton.icon(
+                      onPressed: (_finalizada || _trabajando) ? null : _finalizar,
+                      icon: const Icon(Icons.task_alt),
+                      label: Text(_finalizada ? 'Finalizada' : 'Finalizar'))),
+                  ],
                 ]),
               ],
             ),

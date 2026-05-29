@@ -4,6 +4,7 @@ import '../models/itse_models.dart';
 import '../services/itse_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/abrir_enlace.dart';
+import '../utils/app_session.dart';
 import 'pantalla_itse_detalle.dart';
 
 /// Inspección ITSE (Fase 5). Lista + alta de inspección (borrador).
@@ -111,9 +112,11 @@ class _PantallaItseState extends State<PantallaItse> {
         title: const Text('Inspección ITSE', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _nueva, icon: const Icon(Icons.add), label: const Text('Nueva'),
-      ),
+      floatingActionButton: AppSession.i.canCrearItse
+          ? FloatingActionButton.extended(
+              onPressed: _nueva, icon: const Icon(Icons.add), label: const Text('Nueva'),
+            )
+          : null,
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _error != null

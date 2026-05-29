@@ -306,11 +306,13 @@ class _MainShellState extends State<MainShell> {
   late int _currentIndex;
   Timer? _syncTimer;
   bool _puedeLogistica = false;
+  bool _puedePersonal = false;
 
   // Índice fijo de la pantalla de logística en _screens. Se mantiene en la
   // lista aunque el usuario no tenga permiso para no descuadrar otros
   // tabNotifier.value que se pasan entre módulos.
   static const _logisticaScreenIdx = 2;
+  static const _personalScreenIdx = 3;
 
   // Inicio (0) y Operaciones (1) funcionan offline con datos cacheados.
   // El resto aún requiere red → OfflineOverlay los bloquea automáticamente.
@@ -348,8 +350,15 @@ class _MainShellState extends State<MainShell> {
     await AppSession.load();
     if (!mounted) return;
     final canLog = AppSession.i.canGestInventario;
-    setState(() => _puedeLogistica = canLog);
+    final canPer = AppSession.i.canVerPersonal;
+    setState(() {
+      _puedeLogistica = canLog;
+      _puedePersonal = canPer;
+    });
     if (!canLog && _currentIndex == _logisticaScreenIdx) {
+      tabNotifier.value = 0;
+    }
+    if (!canPer && _currentIndex == _personalScreenIdx) {
       tabNotifier.value = 0;
     }
   }
@@ -366,8 +375,12 @@ class _MainShellState extends State<MainShell> {
   void _onTabChanged() {
     if (!mounted) return;
     var target = tabNotifier.value;
-    // Bloqueo: si alguien intenta ir a logística sin permiso, redirigimos a Inicio.
+    // Bloqueo: si alguien intenta ir a logística/personal sin permiso → Inicio.
     if (!_puedeLogistica && target == _logisticaScreenIdx) {
+      tabNotifier.value = 0;
+      return;
+    }
+    if (!_puedePersonal && target == _personalScreenIdx) {
       tabNotifier.value = 0;
       return;
     }
@@ -381,7 +394,19 @@ class _MainShellState extends State<MainShell> {
     if (isOnlineNotifier.value) {
       _triggerSync();
       _refreshTokenSilencioso();
+      _refrescarSesionYNav();
     }
+  }
+
+  /// Al recuperar conexión, recarga rol+permisos desde el servidor y refresca el
+  /// bottom nav (p. ej. aparece/desaparece Logística si cambió el rol en BD).
+  Future<void> _refrescarSesionYNav() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final auth  = AuthService(ApiClient(prefs), prefs);
+      final ok = await auth.refrescarSesion();
+      if (ok && mounted) await _cargarPermisos();
+    } catch (_) {}
   }
 
   // Throttle del refresh para no renovar en cada parpadeo de conexión.
@@ -538,10 +563,11 @@ class _MainShellState extends State<MainShell> {
             screenIdx: _logisticaScreenIdx, label: 'Logística',
             icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2_rounded,
           ),
-        const _NavDest(
-          screenIdx: 3, label: 'Personal',
-          icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded,
-        ),
+        if (_puedePersonal)
+          const _NavDest(
+            screenIdx: 3, label: 'Personal',
+            icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded,
+          ),
         const _NavDest(
           screenIdx: 4, label: 'Más',
           icon: Icons.more_horiz_rounded, selectedIcon: Icons.more_horiz_rounded,

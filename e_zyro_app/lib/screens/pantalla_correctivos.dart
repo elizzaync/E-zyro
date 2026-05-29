@@ -5,6 +5,7 @@ import '../models/proyecto_models.dart';
 import '../services/correctivo_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/abrir_enlace.dart';
+import '../utils/app_session.dart';
 
 /// Garantías/Correctivos (Fase 4). Lista global con su estado y transiciones.
 /// El alta se hace desde el detalle de un servicio (servicio_id requerido).
@@ -171,9 +172,11 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
         title: const Text('Garantías / Correctivos', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _nuevoCorrectivo, icon: const Icon(Icons.add), label: const Text('Nuevo'),
-      ),
+      floatingActionButton: AppSession.i.canCrearCorrectivo
+          ? FloatingActionButton.extended(
+              onPressed: _nuevoCorrectivo, icon: const Icon(Icons.add), label: const Text('Nuevo'),
+            )
+          : null,
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -187,7 +190,9 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (_, i) {
                           final c = _items[i];
-                          final puedeAvanzar = _siguientes.containsKey(c.estado);
+                          final puedeAvanzar = _siguientes.containsKey(c.estado) &&
+                              (AppSession.i.canAprobarCorrectivo ||
+                                  AppSession.i.canFinalizarCorrectivo);
                           return ListTile(
                             leading: const Icon(Icons.build_outlined),
                             title: Text(c.codigo ?? c.id),

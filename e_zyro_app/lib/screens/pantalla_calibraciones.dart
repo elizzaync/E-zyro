@@ -6,6 +6,7 @@ import '../models/calibracion_models.dart';
 import '../models/prestamo_models.dart';
 import '../services/calibracion_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_session.dart';
 
 /// Calibraciones + Estado operativo de equipos (Fase 3).
 class PantallaCalibraciones extends StatefulWidget {
@@ -138,9 +139,11 @@ class _PantallaCalibracionesState extends State<PantallaCalibraciones> {
           bottom: const TabBar(tabs: [Tab(text: 'Calibraciones'), Tab(text: 'Inoperativos')]),
           actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _nuevaCalibracion, icon: const Icon(Icons.add), label: const Text('Nueva'),
-        ),
+        floatingActionButton: AppSession.i.canCrearCalibracion
+            ? FloatingActionButton.extended(
+                onPressed: _nuevaCalibracion, icon: const Icon(Icons.add), label: const Text('Nueva'),
+              )
+            : null,
         body: _cargando
             ? const Center(child: CircularProgressIndicator())
             : _error != null
@@ -167,11 +170,12 @@ class _PantallaCalibracionesState extends State<PantallaCalibraciones> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (c.certificadoUrl != null) const Icon(Icons.verified_outlined, color: Colors.green, size: 18),
-                IconButton(
-                  icon: const Icon(Icons.upload_file_outlined, size: 20),
-                  tooltip: 'Subir certificado',
-                  onPressed: () => _subirCert(c),
-                ),
+                if (AppSession.i.canEditarCalibracion)
+                  IconButton(
+                    icon: const Icon(Icons.upload_file_outlined, size: 20),
+                    tooltip: 'Subir certificado',
+                    onPressed: () => _subirCert(c),
+                  ),
               ],
             ),
           );

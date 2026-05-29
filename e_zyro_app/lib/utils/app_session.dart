@@ -47,10 +47,50 @@ class AppSession {
   // Logística: admin (bypass) · rol Logístico · o cualquiera con permiso de inventario.
   bool get canGestInventario   =>
       isAdmin || _esLogistica || hasPerm('inventario:ver') || hasPerm('inventario:gestionar');
-  bool get canGestPersonal     => isAdmin || hasPerm('empleados:gestionar') || hasPerm('personal:gestionar');
+  // Personal: visibilidad (ver) separada de gestión (crear/editar).
+  bool get canVerPersonal      => isAdmin || hasPerm('empleados:ver');
+  bool get canGestPersonal     => isAdmin || hasPerm('empleados:crear') || hasPerm('empleados:editar');
   bool get canVerReportes      => hasPerm('reportes:ver');
   bool get canGestClientes     => hasPerm('clientes:gestionar');
   bool get canValidarAsistencia=> hasPerm('asistencia:validar');
+
+  // ── Visibilidad de módulos (pestañas / entradas de menú) ──────────────────
+  // hasPerm ya da true para admin, así que el admin ve todos los módulos.
+  bool get canVerInventario   => canGestInventario; // ver = mismo gate que logística
+  bool get canVerEpp          => hasPerm('epp:ver');
+  bool get canVerCalibracion  => hasPerm('calibracion:ver');
+  bool get canVerCorrectivo   => hasPerm('correctivo:ver');
+  bool get canVerItse         => hasPerm('itse:ver');
+  bool get canVerCatalogos    => hasPerm('catalogos:ver');
+  bool get canVerGaleria      => hasPerm('galeria:ver');
+
+  // ── Acciones (ocultar/mostrar botones) ────────────────────────────────────
+  bool get canGestionarInventario => isAdmin || _esLogistica || hasPerm('inventario:gestionar');
+  bool get canAprobarRequerimiento => hasPerm('requerimientos:aprobar');
+  // EPP
+  bool get canCrearEpp        => hasPerm('epp:crear');
+  bool get canEntregarEpp     => hasPerm('epp:entregar');
+  bool get canIngresarEpp     => hasPerm('epp:ingresar');
+  bool get canEliminarEpp     => hasPerm('epp:eliminar');
+  // ITSE
+  bool get canCrearItse       => hasPerm('itse:crear');
+  bool get canEditarItse      => hasPerm('itse:editar');
+  bool get canFinalizarItse   => hasPerm('itse:finalizar');
+  bool get canEliminarItse    => hasPerm('itse:eliminar');
+  // Calibración
+  bool get canCrearCalibracion  => hasPerm('calibracion:crear');
+  bool get canEditarCalibracion => hasPerm('calibracion:editar');
+  // Correctivo
+  bool get canCrearCorrectivo     => hasPerm('correctivo:crear');
+  bool get canAprobarCorrectivo   => hasPerm('correctivo:aprobar');
+  bool get canFinalizarCorrectivo => hasPerm('correctivo:finalizar');
+  // Catálogos
+  bool get canCrearCatalogo   => hasPerm('catalogos:crear');
+  bool get canEditarCatalogo  => hasPerm('catalogos:editar');
+  bool get canEliminarCatalogo=> hasPerm('catalogos:eliminar');
+  // Galería
+  bool get canSubirGaleria    => hasPerm('galeria:subir');
+  bool get canEliminarGaleria => hasPerm('galeria:eliminar');
 
   // ── Roles específicos ─────────────────────────────────────────────────────
 

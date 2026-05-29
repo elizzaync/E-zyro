@@ -185,6 +185,37 @@ class AuthService {
     }
   }
 
+  // ── Refresco de rol/permisos (autosana la sesión) ─────────────────────────
+
+  /// Recarga rol + permisos desde el servidor (GET /auth/me) y los reescribe en
+  /// prefs + AppSession. Best-effort: si falla (offline / 401), conserva lo
+  /// cacheado y no rompe el arranque. Devuelve true si actualizó.
+  Future<bool> refrescarSesion() async {
+    final token = _prefs.getString(_tokenKey);
+    if (token == null) return false;
+    try {
+      final r = await _client.get('/auth/me');
+      if (r.statusCode != 200) return false;
+      final data = (jsonDecode(r.body) as Map<String, dynamic>)['data']
+          as Map<String, dynamic>?;
+      if (data == null) return false;
+
+      final rol = (data['rol'] ?? '') as String;
+      final permisos = (data['permisos'] as List?)?.cast<String>() ?? <String>[];
+      final nombre = (data['nombre_completo'] ?? '') as String;
+      final fotoUrl = (data['foto_url'] ?? '') as String;
+
+      if (rol.isNotEmpty) await _prefs.setString('user_rol', rol);
+      await _prefs.setStringList('user_permisos', permisos);
+      if (nombre.isNotEmpty) await _prefs.setString('user_name', nombre);
+      if (fotoUrl.isNotEmpty) await _prefs.setString('user_foto_url', fotoUrl);
+      await AppSession.load();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── Session ───────────────────────────────────────────────────────────────
 
   Future<void> logout({String? fcmToken}) async {

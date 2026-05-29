@@ -33,6 +33,13 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _puedeVerAuditoria = false;
   bool _puedeVerMantenimiento = false;
   bool _puedeVerPersonal = false;
+  // Visibilidad de módulos por permiso (admin ve todos).
+  bool _canEpp = false;
+  bool _canCalibracion = false;
+  bool _canCorrectivo = false;
+  bool _canItse = false;
+  bool _canCatalogos = false;
+  bool _canGaleria = false;
 
   @override
   void initState() {
@@ -50,7 +57,13 @@ class _MoreScreenState extends State<MoreScreen> {
         _fotoUrl  = prefs.getString('user_foto_url') ?? '';
         _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
         _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
-        _puedeVerPersonal    = AppSession.i.canGestPersonal;
+        _puedeVerPersonal    = AppSession.i.canVerPersonal;
+        _canEpp          = AppSession.i.canVerEpp;
+        _canCalibracion  = AppSession.i.canVerCalibracion;
+        _canCorrectivo   = AppSession.i.canVerCorrectivo;
+        _canItse         = AppSession.i.canVerItse;
+        _canCatalogos    = AppSession.i.canVerCatalogos;
+        _canGaleria      = AppSession.i.canVerGaleria;
       });
     }
   }
@@ -284,44 +297,52 @@ class _MoreScreenState extends State<MoreScreen> {
             const SizedBox(height: 20),
 
             // ── Módulos operativos (plan migración ERP) ────────────────
-            _buildSectionTitle('Módulos'),
-            const SizedBox(height: 10),
-            _buildMenuGroup(
-              surface: surface,
-              items: [
-                _MenuItem(
-                  icon: Icons.health_and_safety_outlined,
-                  label: 'EPP',
-                  onTap: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const PantallaEpp())),
-                ),
-                _MenuItem(
-                  icon: Icons.straighten_outlined,
-                  label: 'Calibraciones',
-                  onTap: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const PantallaCalibraciones())),
-                ),
-                _MenuItem(
-                  icon: Icons.build_outlined,
-                  label: 'Garantías / Correctivos',
-                  onTap: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const PantallaCorrectivos())),
-                ),
-                _MenuItem(
-                  icon: Icons.fact_check_outlined,
-                  label: 'Inspección ITSE',
-                  onTap: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const PantallaItse())),
-                ),
-                _MenuItem(
-                  icon: Icons.category_outlined,
-                  label: 'Catálogos (ubicación/zona/área)',
-                  onTap: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const PantallaCatalogos())),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
+            // Cada módulo se muestra solo si el rol tiene su permiso :ver (admin: todos).
+            if (_canEpp || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos) ...[
+              _buildSectionTitle('Módulos'),
+              const SizedBox(height: 10),
+              _buildMenuGroup(
+                surface: surface,
+                items: [
+                  if (_canEpp)
+                    _MenuItem(
+                      icon: Icons.health_and_safety_outlined,
+                      label: 'EPP',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(builder: (_) => const PantallaEpp())),
+                    ),
+                  if (_canCalibracion)
+                    _MenuItem(
+                      icon: Icons.straighten_outlined,
+                      label: 'Calibraciones',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(builder: (_) => const PantallaCalibraciones())),
+                    ),
+                  if (_canCorrectivo)
+                    _MenuItem(
+                      icon: Icons.build_outlined,
+                      label: 'Garantías / Correctivos',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(builder: (_) => const PantallaCorrectivos())),
+                    ),
+                  if (_canItse)
+                    _MenuItem(
+                      icon: Icons.fact_check_outlined,
+                      label: 'Inspección ITSE',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(builder: (_) => const PantallaItse())),
+                    ),
+                  if (_canCatalogos)
+                    _MenuItem(
+                      icon: Icons.category_outlined,
+                      label: 'Catálogos (ubicación/zona/área)',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(builder: (_) => const PantallaCatalogos())),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
 
             // ── Recursos ───────────────────────────────────────────────
             _buildSectionTitle('Recursos'),
@@ -329,14 +350,15 @@ class _MoreScreenState extends State<MoreScreen> {
             _buildMenuGroup(
               surface: surface,
               items: [
-                _MenuItem(
-                  icon: Icons.photo_library_outlined,
-                  label: 'Galería',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PantallaGaleria()),
+                if (_canGaleria)
+                  _MenuItem(
+                    icon: Icons.photo_library_outlined,
+                    label: 'Galería',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PantallaGaleria()),
+                    ),
                   ),
-                ),
                 _MenuItem(
                   icon: Icons.description_outlined,
                   label: 'Documentación',

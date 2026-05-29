@@ -89,8 +89,13 @@ class _SplashScreenState extends State<SplashScreen>
     await AuthService.restoreTokenIfNeeded(prefs);
     await AppSession.load();
     final bioEnabled  = prefs.getBool('biometric_enabled') ?? false;
+    final auth        = AuthService(ApiClient(prefs), prefs);
     // Validar el JWT localmente (sin red): expirado → login para renovar.
-    final tokenValido = AuthService(ApiClient(prefs), prefs).isStoredTokenValid();
+    final tokenValido = auth.isStoredTokenValid();
+    // Autosanar rol+permisos desde el servidor (best-effort, no bloquea si offline).
+    if (tokenValido) {
+      await auth.refrescarSesion();
+    }
     // Con biométrico vamos a /login para desbloquear con huella (que ya maneja
     // el caso offline). Sin biométrico, entramos directo si el token sigue
     // vigente, incluso sin internet.

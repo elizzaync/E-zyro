@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/galeria_models.dart';
 import '../services/galeria_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_session.dart';
 
 /// Galería Global de imágenes/recursos (Fase 1).
 /// - Modo global: lista toda la empresa con búsqueda.
@@ -172,13 +173,14 @@ class _PantallaGaleriaState extends State<PantallaGaleria> {
               right: 4,
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _eliminar(r);
-                    },
-                  ),
+                  if (AppSession.i.canEliminarGaleria)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _eliminar(r);
+                      },
+                    ),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
                     onPressed: () => Navigator.pop(ctx),
@@ -210,14 +212,16 @@ class _PantallaGaleriaState extends State<PantallaGaleria> {
           IconButton(icon: const Icon(Icons.refresh), onPressed: _cargar),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _subiendo ? null : _subir,
-        icon: _subiendo
-            ? const SizedBox(
-                width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-            : const Icon(Icons.add_a_photo_outlined),
-        label: Text(_subiendo ? 'Subiendo...' : 'Subir'),
-      ),
+      floatingActionButton: AppSession.i.canSubirGaleria
+          ? FloatingActionButton.extended(
+              onPressed: _subiendo ? null : _subir,
+              icon: _subiendo
+                  ? const SizedBox(
+                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.add_a_photo_outlined),
+              label: Text(_subiendo ? 'Subiendo...' : 'Subir'),
+            )
+          : null,
       body: Column(
         children: [
           if (!widget.esContextual)
@@ -283,7 +287,7 @@ class _PantallaGaleriaState extends State<PantallaGaleria> {
           final r = _items[i];
           return GestureDetector(
             onTap: () => _verImagen(r),
-            onLongPress: () => _eliminar(r),
+            onLongPress: AppSession.i.canEliminarGaleria ? () => _eliminar(r) : null,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: r.esImagen
