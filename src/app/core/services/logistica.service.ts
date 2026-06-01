@@ -21,6 +21,7 @@ import {
   SalidasKpis,
   RegistrarIngresoPayload,
   Retorno,
+  Incidencia, EquipoStockDesglose,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -395,5 +396,36 @@ export class LogisticaService {
 
   completarRetorno(id: string): Observable<Retorno> {
     return this.http.patch<Retorno>(`${this.api}/logistica/retornos/${id}/completar`, {});
+  }
+
+  // ── Incidencias ────────────────────────────────────────────────────────
+  crearIncidencia(body: {
+    equipoId: string; proyectoServicioId?: string | null;
+    numeroSerie?: string | null; cantidadAfectada?: number;
+    tipoFalla?: string; descripcion: string;
+  }): Observable<Incidencia> {
+    return this.http.post<Incidencia>(`${this.api}/logistica/incidencias`, body);
+  }
+
+  getIncidencias(filtros: { q?: string; clase?: string; estado?: string; desde?: string; hasta?: string; page?: number; pageSize?: number } = {}): Observable<{ items: Incidencia[]; total: number }> {
+    let params = new HttpParams()
+      .set('page',      String(filtros.page     ?? 1))
+      .set('page_size', String(filtros.pageSize ?? 30));
+    if (filtros.q)      params = params.set('q',      filtros.q);
+    if (filtros.clase)  params = params.set('clase',  filtros.clase);
+    if (filtros.estado) params = params.set('estado', filtros.estado);
+    if (filtros.desde)  params = params.set('desde',  filtros.desde);
+    if (filtros.hasta)  params = params.set('hasta',  filtros.hasta);
+    return this.http
+      .get<{ items: Incidencia[]; total: number; page: number; pageSize: number }>(`${this.api}/logistica/incidencias`, { params })
+      .pipe(map(r => ({ items: r.items, total: r.total })));
+  }
+
+  resolverIncidencia(id: string, body: { estado: string; resolucionNota?: string }): Observable<Incidencia> {
+    return this.http.patch<Incidencia>(`${this.api}/logistica/incidencias/${id}/resolver`, body);
+  }
+
+  getDesgloseEquipo(equipoId: string): Observable<EquipoStockDesglose> {
+    return this.http.get<EquipoStockDesglose>(`${this.api}/logistica/incidencias/equipo/${equipoId}/desglose`);
   }
 }

@@ -370,3 +370,36 @@ export interface Retorno {
   itemsObligatorios: number;
   itemsPendientes: number;
 }
+
+// ── Incidencias ───────────────────────────────────────────────────────────
+
+export type EstadoIncidencia = 'abierta' | 'en_reparacion' | 'solucionado' | 'dado_de_baja';
+export type TipoFalla = 'no_enciende' | 'dano_fisico' | 'desgaste' | 'perdida' | 'otro';
+
+export interface Incidencia {
+  id: string;
+  equipoId: string;
+  equipoNombre: string;
+  equipoClase: 'equipo' | 'herramienta';
+  equipoSinSerie: boolean;
+  proyectoServicioId: string | null;
+  servicioNombre: string | null;
+  reportadoPorNombre: string | null;
+  resueltoPorNombre: string | null;
+  numeroSerie: string | null;
+  cantidadAfectada: number;
+  tipoFalla: TipoFalla;
+  descripcion: string;
+  estado: EstadoIncidencia;
+  resolucionNota: string | null;
+  fechaReporte: string;
+  fechaResolucion: string | null;
+}
+
+export interface EquipoStockDesglose {
+  equipoId: string;
+  cantidadTotal: number;
+  operativos: number;
+  enIncidencia: number;
+  incidenciasAbiertas: number;
+}

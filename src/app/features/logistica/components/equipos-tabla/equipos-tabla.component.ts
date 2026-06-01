@@ -7,6 +7,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { EquipoFormModalComponent } from '../equipo-form-modal/equipo-form-modal.component';
 import {
   EquipoHerramienta, ClaseArticulo, EstadoEquipo, FrecuenciaMantenimiento,
+  EquipoStockDesglose,
 } from '../../logistica.models';
 
 @Component({
@@ -42,6 +43,11 @@ export class EquiposTablaComponent implements OnInit {
   // Eliminación
   equipoAEliminar: EquipoHerramienta | null = null;
   eliminando = false;
+
+  // Tooltip desglose stock
+  tooltipEquipoId:   string | null   = null;
+  tooltipDesglose:   EquipoStockDesglose | null = null;
+  tooltipCargando    = false;
 
   ngOnInit(): void { this.cargar(); }
 
@@ -101,6 +107,23 @@ export class EquiposTablaComponent implements OnInit {
   mantenimientoVencido(e: EquipoHerramienta): boolean {
     if (!e.requiereMantenimiento || !e.proximaFechaMantenimiento) return false;
     return new Date(e.proximaFechaMantenimiento) <= new Date();
+  }
+
+  // ── Tooltip desglose ──
+  mostrarTooltip(e: EquipoHerramienta): void {
+    this.tooltipEquipoId = e.id;
+    this.tooltipDesglose = null;
+    this.tooltipCargando = true;
+    this.svc.getDesgloseEquipo(e.id).subscribe({
+      next:  d => { this.tooltipDesglose = d; this.tooltipCargando = false; },
+      error: () => { this.tooltipCargando = false; },
+    });
+  }
+
+  ocultarTooltip(): void { this.tooltipEquipoId = null; this.tooltipDesglose = null; }
+
+  tieneIncidencias(e: EquipoHerramienta): boolean {
+    return e.estado === 'en_mantenimiento' || e.estado === 'fuera_de_servicio';
   }
 
   // ── CRUD ──

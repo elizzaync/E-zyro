@@ -214,6 +214,18 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   pdfCargando   = false;
   pdfBlobUrl    = '';
 
+  // ── Modal Incidencia (técnico reporta daño) ───────────────
+  showModalIncidencia       = false;
+  incEquipoId               = '';
+  incEquipoNombre           = '';
+  incEquipoClase: 'equipo' | 'herramienta' = 'equipo';
+  incEquipoSinSerie         = false;
+  incNumeroSerie            = '';
+  incCantidadAfectada       = 1;
+  incTipoFalla              = 'otro';
+  incDescripcion            = '';
+  enviandoIncidencia        = false;
+
   // ── Modal Retorno (técnico declara devolución) ────────────
   showModalRetorno    = false;
   retornoReqId        = '';
@@ -1323,6 +1335,49 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   }
 
   cerrarModalSolicitar(): void { this.showModalSolicitar = false; }
+
+  // ── Incidencia ───────────────────────────────────────────────────────
+  abrirIncidencia(item: ItemMaterial): void {
+    this.incEquipoId        = item.id;
+    this.incEquipoNombre    = item.nombre;
+    this.incEquipoClase     = (item.clase as 'equipo' | 'herramienta') || 'equipo';
+    this.incEquipoSinSerie  = false; // se verifica tras abrir
+    this.incNumeroSerie     = '';
+    this.incCantidadAfectada = 1;
+    this.incTipoFalla       = 'otro';
+    this.incDescripcion     = '';
+    this.showModalIncidencia = true;
+  }
+
+  cerrarIncidencia(): void { this.showModalIncidencia = false; }
+
+  enviarIncidencia(): void {
+    if (!this.incEquipoId || !this.incDescripcion.trim() || this.enviandoIncidencia) return;
+    this.enviandoIncidencia = true;
+    this.logistica.crearIncidencia({
+      equipoId:           this.incEquipoId,
+      proyectoServicioId: this.servicioId,
+      numeroSerie:        this.incNumeroSerie.trim() || null,
+      cantidadAfectada:   this.incEquipoClase === 'herramienta' ? this.incCantidadAfectada : 1,
+      tipoFalla:          this.incTipoFalla,
+      descripcion:        this.incDescripcion.trim(),
+    }).subscribe({
+      next: () => {
+        this.enviandoIncidencia  = false;
+        this.toast.mostrar('Incidencia reportada correctamente.', 'success');
+        this.cerrarIncidencia();
+      },
+      error: err => {
+        this.enviandoIncidencia = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al reportar la incidencia.', 'error');
+      },
+    });
+  }
+
+  get equiposYHerramientas(): ItemMaterial[] {
+    const todos = [...(this.servicio?.itemsAsignados ?? []), ...(this.servicio?.itemsSolicitados ?? [])];
+    return todos.filter(it => it.clase === 'equipo' || it.clase === 'herramienta');
+  }
 
   // ── Retorno ──────────────────────────────────────────────────────────
   abrirModalRetorno(req: Requerimiento): void {

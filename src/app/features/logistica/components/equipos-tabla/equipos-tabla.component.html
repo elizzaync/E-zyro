@@ -74,8 +74,55 @@
               <div>{{ e.marca || '—' }}</div>
               @if (e.modelo && e.modelo !== '—') { <div class="td-desc">{{ e.modelo }}</div> }
             </td>
-            <td class="td-muted">{{ e.numeroSerie || '—' }}</td>
-            <td class="th-num">{{ e.cantidad }}</td>
+            <td class="td-muted">
+              @if (e.numeroSerie && e.numeroSerie.trim()) {
+                <span class="td-serie">{{ e.numeroSerie }}</span>
+              } @else {
+                <span class="td-sin-serie" title="Sin número de serie — urgente completar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:11px;height:11px">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  </svg>
+                  Sin serie
+                </span>
+              }
+            </td>
+            <td class="th-num">
+              <div class="stock-tooltip-wrap"
+                   (mouseenter)="mostrarTooltip(e)"
+                   (mouseleave)="ocultarTooltip()">
+                <span class="stock-num" [class.stock-num--warn]="tieneIncidencias(e)">
+                  {{ e.cantidad }}
+                </span>
+                @if (tieneIncidencias(e)) {
+                  <span class="stock-warn-dot" title="Hay incidencias activas">!</span>
+                }
+                @if (tooltipEquipoId === e.id) {
+                  <div class="stock-tooltip">
+                    @if (tooltipCargando) {
+                      <span class="st-loading">Cargando…</span>
+                    } @else if (tooltipDesglose) {
+                      <div class="st-row">
+                        <span class="st-dot st-dot--ok"></span>
+                        <span>Operativos</span>
+                        <strong>{{ tooltipDesglose.operativos }}</strong>
+                      </div>
+                      @if (tooltipDesglose.enIncidencia > 0) {
+                        <div class="st-row">
+                          <span class="st-dot st-dot--warn"></span>
+                          <span>En incidencias</span>
+                          <strong class="st-warn">{{ tooltipDesglose.enIncidencia }}</strong>
+                        </div>
+                      }
+                      <div class="st-divider"></div>
+                      <div class="st-row st-row--total">
+                        <span>Total</span>
+                        <strong>{{ tooltipDesglose.cantidadTotal }}</strong>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </td>
             <td>
               <span class="badge-estado" [class]="estadoClase(e.estado)">{{ estadoLabel(e.estado) }}</span>
             </td>

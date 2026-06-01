@@ -254,6 +254,29 @@
   </div>
   }
 
+  <!-- Incidencias: botón siempre visible si hay equipos/herramientas en el servicio -->
+  @if (equiposYHerramientas.length > 0) {
+  <div class="banner-incidencia">
+    <div class="banner-incidencia-ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+    <div class="banner-incidencia-text">
+      <strong>Reportar incidencia</strong>
+      <span>¿Algún equipo o herramienta sufrió daño o dejó de funcionar?</span>
+    </div>
+    <button class="btn-reportar-inc" (click)="showModalIncidencia = true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+      </svg>
+      Reportar incidencia
+    </button>
+  </div>
+  }
+
   <!-- Retorno: aparece cuando hay reqs entregados para devolver -->
   @if (reqsEntregados.length > 0) {
   <div class="banner-retorno">
@@ -1705,6 +1728,109 @@
           </svg>
         }
         Registrar devolución
+      </button>
+    </footer>
+
+  </div>
+</div>
+}
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL: REPORTAR INCIDENCIA (técnico)
+══════════════════════════════════════════════════════ -->
+@if (showModalIncidencia) {
+<div class="modal-overlay" (click)="cerrarIncidencia()">
+  <div class="modal-box modal-solicitar" (click)="$event.stopPropagation()">
+
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Reportar Incidencia</h3>
+        <p class="modal-subtitle">Selecciona el equipo o herramienta afectado y describe el problema.</p>
+      </div>
+      <button class="modal-close" (click)="cerrarIncidencia()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- Selector de equipo/herramienta del servicio -->
+      <div class="form-field">
+        <label class="form-label">Equipo / Herramienta afectada <span class="form-required">*</span></label>
+        <select class="form-input" [(ngModel)]="incEquipoId"
+                (ngModelChange)="incEquipoNombre = equiposYHerramientas[$any($event)]?.nombre || ''">
+          <option value="">— Selecciona un ítem —</option>
+          @for (it of equiposYHerramientas; track it.id) {
+            <option [value]="it.id">
+              {{ it.nombre }} ({{ it.clase === 'equipo' ? 'Equipo' : 'Herramienta' }})
+            </option>
+          }
+        </select>
+      </div>
+
+      <!-- Número de serie: obligatorio para equipos, con alerta si no tiene -->
+      @if (incEquipoClase === 'equipo' || !incEquipoId) {
+        <div class="form-field mt-3">
+          <label class="form-label">
+            Número de serie <span class="form-required">*</span>
+            <span class="inc-serie-hint">(obligatorio para equipos)</span>
+          </label>
+          <input class="form-input" type="text" [(ngModel)]="incNumeroSerie"
+                 placeholder="Ej: SN-20230501-ABC123…">
+          @if (!incNumeroSerie.trim() && incEquipoId) {
+            <p class="inc-serie-warn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:13px;height:13px">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+              </svg>
+              Este equipo no tiene número de serie registrado. Ingrésalo manualmente.
+            </p>
+          }
+        </div>
+      } @else {
+        <!-- Herramienta: cantidad afectada -->
+        <div class="form-field mt-3">
+          <label class="form-label">Cantidad afectada</label>
+          <input class="form-input" type="number" [(ngModel)]="incCantidadAfectada" min="1" style="max-width:120px">
+        </div>
+      }
+
+      <!-- Tipo de falla -->
+      <div class="form-field mt-3">
+        <label class="form-label">Tipo de falla <span class="form-required">*</span></label>
+        <select class="form-input" [(ngModel)]="incTipoFalla">
+          <option value="no_enciende">No enciende / No funciona</option>
+          <option value="dano_fisico">Daño físico (golpe, caída, rotura)</option>
+          <option value="desgaste">Desgaste excesivo</option>
+          <option value="perdida">Pérdida / extraviado</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+
+      <!-- Descripción -->
+      <div class="form-field mt-3">
+        <label class="form-label">Descripción del problema <span class="form-required">*</span></label>
+        <textarea class="form-input" rows="3" [(ngModel)]="incDescripcion"
+                  placeholder="Ej: El rotomartillo no enciende tras perforar concreto. Se detectó olor a quemado."></textarea>
+      </div>
+
+    </div>
+
+    <footer class="modal-footer">
+      <button class="btn-outline" (click)="cerrarIncidencia()">Cancelar</button>
+      <button class="btn-primary btn-primary--danger" (click)="enviarIncidencia()"
+              [disabled]="!incEquipoId || !incDescripcion.trim() || enviandoIncidencia">
+        @if (enviandoIncidencia) { <app-spinner [size]="15" theme="light"></app-spinner> }
+        @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+          </svg>
+        }
+        Enviar reporte
       </button>
     </footer>
 

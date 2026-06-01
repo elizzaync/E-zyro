@@ -7,13 +7,14 @@ import { EquiposTablaComponent } from './components/equipos-tabla/equipos-tabla.
 import { SalidasComponent } from './components/salidas/salidas.component';
 import { IngresosTablaComponent } from './components/ingresos-tabla/ingresos-tabla.component';
 import { RetornosTablaComponent } from './components/retornos-tabla/retornos-tabla.component';
+import { IncidenciasTablaComponent } from './components/incidencias-tabla/incidencias-tabla.component';
 
-type TabLogistica = 'materiales' | 'equipos' | 'salidas' | 'ingresos' | 'retornos';
+type TabLogistica = 'materiales' | 'equipos' | 'salidas' | 'ingresos' | 'retornos' | 'incidencias';
 
 @Component({
   selector: 'app-logistica',
   standalone: true,
-  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, SalidasComponent, IngresosTablaComponent, RetornosTablaComponent],
+  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, SalidasComponent, IngresosTablaComponent, RetornosTablaComponent, IncidenciasTablaComponent],
   templateUrl: './logistica.component.html',
   styleUrls: ['./logistica.component.css']
 })

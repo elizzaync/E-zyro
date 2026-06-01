@@ -1,0 +1,232 @@
+<div class="inc-layout">
+
+  <!-- ─── Filtros ─── -->
+  <div class="inc-filtros">
+    <div class="inc-search">
+      <svg class="inc-search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input class="inc-search-input" type="text" [(ngModel)]="busqueda"
+             (keydown.enter)="buscar()" placeholder="Buscar por equipo, servicio o descripción…">
+    </div>
+
+    <select class="inc-select" [(ngModel)]="filtroClase" (change)="buscar()">
+      <option value="">Todos los tipos</option>
+      <option value="equipo">Equipos</option>
+      <option value="herramienta">Herramientas</option>
+    </select>
+
+    <select class="inc-select" [(ngModel)]="filtroEstado" (change)="buscar()">
+      <option value="">Todos los estados</option>
+      <option value="abierta">Abierta</option>
+      <option value="en_reparacion">En reparación</option>
+      <option value="solucionado">Solucionado</option>
+      <option value="dado_de_baja">Dado de baja</option>
+    </select>
+
+    <button class="inc-btn-buscar" (click)="buscar()">Buscar</button>
+    <button class="inc-btn-limpiar" (click)="limpiar()">Limpiar</button>
+    <span class="inc-total-badge"><strong>{{ total }}</strong> incidencias</span>
+  </div>
+
+  <!-- ─── Tabla ─── -->
+  @if (cargando) {
+    <div class="inc-loading"><app-spinner [size]="28"></app-spinner></div>
+  } @else if (incidencias.length === 0) {
+    <div class="inc-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p>Sin incidencias registradas.</p>
+      <span>Los técnicos reportarán incidencias desde el detalle de cada servicio.</span>
+    </div>
+  } @else {
+    <div class="inc-table-wrap">
+      <table class="inc-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Equipo / Herramienta</th>
+            <th>N° Serie</th>
+            <th>Cant.</th>
+            <th>Tipo falla</th>
+            <th>Descripción</th>
+            <th>Servicio</th>
+            <th>Reportó</th>
+            <th>Estado</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (inc of incidencias; track inc.id) {
+            <tr class="inc-row" [class.inc-row--cerrada]="esCerrada(inc.estado)">
+              <td class="td-fecha">{{ fechaCorta(inc.fechaReporte) }}</td>
+              <td class="td-equipo">
+                <div class="inc-eq-nombre">{{ inc.equipoNombre }}</div>
+                <span class="inc-eq-clase tipo-badge tipo-badge--{{ inc.equipoClase }}">
+                  {{ inc.equipoClase === 'equipo' ? 'Equipo' : 'Herramienta' }}
+                </span>
+              </td>
+              <td class="td-serie">
+                @if (inc.numeroSerie) {
+                  <span class="inc-serie">{{ inc.numeroSerie }}</span>
+                } @else {
+                  <span class="inc-sin-serie">Sin N° serie</span>
+                }
+              </td>
+              <td class="td-cant">{{ inc.cantidadAfectada }}</td>
+              <td class="td-falla">
+                <span class="inc-falla-badge">{{ tipoFallaLabel(inc.tipoFalla) }}</span>
+              </td>
+              <td class="td-desc">
+                <span class="inc-desc" [title]="inc.descripcion">{{ inc.descripcion }}</span>
+              </td>
+              <td class="td-srv">{{ inc.servicioNombre ?? '—' }}</td>
+              <td class="td-rep">{{ inc.reportadoPorNombre ?? '—' }}</td>
+              <td class="td-estado">
+                <span class="inc-estado-badge inc-est-{{ inc.estado }}">{{ estadoLabel(inc.estado) }}</span>
+              </td>
+              <td class="td-accion">
+                @if (!esCerrada(inc.estado)) {
+                  <button class="inc-btn-resolver" (click)="abrirResolucion(inc)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Resolver
+                  </button>
+                } @else {
+                  <span class="inc-cerrada-lbl">
+                    {{ inc.estado === 'solucionado' ? '✓ Cerrada' : '✗ Baja' }}
+                  </span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPaginas > 1) {
+      <div class="inc-paginacion">
+        <button class="inc-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
+        <span class="inc-pg-info">{{ page }} / {{ totalPaginas }}</span>
+        <button class="inc-pg-btn" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">›</button>
+      </div>
+    }
+  }
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     MODAL DE RESOLUCIÓN
+══════════════════════════════════════════════ -->
+@if (incActiva) {
+<div class="inc-overlay" (click)="cerrarResolucion()">
+  <div class="inc-modal" (click)="$event.stopPropagation()">
+
+    <header class="inc-modal-header">
+      <div class="inc-modal-hinfo">
+        <div class="inc-modal-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="inc-modal-title">Resolver Incidencia</h3>
+          <p class="inc-modal-sub">{{ incActiva.equipoNombre }}
+            @if (incActiva.numeroSerie) { · <em>{{ incActiva.numeroSerie }}</em> }
+          </p>
+        </div>
+      </div>
+      <button class="inc-modal-close" (click)="cerrarResolucion()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="inc-modal-body">
+      <!-- Datos de la incidencia -->
+      <div class="inc-res-info">
+        <div class="inc-res-row">
+          <span class="inc-res-lbl">Tipo de falla</span>
+          <span class="inc-falla-badge">{{ tipoFallaLabel(incActiva.tipoFalla) }}</span>
+        </div>
+        <div class="inc-res-row">
+          <span class="inc-res-lbl">Cantidad afectada</span>
+          <strong>{{ incActiva.cantidadAfectada }}</strong>
+        </div>
+        <div class="inc-res-row">
+          <span class="inc-res-lbl">Reportado por</span>
+          <span>{{ incActiva.reportadoPorNombre ?? '—' }}</span>
+        </div>
+        <div class="inc-res-desc">
+          <span class="inc-res-lbl">Descripción</span>
+          <p>{{ incActiva.descripcion }}</p>
+        </div>
+      </div>
+
+      <!-- Selector de resolución -->
+      <div class="inc-res-opciones">
+        <p class="inc-res-opciones-titulo">Selecciona la resolución</p>
+        <div class="inc-res-grid">
+          <button class="inc-res-opt" type="button"
+                  [class.inc-res-opt--sel]="resolNuevoEstado === 'en_reparacion'"
+                  (click)="resolNuevoEstado = 'en_reparacion'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            <span>Mantenimiento / Reparación</span>
+            <em>El ítem va a taller</em>
+          </button>
+          <button class="inc-res-opt inc-res-opt--ok" type="button"
+                  [class.inc-res-opt--sel]="resolNuevoEstado === 'solucionado'"
+                  (click)="resolNuevoEstado = 'solucionado'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span>Solucionado / Operativo</span>
+            <em>El ítem fue reparado y vuelve</em>
+          </button>
+          <button class="inc-res-opt inc-res-opt--danger" type="button"
+                  [class.inc-res-opt--sel]="resolNuevoEstado === 'dado_de_baja'"
+                  (click)="resolNuevoEstado = 'dado_de_baja'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+            </svg>
+            <span>Dado de baja / Descartado</span>
+            <em>Descuenta {{ incActiva.cantidadAfectada }} del stock</em>
+          </button>
+        </div>
+      </div>
+
+      <div class="inc-res-nota-wrap">
+        <label class="inc-res-nota-label">Nota de resolución (opcional)</label>
+        <textarea class="inc-res-nota-input" rows="2" [(ngModel)]="resolNota"
+                  placeholder="Ej: Motor quemado, enviado a taller externo…"></textarea>
+      </div>
+    </div>
+
+    <footer class="inc-modal-footer">
+      <button class="inc-btn-cancel" (click)="cerrarResolucion()">Cancelar</button>
+      <button class="inc-btn-confirmar"
+              [class.inc-btn-confirmar--danger]="resolNuevoEstado === 'dado_de_baja'"
+              (click)="confirmarResolucion()"
+              [disabled]="!resolNuevoEstado || resolviendo">
+        @if (resolviendo) { <app-spinner [size]="14" theme="light"></app-spinner> }
+        @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        }
+        {{ resolNuevoEstado === 'dado_de_baja' ? 'Confirmar baja' : 'Confirmar resolución' }}
+      </button>
+    </footer>
+
+  </div>
+</div>
+}
