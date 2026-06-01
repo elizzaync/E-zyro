@@ -363,8 +363,9 @@
 .mat-info  { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .mat-dot   { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-green,#91d337); flex-shrink: 0; }
 .mat-dot.warn { background: #eab308; }
+.mat-texto  { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .mat-nombre { font-size: 13.5px; font-weight: 500; color: var(--text-main,#334155); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mat-cant   { font-size: 12px; font-weight: 700; color: var(--text-muted,#94a3b8); white-space: nowrap; }
+.mat-cant   { font-size: 11.5px; font-weight: 600; color: var(--text-muted,#94a3b8); white-space: nowrap; }
 
 .mat-acciones {
   display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: 10px;
@@ -379,7 +380,17 @@
 .btn-edit-mat svg   { width: 13px; height: 13px; }
 .btn-edit-mat:hover { border-color: var(--brand-green,#91d337); color: var(--brand-green,#5a8a20); background: rgba(145,211,55,.08); }
 
-.badge-estado { padding: 3px 9px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; }
+/* Badge de tipo (Material / Equipo / Herramienta) en lista de ítems */
+.mat-clase-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 5px;
+  font-size: 10px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+}
+.mcb-material    { background: rgba(145,211,55,.15); color: #4d7d18; }
+.mcb-equipo      { background: rgba(59,130,246,.13); color: #2563eb; }
+.mcb-herramienta { background: rgba(139,92,246,.13); color: #7c3aed; }
+
+.badge-estado { padding: 3px 9px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; white-space: nowrap; flex-shrink: 0; }
 .st-entregado { background: rgba(145,211,55,.14); color: #4a7c10; }
 .st-aprobado  { background: rgba(59,130,246,.12); color: #1d4ed8; }
 .st-pendiente { background: rgba(234,179,8,.14);  color: #b45309; }

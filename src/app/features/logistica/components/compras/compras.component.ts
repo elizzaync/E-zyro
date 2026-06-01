@@ -314,29 +314,24 @@ export class ComprasComponent implements OnInit {
 
   // ── Modal ingreso ──
   abrirIngreso(t: TicketCompra): void {
-    // Fase 2: detectar ítems sin vincular a inventario
+    // Ítems sin vincular a inventario (productos nuevos que no existían)
     const sinVincular = t.items.filter(i =>
       i.estadoItem !== 'cancelado' &&
       !i.materialId && !i.equipoId
     );
 
     if (sinVincular.length > 0) {
-      // Abrir modal de vinculación antes del ingreso
+      // Hay ítems nuevos: abrir modal de vinculación/creación en inventario
       this.nuevoInvTicketId = t.id;
       this.nuevoInvCola     = [...sinVincular];
       this._abrirPrimerVinculacion();
       return;
     }
 
-    // Sin ítems nuevos → abrir modal de ingreso directamente
-    this._abrirModalIngresoDirecto(t);
-  }
-
-  private _abrirModalIngresoDirecto(t: TicketCompra): void {
-    this.ticketIngreso = t;
-    this.itemsIngreso  = t.items
-      .filter(i => i.estadoItem !== 'cancelado')
-      .map(i => ({ item: i, cantidad: i.cantidadComprada ?? i.cantidad }));
+    // Todos los ítems ya existen en inventario → ingreso ya fue automático
+    this.toast.mostrar('Los materiales fueron ingresados automáticamente al inventario.', 'success');
+    this.cargar();
+    this.cargarResumen();
   }
 
   private _abrirPrimerVinculacion(): void {
@@ -400,12 +395,12 @@ export class ComprasComponent implements OnInit {
           this.nuevStockMin    = 0;
           this.nuevDescripcion = '';
         } else {
-          // Cola vacía: cerrar modal de vinculación y abrir ingreso con datos frescos
+          // Cola vacía: todos los ítems nuevos fueron creados y su stock ya fue
+          // actualizado directamente por vincular. Solo cerrar y recargar.
           this.nuevoInvItem = null;
-          this.svc.getTicketCompra(this.nuevoInvTicketId).subscribe({
-            next:  fresh => this._abrirModalIngresoDirecto(fresh),
-            error: ()    => this.toast.mostrar('No se pudo cargar el ticket actualizado.', 'error'),
-          });
+          this.toast.mostrar('Todos los ítems nuevos fueron registrados en inventario.', 'success');
+          this.cargar();
+          this.cargarResumen();
         }
       },
       error: err => {
