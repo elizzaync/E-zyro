@@ -726,6 +726,20 @@ def actualizar_estado_servicio(
     ps.estado     = nuevo
     ps.updated_at = datetime.utcnow()
     db.commit()
+
+    # Notificar en tiempo real: al completar, avisar a todos los técnicos
+    if nuevo == "Completado":
+        try:
+            from .chat_ws import manager as _ws_manager
+            import asyncio
+            asyncio.create_task(
+                _ws_manager.broadcast_servicio(
+                    servicio_id, {"tipo": "servicio_completado_retorno", "servicioId": servicio_id}
+                )
+            )
+        except Exception:
+            pass
+
     return {"ok": True, "estado": nuevo}
 
 

@@ -61,7 +61,7 @@ from ..schemas.logistica import (
     SalidaItemOut, SalidaOut, SalidasListResponse, SalidasKpis,
     IngresoItemOut, IngresoOut, IngresosListResponse,
     RetornoDetalleOut, RetornoOut, RetornosListResponse,
-    CrearRetornoBody, InspectionarRetornoBody,
+    CrearRetornoBody, CrearRetornoServicioBody, InspectionarRetornoBody,
     CrearIncidenciaBody, ResolverIncidenciaBody,
     IncidenciaOut, IncidenciasListResponse, EquipoStockDesglose,
 )
@@ -3176,6 +3176,102 @@ def crear_retorno(
         .all()
     )
     for d in detalles_req:
+        cant_ret = max(0, items_map.get(str(d.id), 0))
+        tipo     = (getattr(d, "tipo_item_compra", None) or "material").lower()
+        nombre   = d.nombre_libre or ""
+        unidad   = d.unidad_libre or "Unidades"
+        if d.material_id:
+            mat = db.query(Material).filter(Material.id == d.material_id).first()
+            if mat:
+                nombre = mat.nombre
+                unidad = mat.unidad or unidad
+            tipo = "material"
+        db.add(RetornoDetalle(
+            id=str(_uuid.uuid4()),
+            retorno_id=str(retorno.id),
+            material_id=str(d.material_id) if d.material_id else None,
+            nombre=nombre or "Ítem",
+            unidad=unidad,
+            tipo_item=tipo,
+            cantidad_entregada=int(d.cantidad_aprobada or d.cantidad or 0),
+            cantidad_retornada=cant_ret,
+            es_obligatorio=(tipo in ("equipo", "herramienta")),
+            estado_item="pendiente",
+        ))
+
+    db.commit()
+    db.refresh(retorno)
+    return _retorno_out(db, retorno)
+
+
+@router.post("/retornos/desde-servicio", response_model=RetornoOut, status_code=201)
+def crear_retorno_desde_servicio(
+    body:    CrearRetornoServicioBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    El técnico registra la devolución al completar el servicio.
+    Agrega los ítems de TODOS los requerimientos aprobados/entregados
+    del servicio en un único retorno. Un servicio solo puede tener
+    un retorno activo (409 si ya existe).
+    """
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id == body.proyectoServicioId,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    # Idempotencia: solo un retorno activo por servicio
+    existente = db.query(Retorno).filter(
+        Retorno.proyecto_servicio_id == body.proyectoServicioId,
+        Retorno.estado != "completado",
+    ).first()
+    if existente:
+        raise HTTPException(status_code=409, detail="Ya existe un retorno activo para este servicio.")
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    retorno = Retorno(
+        id=str(_uuid.uuid4()),
+        empresa_id=empresa_id,
+        proyecto_servicio_id=str(ps.id),
+        requerimiento_id=None,          # agrupa varios reqs
+        estado="enviado",
+        iniciado_por_id=str(emp.id) if emp else None,
+        nota_tecnico=body.notaTecnico,
+        created_at=datetime.utcnow(),
+    )
+    db.add(retorno)
+    db.flush()
+
+    items_map = {it.detalleId: it.cantidadRetornada for it in body.items}
+
+    # Todos los reqs del servicio en estado aprobado o entregado
+    reqs_ids = [
+        str(r.id) for r in db.query(Requerimiento).filter(
+            Requerimiento.proyecto_servicio_id == ps.id,
+            Requerimiento.empresa_id           == empresa_id,
+            Requerimiento.estado.in_(["aprobado", "entregado", "listo"]),
+        ).all()
+    ]
+
+    detalles_todos = (
+        db.query(RequerimientoDetalle)
+        .filter(
+            RequerimientoDetalle.requerimiento_id.in_(reqs_ids),
+            RequerimientoDetalle.estado_item == "aprobado",
+        )
+        .all()
+    )
+
+    for d in detalles_todos:
         cant_ret = max(0, items_map.get(str(d.id), 0))
         tipo     = (getattr(d, "tipo_item_compra", None) or "material").lower()
         nombre   = d.nombre_libre or ""

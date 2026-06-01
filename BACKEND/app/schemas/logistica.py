@@ -539,6 +539,14 @@ class CrearRetornoBody(BaseModel):
     notaTecnico:     Optional[str] = None
 
 
+class CrearRetornoServicioBody(BaseModel):
+    """Crea un único retorno agrupando todos los ítems aprobados/entregados
+    de todos los requerimientos del servicio."""
+    proyectoServicioId: str
+    items:              List[RetornoItemIn]
+    notaTecnico:        Optional[str] = None
+
+
 class InspeccionItemIn(BaseModel):
     detalleId:          str
     cantidadConfirmada: int
