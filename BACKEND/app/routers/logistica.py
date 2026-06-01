@@ -41,6 +41,7 @@ from ..models.proyecto_miembro import ProyectoMiembro
 from ..models.firma_digital import FirmaDigital
 from ..models.notificacion import Notificacion
 from ..models.proveedor import Proveedor as ProveedorModel, ProveedorCategoria
+from ..models.retorno import Retorno, RetornoDetalle
 
 from ..schemas.logistica import (
     MaterialIn, MaterialPatch, MaterialOut, MaterialesListResponse,
@@ -58,6 +59,8 @@ from ..schemas.logistica import (
     IngresoItemBody, RegistrarIngresoBody, VincularInventarioBody,
     SalidaItemOut, SalidaOut, SalidasListResponse, SalidasKpis,
     IngresoItemOut, IngresoOut, IngresosListResponse,
+    RetornoDetalleOut, RetornoOut, RetornosListResponse,
+    CrearRetornoBody, InspectionarRetornoBody,
 )
 from datetime import date as _date
 
@@ -3050,3 +3053,305 @@ def transferir_stock(
 
     db.commit()
     return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# RETORNOS — devolución de materiales/equipos/herramientas al campo
+# ══════════════════════════════════════════════════════════════════════════
+
+def _retorno_detalle_out(d: RetornoDetalle) -> RetornoDetalleOut:
+    return RetornoDetalleOut(
+        id=str(d.id),
+        materialId=str(d.material_id) if d.material_id else None,
+        equipoId=str(d.equipo_id)     if d.equipo_id   else None,
+        nombre=d.nombre,
+        unidad=d.unidad or "Unidades",
+        tipoItem=d.tipo_item or "material",
+        cantidadEntregada=int(d.cantidad_entregada or 0),
+        cantidadRetornada=d.cantidad_retornada,
+        cantidadConfirmada=d.cantidad_confirmada,
+        esObligatorio=bool(d.es_obligatorio),
+        estadoItem=d.estado_item or "pendiente",
+    )
+
+
+def _retorno_out(db: Session, r: Retorno) -> RetornoOut:
+    detalles = db.query(RetornoDetalle).filter(RetornoDetalle.retorno_id == r.id).all()
+
+    servicio_nombre = proyecto_nombre = None
+    if r.proyecto_servicio_id:
+        srv = db.query(ProyectoServicio).filter(ProyectoServicio.id == r.proyecto_servicio_id).first()
+        if srv:
+            servicio_nombre = srv.nombre
+            proy = db.query(Proyecto).filter(Proyecto.id == srv.proyecto_id).first()
+            proyecto_nombre = proy.nombre_proyecto if proy else None
+
+    iniciado_nombre, _ = _nombre_empleado(db, r.iniciado_por_id)      if r.iniciado_por_id      else (None, None)
+    insp_nombre,     _ = _nombre_empleado(db, r.inspeccionado_por_id) if r.inspeccionado_por_id else (None, None)
+
+    items_out    = [_retorno_detalle_out(d) for d in detalles]
+    obligatorios = sum(1 for d in detalles if d.es_obligatorio)
+    pendientes   = sum(1 for d in detalles if d.estado_item == "pendiente")
+
+    return RetornoOut(
+        id=str(r.id),
+        proyectoServicioId=str(r.proyecto_servicio_id) if r.proyecto_servicio_id else None,
+        servicioNombre=servicio_nombre,
+        proyectoNombre=proyecto_nombre,
+        requerimientoId=str(r.requerimiento_id) if r.requerimiento_id else None,
+        estado=r.estado or "enviado",
+        iniciadoPorNombre=iniciado_nombre,
+        inspeccionadoPorNombre=insp_nombre,
+        notaTecnico=r.nota_tecnico,
+        notaLogistica=r.nota_logistica,
+        creadoEn=r.created_at.isoformat() if r.created_at else "",
+        completadoEn=r.completado_en.isoformat() if r.completado_en else None,
+        items=items_out,
+        totalItems=len(items_out),
+        itemsObligatorios=obligatorios,
+        itemsPendientes=pendientes,
+    )
+
+
+@router.post("/retornos", response_model=RetornoOut, status_code=201)
+def crear_retorno(
+    body:    CrearRetornoBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Técnico declara ítems a devolver. Crea retorno en estado='enviado'."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    req = db.query(Requerimiento).filter(
+        Requerimiento.id == body.requerimientoId,
+        Requerimiento.empresa_id == empresa_id,
+    ).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Requerimiento no encontrado")
+
+    existente = db.query(Retorno).filter(
+        Retorno.requerimiento_id == req.id,
+        Retorno.estado != "completado",
+    ).first()
+    if existente:
+        raise HTTPException(status_code=409, detail="Ya existe un retorno activo para este requerimiento.")
+
+    retorno = Retorno(
+        id=str(_uuid.uuid4()),
+        empresa_id=empresa_id,
+        proyecto_servicio_id=str(req.proyecto_servicio_id) if req.proyecto_servicio_id else None,
+        requerimiento_id=str(req.id),
+        estado="enviado",
+        iniciado_por_id=str(emp.id) if emp else None,
+        nota_tecnico=body.notaTecnico,
+        created_at=datetime.utcnow(),
+    )
+    db.add(retorno)
+    db.flush()
+
+    items_map = {it.detalleId: it.cantidadRetornada for it in body.items}
+
+    detalles_req = (
+        db.query(RequerimientoDetalle)
+        .filter(
+            RequerimientoDetalle.requerimiento_id == req.id,
+            RequerimientoDetalle.estado_item == "aprobado",
+        )
+        .all()
+    )
+    for d in detalles_req:
+        cant_ret = max(0, items_map.get(str(d.id), 0))
+        tipo     = (getattr(d, "tipo_item_compra", None) or "material").lower()
+        nombre   = d.nombre_libre or ""
+        unidad   = d.unidad_libre or "Unidades"
+        if d.material_id:
+            mat = db.query(Material).filter(Material.id == d.material_id).first()
+            if mat:
+                nombre = mat.nombre
+                unidad = mat.unidad or unidad
+            tipo = "material"
+        db.add(RetornoDetalle(
+            id=str(_uuid.uuid4()),
+            retorno_id=str(retorno.id),
+            material_id=str(d.material_id) if d.material_id else None,
+            nombre=nombre or "Ítem",
+            unidad=unidad,
+            tipo_item=tipo,
+            cantidad_entregada=int(d.cantidad_aprobada or d.cantidad or 0),
+            cantidad_retornada=cant_ret,
+            es_obligatorio=(tipo in ("equipo", "herramienta")),
+            estado_item="pendiente",
+        ))
+
+    db.commit()
+    db.refresh(retorno)
+    return _retorno_out(db, retorno)
+
+
+@router.get("/retornos", response_model=RetornosListResponse)
+def listar_retornos(
+    q:         str           = Query(""),
+    estado:    str           = Query(""),
+    desde:     Optional[str] = Query(None),
+    hasta:     Optional[str] = Query(None),
+    page:      int           = Query(1, ge=1),
+    page_size: int           = Query(30, ge=1, le=200),
+    payload:   dict          = Depends(verificar_token),
+    db:        Session       = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    base = db.query(Retorno).filter(Retorno.empresa_id == empresa_id)
+    if estado:
+        base = base.filter(Retorno.estado == estado)
+    if desde:
+        try:
+            base = base.filter(Retorno.created_at >= datetime.strptime(desde, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            base = base.filter(
+                Retorno.created_at <= datetime.strptime(hasta, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            )
+        except ValueError:
+            pass
+
+    total  = base.count()
+    rows   = base.order_by(Retorno.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    result = [_retorno_out(db, r) for r in rows]
+
+    if q:
+        ql = q.lower()
+        result = [r for r in result if
+            ql in (r.servicioNombre or "").lower() or
+            ql in (r.proyectoNombre or "").lower() or
+            ql in (r.iniciadoPorNombre or "").lower() or
+            any(ql in it.nombre.lower() for it in r.items)]
+
+    return RetornosListResponse(items=result, total=total, page=page, pageSize=page_size)
+
+
+@router.get("/retornos/{retorno_id}", response_model=RetornoOut)
+def detalle_retorno(
+    retorno_id: str,
+    payload:    dict    = Depends(verificar_token),
+    db:         Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    r = db.query(Retorno).filter(Retorno.id == retorno_id, Retorno.empresa_id == empresa_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Retorno no encontrado")
+    return _retorno_out(db, r)
+
+
+@router.patch("/retornos/{retorno_id}/inspeccionar", response_model=RetornoOut)
+def inspeccionar_retorno(
+    retorno_id: str,
+    body:       InspectionarRetornoBody,
+    payload:    dict    = Depends(verificar_token),
+    db:         Session = Depends(get_db),
+):
+    """Logística confirma cantidades recibidas por ítem."""
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    r = db.query(Retorno).filter(Retorno.id == retorno_id, Retorno.empresa_id == empresa_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Retorno no encontrado")
+    if r.estado == "completado":
+        raise HTTPException(status_code=409, detail="El retorno ya está completado")
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    confirmaciones = {it.detalleId: it.cantidadConfirmada for it in body.items}
+    detalles = db.query(RetornoDetalle).filter(RetornoDetalle.retorno_id == r.id).all()
+    for d in detalles:
+        cant_conf = confirmaciones.get(str(d.id))
+        if cant_conf is not None:
+            d.cantidad_confirmada = max(0, cant_conf)
+            d.estado_item = "confirmado" if d.cantidad_confirmada > 0 else "faltante"
+
+    r.estado               = "inspeccion"
+    r.inspeccionado_por_id = str(emp.id) if emp else None
+    r.nota_logistica       = body.notaLogistica or r.nota_logistica
+    r.updated_at           = datetime.utcnow()
+    db.commit()
+    db.refresh(r)
+    return _retorno_out(db, r)
+
+
+@router.patch("/retornos/{retorno_id}/completar", response_model=RetornoOut)
+def completar_retorno(
+    retorno_id: str,
+    payload:    dict    = Depends(verificar_token),
+    db:         Session = Depends(get_db),
+):
+    """Cierra el retorno: devuelve ítems confirmados al inventario."""
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    r = db.query(Retorno).filter(Retorno.id == retorno_id, Retorno.empresa_id == empresa_id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Retorno no encontrado")
+    if r.estado == "completado":
+        raise HTTPException(status_code=409, detail="El retorno ya está completado")
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    alm       = _almacen_default(db, empresa_id)
+    almacen_id = str(alm.id) if alm else None
+
+    detalles = db.query(RetornoDetalle).filter(RetornoDetalle.retorno_id == r.id).all()
+    for d in detalles:
+        cant = int(d.cantidad_confirmada or d.cantidad_retornada or 0)
+        if cant <= 0:
+            continue
+        if d.material_id:
+            stock_row = db.query(Stock).filter(
+                Stock.material_id == d.material_id,
+                Stock.empresa_id  == empresa_id,
+                Stock.almacen_id  == almacen_id,
+            ).first()
+            if stock_row:
+                stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
+                stock_row.updated_at = datetime.utcnow()
+            else:
+                db.add(Stock(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    material_id=d.material_id, almacen_id=almacen_id,
+                    cantidad=cant, cantidad_minima=0, updated_at=datetime.utcnow(),
+                ))
+            db.add(MovimientoInventario(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                material_id=d.material_id, almacen_id=almacen_id,
+                tipo="retorno", cantidad=cant,
+                referencia_id=str(r.id), referencia_tipo="retorno",
+                responsable_id=str(emp.id) if emp else None,
+                motivo=f"Retorno de campo – {r.proyecto_servicio_id or ''}",
+                fecha=datetime.utcnow(),
+            ))
+        elif d.equipo_id:
+            eq = db.query(Equipo).filter(Equipo.id == d.equipo_id, Equipo.empresa_id == empresa_id).first()
+            if eq:
+                eq.cantidad   = int(eq.cantidad or 0) + cant
+                eq.updated_at = datetime.utcnow()
+        if d.estado_item == "pendiente":
+            d.estado_item = "confirmado"
+
+    r.estado        = "completado"
+    r.completado_en = datetime.utcnow()
+    r.updated_at    = datetime.utcnow()
+    db.commit()
+    db.refresh(r)
+    return _retorno_out(db, r)

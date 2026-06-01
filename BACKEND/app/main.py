@@ -93,6 +93,8 @@ from app.models import (  # noqa: F401
     evaluacion,
     # Documentación
     carpeta_documental, plano, recordatorio,
+    # Retornos (Fase 6)
+    retorno,
 )
 
 

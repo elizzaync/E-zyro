@@ -520,3 +520,68 @@ class IngresosListResponse(BaseModel):
     total:    int
     page:     int
     pageSize: int
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# RETORNOS — devolución de materiales/equipos al finalizar un servicio
+# ═══════════════════════════════════════════════════════════════════════════
+
+class RetornoItemIn(BaseModel):
+    detalleId:         str
+    cantidadRetornada: int
+
+
+class CrearRetornoBody(BaseModel):
+    requerimientoId: str
+    items:           List[RetornoItemIn]
+    notaTecnico:     Optional[str] = None
+
+
+class InspeccionItemIn(BaseModel):
+    detalleId:          str
+    cantidadConfirmada: int
+
+
+class InspectionarRetornoBody(BaseModel):
+    items:         List[InspeccionItemIn]
+    notaLogistica: Optional[str] = None
+
+
+class RetornoDetalleOut(BaseModel):
+    id:                 str
+    materialId:         Optional[str] = None
+    equipoId:           Optional[str] = None
+    nombre:             str
+    unidad:             str
+    tipoItem:           str
+    cantidadEntregada:  int
+    cantidadRetornada:  Optional[int] = None
+    cantidadConfirmada: Optional[int] = None
+    esObligatorio:      bool
+    estadoItem:         str
+
+
+class RetornoOut(BaseModel):
+    id:                   str
+    proyectoServicioId:   Optional[str] = None
+    servicioNombre:       Optional[str] = None
+    proyectoNombre:       Optional[str] = None
+    requerimientoId:      Optional[str] = None
+    estado:               str
+    iniciadoPorNombre:    Optional[str] = None
+    inspeccionadoPorNombre: Optional[str] = None
+    notaTecnico:          Optional[str] = None
+    notaLogistica:        Optional[str] = None
+    creadoEn:             str
+    completadoEn:         Optional[str] = None
+    items:                List[RetornoDetalleOut]
+    totalItems:           int
+    itemsObligatorios:    int
+    itemsPendientes:      int
+
+
+class RetornosListResponse(BaseModel):
+    items:    List[RetornoOut]
+    total:    int
+    page:     int
+    pageSize: int
