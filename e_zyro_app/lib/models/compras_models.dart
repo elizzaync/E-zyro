@@ -21,7 +21,7 @@ class Proveedor {
 
   factory Proveedor.fromJson(Map<String, dynamic> j) => Proveedor(
         id: j['id'] as String,
-        razonSocial: j['razon_social'] as String? ?? '',
+        razonSocial: (j['razon_social'] ?? j['nombre']) as String? ?? '',
         ruc: j['ruc'] as String?,
         contacto: j['contacto'] as String?,
         email: j['email'] as String?,

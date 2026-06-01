@@ -264,11 +264,10 @@ class _State extends State<PantallaEquiposLogistica>
             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           );
 
-          return Container(
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
+          return Material(
+            color: surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            child: Padding(
             padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
             child: SafeArea(
               child: SingleChildScrollView(
@@ -398,8 +397,9 @@ class _State extends State<PantallaEquiposLogistica>
                   ),
                 ]),
               ),
-            ),
-          );
+            ),    // SafeArea
+          ),      // Padding
+        );        // Material
         },
       ),
     );
