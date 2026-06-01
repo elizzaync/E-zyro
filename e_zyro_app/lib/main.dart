@@ -331,6 +331,7 @@ class _MainShellState extends State<MainShell> {
     tabNotifier.addListener(_onTabChanged);
     isOnlineNotifier.addListener(_onConnectivityChanged);
     sessionExpiredSyncNotifier.addListener(_onSessionExpiredDuringSync);
+    permissionsRefreshNotifier.addListener(_cargarPermisos);
 
     _cargarPermisos();
 
@@ -368,6 +369,7 @@ class _MainShellState extends State<MainShell> {
     tabNotifier.removeListener(_onTabChanged);
     isOnlineNotifier.removeListener(_onConnectivityChanged);
     sessionExpiredSyncNotifier.removeListener(_onSessionExpiredDuringSync);
+    permissionsRefreshNotifier.removeListener(_cargarPermisos);
     _syncTimer?.cancel();
     super.dispose();
   }

@@ -1165,7 +1165,10 @@ class _DocumentsTab extends StatelessWidget {
             (doc) => Container(
               margin: const EdgeInsets.only(bottom: 10),
               decoration: cardDeco(),
-              child: ListTile(
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -1205,6 +1208,7 @@ class _DocumentsTab extends StatelessWidget {
                   ),
                 ),
               ),
+              ),  // Material
             ),
           ),
           const SizedBox(height: 20),

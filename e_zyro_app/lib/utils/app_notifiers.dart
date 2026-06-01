@@ -30,3 +30,7 @@ final sessionExpiredSyncNotifier = ValueNotifier<int>(0);
 /// (asistencias o evidencias). Las pantallas lo escuchan para refrescarse
 /// automáticamente sin que el usuario tenga que hacer pull-to-refresh.
 final syncCompletedNotifier = ValueNotifier<int>(0);
+
+/// Se incrementa al cambiar el rol desde "Mi Perfil" (modo test).
+/// MainShell escucha esto para recargar permisos y actualizar el bottom nav.
+final permissionsRefreshNotifier = ValueNotifier<int>(0);

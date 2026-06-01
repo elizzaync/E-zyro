@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_notifiers.dart';
+import '../utils/app_session.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -239,33 +241,43 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       const SizedBox(height: 10),
                       Container(
                         decoration: cardDeco(),
-                        child: ListTile(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: isDark ? _green.withValues(alpha: 0.12) : const Color(0xFFEFFAE0),
-                              borderRadius: BorderRadius.circular(8),
+                        child: Material(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isDark ? _green.withValues(alpha: 0.12) : const Color(0xFFEFFAE0),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.lock_outline, color: _green, size: 20),
                             ),
-                            child: const Icon(Icons.lock_outline, color: _green, size: 20),
-                          ),
-                          title: const Text(
-                            'Cambiar Contraseña',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                          ),
-                          subtitle: const Text(
-                            'Actualizar credenciales de acceso',
-                            style: TextStyle(fontSize: 11),
-                          ),
-                          trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                          onTap: () => showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => const _ChangePasswordSheet(),
+                            title: const Text(
+                              'Cambiar Contraseña',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                            ),
+                            subtitle: const Text(
+                              'Actualizar credenciales de acceso',
+                              style: TextStyle(fontSize: 11),
+                            ),
+                            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                            onTap: () => showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => const _ChangePasswordSheet(),
+                            ),
                           ),
                         ),
                       ),
+                      const SizedBox(height: 20),
+
+                      // ── Selector de rol (modo test) ───────────────────────────
+                      const _SectionLabel('MODO TEST — ROL'),
+                      const SizedBox(height: 10),
+                      _RolSwitcher(cardDeco: cardDeco),
                       const SizedBox(height: 32),
 
                       // ── Botón Guardar ─────────────────────────────────────────
@@ -309,6 +321,107 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
             ),
+    );
+  }
+}
+
+// ── Selector de rol para testing ──────────────────────────────────────────────
+class _RolSwitcher extends StatefulWidget {
+  final BoxDecoration Function() cardDeco;
+  const _RolSwitcher({required this.cardDeco});
+
+  @override
+  State<_RolSwitcher> createState() => _RolSwitcherState();
+}
+
+class _RolSwitcherState extends State<_RolSwitcher> {
+  static const _green = Color(0xFF8FD11B);
+  static const _roles = [
+    'Administrador',
+    'Jefe de Operaciones',
+    'Técnico de Campo',
+    'Logístico',
+    'Supervisor',
+  ];
+
+  String _rolActual = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) setState(() => _rolActual = prefs.getString('user_rol') ?? '');
+  }
+
+  Future<void> _cambiarRol(String nuevoRol) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_rol', nuevoRol);
+    await AppSession.load();
+    permissionsRefreshNotifier.value++;
+    if (mounted) {
+      setState(() => _rolActual = nuevoRol);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Rol cambiado a "$nuevoRol"'),
+        backgroundColor: _green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      decoration: widget.cardDeco(),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          children: _roles.asMap().entries.map((e) {
+            final i = e.key;
+            final rol = e.value;
+            final selected = _rolActual.toLowerCase() == rol.toLowerCase();
+            return Column(
+              children: [
+                ListTile(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  leading: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? _green.withValues(alpha: isDark ? 0.25 : 0.15)
+                          : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                      size: 20,
+                      color: selected ? _green : Colors.grey,
+                    ),
+                  ),
+                  title: Text(
+                    rol,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                      color: selected ? _green : null,
+                    ),
+                  ),
+                  onTap: selected ? null : () => _cambiarRol(rol),
+                ),
+                if (i < _roles.length - 1) const Divider(height: 1, indent: 52),
+              ],
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 }
