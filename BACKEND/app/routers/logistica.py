@@ -2127,6 +2127,13 @@ def vincular_inventario(
     ).first()
     alm_id = body.almacenId or (str(alm.id) if alm else None)
 
+    # Cantidad comprada del ítem — se registra directamente al crear
+    cant_comprada = int(it.cantidad_comprada or it.cantidad or 0)
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == payload["id"], Empleado.empresa_id == empresa_id
+    ).first()
+
     if tipo == "material":
         if not body.unidad:
             raise HTTPException(status_code=422, detail="Se requiere la unidad para crear un material.")
@@ -2150,13 +2157,23 @@ def vincular_inventario(
         db.add(mat)
         db.flush()
 
-        # Stock inicial = 0 (se sumará en registrar-ingreso)
+        # Stock inicial = cantidad comprada (ingreso inmediato al crear)
         db.add(Stock(
             id=str(_uuid.uuid4()), empresa_id=empresa_id,
             material_id=mat.id, almacen_id=alm_id,
-            cantidad=0, cantidad_minima=int(body.stockMinimo or 0),
+            cantidad=cant_comprada, cantidad_minima=int(body.stockMinimo or 0),
             updated_at=datetime.utcnow(),
         ))
+        # Movimiento de ingreso trazable al ticket
+        if cant_comprada > 0:
+            db.add(MovimientoInventario(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                material_id=mat.id, almacen_id=alm_id,
+                tipo="ingreso", cantidad=cant_comprada,
+                referencia_id=str(it.ticket_id), referencia_tipo="compra",
+                responsable_id=str(emp.id) if emp else None,
+                fecha=datetime.utcnow(),
+            ))
         it.material_id = mat.id
 
     else:  # equipo o herramienta
@@ -2168,7 +2185,7 @@ def vincular_inventario(
             numero_serie=body.numeroSerie,
             ubicacion=body.ubicacion or (alm.ubicacion if alm else None),
             almacen_id=alm_id,
-            cantidad=0,               # se sumará al registrar-ingreso
+            cantidad=cant_comprada,   # ingreso inmediato al crear
             estado="operativo",
             estado_operativo="operativo",
         )
