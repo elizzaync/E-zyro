@@ -21,6 +21,7 @@ import '../services/correctivo_service.dart';
 import '../services/itse_service.dart';
 import '../services/informe_servicio_service.dart';
 import '../services/catalogo_service.dart';
+import '../services/equipo_intervenido_service.dart';
 
 Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
@@ -125,4 +126,9 @@ Future<InformeServicioService> getInformeServicioService() async {
 Future<CatalogoService> getCatalogoService() async {
   final prefs = await SharedPreferences.getInstance();
   return CatalogoService(ApiClient(prefs));
+}
+
+Future<EquipoIntervenidoService> getEquipoIntervenidoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return EquipoIntervenidoService(ApiClient(prefs));
 }

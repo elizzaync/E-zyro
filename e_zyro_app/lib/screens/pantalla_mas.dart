@@ -18,6 +18,7 @@ import 'pantalla_calibraciones.dart';
 import 'pantalla_correctivos.dart';
 import 'pantalla_itse.dart';
 import 'pantalla_catalogos.dart';
+import 'pantalla_equipos_intervenidos.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -40,6 +41,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _canItse = false;
   bool _canCatalogos = false;
   bool _canGaleria = false;
+  bool _canEquipoIntervenido = false;
 
   @override
   void initState() {
@@ -64,6 +66,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _canItse         = AppSession.i.canVerItse;
         _canCatalogos    = AppSession.i.canVerCatalogos;
         _canGaleria      = AppSession.i.canVerGaleria;
+        _canEquipoIntervenido = AppSession.i.canVerEquipoIntervenido;
       });
     }
   }
@@ -298,12 +301,20 @@ class _MoreScreenState extends State<MoreScreen> {
 
             // ── Módulos operativos (plan migración ERP) ────────────────
             // Cada módulo se muestra solo si el rol tiene su permiso :ver (admin: todos).
-            if (_canEpp || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos) ...[
+            if (_canEpp || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canEquipoIntervenido) ...[
               _buildSectionTitle('Módulos'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
+                  if (_canEquipoIntervenido)
+                    _MenuItem(
+                      icon: Icons.electrical_services_outlined,
+                      label: 'Equipos Intervenidos',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(
+                            builder: (_) => const PantallaEquiposIntervenidos())),
+                    ),
                   if (_canEpp)
                     _MenuItem(
                       icon: Icons.health_and_safety_outlined,
@@ -621,7 +632,11 @@ class _MoreScreenState extends State<MoreScreen> {
           ),
         ],
       ),
-      child: child,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: child,
+      ),
     );
   }
 
@@ -641,15 +656,19 @@ class _MoreScreenState extends State<MoreScreen> {
           ),
         ],
       ),
-      child: Column(
-        children: List.generate(items.length, (i) {
-          return Column(
-            children: [
-              items[i],
-              if (i < items.length - 1) const Divider(height: 1, indent: 52),
-            ],
-          );
-        }),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: Column(
+          children: List.generate(items.length, (i) {
+            return Column(
+              children: [
+                items[i],
+                if (i < items.length - 1) const Divider(height: 1, indent: 52),
+              ],
+            );
+          }),
+        ),
       ),
     );
   }

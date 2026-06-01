@@ -63,6 +63,10 @@ class AppSession {
   bool get canVerItse         => hasPerm('itse:ver');
   bool get canVerCatalogos    => hasPerm('catalogos:ver');
   bool get canVerGaleria      => hasPerm('galeria:ver');
+  bool get canVerEquipoIntervenido    => hasPerm('equipo_intervenido:ver');
+  bool get canCrearEquipoIntervenido  => hasPerm('equipo_intervenido:crear');
+  bool get canEditarEquipoIntervenido => hasPerm('equipo_intervenido:editar');
+  bool get canEliminarEquipoIntervenido => hasPerm('equipo_intervenido:eliminar');
 
   // ── Acciones (ocultar/mostrar botones) ────────────────────────────────────
   bool get canGestionarInventario => isAdmin || _esLogistica || hasPerm('inventario:gestionar');
