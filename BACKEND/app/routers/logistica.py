@@ -3300,6 +3300,33 @@ def crear_retorno_desde_servicio(
     return _retorno_out(db, retorno)
 
 
+@router.get("/retornos/check-servicio/{servicio_id}")
+def check_retorno_servicio(
+    servicio_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """
+    Verifica si el servicio ya tiene un retorno registrado.
+    Devuelve {tieneRetorno: bool, retornoId: str|null, estado: str|null}
+    El frontend lo usa al cargar un servicio Completado para decidir
+    si debe forzar el modal de devolución.
+    """
+    empresa_id = payload["empresa_id"]
+    retorno = db.query(Retorno).filter(
+        Retorno.proyecto_servicio_id == servicio_id,
+        Retorno.empresa_id           == empresa_id,
+    ).order_by(Retorno.created_at.desc()).first()
+
+    if retorno:
+        return {
+            "tieneRetorno": True,
+            "retornoId":    str(retorno.id),
+            "estado":       retorno.estado,
+        }
+    return {"tieneRetorno": False, "retornoId": None, "estado": None}
+
+
 @router.get("/retornos", response_model=RetornosListResponse)
 def listar_retornos(
     q:         str           = Query(""),
