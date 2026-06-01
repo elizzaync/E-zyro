@@ -27,6 +27,7 @@ class CatalogoItem {
   final String? categoria;
   final String? descripcion;
   final String? imagenUrl;
+  final String tipo; // consumible | herramienta
 
   const CatalogoItem({
     required this.id,
@@ -38,6 +39,7 @@ class CatalogoItem {
     this.categoria,
     this.descripcion,
     this.imagenUrl,
+    this.tipo = 'consumible',
   });
 
   factory CatalogoItem.fromJson(Map<String, dynamic> json) => CatalogoItem(
@@ -50,7 +52,10 @@ class CatalogoItem {
         categoria: json['categoria'] as String?,
         descripcion: json['descripcion'] as String?,
         imagenUrl: json['imagen_url'] as String?,
+        tipo: json['tipo'] as String? ?? 'consumible',
       );
+
+  bool get esHerramienta => tipo == 'herramienta';
 }
 
 // ── Panel del encargado de logística ──────────────────────────────────────────

@@ -10,6 +10,7 @@ class RequerimientoService {
   Future<List<CatalogoItem>> getCatalogo(
     String q, {
     String? categoria,
+    String tipo = 'consumible',
     int page = 1,
     int pageSize = 30,
   }) async {
@@ -17,6 +18,7 @@ class RequerimientoService {
       final params = <String, String>{
         if (q.trim().isNotEmpty) 'q': q.trim(),
         'categoria': ?categoria,
+        'tipo': tipo,
         'page': page.toString(),
         'page_size': pageSize.toString(),
       };

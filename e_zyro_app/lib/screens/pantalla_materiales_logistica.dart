@@ -9,7 +9,7 @@ const _kGreen = Color(0xFF8FD11B);
 const _kRed = Color(0xFFEF4444);
 const _kAmber = Color(0xFFF59E0B);
 
-/// Fase 4 — Gestión de materiales: editar / eliminar + administrar categorías.
+/// Materiales (consumibles) + Herramientas — gestión de catálogo.
 class PantallaMaterialesLogistica extends StatefulWidget {
   const PantallaMaterialesLogistica({super.key});
 
@@ -19,10 +19,13 @@ class PantallaMaterialesLogistica extends StatefulWidget {
 }
 
 class _PantallaMaterialesLogisticaState
-    extends State<PantallaMaterialesLogistica> {
+    extends State<PantallaMaterialesLogistica>
+    with SingleTickerProviderStateMixin {
   RequerimientoService? _service;
-  List<CatalogoItem> _items = [];
+  List<CatalogoItem> _materiales = [];
+  List<CatalogoItem> _herramientas = [];
   List<CategoriaItem> _categorias = [];
+  late TabController _tabs;
   bool _isLoading = true;
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
@@ -30,12 +33,14 @@ class _PantallaMaterialesLogisticaState
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 2, vsync: this);
     _init();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _tabs.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -48,11 +53,14 @@ class _PantallaMaterialesLogisticaState
   Future<void> _loadMateriales() async {
     if (_service == null) return;
     setState(() => _isLoading = true);
-    final data = await _service!.getCatalogo(_searchCtrl.text, pageSize: 50);
+    final q = _searchCtrl.text;
+    final dataMat = await _service!.getCatalogo(q, tipo: 'consumible', pageSize: 200);
+    final dataHerr = await _service!.getCatalogo(q, tipo: 'herramienta', pageSize: 200);
     if (!mounted) return;
     setState(() {
-      _items = data;
-      _isLoading = false;
+      _materiales   = dataMat;
+      _herramientas = dataHerr;
+      _isLoading    = false;
     });
   }
 
@@ -161,12 +169,12 @@ class _PantallaMaterialesLogisticaState
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
               child: TextField(
                 controller: _searchCtrl,
                 onChanged: _onSearch,
                 decoration: InputDecoration(
-                  hintText: 'Buscar materiales...',
+                  hintText: 'Buscar...',
                   prefixIcon: const Icon(Icons.search, color: Colors.grey),
                   filled: true,
                   fillColor: Theme.of(context).colorScheme.surface,
@@ -178,42 +186,54 @@ class _PantallaMaterialesLogisticaState
                 ),
               ),
             ),
+            const SizedBox(height: 6),
+            TabBar(
+              controller: _tabs,
+              labelColor: _kGreen,
+              unselectedLabelColor: Colors.grey,
+              indicatorColor: _kGreen,
+              indicatorSize: TabBarIndicatorSize.label,
+              tabs: [
+                Tab(text: 'Materiales (${_materiales.length})'),
+                Tab(text: 'Herramientas (${_herramientas.length})'),
+              ],
+            ),
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _kGreen))
-                  : _items.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.inventory_2_outlined,
-                                  size: 48, color: Colors.grey.shade400),
-                              const SizedBox(height: 12),
-                              const Text('Sin materiales',
-                                  style: TextStyle(
-                                      color: Colors.grey, fontSize: 14)),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadMateriales,
-                          color: _kGreen,
-                          child: ListView.separated(
-                            padding:
-                                const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                            itemCount: _items.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: 10),
-                            itemBuilder: (_, i) => _MaterialRow(
-                              item: _items[i],
-                              onEditar: () => _editar(_items[i]),
-                              onEliminar: () => _eliminar(_items[i]),
-                            ),
-                          ),
-                        ),
+                  ? const Center(child: CircularProgressIndicator(color: _kGreen))
+                  : TabBarView(
+                      controller: _tabs,
+                      children: [
+                        _listaItems(_materiales),
+                        _listaItems(_herramientas),
+                      ],
+                    ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _listaItems(List<CatalogoItem> items) {
+    if (items.isEmpty) {
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey.shade400),
+        const SizedBox(height: 12),
+        const Text('Sin registros', style: TextStyle(color: Colors.grey, fontSize: 14)),
+      ]));
+    }
+    return RefreshIndicator(
+      onRefresh: _loadMateriales,
+      color: _kGreen,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        itemCount: items.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (_, i) => _MaterialRow(
+          item: items[i],
+          onEditar: () => _editar(items[i]),
+          onEliminar: () => _eliminar(items[i]),
         ),
       ),
     );
