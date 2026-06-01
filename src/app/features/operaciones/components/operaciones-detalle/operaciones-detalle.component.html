@@ -366,7 +366,6 @@
                 </div>
               </div>
               <div class="mat-acciones">
-                <span class="mat-clase-badge" [ngClass]="'mcb-' + (mat.clase ?? 'material')">{{ claseLabel(mat.clase) }}</span>
                 <span class="badge-estado" [ngClass]="'st-' + mat.estadoReq">{{ mat.estadoReq }}</span>
                 @if (puedeEditar(mat)) {
                 <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)" title="Editar cantidad">
@@ -408,7 +407,6 @@
                 </div>
               </div>
               <div class="mat-acciones">
-                <span class="mat-clase-badge" [ngClass]="'mcb-' + (mat.clase ?? 'material')">{{ claseLabel(mat.clase) }}</span>
                 <span class="badge-estado" [ngClass]="'st-' + mat.estadoReq">{{ mat.estadoReq }}</span>
                 @if (puedeEditar(mat)) {
                 <button class="btn-edit-mat" (click)="$event.stopPropagation(); abrirModalEditarMat(mat)" title="Editar cantidad">
