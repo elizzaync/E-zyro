@@ -212,9 +212,12 @@ def _material_out(db: Session, mat: Material, empresa_id: str) -> MaterialOut:
 
 
 def _equipo_out(e: Equipo) -> EquipoOut:
+    # Normalizar clase: valores legacy como 'equipo_tecnologico' se mapean a 'equipo'
+    clase_raw = (e.clase or "equipo").lower()
+    clase = clase_raw if clase_raw in ("equipo", "herramienta") else "equipo"
     return EquipoOut(
         id=str(e.id), codigo=e.codigo or "", nombre=e.nombre,
-        clase=e.clase or "equipo",
+        clase=clase,
         tipoId=str(e.tipo_equipo_id) if e.tipo_equipo_id else None,
         tipo=e.tipo or "",
         marcaId=str(e.marca_id) if e.marca_id else None,
@@ -224,9 +227,9 @@ def _equipo_out(e: Equipo) -> EquipoOut:
         numeroSerie=e.numero_serie,
         almacenId=str(e.almacen_id) if e.almacen_id else None,
         ubicacion=e.ubicacion, cantidad=int(e.cantidad or 1),
-        estado=e.estado or "operativo",
+        estado=(e.estado if e.estado in ("operativo","en_mantenimiento","fuera_de_servicio","baja") else "operativo"),
         requiereMantenimiento=bool(e.requiere_mantenimiento),
-        frecuenciaMantenimiento=e.frecuencia_mantenimiento or "ninguno",
+        frecuenciaMantenimiento=(e.frecuencia_mantenimiento if e.frecuencia_mantenimiento in ("ninguno","mensual","trimestral","semestral","anual") else "ninguno"),
         proximaFechaMantenimiento=e.proxima_fecha_mantenimiento.isoformat() if e.proxima_fecha_mantenimiento else None,
         fechaAdquisicion=e.fecha_adquisicion.isoformat() if e.fecha_adquisicion else None,
         fichaTecnica=e.ficha_tecnica,
