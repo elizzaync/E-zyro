@@ -19,8 +19,9 @@ class _State extends State<PantallaEquiposLogistica>
   EquipoService? _svc;
   late TabController _tabs;
 
-  // Listas por tab
-  List<EquipoItem> _equipos = [];
+  // Tab 0 = Activos Electrónicos (clase='equipo', tipo='activo_electronico')
+  // Tab 1 = Herramientas (clase='herramienta': tecnológicas + manuales)
+  List<EquipoItem> _activosElec = [];
   List<EquipoItem> _herramientas = [];
   bool _cargando = true;
   String? _error;
@@ -61,7 +62,7 @@ class _State extends State<PantallaEquiposLogistica>
     if (!mounted) return;
     setState(() {
       _cargando = false;
-      if (resEq.ok) _equipos      = resEq.data?.items ?? [];
+      if (resEq.ok) _activosElec  = resEq.data?.items ?? [];
       if (resHr.ok) _herramientas = resHr.data?.items ?? [];
       if (!resEq.ok) _error = resEq.errorMessage;
     });
@@ -126,7 +127,7 @@ class _State extends State<PantallaEquiposLogistica>
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(e.esHerramienta ? Icons.handyman_outlined
-                      : Icons.precision_manufacturing_outlined,
+                      : Icons.computer_outlined,
                       color: color, size: 24),
                 ),
                 const SizedBox(width: 12),
@@ -235,6 +236,7 @@ class _State extends State<PantallaEquiposLogistica>
     final modeloCtrl = TextEditingController(text: item?.modelo ?? '');
     final serieCtrl  = TextEditingController(text: item?.numeroSerie ?? '');
     final cantCtrl   = TextEditingController(text: '${item?.cantidad ?? 1}');
+    // Tab 0 = Activos Electrónicos (clase='equipo'), Tab 1 = Herramientas
     String clase     = item?.clase ?? (_tabs.index == 0 ? 'equipo' : 'herramienta');
     String estado    = item?.estado ?? 'operativo';
     bool reqMant     = item?.requiereMantenimiento ?? false;
@@ -299,8 +301,8 @@ class _State extends State<PantallaEquiposLogistica>
 
                   // Tipo (equipo / herramienta)
                   Row(children: [
-                    Expanded(child: _tipoChip('equipo', 'Equipo',
-                        Icons.precision_manufacturing_outlined, clase, setLocal, (v) => clase = v)),
+                    Expanded(child: _tipoChip('equipo', 'Activo Electrónico',
+                        Icons.computer_outlined, clase, setLocal, (v) => clase = v)),
                     const SizedBox(width: 10),
                     Expanded(child: _tipoChip('herramienta', 'Herramienta',
                         Icons.handyman_outlined, clase, setLocal, (v) => clase = v)),
@@ -559,7 +561,7 @@ class _State extends State<PantallaEquiposLogistica>
                 indicatorColor: _green,
                 indicatorSize: TabBarIndicatorSize.label,
                 tabs: [
-                  Tab(text: 'Equipos (${_equipos.length})'),
+                  Tab(text: 'Activos Electrónicos (${_activosElec.length})'),
                   Tab(text: 'Herramientas (${_herramientas.length})'),
                 ],
               ),
@@ -575,7 +577,7 @@ class _State extends State<PantallaEquiposLogistica>
                     : TabBarView(
                         controller: _tabs,
                         children: [
-                          _lista(_equipos, Icons.precision_manufacturing_outlined),
+                          _lista(_activosElec, Icons.computer_outlined),
                           _lista(_herramientas, Icons.handyman_outlined),
                         ],
                       ),
