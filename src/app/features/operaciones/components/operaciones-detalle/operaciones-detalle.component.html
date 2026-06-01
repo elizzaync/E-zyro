@@ -1655,19 +1655,33 @@
      MODAL: DECLARAR DEVOLUCIÓN (técnico)
 ══════════════════════════════════════════════════════ -->
 @if (showModalRetorno) {
-<div class="modal-overlay" (click)="cerrarModalRetorno()">
+<div class="modal-overlay" [class.modal-overlay--mandatory]="retornoObligatorio"
+     (click)="intentarCerrarRetorno()">
   <div class="modal-box modal-solicitar" (click)="$event.stopPropagation()">
+
+    <!-- Banner urgente cuando es obligatorio -->
+    @if (retornoObligatorio) {
+      <div class="modal-retorno-urgente-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:15px;height:15px;flex-shrink:0">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        Acción obligatoria — Debes registrar la devolución para continuar
+      </div>
+    }
 
     <div class="modal-header">
       <div>
         <h3 class="modal-title">Declarar devolución</h3>
         <p class="modal-subtitle">Indica qué materiales, equipos y herramientas estás devolviendo al almacén.</p>
       </div>
-      <button class="modal-close" (click)="cerrarModalRetorno()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
+      @if (!retornoObligatorio) {
+        <button class="modal-close" (click)="cerrarModalRetorno()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      }
     </div>
 
     <div class="modal-body">
@@ -1719,15 +1733,18 @@
     </div>
 
     <footer class="modal-footer">
-      <button class="btn-outline" (click)="cerrarModalRetorno()">Cancelar</button>
-      <button class="btn-primary" (click)="enviarRetorno()" [disabled]="enviandoRetorno">
+      @if (!retornoObligatorio) {
+        <button class="btn-outline" (click)="cerrarModalRetorno()">Cancelar</button>
+      }
+      <button class="btn-primary" [class.btn-primary--full]="retornoObligatorio"
+              (click)="enviarRetorno()" [disabled]="enviandoRetorno">
         @if (enviandoRetorno) { <app-spinner [size]="15" theme="light"></app-spinner> }
         @else {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.54"/>
           </svg>
         }
-        Registrar devolución
+        {{ retornoObligatorio ? 'Registrar devolución (obligatorio)' : 'Registrar devolución' }}
       </button>
     </footer>
 

@@ -923,6 +923,26 @@
 .btn-primary--danger { background: #dc2626 !important; }
 .btn-primary--danger:hover:not([disabled]) { background: #b91c1c !important; }
 
+/* ── Overlay mandatorio (no cierra al clic fuera) ── */
+.modal-overlay--mandatory { cursor: not-allowed; }
+.modal-overlay--mandatory > * { cursor: default; }
+
+/* ── Banner urgente dentro del modal ── */
+.modal-retorno-urgente-banner {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(239,68,68,.1); color: #b91c1c;
+  font-size: .8rem; font-weight: 700; padding: 10px 20px;
+  border-bottom: 1px solid rgba(239,68,68,.2);
+  animation: pulse-bg 2s infinite;
+}
+@keyframes pulse-bg {
+  0%,100% { background: rgba(239,68,68,.1); }
+  50%      { background: rgba(239,68,68,.18); }
+}
+
+/* Botón retorno que ocupa todo el ancho cuando es obligatorio */
+.btn-primary--full { width: 100%; justify-content: center; }
+
 /* ── Banner retorno ── */
 .banner-retorno--alerta {
   background: rgba(239,68,68,.08) !important;

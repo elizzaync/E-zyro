@@ -233,11 +233,11 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 
   // ── Modal Retorno (técnico declara devolución al completar servicio) ──
   showModalRetorno         = false;
-  retornoServicioId        = '';     // usa servicioId, no requerimientoId
+  retornoObligatorio       = false;   // true = no se puede cerrar sin completar
+  retornoServicioId        = '';
   retornoItems: { detalleId: string; nombre: string; unidad: string; tipoItem: string; esObligatorio: boolean; cantidadEntregada: number; cantidadRetornada: number }[] = [];
   retornoNotaTecnico       = '';
   enviandoRetorno          = false;
-  // Alerta para técnicos que no son el jefe (reciben el WS)
   alertaRetornoPendiente   = false;
 
   // ── Chat en tiempo real ────────────────────────────────────
@@ -479,6 +479,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.cargarComunicados();
         this.cargarNotas();
         this.cargarReqsListos();
+        // Si el servicio ya está Completado, verificar si falta registrar el retorno
+        if (this.servicio.estado === 'Completado') {
+          this._verificarRetornoPendiente(this.servicio.id);
+        }
       },
       error: (err: any) => {
         this.error    = true;
@@ -1433,6 +1437,23 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     });
   }
 
+  // ── Verificación automática de retorno al cargar servicio completado ──
+  private _verificarRetornoPendiente(servicioId: string): void {
+    this.logistica.checkRetornoServicio(servicioId).subscribe({
+      next: res => {
+        if (!res.tieneRetorno) {
+          // Esperar a que reqsListos se cargue y luego abrir el modal obligatorio
+          setTimeout(() => {
+            this.retornoObligatorio     = true;
+            this.alertaRetornoPendiente = true;
+            this.abrirModalRetorno();
+          }, 800);
+        }
+      },
+      error: () => { /* silencioso — no bloquear la vista si falla */ }
+    });
+  }
+
   // ── Retorno ──────────────────────────────────────────────────────────
   abrirModalRetorno(): void {
     if (!this.servicioId || !this.servicio) return;
@@ -1468,9 +1489,16 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     document.body.style.overflow = 'hidden';
   }
 
+  intentarCerrarRetorno(): void {
+    // Si es obligatorio, no se puede cerrar sin completarlo
+    if (this.retornoObligatorio) return;
+    this.cerrarModalRetorno();
+  }
+
   cerrarModalRetorno(): void {
-    this.showModalRetorno = false;
-    this.retornoItems = [];
+    this.showModalRetorno        = false;
+    this.retornoObligatorio      = false;
+    this.retornoItems            = [];
     document.body.style.overflow = '';
   }
 
@@ -1502,13 +1530,18 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
       notaTecnico: this.retornoNotaTecnico.trim() || undefined,
     }).subscribe({
       next: () => {
-        this.enviandoRetorno = false;
+        this.enviandoRetorno         = false;
+        this.retornoObligatorio      = false;
+        this.alertaRetornoPendiente  = false;
         this.toast.mostrar('Devolución registrada correctamente. Logística recibirá los ítems.', 'success');
         this.cerrarModalRetorno();
       },
       error: err => {
         this.enviandoRetorno = false;
         if (err?.status === 409) {
+          // Otro técnico ya lo registró — se cierra el modal obligatorio
+          this.retornoObligatorio     = false;
+          this.alertaRetornoPendiente = false;
           this.toast.mostrar('La devolución ya fue registrada por otro técnico del equipo.', 'info');
           this.cerrarModalRetorno();
         } else {

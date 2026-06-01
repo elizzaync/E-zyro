@@ -377,6 +377,12 @@ export class LogisticaService {
     return this.http.post<Retorno>(`${this.api}/logistica/retornos/desde-servicio`, body);
   }
 
+  checkRetornoServicio(servicioId: string): Observable<{ tieneRetorno: boolean; retornoId: string | null; estado: string | null }> {
+    return this.http.get<{ tieneRetorno: boolean; retornoId: string | null; estado: string | null }>(
+      `${this.api}/logistica/retornos/check-servicio/${servicioId}`
+    );
+  }
+
   getRetornos(filtros: { q?: string; estado?: string; desde?: string; hasta?: string; page?: number; pageSize?: number } = {}): Observable<{ items: Retorno[]; total: number }> {
     let params = new HttpParams()
       .set('page',      String(filtros.page     ?? 1))
