@@ -229,7 +229,7 @@ def anular_entrega(entrega_id: str, payload: dict = Depends(verificar_token), db
 
 @router.post("/entregas/{entrega_id}/constancia", response_model=EntregaOut)
 def generar_constancia(entrega_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    exigir_permiso(db, payload, "epp", "entregar")
+    exigir_permiso(db, payload, "epp", "ver")
     empresa_id = payload["empresa_id"]
     en = db.query(EppEntrega).filter(EppEntrega.id == entrega_id, EppEntrega.empresa_id == empresa_id).first()
     if not en:
