@@ -5,13 +5,14 @@ import { LogisticaKpis } from './logistica.models';
 import { MaterialesTablaComponent } from './components/materiales-tabla/materiales-tabla.component';
 import { EquiposTablaComponent } from './components/equipos-tabla/equipos-tabla.component';
 import { SalidasComponent } from './components/salidas/salidas.component';
+import { IngresosTablaComponent } from './components/ingresos-tabla/ingresos-tabla.component';
 
-type TabLogistica = 'materiales' | 'equipos' | 'salidas';
+type TabLogistica = 'materiales' | 'equipos' | 'salidas' | 'ingresos';
 
 @Component({
   selector: 'app-logistica',
   standalone: true,
-  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, SalidasComponent],
+  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, SalidasComponent, IngresosTablaComponent],
   templateUrl: './logistica.component.html',
   styleUrls: ['./logistica.component.css']
 })

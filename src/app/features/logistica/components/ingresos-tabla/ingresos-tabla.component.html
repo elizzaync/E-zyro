@@ -1,0 +1,180 @@
+<div class="ing-layout">
+
+  <!-- ─── Filtros ─── -->
+  <div class="ing-filtros">
+    <div class="ing-search">
+      <svg class="ing-search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input class="ing-search-input" type="text" [(ngModel)]="busqueda"
+             (keydown.enter)="buscar()"
+             placeholder="Buscar por ticket, proyecto o ítem…">
+    </div>
+
+    <div class="ing-date-group">
+      <label class="ing-date-label">Desde</label>
+      <input class="ing-date-input" type="date" [(ngModel)]="filtroDesde" (change)="buscar()">
+    </div>
+    <div class="ing-date-group">
+      <label class="ing-date-label">Hasta</label>
+      <input class="ing-date-input" type="date" [(ngModel)]="filtroHasta" (change)="buscar()">
+    </div>
+
+    <button class="ing-btn-buscar" (click)="buscar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      Buscar
+    </button>
+    <button class="ing-btn-limpiar" (click)="limpiarFiltros()">Mes actual</button>
+
+    <div class="ing-total-badge">
+      <strong>{{ total }}</strong> ingresos
+    </div>
+  </div>
+
+  <!-- ─── Tabla ─── -->
+  @if (cargando) {
+    <div class="ing-loading"><app-spinner [size]="28"></app-spinner></div>
+  } @else if (ingresos.length === 0) {
+    <div class="ing-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+      <p>Sin ingresos en el período seleccionado.</p>
+      <span>Los ingresos aparecen aquí cuando se registra la recepción de una compra.</span>
+    </div>
+  } @else {
+    <div class="ing-table-wrap">
+      <table class="ing-table">
+        <thead>
+          <tr>
+            <th class="th-exp"></th>
+            <th class="th-fecha">Fecha ingreso</th>
+            <th class="th-ticket">Ticket</th>
+            <th class="th-proyecto">Proyecto / Servicio</th>
+            <th class="th-proveedor">Proveedor</th>
+            <th class="th-items">Ítems</th>
+            <th class="th-tipos">Tipos</th>
+            <th class="th-uds">Uds.</th>
+            <th class="th-total">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (ing of ingresos; track ing.id) {
+            <tr class="ing-row" (click)="toggleExpandir(ing.id)" [class.ing-row--open]="expandidos.has(ing.id)">
+              <td class="td-exp">
+                <span class="ing-chevron" [class.ing-chevron--open]="expandidos.has(ing.id)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </span>
+              </td>
+              <td class="td-fecha">
+                <span class="ing-fecha-main">{{ fechaCorta(ing.fechaIngreso) }}</span>
+              </td>
+              <td class="td-ticket">
+                <span class="ing-codigo">{{ ing.ticketCodigo }}</span>
+              </td>
+              <td class="td-proyecto">
+                <div class="ing-proyecto">{{ ing.proyectoNombre }}</div>
+                @if (ing.servicioNombre) {
+                  <div class="ing-servicio">{{ ing.servicioNombre }}</div>
+                }
+              </td>
+              <td class="td-proveedor">
+                @if (ing.proveedorNombre) {
+                  <span class="ing-proveedor">{{ ing.proveedorNombre }}</span>
+                } @else {
+                  <span class="ing-total-nd">—</span>
+                }
+              </td>
+              <td class="td-items">
+                <span class="ing-items-resumen">{{ resumenItems(ing.items) }}</span>
+              </td>
+              <td class="td-tipos">
+                <div class="ing-tipos-wrap">
+                  @for (b of tiposBadges(ing.items); track b.tipo) {
+                    <span class="tipo-badge tipo-badge--{{ b.tipo }}">
+                      {{ tipoLabel(b.tipo) }} {{ b.count > 1 ? '×' + b.count : '' }}
+                    </span>
+                  }
+                </div>
+              </td>
+              <td class="td-uds">{{ ing.totalUnidades }}</td>
+              <td class="td-total">
+                @if (ing.totalReal != null) {
+                  <span class="ing-total-real">S/ {{ ing.totalReal | number:'1.2-2' }}</span>
+                } @else if (ing.totalEstimado != null) {
+                  <span class="ing-total-est">≈ S/ {{ ing.totalEstimado | number:'1.2-2' }}</span>
+                } @else {
+                  <span class="ing-total-nd">—</span>
+                }
+              </td>
+            </tr>
+
+            <!-- Detalle expandido -->
+            @if (expandidos.has(ing.id)) {
+              <tr class="ing-detalle-row">
+                <td colspan="9">
+                  <div class="ing-detalle-box">
+                    <div class="ing-detalle-meta">
+                      <span><strong>Solicitante:</strong> {{ ing.solicitanteNombre }}</span>
+                      <span><strong>Registrado:</strong> {{ fechaHora(ing.fechaIngreso) }}</span>
+                    </div>
+                    <table class="ing-det-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Tipo</th>
+                          <th>Ítem</th>
+                          <th>Unidad</th>
+                          <th class="th-right">Cantidad</th>
+                          <th class="th-right">P. Unit. (S/)</th>
+                          <th class="th-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (it of ing.items; track $index; let idx = $index) {
+                          <tr>
+                            <td class="td-idx">{{ idx + 1 }}</td>
+                            <td>
+                              <span class="tipo-badge tipo-badge--{{ it.tipoItem }}">
+                                {{ it.tipoItem === 'material' ? 'Material' : it.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
+                              </span>
+                            </td>
+                            <td class="td-nombre-det">{{ it.nombre }}</td>
+                            <td>{{ it.unidad }}</td>
+                            <td class="td-right">{{ it.cantidad }}</td>
+                            <td class="td-right">
+                              {{ it.precioUnitario != null ? (it.precioUnitario | number:'1.2-2') : '—' }}
+                            </td>
+                            <td class="td-right">
+                              @if (it.precioUnitario != null) {
+                                {{ (it.cantidad * it.precioUnitario) | number:'1.2-2' }}
+                              } @else { — }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Paginación -->
+    @if (totalPaginas > 1) {
+      <div class="ing-paginacion">
+        <button class="ing-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
+        <span class="ing-pg-info">{{ page }} / {{ totalPaginas }}</span>
+        <button class="ing-pg-btn" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">›</button>
+      </div>
+    }
+  }
+
+</div>

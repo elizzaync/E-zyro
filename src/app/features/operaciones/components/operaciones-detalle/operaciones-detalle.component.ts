@@ -1356,11 +1356,12 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.solicitando = true;
     const eq = this.equipoElegido;
     this.svc.agregarItemBorrador(this.servicioId, {
-      material_id:    null,
-      nombre:         eq.nombre,
-      unidad:         'Unidades',
-      cantidad:       this.cantidadEquipo,
-      especificacion: `[${eq.clase === 'equipo' ? 'Equipo' : 'Herramienta'}] ${eq.nombre} del inventario`,
+      material_id:      null,
+      nombre:           eq.nombre,
+      unidad:           'Unidades',
+      cantidad:         this.cantidadEquipo,
+      especificacion:   `[${eq.clase === 'equipo' ? 'Equipo' : 'Herramienta'}] ${eq.nombre} del inventario`,
+      tipo_item_compra: eq.clase,
     }).subscribe({
       next: (res: any) => {
         this.materialesBorrador.push({

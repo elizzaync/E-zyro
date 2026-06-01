@@ -345,4 +345,24 @@ export class LogisticaService {
       )
       .pipe(map(r => ({ items: r.items, total: r.total })));
   }
+
+  getIngresos(filtros: {
+    q?: string;
+    desde?: string;
+    hasta?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}): Observable<{ items: import('../../features/logistica/logistica.models').Ingreso[]; total: number }> {
+    let params = new HttpParams()
+      .set('page',      String(filtros.page     ?? 1))
+      .set('page_size', String(filtros.pageSize ?? 30));
+    if (filtros.q)     params = params.set('q',     filtros.q);
+    if (filtros.desde) params = params.set('desde', filtros.desde);
+    if (filtros.hasta) params = params.set('hasta', filtros.hasta);
+    return this.http
+      .get<{ items: import('../../features/logistica/logistica.models').Ingreso[]; total: number; page: number; pageSize: number }>(
+        `${this.api}/logistica/ingresos`, { params }
+      )
+      .pipe(map(r => ({ items: r.items, total: r.total })));
+  }
 }

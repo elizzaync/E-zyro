@@ -356,6 +356,8 @@
   letter-spacing: .05em; color: var(--text-muted, #64748b); padding: 9px 12px; white-space: nowrap;
 }
 .th-i-num   { width: 36px; }
+.th-i-tipo  { width: 100px; }
+.td-i-tipo  { width: 100px; }
 .th-i-name  { min-width: 160px; }
 .th-i-req   { width: 80px; }
 .th-i-buy   { width: 90px; }

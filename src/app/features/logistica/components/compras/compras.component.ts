@@ -15,6 +15,7 @@ interface ItemCompraForm {
   nombre: string;
   cantidad: number;
   unidad: string;
+  tipoItem: 'material' | 'equipo' | 'herramienta';
   cantidadComprada: number;
   precioUnitario: number | null;
   modoCustom: boolean;
@@ -192,6 +193,7 @@ export class ComprasComponent implements OnInit {
       nombre:           it.nombre,
       cantidad:         it.cantidad,
       unidad:           it.unidad,
+      tipoItem:         it.tipoItem,
       cantidadComprada: it.cantidadComprada ?? it.cantidad,
       precioUnitario:   it.precioUnitario,
       modoCustom:       !!it.canalPersonalizado,
@@ -298,7 +300,7 @@ export class ComprasComponent implements OnInit {
       // Abrir modal de vinculación antes del ingreso
       this.nuevoInvTicketId = t.id;
       this.nuevoInvCola     = [...sinVincular];
-      this._abrirSiguienteVinculacion(t);
+      this._abrirPrimerVinculacion();
       return;
     }
 
@@ -313,15 +315,7 @@ export class ComprasComponent implements OnInit {
       .map(i => ({ item: i, cantidad: i.cantidadComprada ?? i.cantidad }));
   }
 
-  private _abrirSiguienteVinculacion(t: TicketCompra): void {
-    if (this.nuevoInvCola.length === 0) {
-      // Cola vacía → recargar ticket y abrir ingreso
-      this.svc.getTicketCompra(this.nuevoInvTicketId).subscribe({
-        next: fresh => this._abrirModalIngresoDirecto(fresh),
-        error: () => this._abrirModalIngresoDirecto(t),
-      });
-      return;
-    }
+  private _abrirPrimerVinculacion(): void {
     const item = this.nuevoInvCola[0];
     this.nuevoInvItem    = item;
     this.nuevNombre      = item.nombre;
@@ -368,13 +362,26 @@ export class ComprasComponent implements OnInit {
       next: () => {
         this.vinculando = false;
         this.toast.mostrar(`${item.tipoItem} registrado en inventario.`, 'success');
-        this.nuevoInvCola.shift();   // sacar de la cola
-        const ticketActualRef = this.tickets.find(t => t.id === this.nuevoInvTicketId) ?? null;
-        this._abrirSiguienteVinculacion(ticketActualRef as TicketCompra);
+        this.nuevoInvCola.shift();
         if (this.nuevoInvCola.length > 0) {
-          this.nuevoInvItem = this.nuevoInvCola[0];
+          // Quedan ítems: mostrar el siguiente
+          const next = this.nuevoInvCola[0];
+          this.nuevoInvItem    = next;
+          this.nuevNombre      = next.nombre;
+          this.nuevUnidad      = next.unidad || 'Unidades';
+          this.nuevModelo      = '';
+          this.nuevMarca       = '';
+          this.nuevSerie       = '';
+          this.nuevPrecio      = next.precioUnitario;
+          this.nuevStockMin    = 0;
+          this.nuevDescripcion = '';
         } else {
+          // Cola vacía: cerrar modal de vinculación y abrir ingreso con datos frescos
           this.nuevoInvItem = null;
+          this.svc.getTicketCompra(this.nuevoInvTicketId).subscribe({
+            next:  fresh => this._abrirModalIngresoDirecto(fresh),
+            error: ()    => this.toast.mostrar('No se pudo cargar el ticket actualizado.', 'error'),
+          });
         }
       },
       error: err => {

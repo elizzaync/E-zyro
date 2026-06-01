@@ -115,6 +115,9 @@
                 <div class="cp-items-col">
                   @for (it of t.items.slice(0, 3); track it.id) {
                     <span class="cp-item-chip" [class.cp-chip--done]="it.estadoItem === 'comprado'">
+                      <span class="tipo-badge tipo-badge--{{ it.tipoItem }}" style="padding:1px 5px;font-size:10px;margin-right:4px">
+                        {{ it.tipoItem === 'material' ? 'MAT' : it.tipoItem === 'equipo' ? 'EQP' : 'HRR' }}
+                      </span>
                       {{ it.nombre }} <em>×{{ it.cantidad }}</em>
                     </span>
                   }
@@ -163,6 +166,14 @@
                   </button>
                   <button class="cp-btn cp-btn-cancel" (click)="abrirCancelar(t)">Cancelar</button>
                 } @else if (t.estado === 'completado') {
+                  @if (!t.ingresoRegistrado) {
+                    <button class="cp-btn cp-btn-process" (click)="abrirIngreso(t)" title="Registrar entrada al inventario">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                      </svg>
+                      Ingresar
+                    </button>
+                  }
                   <button class="cp-btn cp-btn-view" (click)="abrirDetalle(t)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -280,6 +291,7 @@
       <thead class="cp-items-thead">
         <tr>
           <th class="th-i-num">#</th>
+          <th class="th-i-tipo">Tipo</th>
           <th class="th-i-name">Ítem / Material</th>
           <th class="th-i-req">Pedido</th>
           <th class="th-i-buy">Comprando</th>
@@ -293,6 +305,11 @@
         @for (f of itemsFormFiltrados; track f.itemId; let idx = $index) {
           <tr class="cp-item-row" [class.cp-item-row--done]="f.cantidadComprada > 0">
             <td class="td-i-num">{{ idx + 1 }}</td>
+            <td class="td-i-tipo">
+              <span class="tipo-badge tipo-badge--{{ f.tipoItem }}">
+                {{ f.tipoItem === 'material' ? 'Material' : f.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
+              </span>
+            </td>
             <td class="td-i-name">{{ f.nombre }}</td>
             <td class="td-i-req">{{ f.cantidad }} <em>{{ f.unidad }}</em></td>
             <td class="td-i-buy">

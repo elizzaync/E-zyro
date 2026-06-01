@@ -190,6 +190,7 @@ export interface TicketCompra {
   nota: string | null;
   creadoEn: string;
   actualizadoEn: string | null;
+  ingresoRegistrado: boolean;
 }
 
 export interface ProcesarCompraItemPayload {
@@ -308,4 +309,29 @@ export interface LogisticaKpis {
   totalEquipos: number;
   totalHerramientas: number;
   enMantenimiento: number;
+}
+
+// ── Ingresos ──────────────────────────────────────────────────────────────
+
+export interface IngresoItemLog {
+  nombre: string;
+  cantidad: number;
+  unidad: string;
+  tipoItem: 'material' | 'equipo' | 'herramienta';
+  precioUnitario: number | null;
+}
+
+export interface Ingreso {
+  id: string;
+  ticketCodigo: string;
+  fechaIngreso: string;
+  proyectoNombre: string;
+  servicioNombre: string | null;
+  solicitanteNombre: string;
+  proveedorNombre: string | null;
+  totalReal: number | null;
+  totalEstimado: number | null;
+  items: IngresoItemLog[];
+  totalItems: number;
+  totalUnidades: number;
 }
