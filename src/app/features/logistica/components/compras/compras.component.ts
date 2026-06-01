@@ -180,6 +180,7 @@ export class ComprasComponent implements OnInit {
 
   // ── Modal proceso ──
   abrirProceso(t: TicketCompra): void {
+    document.body.style.overflow = 'hidden';
     this.ticketActivo = t;
     this.modoUnificado = t.modoUnificado ?? true;
     this.busquedaItems = '';
@@ -205,7 +206,7 @@ export class ComprasComponent implements OnInit {
     }));
   }
 
-  cerrarProceso(): void { this.ticketActivo = null; this.itemsForm = []; }
+  cerrarProceso(): void { this.ticketActivo = null; this.itemsForm = []; document.body.style.overflow = ''; }
 
   selProvUnico(p: Proveedor): void {
     if (this.proveedorUnicoId === p.id) {
@@ -410,7 +411,7 @@ export class ComprasComponent implements OnInit {
     });
   }
 
-  cerrarIngreso(): void { this.ticketIngreso = null; this.itemsIngreso = []; }
+  cerrarIngreso(): void { this.ticketIngreso = null; this.itemsIngreso = []; document.body.style.overflow = ''; }
 
   get puedeRegistrarIngreso(): boolean {
     return this.itemsIngreso.some(r => r.cantidad > 0);
@@ -440,7 +441,7 @@ export class ComprasComponent implements OnInit {
 
   // ── Modal cancelación ──
   abrirCancelar(t: TicketCompra): void { this.ticketCancelar = t; this.motivoCancelacion = ''; }
-  cerrarCancelar(): void { this.ticketCancelar = null; this.motivoCancelacion = ''; }
+  cerrarCancelar(): void { this.ticketCancelar = null; this.motivoCancelacion = ''; document.body.style.overflow = ''; }
 
   confirmarCancelacion(): void {
     if (!this.ticketCancelar) return;
@@ -452,8 +453,8 @@ export class ComprasComponent implements OnInit {
   }
 
   // ── Modal detalle ──
-  abrirDetalle(t: TicketCompra): void { this.ticketDetalle = t; }
-  cerrarDetalle(): void { this.ticketDetalle = null; }
+  abrirDetalle(t: TicketCompra): void { this.ticketDetalle = t; document.body.style.overflow = 'hidden'; }
+  cerrarDetalle(): void { this.ticketDetalle = null; document.body.style.overflow = ''; }
 
   volverInventario(): void { this.router.navigate(['/logistica']); }
 

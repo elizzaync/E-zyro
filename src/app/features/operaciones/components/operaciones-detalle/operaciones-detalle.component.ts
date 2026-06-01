@@ -59,6 +59,8 @@ export interface ItemMaterial {
   estadoReq: 'pendiente' | 'aprobado' | 'rechazado' | 'entregado' | 'anulado';
   clase?: 'material' | 'herramienta' | 'equipo';
   estadoEquipo?: string;
+  equipoId?: string | null;
+  numeroSerie?: string | null;
 }
 
 export interface ServicioDetalle {
@@ -1149,8 +1151,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
       unidad:          m.unidad ?? 'Unidades',
       cantidad:        m.cantidad,
       estadoReq:       m.estado_req,
-      clase:           m.clase ?? defaultClase ?? 'material',
+      clase:           (m.clase ?? defaultClase ?? 'material') as 'material' | 'herramienta' | 'equipo',
       estadoEquipo:    m.estado_equipo ?? m.estado ?? undefined,
+      equipoId:        m.equipo_id ?? null,
+      numeroSerie:     m.numero_serie ?? null,
     }));
   }
 
@@ -1234,11 +1238,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.etapaActiva        = 'antes';
     this.errorEvidencia     = '';
     this.showModalEvidencia   = true;
+    document.body.style.overflow = 'hidden';
   }
 
   cerrarModalEvidencia(): void {
     this.showModalEvidencia  = false;
     this.procedimientoActivo = null;
+    document.body.style.overflow = '';
   }
 
   onFileSlotSelected(event: Event, etapa: 'antes' | 'durante' | 'despues'): void {
@@ -1293,11 +1299,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.editNombre         = mat.nombre;
     this.editCantidad       = mat.cantidad;
     this.showModalEditarMat = true;
+    document.body.style.overflow = 'hidden';
   }
 
   cerrarModalEditarMat(): void {
     this.showModalEditarMat = false;
     this.materialActivo     = null;
+    document.body.style.overflow = '';
   }
 
   guardarEditarMat(): void {
@@ -1335,9 +1343,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.manualTipoItem        = 'material';
     this.manualPrecioEstimado  = null;
     this.showModalSolicitar    = true;
+    document.body.style.overflow = 'hidden';
   }
 
-  cerrarModalSolicitar(): void { this.showModalSolicitar = false; }
+  cerrarModalSolicitar(): void { this.showModalSolicitar = false; document.body.style.overflow = ''; }
 
   // ── Incidencia ───────────────────────────────────────────────────────
   abrirIncidencia(): void {
@@ -1350,23 +1359,32 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.incTipoFalla        = 'otro';
     this.incDescripcion      = '';
     this.showModalIncidencia = true;
-    // Cargar todos los equipos y herramientas del inventario
-    this.incCargandoEquipos  = true;
-    this.logistica.getEquipos({ pageSize: 200 }).subscribe({
-      next: items => {
-        this.incListaEquipos = items.map((e: any) => ({
-          id:          e.id,
-          nombre:      e.nombre,
-          clase:       e.clase,
-          numeroSerie: e.numeroSerie ?? null,
-        }));
-        this.incCargandoEquipos = false;
-      },
-      error: () => { this.incCargandoEquipos = false; },
-    });
+    document.body.style.overflow = 'hidden';
+    // Usar ítems del servicio (equipos y herramientas con equipo_id)
+    const todos = [
+      ...(this.servicio?.itemsAsignados   ?? []),
+      ...(this.servicio?.itemsSolicitados ?? []),
+    ];
+    this.incListaEquipos = todos
+      .filter(it => it.clase === 'equipo' || it.clase === 'herramienta')
+      .filter(it => !!it.equipoId)
+      .map(it => ({
+        id:          it.equipoId!,
+        nombre:      it.nombre,
+        clase:       it.clase!,
+        numeroSerie: it.numeroSerie ?? null,
+      }));
+    // Deduplicar por equipo_id
+    this.incListaEquipos = this.incListaEquipos.filter(
+      (e, i, arr) => arr.findIndex(x => x.id === e.id) === i
+    );
+    this.incCargandoEquipos = false;
   }
 
-  cerrarIncidencia(): void { this.showModalIncidencia = false; }
+  cerrarIncidencia(): void {
+    this.showModalIncidencia = false;
+    document.body.style.overflow = '';
+  }
 
   onSeleccionarEquipoInc(id: string): void {
     this.incEquipoId = id;
@@ -1418,9 +1436,14 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         cantidadRetornada: 0,
       }));
     this.showModalRetorno = true;
+    document.body.style.overflow = 'hidden';
   }
 
-  cerrarModalRetorno(): void { this.showModalRetorno = false; this.retornoItems = []; }
+  cerrarModalRetorno(): void {
+    this.showModalRetorno = false;
+    this.retornoItems = [];
+    document.body.style.overflow = '';
+  }
 
   retornoTodosObligatorios(): void {
     this.retornoItems.forEach(it => {
