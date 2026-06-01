@@ -95,6 +95,8 @@ from app.models import (  # noqa: F401
     carpeta_documental, plano, recordatorio,
     # Retornos (Fase 6)
     retorno,
+    # Incidencias de equipos (Fase 7)
+    incidencia,
 )
 
 

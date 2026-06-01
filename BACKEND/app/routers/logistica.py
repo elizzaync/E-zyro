@@ -42,6 +42,7 @@ from ..models.firma_digital import FirmaDigital
 from ..models.notificacion import Notificacion
 from ..models.proveedor import Proveedor as ProveedorModel, ProveedorCategoria
 from ..models.retorno import Retorno, RetornoDetalle
+from ..models.incidencia import Incidencia
 
 from ..schemas.logistica import (
     MaterialIn, MaterialPatch, MaterialOut, MaterialesListResponse,
@@ -61,6 +62,8 @@ from ..schemas.logistica import (
     IngresoItemOut, IngresoOut, IngresosListResponse,
     RetornoDetalleOut, RetornoOut, RetornosListResponse,
     CrearRetornoBody, InspectionarRetornoBody,
+    CrearIncidenciaBody, ResolverIncidenciaBody,
+    IncidenciaOut, IncidenciasListResponse, EquipoStockDesglose,
 )
 from datetime import date as _date
 
@@ -896,7 +899,8 @@ def kpis(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)
         Equipo.empresa_id == empresa_id, Equipo.clase == "herramienta"
     ).scalar() or 0
     en_mant = db.query(func.count(Equipo.id)).filter(
-        Equipo.empresa_id == empresa_id, Equipo.estado == "en_mantenimiento"
+        Equipo.empresa_id == empresa_id,
+        Equipo.estado.in_(["en_mantenimiento", "fuera_de_servicio"]),
     ).scalar() or 0
 
     return LogisticaKpis(
@@ -3362,3 +3366,265 @@ def completar_retorno(
     db.commit()
     db.refresh(r)
     return _retorno_out(db, r)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INCIDENCIAS — daños/fallos reportados sobre equipos y herramientas
+# ══════════════════════════════════════════════════════════════════════════
+
+def _incidencia_out(db: Session, inc: Incidencia) -> IncidenciaOut:
+    eq = db.query(Equipo).filter(Equipo.id == inc.equipo_id).first()
+    equipo_nombre = eq.nombre if eq else "—"
+    equipo_clase  = (eq.clase or "equipo") if eq else "equipo"
+    equipo_sin_serie = (not eq or not (eq.numero_serie or "").strip()) if eq else True
+
+    servicio_nombre = None
+    if inc.proyecto_servicio_id:
+        srv = db.query(ProyectoServicio).filter(ProyectoServicio.id == inc.proyecto_servicio_id).first()
+        servicio_nombre = srv.nombre if srv else None
+
+    rep_nombre, _ = _nombre_empleado(db, inc.reportado_por_id) if inc.reportado_por_id else (None, None)
+    res_nombre, _ = _nombre_empleado(db, inc.resuelto_por_id)  if inc.resuelto_por_id  else (None, None)
+
+    return IncidenciaOut(
+        id=str(inc.id),
+        equipoId=str(inc.equipo_id),
+        equipoNombre=equipo_nombre,
+        equipoClase=equipo_clase,
+        equipoSinSerie=equipo_sin_serie,
+        proyectoServicioId=str(inc.proyecto_servicio_id) if inc.proyecto_servicio_id else None,
+        servicioNombre=servicio_nombre,
+        reportadoPorNombre=rep_nombre,
+        resueltoPorNombre=res_nombre,
+        numeroSerie=inc.numero_serie,
+        cantidadAfectada=int(inc.cantidad_afectada or 1),
+        tipoFalla=inc.tipo_falla or "otro",
+        descripcion=inc.descripcion or "",
+        estado=inc.estado or "abierta",
+        resolucionNota=inc.resolucion_nota,
+        fechaReporte=inc.fecha_reporte.isoformat() if inc.fecha_reporte else "",
+        fechaResolucion=inc.fecha_resolucion.isoformat() if inc.fecha_resolucion else None,
+    )
+
+
+def _sincronizar_estado_equipo(db: Session, equipo_id: str, empresa_id: str) -> None:
+    """
+    Recalcula equipo.estado y equipo.cantidad_inoperativa a partir de las
+    incidencias activas. Regla: el equipo vuelve a 'operativo' solo cuando
+    todas sus incidencias activas (abierta | en_reparacion) están cerradas.
+    """
+    activas = db.query(Incidencia).filter(
+        Incidencia.equipo_id == equipo_id,
+        Incidencia.estado.in_(["abierta", "en_reparacion"]),
+    ).all()
+
+    eq = db.query(Equipo).filter(
+        Equipo.id == equipo_id, Equipo.empresa_id == empresa_id
+    ).first()
+    if not eq:
+        return
+
+    cantidad_inop = sum(int(i.cantidad_afectada or 1) for i in activas)
+    eq.cantidad_inoperativa = cantidad_inop
+    eq.updated_at           = datetime.utcnow()
+
+    if not activas:
+        eq.estado = "operativo"
+    else:
+        hay_reparacion = any(i.estado == "en_reparacion" for i in activas)
+        eq.estado = "en_mantenimiento" if hay_reparacion else "en_mantenimiento"
+
+
+@router.post("/incidencias", response_model=IncidenciaOut, status_code=201)
+def crear_incidencia(
+    body:    CrearIncidenciaBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Técnico reporta una incidencia sobre un equipo o herramienta."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    eq = db.query(Equipo).filter(
+        Equipo.id == body.equipoId, Equipo.empresa_id == empresa_id
+    ).first()
+    if not eq:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    inc = Incidencia(
+        id=str(_uuid.uuid4()),
+        empresa_id=empresa_id,
+        equipo_id=body.equipoId,
+        proyecto_servicio_id=body.proyectoServicioId,
+        reportado_por_id=str(emp.id) if emp else None,
+        numero_serie=body.numeroSerie or eq.numero_serie,
+        cantidad_afectada=max(1, int(body.cantidadAfectada or 1)),
+        tipo_falla=body.tipoFalla or "otro",
+        descripcion=body.descripcion.strip(),
+        estado="abierta",
+        fecha_reporte=datetime.utcnow(),
+        created_at=datetime.utcnow(),
+    )
+    db.add(inc)
+    db.flush()
+
+    _sincronizar_estado_equipo(db, body.equipoId, empresa_id)
+    db.commit()
+    db.refresh(inc)
+    return _incidencia_out(db, inc)
+
+
+@router.get("/incidencias", response_model=IncidenciasListResponse)
+def listar_incidencias(
+    q:         str           = Query(""),
+    clase:     str           = Query(""),      # equipo | herramienta
+    estado:    str           = Query(""),      # abierta | en_reparacion | solucionado | dado_de_baja
+    desde:     Optional[str] = Query(None),
+    hasta:     Optional[str] = Query(None),
+    page:      int           = Query(1, ge=1),
+    page_size: int           = Query(30, ge=1, le=200),
+    payload:   dict          = Depends(verificar_token),
+    db:        Session       = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    base = db.query(Incidencia).filter(Incidencia.empresa_id == empresa_id)
+
+    if estado:
+        base = base.filter(Incidencia.estado == estado)
+    if clase in ("equipo", "herramienta"):
+        base = base.join(Equipo, Equipo.id == Incidencia.equipo_id).filter(Equipo.clase == clase)
+    if desde:
+        try:
+            base = base.filter(Incidencia.fecha_reporte >= datetime.strptime(desde, "%Y-%m-%d"))
+        except ValueError:
+            pass
+    if hasta:
+        try:
+            base = base.filter(Incidencia.fecha_reporte <= datetime.strptime(hasta, "%Y-%m-%d").replace(hour=23, minute=59, second=59))
+        except ValueError:
+            pass
+
+    total  = base.count()
+    rows   = base.order_by(Incidencia.fecha_reporte.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    result = [_incidencia_out(db, i) for i in rows]
+
+    if q:
+        ql = q.lower()
+        result = [r for r in result if
+            ql in r.equipoNombre.lower() or
+            ql in (r.servicioNombre or "").lower() or
+            ql in (r.reportadoPorNombre or "").lower() or
+            ql in r.descripcion.lower() or
+            ql in (r.numeroSerie or "").lower()]
+
+    return IncidenciasListResponse(items=result, total=total, page=page, pageSize=page_size)
+
+
+@router.get("/incidencias/{incidencia_id}", response_model=IncidenciaOut)
+def detalle_incidencia(
+    incidencia_id: str,
+    payload:       dict    = Depends(verificar_token),
+    db:            Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    inc = db.query(Incidencia).filter(Incidencia.id == incidencia_id, Incidencia.empresa_id == empresa_id).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incidencia no encontrada")
+    return _incidencia_out(db, inc)
+
+
+@router.patch("/incidencias/{incidencia_id}/resolver", response_model=IncidenciaOut)
+def resolver_incidencia(
+    incidencia_id: str,
+    body:          ResolverIncidenciaBody,
+    payload:       dict    = Depends(verificar_token),
+    db:            Session = Depends(get_db),
+):
+    """
+    Logística resuelve una incidencia.
+    - en_reparacion: equipo pasa a en_mantenimiento
+    - solucionado:   si no quedan incidencias activas, equipo vuelve a operativo
+    - dado_de_baja:  descuenta cantidad_afectada del stock permanentemente
+    """
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    estados_validos = ("en_reparacion", "solucionado", "dado_de_baja")
+    if body.estado not in estados_validos:
+        raise HTTPException(status_code=422, detail=f"Estado debe ser uno de: {estados_validos}")
+
+    inc = db.query(Incidencia).filter(Incidencia.id == incidencia_id, Incidencia.empresa_id == empresa_id).first()
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incidencia no encontrada")
+    if inc.estado in ("solucionado", "dado_de_baja"):
+        raise HTTPException(status_code=409, detail="La incidencia ya está cerrada")
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    inc.estado           = body.estado
+    inc.resolucion_nota  = body.resolucionNota
+    inc.resuelto_por_id  = str(emp.id) if emp else None
+    inc.updated_at       = datetime.utcnow()
+
+    if body.estado in ("solucionado", "dado_de_baja"):
+        inc.fecha_resolucion = datetime.utcnow()
+
+    # Impacto en inventario para dado_de_baja: descontar stock permanentemente
+    if body.estado == "dado_de_baja":
+        eq = db.query(Equipo).filter(Equipo.id == inc.equipo_id, Equipo.empresa_id == empresa_id).first()
+        if eq:
+            nueva_cantidad = max(0, int(eq.cantidad or 0) - int(inc.cantidad_afectada or 1))
+            eq.cantidad    = nueva_cantidad
+            eq.updated_at  = datetime.utcnow()
+            db.add(MovimientoInventario(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                material_id=None, almacen_id=None,
+                tipo="baja", cantidad=int(inc.cantidad_afectada or 1),
+                referencia_id=str(inc.id), referencia_tipo="incidencia",
+                responsable_id=str(emp.id) if emp else None,
+                motivo=f"Dado de baja por incidencia – {inc.descripcion[:80]}",
+                fecha=datetime.utcnow(),
+            ))
+
+    db.flush()
+    _sincronizar_estado_equipo(db, str(inc.equipo_id), empresa_id)
+    db.commit()
+    db.refresh(inc)
+    return _incidencia_out(db, inc)
+
+
+@router.get("/incidencias/equipo/{equipo_id}/desglose", response_model=EquipoStockDesglose)
+def desglose_stock_equipo(
+    equipo_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """Desglose operativos vs en incidencia para el tooltip del inventario."""
+    empresa_id = payload["empresa_id"]
+    eq = db.query(Equipo).filter(Equipo.id == equipo_id, Equipo.empresa_id == empresa_id).first()
+    if not eq:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    incidencias_activas = db.query(Incidencia).filter(
+        Incidencia.equipo_id == equipo_id,
+        Incidencia.estado.in_(["abierta", "en_reparacion"]),
+    ).all()
+
+    en_incidencia = sum(int(i.cantidad_afectada or 1) for i in incidencias_activas)
+    total         = int(eq.cantidad or 0)
+    operativos    = max(0, total - en_incidencia)
+
+    return EquipoStockDesglose(
+        equipoId=str(eq.id),
+        cantidadTotal=total,
+        operativos=operativos,
+        enIncidencia=en_incidencia,
+        incidenciasAbiertas=len(incidencias_activas),
+    )

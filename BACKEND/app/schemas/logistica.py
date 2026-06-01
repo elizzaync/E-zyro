@@ -587,3 +587,57 @@ class RetornosListResponse(BaseModel):
     total:    int
     page:     int
     pageSize: int
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INCIDENCIAS — daños/fallos reportados sobre equipos y herramientas
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CrearIncidenciaBody(BaseModel):
+    equipoId:           str
+    proyectoServicioId: Optional[str]  = None
+    numeroSerie:        Optional[str]  = None   # equipos únicos
+    cantidadAfectada:   int            = 1      # herramientas genéricas
+    tipoFalla:          str            = "otro"
+    descripcion:        str
+
+
+class ResolverIncidenciaBody(BaseModel):
+    estado:        str              # 'en_reparacion' | 'solucionado' | 'dado_de_baja'
+    resolucionNota: Optional[str]  = None
+
+
+class IncidenciaOut(BaseModel):
+    id:                  str
+    equipoId:            str
+    equipoNombre:        str
+    equipoClase:         str
+    equipoSinSerie:      bool
+    proyectoServicioId:  Optional[str] = None
+    servicioNombre:      Optional[str] = None
+    reportadoPorNombre:  Optional[str] = None
+    resueltoPorNombre:   Optional[str] = None
+    numeroSerie:         Optional[str] = None
+    cantidadAfectada:    int
+    tipoFalla:           str
+    descripcion:         str
+    estado:              str
+    resolucionNota:      Optional[str] = None
+    fechaReporte:        str
+    fechaResolucion:     Optional[str] = None
+
+
+class IncidenciasListResponse(BaseModel):
+    items:    List[IncidenciaOut]
+    total:    int
+    page:     int
+    pageSize: int
+
+
+class EquipoStockDesglose(BaseModel):
+    """Desglose de stock para el tooltip de inventario."""
+    equipoId:        str
+    cantidadTotal:   int
+    operativos:      int
+    enIncidencia:    int
+    incidenciasAbiertas: int
