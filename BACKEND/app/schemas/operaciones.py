@@ -41,6 +41,10 @@ class ItemMaterialOut(BaseModel):
     unidad: str
     cantidad: int
     estado_req: str
+    # Campos de clasificación e inventario
+    clase:        str = "material"          # material | equipo | herramienta
+    equipo_id:    Optional[str] = None      # FK equipo si es equipo/herramienta
+    numero_serie: Optional[str] = None      # número de serie del equipo
 
 
 class ServicioDetalleOut(BaseModel):

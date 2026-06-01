@@ -40,6 +40,7 @@ from ..models.procedimiento import Procedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.material import Material, Stock
+from ..models.ticket_compra import TicketCompraItem
 from ..models.equipo import Equipo
 from ..models.tipo_equipo import TipoEquipo
 from ..models.orden_mantenimiento import OrdenMantenimiento
@@ -556,8 +557,46 @@ def get_detalle_servicio(
     mat_asignados: list[ItemMaterialOut]   = []
     mat_solicitados: list[ItemMaterialOut] = []
 
+    # Pre-cargar equipo_id y numero_serie por requerimiento_detalle_id
+    # (viene de ticket_compra_item cuando el ítem pasó por compra)
+    tci_rows = (
+        db.query(
+            TicketCompraItem.requerimiento_detalle_id,
+            TicketCompraItem.equipo_id,
+            TicketCompraItem.tipo_item,
+        )
+        .join(Requerimiento,
+              Requerimiento.id == db.query(
+                  RequerimientoDetalle.requerimiento_id
+              ).filter(RequerimientoDetalle.id == TicketCompraItem.requerimiento_detalle_id).scalar_subquery()
+              )
+        .filter(
+            Requerimiento.proyecto_servicio_id == servicio_id,
+            TicketCompraItem.equipo_id.isnot(None),
+        )
+        .all()
+    )
+    tci_map: dict[str, tuple] = {
+        str(r.requerimiento_detalle_id): (str(r.equipo_id), r.tipo_item)
+        for r in tci_rows
+    }
+
     for m in mat_rows:
         rd = m.RequerimientoDetalle
+        # Determinar clase e ids
+        clase        = (rd.tipo_item_compra or "material").lower()
+        equipo_id    = None
+        numero_serie = None
+
+        if str(rd.id) in tci_map:
+            eid, tipo = tci_map[str(rd.id)]
+            equipo_id = eid
+            clase     = (tipo or clase).lower()
+            # Obtener número de serie del equipo
+            eq = db.query(Equipo).filter(Equipo.id == eid).first()
+            if eq:
+                numero_serie = (eq.numero_serie or "").strip() or None
+
         item = ItemMaterialOut(
             id=str(rd.id),
             requerimiento_id=str(m.req_id),
@@ -565,6 +604,9 @@ def get_detalle_servicio(
             unidad=m.mat_unidad or "Und",
             cantidad=rd.cantidad or 0,
             estado_req=m.req_estado or "pendiente",
+            clase=clase if clase in ("material", "equipo", "herramienta") else "material",
+            equipo_id=equipo_id,
+            numero_serie=numero_serie,
         )
         if m.req_estado in ("entregado", "aprobado"):
             mat_asignados.append(item)
