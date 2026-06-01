@@ -2945,20 +2945,19 @@ def crear_servicio(
     if not catalogo:
         raise HTTPException(status_code=404, detail="Catálogo de servicio no encontrado")
 
-    # ── Líder del Servicio: obligatorio y solo Jefes de Operaciones / Proyecto ──
-    lider_id = (body.lider_id or "").strip()
-    if not lider_id:
-        raise HTTPException(status_code=422, detail="El servicio requiere un Líder del Servicio.")
-    lider = db.query(Empleado).filter(
-        Empleado.id == lider_id, Empleado.empresa_id == empresa_id
-    ).first()
-    if not lider:
-        raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
-    if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
-        raise HTTPException(
-            status_code=422,
-            detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
-        )
+    # ── Líder del Servicio: opcional. Si se provee, debe ser Jefe de Operaciones / Proyecto ──
+    lider_id = (body.lider_id or "").strip() or None
+    if lider_id:
+        lider = db.query(Empleado).filter(
+            Empleado.id == lider_id, Empleado.empresa_id == empresa_id
+        ).first()
+        if not lider:
+            raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
+        if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
+            raise HTTPException(
+                status_code=422,
+                detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
+            )
 
     # ── Técnico Líder (opcional): cualquier empleado activo de la empresa ──
     responsable_id = (body.responsable_id or "").strip() or None
