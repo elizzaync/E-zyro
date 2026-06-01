@@ -52,9 +52,10 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
 @router.get("/catalogo", response_model=List[CatalogoItemOut])
 def get_catalogo(
     q:         str = "",
-    categoria: str = "",     # HU-15: filtro por categoría
-    page:      int = 1,      # HU-15: página (base 1)
-    page_size: int = 30,     # HU-15: items por página
+    categoria: str = "",
+    tipo:      str = "consumible",  # consumible | herramienta | todos
+    page:      int = 1,
+    page_size: int = 30,
     payload:   dict    = Depends(verificar_token),
     db:        Session = Depends(get_db),
 ):
@@ -83,6 +84,7 @@ def get_catalogo(
             Material.descripcion,
             CategoriaMaterial.nombre.label("categoria"),
             func.coalesce(stock_sq.c.total, 0).label("stock"),
+            Material.tipo,
         )
         .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
         .outerjoin(CategoriaMaterial, CategoriaMaterial.id == Material.categoria_id)
@@ -91,6 +93,9 @@ def get_catalogo(
             Material.activo == True,
         )
     )
+
+    if tipo != "todos":
+        query = query.filter(Material.tipo == tipo)
 
     if q:
         query = query.filter(
@@ -119,6 +124,7 @@ def get_catalogo(
             categoria=r.categoria,
             descripcion=r.descripcion,
             imagen_url=None,
+            tipo=r.tipo or "consumible",
         )
         for r in rows
     ]

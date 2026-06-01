@@ -18,7 +18,8 @@ class Material(Base):
     codigo       = Column(String(50))
     unidad       = Column(String(30),  nullable=False)
     descripcion  = Column(String(255))
-    precio       = Column(Numeric(10, 2), nullable=True)   # HU-15: precio referencial
+    precio       = Column(Numeric(10, 2), nullable=True)
+    tipo         = Column(String(20),    nullable=False, default="consumible")  # consumible | herramienta
     activo       = Column(Boolean, nullable=False, default=True)
     created_at   = Column(DateTime, nullable=False, default=datetime.utcnow)
 

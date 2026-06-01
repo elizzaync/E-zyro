@@ -208,6 +208,7 @@ def _material_out(db: Session, mat: Material, empresa_id: str) -> MaterialOut:
         almacenId=alm_id, almacen=alm_nombre or "",
         precio=float(mat.precio) if mat.precio is not None else None,
         activo=bool(mat.activo),
+        tipo=getattr(mat, "tipo", "consumible") or "consumible",
     )
 
 
@@ -498,15 +499,18 @@ def listar_materiales(
     q:         str = Query("", description="texto a buscar en nombre/código"),
     categoria: str = Query("", description="filtrar por nombre exacto de categoría"),
     estado:    str = Query("todos", description="todos|activos|inactivos|stock_bajo"),
+    tipo:      str = Query("consumible", description="consumible|herramienta|todos"),
     page:      int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=200),
     payload:   dict    = Depends(verificar_token),
     db:        Session = Depends(get_db),
 ):
-    """HU-15: GET /logistica/materiales con filtros y paginación."""
     empresa_id = payload["empresa_id"]
 
     base = db.query(Material).filter(Material.empresa_id == empresa_id)
+
+    if tipo != "todos":
+        base = base.filter(Material.tipo == tipo)
 
     if q:
         like = f"%{q.lower()}%"

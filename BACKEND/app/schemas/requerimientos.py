@@ -13,6 +13,7 @@ class CatalogoItemOut(BaseModel):
     categoria: Optional[str]
     descripcion: Optional[str] = None
     imagen_url: Optional[str] = None
+    tipo: str = "consumible"
 
 
 class SolicitudDetalleOut(BaseModel):

@@ -26,19 +26,19 @@ class MaterialOut(BaseModel):
     unidadId:     Optional[str] = None
     unidad:       str
     descripcion:  Optional[str] = None
-    cantidad:     int                 # stock total agregado (sum almacenes)
+    cantidad:     int
     stockMinimo: int = Field(0, alias="stockMinimo")
     almacenId:   Optional[str] = None
     almacen:     str
     precio:      Optional[float] = None
     activo:      bool
+    tipo:        str = "consumible"   # consumible | herramienta
 
     class Config:
         populate_by_name = True
 
 
 class MaterialIn(BaseModel):
-    # codigo es opcional: si no viene, el backend lo autogenera (MAT-NNNN)
     codigo:       Optional[str] = None
     nombre:       str
     categoriaId:  str
@@ -49,6 +49,7 @@ class MaterialIn(BaseModel):
     almacenId:   str
     precio:      Optional[float] = None
     activo:      bool = True
+    tipo:        str = "consumible"
 
 
 class MaterialPatch(BaseModel):
@@ -62,6 +63,7 @@ class MaterialPatch(BaseModel):
     almacenId:   Optional[str] = None
     precio:      Optional[float] = None
     activo:      Optional[bool] = None
+    tipo:        Optional[str] = None
 
 
 class MaterialesListResponse(BaseModel):
