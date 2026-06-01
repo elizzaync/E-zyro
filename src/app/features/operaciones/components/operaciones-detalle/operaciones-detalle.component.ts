@@ -225,6 +225,9 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   incTipoFalla              = 'otro';
   incDescripcion            = '';
   enviandoIncidencia        = false;
+  // Lista de todos los equipos/herramientas del inventario para el modal
+  incListaEquipos: { id: string; nombre: string; clase: string; numeroSerie: string | null }[] = [];
+  incCargandoEquipos        = false;
 
   // ── Modal Retorno (técnico declara devolución) ────────────
   showModalRetorno    = false;
@@ -1337,19 +1340,44 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   cerrarModalSolicitar(): void { this.showModalSolicitar = false; }
 
   // ── Incidencia ───────────────────────────────────────────────────────
-  abrirIncidencia(item: ItemMaterial): void {
-    this.incEquipoId        = item.id;
-    this.incEquipoNombre    = item.nombre;
-    this.incEquipoClase     = (item.clase as 'equipo' | 'herramienta') || 'equipo';
-    this.incEquipoSinSerie  = false; // se verifica tras abrir
-    this.incNumeroSerie     = '';
+  abrirIncidencia(): void {
+    this.incEquipoId         = '';
+    this.incEquipoNombre     = '';
+    this.incEquipoClase      = 'equipo';
+    this.incEquipoSinSerie   = false;
+    this.incNumeroSerie      = '';
     this.incCantidadAfectada = 1;
-    this.incTipoFalla       = 'otro';
-    this.incDescripcion     = '';
+    this.incTipoFalla        = 'otro';
+    this.incDescripcion      = '';
     this.showModalIncidencia = true;
+    // Cargar todos los equipos y herramientas del inventario
+    this.incCargandoEquipos  = true;
+    this.logistica.getEquipos({ pageSize: 200 }).subscribe({
+      next: items => {
+        this.incListaEquipos = items.map((e: any) => ({
+          id:          e.id,
+          nombre:      e.nombre,
+          clase:       e.clase,
+          numeroSerie: e.numeroSerie ?? null,
+        }));
+        this.incCargandoEquipos = false;
+      },
+      error: () => { this.incCargandoEquipos = false; },
+    });
   }
 
   cerrarIncidencia(): void { this.showModalIncidencia = false; }
+
+  onSeleccionarEquipoInc(id: string): void {
+    this.incEquipoId = id;
+    const eq = this.incListaEquipos.find(e => e.id === id);
+    if (eq) {
+      this.incEquipoNombre    = eq.nombre;
+      this.incEquipoClase     = eq.clase as 'equipo' | 'herramienta';
+      this.incEquipoSinSerie  = !eq.numeroSerie?.trim();
+      this.incNumeroSerie     = eq.numeroSerie ?? '';
+    }
+  }
 
   enviarIncidencia(): void {
     if (!this.incEquipoId || !this.incDescripcion.trim() || this.enviandoIncidencia) return;
@@ -1364,7 +1392,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     }).subscribe({
       next: () => {
         this.enviandoIncidencia  = false;
-        this.toast.mostrar('Incidencia reportada correctamente.', 'success');
+        this.toast.mostrar('Incidencia reportada. Logística recibirá el aviso.', 'success');
         this.cerrarIncidencia();
       },
       error: err => {
@@ -1372,11 +1400,6 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.toast.mostrar(err?.error?.detail ?? 'Error al reportar la incidencia.', 'error');
       },
     });
-  }
-
-  get equiposYHerramientas(): ItemMaterial[] {
-    const todos = [...(this.servicio?.itemsAsignados ?? []), ...(this.servicio?.itemsSolicitados ?? [])];
-    return todos.filter(it => it.clase === 'equipo' || it.clase === 'herramienta');
   }
 
   // ── Retorno ──────────────────────────────────────────────────────────

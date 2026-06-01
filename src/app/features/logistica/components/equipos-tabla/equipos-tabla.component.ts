@@ -113,11 +113,14 @@ export class EquiposTablaComponent implements OnInit {
   mostrarTooltip(e: EquipoHerramienta): void {
     this.tooltipEquipoId = e.id;
     this.tooltipDesglose = null;
-    this.tooltipCargando = true;
-    this.svc.getDesgloseEquipo(e.id).subscribe({
-      next:  d => { this.tooltipDesglose = d; this.tooltipCargando = false; },
-      error: () => { this.tooltipCargando = false; },
-    });
+    // Solo consulta el API si hay incidencias activas (estado indica problema)
+    if (this.tieneIncidencias(e)) {
+      this.tooltipCargando = true;
+      this.svc.getDesgloseEquipo(e.id).subscribe({
+        next:  d => { this.tooltipDesglose = d; this.tooltipCargando = false; },
+        error: () => { this.tooltipCargando = false; },
+      });
+    }
   }
 
   ocultarTooltip(): void { this.tooltipEquipoId = null; this.tooltipDesglose = null; }

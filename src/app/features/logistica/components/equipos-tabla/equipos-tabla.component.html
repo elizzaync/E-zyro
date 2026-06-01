@@ -90,35 +90,49 @@
               <div class="stock-tooltip-wrap"
                    (mouseenter)="mostrarTooltip(e)"
                    (mouseleave)="ocultarTooltip()">
+                <!-- Número de stock con indicador de alerta -->
                 <span class="stock-num" [class.stock-num--warn]="tieneIncidencias(e)">
                   {{ e.cantidad }}
                 </span>
                 @if (tieneIncidencias(e)) {
-                  <span class="stock-warn-dot" title="Hay incidencias activas">!</span>
+                  <span class="stock-warn-dot">!</span>
                 }
+                <!-- Tooltip: visible siempre al hover -->
                 @if (tooltipEquipoId === e.id) {
                   <div class="stock-tooltip">
+                    <div class="st-header">Desglose de stock</div>
                     @if (tooltipCargando) {
-                      <span class="st-loading">Cargando…</span>
-                    } @else if (tooltipDesglose) {
+                      <div class="st-row"><span class="st-loading">Calculando…</span></div>
+                    } @else if (tooltipDesglose && tooltipDesglose.enIncidencia > 0) {
                       <div class="st-row">
                         <span class="st-dot st-dot--ok"></span>
                         <span>Operativos</span>
                         <strong>{{ tooltipDesglose.operativos }}</strong>
                       </div>
-                      @if (tooltipDesglose.enIncidencia > 0) {
-                        <div class="st-row">
-                          <span class="st-dot st-dot--warn"></span>
-                          <span>En incidencias</span>
-                          <strong class="st-warn">{{ tooltipDesglose.enIncidencia }}</strong>
-                        </div>
-                      }
+                      <div class="st-row">
+                        <span class="st-dot st-dot--warn"></span>
+                        <span>En incidencias</span>
+                        <strong class="st-warn">{{ tooltipDesglose.enIncidencia }}</strong>
+                      </div>
                       <div class="st-divider"></div>
                       <div class="st-row st-row--total">
                         <span>Total</span>
                         <strong>{{ tooltipDesglose.cantidadTotal }}</strong>
                       </div>
+                    } @else {
+                      <!-- Sin incidencias: mostrar dato rápido local -->
+                      <div class="st-row">
+                        <span class="st-dot st-dot--ok"></span>
+                        <span>Operativos</span>
+                        <strong>{{ e.cantidad }}</strong>
+                      </div>
+                      <div class="st-divider"></div>
+                      <div class="st-row st-row--total">
+                        <span>Total</span>
+                        <strong>{{ e.cantidad }}</strong>
+                      </div>
                     }
+                    <div class="st-footer">Hover para desglose · click para editar</div>
                   </div>
                 }
               </div>

@@ -57,6 +57,13 @@
     </div>
 
     <div class="hb-actions">
+      <button class="hb-btn hb-btn--alert" (click)="abrirIncidencia()" title="Reportar daño en equipo/herramienta">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        Incidencia
+      </button>
       <button class="hb-btn" (click)="irAEquiposIntervenidos()" title="Equipos intervenidos">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
         Equipos
@@ -251,29 +258,6 @@
       <span>Este servicio ha sido finalizado. Todos los campos están en modo solo lectura y no permiten
         modificaciones.</span>
     </div>
-  </div>
-  }
-
-  <!-- Incidencias: botón siempre visible si hay equipos/herramientas en el servicio -->
-  @if (equiposYHerramientas.length > 0) {
-  <div class="banner-incidencia">
-    <div class="banner-incidencia-ico">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-      </svg>
-    </div>
-    <div class="banner-incidencia-text">
-      <strong>Reportar incidencia</strong>
-      <span>¿Algún equipo o herramienta sufrió daño o dejó de funcionar?</span>
-    </div>
-    <button class="btn-reportar-inc" (click)="showModalIncidencia = true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/>
-      </svg>
-      Reportar incidencia
-    </button>
   </div>
   }
 
@@ -1757,19 +1741,37 @@
 
     <div class="modal-body">
 
-      <!-- Selector de equipo/herramienta del servicio -->
+      <!-- Selector de equipo/herramienta del inventario -->
       <div class="form-field">
         <label class="form-label">Equipo / Herramienta afectada <span class="form-required">*</span></label>
-        <select class="form-input" [(ngModel)]="incEquipoId"
-                (ngModelChange)="incEquipoNombre = equiposYHerramientas[$any($event)]?.nombre || ''">
-          <option value="">— Selecciona un ítem —</option>
-          @for (it of equiposYHerramientas; track it.id) {
-            <option [value]="it.id">
-              {{ it.nombre }} ({{ it.clase === 'equipo' ? 'Equipo' : 'Herramienta' }})
-            </option>
-          }
-        </select>
+        @if (incCargandoEquipos) {
+          <div class="inc-loading-select"><app-spinner [size]="16"></app-spinner> Cargando inventario…</div>
+        } @else {
+          <select class="form-input" [ngModel]="incEquipoId" (change)="onSeleccionarEquipoInc($any($event.target).value)">
+            <option value="">— Selecciona un ítem —</option>
+            @for (it of incListaEquipos; track it.id) {
+              <option [value]="it.id">
+                {{ it.nombre }}
+                ({{ it.clase === 'equipo' ? 'Equipo' : 'Herramienta' }})
+                @if (!it.numeroSerie?.trim()) { ⚠ Sin serie }
+              </option>
+            }
+          </select>
+        }
       </div>
+
+      <!-- Selección activa — muestra info del equipo elegido -->
+      @if (incEquipoId && !incCargandoEquipos) {
+        <div class="inc-eq-elegido">
+          <span class="tipo-badge tipo-badge--{{ incEquipoClase }}">
+            {{ incEquipoClase === 'equipo' ? 'Equipo' : 'Herramienta' }}
+          </span>
+          <span class="inc-eq-elegido-nombre">{{ incEquipoNombre }}</span>
+          @if (incEquipoSinSerie) {
+            <span class="inc-sin-serie-badge">⚠ Sin N° serie — completa abajo</span>
+          }
+        </div>
+      }
 
       <!-- Número de serie: obligatorio para equipos, con alerta si no tiene -->
       @if (incEquipoClase === 'equipo' || !incEquipoId) {
