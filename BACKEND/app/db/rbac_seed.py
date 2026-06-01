@@ -34,6 +34,7 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     "Jefe de Operaciones": [
         "dashboard:ver", "reportes:ver",
         "proyectos:ver", "proyectos:crear", "proyectos:editar",
+        "equipo_intervenido:ver", "equipo_intervenido:crear", "equipo_intervenido:editar",
         "asistencia:ver", "asistencia:validar",
         "requerimientos:ver", "requerimientos:aprobar",
         "correctivo:ver", "correctivo:crear", "correctivo:editar",
@@ -59,6 +60,7 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     "Supervisor": [
         "dashboard:ver",
         "proyectos:ver", "proyectos:editar",
+        "equipo_intervenido:ver", "equipo_intervenido:editar",
         "asistencia:ver", "asistencia:validar",
         "itse:ver", "itse:crear", "itse:editar", "itse:finalizar",
         "observacion:ver", "observacion:crear", "observacion:editar",
@@ -70,7 +72,7 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     ],
     "Técnico de Campo": [
         "asistencia:registrar", "asistencia:ver",
-        "proyectos:ver",
+        "proyectos:ver", "equipo_intervenido:ver",
         "itse:ver", "itse:crear", "itse:editar",
         "observacion:ver", "observacion:crear",
         "correctivo:ver", "correctivo:crear",

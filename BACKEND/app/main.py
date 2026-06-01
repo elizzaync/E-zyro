@@ -30,6 +30,7 @@ from app.routers import calibraciones   as calibraciones_router
 from app.routers import correctivos     as correctivos_router
 from app.routers import itse            as itse_router
 from app.routers import informes_servicio as informes_servicio_router
+from app.routers import equipos_intervenidos as equipos_intervenidos_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -543,6 +544,10 @@ def _run_migrations():
         # ── Informes de servicio (refinamiento) ──────────────────────────────
         sembrar_permisos(conn, "informe_servicio", ["ver", "generar"],
                          descripcion_base="Informe de servicio:")
+        # ── Equipos intervenidos (clientes) ──────────────────────────────────
+        sembrar_permisos(conn, "equipo_intervenido",
+                         ["ver", "crear", "editar", "eliminar"],
+                         descripcion_base="Equipo intervenido:")
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
         sembrar_rol_permiso(conn)
         conn.commit()
@@ -985,6 +990,7 @@ app.include_router(calibraciones_router.router_estado)
 app.include_router(correctivos_router.router)
 app.include_router(itse_router.router)
 app.include_router(informes_servicio_router.router)
+app.include_router(equipos_intervenidos_router.router)
 
 
 @app.get("/")
