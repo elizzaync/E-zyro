@@ -57,6 +57,7 @@ from ..schemas.logistica import (
     ProveedorOut, ProveedorIn,
     IngresoItemBody, RegistrarIngresoBody, VincularInventarioBody,
     SalidaItemOut, SalidaOut, SalidasListResponse, SalidasKpis,
+    IngresoItemOut, IngresoOut, IngresosListResponse,
 )
 from datetime import date as _date
 
@@ -1746,6 +1747,7 @@ def _ticket_out(db: Session, tc: TicketCompra) -> TicketCompraOut:
         nota=tc.nota,
         creadoEn=tc.created_at.isoformat() if tc.created_at else "",
         actualizadoEn=tc.updated_at.isoformat() if tc.updated_at else None,
+        ingresoRegistrado=bool(tc.ingreso_registrado),
     )
 
 
@@ -1778,6 +1780,12 @@ def _crear_ticket_compra(
     sol_nombre, _ = _nombre_empleado(db, req.solicitante_id)
 
     codigo = _siguiente_codigo_ticket(db, empresa_id)
+
+    total_est = sum(
+        float(d.precio_estimado or 0) * int(d.cantidad or 0)
+        for d in detalles_compra
+    )
+
     tc = TicketCompra(
         id=str(_uuid.uuid4()),
         empresa_id=empresa_id,
@@ -1789,6 +1797,7 @@ def _crear_ticket_compra(
         proyecto_nombre=proyecto_nombre,
         servicio_nombre=servicio_nombre,
         solicitante_nombre=sol_nombre,
+        total_estimado=total_est if total_est > 0 else None,
         created_at=datetime.utcnow(),
     )
     db.add(tc)
@@ -2003,6 +2012,15 @@ async def _aplicar_ingreso_ticket(
                     cantidad=cant, cantidad_minima=0,
                     updated_at=datetime.utcnow(),
                 ))
+
+            # Actualizar precio del material con el precio unitario de la compra
+            if it.precio_unitario:
+                mat_upd = db.query(Material).filter(
+                    Material.id == it.material_id,
+                    Material.empresa_id == empresa_id,
+                ).first()
+                if mat_upd:
+                    mat_upd.precio = float(it.precio_unitario)
             db.add(MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=it.material_id, almacen_id=alm_id,
@@ -2477,11 +2495,20 @@ def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> Salid
         .first()
     )
     entregado_nombre = recibido_nombre = firma_url = fecha_salida = None
+    firma_entregador_url = req.firma_entregador_url
+    firmando_desde_iso   = req.firmando_desde.isoformat() if req.firmando_desde else None
+    firmando_por_nombre, _ = (
+        _nombre_empleado(db, req.firmando_por_id)
+        if req.firmando_por_id else (None, None)
+    )
+
     if entrega:
         entregado_nombre, _ = _nombre_empleado(db, entrega.entregado_por_id)
         recibido_nombre, _  = _nombre_empleado(db, entrega.recibido_por_id)
-        firma_url  = entrega.firma_receptor_url
+        firma_url    = entrega.firma_receptor_url
         fecha_salida = entrega.fecha_entrega.isoformat() if entrega.fecha_entrega else None
+        if entrega.firma_entregador_url:
+            firma_entregador_url = entrega.firma_entregador_url
 
     return SalidaOut(
         id=str(req.id),
@@ -2623,6 +2650,121 @@ def listar_salidas(
         ]
 
     return SalidasListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INGRESOS — historial de compras recibidas que afectaron el inventario
+# Filtra por defecto al mes actual; soporta rango de fechas y búsqueda libre.
+# ══════════════════════════════════════════════════════════════════════════
+
+@router.get("/ingresos", response_model=IngresosListResponse)
+def listar_ingresos(
+    q:         str           = Query(""),
+    desde:     Optional[str] = Query(None, description="YYYY-MM-DD (default: 1er día mes actual)"),
+    hasta:     Optional[str] = Query(None, description="YYYY-MM-DD (default: hoy)"),
+    page:      int           = Query(1, ge=1),
+    page_size: int           = Query(30, ge=1, le=200),
+    payload:   dict          = Depends(verificar_token),
+    db:        Session       = Depends(get_db),
+):
+    """
+    Historial de ingresos al inventario originados por compras completadas.
+    Devuelve un registro por TicketCompra cuyo ingreso_registrado=True.
+    Por defecto filtra el mes en curso; acepta rango desde/hasta.
+    """
+    empresa_id = payload["empresa_id"]
+    now = datetime.utcnow()
+
+    if desde:
+        try:
+            desde_dt = datetime.strptime(desde, "%Y-%m-%d")
+        except ValueError:
+            desde_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        desde_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    if hasta:
+        try:
+            hasta_dt = datetime.strptime(hasta, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+        except ValueError:
+            hasta_dt = now
+    else:
+        hasta_dt = now
+
+    base = (
+        db.query(TicketCompra)
+        .filter(
+            TicketCompra.empresa_id        == empresa_id,
+            TicketCompra.ingreso_registrado == True,
+            TicketCompra.updated_at        >= desde_dt,
+            TicketCompra.updated_at        <= hasta_dt,
+        )
+        .order_by(TicketCompra.updated_at.desc())
+    )
+
+    total   = base.count()
+    tickets = base.offset((page - 1) * page_size).limit(page_size).all()
+
+    result: list[IngresoOut] = []
+    for tc in tickets:
+        tc_items = (
+            db.query(TicketCompraItem)
+            .filter(
+                TicketCompraItem.ticket_id         == tc.id,
+                TicketCompraItem.cantidad_comprada  > 0,
+            )
+            .all()
+        )
+
+        ingreso_items = [
+            IngresoItemOut(
+                nombre         = it.nombre,
+                cantidad       = int(it.cantidad_comprada or 0),
+                unidad         = it.unidad or "",
+                tipoItem       = (it.tipo_item or "material").lower(),
+                precioUnitario = float(it.precio_unitario) if it.precio_unitario else None,
+            )
+            for it in tc_items
+        ]
+
+        total_unidades = sum(i.cantidad for i in ingreso_items)
+
+        # Proveedor: modo unificado usa proveedor_unico_nombre;
+        # modo por ítem agrega los distintos nombres sin repetir.
+        if tc.proveedor_unico_nombre:
+            proveedor_nombre = tc.proveedor_unico_nombre
+        else:
+            nombres = list(dict.fromkeys(
+                it.proveedor_nombre for it in tc_items if it.proveedor_nombre
+            ))
+            proveedor_nombre = ", ".join(nombres) if nombres else None
+
+        result.append(IngresoOut(
+            id                = str(tc.id),
+            ticketCodigo      = tc.codigo,
+            fechaIngreso      = tc.updated_at.isoformat() if tc.updated_at else "",
+            proyectoNombre    = tc.proyecto_nombre or "—",
+            servicioNombre    = tc.servicio_nombre,
+            solicitanteNombre = tc.solicitante_nombre or "—",
+            proveedorNombre   = proveedor_nombre,
+            totalReal         = float(tc.total_real)      if tc.total_real      else None,
+            totalEstimado     = float(tc.total_estimado)  if tc.total_estimado  else None,
+            items             = ingreso_items,
+            totalItems        = len(ingreso_items),
+            totalUnidades     = total_unidades,
+        ))
+
+    if q:
+        ql = q.lower()
+        result = [
+            r for r in result
+            if ql in r.proyectoNombre.lower()
+            or ql in (r.servicioNombre or "").lower()
+            or ql in r.ticketCodigo.lower()
+            or any(ql in it.nombre.lower() for it in r.items)
+        ]
+
+    return IngresosListResponse(items=result, total=total, page=page, pageSize=page_size)
 
 
 # ══════════════════════════════════════════════════════════════════════════

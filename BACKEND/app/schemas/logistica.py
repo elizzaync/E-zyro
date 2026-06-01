@@ -330,6 +330,7 @@ class TicketCompraOut(BaseModel):
     nota:                 Optional[str]   = None
     creadoEn:             str
     actualizadoEn:        Optional[str]   = None
+    ingresoRegistrado:    bool            = False
 
 
 class ComprasListResponse(BaseModel):
@@ -485,3 +486,37 @@ class VincularInventarioBody(BaseModel):
     marca:          Optional[str]   = None
     numeroSerie:    Optional[str]   = None
     ubicacion:      Optional[str]   = None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INGRESOS — historial de compras recibidas que afectaron el inventario
+# ═══════════════════════════════════════════════════════════════════════════
+
+class IngresoItemOut(BaseModel):
+    nombre:        str
+    cantidad:      int
+    unidad:        str
+    tipoItem:      str
+    precioUnitario: Optional[float] = None
+
+
+class IngresoOut(BaseModel):
+    id:               str
+    ticketCodigo:     str
+    fechaIngreso:     str
+    proyectoNombre:   str
+    servicioNombre:   Optional[str] = None
+    solicitanteNombre: str
+    proveedorNombre:  Optional[str] = None
+    totalReal:        Optional[float] = None
+    totalEstimado:    Optional[float] = None
+    items:            List[IngresoItemOut]
+    totalItems:       int
+    totalUnidades:    int
+
+
+class IngresosListResponse(BaseModel):
+    items:    List[IngresoOut]
+    total:    int
+    page:     int
+    pageSize: int
