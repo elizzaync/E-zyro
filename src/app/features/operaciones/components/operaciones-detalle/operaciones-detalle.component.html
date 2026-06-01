@@ -254,6 +254,32 @@
   </div>
   }
 
+  <!-- Retorno: aparece cuando hay reqs entregados para devolver -->
+  @if (reqsEntregados.length > 0) {
+  <div class="banner-retorno">
+    <div class="banner-retorno-ico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="1 4 1 10 7 10"/>
+        <path d="M3.51 15a9 9 0 1 0 .49-3.54"/>
+      </svg>
+    </div>
+    <div class="banner-retorno-text">
+      <strong>Devolución de materiales</strong>
+      <span>Registra qué materiales, equipos y herramientas estás devolviendo al almacén.</span>
+    </div>
+    <div class="banner-retorno-btns">
+      @for (req of reqsEntregados; track req.id) {
+        <button class="btn-retorno" (click)="abrirModalRetorno(req)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.54"/>
+          </svg>
+          Devolver (req {{ req.id | slice:0:6 }}…)
+        </button>
+      }
+    </div>
+  </div>
+  }
+
   <div class="svc-grid">
 
     <!-- ═══════════════ COLUMNA IZQUIERDA: Equipo + Materiales ═══════════════ -->
@@ -1597,6 +1623,91 @@
         @else { Confirmar recepción con firma }
       </button>
     </div>
+  </div>
+</div>
+}
+
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL: DECLARAR DEVOLUCIÓN (técnico)
+══════════════════════════════════════════════════════ -->
+@if (showModalRetorno) {
+<div class="modal-overlay" (click)="cerrarModalRetorno()">
+  <div class="modal-box modal-solicitar" (click)="$event.stopPropagation()">
+
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Declarar devolución</h3>
+        <p class="modal-subtitle">Indica qué materiales, equipos y herramientas estás devolviendo al almacén.</p>
+      </div>
+      <button class="modal-close" (click)="cerrarModalRetorno()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+
+      <div class="ret-modal-top-actions">
+        <span class="ret-legend">
+          <span class="ret-legend-oblig">■</span> Obligatorio devolver &nbsp;
+          <span class="ret-legend-opt">■</span> Opcional
+        </span>
+        <button class="ret-confirm-oblig-btn" type="button" (click)="retornoTodosObligatorios()">
+          Completar obligatorios
+        </button>
+      </div>
+
+      <div class="ret-decl-list">
+        @for (it of retornoItems; track it.detalleId) {
+          <div class="ret-decl-item" [class.ret-decl-item--oblig]="it.esObligatorio">
+            <div class="ret-decl-info">
+              <span class="tipo-badge tipo-badge--{{ it.tipoItem }}">
+                {{ it.tipoItem === 'material' ? 'Material' : it.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
+              </span>
+              @if (it.esObligatorio) {
+                <span class="ret-oblig-tag">Obligatorio</span>
+              }
+              <span class="ret-decl-nombre">{{ it.nombre }}</span>
+            </div>
+            <div class="ret-decl-right">
+              <div class="ret-qty-col">
+                <span class="ret-qty-lbl">Entregado</span>
+                <span class="ret-qty-num">{{ it.cantidadEntregada }}</span>
+              </div>
+              <div class="ret-qty-col">
+                <span class="ret-qty-lbl">Devolver</span>
+                <input type="number" class="ret-qty-inp"
+                       [(ngModel)]="it.cantidadRetornada"
+                       [min]="0" [max]="it.cantidadEntregada" step="1">
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="form-field mt-3">
+        <label class="form-label">Observaciones (opcional)</label>
+        <textarea class="form-input" rows="2" [(ngModel)]="retornoNotaTecnico"
+                  placeholder="Ej: Equipo con golpe en la carcasa, cable dañado…"></textarea>
+      </div>
+
+    </div>
+
+    <footer class="modal-footer">
+      <button class="btn-outline" (click)="cerrarModalRetorno()">Cancelar</button>
+      <button class="btn-primary" (click)="enviarRetorno()" [disabled]="enviandoRetorno">
+        @if (enviandoRetorno) { <app-spinner [size]="15" theme="light"></app-spinner> }
+        @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.54"/>
+          </svg>
+        }
+        Registrar devolución
+      </button>
+    </footer>
+
   </div>
 </div>
 }

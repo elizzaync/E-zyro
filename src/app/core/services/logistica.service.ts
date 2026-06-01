@@ -20,6 +20,7 @@ import {
   Salida,
   SalidasKpis,
   RegistrarIngresoPayload,
+  Retorno,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -364,5 +365,35 @@ export class LogisticaService {
         `${this.api}/logistica/ingresos`, { params }
       )
       .pipe(map(r => ({ items: r.items, total: r.total })));
+  }
+
+  // ── Retornos ──────────────────────────────────────────────────────────
+  crearRetorno(body: { requerimientoId: string; items: { detalleId: string; cantidadRetornada: number }[]; notaTecnico?: string }): Observable<Retorno> {
+    return this.http.post<Retorno>(`${this.api}/logistica/retornos`, body);
+  }
+
+  getRetornos(filtros: { q?: string; estado?: string; desde?: string; hasta?: string; page?: number; pageSize?: number } = {}): Observable<{ items: Retorno[]; total: number }> {
+    let params = new HttpParams()
+      .set('page',      String(filtros.page     ?? 1))
+      .set('page_size', String(filtros.pageSize ?? 30));
+    if (filtros.q)      params = params.set('q',      filtros.q);
+    if (filtros.estado) params = params.set('estado', filtros.estado);
+    if (filtros.desde)  params = params.set('desde',  filtros.desde);
+    if (filtros.hasta)  params = params.set('hasta',  filtros.hasta);
+    return this.http
+      .get<{ items: Retorno[]; total: number; page: number; pageSize: number }>(`${this.api}/logistica/retornos`, { params })
+      .pipe(map(r => ({ items: r.items, total: r.total })));
+  }
+
+  getRetorno(id: string): Observable<Retorno> {
+    return this.http.get<Retorno>(`${this.api}/logistica/retornos/${id}`);
+  }
+
+  inspeccionarRetorno(id: string, body: { items: { detalleId: string; cantidadConfirmada: number }[]; notaLogistica?: string }): Observable<Retorno> {
+    return this.http.patch<Retorno>(`${this.api}/logistica/retornos/${id}/inspeccionar`, body);
+  }
+
+  completarRetorno(id: string): Observable<Retorno> {
+    return this.http.patch<Retorno>(`${this.api}/logistica/retornos/${id}/completar`, {});
   }
 }

@@ -838,6 +838,51 @@
 .modal-solicitar { max-width: 600px; width: 95vw; }
 .modal-pdf       { max-width: 740px; width: 95vw; }
 
+/* ── Banner retorno ── */
+.banner-retorno {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: rgba(59,130,246,.07); border: 1px solid rgba(59,130,246,.25);
+  border-radius: 14px; padding: 14px 18px; margin-bottom: 14px;
+}
+.banner-retorno-ico { width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(59,130,246,.12); border-radius: 10px; color: #2563eb; }
+.banner-retorno-ico svg { width: 20px; height: 20px; }
+.banner-retorno-text { flex: 1; min-width: 0; }
+.banner-retorno-text strong { display: block; font-size: .9rem; font-weight: 700; color: #1e3a8a; }
+.banner-retorno-text span { font-size: .8rem; color: #3b82f6; }
+.banner-retorno-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn-retorno {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: .42rem .9rem; border-radius: 8px; border: 1px solid rgba(59,130,246,.35);
+  background: rgba(59,130,246,.1); color: #2563eb; font-size: .82rem; font-weight: 600; cursor: pointer;
+}
+.btn-retorno svg { width: 13px; height: 13px; }
+.btn-retorno:hover { background: rgba(59,130,246,.18); }
+
+/* ── Modal retorno (técnico) ── */
+.ret-modal-top-actions { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+.ret-legend { font-size: .78rem; color: var(--text-muted,#64748b); }
+.ret-legend-oblig { color: #ef4444; }
+.ret-legend-opt   { color: #91d337; }
+.ret-confirm-oblig-btn { padding: .32rem .8rem; border-radius: 7px; border: 1px solid rgba(239,68,68,.3); background: rgba(239,68,68,.07); color: #dc2626; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.ret-confirm-oblig-btn:hover { background: rgba(239,68,68,.14); }
+
+.ret-decl-list { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; }
+.ret-decl-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border-color,#e7eae6);
+  background: var(--card-bg,#fff); flex-wrap: wrap;
+}
+.ret-decl-item--oblig { border-left: 3px solid #ef4444; }
+.ret-decl-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
+.ret-oblig-tag { font-size: .67rem; font-weight: 700; text-transform: uppercase; color: #dc2626; background: rgba(239,68,68,.1); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+.ret-decl-nombre { font-size: .875rem; font-weight: 600; color: var(--text-main,#334155); }
+.ret-decl-right { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.ret-qty-col { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ret-qty-lbl { font-size: .67rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted,#94a3b8); }
+.ret-qty-num { font-size: .95rem; font-weight: 700; color: var(--text-main,#1e293b); }
+.ret-qty-inp { width: 60px; text-align: center; padding: .28rem .35rem; border: 1.5px solid var(--border-color,#e2e8f0); border-radius: 7px; font-size: .9rem; font-weight: 700; outline: none; }
+.ret-qty-inp:focus { border-color: var(--brand-green,#91d337); }
+
 /* — HEADER — */
 .modal-header {
   display: flex; align-items: flex-start; justify-content: space-between;

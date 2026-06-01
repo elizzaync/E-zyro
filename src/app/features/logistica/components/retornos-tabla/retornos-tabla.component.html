@@ -1,0 +1,235 @@
+<div class="ret-layout">
+
+  <!-- ─── Filtros ─── -->
+  <div class="ret-filtros">
+    <div class="ret-search">
+      <svg class="ret-search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input class="ret-search-input" type="text" [(ngModel)]="busqueda"
+             (keydown.enter)="buscar()" placeholder="Buscar por servicio, técnico o ítem…">
+    </div>
+    <select class="ret-select-estado" [(ngModel)]="filtroEstado" (change)="buscar()">
+      <option value="">Todos los estados</option>
+      <option value="enviado">Enviado</option>
+      <option value="inspeccion">En inspección</option>
+      <option value="completado">Completado</option>
+    </select>
+    <button class="ret-btn-buscar" (click)="buscar()">Buscar</button>
+    <button class="ret-btn-limpiar" (click)="limpiar()">Limpiar</button>
+    <span class="ret-total-badge"><strong>{{ total }}</strong> retornos</span>
+  </div>
+
+  <!-- ─── Tabla ─── -->
+  @if (cargando) {
+    <div class="ret-loading"><app-spinner [size]="28"></app-spinner></div>
+  } @else if (retornos.length === 0) {
+    <div class="ret-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      <p>Sin retornos registrados.</p>
+      <span>Aparecerán aquí cuando los técnicos inicien una devolución de materiales.</span>
+    </div>
+  } @else {
+    <div class="ret-table-wrap">
+      <table class="ret-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Servicio / Proyecto</th>
+            <th>Técnico</th>
+            <th>Ítems</th>
+            <th>Obligatorios</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of retornos; track r.id) {
+            <tr class="ret-row">
+              <td class="td-fecha">{{ fechaCorta(r.creadoEn) }}</td>
+              <td class="td-servicio">
+                <div class="ret-srv">{{ r.servicioNombre ?? '—' }}</div>
+                @if (r.proyectoNombre) {
+                  <div class="ret-proy">{{ r.proyectoNombre }}</div>
+                }
+              </td>
+              <td class="td-tecnico">{{ r.iniciadoPorNombre ?? '—' }}</td>
+              <td class="td-items-count">{{ r.totalItems }}</td>
+              <td class="td-oblig">
+                @if (r.itemsObligatorios > 0) {
+                  <span class="ret-oblig-badge">{{ r.itemsObligatorios }} obligat.</span>
+                } @else {
+                  <span class="ret-none">—</span>
+                }
+              </td>
+              <td class="td-estado">
+                <span class="ret-estado-badge ret-est-{{ r.estado }}">{{ estadoLabel(r.estado) }}</span>
+              </td>
+              <td class="td-accion">
+                @if (r.estado !== 'completado') {
+                  <button class="ret-btn-insp" (click)="abrirInspeccion(r)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    Inspeccionar
+                  </button>
+                } @else {
+                  <button class="ret-btn-ver" (click)="abrirInspeccion(r)">Ver detalle</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPaginas > 1) {
+      <div class="ret-paginacion">
+        <button class="ret-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
+        <span class="ret-pg-info">{{ page }} / {{ totalPaginas }}</span>
+        <button class="ret-pg-btn" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">›</button>
+      </div>
+    }
+  }
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     MODAL DE INSPECCIÓN
+══════════════════════════════════════════════ -->
+@if (retornoActivo) {
+<div class="ret-overlay" (click)="cerrarInspeccion()">
+  <div class="ret-modal" (click)="$event.stopPropagation()">
+
+    <header class="ret-modal-header">
+      <div class="ret-modal-hinfo">
+        <div class="ret-modal-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="ret-modal-title">Inspeccionar Retorno</h3>
+          <p class="ret-modal-sub">
+            {{ retornoActivo.servicioNombre ?? '—' }}
+            @if (retornoActivo.proyectoNombre) { · {{ retornoActivo.proyectoNombre }} }
+          </p>
+          <p class="ret-modal-tecnico">Técnico: <strong>{{ retornoActivo.iniciadoPorNombre ?? '—' }}</strong>
+            · Fecha: {{ fechaCorta(retornoActivo.creadoEn) }}
+          </p>
+        </div>
+      </div>
+      <div class="ret-modal-hright">
+        <span class="ret-estado-badge ret-est-{{ retornoActivo.estado }}">{{ estadoLabel(retornoActivo.estado) }}</span>
+        <button class="ret-modal-close" (click)="cerrarInspeccion()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    @if (retornoActivo.notaTecnico) {
+      <div class="ret-nota-tecnico">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span><strong>Nota del técnico:</strong> {{ retornoActivo.notaTecnico }}</span>
+      </div>
+    }
+
+    <div class="ret-modal-body">
+      <div class="ret-items-header">
+        <span class="ret-items-count">{{ itemsForm.length }} ítems a verificar</span>
+        @if (retornoActivo.estado !== 'completado') {
+          <button class="ret-btn-confirm-all" (click)="confirmarTodos()" type="button">
+            ✓ Confirmar todos
+          </button>
+        }
+      </div>
+
+      <div class="ret-items-list">
+        @for (f of itemsForm; track f.detalleId; let idx = $index) {
+          <div class="ret-item-card" [class.ret-item--obligatorio]="f.esObligatorio" [class.ret-item--ok]="f.estadoItem === 'confirmado'" [class.ret-item--miss]="f.estadoItem === 'faltante'">
+            <div class="ret-item-left">
+              <span class="tipo-badge tipo-badge--{{ f.tipoItem }}">
+                {{ f.tipoItem === 'material' ? 'Material' : f.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
+              </span>
+              @if (f.esObligatorio) {
+                <span class="ret-obligatorio-tag">Obligatorio</span>
+              }
+              <span class="ret-item-nombre">{{ f.nombre }}</span>
+              <span class="ret-item-unidad">{{ f.unidad }}</span>
+            </div>
+            <div class="ret-item-right">
+              <div class="ret-qty-group">
+                <span class="ret-qty-label">Entregado</span>
+                <span class="ret-qty-val">{{ f.cantidadEntregada }}</span>
+              </div>
+              <div class="ret-qty-group">
+                <span class="ret-qty-label">Declara</span>
+                <span class="ret-qty-val ret-qty-tec">{{ f.cantidadRetornada }}</span>
+              </div>
+              <div class="ret-qty-group">
+                <span class="ret-qty-label">Confirmar <span class="req">*</span></span>
+                @if (retornoActivo.estado === 'completado') {
+                  <span class="ret-qty-val">{{ f.cantidadConfirmada }}</span>
+                } @else {
+                  <input type="number" class="ret-qty-input"
+                         [(ngModel)]="f.cantidadConfirmada"
+                         [min]="0" [max]="f.cantidadEntregada" step="1">
+                }
+              </div>
+              <span class="ret-item-estado {{ itemEstadoBadge(f.estadoItem) }}">
+                {{ itemEstadoLabel(f.estadoItem) }}
+              </span>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (retornoActivo.estado !== 'completado') {
+        <div class="ret-nota-log-wrap">
+          <label class="ret-nota-label">Nota de logística (opcional)</label>
+          <textarea class="ret-nota-input" rows="2" [(ngModel)]="notaLogistica"
+                    placeholder="Observaciones sobre el estado de los ítems recibidos…"></textarea>
+        </div>
+      } @else if (retornoActivo.notaLogistica) {
+        <div class="ret-nota-tecnico ret-nota-log">
+          <span><strong>Nota de logística:</strong> {{ retornoActivo.notaLogistica }}</span>
+        </div>
+      }
+    </div>
+
+    @if (retornoActivo.estado !== 'completado') {
+      <footer class="ret-modal-footer">
+        <button class="ret-btn-cancel" (click)="cerrarInspeccion()">Cerrar</button>
+        <button class="ret-btn-guardar" (click)="guardarInspeccion()" [disabled]="procesando">
+          @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+          Guardar inspección
+        </button>
+        @if (puedeCompletar) {
+          <button class="ret-btn-completar" (click)="completarRetorno()" [disabled]="completando">
+            @if (completando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+            @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            }
+            Completar retorno
+          </button>
+        }
+      </footer>
+    } @else {
+      <footer class="ret-modal-footer">
+        <button class="ret-btn-cancel" (click)="cerrarInspeccion()">Cerrar</button>
+      </footer>
+    }
+
+  </div>
+</div>
+}

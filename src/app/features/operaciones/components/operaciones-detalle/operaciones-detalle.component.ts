@@ -214,6 +214,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   pdfCargando   = false;
   pdfBlobUrl    = '';
 
+  // ── Modal Retorno (técnico declara devolución) ────────────
+  showModalRetorno    = false;
+  retornoReqId        = '';
+  retornoItems: { detalleId: string; nombre: string; unidad: string; tipoItem: string; esObligatorio: boolean; cantidadEntregada: number; cantidadRetornada: number }[] = [];
+  retornoNotaTecnico  = '';
+  enviandoRetorno     = false;
+
   // ── Chat en tiempo real ────────────────────────────────────
   chatMensajes: MensajeChat[]     = [];
   nuevoMensajeChat                = '';
@@ -489,6 +496,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 
   get reqsParaFirmar(): Requerimiento[] {
     return this.reqsListos.filter(r => r.estado === 'aprobado');
+  }
+
+  get reqsEntregados(): Requerimiento[] {
+    return (this.reqsListos ?? []).filter(r => r.estado === 'entregado');
   }
 
   abrirFirma(req: Requerimiento): void {
@@ -1312,6 +1323,52 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   }
 
   cerrarModalSolicitar(): void { this.showModalSolicitar = false; }
+
+  // ── Retorno ──────────────────────────────────────────────────────────
+  abrirModalRetorno(req: Requerimiento): void {
+    this.retornoReqId       = req.id;
+    this.retornoNotaTecnico = '';
+    this.retornoItems = req.items
+      .filter(it => it.estadoItem === 'aprobado')
+      .map(it => ({
+        detalleId:        it.id,
+        nombre:           it.nombre,
+        unidad:           it.unidad,
+        tipoItem:         (it as any).tipoItemCompra || 'material',
+        esObligatorio:    ['equipo','herramienta'].includes((it as any).tipoItemCompra || 'material'),
+        cantidadEntregada: it.cantidadAprobada ?? it.cantidad,
+        cantidadRetornada: 0,
+      }));
+    this.showModalRetorno = true;
+  }
+
+  cerrarModalRetorno(): void { this.showModalRetorno = false; this.retornoItems = []; }
+
+  retornoTodosObligatorios(): void {
+    this.retornoItems.forEach(it => {
+      if (it.esObligatorio) it.cantidadRetornada = it.cantidadEntregada;
+    });
+  }
+
+  enviarRetorno(): void {
+    if (!this.retornoReqId || this.enviandoRetorno) return;
+    this.enviandoRetorno = true;
+    this.logistica.crearRetorno({
+      requerimientoId: this.retornoReqId,
+      items: this.retornoItems.map(it => ({ detalleId: it.detalleId, cantidadRetornada: it.cantidadRetornada })),
+      notaTecnico: this.retornoNotaTecnico.trim() || undefined,
+    }).subscribe({
+      next: () => {
+        this.enviandoRetorno = false;
+        this.toast.mostrar('Devolución registrada. Logística recibirá el aviso.', 'success');
+        this.cerrarModalRetorno();
+      },
+      error: err => {
+        this.enviandoRetorno = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al registrar la devolución.', 'error');
+      },
+    });
+  }
 
   buscarMateriales(): void {
     const q = this.busquedaMaterial.trim();

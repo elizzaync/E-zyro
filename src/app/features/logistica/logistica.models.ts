@@ -335,3 +335,38 @@ export interface Ingreso {
   totalItems: number;
   totalUnidades: number;
 }
+
+// ── Retornos ──────────────────────────────────────────────────────────────
+
+export interface RetornoDetalle {
+  id: string;
+  materialId: string | null;
+  equipoId: string | null;
+  nombre: string;
+  unidad: string;
+  tipoItem: 'material' | 'equipo' | 'herramienta';
+  cantidadEntregada: number;
+  cantidadRetornada: number | null;
+  cantidadConfirmada: number | null;
+  esObligatorio: boolean;
+  estadoItem: 'pendiente' | 'confirmado' | 'faltante';
+}
+
+export interface Retorno {
+  id: string;
+  proyectoServicioId: string | null;
+  servicioNombre: string | null;
+  proyectoNombre: string | null;
+  requerimientoId: string | null;
+  estado: 'enviado' | 'inspeccion' | 'completado';
+  iniciadoPorNombre: string | null;
+  inspeccionadoPorNombre: string | null;
+  notaTecnico: string | null;
+  notaLogistica: string | null;
+  creadoEn: string;
+  completadoEn: string | null;
+  items: RetornoDetalle[];
+  totalItems: number;
+  itemsObligatorios: number;
+  itemsPendientes: number;
+}
