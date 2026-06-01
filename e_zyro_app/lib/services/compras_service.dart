@@ -10,7 +10,7 @@ class ComprasService {
 
   Future<List<Proveedor>> getProveedores() async {
     try {
-      final r = await _client.get('/compras/proveedores');
+      final r = await _client.get('/logistica/proveedores');
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List? ?? [];
         return list
@@ -23,7 +23,7 @@ class ComprasService {
 
   Future<bool> crearProveedor(Map<String, dynamic> body) async {
     try {
-      final r = await _client.post('/compras/proveedores', body);
+      final r = await _client.post('/logistica/proveedores', body);
       return r.statusCode == 201;
     } catch (_) {
       return false;
@@ -32,7 +32,7 @@ class ComprasService {
 
   Future<bool> editarProveedor(String id, Map<String, dynamic> body) async {
     try {
-      final r = await _client.patch('/compras/proveedores/$id', body);
+      final r = await _client.patch('/logistica/proveedores/$id', body);
       return r.statusCode == 200;
     } catch (_) {
       return false;
@@ -41,7 +41,7 @@ class ComprasService {
 
   Future<bool> eliminarProveedor(String id) async {
     try {
-      final r = await _client.delete('/compras/proveedores/$id');
+      final r = await _client.delete('/logistica/proveedores/$id');
       return r.statusCode == 200;
     } catch (_) {
       return false;

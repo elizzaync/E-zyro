@@ -11,6 +11,8 @@ import 'pantalla_compras_logistica.dart';
 import 'pantalla_proveedores_logistica.dart';
 import 'pantalla_transferencias_logistica.dart';
 import 'pantalla_prestamos_logistica.dart';
+import 'pantalla_equipos_logistica.dart';
+import 'pantalla_epp.dart';
 
 /// Panel del encargado de logística — dashboard de inventario + accesos a la
 /// gestión. Usa el estilo "Paper Dots" (bitácora) de forma permanente.
@@ -241,6 +243,22 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
         subtitle: 'Equipos / herram.',
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const PantallaPrestamosLogistica())),
+      ),
+      _AccesoData(
+        icon: Icons.precision_manufacturing_outlined,
+        color: kPaperLime,
+        label: 'Equipos',
+        subtitle: 'Equipos y herram.',
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaEquiposLogistica())),
+      ),
+      _AccesoData(
+        icon: Icons.health_and_safety_outlined,
+        color: kPaperRose,
+        label: 'EPP',
+        subtitle: 'Protección personal',
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaEpp())),
       ),
     ];
 
