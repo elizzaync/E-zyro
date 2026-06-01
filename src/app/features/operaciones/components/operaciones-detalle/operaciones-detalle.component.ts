@@ -231,12 +231,14 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   incListaEquipos: { id: string; nombre: string; clase: string; numeroSerie: string | null }[] = [];
   incCargandoEquipos        = false;
 
-  // ── Modal Retorno (técnico declara devolución) ────────────
-  showModalRetorno    = false;
-  retornoReqId        = '';
+  // ── Modal Retorno (técnico declara devolución al completar servicio) ──
+  showModalRetorno         = false;
+  retornoServicioId        = '';     // usa servicioId, no requerimientoId
   retornoItems: { detalleId: string; nombre: string; unidad: string; tipoItem: string; esObligatorio: boolean; cantidadEntregada: number; cantidadRetornada: number }[] = [];
-  retornoNotaTecnico  = '';
-  enviandoRetorno     = false;
+  retornoNotaTecnico       = '';
+  enviandoRetorno          = false;
+  // Alerta para técnicos que no son el jefe (reciben el WS)
+  alertaRetornoPendiente   = false;
 
   // ── Chat en tiempo real ────────────────────────────────────
   chatMensajes: MensajeChat[]     = [];
@@ -1052,8 +1054,19 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
           return;
         }
         if (msg.tipo === 'requerimiento_actualizado') {
-          // Actualizar en tiempo real el cinema-seat y estado de reqs
           this.cargarReqsListos();
+          return;
+        }
+        if (msg.tipo === 'servicio_completado_retorno') {
+          // El servicio fue completado — todos deben saber que hay retorno pendiente
+          if (this.servicio) this.servicio.estado = 'Completado';
+          if (this.soyJefeOperaciones) {
+            // El jefe ya abrió el modal al finalizar — no duplicar
+          } else {
+            // Técnicos: mostrar alerta prominente con botón para abrir el modal
+            this.alertaRetornoPendiente = true;
+            this.toast.mostrar('¡Servicio completado! Debes registrar la devolución de materiales.', 'info');
+          }
           return;
         }
         this.chatMensajes.push(this._mapMensaje(msg));
@@ -1421,20 +1434,36 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   }
 
   // ── Retorno ──────────────────────────────────────────────────────────
-  abrirModalRetorno(req: Requerimiento): void {
-    this.retornoReqId       = req.id;
+  abrirModalRetorno(): void {
+    if (!this.servicioId || !this.servicio) return;
+    this.retornoServicioId  = this.servicioId;
     this.retornoNotaTecnico = '';
-    this.retornoItems = req.items
-      .filter(it => it.estadoItem === 'aprobado')
-      .map(it => ({
-        detalleId:        it.id,
-        nombre:           it.nombre,
-        unidad:           it.unidad,
-        tipoItem:         (it as any).tipoItemCompra || 'material',
-        esObligatorio:    ['equipo','herramienta'].includes((it as any).tipoItemCompra || 'material'),
-        cantidadEntregada: it.cantidadAprobada ?? it.cantidad,
-        cantidadRetornada: 0,
-      }));
+    this.alertaRetornoPendiente = false;
+
+    // Agregar TODOS los ítems aprobados de TODOS los requerimientos del servicio
+    const todosLosReqs = [
+      ...this.reqsListos,
+      ...(this.reqsEntregados ?? []),
+    ];
+    const vistos = new Set<string>();
+    this.retornoItems = [];
+    for (const req of todosLosReqs) {
+      for (const it of req.items.filter(i => i.estadoItem === 'aprobado')) {
+        if (vistos.has(it.id)) continue;
+        vistos.add(it.id);
+        const tipo = (it as any).tipoItemCompra || 'material';
+        const esOblig = ['equipo','herramienta'].includes(tipo);
+        this.retornoItems.push({
+          detalleId:         it.id,
+          nombre:            it.nombre,
+          unidad:            it.unidad,
+          tipoItem:          tipo,
+          esObligatorio:     esOblig,
+          cantidadEntregada: it.cantidadAprobada ?? it.cantidad,
+          cantidadRetornada: esOblig ? (it.cantidadAprobada ?? it.cantidad) : 0,
+        });
+      }
+    }
     this.showModalRetorno = true;
     document.body.style.overflow = 'hidden';
   }
@@ -1452,21 +1481,39 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   }
 
   enviarRetorno(): void {
-    if (!this.retornoReqId || this.enviandoRetorno) return;
+    if (!this.retornoServicioId || this.enviandoRetorno) return;
+
+    // Validar que los obligatorios tengan cantidad > 0
+    const obligSinRetorno = this.retornoItems.filter(
+      it => it.esObligatorio && it.cantidadRetornada <= 0
+    );
+    if (obligSinRetorno.length > 0) {
+      this.toast.mostrar(
+        `Debes indicar la cantidad a devolver de: ${obligSinRetorno.map(i => i.nombre).join(', ')}`,
+        'error'
+      );
+      return;
+    }
+
     this.enviandoRetorno = true;
-    this.logistica.crearRetorno({
-      requerimientoId: this.retornoReqId,
+    this.logistica.crearRetornoDesdeServicio({
+      proyectoServicioId: this.retornoServicioId,
       items: this.retornoItems.map(it => ({ detalleId: it.detalleId, cantidadRetornada: it.cantidadRetornada })),
       notaTecnico: this.retornoNotaTecnico.trim() || undefined,
     }).subscribe({
       next: () => {
         this.enviandoRetorno = false;
-        this.toast.mostrar('Devolución registrada. Logística recibirá el aviso.', 'success');
+        this.toast.mostrar('Devolución registrada correctamente. Logística recibirá los ítems.', 'success');
         this.cerrarModalRetorno();
       },
       error: err => {
         this.enviandoRetorno = false;
-        this.toast.mostrar(err?.error?.detail ?? 'Error al registrar la devolución.', 'error');
+        if (err?.status === 409) {
+          this.toast.mostrar('La devolución ya fue registrada por otro técnico del equipo.', 'info');
+          this.cerrarModalRetorno();
+        } else {
+          this.toast.mostrar(err?.error?.detail ?? 'Error al registrar la devolución.', 'error');
+        }
       },
     });
   }
@@ -2093,7 +2140,12 @@ async finalizarServicio(): Promise<void> {
     if (!this.todasCompletadas || !this.servicio) return;
 
     this.svc.actualizarEstado(this.servicio.id, 'Completado').subscribe({
-      next: () => { this.servicio!.estado = 'Completado'; }
+      next: () => {
+        this.servicio!.estado = 'Completado';
+        // Esperar un ciclo para que reqsListos y reqsEntregados estén actualizados,
+        // luego abrir el modal de retorno obligatorio
+        setTimeout(() => this.abrirModalRetorno(), 400);
+      }
     });
     await this.abrirModalPreInforme();
   }

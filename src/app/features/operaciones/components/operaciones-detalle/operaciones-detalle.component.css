@@ -924,6 +924,21 @@
 .btn-primary--danger:hover:not([disabled]) { background: #b91c1c !important; }
 
 /* ── Banner retorno ── */
+.banner-retorno--alerta {
+  background: rgba(239,68,68,.08) !important;
+  border-color: rgba(239,68,68,.3) !important;
+  animation: pulse-border 2s infinite;
+}
+@keyframes pulse-border {
+  0%,100% { border-color: rgba(239,68,68,.3); }
+  50%      { border-color: rgba(239,68,68,.6); }
+}
+.banner-retorno--alerta .banner-retorno-ico { background: rgba(239,68,68,.15) !important; color: #dc2626 !important; }
+.banner-retorno--alerta .banner-retorno-text strong { color: #7f1d1d !important; }
+.banner-retorno--alerta .banner-retorno-text span   { color: #dc2626 !important; }
+.btn-retorno--urgente { background: rgba(239,68,68,.15) !important; border-color: rgba(239,68,68,.4) !important; color: #dc2626 !important; font-weight: 700 !important; }
+.btn-retorno--urgente:hover { background: rgba(239,68,68,.25) !important; }
+
 .banner-retorno {
   display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   background: rgba(59,130,246,.07); border: 1px solid rgba(59,130,246,.25);
