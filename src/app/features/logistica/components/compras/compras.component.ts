@@ -281,10 +281,34 @@ export class ComprasComponent implements OnInit {
         this.cerrarProceso();
         this.cargar();
         this.cargarResumen();
-        // abrir modal de ingreso para registrar entrada al inventario
         this.abrirIngreso(t);
       },
-      error: err => { this.procesando = false; this.toast.mostrar(err?.error?.detail ?? 'Error al completar.', 'error'); }
+      error: err => {
+        this.procesando = false;
+        if (err?.status === 409) {
+          // El ticket ya fue completado (datos desactualizados). Cargar el ticket
+          // fresco y abrir el modal de ingreso si aún no se registró.
+          this.cerrarProceso();
+          this.svc.getTicketCompra(ticketId).subscribe({
+            next: fresh => {
+              this.cargar();
+              this.cargarResumen();
+              if (!fresh.ingresoRegistrado) {
+                this.toast.mostrar('La compra ya fue completada. Registra el ingreso.', 'info');
+                this.abrirIngreso(fresh);
+              } else {
+                this.toast.mostrar('La compra ya fue completada e ingresada.', 'info');
+              }
+            },
+            error: () => {
+              this.cargar();
+              this.toast.mostrar('La compra ya estaba completada. Actualiza la vista.', 'info');
+            },
+          });
+        } else {
+          this.toast.mostrar(err?.error?.detail ?? 'Error al completar.', 'error');
+        }
+      },
     });
   }
 
