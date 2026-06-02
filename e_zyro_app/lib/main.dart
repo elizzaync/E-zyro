@@ -14,6 +14,7 @@ import 'services/proyecto_service.dart';
 import 'utils/app_notifiers.dart';
 import 'utils/app_session.dart';
 import 'widgets/offline_overlay.dart';
+import 'widgets/chatbot/chatbot_launcher.dart';
 import 'screens/pantalla_splash.dart';
 import 'screens/pantalla_principal.dart';
 import 'screens/pantalla_operaciones.dart';
@@ -589,20 +590,31 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          const OfflineBanner(),
-          Expanded(
-            // TickerMode mutea las animaciones (incluido el fondo TopoBackground)
-            // de las pestañas ocultas del IndexedStack → no repintan a 60fps en
-            // segundo plano. Se reanudan al volver a la pestaña.
-            child: IndexedStack(
-              index: _currentIndex,
-              children: [
-                for (int i = 0; i < _screens.length; i++)
-                  TickerMode(enabled: _currentIndex == i, child: _screens[i]),
-              ],
-            ),
+          Column(
+            children: [
+              const OfflineBanner(),
+              Expanded(
+                // TickerMode mutea las animaciones (incluido el fondo TopoBackground)
+                // de las pestañas ocultas del IndexedStack → no repintan a 60fps en
+                // segundo plano. Se reanudan al volver a la pestaña.
+                child: IndexedStack(
+                  index: _currentIndex,
+                  children: [
+                    for (int i = 0; i < _screens.length; i++)
+                      TickerMode(enabled: _currentIndex == i, child: _screens[i]),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Burbuja flotante del asistente E-Zybot, visible en las 5 pestañas
+          // principales. Al entrar a subpantallas (rutas pushed) queda cubierta.
+          const Positioned(
+            right: 16,
+            bottom: 16,
+            child: ChatbotLauncher(),
           ),
         ],
       ),
