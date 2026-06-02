@@ -96,6 +96,10 @@ class EquipoOut(BaseModel):
     numeroSerie: Optional[str] = None
     almacenId:   Optional[str] = None
     ubicacion:   Optional[str] = None
+    # Jerarquía geográfica (FK)
+    ubicacionId: Optional[str] = None
+    zonaId:      Optional[str] = None
+    areaId:      Optional[str] = None
     cantidad:    int
     estado:      EstadoEquipo
     requiereMantenimiento:     bool
@@ -115,6 +119,9 @@ class EquipoIn(BaseModel):
     modeloId:    Optional[str] = None
     numeroSerie: Optional[str] = None
     almacenId:   Optional[str] = None
+    ubicacionId: Optional[str] = None
+    zonaId:      Optional[str] = None
+    areaId:      Optional[str] = None
     cantidad:    int = 1
     estado:      EstadoEquipo = "operativo"
     requiereMantenimiento:     bool = False
@@ -133,6 +140,9 @@ class EquipoPatch(BaseModel):
     modeloId:    Optional[str] = None
     numeroSerie: Optional[str] = None
     almacenId:   Optional[str] = None
+    ubicacionId: Optional[str] = None
+    zonaId:      Optional[str] = None
+    areaId:      Optional[str] = None
     cantidad:    Optional[int] = None
     estado:      Optional[EstadoEquipo] = None
     requiereMantenimiento:     Optional[bool] = None

@@ -230,7 +230,11 @@ def _equipo_out(e: Equipo) -> EquipoOut:
         modelo=e.modelo,
         numeroSerie=e.numero_serie,
         almacenId=str(e.almacen_id) if e.almacen_id else None,
-        ubicacion=e.ubicacion, cantidad=int(e.cantidad or 1),
+        ubicacion=e.ubicacion,
+        ubicacionId=str(e.ubicacion_id) if e.ubicacion_id else None,
+        zonaId=str(e.zona_id) if e.zona_id else None,
+        areaId=str(e.area_id) if e.area_id else None,
+        cantidad=int(e.cantidad or 1),
         estado=(e.estado if e.estado in ("operativo","en_mantenimiento","fuera_de_servicio","baja") else "operativo"),
         requiereMantenimiento=bool(e.requiere_mantenimiento),
         frecuenciaMantenimiento=(e.frecuencia_mantenimiento if e.frecuencia_mantenimiento in ("ninguno","mensual","trimestral","semestral","anual") else "ninguno"),
@@ -757,6 +761,9 @@ def crear_equipo(
         modelo       = modelo_nombre,
         numero_serie = (body.numeroSerie or "").strip() or None,
         almacen_id   = body.almacenId,
+        ubicacion_id = body.ubicacionId or None,
+        zona_id      = body.zonaId or None,
+        area_id      = body.areaId or None,
         cantidad     = max(0, int(body.cantidad)),
         estado       = body.estado,
         requiere_mantenimiento     = bool(body.requiereMantenimiento),
@@ -833,6 +840,13 @@ def actualizar_equipo(
             alm = _almacen_or_404(db, empresa_id, body.almacenId)
             e.almacen_id = alm.id
             e.ubicacion = alm.nombre
+    # Jerarquía geográfica (FK). "" limpia el valor.
+    if body.ubicacionId is not None:
+        e.ubicacion_id = body.ubicacionId or None
+    if body.zonaId is not None:
+        e.zona_id = body.zonaId or None
+    if body.areaId is not None:
+        e.area_id = body.areaId or None
 
     if body.requiereMantenimiento is not None:
         e.requiere_mantenimiento = bool(body.requiereMantenimiento)
