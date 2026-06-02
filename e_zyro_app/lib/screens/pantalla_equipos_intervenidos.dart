@@ -28,6 +28,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
   List<EquipoIntervenido> _filtrados = [];
   List<Ubicacion> _ubicaciones = [];
   List<Zona> _zonas = [];
+  List<Area> _areas = [];
   List<ClienteBasico> _clientes = [];
 
   bool _cargando = true;
@@ -76,13 +77,48 @@ class _State extends State<PantallaEquiposIntervenidos> {
     if (_catSvc == null || _proySvc == null) return;
     final resUbic  = await _catSvc!.ubicaciones();
     final resZonas = await _catSvc!.zonas();
+    final resAreas = await _catSvc!.areas();
     final clientes = await _proySvc!.getClientes();
     if (!mounted) return;
     setState(() {
       if (resUbic.ok)  _ubicaciones = resUbic.data ?? [];
       if (resZonas.ok) _zonas = resZonas.data ?? [];
+      if (resAreas.ok) _areas = resAreas.data ?? [];
       _clientes = clientes;
     });
+  }
+
+  /// Crea un área bajo [zonaId] (catálogo) y la deja disponible. Devuelve el id
+  /// de la nueva área o null si se canceló/falló.
+  Future<String?> _crearAreaInline(String zonaId) async {
+    final ctrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nueva área'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Nombre'),
+          onSubmitted: (_) => Navigator.pop(ctx, true),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Crear')),
+        ],
+      ),
+    );
+    final nombre = ctrl.text.trim();
+    if (ok != true || nombre.isEmpty || _catSvc == null) return null;
+    final res = await _catSvc!.crearAreaRet(nombre, zonaId: zonaId);
+    if (!mounted) return null;
+    if (!res.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));
+      return null;
+    }
+    setState(() => _areas = [..._areas, res.data!]);
+    return res.data!.id;
   }
 
   void _aplicarFiltros() {
@@ -329,11 +365,11 @@ class _State extends State<PantallaEquiposIntervenidos> {
     final marcaCtrl      = TextEditingController(text: equipo?.marca ?? '');
     final modeloCtrl     = TextEditingController(text: equipo?.modelo ?? '');
     final serieCtrl      = TextEditingController(text: equipo?.numeroSerie ?? '');
-    final areaCtrl       = TextEditingController(text: equipo?.areaDescripcion ?? '');
     final obsCtrl        = TextEditingController(text: equipo?.observaciones ?? '');
     String? clienteId    = equipo?.clienteId;
     String? ubicacionId  = equipo?.ubicacionId;
     String? zonaId       = equipo?.zonaId;
+    String? areaId       = equipo?.areaId;
     String estado        = equipo?.estado ?? 'operativo';
 
     showModalBottomSheet(
@@ -363,6 +399,9 @@ class _State extends State<PantallaEquiposIntervenidos> {
           final zonasFiltradas = ubicacionId == null
               ? _zonas
               : _zonas.where((z) => z.ubicacionId == ubicacionId).toList();
+          final areasFiltradas = zonaId == null
+              ? <Area>[]
+              : _areas.where((a) => a.zonaId == zonaId).toList();
 
           return Container(
             decoration: BoxDecoration(
@@ -447,6 +486,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                       onChanged: (v) => setLocal(() {
                         ubicacionId = v;
                         zonaId = null;
+                        areaId = null;
                       }),
                     ),
                     const SizedBox(height: 14),
@@ -462,11 +502,46 @@ class _State extends State<PantallaEquiposIntervenidos> {
                               child: Text(z.nombre, overflow: TextOverflow.ellipsis),
                             )),
                       ],
-                      onChanged: (v) => setLocal(() => zonaId = v),
+                      onChanged: (v) => setLocal(() {
+                        zonaId = v;
+                        areaId = null;
+                      }),
                     ),
                     const SizedBox(height: 14),
-                    TextField(controller: areaCtrl,
-                        decoration: deco('Área (ej: Área de Logística)', Icons.domain_outlined)),
+                    // Área (cuelga de la zona). Estricto + "+ nuevo" inline.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: areasFiltradas.any((a) => a.id == areaId) ? areaId : null,
+                            isExpanded: true,
+                            decoration: deco('Área', Icons.domain_outlined),
+                            hint: Text(zonaId == null ? 'Elige una zona primero' : 'Sin área'),
+                            items: [
+                              const DropdownMenuItem(value: null, child: Text('Sin área')),
+                              ...areasFiltradas.map((a) => DropdownMenuItem(
+                                    value: a.id,
+                                    child: Text(a.nombre, overflow: TextOverflow.ellipsis),
+                                  )),
+                            ],
+                            onChanged: zonaId == null ? null : (v) => setLocal(() => areaId = v),
+                          ),
+                        ),
+                        if (AppSession.i.canCrearCatalogo) ...[
+                          const SizedBox(width: 4),
+                          IconButton(
+                            tooltip: 'Nueva área',
+                            icon: const Icon(Icons.add_circle_outline, color: _green),
+                            onPressed: zonaId == null
+                                ? null
+                                : () async {
+                                    final nueva = await _crearAreaInline(zonaId!);
+                                    if (nueva != null) setLocal(() => areaId = nueva);
+                                  },
+                          ),
+                        ],
+                      ],
+                    ),
                     const SizedBox(height: 20),
 
                     // Datos técnicos
@@ -510,7 +585,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                           marca: marcaCtrl.text.trim(),
                           modelo: modeloCtrl.text.trim(),
                           serie: serieCtrl.text.trim(),
-                          area: areaCtrl.text.trim(),
+                          areaId: areaId,
                           obs: obsCtrl.text.trim(),
                           clienteId: clienteId,
                           ubicacionId: ubicacionId,
@@ -546,7 +621,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
     required String marca,
     required String modelo,
     required String serie,
-    required String area,
+    required String? areaId,
     required String obs,
     required String? clienteId,
     required String? ubicacionId,
@@ -565,7 +640,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
       if (marca.isNotEmpty) 'marca': marca,
       if (modelo.isNotEmpty) 'modelo': modelo,
       if (serie.isNotEmpty) 'numero_serie': serie,
-      if (area.isNotEmpty) 'area_descripcion': area,
+      if (areaId != null) 'area_id': areaId,
       if (obs.isNotEmpty) 'observaciones': obs,
       if (clienteId != null) 'cliente_id': clienteId,
       if (ubicacionId != null) 'ubicacion_id': ubicacionId,

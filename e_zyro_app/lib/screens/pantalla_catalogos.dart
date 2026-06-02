@@ -122,11 +122,56 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
 
   Future<void> _addArea() async {
     final n = TextEditingController();
-    final ok = await _dialogo('Nueva área', [
-      TextField(controller: n, decoration: const InputDecoration(labelText: 'Nombre')),
-    ]);
+    // Cascada Ubicación → Zona: el área cuelga de una zona (mantiene el orden).
+    String? ubicId = _ubic.isNotEmpty ? _ubic.first.id : null;
+    List<Zona> zonasUbic = _zonas.where((z) => z.ubicacionId == ubicId).toList();
+    String? zonaId = zonasUbic.isNotEmpty ? zonasUbic.first.id : null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          zonasUbic = _zonas.where((z) => z.ubicacionId == ubicId).toList();
+          return AlertDialog(
+            title: const Text('Nueva área'),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(controller: n, decoration: const InputDecoration(labelText: 'Nombre')),
+              const SizedBox(height: 8),
+              if (_ubic.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  initialValue: ubicId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Ubicación'),
+                  items: _ubic.map((u) => DropdownMenuItem(value: u.id, child: Text(u.nombre, overflow: TextOverflow.ellipsis))).toList(),
+                  onChanged: (v) => setLocal(() {
+                    ubicId = v;
+                    final zs = _zonas.where((z) => z.ubicacionId == v).toList();
+                    zonaId = zs.isNotEmpty ? zs.first.id : null;
+                  }),
+                ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: zonaId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Zona'),
+                hint: const Text('Selecciona una zona'),
+                items: zonasUbic.map((z) => DropdownMenuItem(value: z.id, child: Text(z.nombre, overflow: TextOverflow.ellipsis))).toList(),
+                onChanged: (v) => setLocal(() => zonaId = v),
+              ),
+            ]),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
+            ],
+          );
+        },
+      ),
+    );
     if (ok != true || n.text.trim().isEmpty) return;
-    await _afterMutation(await _svc!.crearArea(n.text.trim()));
+    if (zonaId == null) {
+      _snack('Selecciona una zona para el área', error: true);
+      return;
+    }
+    await _afterMutation(await _svc!.crearArea(n.text.trim(), zonaId: zonaId));
   }
 
   Future<bool?> _dialogo(String titulo, List<Widget> campos) => showDialog<bool>(
@@ -188,6 +233,9 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
           ListTile(
             leading: const Icon(Icons.workspaces_outline),
             title: Text(a.nombre),
+            subtitle: Text(
+              [a.ubicacionNombre, a.zonaNombre].where((x) => (x ?? '').isNotEmpty).join(' › '),
+            ),
             trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _del('areas', a.id)),
           ),
       ], 'Sin áreas.');

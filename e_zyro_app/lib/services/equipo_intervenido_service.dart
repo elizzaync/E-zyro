@@ -11,12 +11,18 @@ class EquipoIntervenidoService {
     String? clienteId,
     String? proyectoId,
     String? estado,
+    String? ubicacionId,
+    String? zonaId,
+    String? areaId,
   }) async {
     try {
       final params = <String>[];
       if (clienteId != null) params.add('cliente_id=$clienteId');
       if (proyectoId != null) params.add('proyecto_id=$proyectoId');
       if (estado != null) params.add('estado=$estado');
+      if (ubicacionId != null) params.add('ubicacion_id=$ubicacionId');
+      if (zonaId != null) params.add('zona_id=$zonaId');
+      if (areaId != null) params.add('area_id=$areaId');
       final qs = params.isNotEmpty ? '?${params.join('&')}' : '';
       final r = await _client.get('/equipos-intervenidos$qs');
       if (r.statusCode == 200) {

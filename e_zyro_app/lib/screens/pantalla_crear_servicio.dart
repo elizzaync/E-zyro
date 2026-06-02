@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
+import '../widgets/geo_cascade_picker.dart';
 
 /// Crear o editar un servicio dentro de un proyecto.
 /// Equivalente móvil del `crear-servicio-modal` del frontend.
@@ -40,6 +41,8 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
   String? _catalogoId;
   String? _liderId;
   String? _responsableId;
+  // Geografía del servicio (FK). El servicio posee ubicación/zona.
+  GeoSeleccion _geo = const GeoSeleccion();
   String _tipoDoc = 'SIN_OC';
   String _estado = 'Pendiente';
   String? _fechaProgramada;
@@ -101,6 +104,7 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
         _liderId = s.liderId;
         _responsableId = s.responsableId;
         _zona.text = s.zonaEjecucion ?? '';
+        _geo = GeoSeleccion(ubicacionId: s.ubicacionId, zonaId: s.zonaId);
         _alcance.text = s.alcance ?? '';
         _tipoDoc = s.tipoDocumentoCliente ?? 'SIN_OC';
         _nroDocumento.text = s.nroDocumento ?? '';
@@ -181,6 +185,8 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
       'lider_id': _liderId,
       'responsable_id': _responsableId,
       'zona_ejecucion': _zona.text.trim().isEmpty ? null : _zona.text.trim(),
+      'ubicacion_id': _geo.ubicacionId,
+      'zona_id': _geo.zonaId,
       'alcance': _alcance.text.trim().isEmpty ? null : _alcance.text.trim(),
       'tipo_documento_cliente': _tipoDoc,
       'nro_documento': _tipoDoc == 'SIN_OC'
@@ -292,10 +298,12 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
                         onChanged: (v) => setState(() => _responsableId = v),
                       ),
                       const SizedBox(height: 14),
-                      _label('Zona de ejecución'),
-                      TextField(
-                          controller: _zona,
-                          decoration: _dec('Ej. Sede Norte, piso 2')),
+                      _label('Ubicación y zona de ejecución'),
+                      GeoCascadePicker(
+                        valor: _geo,
+                        mostrarArea: false,
+                        onChanged: (g) => setState(() => _geo = g),
+                      ),
                       const SizedBox(height: 14),
                       _label('Alcance'),
                       TextField(

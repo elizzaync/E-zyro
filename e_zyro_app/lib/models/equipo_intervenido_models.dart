@@ -6,6 +6,7 @@ class EquipoIntervenido {
   final String? clienteId;
   final String? ubicacionId;
   final String? zonaId;
+  final String? areaId;
   final String? areaDescripcion;
   final String nombre;
   final String? codigo;
@@ -24,6 +25,7 @@ class EquipoIntervenido {
   final String? clienteNombre;
   final String? ubicacionNombre;
   final String? zonaNombre;
+  final String? areaNombre;
   final String? tipoEquipoNombre;
 
   const EquipoIntervenido({
@@ -33,6 +35,7 @@ class EquipoIntervenido {
     this.clienteId,
     this.ubicacionId,
     this.zonaId,
+    this.areaId,
     this.areaDescripcion,
     required this.nombre,
     this.codigo,
@@ -50,6 +53,7 @@ class EquipoIntervenido {
     this.clienteNombre,
     this.ubicacionNombre,
     this.zonaNombre,
+    this.areaNombre,
     this.tipoEquipoNombre,
   });
 
@@ -60,6 +64,7 @@ class EquipoIntervenido {
         clienteId: j['cliente_id']?.toString(),
         ubicacionId: j['ubicacion_id']?.toString(),
         zonaId: j['zona_id']?.toString(),
+        areaId: j['area_id']?.toString(),
         areaDescripcion: j['area_descripcion']?.toString(),
         nombre: j['nombre']?.toString() ?? '',
         codigo: j['codigo']?.toString(),
@@ -79,16 +84,21 @@ class EquipoIntervenido {
         clienteNombre: j['cliente_nombre']?.toString(),
         ubicacionNombre: j['ubicacion_nombre']?.toString(),
         zonaNombre: j['zona_nombre']?.toString(),
+        areaNombre: j['area_nombre']?.toString(),
         tipoEquipoNombre: j['tipo_equipo_nombre']?.toString(),
       );
 
-  /// Cadena de ubicación: "Talma › Ayacucho › Almacén A › Área Logística"
+  /// Cadena de ubicación: "Talma › Ayacucho › Almacén A › Área Logística".
+  /// Prefiere el área del catálogo (areaNombre); cae al texto legacy si falta.
   String get ubicacionCompleta {
+    final area = (areaNombre != null && areaNombre!.isNotEmpty)
+        ? areaNombre!
+        : (areaDescripcion ?? '');
     final partes = <String>[
       if (clienteNombre != null && clienteNombre!.isNotEmpty) clienteNombre!,
       if (ubicacionNombre != null && ubicacionNombre!.isNotEmpty) ubicacionNombre!,
       if (zonaNombre != null && zonaNombre!.isNotEmpty) zonaNombre!,
-      if (areaDescripcion != null && areaDescripcion!.isNotEmpty) areaDescripcion!,
+      if (area.isNotEmpty) area,
     ];
     return partes.join(' › ');
   }

@@ -651,6 +651,8 @@ class ServicioDetalle {
   final String? liderId;
   final String? responsableId;
   final String? zonaEjecucion;
+  final String? ubicacionId;
+  final String? zonaId;
   final String? alcance;
   final String? tipoDocumentoCliente;
   final String? nroDocumento;
@@ -678,6 +680,8 @@ class ServicioDetalle {
     this.liderId,
     this.responsableId,
     this.zonaEjecucion,
+    this.ubicacionId,
+    this.zonaId,
     this.alcance,
     this.tipoDocumentoCliente,
     this.nroDocumento,
@@ -717,6 +721,8 @@ class ServicioDetalle {
         liderId: j['lider_id'] as String?,
         responsableId: j['responsable_id'] as String?,
         zonaEjecucion: j['zona_ejecucion'] as String?,
+        ubicacionId: j['ubicacion_id'] as String?,
+        zonaId: j['zona_id'] as String?,
         alcance: j['alcance'] as String?,
         tipoDocumentoCliente: j['tipo_documento_cliente'] as String?,
         nroDocumento: j['nro_documento'] as String?,
