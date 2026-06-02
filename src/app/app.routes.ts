@@ -18,7 +18,7 @@ import { OperacionesDetalleComponent } from './features/operaciones/components/o
 import { OperacionesServiciosListaComponent } from './features/operaciones/components/operaciones-servicios-lista/operaciones-servicios-lista.component';
 import { OperacionesCronogramaComponent } from './features/operaciones/components/operaciones-cronograma/operaciones-cronograma.component';
 import { EquiposIntervenidosComponent } from './features/operaciones/components/equipos-intervenidos/equipos-intervenidos.component';
-import { EquiposZonaComponent } from './features/operaciones/components/equipos-intervenidos/components/equipos-zona/equipos-zona.component';
+import { IntervencionEquipoComponent } from './features/operaciones/components/intervencion-equipo/intervencion-equipo.component';
 export const routes: Routes = [
   {
     path: '',
@@ -117,15 +117,15 @@ export const routes: Routes = [
     canActivate: [authGuard]
 },
 {
-    path: 'operaciones/servicio/:id/equipos',
+    path: 'operaciones/servicio/:id/equipos-intervenidos',
     component: EquiposIntervenidosComponent,
     title: 'Equipos Intervenidos | E-System Tic',
     canActivate: [authGuard]
 },
 {
-    path: 'operaciones/servicio/:id/equipos/:zonaId',
-    component: EquiposZonaComponent,
-    title: 'Equipos por Zona | E-System Tic',
+    path: 'operaciones/servicio/:id/equipos-intervenidos/:eiId',
+    component: IntervencionEquipoComponent,
+    title: 'Intervención de Equipo | E-System Tic',
     canActivate: [authGuard]
 },
   {

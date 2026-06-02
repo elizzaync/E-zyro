@@ -1,0 +1,78 @@
+<div class="iv-layout fade-in">
+
+  <header class="iv-header">
+    <button class="btn-volver" (click)="volver()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Volver a Equipos
+    </button>
+    <h2 class="iv-title">Intervención de Equipo</h2>
+  </header>
+
+  @if (cargando) {
+  <div class="iv-loading">
+    <div class="iv-spinner"></div>
+    <span>Cargando equipo…</span>
+  </div>
+  } @else if (!equipo) {
+  <div class="iv-empty">
+    <p>Equipo no encontrado.</p>
+  </div>
+  } @else {
+
+  <div class="iv-card">
+    <div class="iv-card-header">
+      <div>
+        <h3 class="iv-equipo-nombre">{{ equipo.nombre }}</h3>
+        @if (equipo.codigo) { <span class="iv-codigo">{{ equipo.codigo }}</span> }
+      </div>
+      <span class="iv-badge"
+        [class.iv-badge--warn]="equipo.estado_intervencion === 'pendiente'"
+        [class.iv-badge--info]="equipo.estado_intervencion === 'en_proceso'"
+        [class.iv-badge--ok]="equipo.estado_intervencion === 'completado'">
+        {{ equipo.estado_intervencion | titlecase }}
+      </span>
+    </div>
+
+    <div class="iv-meta-grid">
+      <div class="iv-meta-item">
+        <span class="iv-meta-label">Tipo</span>
+        <span class="iv-meta-value">{{ equipo.tipo_nombre ?? '—' }}</span>
+      </div>
+      <div class="iv-meta-item">
+        <span class="iv-meta-label">Marca</span>
+        <span class="iv-meta-value">{{ equipo.marca ?? '—' }}</span>
+      </div>
+      <div class="iv-meta-item">
+        <span class="iv-meta-label">Modelo</span>
+        <span class="iv-meta-value">{{ equipo.modelo ?? '—' }}</span>
+      </div>
+      <div class="iv-meta-item">
+        <span class="iv-meta-label">N° Serie</span>
+        <span class="iv-meta-value">{{ equipo.numero_serie ?? '—' }}</span>
+      </div>
+    </div>
+  </div>
+
+  @if (equipo.estado_intervencion !== 'completado') {
+  <div class="iv-actions">
+    <button class="btn-completar" (click)="completar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      Marcar Intervención como Completada
+    </button>
+  </div>
+  } @else {
+  <div class="iv-completado">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/>
+    </svg>
+    <span>Intervención completada</span>
+  </div>
+  }
+
+  }
+
+</div>

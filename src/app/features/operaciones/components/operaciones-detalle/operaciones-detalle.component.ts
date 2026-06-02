@@ -78,6 +78,8 @@ export interface ServicioDetalle {
   procedimientos: Procedimiento[];
   itemsAsignados: ItemMaterial[];
   itemsSolicitados: ItemMaterial[];
+  zonaEjecucion?: string | null;
+  esMantenimiento?: boolean;
 }
 
 export interface ComunicadoItem {
@@ -331,7 +333,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   volver(): void { this.location.back(); }
 
   irAEquiposIntervenidos(): void {
-    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos']);
+    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos-intervenidos']);
   }
 
   // ==========================================================
@@ -1157,6 +1159,8 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         ...this._mapItems(raw.materiales_solicitados, 'material'),
         ...this._mapItems(raw.herramientas_solicitadas, undefined),
       ],
+      zonaEjecucion:   raw.zona_ejecucion ?? null,
+      esMantenimiento: raw.es_mantenimiento ?? false,
     };
   }
 

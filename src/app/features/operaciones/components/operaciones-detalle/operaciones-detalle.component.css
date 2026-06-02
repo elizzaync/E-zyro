@@ -909,6 +909,14 @@
 }
 .hb-btn--alert:hover { background: rgba(239,68,68,.2) !important; }
 
+.hb-btn--equipos {
+  background: rgba(145,211,55,.12) !important;
+  color: #5a8a20 !important;
+  border-color: rgba(145,211,55,.4) !important;
+}
+.hb-btn--equipos:hover { background: rgba(145,211,55,.22) !important; }
+:host-context([data-theme="dark"]) .hb-btn--equipos { color: #91d337 !important; }
+
 /* Incidencia modal extras */
 .inc-loading-select { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--text-muted,#64748b); padding: .5rem; }
 .inc-eq-elegido {

@@ -1,120 +1,38 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { OperacionesService } from '../../../../core/services/operaciones.service';
 
-// ─── Re-exports para compatibilidad con componentes hijos ──────────────────
-export interface ProcedimientoEI {
-  id: string;
-  orden: number;
-  nombre: string;
-  descripcion?: string;
-  estado: 'pendiente' | 'en_proceso' | 'completado';
-  fotoUrl?: string;
-}
-
-export interface EquipoEI {
+export interface EquipoIntervenido {
   id: string;
   nombre: string;
-  tag?: string;
-  ubicacion?: string;
-  estado: 'pendiente' | 'en_proceso' | 'completado';
-  procedimientos: ProcedimientoEI[];
+  codigo?: string | null;
+  tipoNombre?: string | null;
+  tipoEquipoId?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  numeroSerie?: string | null;
+  estadoIntervencion: 'pendiente' | 'en_proceso' | 'completado' | 'cancelado';
+  estado: string;
+  observaciones?: string | null;
 }
 
-export interface TipoEquipoGrupoEI {
+export interface EquipoDisponible {
   id: string;
   nombre: string;
-  equipos: EquipoEI[];
+  codigo?: string | null;
+  tipoNombre?: string | null;
+  marca?: string | null;
+  modelo?: string | null;
+  ubicacion?: string | null;
+  estado: string;
 }
 
-// ─── Types nuevos (vista de zonas) ─────────────────────────────────────────
-export type EstadoZona = 'completado' | 'en_proceso' | 'sin_inicio';
-
-export interface ResumenEquiposZona {
-  operativos: number;
-  enMantenimiento: number;
-  fueraDeServicio: number;
-  pendientes: number;
-}
-
-export interface ZonaServicio {
-  id: string;
-  nombre: string;
-  ciudad: string;
-  region: string;
-  direccion?: string;
-  equipoTotal: number;
-  completados: number;
-  estado: EstadoZona;
-  resumen: ResumenEquiposZona;
-  tecnicosAsignados: string[];
-  fechaIntervencion?: string;
-}
-
-// ─── Mock data ─────────────────────────────────────────────────────────────
-const MOCK_ZONAS: ZonaServicio[] = [
-  {
-    id: 'trujillo',
-    nombre: 'Sede Norte',
-    ciudad: 'Trujillo', region: 'La Libertad',
-    direccion: 'Av. Larco 1240',
-    equipoTotal: 7, completados: 5,
-    estado: 'en_proceso',
-    resumen: { operativos: 3, enMantenimiento: 2, fueraDeServicio: 1, pendientes: 1 },
-    tecnicosAsignados: ['Carlos V.', 'Andrea L.'],
-    fechaIntervencion: '24 May 2026',
-  },
-  {
-    id: 'iquitos',
-    nombre: 'Base Amazónica',
-    ciudad: 'Iquitos', region: 'Loreto',
-    direccion: 'Jr. Próspero 312',
-    equipoTotal: 4, completados: 2,
-    estado: 'en_proceso',
-    resumen: { operativos: 1, enMantenimiento: 1, fueraDeServicio: 2, pendientes: 0 },
-    tecnicosAsignados: ['Miguel R.'],
-    fechaIntervencion: '24 May 2026',
-  },
-  {
-    id: 'loreto',
-    nombre: 'Sede Loretana',
-    ciudad: 'Yurimaguas', region: 'Loreto',
-    direccion: 'Calle Libertad 88',
-    equipoTotal: 0, completados: 0,
-    estado: 'sin_inicio',
-    resumen: { operativos: 0, enMantenimiento: 0, fueraDeServicio: 0, pendientes: 0 },
-    tecnicosAsignados: [],
-    fechaIntervencion: '25 May 2026',
-  },
-  {
-    id: 'lima-norte',
-    nombre: 'Planta Lima Norte',
-    ciudad: 'Los Olivos', region: 'Lima',
-    direccion: 'Av. Tomás Valle 2100',
-    equipoTotal: 3, completados: 1,
-    estado: 'en_proceso',
-    resumen: { operativos: 2, enMantenimiento: 0, fueraDeServicio: 0, pendientes: 1 },
-    tecnicosAsignados: ['Sandra M.', 'Jhon C.', 'Pedro A.'],
-    fechaIntervencion: '23 May 2026',
-  },
-  {
-    id: 'callao',
-    nombre: 'Puerto Industrial',
-    ciudad: 'Callao', region: 'Callao',
-    direccion: 'Av. N. Gambetta 8000',
-    equipoTotal: 6, completados: 6,
-    estado: 'completado',
-    resumen: { operativos: 6, enMantenimiento: 0, fueraDeServicio: 0, pendientes: 0 },
-    tecnicosAsignados: ['Karla F.', 'Luis B.'],
-    fechaIntervencion: '22 May 2026',
-  },
-];
-
-// ─── Component ─────────────────────────────────────────────────────────────
 @Component({
   selector: 'app-equipos-intervenidos',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './equipos-intervenidos.component.html',
   styleUrls: ['./equipos-intervenidos.component.css'],
 })
@@ -122,61 +40,148 @@ export class EquiposIntervenidosComponent implements OnInit {
   private route    = inject(ActivatedRoute);
   private router   = inject(Router);
   private location = inject(Location);
+  private svc      = inject(OperacionesService);
 
-  servicioId: string | null = null;
-  cargando = true;
-  zonas: ZonaServicio[] = [];
-  filtroEstado: EstadoZona | 'todos' = 'todos';
+  servicioId: string = '';
+  cargando    = true;
+  error       = false;
+  equipos: EquipoIntervenido[] = [];
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────
+  // Modal agregar
+  showModal      = false;
+  cargandoModal  = false;
+  equiposDisp: EquipoDisponible[] = [];
+  filtroModal    = '';
+  agregando      = false;
+
+  // Confirmación quitar
+  confirmandoQuitarId: string | null = null;
+
   ngOnInit(): void {
-    this.servicioId = this.route.snapshot.paramMap.get('id');
-    setTimeout(() => {
-      this.zonas = MOCK_ZONAS.map(z => ({ ...z }));
-      this.cargando = false;
-    }, 800);
+    this.servicioId = this.route.snapshot.paramMap.get('id') ?? '';
+    this.cargar();
   }
 
-  // ─── Navigation ──────────────────────────────────────────────────────────
+  cargar(): void {
+    this.cargando = true;
+    this.error    = false;
+    this.svc.getEquiposIntervenidos(this.servicioId).subscribe({
+      next: (data) => {
+        this.equipos = data.map(this._mapEquipo);
+        this.cargando = false;
+      },
+      error: () => { this.cargando = false; this.error = true; }
+    });
+  }
+
+  // ── Modal ────────────────────────────────────────────────────────────────
+  abrirModal(): void {
+    this.showModal    = true;
+    this.filtroModal  = '';
+    this.cargandoModal = true;
+    this.svc.getEquiposDisponibles(this.servicioId).subscribe({
+      next: (data) => {
+        this.equiposDisp  = data.map(this._mapDisp);
+        this.cargandoModal = false;
+      },
+      error: () => { this.cargandoModal = false; }
+    });
+  }
+
+  cerrarModal(): void { this.showModal = false; }
+
+  get equiposFiltrados(): EquipoDisponible[] {
+    const q = this.filtroModal.toLowerCase().trim();
+    if (!q) return this.equiposDisp;
+    return this.equiposDisp.filter(e =>
+      e.nombre.toLowerCase().includes(q) ||
+      (e.codigo ?? '').toLowerCase().includes(q) ||
+      (e.tipoNombre ?? '').toLowerCase().includes(q)
+    );
+  }
+
+  agregar(equipo: EquipoDisponible): void {
+    if (this.agregando) return;
+    this.agregando = true;
+    this.svc.agregarEquipoIntervenido(this.servicioId, equipo.id).subscribe({
+      next: (nuevo) => {
+        this.equipos.push(this._mapEquipo(nuevo));
+        this.equiposDisp = this.equiposDisp.filter(e => e.id !== equipo.id);
+        this.agregando = false;
+      },
+      error: () => { this.agregando = false; }
+    });
+  }
+
+  // ── Quitar ───────────────────────────────────────────────────────────────
+  confirmarQuitar(id: string): void { this.confirmandoQuitarId = id; }
+  cancelarQuitar(): void            { this.confirmandoQuitarId = null; }
+
+  quitar(id: string): void {
+    this.svc.quitarEquipoIntervenido(this.servicioId, id).subscribe({
+      next: () => {
+        this.equipos = this.equipos.filter(e => e.id !== id);
+        this.confirmandoQuitarId = null;
+      }
+    });
+  }
+
+  // ── Intervenir ───────────────────────────────────────────────────────────
+  intervenir(ei: EquipoIntervenido): void {
+    if (ei.estadoIntervencion === 'pendiente') {
+      this.svc.actualizarEstadoIntervencion(this.servicioId, ei.id, 'en_proceso').subscribe({
+        next: () => { ei.estadoIntervencion = 'en_proceso'; }
+      });
+    }
+    this.router.navigate([
+      '/operaciones/servicio', this.servicioId,
+      'equipos-intervenidos', ei.id
+    ]);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
   volver(): void { this.location.back(); }
 
-  verEquipos(zona: ZonaServicio): void {
-    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos', zona.id]);
+  estadoLabel(e: string): string {
+    return ({
+      pendiente:   'Pendiente',
+      en_proceso:  'En Proceso',
+      completado:  'Completado',
+      cancelado:   'Cancelado',
+    } as Record<string, string>)[e] ?? e;
   }
 
-  // ─── Getters ─────────────────────────────────────────────────────────────
-  get zonasFiltradas(): ZonaServicio[] {
-    if (this.filtroEstado === 'todos') return this.zonas;
-    return this.zonas.filter(z => z.estado === this.filtroEstado);
+  estadoClass(e: string): string {
+    return ({
+      pendiente:  'badge--warn',
+      en_proceso: 'badge--info',
+      completado: 'badge--ok',
+      cancelado:  'badge--muted',
+    } as Record<string, string>)[e] ?? '';
   }
 
-  get totalEquipos(): number {
-    return this.zonas.reduce((a, z) => a + z.equipoTotal, 0);
-  }
+  private _mapEquipo = (r: any): EquipoIntervenido => ({
+    id:                 r.id,
+    nombre:             r.nombre,
+    codigo:             r.codigo       ?? null,
+    tipoNombre:         r.tipo_nombre  ?? null,
+    tipoEquipoId:       r.tipo_equipo_id ?? null,
+    marca:              r.marca        ?? null,
+    modelo:             r.modelo       ?? null,
+    numeroSerie:        r.numero_serie ?? null,
+    estadoIntervencion: r.estado_intervencion ?? 'pendiente',
+    estado:             r.estado ?? 'operativo',
+    observaciones:      r.observaciones ?? null,
+  });
 
-  get totalCompletados(): number {
-    return this.zonas.reduce((a, z) => a + z.completados, 0);
-  }
-
-  get progresoGlobal(): number {
-    return this.totalEquipos ? Math.round((this.totalCompletados / this.totalEquipos) * 100) : 0;
-  }
-
-  get contarCompletadas(): number {
-    return this.zonas.filter(z => z.estado === 'completado').length;
-  }
-
-  // ─── Helpers ─────────────────────────────────────────────────────────────
-  progreso(zona: ZonaServicio): number {
-    return zona.equipoTotal ? Math.round((zona.completados / zona.equipoTotal) * 100) : 0;
-  }
-
-  estadoLabel(e: EstadoZona): string {
-    return { completado: 'Completado', en_proceso: 'En proceso', sin_inicio: 'Sin inicio' }[e];
-  }
-
-  avatarColor(idx: number): string {
-    const palette = ['#91d337', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899'];
-    return palette[idx % palette.length];
-  }
+  private _mapDisp = (r: any): EquipoDisponible => ({
+    id:        r.id,
+    nombre:    r.nombre,
+    codigo:    r.codigo      ?? null,
+    tipoNombre:r.tipo_nombre ?? null,
+    marca:     r.marca       ?? null,
+    modelo:    r.modelo      ?? null,
+    ubicacion: r.ubicacion   ?? null,
+    estado:    r.estado,
+  });
 }

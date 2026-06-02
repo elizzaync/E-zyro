@@ -1,7 +1,7 @@
 <div class="ei-layout fade-in">
 
-  <!-- ══ Page Header ══════════════════════════════════════════════ -->
-  <header class="ei-page-header">
+  <!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
+  <header class="ei-header">
     <div class="ei-header-left">
       <button class="btn-volver" (click)="volver()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -9,217 +9,175 @@
         </svg>
         Volver al Servicio
       </button>
-      <div class="ei-page-titles">
+      <div>
         <h2 class="ei-title">Equipos Intervenidos</h2>
-        <p class="ei-subtitle">Zonas y sedes cubiertas en este servicio</p>
+        <p class="ei-subtitle">Equipos asociados a este servicio de mantenimiento</p>
       </div>
     </div>
+    <button class="btn-agregar" (click)="abrirModal()" [disabled]="cargando">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Agregar Equipo
+    </button>
   </header>
 
-  <!-- ══ Skeleton loader ══════════════════════════════════════════ -->
+  <!-- ══ LOADING ════════════════════════════════════════════════════════ -->
   @if (cargando) {
-  <div class="ei-sk-grid">
-    @for (i of [1,2,3,4,5]; track i) {
-    <div class="ei-sk-card">
-      <div class="sk-row">
-        <div class="sk-block sk-icon"></div>
-        <div class="sk-block sk-badge"></div>
-      </div>
-      <div class="sk-block sk-title"></div>
-      <div class="sk-block sk-sub"></div>
-      <div class="sk-chips-row">
-        <div class="sk-block sk-chip"></div>
-        <div class="sk-block sk-chip"></div>
-        <div class="sk-block sk-chip sk-chip--long"></div>
-      </div>
-      <div class="sk-block sk-bar"></div>
-      <div class="sk-block sk-footer"></div>
-    </div>
-    }
+  <div class="ei-loading">
+    <div class="ei-spinner"></div>
+    <span>Cargando equipos…</span>
   </div>
   }
 
-  @if (!cargando) {
-
-  <!-- ══ Stats bar ════════════════════════════════════════════════ -->
-  <div class="ei-stats-bar">
-    <div class="ei-stat">
-      <span class="ei-stat__value">{{ zonas.length }}</span>
-      <span class="ei-stat__label">Zonas</span>
-    </div>
-    <div class="ei-stat-divider"></div>
-    <div class="ei-stat">
-      <span class="ei-stat__value">{{ totalEquipos }}</span>
-      <span class="ei-stat__label">Equipos</span>
-    </div>
-    <div class="ei-stat-divider"></div>
-    <div class="ei-stat">
-      <span class="ei-stat__value ei-stat__value--green">{{ contarCompletadas }}</span>
-      <span class="ei-stat__label">Zonas listas</span>
-    </div>
-    <div class="ei-stat-divider ei-stat-divider--hide-sm"></div>
-    <div class="ei-stat-progress">
-      <div class="ei-stat__label ei-stat__label--top">Avance global · {{ progresoGlobal }}%</div>
-      <div class="ei-mini-track">
-        <div class="ei-mini-fill" [style.width.%]="progresoGlobal"></div>
-      </div>
-    </div>
+  <!-- ══ ERROR ══════════════════════════════════════════════════════════ -->
+  @else if (error) {
+  <div class="ei-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <p>No se pudieron cargar los equipos.</p>
+    <button class="btn-retry" (click)="cargar()">Reintentar</button>
   </div>
+  }
 
-  <!-- ══ Filter chips ═════════════════════════════════════════════ -->
-  <div class="ei-filters">
-    <button class="ei-filter-btn" [class.active]="filtroEstado === 'todos'"
-            (click)="filtroEstado = 'todos'">
-      Todas <span class="ei-filter-count">{{ zonas.length }}</span>
-    </button>
-    <button class="ei-filter-btn" [class.active]="filtroEstado === 'en_proceso'"
-            (click)="filtroEstado = 'en_proceso'">
-      <span class="ei-dot ei-dot--yellow"></span>En proceso
-    </button>
-    <button class="ei-filter-btn" [class.active]="filtroEstado === 'completado'"
-            (click)="filtroEstado = 'completado'">
-      <span class="ei-dot ei-dot--green"></span>Completadas
-    </button>
-    <button class="ei-filter-btn" [class.active]="filtroEstado === 'sin_inicio'"
-            (click)="filtroEstado = 'sin_inicio'">
-      <span class="ei-dot ei-dot--gray"></span>Sin inicio
-    </button>
+  <!-- ══ EMPTY STATE ════════════════════════════════════════════════════ -->
+  @else if (equipos.length === 0) {
+  <div class="ei-empty">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <rect x="2" y="3" width="20" height="14" rx="2"/>
+      <path d="M8 21h8M12 17v4"/>
+    </svg>
+    <p>No hay equipos asignados a este servicio.</p>
+    <button class="btn-agregar-sm" (click)="abrirModal()">Agregar el primero</button>
   </div>
+  }
 
-  <!-- ══ Zone Cards Grid ══════════════════════════════════════════ -->
-  <div class="ei-zones-grid">
-
-    @for (zona of zonasFiltradas; track zona.id; let i = $index) {
-    <article class="ei-zone-card slide-up"
-             [class.ei-zone-card--completado]="zona.estado === 'completado'"
-             [style.animation-delay]="(i * 70) + 'ms'"
-             (click)="verEquipos(zona)" role="button" [attr.aria-label]="'Ver equipos de ' + zona.nombre">
-
-      <!-- Top accent bar -->
-      <div class="ei-card-accent"
-           [class.accent--green]="zona.estado === 'completado'"
-           [class.accent--yellow]="zona.estado === 'en_proceso'"
-           [class.accent--gray]="zona.estado === 'sin_inicio'"></div>
-
-      <div class="ei-card-body">
-
-        <!-- Header: icon + status badge -->
-        <div class="ei-card-top">
-          <div class="ei-zone-icon" [class.icon--completado]="zona.estado === 'completado'"
-               [class.icon--proceso]="zona.estado === 'en_proceso'">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-          </div>
-          <span class="ei-estado-badge ei-estado--{{ zona.estado }}">
-            @if (zona.estado === 'completado') {
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="10" height="10">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
+  <!-- ══ TABLA ══════════════════════════════════════════════════════════ -->
+  @else {
+  <div class="ei-table-wrap">
+    <table class="ei-table">
+      <thead>
+        <tr>
+          <th>Equipo</th>
+          <th>Tipo</th>
+          <th>Marca / Modelo</th>
+          <th>N° Serie</th>
+          <th>Estado</th>
+          <th class="col-actions">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (eq of equipos; track eq.id) {
+        <tr>
+          <td>
+            <span class="eq-nombre">{{ eq.nombre }}</span>
+            @if (eq.codigo) { <span class="eq-codigo">{{ eq.codigo }}</span> }
+          </td>
+          <td>{{ eq.tipoNombre ?? '—' }}</td>
+          <td>
+            @if (eq.marca || eq.modelo) {
+              {{ eq.marca ?? '' }}{{ eq.marca && eq.modelo ? ' / ' : '' }}{{ eq.modelo ?? '' }}
+            } @else { — }
+          </td>
+          <td>{{ eq.numeroSerie ?? '—' }}</td>
+          <td>
+            <span class="badge" [ngClass]="estadoClass(eq.estadoIntervencion)">
+              {{ estadoLabel(eq.estadoIntervencion) }}
+            </span>
+          </td>
+          <td class="col-actions">
+            @if (confirmandoQuitarId === eq.id) {
+              <span class="confirm-text">¿Quitar?</span>
+              <button class="btn-confirm-ok" (click)="quitar(eq.id)">Sí</button>
+              <button class="btn-confirm-no" (click)="cancelarQuitar()">No</button>
+            } @else {
+              @if (eq.estadoIntervencion !== 'completado' && eq.estadoIntervencion !== 'cancelado') {
+                <button class="btn-intervenir" (click)="intervenir(eq)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                  Intervenir
+                </button>
+              }
+              <button class="btn-quitar" (click)="confirmarQuitar(eq.id)" title="Quitar del servicio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/>
+                </svg>
+              </button>
             }
-            {{ estadoLabel(zona.estado) }}
-          </span>
-        </div>
-
-        <!-- Zone title & location -->
-        <div class="ei-card-names">
-          <h3 class="ei-zone-nombre">{{ zona.nombre }}</h3>
-          <p class="ei-zone-ciudad">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-            </svg>
-            {{ zona.ciudad }}, {{ zona.region }}
-            @if (zona.direccion) { <span class="ei-dir"> · {{ zona.direccion }}</span> }
-          </p>
-        </div>
-
-        <!-- Equipment count summary chips -->
-        @if (zona.equipoTotal > 0) {
-        <div class="ei-chips-row">
-          @if (zona.resumen.operativos > 0) {
-          <span class="ei-chip ei-chip--green">{{ zona.resumen.operativos }} operativos</span>
-          }
-          @if (zona.resumen.enMantenimiento > 0) {
-          <span class="ei-chip ei-chip--yellow">{{ zona.resumen.enMantenimiento }} mant.</span>
-          }
-          @if (zona.resumen.fueraDeServicio > 0) {
-          <span class="ei-chip ei-chip--red">{{ zona.resumen.fueraDeServicio }} fuera</span>
-          }
-          @if (zona.resumen.pendientes > 0) {
-          <span class="ei-chip ei-chip--gray">{{ zona.resumen.pendientes }} pend.</span>
-          }
-        </div>
+          </td>
+        </tr>
         }
+      </tbody>
+    </table>
+  </div>
+  }
 
-        <!-- No equipment placeholder -->
-        @if (zona.equipoTotal === 0) {
-        <div class="ei-no-equipo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          Sin equipos registrados aún
-        </div>
-        }
+</div>
 
-        <!-- Progress bar -->
-        @if (zona.equipoTotal > 0) {
-        <div class="ei-progress-wrap">
-          <div class="ei-progress-track">
-            <div class="ei-progress-fill" [style.width.%]="progreso(zona)"
-                 [class.ei-progress-fill--full]="progreso(zona) === 100"></div>
-          </div>
-          <span class="ei-progress-label">
-            {{ zona.completados }}/{{ zona.equipoTotal }} eq. · {{ progreso(zona) }}%
-          </span>
-        </div>
-        }
+<!-- ══ MODAL: AGREGAR EQUIPO ════════════════════════════════════════════ -->
+@if (showModal) {
+<div class="modal-backdrop" (click)="cerrarModal()">
+  <div class="modal-panel" (click)="$event.stopPropagation()">
 
-        <!-- Footer: technicians + date + arrow -->
-        <div class="ei-card-footer">
-          <div class="ei-tecnicos">
-            @for (t of zona.tecnicosAsignados.slice(0, 3); track t; let ti = $index) {
-            <div class="ei-avatar" [style.background]="avatarColor(ti)" [title]="t">
-              {{ t.charAt(0) }}
-            </div>
-            }
-            @if (zona.tecnicosAsignados.length > 3) {
-            <div class="ei-avatar ei-avatar--more">+{{ zona.tecnicosAsignados.length - 3 }}</div>
-            }
-            @if (zona.tecnicosAsignados.length === 0) {
-            <span class="ei-no-tech">Sin técnicos</span>
-            }
-          </div>
-          <div class="ei-footer-right">
-            @if (zona.fechaIntervencion) {
-            <span class="ei-fecha">{{ zona.fechaIntervencion }}</span>
-            }
-            <svg class="ei-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </div>
-        </div>
+    <div class="modal-header">
+      <h3 class="modal-title">Seleccionar Equipo</h3>
+      <button class="modal-close" (click)="cerrarModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
 
-      </div><!-- /card-body -->
-    </article>
-    }
-
-    <!-- Empty filter state -->
-    @if (zonasFiltradas.length === 0) {
-    <div class="ei-empty-filter">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="11" cy="11" r="8"/>
-        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    <div class="modal-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
-      <p>No hay zonas con ese filtro.</p>
-      <button class="ei-btn-clear" (click)="filtroEstado = 'todos'">Ver todas</button>
+      <input type="text" placeholder="Buscar por nombre, código o tipo…"
+             [(ngModel)]="filtroModal" class="modal-input"/>
     </div>
+
+    @if (cargandoModal) {
+    <div class="modal-loading">
+      <div class="ei-spinner"></div>
+      <span>Buscando equipos en la zona…</span>
+    </div>
+    } @else if (equiposFiltrados.length === 0) {
+    <div class="modal-empty">
+      <p>No hay equipos disponibles para la zona de este servicio.</p>
+    </div>
+    } @else {
+    <ul class="modal-list">
+      @for (e of equiposFiltrados; track e.id) {
+      <li class="modal-item">
+        <div class="modal-item-info">
+          <span class="modal-item-nombre">{{ e.nombre }}</span>
+          <span class="modal-item-meta">
+            {{ e.tipoNombre ?? '' }}{{ e.tipoNombre && (e.marca || e.modelo) ? ' · ' : '' }}
+            {{ e.marca ?? '' }}{{ e.marca && e.modelo ? ' / ' : '' }}{{ e.modelo ?? '' }}
+          </span>
+          @if (e.ubicacion) {
+            <span class="modal-item-zona">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              {{ e.ubicacion }}
+            </span>
+          }
+        </div>
+        <button class="btn-modal-agregar" (click)="agregar(e)" [disabled]="agregando">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Agregar
+        </button>
+      </li>
+      }
+    </ul>
     }
 
-  </div><!-- /zones-grid -->
-
-  }<!-- /!cargando -->
-
-</div><!-- /ei-layout -->
+  </div>
+</div>
+}

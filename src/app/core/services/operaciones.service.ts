@@ -220,4 +220,28 @@ export class OperacionesService {
   actualizarServicio(servicioId: string, payload: object): Observable<any> {
     return this.http.patch(`${this.api}/operaciones/servicio/${servicioId}`, payload);
   }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Equipos Intervenidos por Servicio
+  // ─────────────────────────────────────────────────────────────────────
+
+  getEquiposIntervenidos(servicioId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos`);
+  }
+
+  getEquiposDisponibles(servicioId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/operaciones/servicio/${servicioId}/equipos-disponibles`);
+  }
+
+  agregarEquipoIntervenido(servicioId: string, equipo_id: string): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos`, { equipo_id });
+  }
+
+  actualizarEstadoIntervencion(servicioId: string, eiId: string, estado_intervencion: string, observaciones?: string): Observable<any> {
+    return this.http.patch(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}`, { estado_intervencion, observaciones });
+  }
+
+  quitarEquipoIntervenido(servicioId: string, eiId: string): Observable<any> {
+    return this.http.delete(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}`);
+  }
 }
