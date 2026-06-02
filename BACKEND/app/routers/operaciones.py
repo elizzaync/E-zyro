@@ -50,6 +50,8 @@ from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
 from ..models.catalogo_servicio import CatalogoServicio
 from ..models.equipo_intervenido import EquipoIntervenido
+from ..models.ubicacion import Ubicacion
+from ..models.zona import Zona
 from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
 from ..models.seguimiento_proyecto import SeguimientoProyecto
 from ..models.rol import Rol
@@ -2989,6 +2991,22 @@ def actualizar_proyecto(
 
 # ── POST /operaciones/proyecto/{proyecto_id}/servicios ────────────────────────
 
+def _resolver_geo_servicio(db, empresa_id, ubicacion_id, zona_id):
+    """Valida ubicacion_id/zona_id de la empresa y deriva la ubicación desde la
+    zona si no se indicó. Devuelve (ubicacion_id, zona_id)."""
+    if zona_id:
+        z = db.query(Zona).filter(Zona.id == zona_id, Zona.empresa_id == empresa_id).first()
+        if not z:
+            raise HTTPException(status_code=400, detail="Zona inválida")
+        if not ubicacion_id and z.ubicacion_id:
+            ubicacion_id = str(z.ubicacion_id)
+    if ubicacion_id:
+        u = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id, Ubicacion.empresa_id == empresa_id).first()
+        if not u:
+            raise HTTPException(status_code=400, detail="Ubicación inválida")
+    return ubicacion_id, zona_id
+
+
 @router.post("/proyecto/{proyecto_id}/servicios", status_code=status.HTTP_201_CREATED)
 def crear_servicio(
     proyecto_id: str,
@@ -3049,6 +3067,10 @@ def crear_servicio(
         .scalar()
     ) or 0
 
+    geo_ubicacion_id, geo_zona_id = _resolver_geo_servicio(
+        db, empresa_id, body.ubicacion_id, body.zona_id
+    )
+
     servicio_id = str(_uuid.uuid4())
     nuevo = ProyectoServicio(
         id                     = servicio_id,
@@ -3062,6 +3084,8 @@ def crear_servicio(
         lider_id               = lider_id,
         responsable_id         = responsable_id,
         zona_ejecucion         = body.zona_ejecucion or None,
+        ubicacion_id           = geo_ubicacion_id,
+        zona_id                = geo_zona_id,
         alcance                = body.alcance or None,
         tipo_documento_cliente = tipo_doc,
         nro_documento          = nro_doc,
@@ -3147,6 +3171,12 @@ def actualizar_servicio(
 
     if body.zona_ejecucion is not None:
         ps.zona_ejecucion = body.zona_ejecucion or None
+    if body.ubicacion_id is not None or body.zona_id is not None:
+        nueva_ubic = body.ubicacion_id if body.ubicacion_id is not None else ps.ubicacion_id
+        nueva_zona = body.zona_id if body.zona_id is not None else ps.zona_id
+        ps.ubicacion_id, ps.zona_id = _resolver_geo_servicio(
+            db, empresa_id, nueva_ubic or None, nueva_zona or None
+        )
     if body.alcance is not None:
         ps.alcance = body.alcance or None
     if body.tipo_documento_cliente is not None:
@@ -3564,8 +3594,6 @@ def listar_equipos_disponibles(
     empresa_id = payload["empresa_id"]
     ps = _get_servicio_o_404(db, servicio_id, empresa_id)
 
-    zona = (ps.zona_ejecucion or "").strip().lower()
-
     # IDs de equipos que ya están asignados a este servicio
     ya_asignados = {
         str(r.equipo_id) for r in db.query(EquipoIntervenido.equipo_id).filter(
@@ -3581,12 +3609,20 @@ def listar_equipos_disponibles(
         Equipo.estado.notin_(["baja", "fuera_de_servicio"]),
     )
 
-    # Filtro geográfico: aplica solo si el servicio tiene zona definida
-    if zona:
-        from sqlalchemy import func as sa_func
-        query = query.filter(
-            sa_func.lower(sa_func.trim(Equipo.ubicacion)) == zona
-        )
+    # Filtro geográfico por jerarquía (FK). Preferimos zona_id; si el servicio
+    # solo tiene ubicación, filtramos por ubicacion_id. Respaldo legacy: match
+    # por texto (`zona_ejecucion` ≈ `equipo.ubicacion`) mientras se migran datos.
+    if ps.zona_id:
+        query = query.filter(Equipo.zona_id == ps.zona_id)
+    elif ps.ubicacion_id:
+        query = query.filter(Equipo.ubicacion_id == ps.ubicacion_id)
+    else:
+        zona_txt = (ps.zona_ejecucion or "").strip().lower()
+        if zona_txt:
+            from sqlalchemy import func as sa_func
+            query = query.filter(
+                sa_func.lower(sa_func.trim(Equipo.ubicacion)) == zona_txt
+            )
 
     equipos = query.order_by(Equipo.nombre).all()
 
@@ -3619,7 +3655,7 @@ def agregar_equipo_intervenido(
 ):
     """Copia los datos del equipo del catálogo y lo vincula al servicio."""
     empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
+    ps = _get_servicio_o_404(db, servicio_id, empresa_id)
 
     equipo = db.query(Equipo).filter(
         Equipo.id         == body.equipo_id,
@@ -3642,6 +3678,7 @@ def agregar_equipo_intervenido(
         id=str(_uuid.uuid4()),
         empresa_id           = empresa_id,
         proyecto_servicio_id = servicio_id,
+        proyecto_id          = ps.proyecto_id,
         equipo_id            = body.equipo_id,
         tipo_equipo_id       = equipo.tipo_equipo_id,
         nombre               = equipo.nombre,
@@ -3649,6 +3686,10 @@ def agregar_equipo_intervenido(
         marca                = equipo.marca,
         modelo               = equipo.modelo,
         numero_serie         = equipo.numero_serie,
+        # Jerarquía geográfica: del equipo del catálogo, con respaldo en el servicio.
+        ubicacion_id         = equipo.ubicacion_id or ps.ubicacion_id,
+        zona_id              = equipo.zona_id or ps.zona_id,
+        area_id              = equipo.area_id,
         estado               = equipo.estado or "operativo",
         estado_intervencion  = "pendiente",
         activo               = True,

@@ -21,6 +21,7 @@ from ..db.database import get_db
 from ..models.ubicacion import Ubicacion
 from ..models.zona import Zona
 from ..models.area import Area
+from ..models.proyecto_servicio import ProyectoServicio
 from ..schemas.catalogos import (
     UbicacionIn, UbicacionOut,
     ZonaIn, ZonaOut,
@@ -175,17 +176,58 @@ def eliminar_zona(zona_id: str, payload: dict = Depends(verificar_token), db: Se
 
 
 # ──────────────────────────────────────────────────────────────────────────
-# Áreas
+# Áreas (nivel físico bajo zona; zona_id NULL = área RR.HH.)
 # ──────────────────────────────────────────────────────────────────────────
-@router.get("/areas", response_model=List[AreaOut])
-def listar_areas(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    rows = (
-        db.query(Area)
-        .filter(Area.empresa_id == payload["empresa_id"])
-        .order_by(Area.nombre)
-        .all()
+def _area_out(a: Area, zona_nombre: Optional[str], ubic_nombre: Optional[str]) -> AreaOut:
+    return AreaOut(
+        id=str(a.id), nombre=a.nombre,
+        ubicacion_id=(str(a.ubicacion_id) if a.ubicacion_id else None),
+        zona_id=(str(a.zona_id) if a.zona_id else None),
+        ubicacion_nombre=ubic_nombre, zona_nombre=zona_nombre,
     )
-    return [AreaOut(id=str(r.id), nombre=r.nombre) for r in rows]
+
+
+def _validar_zona_ubicacion(db: Session, empresa_id: str, body: AreaIn):
+    """Valida zona_id/ubicacion_id de la empresa y deriva ubicacion desde la zona.
+    Devuelve (ubicacion_id, zona_id, zona_nombre, ubicacion_nombre)."""
+    zona_nombre = ubic_nombre = None
+    ubicacion_id = body.ubicacion_id or None
+    zona_id = body.zona_id or None
+    if zona_id:
+        z = db.query(Zona).filter(Zona.id == zona_id, Zona.empresa_id == empresa_id).first()
+        if not z:
+            raise HTTPException(status_code=400, detail="Zona inválida")
+        zona_nombre = z.nombre
+        # La ubicación se hereda de la zona (denormalización de conveniencia).
+        if z.ubicacion_id:
+            ubicacion_id = str(z.ubicacion_id)
+    if ubicacion_id:
+        u = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id, Ubicacion.empresa_id == empresa_id).first()
+        if not u:
+            raise HTTPException(status_code=400, detail="Ubicación inválida")
+        ubic_nombre = u.nombre
+    return ubicacion_id, zona_id, zona_nombre, ubic_nombre
+
+
+@router.get("/areas", response_model=List[AreaOut])
+def listar_areas(
+    zona_id:      Optional[str] = Query(None),
+    ubicacion_id: Optional[str] = Query(None),
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    q = (
+        db.query(Area, Zona.nombre, Ubicacion.nombre)
+        .outerjoin(Zona, Zona.id == Area.zona_id)
+        .outerjoin(Ubicacion, Ubicacion.id == Area.ubicacion_id)
+        .filter(Area.empresa_id == payload["empresa_id"])
+    )
+    if zona_id:
+        q = q.filter(Area.zona_id == zona_id)
+    if ubicacion_id:
+        q = q.filter(Area.ubicacion_id == ubicacion_id)
+    rows = q.order_by(Area.nombre).all()
+    return [_area_out(a, zn, un) for a, zn, un in rows]
 
 
 @router.post("/areas", response_model=AreaOut, status_code=201)
@@ -195,31 +237,44 @@ def crear_area(body: AreaIn, payload: dict = Depends(verificar_token), db: Sessi
     nombre = body.nombre.strip()
     if not nombre:
         raise HTTPException(status_code=400, detail="Nombre requerido")
+    ubicacion_id, zona_id, zn, un = _validar_zona_ubicacion(db, empresa_id, body)
+    # Deduplicar por (empresa, zona, nombre): permite mismo nombre en zonas distintas.
     existente = (
         db.query(Area)
-        .filter(Area.empresa_id == empresa_id, func.lower(Area.nombre) == nombre.lower())
+        .filter(
+            Area.empresa_id == empresa_id,
+            func.lower(Area.nombre) == nombre.lower(),
+            Area.zona_id.is_(None) if zona_id is None else Area.zona_id == zona_id,
+        )
         .first()
     )
     if existente:
-        return AreaOut(id=str(existente.id), nombre=existente.nombre)
-    a = Area(id=str(_uuid.uuid4()), empresa_id=empresa_id, nombre=nombre)
+        return _area_out(existente, zn, un)
+    a = Area(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id, nombre=nombre,
+        ubicacion_id=ubicacion_id, zona_id=zona_id,
+    )
     db.add(a)
     db.commit()
-    return AreaOut(id=str(a.id), nombre=a.nombre)
+    return _area_out(a, zn, un)
 
 
 @router.put("/areas/{area_id}", response_model=AreaOut)
 def actualizar_area(area_id: str, body: AreaIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     exigir_permiso(db, payload, "catalogos", "editar")
-    a = db.query(Area).filter(Area.id == area_id, Area.empresa_id == payload["empresa_id"]).first()
+    empresa_id = payload["empresa_id"]
+    a = db.query(Area).filter(Area.id == area_id, Area.empresa_id == empresa_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Área no encontrada")
     nombre = body.nombre.strip()
     if not nombre:
         raise HTTPException(status_code=400, detail="Nombre requerido")
+    ubicacion_id, zona_id, zn, un = _validar_zona_ubicacion(db, empresa_id, body)
     a.nombre = nombre
+    a.ubicacion_id = ubicacion_id
+    a.zona_id = zona_id
     db.commit()
-    return AreaOut(id=str(a.id), nombre=a.nombre)
+    return _area_out(a, zn, un)
 
 
 @router.delete("/areas/{area_id}", status_code=204)
@@ -230,3 +285,59 @@ def eliminar_area(area_id: str, payload: dict = Depends(verificar_token), db: Se
         raise HTTPException(status_code=404, detail="Área no encontrada")
     db.delete(a)
     db.commit()
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Árbol jerárquico  ubicacion → zona → area
+# ──────────────────────────────────────────────────────────────────────────
+@router.get("/arbol")
+def arbol_geografico(
+    proyecto_id: Optional[str] = Query(None, description="Si se indica, limita a las ubicaciones mapeadas al proyecto"),
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Devuelve la jerarquía geográfica de la empresa para pickers en cascada y
+    dashboards: [{ubicacion, zonas:[{zona, areas:[...]}]}]. Si `proyecto_id`, se
+    filtra a las ubicaciones usadas por los SERVICIOS de ese proyecto (la
+    geografía la posee el servicio; el proyecto la deriva)."""
+    empresa_id = payload["empresa_id"]
+
+    ubic_q = db.query(Ubicacion).filter(Ubicacion.empresa_id == empresa_id)
+    if proyecto_id:
+        ids = [
+            str(r.ubicacion_id) for r in db.query(ProyectoServicio.ubicacion_id).filter(
+                ProyectoServicio.proyecto_id == proyecto_id,
+                ProyectoServicio.empresa_id == empresa_id,
+                ProyectoServicio.ubicacion_id.isnot(None),
+            ).distinct().all()
+        ]
+        if not ids:
+            return []
+        ubic_q = ubic_q.filter(Ubicacion.id.in_(ids))
+    ubicaciones = ubic_q.order_by(Ubicacion.nombre).all()
+
+    zonas = db.query(Zona).filter(Zona.empresa_id == empresa_id).order_by(Zona.nombre).all()
+    areas = db.query(Area).filter(Area.empresa_id == empresa_id).order_by(Area.nombre).all()
+
+    areas_por_zona: dict[str, list] = {}
+    for a in areas:
+        if a.zona_id:
+            areas_por_zona.setdefault(str(a.zona_id), []).append(
+                {"id": str(a.id), "nombre": a.nombre}
+            )
+
+    zonas_por_ubic: dict[str, list] = {}
+    for z in zonas:
+        if z.ubicacion_id:
+            zonas_por_ubic.setdefault(str(z.ubicacion_id), []).append({
+                "id": str(z.id), "nombre": z.nombre, "tipo": z.tipo,
+                "areas": areas_por_zona.get(str(z.id), []),
+            })
+
+    return [
+        {
+            "id": str(u.id), "nombre": u.nombre, "region": u.region,
+            "zonas": zonas_por_ubic.get(str(u.id), []),
+        }
+        for u in ubicaciones
+    ]

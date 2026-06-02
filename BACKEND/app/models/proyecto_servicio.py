@@ -28,7 +28,10 @@ class ProyectoServicio(Base):
     fecha_fin = Column(Date)
 
     # Alcance, zona y facturación heredados del legacy (por servicio)
-    zona_ejecucion = Column(String(255))
+    zona_ejecucion = Column(String(255))  # legacy texto (caché)
+    # FKs a la jerarquía geográfica. Reemplazan `zona_ejecucion` (texto).
+    ubicacion_id = Column(String(36), ForeignKey("ubicacion.id"), nullable=True)
+    zona_id      = Column(String(36), ForeignKey("zona.id"),      nullable=True)
     alcance = Column(Text)
     tipo_documento_cliente = Column(String(20))   # 'OC' | 'PROF' | 'SIN_OC'
     nro_documento = Column(String(100))

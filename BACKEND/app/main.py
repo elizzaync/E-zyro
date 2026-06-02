@@ -940,6 +940,49 @@ def _run_migrations():
         ))
         conn.commit()
 
+        # ── Jerarquía geográfica ubicacion → zona → area (2026-06-02) ─────────
+        # Conecta ubicaciones/zonas/áreas a equipos y servicios por FK (uuid),
+        # reemplazando el texto libre legacy (que se conserva como caché). La
+        # geografía la "posee" el servicio (proyecto_servicio); el nivel proyecto
+        # se deriva de sus servicios. area gana nivel físico bajo zona.
+        conn.execute(text(
+            "ALTER TABLE area "
+            "ADD COLUMN IF NOT EXISTS ubicacion_id uuid REFERENCES ubicacion(id), "
+            "ADD COLUMN IF NOT EXISTS zona_id      uuid REFERENCES zona(id)"
+        ))
+        # El área física puede repetir nombre entre zonas → el índice único debe
+        # incluir la zona (igual que el de `zona` incluye la ubicación).
+        conn.execute(text("DROP INDEX IF EXISTS uq_area_empresa_nombre"))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_area_empresa_zona_nombre "
+            "ON area (empresa_id, coalesce(zona_id, '00000000-0000-0000-0000-000000000000'::uuid), lower(nombre))"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo "
+            "ADD COLUMN IF NOT EXISTS ubicacion_id uuid REFERENCES ubicacion(id), "
+            "ADD COLUMN IF NOT EXISTS zona_id      uuid REFERENCES zona(id), "
+            "ADD COLUMN IF NOT EXISTS area_id      uuid REFERENCES area(id)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE proyecto_servicio "
+            "ADD COLUMN IF NOT EXISTS ubicacion_id uuid REFERENCES ubicacion(id), "
+            "ADD COLUMN IF NOT EXISTS zona_id      uuid REFERENCES zona(id)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo_intervenido "
+            "ADD COLUMN IF NOT EXISTS area_id uuid REFERENCES area(id)"
+        ))
+        # Índices para los filtros geográficos / dashboards
+        for tbl, col in [
+            ("area", "zona_id"), ("equipo", "zona_id"), ("equipo", "ubicacion_id"),
+            ("proyecto_servicio", "zona_id"), ("proyecto_servicio", "ubicacion_id"),
+            ("equipo_intervenido", "area_id"),
+        ]:
+            conn.execute(text(
+                f"CREATE INDEX IF NOT EXISTS idx_{tbl}_{col} ON {tbl}({col})"
+            ))
+        conn.commit()
+
         # ── Semillas básicas: unidades por defecto si la empresa no tiene ─────
         # Se ejecuta una sola vez por empresa cuando aún no hay unidades cargadas.
         conn.execute(text("""

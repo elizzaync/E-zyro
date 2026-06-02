@@ -20,7 +20,12 @@ class Equipo(Base):
     modelo           = Column(String(100), nullable=True)
     marca            = Column(String(100), nullable=True)
     numero_serie     = Column(String(100), nullable=True)
-    ubicacion        = Column(String(200), nullable=True)
+    ubicacion        = Column(String(200), nullable=True)  # legacy texto (caché)
+    # FKs a la jerarquía geográfica (ubicacion → zona → area). Reemplazan el
+    # texto libre `ubicacion`, que se conserva como caché denormalizada.
+    ubicacion_id     = Column(String(36), ForeignKey("ubicacion.id"), nullable=True)
+    zona_id          = Column(String(36), ForeignKey("zona.id"),      nullable=True)
+    area_id          = Column(String(36), ForeignKey("area.id"),      nullable=True)
     # FKs a catálogos de marca/modelo. Las columnas `marca` y `modelo` se
     # mantienen como caché denormalizada para listados rápidos.
     marca_id         = Column(String(36), ForeignKey("marca.id"), nullable=True)

@@ -21,6 +21,7 @@ from ..models.proyecto import Proyecto
 from ..models.cliente import Cliente
 from ..models.ubicacion import Ubicacion
 from ..models.zona import Zona
+from ..models.area import Area
 from ..models.tipo_equipo import TipoEquipo
 from ..schemas.equipo_intervenido import EquipoIntervenidoIn, EquipoIntervenidoOut
 
@@ -34,6 +35,7 @@ def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
     cliente_nombre    = None
     ubicacion_nombre  = None
     zona_nombre       = None
+    area_nombre       = None
     tipo_equipo_nombre = None
 
     if e.proyecto_id:
@@ -52,6 +54,10 @@ def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
         z = db.query(Zona).filter(Zona.id == e.zona_id).first()
         if z:
             zona_nombre = z.nombre
+    if e.area_id:
+        a = db.query(Area).filter(Area.id == e.area_id).first()
+        if a:
+            area_nombre = a.nombre
     if e.tipo_equipo_id:
         t = db.query(TipoEquipo).filter(TipoEquipo.id == e.tipo_equipo_id).first()
         if t:
@@ -63,6 +69,7 @@ def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
         cliente_id=str(e.cliente_id) if e.cliente_id else None,
         ubicacion_id=str(e.ubicacion_id) if e.ubicacion_id else None,
         zona_id=str(e.zona_id) if e.zona_id else None,
+        area_id=str(e.area_id) if e.area_id else None,
         area_descripcion=e.area_descripcion,
         nombre=e.nombre, codigo=e.codigo,
         tipo_equipo_id=str(e.tipo_equipo_id) if e.tipo_equipo_id else None,
@@ -72,6 +79,7 @@ def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
         activo=e.activo, created_at=e.created_at, updated_at=e.updated_at,
         proyecto_nombre=proyecto_nombre, cliente_nombre=cliente_nombre,
         ubicacion_nombre=ubicacion_nombre, zona_nombre=zona_nombre,
+        area_nombre=area_nombre,
         tipo_equipo_nombre=tipo_equipo_nombre,
     )
 
@@ -81,6 +89,9 @@ def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
 def listar(
     proyecto_id:  Optional[str] = Query(None),
     cliente_id:   Optional[str] = Query(None),
+    ubicacion_id: Optional[str] = Query(None),
+    zona_id:      Optional[str] = Query(None),
+    area_id:      Optional[str] = Query(None),
     estado:       Optional[str] = Query(None),
     activo:       Optional[bool] = Query(None),
     payload: dict = Depends(verificar_token),
@@ -92,6 +103,13 @@ def listar(
         q = q.filter(EquipoIntervenido.proyecto_id == proyecto_id)
     if cliente_id:
         q = q.filter(EquipoIntervenido.cliente_id == cliente_id)
+    # Filtros geográficos (jerarquía ubicacion → zona → area)
+    if ubicacion_id:
+        q = q.filter(EquipoIntervenido.ubicacion_id == ubicacion_id)
+    if zona_id:
+        q = q.filter(EquipoIntervenido.zona_id == zona_id)
+    if area_id:
+        q = q.filter(EquipoIntervenido.area_id == area_id)
     if estado:
         q = q.filter(EquipoIntervenido.estado == estado)
     if activo is not None:

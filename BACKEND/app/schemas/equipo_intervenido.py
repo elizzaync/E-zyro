@@ -9,6 +9,7 @@ class EquipoIntervenidoIn(BaseModel):
     cliente_id:       Optional[str]  = None
     ubicacion_id:     Optional[str]  = None
     zona_id:          Optional[str]  = None
+    area_id:          Optional[str]  = None
     area_descripcion: Optional[str]  = None
     nombre:           str
     codigo:           Optional[str]  = None
@@ -30,6 +31,7 @@ class EquipoIntervenidoOut(BaseModel):
     cliente_id:       Optional[str]
     ubicacion_id:     Optional[str]
     zona_id:          Optional[str]
+    area_id:          Optional[str]
     area_descripcion: Optional[str]
     nombre:           str
     codigo:           Optional[str]
@@ -50,6 +52,7 @@ class EquipoIntervenidoOut(BaseModel):
     cliente_nombre:    Optional[str] = None
     ubicacion_nombre:  Optional[str] = None
     zona_nombre:       Optional[str] = None
+    area_nombre:       Optional[str] = None
     tipo_equipo_nombre: Optional[str] = None
 
     class Config:

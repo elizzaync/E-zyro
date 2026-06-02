@@ -34,9 +34,16 @@ class ZonaOut(BaseModel):
 
 # ── Área ─────────────────────────────────────────────────────────────────--─
 class AreaIn(BaseModel):
-    nombre: str
+    nombre:       str
+    # Jerarquía física (opcional). NULL = área de RR.HH.
+    ubicacion_id: Optional[str] = None
+    zona_id:      Optional[str] = None
 
 
 class AreaOut(BaseModel):
-    id:     str
-    nombre: str
+    id:               str
+    nombre:           str
+    ubicacion_id:     Optional[str] = None
+    zona_id:          Optional[str] = None
+    ubicacion_nombre: Optional[str] = None
+    zona_nombre:      Optional[str] = None

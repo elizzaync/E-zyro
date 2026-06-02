@@ -23,10 +23,11 @@ class EquipoIntervenido(Base):
     proyecto_id  = Column(String(36), ForeignKey("proyecto.id"),    nullable=True)
     cliente_id   = Column(String(36), ForeignKey("cliente.id"),     nullable=True)
 
-    # Ubicacion en instalacion del cliente
+    # Ubicacion en instalacion del cliente (jerarquía ubicacion → zona → area)
     ubicacion_id     = Column(String(36), ForeignKey("ubicacion.id"), nullable=True)
     zona_id          = Column(String(36), ForeignKey("zona.id"),      nullable=True)
-    area_descripcion = Column(String(200), nullable=True)
+    area_id          = Column(String(36), ForeignKey("area.id"),      nullable=True)
+    area_descripcion = Column(String(200), nullable=True)  # legacy texto (caché)
 
     # Datos del equipo
     nombre         = Column(String(300), nullable=False)

@@ -375,6 +375,9 @@ class CrearServicioBody(BaseModel):
     responsable_id: Optional[str] = None            # empleado.id — Técnico Líder (opcional)
     # Alcance / zona / facturación
     zona_ejecucion: Optional[str] = None
+    # Jerarquía geográfica (FK). El servicio posee la ubicación/zona.
+    ubicacion_id: Optional[str] = None
+    zona_id: Optional[str] = None
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = "SIN_OC"   # 'OC' | 'PROF' | 'SIN_OC'
     nro_documento: Optional[str] = None
@@ -392,6 +395,8 @@ class ActualizarServicioBody(BaseModel):
     lider_id: Optional[str] = None
     responsable_id: Optional[str] = None
     zona_ejecucion: Optional[str] = None
+    ubicacion_id: Optional[str] = None
+    zona_id: Optional[str] = None
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
