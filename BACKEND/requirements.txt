@@ -18,3 +18,4 @@ pypdf
 python-multipart
 opencv-python-headless
 numpy
+anthropic
