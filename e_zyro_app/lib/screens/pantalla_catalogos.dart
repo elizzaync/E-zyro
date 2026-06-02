@@ -16,6 +16,7 @@ class PantallaCatalogos extends StatefulWidget {
 class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTickerProviderStateMixin {
   CatalogoService? _svc;
   late final TabController _tab;
+  List<UbicacionArbol> _arbol = [];
   List<Ubicacion> _ubic = [];
   List<Zona> _zonas = [];
   List<Area> _areas = [];
@@ -24,7 +25,7 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
     _tab.addListener(() => setState(() {}));
     _init();
   }
@@ -43,12 +44,14 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
   Future<void> _cargar() async {
     if (_svc == null) return;
     setState(() => _cargando = true);
+    final arbol = await _svc!.arbol();
     final u = await _svc!.ubicaciones();
     final z = await _svc!.zonas();
     final a = await _svc!.areas();
     if (!mounted) return;
     setState(() {
       _cargando = false;
+      if (arbol.ok) _arbol = arbol.data ?? [];
       if (u.ok) _ubic = u.data ?? [];
       if (z.ok) _zonas = z.data ?? [];
       if (a.ok) _areas = a.data ?? [];
@@ -67,10 +70,12 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
   }
 
   Future<void> _add() async {
+    // Tab 0 = Jerarquía (vista árbol): el "+" agrega una ubicación (raíz).
     switch (_tab.index) {
       case 0:
-        await _addUbicacion();
       case 1:
+        await _addUbicacion();
+      case 2:
         await _addZona();
       default:
         await _addArea();
@@ -195,13 +200,80 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
     return Scaffold(
       appBar: AppBar(
         title: const Text('Catálogos', style: TextStyle(fontWeight: FontWeight.bold)),
-        bottom: TabBar(controller: _tab, tabs: const [Tab(text: 'Ubicaciones'), Tab(text: 'Zonas'), Tab(text: 'Áreas')]),
+        bottom: TabBar(
+          controller: _tab,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Jerarquía'),
+            Tab(text: 'Ubicaciones'),
+            Tab(text: 'Zonas'),
+            Tab(text: 'Áreas'),
+          ],
+        ),
         actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
       ),
       floatingActionButton: FloatingActionButton(onPressed: _add, child: const Icon(Icons.add)),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(controller: _tab, children: [_ubicTab(), _zonasTab(), _areasTab()]),
+          : TabBarView(controller: _tab, children: [_arbolTab(), _ubicTab(), _zonasTab(), _areasTab()]),
+    );
+  }
+
+  /// Vista de árbol jerárquico Ubicación → Zona → Área (relaciones de un vistazo).
+  Widget _arbolTab() {
+    if (_arbol.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _cargar,
+        child: ListView(children: const [
+          SizedBox(height: 120),
+          Center(child: Text('Sin ubicaciones con zonas.\nCrea desde las otras pestañas.',
+              textAlign: TextAlign.center)),
+        ]),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        children: [
+          for (final u in _arbol)
+            Card(
+              margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+              clipBehavior: Clip.antiAlias,
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                leading: const Icon(Icons.location_on_outlined, color: Color(0xFF8FD11B)),
+                title: Text(u.nombre, style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: Text([u.region, '${u.zonas.length} zona(s)']
+                    .where((x) => (x ?? '').isNotEmpty).join(' · ')),
+                childrenPadding: const EdgeInsets.only(left: 8, bottom: 8),
+                children: [
+                  if (u.zonas.isEmpty)
+                    const ListTile(dense: true, title: Text('— sin zonas —', style: TextStyle(color: Colors.grey))),
+                  for (final z in u.zonas)
+                    ExpansionTile(
+                      leading: const Icon(Icons.crop_free, size: 20),
+                      title: Text(z.nombre),
+                      subtitle: Text([z.tipo, '${z.areas.length} área(s)']
+                          .where((x) => (x ?? '').isNotEmpty).join(' · ')),
+                      childrenPadding: const EdgeInsets.only(left: 16),
+                      children: [
+                        if (z.areas.isEmpty)
+                          const ListTile(dense: true, title: Text('— sin áreas —', style: TextStyle(color: Colors.grey))),
+                        for (final a in z.areas)
+                          ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.workspaces_outline, size: 18),
+                            title: Text(a.nombre),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 80),
+        ],
+      ),
     );
   }
 
