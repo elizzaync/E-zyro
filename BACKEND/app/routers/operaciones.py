@@ -651,6 +651,8 @@ def get_detalle_servicio(
         lider_id=str(ps.lider_id) if ps.lider_id else None,
         responsable_id=str(ps.responsable_id) if ps.responsable_id else None,
         zona_ejecucion=ps.zona_ejecucion or None,
+        ubicacion_id=str(ps.ubicacion_id) if ps.ubicacion_id else None,
+        zona_id=str(ps.zona_id) if ps.zona_id else None,
         alcance=ps.alcance or None,
         tipo_documento_cliente=ps.tipo_documento_cliente or None,
         nro_documento=ps.nro_documento or None,

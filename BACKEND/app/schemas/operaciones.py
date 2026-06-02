@@ -72,6 +72,9 @@ class ServicioDetalleOut(BaseModel):
     lider_id: Optional[str] = None
     responsable_id: Optional[str] = None
     zona_ejecucion: Optional[str] = None
+    # Jerarquía geográfica (FK) para prefill del picker en cascada
+    ubicacion_id: Optional[str] = None
+    zona_id: Optional[str] = None
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
