@@ -14,7 +14,12 @@ class EquipoIntervenido(Base):
     id           = Column(String(36), primary_key=True, default=_uuid)
     empresa_id   = Column(String(36), ForeignKey("empresa.id"),     nullable=False)
 
+    # Vínculo con el servicio que lo interviene
+    proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=True)
+    estado_intervencion  = Column(String(30), nullable=False, default="pendiente")
+
     # Contexto del trabajo
+    equipo_id    = Column(String(36), ForeignKey("equipo.id"),       nullable=True)
     proyecto_id  = Column(String(36), ForeignKey("proyecto.id"),    nullable=True)
     cliente_id   = Column(String(36), ForeignKey("cliente.id"),     nullable=True)
 

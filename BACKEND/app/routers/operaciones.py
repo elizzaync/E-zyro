@@ -49,6 +49,7 @@ from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
 from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
 from ..models.catalogo_servicio import CatalogoServicio
+from ..models.equipo_intervenido import EquipoIntervenido
 from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
 from ..models.seguimiento_proyecto import SeguimientoProyecto
 from ..models.rol import Rol
@@ -94,6 +95,10 @@ from ..schemas.operaciones import (
     ValidarHorarioBody,
     PersonaServicioOut,
     SiguienteOrdenOut,
+    EquipoDisponibleOut,
+    EquipoIntervenidoOut,
+    AgregarEquipoIntervenidoIn,
+    ActualizarEstadoIntervencionIn,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -613,6 +618,13 @@ def get_detalle_servicio(
         else:
             mat_solicitados.append(item)
 
+    catalogo = db.query(CatalogoServicio).filter(
+        CatalogoServicio.id == ps.catalogo_servicio_id
+    ).first() if ps.catalogo_servicio_id else None
+    es_mantenimiento = bool(
+        catalogo and "mantenimiento" in (catalogo.tipo_trabajo or "").lower()
+    )
+
     return ServicioDetalleOut(
         id=str(ps.id),
         proyecto_id=str(ps.proyecto_id),
@@ -640,6 +652,7 @@ def get_detalle_servicio(
         alcance=ps.alcance or None,
         tipo_documento_cliente=ps.tipo_documento_cliente or None,
         nro_documento=ps.nro_documento or None,
+        es_mantenimiento=es_mantenimiento,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -3478,5 +3491,243 @@ def eliminar_nota(
         raise HTTPException(status_code=403, detail="No puedes eliminar esta nota")
 
     db.delete(nota)
+    db.commit()
+    return {"ok": True}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EQUIPOS INTERVENIDOS POR SERVICIO
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _get_servicio_o_404(db: Session, servicio_id: str, empresa_id: str) -> ProyectoServicio:
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    return ps
+
+
+@router.get("/servicio/{servicio_id}/equipos-intervenidos", response_model=List[EquipoIntervenidoOut])
+def listar_equipos_intervenidos(
+    servicio_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Lista todos los equipos asignados a intervenir en este servicio."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    registros = (
+        db.query(EquipoIntervenido)
+        .filter(
+            EquipoIntervenido.proyecto_servicio_id == servicio_id,
+            EquipoIntervenido.empresa_id           == empresa_id,
+            EquipoIntervenido.activo               == True,
+        )
+        .order_by(EquipoIntervenido.created_at)
+        .all()
+    )
+
+    result = []
+    for r in registros:
+        tipo_nombre = None
+        if r.tipo_equipo_id:
+            te = db.query(TipoEquipo).filter(TipoEquipo.id == r.tipo_equipo_id).first()
+            tipo_nombre = te.nombre if te else None
+        result.append(EquipoIntervenidoOut(
+            id=str(r.id),
+            nombre=r.nombre,
+            codigo=r.codigo,
+            tipo_nombre=tipo_nombre,
+            tipo_equipo_id=str(r.tipo_equipo_id) if r.tipo_equipo_id else None,
+            marca=r.marca,
+            modelo=r.modelo,
+            numero_serie=r.numero_serie,
+            estado_intervencion=r.estado_intervencion,
+            estado=r.estado,
+            observaciones=r.observaciones,
+            created_at=r.created_at.isoformat() if r.created_at else None,
+        ))
+    return result
+
+
+@router.get("/servicio/{servicio_id}/equipos-disponibles", response_model=List[EquipoDisponibleOut])
+def listar_equipos_disponibles(
+    servicio_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Equipos del catálogo cuya ubicación coincide con la zona_ejecucion del servicio.
+    Excluye los ya asignados a este servicio."""
+    empresa_id = payload["empresa_id"]
+    ps = _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    zona = (ps.zona_ejecucion or "").strip().lower()
+
+    # IDs de equipos que ya están asignados a este servicio
+    ya_asignados = {
+        str(r.equipo_id) for r in db.query(EquipoIntervenido.equipo_id).filter(
+            EquipoIntervenido.proyecto_servicio_id == servicio_id,
+            EquipoIntervenido.empresa_id           == empresa_id,
+            EquipoIntervenido.activo               == True,
+            EquipoIntervenido.equipo_id            != None,
+        ).all() if r.equipo_id
+    }
+
+    query = db.query(Equipo).filter(
+        Equipo.empresa_id == empresa_id,
+        Equipo.estado.notin_(["baja", "fuera_de_servicio"]),
+    )
+
+    # Filtro geográfico: aplica solo si el servicio tiene zona definida
+    if zona:
+        from sqlalchemy import func as sa_func
+        query = query.filter(
+            sa_func.lower(sa_func.trim(Equipo.ubicacion)) == zona
+        )
+
+    equipos = query.order_by(Equipo.nombre).all()
+
+    result = []
+    for e in equipos:
+        if str(e.id) in ya_asignados:
+            continue
+        te = db.query(TipoEquipo).filter(TipoEquipo.id == e.tipo_equipo_id).first() if e.tipo_equipo_id else None
+        result.append(EquipoDisponibleOut(
+            id=str(e.id),
+            nombre=e.nombre,
+            codigo=e.codigo,
+            tipo_nombre=te.nombre if te else None,
+            tipo_equipo_id=str(e.tipo_equipo_id) if e.tipo_equipo_id else None,
+            marca=e.marca,
+            modelo=e.modelo,
+            numero_serie=e.numero_serie,
+            ubicacion=e.ubicacion,
+            estado=e.estado,
+        ))
+    return result
+
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos", status_code=201)
+def agregar_equipo_intervenido(
+    servicio_id: str,
+    body:    AgregarEquipoIntervenidoIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Copia los datos del equipo del catálogo y lo vincula al servicio."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    equipo = db.query(Equipo).filter(
+        Equipo.id         == body.equipo_id,
+        Equipo.empresa_id == empresa_id,
+    ).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+
+    # Evitar duplicados
+    existe = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.equipo_id            == body.equipo_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+        EquipoIntervenido.activo               == True,
+    ).first()
+    if existe:
+        raise HTTPException(status_code=409, detail="Este equipo ya está asignado al servicio")
+
+    ei = EquipoIntervenido(
+        id=str(_uuid.uuid4()),
+        empresa_id           = empresa_id,
+        proyecto_servicio_id = servicio_id,
+        equipo_id            = body.equipo_id,
+        tipo_equipo_id       = equipo.tipo_equipo_id,
+        nombre               = equipo.nombre,
+        codigo               = equipo.codigo,
+        marca                = equipo.marca,
+        modelo               = equipo.modelo,
+        numero_serie         = equipo.numero_serie,
+        estado               = equipo.estado or "operativo",
+        estado_intervencion  = "pendiente",
+        activo               = True,
+    )
+    db.add(ei)
+    db.commit()
+    db.refresh(ei)
+
+    te = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first() if ei.tipo_equipo_id else None
+    return EquipoIntervenidoOut(
+        id=str(ei.id),
+        nombre=ei.nombre,
+        codigo=ei.codigo,
+        tipo_nombre=te.nombre if te else None,
+        tipo_equipo_id=str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
+        marca=ei.marca,
+        modelo=ei.modelo,
+        numero_serie=ei.numero_serie,
+        estado_intervencion=ei.estado_intervencion,
+        estado=ei.estado,
+        observaciones=ei.observaciones,
+        created_at=ei.created_at.isoformat() if ei.created_at else None,
+    )
+
+
+@router.patch("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}")
+def actualizar_estado_intervencion(
+    servicio_id: str,
+    ei_id:       str,
+    body:    ActualizarEstadoIntervencionIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Actualiza el estado de intervención de un equipo en el servicio."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    estados_validos = {"pendiente", "en_proceso", "completado", "cancelado"}
+    if body.estado_intervencion not in estados_validos:
+        raise HTTPException(status_code=422, detail="Estado inválido")
+
+    ei.estado_intervencion = body.estado_intervencion
+    if body.observaciones is not None:
+        ei.observaciones = body.observaciones
+    from datetime import datetime as _dt
+    ei.updated_at = _dt.utcnow()
+    db.commit()
+    return {"ok": True, "estado_intervencion": ei.estado_intervencion}
+
+
+@router.delete("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}")
+def quitar_equipo_intervenido(
+    servicio_id: str,
+    ei_id:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Desvincula un equipo del servicio (soft delete)."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    ei.activo = False
+    from datetime import datetime as _dt
+    ei.updated_at = _dt.utcnow()
     db.commit()
     return {"ok": True}

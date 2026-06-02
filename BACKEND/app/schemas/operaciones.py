@@ -75,6 +75,47 @@ class ServicioDetalleOut(BaseModel):
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
+    es_mantenimiento: bool = False
+
+
+# ── Equipos Intervenidos ─────────────────────────────────────────────────────
+
+class EquipoDisponibleOut(BaseModel):
+    id: str
+    nombre: str
+    codigo: Optional[str] = None
+    tipo_nombre: Optional[str] = None
+    tipo_equipo_id: Optional[str] = None
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    numero_serie: Optional[str] = None
+    ubicacion: Optional[str] = None
+    estado: str
+
+
+class AgregarEquipoIntervenidoIn(BaseModel):
+    equipo_id: str
+
+
+class ActualizarEstadoIntervencionIn(BaseModel):
+    estado_intervencion: str
+    observaciones: Optional[str] = None
+
+
+class EquipoIntervenidoOut(BaseModel):
+    id: str
+    equipo_id: Optional[str] = None
+    nombre: str
+    codigo: Optional[str] = None
+    tipo_nombre: Optional[str] = None
+    tipo_equipo_id: Optional[str] = None
+    marca: Optional[str] = None
+    modelo: Optional[str] = None
+    numero_serie: Optional[str] = None
+    estado_intervencion: str
+    estado: str
+    observaciones: Optional[str] = None
+    created_at: Optional[str] = None
 
 
 class ProyectoListOut(BaseModel):

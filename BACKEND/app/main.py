@@ -910,6 +910,36 @@ def _run_migrations():
 
         conn.commit()
 
+        # ── Equipos Intervenidos: vincular a proyecto_servicio (Fase EI) ───────
+        conn.execute(text(
+            "ALTER TABLE equipo_intervenido "
+            "ADD COLUMN IF NOT EXISTS equipo_id UUID "
+            "REFERENCES equipo(id)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo_intervenido "
+            "ADD COLUMN IF NOT EXISTS proyecto_servicio_id UUID "
+            "REFERENCES proyecto_servicio(id) ON DELETE CASCADE"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo_intervenido "
+            "ADD COLUMN IF NOT EXISTS estado_intervencion VARCHAR(30) NOT NULL DEFAULT 'pendiente'"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo_intervenido "
+            "DROP CONSTRAINT IF EXISTS chk_ei_estado_intervencion"
+        ))
+        conn.execute(text(
+            "ALTER TABLE equipo_intervenido "
+            "ADD CONSTRAINT chk_ei_estado_intervencion "
+            "CHECK (estado_intervencion IN ('pendiente','en_proceso','completado','cancelado'))"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_ei_ps_id "
+            "ON equipo_intervenido(proyecto_servicio_id)"
+        ))
+        conn.commit()
+
         # ── Semillas básicas: unidades por defecto si la empresa no tiene ─────
         # Se ejecuta una sola vez por empresa cuando aún no hay unidades cargadas.
         conn.execute(text("""
