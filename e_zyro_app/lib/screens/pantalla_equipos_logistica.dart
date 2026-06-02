@@ -5,6 +5,7 @@ import '../services/equipo_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
+import '../widgets/geo_cascade_picker.dart';
 
 class PantallaEquiposLogistica extends StatefulWidget {
   const PantallaEquiposLogistica({super.key});
@@ -241,6 +242,9 @@ class _State extends State<PantallaEquiposLogistica>
     String estado    = item?.estado ?? 'operativo';
     bool reqMant     = item?.requiereMantenimiento ?? false;
     String frecuencia= item?.frecuenciaMantenimiento ?? 'ninguno';
+    // Ubicación geográfica (FK) del equipo
+    GeoSeleccion geo = GeoSeleccion(
+        ubicacionId: item?.ubicacionId, zonaId: item?.zonaId, areaId: item?.areaId);
 
     showModalBottomSheet(
       context: context,
@@ -372,7 +376,21 @@ class _State extends State<PantallaEquiposLogistica>
                     const SizedBox(height: 12),
                   ],
 
-                  const SizedBox(height: 8),
+                  // Ubicación geográfica (cascada Ubicación → Zona → Área)
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text('UBICACIÓN', style: TextStyle(fontSize: 11,
+                          fontWeight: FontWeight.w700, color: Colors.grey, letterSpacing: 0.8)),
+                    ),
+                  ),
+                  GeoCascadePicker(
+                    valor: geo,
+                    onChanged: (g) => setLocal(() => geo = g),
+                  ),
+                  const SizedBox(height: 16),
+
                   SizedBox(
                     width: double.infinity, height: 52,
                     child: ElevatedButton(
@@ -386,6 +404,7 @@ class _State extends State<PantallaEquiposLogistica>
                         cantidad: int.tryParse(cantCtrl.text) ?? 1,
                         clase: clase, estado: estado,
                         reqMant: reqMant, frecuencia: frecuencia,
+                        geo: geo,
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _green, foregroundColor: Colors.white,
@@ -438,6 +457,7 @@ class _State extends State<PantallaEquiposLogistica>
     required String marca, required String modelo, required String serie,
     required int cantidad, required String clase, required String estado,
     required bool reqMant, required String frecuencia,
+    GeoSeleccion? geo,
   }) async {
     if (nombre.isEmpty) {
       ScaffoldMessenger.of(ctx).showSnackBar(
@@ -453,6 +473,10 @@ class _State extends State<PantallaEquiposLogistica>
       if (marca.isNotEmpty)  'marca': marca,
       if (modelo.isNotEmpty) 'modelo': modelo,
       if (serie.isNotEmpty)  'numeroSerie': serie,
+      // Jerarquía geográfica (FK, camelCase como espera EquipoIn). "" limpia.
+      'ubicacionId': geo?.ubicacionId ?? '',
+      'zonaId': geo?.zonaId ?? '',
+      'areaId': geo?.areaId ?? '',
     };
 
     final ApiResult res = item == null

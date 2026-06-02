@@ -15,6 +15,10 @@ class EquipoItem {
   final String? proximaFechaMantenimiento;
   final String? fechaAdquisicion;
   final String? ubicacion;
+  // Jerarquía geográfica (FK)
+  final String? ubicacionId;
+  final String? zonaId;
+  final String? areaId;
   final String? fichaTecnica;
 
   const EquipoItem({
@@ -33,6 +37,9 @@ class EquipoItem {
     this.proximaFechaMantenimiento,
     this.fechaAdquisicion,
     this.ubicacion,
+    this.ubicacionId,
+    this.zonaId,
+    this.areaId,
     this.fichaTecnica,
   });
 
@@ -52,6 +59,9 @@ class EquipoItem {
         proximaFechaMantenimiento: j['proximaFechaMantenimiento']?.toString(),
         fechaAdquisicion: j['fechaAdquisicion']?.toString(),
         ubicacion: j['ubicacion']?.toString(),
+        ubicacionId: j['ubicacionId']?.toString(),
+        zonaId: j['zonaId']?.toString(),
+        areaId: j['areaId']?.toString(),
         fichaTecnica: j['fichaTecnica']?.toString(),
       );
 
