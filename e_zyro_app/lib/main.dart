@@ -61,10 +61,7 @@ const Color _kForest = Color(0xFF5A9A00); // verde bosque (acento profundo)
 ThemeData _buildTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
 
-  var scheme = ColorScheme.fromSeed(
-    seedColor: _kLime,
-    brightness: brightness,
-  );
+  var scheme = ColorScheme.fromSeed(seedColor: _kLime, brightness: brightness);
 
   // ── Estilo artístico de modo oscuro (estilo logística, app-wide) ─────────
   // Recolorea las superficies M3 hacia un verde-bosque profundo en vez del
@@ -94,13 +91,14 @@ ThemeData _buildTheme(Brightness brightness) {
     useMaterial3: true,
     scaffoldBackgroundColor: scheme.surfaceContainerLow,
     cardColor: scheme.surface,
-    dividerColor:
-        isDark ? _kLime.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
+    dividerColor: isDark
+        ? _kLime.withValues(alpha: 0.12)
+        : Colors.black.withValues(alpha: 0.08),
     // ── Transiciones de página suaves (Material 3 Zoom) ──────────────────
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: ZoomPageTransitionsBuilder(),
-        TargetPlatform.iOS:     ZoomPageTransitionsBuilder(),
+        TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
         TargetPlatform.windows: ZoomPageTransitionsBuilder(),
       },
     ),
@@ -174,8 +172,7 @@ ThemeData _buildTheme(Brightness brightness) {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     chipTheme: ChipThemeData(
-      side: BorderSide(
-          color: _kLime.withValues(alpha: isDark ? 0.30 : 0.20)),
+      side: BorderSide(color: _kLime.withValues(alpha: isDark ? 0.30 : 0.20)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
     // ── NavigationBar (Material 3) ───────────────────────────────────────
@@ -229,39 +226,40 @@ class ESystemApp extends StatelessWidget {
   static final navigatorKey = GlobalKey<NavigatorState>();
 
   Map<String, WidgetBuilder> _routes() => {
-        '/splash': (context) => const SplashScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/recovery': (context) => const PasswordRecoveryScreen(),
-        '/': (context) => const MainShell(),
-        '/home': (context) => const MainShell(initialIndex: 0),
-        '/operations': (context) => const MainShell(initialIndex: 1),
-        '/logistics': (context) => const MainShell(initialIndex: 2),
-        '/personal': (context) => const MainShell(initialIndex: 3),
-        '/more': (context) => const MainShell(initialIndex: 4),
-        '/calendario': (context) => const CalendarioScreen(),
-        '/notificaciones': (context) => const NotificacionesScreen(),
-        '/asistencia': (context) => Scaffold(
-              appBar: AppBar(
-                leading: const BackButton(),
-                title: const Text('Asistencia',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                elevation: 0,
-                backgroundColor: Colors.transparent,
-              ),
-              body: const AsistenciaScreen(),
-            ),
-        '/auditoria': (_) => const PantallaAuditoria(),
-        '/mantenimientos': (_) => const PantallaMantenimientos(),
-        '/historial-equipo': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments
-              as Map<String, String>?;
-          return PantallaHistorialEquipo(
-            equipoId: args?['equipoId'] ?? '',
-            equipoNombre: args?['equipoNombre'] ?? 'Equipo',
-          );
-        },
-      };
+    '/splash': (context) => const SplashScreen(),
+    '/login': (context) => const LoginScreen(),
+    '/recovery': (context) => const PasswordRecoveryScreen(),
+    '/': (context) => const MainShell(),
+    '/home': (context) => const MainShell(initialIndex: 0),
+    '/operations': (context) => const MainShell(initialIndex: 1),
+    '/logistics': (context) => const MainShell(initialIndex: 2),
+    '/personal': (context) => const MainShell(initialIndex: 3),
+    '/more': (context) => const MainShell(initialIndex: 4),
+    '/calendario': (context) => const CalendarioScreen(),
+    '/notificaciones': (context) => const NotificacionesScreen(),
+    '/asistencia': (context) => Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text(
+          'Asistencia',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+      ),
+      body: const AsistenciaScreen(),
+    ),
+    '/auditoria': (_) => const PantallaAuditoria(),
+    '/mantenimientos': (_) => const PantallaMantenimientos(),
+    '/historial-equipo': (context) {
+      final args =
+          ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+      return PantallaHistorialEquipo(
+        equipoId: args?['equipoId'] ?? '',
+        equipoNombre: args?['equipoNombre'] ?? 'Equipo',
+      );
+    },
+  };
 
   MaterialApp _materialApp({
     required ThemeData theme,
@@ -406,7 +404,7 @@ class _MainShellState extends State<MainShell> {
   Future<void> _refrescarSesionYNav() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final auth  = AuthService(ApiClient(prefs), prefs);
+      final auth = AuthService(ApiClient(prefs), prefs);
       final ok = await auth.refrescarSesion();
       if (ok && mounted) await _cargarPermisos();
     } catch (_) {}
@@ -426,7 +424,7 @@ class _MainShellState extends State<MainShell> {
     }
     try {
       final prefs = await SharedPreferences.getInstance();
-      final auth  = AuthService(ApiClient(prefs), prefs);
+      final auth = AuthService(ApiClient(prefs), prefs);
       if (!auth.isStoredTokenValid()) return; // expirado → no hay qué renovar
       await auth.refreshToken();
       _ultimoRefresh = ahora;
@@ -449,9 +447,9 @@ class _MainShellState extends State<MainShell> {
     // Notificación local (visible aunque la app esté en segundo plano)
     try {
       await NotificationService.show(
-        id:    99,
+        id: 99,
         title: 'Sesión expirada',
-        body:  pendientes > 0
+        body: pendientes > 0
             ? 'Tienes $pendientes ${pendientes == 1 ? "asistencia pendiente" : "asistencias pendientes"} de enviar. Inicia sesión para sincronizar.'
             : 'Tu sesión venció. Vuelve a iniciar sesión.',
       );
@@ -464,7 +462,11 @@ class _MainShellState extends State<MainShell> {
         SnackBar(
           content: Row(
             children: [
-              const Icon(Icons.lock_outline_rounded, color: Colors.white, size: 18),
+              const Icon(
+                Icons.lock_outline_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -477,19 +479,20 @@ class _MainShellState extends State<MainShell> {
             ],
           ),
           action: SnackBarAction(
-            label:     'Iniciar sesión',
+            label: 'Iniciar sesión',
             textColor: const Color(0xFF8FD11B),
             onPressed: () {
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/login',
-                (route) => false,
-              );
+              Navigator.of(
+                context,
+              ).pushNamedAndRemoveUntil('/login', (route) => false);
             },
           ),
           backgroundColor: Colors.purple.shade800,
-          behavior:        SnackBarBehavior.floating,
-          duration:        const Duration(seconds: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -498,19 +501,29 @@ class _MainShellState extends State<MainShell> {
   Future<void> _triggerSync() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final asis  = AsistenciaService(ApiClient(prefs));
-      final proy  = ProyectoService(ApiClient(prefs));
+      final asis = AsistenciaService(ApiClient(prefs));
+      final proy = ProyectoService(ApiClient(prefs));
       // Solo sincronizar si hay pendientes (asistencia o evidencias) Y el
       // servidor Railway es alcanzable. Un solo probe canReachServer() para
       // ambas colas (HTTP crudo sin token → no falla con 401).
       final pendAsis = await asis.contarPendientes();
       final pendEvid = await proy.contarEvidenciasPendientes();
-      final pendAcc  = await proy.contarAccionesPendientes();
-      if ((pendAsis > 0 || pendEvid > 0 || pendAcc > 0) && await asis.canReachServer()) {
+      final pendAcc = await proy.contarAccionesPendientes();
+      if ((pendAsis > 0 || pendEvid > 0 || pendAcc > 0) &&
+          await asis.canReachServer()) {
         bool enviado = false;
-        if (pendAsis > 0) { await asis.sincronizarPendientes(); enviado = true; }
-        if (pendEvid > 0) { await proy.sincronizarEvidencias();  enviado = true; }
-        if (pendAcc  > 0) { await proy.sincronizarAcciones();    enviado = true; }
+        if (pendAsis > 0) {
+          await asis.sincronizarPendientes();
+          enviado = true;
+        }
+        if (pendEvid > 0) {
+          await proy.sincronizarEvidencias();
+          enviado = true;
+        }
+        if (pendAcc > 0) {
+          await proy.sincronizarAcciones();
+          enviado = true;
+        }
         // Notificar a las pantallas que escuchan para que se refresquen
         if (enviado) syncCompletedNotifier.value++;
       }
@@ -542,7 +555,8 @@ class _MainShellState extends State<MainShell> {
           backgroundColor: const Color(0xFFF59E0B),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
+            borderRadius: BorderRadius.circular(10),
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -553,29 +567,39 @@ class _MainShellState extends State<MainShell> {
   /// Destinos del bottom nav. La pestaña Logística solo aparece para roles
   /// con permiso de inventario (logística / admin / superadmin).
   List<_NavDest> get _navDestinations => [
-        const _NavDest(
-          screenIdx: 0, label: 'Inicio',
-          icon: Icons.home_outlined, selectedIcon: Icons.home_rounded,
-        ),
-        const _NavDest(
-          screenIdx: 1, label: 'Operaciones',
-          icon: Icons.build_outlined, selectedIcon: Icons.build_rounded,
-        ),
-        if (_puedeLogistica)
-          const _NavDest(
-            screenIdx: _logisticaScreenIdx, label: 'Logística',
-            icon: Icons.inventory_2_outlined, selectedIcon: Icons.inventory_2_rounded,
-          ),
-        if (_puedePersonal)
-          const _NavDest(
-            screenIdx: 3, label: 'Personal',
-            icon: Icons.person_outline_rounded, selectedIcon: Icons.person_rounded,
-          ),
-        const _NavDest(
-          screenIdx: 4, label: 'Más',
-          icon: Icons.more_horiz_rounded, selectedIcon: Icons.more_horiz_rounded,
-        ),
-      ];
+    const _NavDest(
+      screenIdx: 0,
+      label: 'Inicio',
+      icon: Icons.home_outlined,
+      selectedIcon: Icons.home_rounded,
+    ),
+    const _NavDest(
+      screenIdx: 1,
+      label: 'Operaciones',
+      icon: Icons.build_outlined,
+      selectedIcon: Icons.build_rounded,
+    ),
+    if (_puedeLogistica)
+      const _NavDest(
+        screenIdx: _logisticaScreenIdx,
+        label: 'Logística',
+        icon: Icons.inventory_2_outlined,
+        selectedIcon: Icons.inventory_2_rounded,
+      ),
+    if (_puedePersonal)
+      const _NavDest(
+        screenIdx: 3,
+        label: 'Personal',
+        icon: Icons.person_outline_rounded,
+        selectedIcon: Icons.person_rounded,
+      ),
+    const _NavDest(
+      screenIdx: 4,
+      label: 'Más',
+      icon: Icons.more_horiz_rounded,
+      selectedIcon: Icons.more_horiz_rounded,
+    ),
+  ];
 
   /// Traducción screen idx → posición en el nav visible. Si la pestaña actual
   /// no está en el nav (no debería pasar tras `_cargarPermisos`), devuelve 0.
@@ -603,7 +627,10 @@ class _MainShellState extends State<MainShell> {
                   index: _currentIndex,
                   children: [
                     for (int i = 0; i < _screens.length; i++)
-                      TickerMode(enabled: _currentIndex == i, child: _screens[i]),
+                      TickerMode(
+                        enabled: _currentIndex == i,
+                        child: _screens[i],
+                      ),
                   ],
                 ),
               ),
@@ -611,11 +638,7 @@ class _MainShellState extends State<MainShell> {
           ),
           // Burbuja flotante del asistente E-Zybot, visible en las 5 pestañas
           // principales. Al entrar a subpantallas (rutas pushed) queda cubierta.
-          const Positioned(
-            right: 16,
-            bottom: 16,
-            child: ChatbotLauncher(),
-          ),
+          const Positioned(right: 16, bottom: 16, child: ChatbotLauncher()),
         ],
       ),
       bottomNavigationBar: NavigationBar(
