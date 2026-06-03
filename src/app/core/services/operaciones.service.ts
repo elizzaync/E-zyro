@@ -254,8 +254,8 @@ export class OperacionesService {
     return this.http.get<any[]>(`${this.api}/operaciones/servicio/${servicioId}/equipos-disponibles`);
   }
 
-  agregarEquipoIntervenido(servicioId: string, equipo_id: string): Observable<any> {
-    return this.http.post(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos`, { equipo_id });
+  agregarEquipoIntervenido(servicioId: string, activo_cliente_id: string): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos`, { activo_cliente_id });
   }
 
   actualizarEstadoIntervencion(servicioId: string, eiId: string, estado_intervencion: string, observaciones?: string): Observable<any> {

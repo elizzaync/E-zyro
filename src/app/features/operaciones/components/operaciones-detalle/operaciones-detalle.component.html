@@ -57,15 +57,6 @@
     </div>
 
     <div class="hb-actions">
-      @if (servicio.esMantenimiento) {
-        <button class="hb-btn hb-btn--equipos" (click)="irAEquiposIntervenidos()" title="Equipos intervenidos en este servicio">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="3" width="20" height="14" rx="2"/>
-            <path d="M8 21h8M12 17v4"/>
-          </svg>
-          Equipos
-        </button>
-      }
       <button class="hb-btn hb-btn--alert" (click)="abrirIncidencia()" title="Reportar daño en equipo/herramienta">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -964,7 +955,183 @@
 
     </div>
   </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       EQUIPOS INTERVENIDOS — solo visible en servicios de mantenimiento
+  ══════════════════════════════════════════════════════════════ -->
+  @if (servicio.esMantenimiento) {
+  <section class="section-card ei-section slide-up">
+
+    <div class="ei-sec-header">
+      <div class="ei-sec-title-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8M12 17v4"/>
+        </svg>
+        <h3 class="section-title">Equipos Intervenidos</h3>
+        <span class="ei-count-badge">{{ equiposIntervenidos.length }}</span>
+      </div>
+      <button class="btn-ei-agregar" (click)="abrirModalEI()" [disabled]="cargandoEI">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Agregar Activo
+      </button>
+    </div>
+
+    @if (cargandoEI) {
+      <div class="ei-loading-row">
+        <app-spinner></app-spinner>
+        <span>Cargando equipos…</span>
+      </div>
+    } @else if (equiposIntervenidos.length === 0) {
+      <div class="ei-empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <p>No hay activos asignados a este servicio.</p>
+        <button class="btn-ei-agregar-sm" (click)="abrirModalEI()">Agregar el primero</button>
+      </div>
+    } @else {
+      <div class="ei-table-wrap">
+        <table class="ei-table">
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th>Tipo</th>
+              <th>Marca / Modelo</th>
+              <th>N° Serie</th>
+              <th>Estado</th>
+              <th class="col-act">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (eq of equiposIntervenidos; track eq.id) {
+            <tr [class.ei-row-completado]="eq.estadoIntervencion === 'completado'">
+              <td>
+                <span class="ei-nombre">{{ eq.nombre }}</span>
+                @if (eq.codigo) { <span class="ei-codigo">{{ eq.codigo }}</span> }
+              </td>
+              <td class="ei-tipo">{{ eq.tipoNombre ?? '—' }}</td>
+              <td class="ei-marcamod">
+                @if (eq.marca || eq.modelo) {
+                  {{ eq.marca ?? '' }}{{ eq.marca && eq.modelo ? ' / ' : '' }}{{ eq.modelo ?? '' }}
+                } @else { — }
+              </td>
+              <td class="ei-serie">{{ eq.numeroSerie ?? '—' }}</td>
+              <td>
+                <span class="ei-badge" [ngClass]="eiEstadoClass(eq.estadoIntervencion)">
+                  {{ eiEstadoLabel(eq.estadoIntervencion) }}
+                </span>
+              </td>
+              <td class="col-act">
+                @if (eiConfirmandoId === eq.id) {
+                  <span class="ei-confirm-txt">¿Quitar?</span>
+                  <button class="ei-btn-ok" (click)="eiQuitar(eq.id)">Sí</button>
+                  <button class="ei-btn-no" (click)="eiConfirmandoId = null">No</button>
+                } @else {
+                  @if (eq.estadoIntervencion !== 'completado' && eq.estadoIntervencion !== 'cancelado') {
+                    <button class="ei-btn-intervenir" (click)="eiIntervenir(eq)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                      </svg>
+                      Intervenir
+                    </button>
+                  }
+                  <button class="ei-btn-quitar" (click)="eiConfirmandoId = eq.id" title="Quitar del servicio">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                      <path d="M10 11v6M14 11v6"/>
+                    </svg>
+                  </button>
+                }
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+  </section>
+  }
+
 </div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL: SELECCIONAR ACTIVO DEL CLIENTE
+══════════════════════════════════════════════════════════════ -->
+@if (showModalEI) {
+<div class="ei-modal-backdrop" (click)="showModalEI = false">
+  <div class="ei-modal-panel" (click)="$event.stopPropagation()">
+
+    <div class="ei-modal-header">
+      <div>
+        <h3 class="ei-modal-title">Seleccionar Activo del Cliente</h3>
+        <p class="ei-modal-sub">Activos disponibles en la misma ubicación y zona del servicio</p>
+      </div>
+      <button class="ei-modal-close" (click)="showModalEI = false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="ei-modal-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" placeholder="Buscar por nombre, código o tipo…"
+             [(ngModel)]="filtroEI" class="ei-modal-input"/>
+    </div>
+
+    @if (cargandoEIModal) {
+      <div class="ei-modal-loading">
+        <app-spinner></app-spinner>
+        <span>Buscando activos en la zona del servicio…</span>
+      </div>
+    } @else if (equiposDispFiltrados.length === 0) {
+      <div class="ei-modal-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <p>No hay activos disponibles para la ubicación y zona de este servicio.</p>
+        <span class="ei-modal-hint">Registra activos en el catálogo de clientes con la misma ubicación/zona.</span>
+      </div>
+    } @else {
+      <ul class="ei-modal-list">
+        @for (e of equiposDispFiltrados; track e.id) {
+        <li class="ei-modal-item">
+          <div class="ei-modal-item-info">
+            <span class="ei-modal-nombre">{{ e.nombre }}</span>
+            <span class="ei-modal-meta">
+              {{ e.tipoNombre ?? '' }}{{ e.tipoNombre && (e.marca || e.modelo) ? ' · ' : '' }}
+              {{ e.marca ?? '' }}{{ e.marca && e.modelo ? ' / ' : '' }}{{ e.modelo ?? '' }}
+            </span>
+            @if (e.ubicacion) {
+              <span class="ei-modal-zona">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+                {{ e.ubicacion }}
+              </span>
+            }
+          </div>
+          <button class="ei-modal-btn-add" (click)="eiAgregar(e)" [disabled]="eiAgregando">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Agregar
+          </button>
+        </li>
+        }
+      </ul>
+    }
+
+  </div>
+</div>
+}
 
 @if (servicio.estado !== 'Completado') {
 <footer class="action-footer-bar">

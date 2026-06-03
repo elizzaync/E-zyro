@@ -257,6 +257,33 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   ncMensaje                       = '';
   guardandoComunicado             = false;
 
+  // ── Equipos Intervenidos (mantenimiento) ──────────────────────────────
+  equiposIntervenidos: Array<{
+    id: string; nombre: string; codigo?: string | null; tipoNombre?: string | null;
+    tipoEquipoId?: string | null; marca?: string | null; modelo?: string | null;
+    numeroSerie?: string | null; estadoIntervencion: string; estado: string;
+  }> = [];
+  equiposDisp: Array<{
+    id: string; nombre: string; codigo?: string | null; tipoNombre?: string | null;
+    marca?: string | null; modelo?: string | null; ubicacion?: string | null; estado: string;
+  }> = [];
+  cargandoEI      = false;
+  showModalEI     = false;
+  cargandoEIModal = false;
+  filtroEI        = '';
+  eiAgregando     = false;
+  eiConfirmandoId: string | null = null;
+
+  get equiposDispFiltrados() {
+    const q = this.filtroEI.toLowerCase().trim();
+    if (!q) return this.equiposDisp;
+    return this.equiposDisp.filter(e =>
+      e.nombre.toLowerCase().includes(q) ||
+      (e.tipoNombre ?? '').toLowerCase().includes(q) ||
+      (e.codigo ?? '').toLowerCase().includes(q)
+    );
+  }
+
   // ── Notas (nivel servicio) ─────────────────────────────────
   notas: NotaItem[]               = [];
   cargandoNotas                   = false;
@@ -332,8 +359,110 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
 
   volver(): void { this.location.back(); }
 
-  irAEquiposIntervenidos(): void {
-    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos-intervenidos']);
+  // ── Equipos Intervenidos ─────────────────────────────────────────────
+  cargarEquiposIntervenidos(): void {
+    if (!this.servicioId) return;
+    this.cargandoEI = true;
+    this.svc.getEquiposIntervenidos(this.servicioId).subscribe({
+      next: (data) => {
+        this.equiposIntervenidos = data.map((r: any) => ({
+          id:                 r.id,
+          nombre:             r.nombre,
+          codigo:             r.codigo        ?? null,
+          tipoNombre:         r.tipo_nombre   ?? null,
+          tipoEquipoId:       r.tipo_equipo_id ?? null,
+          marca:              r.marca         ?? null,
+          modelo:             r.modelo        ?? null,
+          numeroSerie:        r.numero_serie  ?? null,
+          estadoIntervencion: r.estado_intervencion ?? 'pendiente',
+          estado:             r.estado ?? 'operativo',
+        }));
+        this.cargandoEI = false;
+      },
+      error: () => { this.cargandoEI = false; }
+    });
+  }
+
+  abrirModalEI(): void {
+    this.showModalEI     = true;
+    this.filtroEI        = '';
+    this.cargandoEIModal = true;
+    this.equiposDisp     = [];
+    this.svc.getEquiposDisponibles(this.servicioId!).subscribe({
+      next: (data) => {
+        this.equiposDisp = data.map((r: any) => ({
+          id:         r.id,
+          nombre:     r.nombre,
+          codigo:     r.codigo      ?? null,
+          tipoNombre: r.tipo_nombre ?? null,
+          marca:      r.marca       ?? null,
+          modelo:     r.modelo      ?? null,
+          ubicacion:  r.ubicacion   ?? null,
+          estado:     r.estado,
+        }));
+        this.cargandoEIModal = false;
+      },
+      error: () => { this.cargandoEIModal = false; }
+    });
+  }
+
+  eiAgregar(activo: { id: string; nombre: string }): void {
+    if (this.eiAgregando) return;
+    this.eiAgregando = true;
+    this.svc.agregarEquipoIntervenido(this.servicioId!, activo.id).subscribe({
+      next: (nuevo: any) => {
+        this.equiposIntervenidos.push({
+          id:                 nuevo.id,
+          nombre:             nuevo.nombre,
+          codigo:             nuevo.codigo        ?? null,
+          tipoNombre:         nuevo.tipo_nombre   ?? null,
+          tipoEquipoId:       nuevo.tipo_equipo_id ?? null,
+          marca:              nuevo.marca         ?? null,
+          modelo:             nuevo.modelo        ?? null,
+          numeroSerie:        nuevo.numero_serie  ?? null,
+          estadoIntervencion: nuevo.estado_intervencion ?? 'pendiente',
+          estado:             nuevo.estado ?? 'operativo',
+        });
+        this.equiposDisp = this.equiposDisp.filter(e => e.id !== activo.id);
+        this.eiAgregando = false;
+        this.toast.mostrar('Activo agregado al servicio', 'success');
+      },
+      error: (err: any) => {
+        this.eiAgregando = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al agregar el activo.', 'error');
+      }
+    });
+  }
+
+  eiQuitar(id: string): void {
+    this.svc.quitarEquipoIntervenido(this.servicioId!, id).subscribe({
+      next: () => {
+        this.equiposIntervenidos = this.equiposIntervenidos.filter(e => e.id !== id);
+        this.eiConfirmandoId = null;
+        this.toast.mostrar('Activo quitado del servicio', 'success');
+      },
+      error: (err: any) => {
+        this.eiConfirmandoId = null;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al quitar el activo.', 'error');
+      }
+    });
+  }
+
+  eiIntervenir(eq: { id: string; estadoIntervencion: string }): void {
+    if (eq.estadoIntervencion === 'pendiente') {
+      this.svc.actualizarEstadoIntervencion(this.servicioId!, eq.id, 'en_proceso').subscribe({
+        next: () => { eq.estadoIntervencion = 'en_proceso'; }
+      });
+    }
+    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos-intervenidos', eq.id]);
+  }
+
+  eiEstadoLabel(e: string): string {
+    return ({ pendiente: 'Pendiente', en_proceso: 'En Proceso', completado: 'Completado', cancelado: 'Cancelado' } as Record<string, string>)[e] ?? e;
+  }
+
+  eiEstadoClass(e: string): string {
+    return ({ pendiente: 'ei-warn', en_proceso: 'ei-info', completado: 'ei-ok', cancelado: 'ei-muted' } as Record<string, string>)[e] ?? '';
   }
 
   // ==========================================================
@@ -481,6 +610,9 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         this.cargarComunicados();
         this.cargarNotas();
         this.cargarReqsListos();
+        if (this.servicio.esMantenimiento) {
+          this.cargarEquiposIntervenidos();
+        }
         // Si el servicio ya está Completado, verificar si falta registrar el retorno
         if (this.servicio.estado === 'Completado') {
           this._verificarRetornoPendiente(this.servicio.id);

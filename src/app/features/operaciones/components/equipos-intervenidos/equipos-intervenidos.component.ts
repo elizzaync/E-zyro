@@ -126,7 +126,7 @@ export class EquiposIntervenidosComponent implements OnInit {
   agregar(equipo: EquipoDisponible): void {
     if (this.agregando) return;
     this.agregando = true;
-    this.svc.agregarEquipoIntervenido(this.servicioId, equipo.id).subscribe({
+    this.svc.agregarEquipoIntervenido(this.servicioId, equipo.id).subscribe({ // id = activo_cliente_id
       next: (nuevo) => {
         this.equipos.push(this._mapEquipo(nuevo));
         this.equiposDisp = this.equiposDisp.filter(e => e.id !== equipo.id);

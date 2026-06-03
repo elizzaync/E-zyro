@@ -2321,3 +2321,336 @@
 :host-context([data-theme="dark"]) .nt-icon-danger:hover { border-color: #ef4444; color: #f87171; background: rgba(239,68,68,.12); }
 :host-context([data-theme="dark"]) .cm-loading      { color: #94a3b8; }
 :host-context([data-theme="dark"]) .btn-edit-cancel:hover { background: #1e293b; }
+
+/* ══════════════════════════════════════════════════════════════
+   EQUIPOS INTERVENIDOS — sección interna del detalle de servicio
+══════════════════════════════════════════════════════════════ */
+.ei-section { margin-top: 24px; }
+
+.ei-sec-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ei-sec-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ei-sec-title-wrap svg { width: 20px; height: 20px; stroke: var(--accent, #91d337); }
+.ei-sec-title-wrap .section-title { margin: 0; }
+.ei-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 99px;
+  background: var(--accent-dim, rgba(145,211,55,.15));
+  color: var(--accent, #91d337);
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+/* Botón agregar */
+.btn-ei-agregar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: var(--accent, #91d337);
+  color: #0f172a;
+  border: none;
+  border-radius: 8px;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-ei-agregar svg { width: 14px; height: 14px; stroke: #0f172a; }
+.btn-ei-agregar:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ei-agregar:hover:not(:disabled) { opacity: .88; }
+
+.btn-ei-agregar-sm {
+  margin-top: 8px;
+  padding: 6px 16px;
+  background: none;
+  border: 1px solid var(--accent, #91d337);
+  color: var(--accent, #91d337);
+  border-radius: 8px;
+  font-size: .82rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-ei-agregar-sm:hover { background: rgba(145,211,55,.1); }
+
+/* Loading / Empty */
+.ei-loading-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 0;
+  color: var(--text-muted, #94a3b8);
+  font-size: .875rem;
+}
+.ei-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px;
+  color: var(--text-muted, #94a3b8);
+  text-align: center;
+}
+.ei-empty-state svg { width: 40px; height: 40px; opacity: .35; }
+.ei-empty-state p { margin: 0; font-size: .9rem; }
+
+/* Tabla */
+.ei-table-wrap { overflow-x: auto; }
+.ei-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .855rem;
+}
+.ei-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted, #94a3b8);
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  white-space: nowrap;
+}
+.ei-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle, #f1f5f9);
+  vertical-align: middle;
+}
+.ei-table tr:last-child td { border-bottom: none; }
+.ei-row-completado td { opacity: .6; }
+
+.ei-nombre { font-weight: 600; color: var(--text, #0f172a); }
+.ei-codigo {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface2, #f1f5f9);
+  color: var(--text-muted, #94a3b8);
+  font-size: .72rem;
+}
+.ei-tipo, .ei-marcamod, .ei-serie { color: var(--text-muted, #64748b); }
+
+/* Badges de estado */
+.ei-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 99px;
+  font-size: .72rem;
+  font-weight: 700;
+}
+.ei-warn   { background: rgba(245,158,11,.12); color: #d97706; }
+.ei-info   { background: rgba(59,130,246,.12);  color: #3b82f6; }
+.ei-ok     { background: rgba(34,197,94,.12);   color: #16a34a; }
+.ei-muted  { background: rgba(148,163,184,.12); color: #64748b; }
+
+/* Acciones de fila */
+.col-act { white-space: nowrap; text-align: right; }
+.ei-btn-intervenir {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  background: var(--accent, #91d337);
+  color: #0f172a;
+  border: none;
+  border-radius: 6px;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.ei-btn-intervenir svg { width: 12px; height: 12px; stroke: #0f172a; }
+.ei-btn-intervenir:hover { opacity: .85; }
+
+.ei-btn-quitar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 6px;
+  width: 30px; height: 30px;
+  background: none;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted, #94a3b8);
+  transition: border-color .15s, color .15s;
+}
+.ei-btn-quitar svg { width: 14px; height: 14px; }
+.ei-btn-quitar:hover { border-color: #ef4444; color: #ef4444; }
+
+.ei-confirm-txt { font-size: .8rem; color: #ef4444; margin-right: 4px; }
+.ei-btn-ok, .ei-btn-no {
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+}
+.ei-btn-ok  { background: #ef4444; border-color: #ef4444; color: #fff; margin-right: 4px; }
+.ei-btn-ok:hover  { opacity: .85; }
+.ei-btn-no  { background: none; border-color: var(--border, #e2e8f0); color: var(--text-muted, #94a3b8); }
+
+/* ══ MODAL EQUIPOS INTERVENIDOS ══════════════════════════════ */
+.ei-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.ei-modal-panel {
+  background: var(--bg-card, #fff);
+  border-radius: 16px;
+  width: min(520px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,.25);
+  animation: eiModalIn .18s ease;
+}
+@keyframes eiModalIn {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ei-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+}
+.ei-modal-title { margin: 0; font-size: 1rem; font-weight: 700; }
+.ei-modal-sub   { margin: 3px 0 0; font-size: .78rem; color: var(--text-muted, #94a3b8); }
+.ei-modal-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  background: none; border: none; border-radius: 6px;
+  cursor: pointer; color: var(--text-muted, #94a3b8);
+  flex-shrink: 0; transition: background .12s;
+}
+.ei-modal-close:hover { background: var(--surface2, #f1f5f9); }
+.ei-modal-close svg { width: 16px; height: 16px; }
+
+.ei-modal-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border, #e2e8f0);
+  background: var(--surface, #f8fafc);
+}
+.ei-modal-search svg { width: 16px; height: 16px; stroke: var(--text-muted, #94a3b8); flex-shrink: 0; }
+.ei-modal-input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: .875rem;
+  color: var(--text, #0f172a);
+}
+.ei-modal-input::placeholder { color: var(--text-muted, #94a3b8); }
+
+.ei-modal-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--text-muted, #94a3b8);
+  font-size: .875rem;
+}
+.ei-modal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+}
+.ei-modal-empty svg { width: 40px; height: 40px; opacity: .3; }
+.ei-modal-empty p { margin: 0; font-size: .9rem; }
+.ei-modal-hint { font-size: .78rem; }
+
+.ei-modal-list {
+  list-style: none;
+  margin: 0; padding: 6px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.ei-modal-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-subtle, #f1f5f9);
+  transition: background .1s;
+}
+.ei-modal-item:last-child { border-bottom: none; }
+.ei-modal-item:hover { background: var(--surface, #f8fafc); }
+
+.ei-modal-item-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ei-modal-nombre { font-size: .875rem; font-weight: 600; color: var(--text, #0f172a); }
+.ei-modal-meta   { font-size: .77rem; color: var(--text-muted, #64748b); }
+.ei-modal-zona   {
+  display: flex; align-items: center; gap: 4px;
+  font-size: .72rem; color: var(--text-muted, #94a3b8);
+}
+.ei-modal-zona svg { width: 11px; height: 11px; }
+
+.ei-modal-btn-add {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  background: var(--accent, #91d337);
+  color: #0f172a;
+  border: none;
+  border-radius: 6px;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: opacity .15s;
+}
+.ei-modal-btn-add svg { width: 13px; height: 13px; stroke: #0f172a; }
+.ei-modal-btn-add:disabled { opacity: .5; cursor: not-allowed; }
+.ei-modal-btn-add:hover:not(:disabled) { opacity: .85; }
+
+/* Dark mode overrides */
+:host-context([data-theme="dark"]) .ei-table th  { border-color: #1e293b; }
+:host-context([data-theme="dark"]) .ei-table td  { border-color: #1a2332; }
+:host-context([data-theme="dark"]) .ei-btn-quitar { border-color: #1e293b; }
+:host-context([data-theme="dark"]) .ei-modal-panel { background: #0f172a; }
+:host-context([data-theme="dark"]) .ei-modal-header { border-color: #1e293b; }
+:host-context([data-theme="dark"]) .ei-modal-search { background: #1e293b; border-color: #1e293b; }
+:host-context([data-theme="dark"]) .ei-modal-input  { color: #f1f5f9; }
+:host-context([data-theme="dark"]) .ei-modal-item   { border-color: #1a2332; }
+:host-context([data-theme="dark"]) .ei-modal-item:hover { background: #1e293b; }
+:host-context([data-theme="dark"]) .ei-modal-nombre { color: #f1f5f9; }
+:host-context([data-theme="dark"]) .ei-nombre  { color: #f1f5f9; }
+:host-context([data-theme="dark"]) .ei-codigo  { background: #1e293b; }
+:host-context([data-theme="dark"]) .ei-btn-no  { border-color: #334155; }
