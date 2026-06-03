@@ -533,6 +533,23 @@
 
       </div><!-- /csm-section -->
 
+      <!-- Toggle: Inspección de Equipos Intervenidos — DENTRO del formGroup -->
+      <label class="toggle-ei-wrap" for="csm_toggle_ei">
+        <div class="toggle-ei-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+          </svg>
+        </div>
+        <div class="toggle-ei-text">
+          <span class="toggle-ei-title">Inspección de Equipos</span>
+          <span class="toggle-ei-desc">Activa la sección para intervenir activos del cliente en este servicio</span>
+        </div>
+        <div class="toggle-track" [class.toggle-on]="form.get('tiene_equipos_intervenidos')?.value">
+          <input id="csm_toggle_ei" type="checkbox" formControlName="tiene_equipos_intervenidos" class="toggle-input">
+          <span class="toggle-thumb"></span>
+        </div>
+      </label>
+
     </div><!-- /csm-body -->
 
     <!-- ══════════════ FOOTER ══════════════ -->
@@ -549,23 +566,6 @@
         {{ errorMsg }}
       </div>
       }
-
-      <!-- Toggle: Inspección de Equipos Intervenidos -->
-      <label class="toggle-ei-wrap" for="csm_toggle_ei">
-        <div class="toggle-ei-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-          </svg>
-        </div>
-        <div class="toggle-ei-text">
-          <span class="toggle-ei-title">Inspección de Equipos</span>
-          <span class="toggle-ei-desc">Activa la sección para intervenir activos del cliente en este servicio</span>
-        </div>
-        <div class="toggle-track" [class.toggle-on]="form.get('tiene_equipos_intervenidos')?.value">
-          <input id="csm_toggle_ei" type="checkbox" formControlName="tiene_equipos_intervenidos" class="toggle-input">
-          <span class="toggle-thumb"></span>
-        </div>
-      </label>
 
       <div class="footer-actions">
         <!-- Cancelar -->

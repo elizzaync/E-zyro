@@ -20,6 +20,44 @@
 }
 .ei-header-left { display: flex; align-items: center; gap: 16px; }
 
+.ei-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Botones secundarios (Generar Informe, Carta Garantía) */
+.btn-accion {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  cursor: pointer; border: 1px solid; transition: opacity .18s;
+}
+.btn-accion svg { width: 15px; height: 15px; }
+.btn-accion:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-informe {
+  background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.35); color: #f87171;
+}
+.btn-informe:not(:disabled):hover { background: rgba(239,68,68,.2); }
+
+.btn-garantia {
+  background: rgba(59,130,246,.1); border-color: rgba(59,130,246,.35); color: #60a5fa;
+}
+.btn-garantia:not(:disabled):hover { background: rgba(59,130,246,.2); }
+
+/* Fila completada */
+.fila-completada td { opacity: .65; }
+.badge svg { width: 11px; height: 11px; vertical-align: middle; margin-right: 3px; }
+
+/* Columnas de tabla */
+.td-muted  { color: var(--text-muted, #94a3b8); }
+.td-mono   { font-family: monospace; font-size: 12px; }
+.col-actions { text-align: right; white-space: nowrap; }
+
+/* Modal sub-título */
+.modal-sub { margin: 3px 0 0; font-size: 12px; color: var(--text-muted, #64748b); }
+
 .btn-volver {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 14px; border-radius: 10px;
