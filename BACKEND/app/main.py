@@ -62,7 +62,7 @@ from app.models import (  # noqa: F401
     # Asistencia
     registro_asistencia, foto_asistencia, geolocalizacion_asistencia,
     # Operaciones / servicios
-    procedimiento, evidencia_procedimiento,
+    procedimiento, evidencia_procedimiento, tarea, plantilla_procedimiento,
     requerimiento, requerimiento_entrega,
     # Inventario: material.py contiene Stock; categoria_material.py y almacen.py son dependencias
     categoria_material, almacen, material, movimiento_inventario,
@@ -525,6 +525,47 @@ def _pre_create_migrations():
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_prestamo_item_equipo "
             "ON prestamo_item (equipo_id)"
+        ))
+
+        # ── Servicios: Tarea (cronograma) + Plantilla de Procedimientos ──────
+        # FKs uuid a empresa/proyecto_servicio/empleado → se crean aquí (no por
+        # create_all, que las haría VARCHAR(36) y chocaría con las PK uuid).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS tarea (
+                id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                proyecto_servicio_id uuid NOT NULL REFERENCES proyecto_servicio(id),
+                empresa_id           uuid NOT NULL REFERENCES empresa(id),
+                responsable_id       uuid REFERENCES empleado(id),
+                nombre               VARCHAR(200) NOT NULL,
+                descripcion          TEXT,
+                orden                INTEGER NOT NULL DEFAULT 1,
+                estado               VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                fecha_inicio_tarea   DATE,
+                fecha_limite         DATE,
+                created_at           TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at           TIMESTAMP
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_tarea_servicio "
+            "ON tarea (proyecto_servicio_id)"
+        ))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS plantilla_procedimiento (
+                id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                empresa_id   uuid NOT NULL REFERENCES empresa(id),
+                tipo_trabajo VARCHAR(50) NOT NULL,
+                nombre       VARCHAR(200) NOT NULL,
+                procesos     TEXT NOT NULL DEFAULT '[]',
+                version      INTEGER NOT NULL DEFAULT 1,
+                activo       BOOLEAN NOT NULL DEFAULT true,
+                created_at   TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at   TIMESTAMP
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_plantilla_proc_empresa_tipo "
+            "ON plantilla_procedimiento (empresa_id, lower(tipo_trabajo))"
         ))
 
         conn.commit()
@@ -1071,6 +1112,39 @@ def _run_migrations():
             )
         """))
         conn.commit()
+
+        # ── Split Procedimiento → Tarea (one-time) ───────────────────────────
+        # La tabla `procedimiento` guardaba el cronograma (responsable + fechas):
+        # eso ahora son "tareas". `procedimiento` queda para los pasos fijos por
+        # tipo de trabajo. Migramos una sola vez: copiamos a `tarea` y vaciamos
+        # `procedimiento` + `evidencia_procedimiento` (evidencias del cronograma
+        # viejo, no aplican al nuevo modelo fijo). Las tablas `tarea` y
+        # `plantilla_procedimiento` ya las creó Base.metadata.create_all.
+        try:
+            pendiente = conn.execute(text(
+                "SELECT (SELECT count(*) FROM tarea) = 0 "
+                "AND   (SELECT count(*) FROM procedimiento) > 0"
+            )).scalar()
+            if pendiente:
+                conn.execute(text("""
+                    INSERT INTO tarea (
+                        id, proyecto_servicio_id, empresa_id, responsable_id,
+                        nombre, descripcion, orden, estado,
+                        fecha_inicio_tarea, fecha_limite, created_at, updated_at
+                    )
+                    SELECT id, proyecto_servicio_id, empresa_id, responsable_id,
+                           nombre, descripcion, orden, estado,
+                           fecha_inicio_tarea, fecha_limite, created_at, updated_at
+                    FROM procedimiento
+                """))
+                conn.execute(text("DELETE FROM evidencia_procedimiento"))
+                conn.execute(text("DELETE FROM procedimiento"))
+                conn.commit()
+                print("[migración] procedimiento → tarea: cronograma migrado y "
+                      "procedimiento vaciado para pasos fijos.")
+        except Exception as e:
+            conn.rollback()
+            print(f"[migración] split procedimiento→tarea omitido: {e}")
 
 
 @asynccontextmanager

@@ -329,7 +329,9 @@ def crear_comunicado_proyecto(
         usuario_id     = usuario_id,
         tabla_afectada = "comunicado_proyecto",
         registro_id    = str(comunicado.id),
-        accion         = "CREAR_COMUNICADO",
+        # 'accion' está limitado por chk_auditoria_accion a un set fijo
+        # (INSERT/UPDATE/DELETE/...). El detalle va en 'descripcion'/'modulo'.
+        accion         = "INSERT",
         modulo         = "comunicados",
         descripcion    = f"Comunicado '{body.titulo}' enviado al proyecto {proyecto_id}",
         datos_nuevos   = {"titulo": body.titulo, "proyecto_id": proyecto_id},

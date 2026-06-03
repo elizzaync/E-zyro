@@ -89,14 +89,13 @@ def generar_informe_servicio_pdf(data: dict) -> bytes:
     procs = data.get("procedimientos", []) or []
     elems.append(Paragraph(f"Procedimientos ({len(procs)})", h2))
     if procs:
-        filas = [["#", "Procedimiento", "Estado", "Inicio", "Límite"]]
+        filas = [["#", "Procedimiento", "Descripción", "Estado"]]
         for p in procs:
             filas.append([
                 str(p.get("orden", "") or ""), p.get("nombre", "") or "",
-                p.get("estado", "") or "", str(p.get("fecha_inicio") or "-"),
-                str(p.get("fecha_limite") or "-"),
+                p.get("descripcion", "") or "", p.get("estado", "") or "",
             ])
-        tp = Table(filas, colWidths=[10 * mm, 80 * mm, 28 * mm, 20 * mm, 20 * mm], repeatRows=1)
+        tp = Table(filas, colWidths=[10 * mm, 60 * mm, 60 * mm, 28 * mm], repeatRows=1)
         tp.setStyle(TableStyle([
             ("FONTSIZE", (0, 0), (-1, -1), 8),
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0d47a1")),

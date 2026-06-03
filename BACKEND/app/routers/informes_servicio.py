@@ -61,8 +61,7 @@ def _armar_data(db: Session, empresa_id: str, ps: ProyectoServicio, tipo: str) -
         },
         "procedimientos": [{
             "orden": p.orden, "nombre": p.nombre, "estado": p.estado,
-            "descripcion": p.descripcion, "fecha_inicio": p.fecha_inicio_tarea,
-            "fecha_limite": p.fecha_limite,
+            "descripcion": p.descripcion,
         } for p in procs],
         "evidencias": [{
             "procedimiento": proc_nombre.get(str(e.procedimiento_id), ""),

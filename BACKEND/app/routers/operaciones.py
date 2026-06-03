@@ -5,6 +5,7 @@ Gestión completa del módulo de Operaciones / Detalle de Servicio.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import re
 import unicodedata
@@ -22,6 +23,7 @@ from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, aliased
 
 from ..core.security import verificar_token, es_superadmin
+from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 import requests as _requests
 from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary
@@ -35,6 +37,8 @@ from ..models.cliente import Cliente
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.procedimiento import Procedimiento
+from ..models.tarea import Tarea
+from ..models.plantilla_procedimiento import PlantillaProcedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.material import Material, Stock
@@ -57,6 +61,10 @@ from ..schemas.operaciones import (
     ServicioDetalleOut,
     MiembroEquipoOut,
     ProcedimientoOut,
+    TareaOut,
+    PlantillaProcedimientoIn,
+    PlantillaProcedimientoOut,
+    ProcesoItem,
     EvidenciaOut,
     ItemMaterialOut,
     ActualizarEstadoBody,
@@ -95,6 +103,61 @@ from ..schemas.operaciones import (
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
+
+
+# ── Procedimientos fijos: instanciación desde plantilla por tipo de trabajo ───
+def _instanciar_procedimientos(db: Session, ps: ProyectoServicio, empresa_id: str) -> int:
+    """Si el servicio no tiene procedimientos, los crea desde la plantilla del
+    `tipo_trabajo` de su catálogo. Devuelve cuántos creó (0 si ya tenía o no hay
+    plantilla). NO hace commit (lo hace el caller)."""
+    ya = db.query(func.count(Procedimiento.id)).filter(
+        Procedimiento.proyecto_servicio_id == ps.id
+    ).scalar()
+    if ya:
+        return 0
+
+    if not ps.catalogo_servicio_id:
+        return 0
+    catalogo = db.query(CatalogoServicio).filter(
+        CatalogoServicio.id == ps.catalogo_servicio_id
+    ).first()
+    if not catalogo or not catalogo.tipo_trabajo:
+        return 0
+
+    plantilla = db.query(PlantillaProcedimiento).filter(
+        PlantillaProcedimiento.empresa_id   == empresa_id,
+        PlantillaProcedimiento.tipo_trabajo == catalogo.tipo_trabajo,
+        PlantillaProcedimiento.activo       == True,
+    ).first()
+    if not plantilla:
+        return 0
+
+    try:
+        procesos = json.loads(plantilla.procesos or "[]")
+    except (ValueError, TypeError):
+        procesos = []
+    if not isinstance(procesos, list) or not procesos:
+        return 0
+
+    creados = 0
+    for i, p in enumerate(procesos, start=1):
+        if not isinstance(p, dict):
+            continue
+        nombre = (p.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        db.add(Procedimiento(
+            id                   = str(_uuid.uuid4()),
+            proyecto_servicio_id = ps.id,
+            empresa_id           = empresa_id,
+            nombre               = nombre[:200],
+            descripcion          = (p.get("descripcion") or None),
+            orden                = int(p.get("orden") or i),
+            estado               = "pendiente",
+            created_at           = datetime.utcnow(),
+        ))
+        creados += 1
+    return creados
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -479,7 +542,11 @@ def get_detalle_servicio(
                     rol_proyecto="Jefe de Operaciones",
                 ))
 
-    # 4. Procedimientos + Evidencias
+    # 4. Procedimientos (pasos fijos) + Evidencias
+    # Instanciación perezosa desde la plantilla por tipo de trabajo (cubre
+    # servicios creados antes de que existiera la plantilla).
+    if _instanciar_procedimientos(db, ps, empresa_id):
+        db.commit()
     procs = (
         db.query(Procedimiento)
         .filter(Procedimiento.proyecto_servicio_id == servicio_id)
@@ -505,7 +572,7 @@ def get_detalle_servicio(
             )
         )
 
-    # 🔥 FIX PYDANTIC: Blindaje en Procedimientos
+    # Procedimientos = pasos fijos (avance/informe). Las evidencias cuelgan aquí.
     procedimientos = [
         ProcedimientoOut(
             id=str(p.id),
@@ -514,13 +581,32 @@ def get_detalle_servicio(
             orden=p.orden or 0,
             estado=p.estado or "pendiente",
             evidencias=ev_by_proc.get(p.id, []),
-            responsable_id=str(p.responsable_id) if p.responsable_id else None,
-            fecha_inicio_tarea=p.fecha_inicio_tarea.isoformat() if getattr(p, 'fecha_inicio_tarea', None) else None,
-            fecha_limite=p.fecha_limite.isoformat() if p.fecha_limite else None,
         )
         for p in procs
     ]
 
+    # 4b. Tareas (cronograma: responsable + fechas)
+    tareas_rows = (
+        db.query(Tarea)
+        .filter(Tarea.proyecto_servicio_id == servicio_id)
+        .order_by(Tarea.orden.asc())
+        .all()
+    )
+    tareas = [
+        TareaOut(
+            id=str(t.id),
+            nombre=t.nombre or "",
+            descripcion=t.descripcion or "",
+            orden=t.orden or 0,
+            estado=t.estado or "pendiente",
+            responsable_id=str(t.responsable_id) if t.responsable_id else None,
+            fecha_inicio_tarea=t.fecha_inicio_tarea.isoformat() if t.fecha_inicio_tarea else None,
+            fecha_limite=t.fecha_limite.isoformat() if t.fecha_limite else None,
+        )
+        for t in tareas_rows
+    ]
+
+    # El avance depende SOLO de los procedimientos (pasos fijos).
     total     = len(procedimientos)
     completos = sum(1 for p in procedimientos if p.estado == "completado")
     progreso  = round(completos / total * 100, 1) if total else 0.0
@@ -584,6 +670,7 @@ def get_detalle_servicio(
         progreso=progreso,
         equipo=equipo,
         procedimientos=procedimientos,
+        tareas=tareas,
         materiales_asignados=mat_asignados,
         materiales_solicitados=mat_solicitados,
         # Campos extra para modal de edición
@@ -711,6 +798,131 @@ def actualizar_estado_procedimiento(
     proc.updated_at = datetime.utcnow()
     db.commit()
     return {"ok": True, "estado": body.estado}
+
+
+# ── PATCH /operaciones/tarea/{id}/estado ──────────────────────────────────────
+# Estado organizativo de una tarea del cronograma. NO afecta el avance (eso lo
+# controlan los procedimientos fijos).
+
+@router.patch("/tarea/{tarea_id}/estado")
+def actualizar_estado_tarea(
+    tarea_id: str,
+    body:     ActualizarProcedimientoBody,
+    payload:  dict    = Depends(verificar_token),
+    db:       Session = Depends(get_db),
+):
+    estados_validos = {"pendiente", "en_proceso", "completado", "bloqueado"}
+    if body.estado not in estados_validos:
+        raise HTTPException(status_code=422, detail="Estado inválido")
+
+    tarea = db.query(Tarea).filter(
+        Tarea.id         == tarea_id,
+        Tarea.empresa_id == payload["empresa_id"],
+    ).first()
+    if not tarea:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+
+    tarea.estado     = body.estado
+    tarea.updated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True, "estado": body.estado}
+
+
+# ── Plantillas de Procedimientos (estándar por tipo de trabajo) ───────────────
+# Gestión admin del manual estándar que se instancia en cada servicio.
+
+def _plantilla_out(p: PlantillaProcedimiento) -> PlantillaProcedimientoOut:
+    try:
+        procesos = json.loads(p.procesos or "[]")
+    except (ValueError, TypeError):
+        procesos = []
+    return PlantillaProcedimientoOut(
+        id=str(p.id),
+        tipo_trabajo=p.tipo_trabajo,
+        nombre=p.nombre or "",
+        procesos=[ProcesoItem(**x) for x in procesos if isinstance(x, dict)],
+        version=p.version or 1,
+        activo=bool(p.activo),
+    )
+
+
+@router.get("/plantillas-procedimiento", response_model=List[PlantillaProcedimientoOut])
+def listar_plantillas_procedimiento(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "catalogos", "ver")
+    rows = (
+        db.query(PlantillaProcedimiento)
+        .filter(PlantillaProcedimiento.empresa_id == payload["empresa_id"])
+        .order_by(PlantillaProcedimiento.tipo_trabajo.asc())
+        .all()
+    )
+    return [_plantilla_out(p) for p in rows]
+
+
+@router.get("/plantillas-procedimiento/{tipo_trabajo}", response_model=PlantillaProcedimientoOut)
+def obtener_plantilla_procedimiento(
+    tipo_trabajo: str,
+    payload:      dict    = Depends(verificar_token),
+    db:           Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "catalogos", "ver")
+    p = db.query(PlantillaProcedimiento).filter(
+        PlantillaProcedimiento.empresa_id   == payload["empresa_id"],
+        PlantillaProcedimiento.tipo_trabajo == tipo_trabajo,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    return _plantilla_out(p)
+
+
+@router.put("/plantillas-procedimiento", response_model=PlantillaProcedimientoOut)
+def guardar_plantilla_procedimiento(
+    body:    PlantillaProcedimientoIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Upsert del estándar por tipo de trabajo. Incrementa la versión en cada
+    guardado. No reescribe los procedimientos ya instanciados en servicios
+    existentes (esos se mantienen tal cual; los nuevos servicios usan la última)."""
+    exigir_permiso(db, payload, "catalogos", "editar")
+    empresa_id = payload["empresa_id"]
+    tipo = (body.tipo_trabajo or "").strip()
+    if not tipo:
+        raise HTTPException(status_code=422, detail="tipo_trabajo es obligatorio")
+
+    procesos_json = json.dumps(
+        [p.model_dump() for p in body.procesos], ensure_ascii=False
+    )
+
+    p = db.query(PlantillaProcedimiento).filter(
+        PlantillaProcedimiento.empresa_id   == empresa_id,
+        PlantillaProcedimiento.tipo_trabajo == tipo,
+    ).first()
+
+    if p:
+        p.nombre     = body.nombre[:200]
+        p.procesos   = procesos_json
+        p.activo     = body.activo
+        p.version    = (p.version or 1) + 1
+        p.updated_at = datetime.utcnow()
+    else:
+        p = PlantillaProcedimiento(
+            id           = str(_uuid.uuid4()),
+            empresa_id   = empresa_id,
+            tipo_trabajo = tipo,
+            nombre       = body.nombre[:200],
+            procesos     = procesos_json,
+            version      = 1,
+            activo       = body.activo,
+            created_at   = datetime.utcnow(),
+        )
+        db.add(p)
+
+    db.commit()
+    db.refresh(p)
+    return _plantilla_out(p)
 
 
 # ── POST /operaciones/procedimiento/{id}/evidencia ────────────────────────────
@@ -2322,24 +2534,24 @@ def validar_horario_tecnico(
     if fecha_fin_dt < fecha_ini_dt:
         raise HTTPException(status_code=422, detail="fecha_fin no puede ser anterior a fecha_inicio.")
 
-    # Construir la query base
+    # Construir la query base (el cronograma vive en Tarea: responsable + fechas)
     q = (
-        db.query(Procedimiento)
+        db.query(Tarea)
         .filter(
-            Procedimiento.responsable_id     == body.empleado_id,
-            Procedimiento.estado.in_(["pendiente", "en_proceso"]),
-            Procedimiento.fecha_inicio_tarea != None,
-            Procedimiento.fecha_limite       != None,
+            Tarea.responsable_id     == body.empleado_id,
+            Tarea.estado.in_(["pendiente", "en_proceso"]),
+            Tarea.fecha_inicio_tarea != None,
+            Tarea.fecha_limite       != None,
             # Condición de solapamiento
-            Procedimiento.fecha_inicio_tarea <= fecha_fin_dt,
-            Procedimiento.fecha_limite       >= fecha_ini_dt,
+            Tarea.fecha_inicio_tarea <= fecha_fin_dt,
+            Tarea.fecha_limite       >= fecha_ini_dt,
         )
     )
 
-    # Excluir procedimientos del mismo servicio (para modo editar)
+    # Excluir tareas del mismo servicio (para modo editar)
     if body.excluir_servicio_id:
         q = q.filter(
-            Procedimiento.proyecto_servicio_id != body.excluir_servicio_id
+            Tarea.proyecto_servicio_id != body.excluir_servicio_id
         )
 
     conflicto = q.first()
@@ -2636,6 +2848,9 @@ def crear_servicio(
         created_at             = datetime.utcnow(),
     )
     db.add(nuevo)
+    db.flush()
+    # Instanciar los procedimientos fijos desde la plantilla del tipo de trabajo.
+    _instanciar_procedimientos(db, nuevo, empresa_id)
     db.commit()
     return {"ok": True, "id": servicio_id}
 
@@ -2742,7 +2957,8 @@ def configurar_servicio(
     """
     Configura un servicio:
     - Asigna / actualiza el equipo técnico (ProyectoMiembro).
-    - Reemplaza el cronograma de procedimientos (Procedimiento).
+    - Reemplaza el cronograma de Tareas (responsable + fechas). El body llega
+      como `procedimientos` por compatibilidad con el frontend Angular.
     """
     empresa_id = payload["empresa_id"]
 
@@ -2804,10 +3020,12 @@ def configurar_servicio(
 
     db.flush()
 
-    # ── 2. Procedimientos / Cronograma ────────────────────────────────────────
-    # Eliminar procedimientos existentes del servicio y recrèarlos
-    db.query(Procedimiento).filter(
-        Procedimiento.proyecto_servicio_id == servicio_id
+    # ── 2. Tareas / Cronograma ────────────────────────────────────────────────
+    # (El body llega como `procedimientos` por compat con Angular, pero esto es
+    # el cronograma → se persiste en la tabla `tarea`.)
+    # Eliminar tareas existentes del servicio y recrearlas.
+    db.query(Tarea).filter(
+        Tarea.proyecto_servicio_id == servicio_id
     ).delete(synchronize_session=False)
 
     for i, proc in enumerate(body.procedimientos, start=1):
@@ -2817,7 +3035,7 @@ def configurar_servicio(
             # (puede ser el jefe que no figura en equipo_ids)
             pass
 
-        db.add(Procedimiento(
+        db.add(Tarea(
             id                   = str(_uuid.uuid4()),
             proyecto_servicio_id = servicio_id,
             empresa_id           = empresa_id,

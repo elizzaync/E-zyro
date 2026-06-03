@@ -14,12 +14,23 @@ class EvidenciaOut(BaseModel):
 
 
 class ProcedimientoOut(BaseModel):
+    """Paso FIJO del servicio (instanciado desde la plantilla por tipo de
+    trabajo). Lleva las evidencias y alimenta avance/informe/certificado."""
     id: str
     nombre: str
     descripcion: Optional[str]
     orden: int
     estado: str
     evidencias: List[EvidenciaOut] = []
+
+
+class TareaOut(BaseModel):
+    """Cronograma del servicio: ítem que el jefe añade/quita y asigna."""
+    id: str
+    nombre: str
+    descripcion: Optional[str] = None
+    orden: int
+    estado: str
     responsable_id: Optional[str] = None      # empleado.id del responsable
     fecha_inicio_tarea: Optional[str] = None  # YYYY-MM-DD raw (para Gantt)
     fecha_limite: Optional[str] = None        # YYYY-MM-DD raw (fin planificado)
@@ -55,7 +66,8 @@ class ServicioDetalleOut(BaseModel):
     estado: str
     progreso: float
     equipo: List[MiembroEquipoOut]
-    procedimientos: List[ProcedimientoOut]
+    procedimientos: List[ProcedimientoOut]   # pasos fijos (avance/informe)
+    tareas: List[TareaOut] = []              # cronograma (responsable + fechas)
     materiales_asignados: List[ItemMaterialOut]
     materiales_solicitados: List[ItemMaterialOut]
     # Campos extra para el modal de edición
@@ -355,8 +367,33 @@ class ProcedimientoConfigBody(BaseModel):
 
 class ConfigurarServicioBody(BaseModel):
     equipo: List[str]                       # list of empleado.id
+    # Nota: el campo se sigue llamando `procedimientos` por compatibilidad con el
+    # frontend Angular, pero ahora se persiste como Tareas (cronograma).
     procedimientos: List[ProcedimientoConfigBody]
     lider_id: Optional[str] = None          # empleado.id del responsable del servicio
+
+
+# ── Plantillas de Procedimientos (estándar por tipo de trabajo) ───────────────
+class ProcesoItem(BaseModel):
+    orden: int = 1
+    nombre: str
+    descripcion: Optional[str] = None
+
+
+class PlantillaProcedimientoIn(BaseModel):
+    tipo_trabajo: str
+    nombre: str
+    procesos: List[ProcesoItem] = []
+    activo: bool = True
+
+
+class PlantillaProcedimientoOut(BaseModel):
+    id: str
+    tipo_trabajo: str
+    nombre: str
+    procesos: List[ProcesoItem] = []
+    version: int
+    activo: bool
 
 
 # ── Body: Validar cruce de horarios ──────────────────────────────────────────
