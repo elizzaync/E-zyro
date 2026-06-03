@@ -3083,33 +3083,56 @@ def _map_ei(ei: EquipoIntervenido, tipo_nombre: str | None) -> dict:
     }
 
 
-def _pasos_default_intervencion() -> list[tuple[str, str]]:
-    return [
-        ("Inspección visual y diagnóstico inicial",
-         "Revisión externa, identificación de fallas evidentes."),
-        ("Medición de parámetros eléctricos / mecánicos",
-         "Capturar lecturas de tensión, resistencia, presión u otros relevantes."),
-        ("Aplicación del mantenimiento técnico",
-         "Ejecutar el procedimiento correctivo o preventivo según corresponda."),
-        ("Verificación post-mantenimiento",
-         "Confirmar que el equipo opera dentro de los rangos esperados."),
-    ]
+_PASOS_DEFAULT_INTERVENCION = [
+    ("Inspección visual y diagnóstico inicial",
+     "Revisión externa, identificación de fallas evidentes."),
+    ("Medición de parámetros eléctricos / mecánicos",
+     "Capturar lecturas de tensión, resistencia, presión u otros relevantes."),
+    ("Aplicación del mantenimiento técnico",
+     "Ejecutar el procedimiento correctivo o preventivo según corresponda."),
+    ("Verificación post-mantenimiento",
+     "Confirmar que el equipo opera dentro de los rangos esperados."),
+]
 
 
-def _parse_plantilla_intervencion(template: str | None) -> list[tuple[str, str]]:
-    if not template:
-        return _pasos_default_intervencion()
-    pasos: list[tuple[str, str]] = []
-    for raw in template.splitlines():
+def _pasos_desde_jsonb(jsonb: list | None) -> list[tuple[str, str]]:
+    """Lee [{"orden": N, "nombre": "...", "descripcion": "..."}] del JSONB."""
+    if not jsonb or not isinstance(jsonb, list):
+        return []
+    resultado = []
+    for item in sorted(jsonb, key=lambda x: x.get("orden", 0)):
+        nombre = (item.get("nombre") or "").strip()
+        desc   = (item.get("descripcion") or "").strip()
+        if nombre:
+            resultado.append((nombre, desc))
+    return resultado
+
+
+def _parse_plantilla_intervencion(tipo: "TipoEquipo | None") -> list[tuple[str, str]]:
+    """Prioridad: procedimientos_template (JSONB) > procedimiento_tecnico (texto)."""
+    if tipo is None:
+        return list(_PASOS_DEFAULT_INTERVENCION)
+
+    # 1. JSONB (fuente correcta)
+    jsonb = getattr(tipo, "procedimientos_template", None)
+    if jsonb:
+        pasos = _pasos_desde_jsonb(jsonb)
+        if pasos:
+            return pasos
+
+    # 2. Fallback texto multilínea
+    texto = getattr(tipo, "procedimiento_tecnico", None) or ""
+    pasos_texto: list[tuple[str, str]] = []
+    for raw in texto.splitlines():
         line = raw.strip().lstrip("-•").strip()
         if not line:
             continue
         if ":" in line:
             nombre, desc = line.split(":", 1)
-            pasos.append((nombre.strip(), desc.strip()))
+            pasos_texto.append((nombre.strip(), desc.strip()))
         else:
-            pasos.append((line, ""))
-    return pasos or _pasos_default_intervencion()
+            pasos_texto.append((line, ""))
+    return pasos_texto or list(_PASOS_DEFAULT_INTERVENCION)
 
 
 def _map_paso(p: PasoIntervencion) -> dict:
@@ -3409,9 +3432,9 @@ def iniciar_procedimientos_ei(
     if existentes:
         return [_map_paso(p) for p in existentes]
 
-    # Crear desde plantilla del tipo de equipo del activo
+    # Crear desde plantilla del tipo de equipo del activo (JSONB tiene prioridad)
     tipo      = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
-    plantilla = _parse_plantilla_intervencion(tipo.procedimiento_tecnico if tipo else None)
+    plantilla = _parse_plantilla_intervencion(tipo)
 
     nuevos = []
     for i, (nombre, desc) in enumerate(plantilla, start=1):
