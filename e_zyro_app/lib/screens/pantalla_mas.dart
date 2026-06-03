@@ -20,6 +20,7 @@ import 'pantalla_itse.dart';
 import 'pantalla_catalogos.dart';
 import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
+import 'pantalla_planos.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -382,6 +383,14 @@ class _MoreScreenState extends State<MoreScreen> {
                       MaterialPageRoute(builder: (_) => const PantallaGaleria()),
                     ),
                   ),
+                _MenuItem(
+                  icon: Icons.architecture_outlined,
+                  label: 'Planos',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaPlanos()),
+                  ),
+                ),
                 _MenuItem(
                   icon: Icons.description_outlined,
                   label: 'Documentación',

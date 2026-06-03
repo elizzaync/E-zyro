@@ -53,6 +53,8 @@ class AppSession {
   bool get canVerReportes      => hasPerm('reportes:ver');
   // Dashboards ejecutivos: admin, jefe de operaciones o con permiso de reportes.
   bool get canVerDashboards    => isAdmin || _esJefeOp || hasPerm('reportes:ver');
+  // Planos: todos pueden ver; gestionan admin/jefe/supervisor/logística.
+  bool get canGestionarPlanos  => isAdmin || _esJefeOp || isSupervisor || _esLogistica;
   bool get canGestClientes     => hasPerm('clientes:gestionar');
   bool get canValidarAsistencia=> hasPerm('asistencia:validar');
 
