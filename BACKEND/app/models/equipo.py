@@ -35,9 +35,20 @@ class Equipo(Base):
     estado           = Column(String(20), nullable=False, default="operativo")  # operativo|en_mantenimiento|fuera_de_servicio|baja
 
     # ── Logística (HU-15) ──────────────────────────────────────────────────
-    # En el sistema anterior todo iba en la tabla `articulos`. Aquí separamos:
-    #   clase = 'equipo'      → activo que normalmente requiere mantenimiento
-    #   clase = 'herramienta' → herramienta manual (la mayoría no lo requiere)
+    # Taxonomía de activos propios de la empresa (3 clases):
+    #   clase = 'equipo'             → herramienta tecnológica/eléctrica que suele
+    #                                  requerir calibración o mantenimiento
+    #                                  (multímetro, pinza amperimétrica, aspiradora,
+    #                                   taladro, amoladora, cámara termográfica…)
+    #   clase = 'herramienta'        → herramienta manual no tecnológica; rara vez
+    #                                  tiene mantenimiento, pero puede llegar a
+    #                                  tenerlo (alicate, martillo, llave,
+    #                                   destornillador dieléctrico…) — por eso
+    #                                  comparte tabla con 'equipo'
+    #   clase = 'equipo_tecnologico' → activo TI / de cómputo (PC, laptop,
+    #                                  impresora, monitor, cámara IP, router…)
+    # NOTA: distinto de `equipo_intervenido` (equipos DE CLIENTES atendidos en
+    # servicio), que vive en su propia tabla y no es inventario propio.
     clase                       = Column(String(20), nullable=False, default="equipo")
     cantidad                    = Column(Integer,    nullable=False, default=1)
     tipo                        = Column(String(120), nullable=True)   # familia/tipo libre (ej "Instrumento de medición")

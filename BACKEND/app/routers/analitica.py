@@ -142,7 +142,7 @@ def logistica(payload: dict = Depends(verificar_token), db: Session = Depends(ge
         WHERE m.empresa_id=:e AND m.activo = true AND m.tipo='consumible'
         GROUP BY 1 ORDER BY 2 DESC LIMIT 8""", p))
 
-    clase_map = {"equipo": "Equipos", "herramienta": "Herramientas", "equipo_tecnologico": "Tecnológicos"}
+    clase_map = {"equipo": "Equipos", "herramienta": "Herramientas", "equipo_tecnologico": "Activos TI"}
     equipos_clase = [{"label": clase_map.get(r[0], r[0] or "—"), "value": int(r[1] or 0)}
                      for r in _rows(db, "SELECT clase, COUNT(*) FROM equipo WHERE empresa_id=:e GROUP BY clase ORDER BY 2 DESC", p)]
 
@@ -251,9 +251,12 @@ def activos(payload: dict = Depends(verificar_token), db: Session = Depends(get_
     e = payload["empresa_id"]
     p = {"e": e}
 
+    # ── Activos propios (tabla equipo): herramientas/equipos/activos TI ────────
     equipos = db.execute(text("SELECT COUNT(*) FROM equipo WHERE empresa_id=:e"), p).scalar() or 0
     operativos = db.execute(text("SELECT COUNT(*) FROM equipo WHERE empresa_id=:e AND estado='operativo'"), p).scalar() or 0
     mant = db.execute(text("SELECT COUNT(*) FROM equipo WHERE empresa_id=:e AND estado='en_mantenimiento'"), p).scalar() or 0
+    fuera = db.execute(text("SELECT COUNT(*) FROM equipo WHERE empresa_id=:e AND estado IN ('fuera_de_servicio','baja')"), p).scalar() or 0
+    # ── Servicio a clientes (tablas independientes) ────────────────────────────
     intervenidos = db.execute(text("SELECT COUNT(*) FROM equipo_intervenido WHERE empresa_id=:e"), p).scalar() or 0
     itse = db.execute(text("SELECT COUNT(*) FROM inspeccion_itse WHERE empresa_id=:e"), p).scalar() or 0
     epp_entregas = db.execute(text("SELECT COUNT(*) FROM epp_entrega WHERE empresa_id=:e"), p).scalar() or 0
@@ -263,14 +266,20 @@ def activos(payload: dict = Depends(verificar_token), db: Session = Depends(get_
     por_estado = [{"label": estado_map.get(r[0], r[0] or "—"), "value": int(r[1] or 0)}
                   for r in _rows(db, "SELECT estado, COUNT(*) FROM equipo WHERE empresa_id=:e GROUP BY estado ORDER BY 2 DESC", p)]
 
-    clase_map = {"equipo": "Equipos", "herramienta": "Herramientas", "equipo_tecnologico": "Tecnológicos"}
+    clase_map = {"equipo": "Equipos", "herramienta": "Herramientas", "equipo_tecnologico": "Activos TI"}
     por_clase = [{"label": clase_map.get(r[0], r[0] or "—"), "value": int(r[1] or 0)}
                  for r in _rows(db, "SELECT clase, COUNT(*) FROM equipo WHERE empresa_id=:e GROUP BY clase ORDER BY 2 DESC", p)]
 
-    intervenidos_ubic = _lv(_rows(db, """
-        SELECT COALESCE(u.nombre,'Sin ubicación'), COUNT(*)
-        FROM equipo_intervenido ei LEFT JOIN ubicacion u ON u.id = ei.ubicacion_id
-        WHERE ei.empresa_id=:e GROUP BY 1 ORDER BY 2 DESC LIMIT 8""", p))
+    # Equipos intervenidos clasificados por tipo (derivado del nombre)
+    intervenidos_tipo = _lv(_rows(db, """
+        SELECT CASE
+            WHEN lower(nombre) LIKE '%ups%' THEN 'UPS'
+            WHEN lower(nombre) LIKE '%trafo%' OR lower(nombre) LIKE '%transformador%' THEN 'Transformadores'
+            WHEN lower(nombre) LIKE 'pt%' OR lower(nombre) LIKE '%pozo%' THEN 'Pozos a tierra'
+            WHEN lower(nombre) LIKE 'td%' OR lower(nombre) LIKE 'tg%' OR lower(nombre) LIKE '%tablero%' THEN 'Tableros'
+            ELSE 'Otros' END AS tipo,
+          COUNT(*)
+        FROM equipo_intervenido WHERE empresa_id=:e GROUP BY 1 ORDER BY 2 DESC""", p))
 
     itse_mes = [{"label": _mes_label(r[0]), "value": int(r[1] or 0)}
                 for r in _rows(db, """
@@ -283,12 +292,13 @@ def activos(payload: dict = Depends(verificar_token), db: Session = Depends(get_
             "equipos": int(equipos),
             "operativos": int(operativos),
             "mantenimiento": int(mant),
+            "fuera_servicio": int(fuera),
             "intervenidos": int(intervenidos),
             "itse": int(itse),
             "epp_entregas": int(epp_entregas),
         },
         "equipos_por_estado": por_estado,
         "equipos_por_clase": por_clase,
-        "intervenidos_por_ubicacion": intervenidos_ubic,
+        "intervenidos_por_tipo": intervenidos_tipo,
         "itse_por_mes": itse_mes,
     }
