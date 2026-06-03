@@ -3083,22 +3083,15 @@ def _map_ei(ei: EquipoIntervenido, tipo_nombre: str | None) -> dict:
     }
 
 
-_PROCS_DEFAULT = [
-    {"orden": 1, "nombre": "Inspección visual y diagnóstico inicial",       "descripcion": "Revisión externa, identificación de fallas evidentes."},
-    {"orden": 2, "nombre": "Medición de parámetros eléctricos / mecánicos", "descripcion": "Capturar lecturas relevantes."},
-    {"orden": 3, "nombre": "Aplicación del mantenimiento técnico",          "descripcion": "Ejecutar el procedimiento correctivo o preventivo."},
-    {"orden": 4, "nombre": "Verificación post-mantenimiento",               "descripcion": "Confirmar que el equipo opera dentro de los rangos esperados."},
-]
-
-
 def _get_plantilla_jsonb(tipo: "TipoEquipo | None") -> list[dict]:
-    """Devuelve la plantilla como lista de dicts [{orden, nombre, descripcion}]."""
+    """Lee procedimientos_template (JSONB) del tipo de equipo.
+    Devuelve lista vacía si el tipo no existe o no tiene plantilla cargada."""
     if tipo is None:
-        return list(_PROCS_DEFAULT)
+        return []
     jsonb = getattr(tipo, "procedimientos_template", None)
     if jsonb and isinstance(jsonb, list):
         return sorted(jsonb, key=lambda x: x.get("orden", 0))
-    return list(_PROCS_DEFAULT)
+    return []
 
 
 def _resultado_inicial(plantilla: list[dict]) -> list[dict]:
