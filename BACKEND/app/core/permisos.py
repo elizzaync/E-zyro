@@ -20,8 +20,9 @@ _ROLES_ADMIN = {"superadmin", "admin", "administrador"}
 
 
 def es_admin(payload: dict) -> bool:
-    """SuperAdmin/Admin tienen permiso absoluto, sin consultar BD."""
-    return (payload.get("rol") or "").lower().strip() in _ROLES_ADMIN
+    """SuperAdmin/Admin tienen permiso absoluto, sin consultar BD.
+    Normaliza espacios para reconocer "Super Admin" además de "SuperAdmin"."""
+    return (payload.get("rol") or "").lower().strip().replace(" ", "") in _ROLES_ADMIN
 
 
 def tiene_permiso(db: Session, payload: dict, modulo: str, accion: str) -> bool:

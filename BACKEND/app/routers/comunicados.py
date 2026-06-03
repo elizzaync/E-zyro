@@ -10,12 +10,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token, es_superadmin
+from ..core.permisos import tiene_permiso
 from ..db.database import get_db
 from ..models.auditoria import Auditoria
 from ..models.comunicado import ComunicadoProyecto, ComunicadoLeido
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.proyecto import Proyecto
+from ..models.proyecto_miembro import ProyectoMiembro
+from ..services.fcm_service import enviar_push_a_usuario
 
 router = APIRouter(prefix="/comunicados", tags=["comunicados"])
 
@@ -25,6 +28,7 @@ class ComunicadoResponse(BaseModel):
     titulo: str
     contenido: str
     fecha: str
+    autor: str = ""
     leido: bool = False
 
 
@@ -50,9 +54,101 @@ def _get_empleado(db: Session, usuario_id: str, empresa_id: str) -> Optional[Emp
 
 @router.get("", response_model=List[ComunicadoResponse])
 def listar_comunicados(
-    payload: dict = Depends(verificar_token),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
 ):
-    return []
+    """Tablón global: comunicados de todos los proyectos donde el usuario
+    participa (es miembro activo o jefe de operaciones). Alimenta la pantalla
+    Más → Comunicados."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    empleado = _get_empleado(db, usuario_id, empresa_id)
+    if not empleado:
+        return []
+
+    # Proyectos donde es miembro activo
+    proyecto_ids: set[str] = {
+        str(r.proyecto_id)
+        for r in db.query(ProyectoMiembro.proyecto_id).filter(
+            ProyectoMiembro.empleado_id == empleado.id,
+            ProyectoMiembro.activo == True,  # noqa: E712
+        ).all()
+    }
+    # Proyectos donde es jefe de operaciones
+    for r in db.query(Proyecto.id).filter(
+        Proyecto.empresa_id == empresa_id,
+        Proyecto.jefe_operaciones_id == empleado.id,
+    ).all():
+        proyecto_ids.add(str(r.id))
+
+    # Admin ve todos los comunicados de su empresa
+    if es_superadmin(payload):
+        comunicados = (
+            db.query(ComunicadoProyecto)
+            .filter(ComunicadoProyecto.empresa_id == empresa_id)
+            .order_by(ComunicadoProyecto.created_at.desc())
+            .all()
+        )
+    elif proyecto_ids:
+        comunicados = (
+            db.query(ComunicadoProyecto)
+            .filter(
+                ComunicadoProyecto.empresa_id == empresa_id,
+                ComunicadoProyecto.proyecto_id.in_([_uuid.UUID(p) for p in proyecto_ids]),
+            )
+            .order_by(ComunicadoProyecto.created_at.desc())
+            .all()
+        )
+    else:
+        return []
+
+    if not comunicados:
+        return []
+
+    # Marcas de leído de este empleado
+    leidos_ids = {
+        str(r.comunicado_id)
+        for r in db.query(ComunicadoLeido.comunicado_id).filter(
+            ComunicadoLeido.empleado_id == empleado.id,
+            ComunicadoLeido.comunicado_id.in_([c.id for c in comunicados]),
+        ).all()
+    }
+
+    # Mapa autor_id → nombre completo (nombre/apellido viven en Usuario)
+    autor_ids = [str(c.autor_id) for c in comunicados if c.autor_id]
+    empleados_map: dict[str, str] = {}
+    if autor_ids:
+        try:
+            for emp, usr in (
+                db.query(Empleado, Usuario)
+                .join(Usuario, Usuario.id == Empleado.usuario_id)
+                .filter(Empleado.id.in_(autor_ids))
+                .all()
+            ):
+                nombre   = (usr.nombre   or "") if usr else ""
+                apellido = (usr.apellido or "") if usr else ""
+                empleados_map[str(emp.id)] = f"{nombre} {apellido}".strip() or "Usuario"
+        except Exception:
+            empleados_map = {}
+
+    def _fecha(c: ComunicadoProyecto) -> str:
+        try:
+            return c.created_at.strftime("%d/%m/%Y %H:%M") if c.created_at else "—"
+        except Exception:
+            return "—"
+
+    return [
+        ComunicadoResponse(
+            id=str(c.id),
+            titulo=c.titulo or "(Sin título)",
+            contenido=c.mensaje or "",
+            fecha=_fecha(c),
+            autor=empleados_map.get(str(c.autor_id) if c.autor_id else "", "Sistema"),
+            leido=(str(c.id) in leidos_ids),
+        )
+        for c in comunicados
+    ]
 
 
 # ── GET /comunicados/proyecto/{proyecto_id} ───────────────────────────────────
@@ -200,7 +296,6 @@ def crear_comunicado_proyecto(
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
-    rol        = (payload.get("rol") or "").lower()
 
     proyecto = db.query(Proyecto).filter(
         Proyecto.id == proyecto_id,
@@ -211,10 +306,9 @@ def crear_comunicado_proyecto(
 
     empleado_autor = _get_empleado(db, usuario_id, empresa_id)
 
-    # Solo admin/jefe o el jefe_operaciones del proyecto puede enviar
-    es_admin = es_superadmin(payload)
-    es_jefe  = empleado_autor and str(proyecto.jefe_operaciones_id) == str(empleado_autor.id)
-    if not es_admin and not es_jefe:
+    # RBAC: requiere el permiso 'comunicados:enviar' (Admin lo tiene por bypass;
+    # Jefe de Operaciones por la matriz rol→permiso).
+    if not tiene_permiso(db, payload, "comunicados", "enviar"):
         raise HTTPException(status_code=403, detail="Sin permiso para enviar comunicados")
 
     comunicado = ComunicadoProyecto(
@@ -243,4 +337,47 @@ def crear_comunicado_proyecto(
     ))
 
     db.commit()
+
+    # ── Notificar a los miembros del proyecto (push FCM) ──────────────────────
+    # El comunicado llega a todos los miembros activos del proyecto + el jefe de
+    # operaciones. No se notifica al autor. Cualquier fallo de envío es silencioso
+    # para no afectar la respuesta de creación.
+    try:
+        destinatarios: set[str] = {
+            str(r.usuario_id)
+            for r in (
+                db.query(Empleado.usuario_id)
+                .join(ProyectoMiembro, ProyectoMiembro.empleado_id == Empleado.id)
+                .filter(
+                    ProyectoMiembro.proyecto_id == proyecto_id,
+                    ProyectoMiembro.activo == True,  # noqa: E712
+                )
+                .all()
+            )
+        }
+        if proyecto.jefe_operaciones_id:
+            jefe_emp = db.query(Empleado).filter(
+                Empleado.id == proyecto.jefe_operaciones_id
+            ).first()
+            if jefe_emp:
+                destinatarios.add(str(jefe_emp.usuario_id))
+
+        destinatarios.discard(str(usuario_id))  # no notificar al autor
+
+        for uid in destinatarios:
+            try:
+                enviar_push_a_usuario(
+                    usuario_id=uid,
+                    titulo=f"📢 {body.titulo}",
+                    mensaje=body.mensaje,
+                    db=db,
+                    tipo="comunicado_proyecto",
+                    referencia_id=proyecto_id,
+                    referencia_tabla="proyecto",
+                )
+            except Exception:
+                pass
+    except Exception:
+        pass
+
     return {"ok": True, "id": str(comunicado.id)}

@@ -557,6 +557,9 @@ def _run_migrations():
         sembrar_permisos(conn, "equipo_intervenido",
                          ["ver", "crear", "editar", "eliminar"],
                          descripcion_base="Equipo intervenido:")
+        # ── Comunicados por proyecto (canal de difusión) ─────────────────────
+        sembrar_permisos(conn, "comunicados", ["ver", "enviar"],
+                         descripcion_base="Comunicados:")
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
         sembrar_rol_permiso(conn)
         conn.commit()

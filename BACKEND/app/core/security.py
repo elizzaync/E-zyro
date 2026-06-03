@@ -18,8 +18,10 @@ def crear_token_acceso(data: dict):
 _ROLES_ADMIN = {"superadmin", "admin", "administrador"}
 
 def es_superadmin(payload: dict) -> bool:
-    """SuperAdmin siempre tiene permiso absoluto — sin consulta a BD."""
-    return (payload.get("rol") or "").lower().strip() in _ROLES_ADMIN
+    """SuperAdmin siempre tiene permiso absoluto — sin consulta a BD.
+    Normaliza espacios para reconocer "Super Admin" además de "SuperAdmin"."""
+    rol = (payload.get("rol") or "").lower().strip().replace(" ", "")
+    return rol in _ROLES_ADMIN
 
 
 def verificar_token(credentials: HTTPAuthorizationCredentials = Security(security)):

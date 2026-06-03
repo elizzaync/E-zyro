@@ -33,6 +33,7 @@ def sembrar_permisos(conn, modulo: str, acciones: list[str], descripcion_base: s
 MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     "Jefe de Operaciones": [
         "dashboard:ver", "reportes:ver",
+        "comunicados:ver", "comunicados:enviar",
         "proyectos:ver", "proyectos:crear", "proyectos:editar",
         "equipo_intervenido:ver", "equipo_intervenido:crear", "equipo_intervenido:editar",
         "asistencia:ver", "asistencia:validar",
