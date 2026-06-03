@@ -42,6 +42,24 @@ export class OperacionesService {
     return this.http.post(`${this.api}/operaciones/procedimiento/${procId}/evidencia`, formData);
   }
 
+  // ── Motor de Inspección (Intervención por equipo) ─────────────────────────
+
+  getDetalleEI(servicioId: string, eiId: string): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/detalle`);
+  }
+
+  getProcedimientosEI(servicioId: string, eiId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/procedimientos`);
+  }
+
+  iniciarProcedimientosEI(servicioId: string, eiId: string): Observable<any[]> {
+    return this.http.post<any[]>(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/procedimientos/iniciar`, {});
+  }
+
+  completarIntervencion(servicioId: string, eiId: string): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/completar`, {});
+  }
+
   buscarMateriales(q: string): Observable<MaterialBusqueda[]> {
     if (!q || q.length < 2) return of([]);
     const params = new HttpParams().set('q', q);
