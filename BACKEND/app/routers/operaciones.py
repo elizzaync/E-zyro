@@ -3369,7 +3369,31 @@ def get_inspeccion_activa(
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
-    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first() if ei.tipo_equipo_id else None
+
+    # Fallback: si el activo no tiene tipo asignado, inferirlo por nombre
+    if tipo is None:
+        nombre_lower = (ei.nombre or "").lower()
+        if any(k in nombre_lower for k in ["pozo", "puesta a tierra", "pt -", "pt-", "puesta tierra"]):
+            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "POZOS").first()
+        elif any(k in nombre_lower for k in ["transformador", "trafo", "aislamiento"]):
+            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "TRANS. AISLAMIENTO").first()
+        elif any(k in nombre_lower for k in ["ups", "apc"]):
+            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "UPS").first()
+        elif any(k in nombre_lower for k in ["luminaria", "lm-", "lm "]):
+            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "LUMINARIAS").first()
+        elif any(k in nombre_lower for k in ["tomacorriente"]):
+            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "TOMACORRIENTES").first()
+        elif any(k in nombre_lower for k in ["pararrayo"]):
+            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "PARARRAYOS").first()
+        elif any(k in nombre_lower for k in ["tablero", " td", "td-", "td ", "tg-", "tg ", " tg"]):
+            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "TABLEROS").first()
+
+        # Si encontramos tipo por nombre, persistirlo en el activo para evitar futuras consultas
+        if tipo is not None:
+            ei.tipo_equipo_id = tipo.id
+            db.commit()
+
     plantilla = _get_plantilla_jsonb(tipo)
 
     # Buscar sesión activa (en_proceso)
