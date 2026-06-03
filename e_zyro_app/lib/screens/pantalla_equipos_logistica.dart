@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/api_result.dart';
 import '../models/equipo_models.dart';
@@ -17,29 +18,38 @@ class _State extends State<PantallaEquiposLogistica>
     with SingleTickerProviderStateMixin {
   static const _green = Color(0xFF8FD11B);
 
+  static const _pageSize = 40;
+  static const _clases = ['equipo', 'herramienta', 'equipo_tecnologico'];
+
   EquipoService? _svc;
   late TabController _tabs;
 
-  // Tab 0 = Equipos  (clase='equipo')         — requieren calibración/mantenimiento
-  // Tab 1 = Herramientas (clase='herramienta') — manuales, rara vez con mantenimiento
-  // Tab 2 = Equip. Tecnológicos (clase='equipo_tecnologico') — PCs, laptops, impresoras
-  List<EquipoItem> _equipos = [];
-  List<EquipoItem> _herramientas = [];
-  List<EquipoItem> _equiposTecno = [];
+  // Estado paginado por clase (Tab 0=equipo, 1=herramienta, 2=equipo_tecnologico)
+  final Map<String, _ClaseData> _data = {
+    'equipo': _ClaseData(),
+    'herramienta': _ClaseData(),
+    'equipo_tecnologico': _ClaseData(),
+  };
   bool _cargando = true;
   String? _error;
+  String _estado = 'todos'; // todos|operativo|en_mantenimiento|fuera_de_servicio|baja
 
   final _searchCtrl = TextEditingController();
   String _q = '';
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
+    for (final c in _clases) {
+      _data[c]!.scroll.addListener(() => _onScroll(c));
+    }
     _searchCtrl.addListener(() {
       if (_searchCtrl.text != _q) {
-        setState(() => _q = _searchCtrl.text);
-        _cargar();
+        _q = _searchCtrl.text;
+        _debounce?.cancel();
+        _debounce = Timer(const Duration(milliseconds: 350), () => _cargar());
       }
     });
     _init();
@@ -47,8 +57,12 @@ class _State extends State<PantallaEquiposLogistica>
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _tabs.dispose();
     _searchCtrl.dispose();
+    for (final c in _clases) {
+      _data[c]!.scroll.dispose();
+    }
     super.dispose();
   }
 
@@ -57,22 +71,65 @@ class _State extends State<PantallaEquiposLogistica>
     await _cargar();
   }
 
+  void _onScroll(String clase) {
+    final d = _data[clase]!;
+    if (d.loadingMore || !d.hasMore || _cargando) return;
+    if (d.scroll.position.pixels >= d.scroll.position.maxScrollExtent - 240) {
+      _loadMore(clase);
+    }
+  }
+
+  /// Recarga la primera página de las 3 clases (reset). Usado en init, búsqueda,
+  /// cambio de filtro de estado y pull-to-refresh.
   Future<void> _cargar() async {
     if (_svc == null) return;
     setState(() { _cargando = true; _error = null; });
     final results = await Future.wait([
-      _svc!.listar(q: _q, clase: 'equipo',              pageSize: 200),
-      _svc!.listar(q: _q, clase: 'herramienta',         pageSize: 200),
-      _svc!.listar(q: _q, clase: 'equipo_tecnologico',  pageSize: 200),
+      for (final c in _clases)
+        _svc!.listar(q: _q, clase: c, estado: _estado, page: 1, pageSize: _pageSize),
     ]);
     if (!mounted) return;
     setState(() {
       _cargando = false;
-      if (results[0].ok) _equipos      = results[0].data?.items ?? [];
-      if (results[1].ok) _herramientas = results[1].data?.items ?? [];
-      if (results[2].ok) _equiposTecno = results[2].data?.items ?? [];
-      if (!results[0].ok) _error = results[0].errorMessage;
+      for (var i = 0; i < _clases.length; i++) {
+        final d = _data[_clases[i]]!;
+        final res = results[i];
+        if (res.ok) {
+          d.items = res.data?.items ?? [];
+          d.total = res.data?.total ?? d.items.length;
+          d.page = 1;
+          d.hasMore = d.items.length >= _pageSize;
+        } else if (i == 0) {
+          _error = res.errorMessage;
+        }
+      }
     });
+  }
+
+  Future<void> _loadMore(String clase) async {
+    final d = _data[clase]!;
+    if (_svc == null || d.loadingMore || !d.hasMore) return;
+    setState(() => d.loadingMore = true);
+    final next = d.page + 1;
+    final res = await _svc!.listar(
+        q: _q, clase: clase, estado: _estado, page: next, pageSize: _pageSize);
+    if (!mounted) return;
+    setState(() {
+      if (res.ok) {
+        final nuevos = res.data?.items ?? [];
+        d.items.addAll(nuevos);
+        d.page = next;
+        d.hasMore = nuevos.length >= _pageSize;
+      } else {
+        d.hasMore = false;
+      }
+      d.loadingMore = false;
+    });
+  }
+
+  void _setEstado(String e) {
+    setState(() => _estado = _estado == e ? 'todos' : e);
+    _cargar();
   }
 
   // ── Colores de estado ───────────────────────────────────────────────────────
@@ -590,7 +647,7 @@ class _State extends State<PantallaEquiposLogistica>
                 ),
               ),
               const SizedBox(height: 10),
-              // Tabs
+              // Tabs (con total real del backend, no solo lo cargado)
               TabBar(
                 controller: _tabs,
                 labelColor: _green,
@@ -599,13 +656,15 @@ class _State extends State<PantallaEquiposLogistica>
                 indicatorSize: TabBarIndicatorSize.label,
                 isScrollable: true,
                 tabs: [
-                  Tab(text: 'Equipos (${_equipos.length})'),
-                  Tab(text: 'Herramientas (${_herramientas.length})'),
-                  Tab(text: 'Tecnológicos (${_equiposTecno.length})'),
+                  Tab(text: 'Equipos (${_data['equipo']!.total})'),
+                  Tab(text: 'Herramientas (${_data['herramienta']!.total})'),
+                  Tab(text: 'Tecnológicos (${_data['equipo_tecnologico']!.total})'),
                 ],
               ),
             ]),
           ),
+          // Chips de filtro por estado
+          _estadoChips(),
           // Lista
           Expanded(
             child: _cargando
@@ -616,9 +675,9 @@ class _State extends State<PantallaEquiposLogistica>
                     : TabBarView(
                         controller: _tabs,
                         children: [
-                          _lista(_equipos,      Icons.precision_manufacturing_outlined),
-                          _lista(_herramientas, Icons.handyman_outlined),
-                          _lista(_equiposTecno, Icons.devices_outlined),
+                          _lista('equipo',              Icons.precision_manufacturing_outlined),
+                          _lista('herramienta',         Icons.handyman_outlined),
+                          _lista('equipo_tecnologico',  Icons.devices_outlined),
                         ],
                       ),
           ),
@@ -628,17 +687,77 @@ class _State extends State<PantallaEquiposLogistica>
     );          // Scaffold
   }
 
-  Widget _lista(List<EquipoItem> items, IconData icon) {
-    if (items.isEmpty) return _emptyWidget();
+  // ── Chips de filtro por estado operativo ──────────────────────────────────
+  Widget _estadoChips() {
+    const opciones = [
+      ('todos', 'Todos'),
+      ('operativo', 'Operativo'),
+      ('en_mantenimiento', 'Mantenimiento'),
+      ('fuera_de_servicio', 'Fuera de servicio'),
+      ('baja', 'Baja'),
+    ];
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+        children: [
+          for (final (val, label) in opciones)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => _setEstado(val),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _estado == val
+                        ? (val == 'todos' ? _green : _colorEstado(val))
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                        color: _estado == val
+                            ? (val == 'todos' ? _green : _colorEstado(val))
+                            : Colors.grey.shade300),
+                  ),
+                  child: Text(label,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight:
+                              _estado == val ? FontWeight.w700 : FontWeight.w500,
+                          color: _estado == val ? Colors.white : Colors.grey.shade600)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _lista(String clase, IconData icon) {
+    final d = _data[clase]!;
+    if (d.items.isEmpty) return _emptyWidget();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
     return RefreshIndicator(
       onRefresh: _cargar,
       color: _green,
       child: ListView.builder(
+        controller: d.scroll,
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-        itemCount: items.length,
-        itemBuilder: (_, i) => _tarjeta(items[i], icon, isDark, surface),
+        itemCount: d.items.length + (d.loadingMore ? 1 : 0),
+        itemBuilder: (_, i) {
+          if (i == d.items.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                    width: 22, height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _green)),
+              ),
+            );
+          }
+          return _tarjeta(d.items[i], icon, isDark, surface);
+        },
       ),
     );
   }
@@ -756,4 +875,14 @@ class _State extends State<PantallaEquiposLogistica>
           ),
         ],
       ));
+}
+
+/// Estado paginado de una clase (equipo / herramienta / equipo_tecnologico).
+class _ClaseData {
+  List<EquipoItem> items = [];
+  int total = 0;
+  int page = 1;
+  bool hasMore = true;
+  bool loadingMore = false;
+  final ScrollController scroll = ScrollController();
 }

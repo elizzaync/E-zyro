@@ -11,6 +11,9 @@ class RequerimientoService {
     String q, {
     String? categoria,
     String tipo = 'consumible',
+    String estadoStock = 'todos',   // todos | con_stock | bajo | agotado
+    String orden = 'nombre',        // nombre | stock_asc | stock_desc | reciente
+    String? almacenId,
     int page = 1,
     int pageSize = 30,
   }) async {
@@ -19,12 +22,14 @@ class RequerimientoService {
         if (q.trim().isNotEmpty) 'q': q.trim(),
         'categoria': ?categoria,
         'tipo': tipo,
+        if (estadoStock != 'todos') 'estado_stock': estadoStock,
+        if (orden != 'nombre') 'orden': orden,
+        'almacen_id': ?almacenId,
         'page': page.toString(),
         'page_size': pageSize.toString(),
       };
-      final query = params.isEmpty
-          ? ''
-          : '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+      final query =
+          '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
       final r = await _client.get('/requerimientos/catalogo$query');
       if (r.statusCode == 200) {
         final body = jsonDecode(r.body);
@@ -38,6 +43,31 @@ class RequerimientoService {
       }
     } catch (_) {}
     return [];
+  }
+
+  /// Conteos para el header del catálogo (total / con stock / bajo / agotado).
+  /// Respeta búsqueda, categoría y almacén; ignora el filtro de estado.
+  Future<CatalogoResumen> getCatalogoResumen({
+    String q = '',
+    String? categoria,
+    String tipo = 'consumible',
+    String? almacenId,
+  }) async {
+    try {
+      final params = <String, String>{
+        if (q.trim().isNotEmpty) 'q': q.trim(),
+        'categoria': ?categoria,
+        'tipo': tipo,
+        'almacen_id': ?almacenId,
+      };
+      final query =
+          '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
+      final r = await _client.get('/requerimientos/catalogo/resumen$query');
+      if (r.statusCode == 200) {
+        return CatalogoResumen.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return const CatalogoResumen();
   }
 
   Future<List<MiSolicitud>> getMisSolicitudes() async {

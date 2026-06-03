@@ -56,6 +56,28 @@ class CatalogoItem {
       );
 
   bool get esHerramienta => tipo == 'herramienta';
+  bool get agotado    => stock <= 0;
+  bool get bajoStock  => stock > 0 && stockMinimo > 0 && stock <= stockMinimo;
+}
+
+/// Conteos del catálogo para el header de filtros.
+class CatalogoResumen {
+  final int total;
+  final int conStock;
+  final int bajo;
+  final int agotado;
+  const CatalogoResumen({
+    this.total = 0,
+    this.conStock = 0,
+    this.bajo = 0,
+    this.agotado = 0,
+  });
+  factory CatalogoResumen.fromJson(Map<String, dynamic> j) => CatalogoResumen(
+        total: (j['total'] as num?)?.toInt() ?? 0,
+        conStock: (j['con_stock'] as num?)?.toInt() ?? 0,
+        bajo: (j['bajo'] as num?)?.toInt() ?? 0,
+        agotado: (j['agotado'] as num?)?.toInt() ?? 0,
+      );
 }
 
 // ── Panel del encargado de logística ──────────────────────────────────────────

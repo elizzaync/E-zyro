@@ -22,16 +22,31 @@ class PantallaMaterialesLogistica extends StatefulWidget {
 class _PantallaMaterialesLogisticaState
     extends State<PantallaMaterialesLogistica>
     with TickerProviderStateMixin {
+  static const _pageSize = 30;
+
   RequerimientoService? _service;
   List<CatalogoItem> _materiales = [];
   List<CategoriaItem> _categorias = [];
-  bool _isLoading = true;
+  CatalogoResumen _resumen = const CatalogoResumen();
+
+  bool _isLoading = true;     // carga inicial / reset
+  bool _loadingMore = false;  // paginación incremental
+  bool _hasMore = true;
+  int _page = 1;
+
+  // ── Filtros activos ────────────────────────────────────────────────────────
+  String _estadoStock = 'todos';   // todos | con_stock | bajo | agotado
+  String? _categoriaSel;           // null = todas
+  String _orden = 'nombre';        // nombre | stock_desc | stock_asc | reciente
+
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
   Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _scrollCtrl.addListener(_onScroll);
     _init();
   }
 
@@ -39,23 +54,78 @@ class _PantallaMaterialesLogisticaState
   void dispose() {
     _debounce?.cancel();
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _init() async {
     _service = await getRequerimientoService();
-    await Future.wait([_loadMateriales(), _loadCategorias()]);
+    await Future.wait([_loadMateriales(reset: true), _loadCategorias()]);
   }
 
-  Future<void> _loadMateriales() async {
+  void _onScroll() {
+    if (_loadingMore || !_hasMore || _isLoading) return;
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 240) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadMateriales({bool reset = false}) async {
     if (_service == null) return;
-    setState(() => _isLoading = true);
-    final data = await _service!.getCatalogo(
-        _searchCtrl.text, tipo: 'consumible', pageSize: 500);
+    if (reset) {
+      setState(() {
+        _isLoading = true;
+        _page = 1;
+        _hasMore = true;
+      });
+    }
+    final results = await Future.wait([
+      _service!.getCatalogo(
+        _searchCtrl.text,
+        tipo: 'consumible',
+        categoria: _categoriaSel,
+        estadoStock: _estadoStock,
+        orden: _orden,
+        page: 1,
+        pageSize: _pageSize,
+      ),
+      _service!.getCatalogoResumen(
+        q: _searchCtrl.text,
+        tipo: 'consumible',
+        categoria: _categoriaSel,
+      ),
+    ]);
+    if (!mounted) return;
+    final items = results[0] as List<CatalogoItem>;
+    setState(() {
+      _materiales = items;
+      _resumen    = results[1] as CatalogoResumen;
+      _hasMore    = items.length >= _pageSize;
+      _page       = 1;
+      _isLoading  = false;
+    });
+  }
+
+  Future<void> _loadMore() async {
+    if (_service == null || _loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    final next = _page + 1;
+    final items = await _service!.getCatalogo(
+      _searchCtrl.text,
+      tipo: 'consumible',
+      categoria: _categoriaSel,
+      estadoStock: _estadoStock,
+      orden: _orden,
+      page: next,
+      pageSize: _pageSize,
+    );
     if (!mounted) return;
     setState(() {
-      _materiales = data;
-      _isLoading  = false;
+      _materiales.addAll(items);
+      _page = next;
+      _hasMore = items.length >= _pageSize;
+      _loadingMore = false;
     });
   }
 
@@ -68,7 +138,23 @@ class _PantallaMaterialesLogisticaState
 
   void _onSearch(String q) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), _loadMateriales);
+    _debounce = Timer(const Duration(milliseconds: 350),
+        () => _loadMateriales(reset: true));
+  }
+
+  void _setEstado(String e) {
+    setState(() => _estadoStock = _estadoStock == e ? 'todos' : e);
+    _loadMateriales(reset: true);
+  }
+
+  void _setCategoria(String? c) {
+    setState(() => _categoriaSel = c);
+    _loadMateriales(reset: true);
+  }
+
+  void _setOrden(String o) {
+    setState(() => _orden = o);
+    _loadMateriales(reset: true);
   }
 
   void _msg(bool ok, String okMsg, String errMsg) {
@@ -92,7 +178,7 @@ class _PantallaMaterialesLogisticaState
         categorias: _categorias,
       ),
     );
-    if (ok == true) await _loadMateriales();
+    if (ok == true) await _loadMateriales(reset: true);
   }
 
   Future<void> _eliminar(CatalogoItem item) async {
@@ -115,7 +201,7 @@ class _PantallaMaterialesLogisticaState
     if (confirmar != true) return;
     final ok = await _service!.eliminarMaterial(item.id);
     _msg(ok, 'Material eliminado', 'No se pudo eliminar');
-    if (ok) await _loadMateriales();
+    if (ok) await _loadMateriales(reset: true);
   }
 
   Future<void> _gestionarCategorias() async {
@@ -129,7 +215,7 @@ class _PantallaMaterialesLogisticaState
       ),
     );
     await _loadCategorias();
-    await _loadMateriales();
+    await _loadMateriales(reset: true);
   }
 
   @override
@@ -163,24 +249,49 @@ class _PantallaMaterialesLogisticaState
         speed: 0.45,
         child: Column(
           children: [
+            // ── Buscador + orden ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: TextField(
-                controller: _searchCtrl,
-                onChanged: _onSearch,
-                decoration: InputDecoration(
-                  hintText: 'Buscar...',
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchCtrl,
+                      onChanged: _onSearch,
+                      decoration: InputDecoration(
+                        hintText: 'Buscar por nombre o código...',
+                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        suffixIcon: _searchCtrl.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  _searchCtrl.clear();
+                                  _loadMateriales(reset: true);
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: Theme.of(context).colorScheme.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
+                  const SizedBox(width: 8),
+                  _ordenButton(),
+                ],
               ),
             ),
+            const SizedBox(height: 10),
+            // ── Chips de estado de stock (con conteos) ─────────────────────
+            _estadoChips(),
+            // ── Chips de categoría ─────────────────────────────────────────
+            if (_categorias.isNotEmpty) _categoriaChips(),
+            const SizedBox(height: 4),
+            // ── Lista ───────────────────────────────────────────────────────
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: _kGreen))
@@ -192,26 +303,181 @@ class _PantallaMaterialesLogisticaState
     );
   }
 
+  // ── Menú de ordenamiento ──────────────────────────────────────────────────
+  Widget _ordenButton() {
+    const labels = {
+      'nombre': 'Nombre (A-Z)',
+      'stock_desc': 'Mayor stock',
+      'stock_asc': 'Menor stock',
+      'reciente': 'Más reciente',
+    };
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: PopupMenuButton<String>(
+        icon: const Icon(Icons.sort_rounded, color: _kGreen),
+        tooltip: 'Ordenar',
+        onSelected: _setOrden,
+        itemBuilder: (_) => labels.entries
+            .map((e) => PopupMenuItem(
+                  value: e.key,
+                  child: Row(children: [
+                    Icon(
+                      _orden == e.key
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      size: 18,
+                      color: _orden == e.key ? _kGreen : Colors.grey,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(e.value),
+                  ]),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  // ── Chips de estado de stock con conteos (actúan de filtro) ───────────────
+  Widget _estadoChips() {
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          _statChip('Todos', _resumen.total, 'todos', _kGreen),
+          _statChip('Con stock', _resumen.conStock, 'con_stock', _kGreen),
+          _statChip('Bajo mínimo', _resumen.bajo, 'bajo', _kAmber),
+          _statChip('Agotado', _resumen.agotado, 'agotado', _kRed),
+        ],
+      ),
+    );
+  }
+
+  Widget _statChip(String label, int count, String value, Color color) {
+    final sel = _estadoStock == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: () => _setEstado(value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: sel ? color : Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: sel ? color : Colors.grey.shade300),
+          ),
+          child: Row(children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: sel ? Colors.white : null)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: sel
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : color.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text('$count',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: sel ? Colors.white : color)),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ── Chips de categoría ─────────────────────────────────────────────────────
+  Widget _categoriaChips() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SizedBox(
+        height: 32,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: [
+            _catChip('Todas', null),
+            ..._categorias.map((c) => _catChip(c.nombre, c.nombre)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _catChip(String label, String? value) {
+    final sel = _categoriaSel == value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: GestureDetector(
+        onTap: () => _setCategoria(value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: sel ? _kGreen.withValues(alpha: 0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+                color: sel ? _kGreen : Colors.grey.shade300),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                  color: sel ? _kGreen : Colors.grey.shade600)),
+        ),
+      ),
+    );
+  }
+
   Widget _listaItems(List<CatalogoItem> items) {
     if (items.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.inventory_2_outlined, size: 48, color: Colors.grey.shade400),
         const SizedBox(height: 12),
-        const Text('Sin registros', style: TextStyle(color: Colors.grey, fontSize: 14)),
+        Text(
+          _searchCtrl.text.isNotEmpty
+              ? 'Sin resultados para "${_searchCtrl.text}"'
+              : 'Sin registros con estos filtros',
+          style: const TextStyle(color: Colors.grey, fontSize: 14),
+        ),
       ]));
     }
     return RefreshIndicator(
-      onRefresh: _loadMateriales,
+      onRefresh: () => _loadMateriales(reset: true),
       color: _kGreen,
       child: ListView.separated(
+        controller: _scrollCtrl,
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        itemCount: items.length,
+        itemCount: items.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, i) => _MaterialRow(
-          item: items[i],
-          onEditar: () => _editar(items[i]),
-          onEliminar: () => _eliminar(items[i]),
-        ),
+        itemBuilder: (_, i) {
+          if (i == items.length) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _kGreen)),
+              ),
+            );
+          }
+          return _MaterialRow(
+            item: items[i],
+            onEditar: () => _editar(items[i]),
+            onEliminar: () => _eliminar(items[i]),
+          );
+        },
       ),
     );
   }
