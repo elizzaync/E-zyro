@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Date, DateTime, Integer, Text, ForeignKey
+from sqlalchemy import Column, String, Date, DateTime, Integer, Text, ForeignKey, Boolean
 from app.db.database import Base
 
 def generate_uuid():
@@ -28,16 +28,14 @@ class ProyectoServicio(Base):
     fecha_fin = Column(Date)
 
     # Alcance, zona y facturación heredados del legacy (por servicio)
-    zona_ejecucion = Column(String(255))  # legacy texto (caché)
-    # FKs a la jerarquía geográfica. Reemplazan `zona_ejecucion` (texto).
-    ubicacion_id = Column(String(36), ForeignKey("ubicacion.id"), nullable=True)
-    zona_id      = Column(String(36), ForeignKey("zona.id"),      nullable=True)
+    zona_ejecucion = Column(String(255))
     alcance = Column(Text)
     tipo_documento_cliente = Column(String(20))   # 'OC' | 'PROF' | 'SIN_OC'
     nro_documento = Column(String(100))
     nro_conformidad = Column(String(100), default='En Espera')
     acta_url = Column(String(500))
     public_id_cloudinary = Column(String(255))
+    tiene_equipos_intervenidos = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime)

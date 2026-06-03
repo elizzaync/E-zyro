@@ -71,7 +71,7 @@ class ServicioDetalleOut(BaseModel):
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
-    es_mantenimiento: bool = True
+    es_mantenimiento: bool = False
 
 
 class ProyectoListOut(BaseModel):
@@ -323,6 +323,7 @@ class CrearServicioBody(BaseModel):
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = "SIN_OC"   # 'OC' | 'PROF' | 'SIN_OC'
     nro_documento: Optional[str] = None
+    tiene_equipos_intervenidos: bool = False
 
 
 # ── Body: Actualizar Servicio ─────────────────────────────────────────────────
@@ -337,6 +338,7 @@ class ActualizarServicioBody(BaseModel):
     lider_id: Optional[str] = None
     responsable_id: Optional[str] = None
     zona_ejecucion: Optional[str] = None
+    tiene_equipos_intervenidos: Optional[bool] = None
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None

@@ -597,7 +597,7 @@ def get_detalle_servicio(
         alcance=ps.alcance or None,
         tipo_documento_cliente=ps.tipo_documento_cliente or None,
         nro_documento=ps.nro_documento or None,
-        es_mantenimiento=True,
+        es_mantenimiento=bool(ps.tiene_equipos_intervenidos),
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -2625,11 +2625,12 @@ def crear_servicio(
         orden                  = max_orden + 1,
         lider_id               = lider_id,
         responsable_id         = responsable_id,
-        zona_ejecucion         = body.zona_ejecucion or None,
-        alcance                = body.alcance or None,
-        tipo_documento_cliente = tipo_doc,
-        nro_documento          = nro_doc,
-        fecha_programada       = _parse_date(body.fecha_programada),
+        zona_ejecucion             = body.zona_ejecucion or None,
+        alcance                    = body.alcance or None,
+        tipo_documento_cliente     = tipo_doc,
+        nro_documento              = nro_doc,
+        tiene_equipos_intervenidos = bool(body.tiene_equipos_intervenidos),
+        fecha_programada           = _parse_date(body.fecha_programada),
         fecha_inicio           = _parse_date(body.fecha_inicio),
         fecha_fin              = _parse_date(body.fecha_fin),
         created_at             = datetime.utcnow(),
@@ -2713,6 +2714,8 @@ def actualizar_servicio(
         ps.zona_ejecucion = body.zona_ejecucion or None
     if body.alcance is not None:
         ps.alcance = body.alcance or None
+    if body.tiene_equipos_intervenidos is not None:
+        ps.tiene_equipos_intervenidos = bool(body.tiene_equipos_intervenidos)
     if body.tipo_documento_cliente is not None:
         tipo_doc, nro_doc = _normalizar_documento(body.tipo_documento_cliente, body.nro_documento)
         ps.tipo_documento_cliente = tipo_doc
