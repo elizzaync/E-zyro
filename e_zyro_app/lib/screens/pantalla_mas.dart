@@ -9,6 +9,7 @@ import '../widgets/topo_background.dart';
 import 'pantalla_auditoria.dart';
 import 'pantalla_mantenimientos.dart';
 import 'pantalla_comunicados.dart';
+import 'pantalla_soporte.dart';
 import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
 import 'pantalla_personal.dart';
@@ -242,6 +243,14 @@ class _MoreScreenState extends State<MoreScreen> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const PantallaTramites()),
+                  ),
+                ),
+                _MenuItem(
+                  icon: Icons.support_agent_outlined,
+                  label: 'Soporte TI',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaSoporte()),
                   ),
                 ),
                 _MenuItem(

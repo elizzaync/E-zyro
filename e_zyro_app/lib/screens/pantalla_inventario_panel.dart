@@ -208,7 +208,7 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
         icon: Icons.shopping_cart_checkout_rounded,
         color: kPaperLilac,
         label: 'Compras',
-        subtitle: 'Órdenes',
+        subtitle: 'Tickets',
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const PantallaComprasLogistica())),
       ),
