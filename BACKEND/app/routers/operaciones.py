@@ -687,6 +687,8 @@ def get_detalle_servicio(
         tipo_documento_cliente=ps.tipo_documento_cliente or None,
         nro_documento=ps.nro_documento or None,
         es_mantenimiento=bool(ps.tiene_equipos_intervenidos),
+        ubicacion_id=str(ps.ubicacion_id) if ps.ubicacion_id else None,
+        zona_id=str(ps.zona_id) if ps.zona_id else None,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -2839,6 +2841,8 @@ def crear_servicio(
         orden                  = max_orden + 1,
         lider_id               = lider_id,
         responsable_id         = responsable_id,
+        ubicacion_id               = body.ubicacion_id or None,
+        zona_id                    = body.zona_id or None,
         zona_ejecucion             = body.zona_ejecucion or None,
         alcance                    = body.alcance or None,
         tipo_documento_cliente     = tipo_doc,
@@ -2927,6 +2931,10 @@ def actualizar_servicio(
                 raise HTTPException(status_code=404, detail="Técnico líder no encontrado.")
         ps.responsable_id = responsable_id
 
+    if body.ubicacion_id is not None:
+        ps.ubicacion_id = body.ubicacion_id or None
+    if body.zona_id is not None:
+        ps.zona_id = body.zona_id or None
     if body.zona_ejecucion is not None:
         ps.zona_ejecucion = body.zona_ejecucion or None
     if body.alcance is not None:
@@ -3342,8 +3350,9 @@ def _map_hi(hi: HistorialInspeccion) -> dict:
 
 
 # ── GET /servicio/{id}/equipos-intervenidos ───────────────────────────────────
-# Devuelve TODOS los activos de la empresa con su estado de inspección
-# en este servicio (buscando en historial_inspeccion).
+# Devuelve los activos de la empresa filtrados por la ubicacion/zona del servicio.
+# Si el servicio no tiene zona, muestra todos los de la ubicacion.
+# Si tampoco tiene ubicacion, muestra todos los de la empresa.
 
 @router.get("/servicio/{servicio_id}/equipos-intervenidos")
 def list_equipos_intervenidos(
@@ -3353,7 +3362,18 @@ def list_equipos_intervenidos(
 ):
     empresa_id = payload["empresa_id"]
 
-    # Obtener el estado de inspección de cada equipo en este servicio
+    # Obtener el servicio para conocer su ubicacion/zona
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    servicio_ubicacion_id = str(ps.ubicacion_id) if ps.ubicacion_id else None
+    servicio_zona_id      = str(ps.zona_id)      if ps.zona_id      else None
+
+    # Subquery: última inspección de cada equipo en este servicio
     historial_sq = (
         db.query(
             HistorialInspeccion.equipo_intervenido_id,
@@ -3364,7 +3384,7 @@ def list_equipos_intervenidos(
         .subquery()
     )
 
-    rows = (
+    q = (
         db.query(
             EquipoIntervenido,
             TipoEquipo.nombre.label("tipo_nombre"),
@@ -3385,14 +3405,18 @@ def list_equipos_intervenidos(
             EquipoIntervenido.empresa_id == empresa_id,
             EquipoIntervenido.activo     == True,
         )
-        .order_by(
-            Ubicacion.nombre.asc(),
-            Zona.nombre.asc(),
-            TipoEquipo.nombre.asc(),
-            EquipoIntervenido.nombre.asc(),
-        )
-        .all()
     )
+
+    # Filtro geográfico: zona > ubicacion > todo
+    if servicio_zona_id:
+        q = q.filter(EquipoIntervenido.zona_id == servicio_zona_id)
+    elif servicio_ubicacion_id:
+        q = q.filter(EquipoIntervenido.ubicacion_id == servicio_ubicacion_id)
+
+    rows = q.order_by(
+        TipoEquipo.nombre.asc(),
+        EquipoIntervenido.nombre.asc(),
+    ).all()
 
     return [
         {
