@@ -50,6 +50,8 @@ from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
 from ..models.equipo_intervenido import EquipoIntervenido
 from ..models.historial_inspeccion import HistorialInspeccion
+from ..models.ubicacion import Ubicacion
+from ..models.zona import Zona
 from ..models.catalogo_servicio import CatalogoServicio
 from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
 from ..models.seguimiento_proyecto import SeguimientoProyecto
@@ -3339,7 +3341,9 @@ def _map_hi(hi: HistorialInspeccion) -> dict:
     }
 
 
-# ── GET  /operaciones/servicio/{id}/equipos-intervenidos ─────────────────────
+# ── GET /servicio/{id}/equipos-intervenidos ───────────────────────────────────
+# Devuelve TODOS los activos de la empresa con su estado de inspección
+# en este servicio (buscando en historial_inspeccion).
 
 @router.get("/servicio/{servicio_id}/equipos-intervenidos")
 def list_equipos_intervenidos(
@@ -3349,182 +3353,114 @@ def list_equipos_intervenidos(
 ):
     empresa_id = payload["empresa_id"]
 
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-
-    rows = (
-        db.query(EquipoIntervenido, TipoEquipo.nombre.label("tipo_nombre"))
-        .outerjoin(TipoEquipo, TipoEquipo.id == EquipoIntervenido.tipo_equipo_id)
-        .filter(
-            EquipoIntervenido.proyecto_servicio_id == servicio_id,
-            EquipoIntervenido.empresa_id           == empresa_id,
+    # Obtener el estado de inspección de cada equipo en este servicio
+    historial_sq = (
+        db.query(
+            HistorialInspeccion.equipo_intervenido_id,
+            func.max(HistorialInspeccion.created_at).label("ultima"),
         )
-        .order_by(EquipoIntervenido.created_at.asc())
-        .all()
-    )
-
-    return [_map_ei(ei, tn) for ei, tn in rows]
-
-
-# ── GET /operaciones/servicio/{id}/equipos-disponibles ────────────────────────
-
-@router.get("/servicio/{servicio_id}/equipos-disponibles")
-def list_equipos_disponibles(
-    servicio_id: str,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-
-    # IDs de activos ya vinculados a este servicio
-    ya_vinculados = (
-        db.query(EquipoIntervenido.id)
-        .filter(EquipoIntervenido.proyecto_servicio_id == servicio_id)
+        .filter(HistorialInspeccion.proyecto_servicio_id == servicio_id)
+        .group_by(HistorialInspeccion.equipo_intervenido_id)
         .subquery()
     )
 
     rows = (
-        db.query(EquipoIntervenido, TipoEquipo.nombre.label("tipo_nombre"))
-        .outerjoin(TipoEquipo, TipoEquipo.id == EquipoIntervenido.tipo_equipo_id)
+        db.query(
+            EquipoIntervenido,
+            TipoEquipo.nombre.label("tipo_nombre"),
+            Ubicacion.nombre.label("ubicacion_nombre"),
+            Zona.nombre.label("zona_nombre"),
+            HistorialInspeccion.estado.label("estado_inspeccion"),
+        )
+        .outerjoin(TipoEquipo,  TipoEquipo.id  == EquipoIntervenido.tipo_equipo_id)
+        .outerjoin(Ubicacion,   Ubicacion.id   == EquipoIntervenido.ubicacion_id)
+        .outerjoin(Zona,        Zona.id        == EquipoIntervenido.zona_id)
+        .outerjoin(historial_sq, historial_sq.c.equipo_intervenido_id == EquipoIntervenido.id)
+        .outerjoin(
+            HistorialInspeccion,
+            (HistorialInspeccion.equipo_intervenido_id == EquipoIntervenido.id) &
+            (HistorialInspeccion.created_at            == historial_sq.c.ultima),
+        )
         .filter(
             EquipoIntervenido.empresa_id == empresa_id,
             EquipoIntervenido.activo     == True,
-            EquipoIntervenido.id.notin_(ya_vinculados),
         )
-        .order_by(EquipoIntervenido.nombre.asc())
+        .order_by(
+            Ubicacion.nombre.asc(),
+            Zona.nombre.asc(),
+            TipoEquipo.nombre.asc(),
+            EquipoIntervenido.nombre.asc(),
+        )
         .all()
     )
 
     return [
         {
-            "id":         str(ei.id),
-            "nombre":     ei.nombre or "",
-            "codigo":     ei.codigo or None,
-            "tipo_nombre": tn or None,
-            "marca":      ei.marca or None,
-            "modelo":     ei.modelo or None,
-            "ubicacion":  None,
-            "estado":     ei.estado or "operativo",
+            "id":                    str(ei.id),
+            "nombre":                ei.nombre or "",
+            "codigo":                ei.codigo or None,
+            "tipo_nombre":           tipo_nombre or None,
+            "tipo_equipo_id":        str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
+            "marca":                 ei.marca or None,
+            "modelo":                ei.modelo or None,
+            "numero_serie":          ei.numero_serie or None,
+            "estado":                ei.estado or "operativo",
+            "ubicacion":             ubicacion_nombre or None,
+            "zona":                  zona_nombre or None,
+            "estado_intervencion":   estado_inspeccion or "sin_inspeccion",
+            "observaciones":         ei.observaciones or None,
         }
-        for ei, tn in rows
+        for ei, tipo_nombre, ubicacion_nombre, zona_nombre, estado_inspeccion in rows
     ]
 
 
-# ── POST /operaciones/servicio/{id}/equipos-intervenidos ──────────────────────
+# ── POST /servicio/{id}/equipos-intervenidos ──────────────────────────────────
+# Crea un NUEVO activo en el catálogo de la empresa.
 
 @router.post("/servicio/{servicio_id}/equipos-intervenidos", status_code=status.HTTP_201_CREATED)
-def agregar_equipo_intervenido(
+def crear_equipo_catalogo(
     servicio_id: str,
     body: dict,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
-    activo_id  = (body or {}).get("activo_cliente_id", "")
+    nombre     = (body or {}).get("nombre", "").strip()
+    if not nombre:
+        raise HTTPException(status_code=422, detail="nombre requerido")
 
-    if not activo_id:
-        raise HTTPException(status_code=422, detail="activo_cliente_id requerido")
+    tipo_id  = (body or {}).get("tipo_equipo_id")
+    ubic_id  = (body or {}).get("ubicacion_id")
+    zona_id  = (body or {}).get("zona_id")
+    desc     = (body or {}).get("descripcion") or None
+    cliente_id = (body or {}).get("cliente_id") or None
 
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
-
-    # activo_cliente_id referencia un registro en equipo_intervenido
-    ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id         == activo_id,
-        EquipoIntervenido.empresa_id == empresa_id,
-    ).first()
-    if not ei:
-        raise HTTPException(status_code=404, detail="Activo no encontrado")
-
-    if str(ei.proyecto_servicio_id) == str(servicio_id):
-        raise HTTPException(status_code=409, detail="El activo ya está vinculado a este servicio")
-
-    ei.proyecto_servicio_id = servicio_id
-    ei.estado_intervencion  = "pendiente"
-    ei.updated_at           = datetime.utcnow()
+    nid = str(_uuid.uuid4())
+    ei  = EquipoIntervenido(
+        id             = nid,
+        empresa_id     = empresa_id,
+        cliente_id     = cliente_id,
+        nombre         = nombre,
+        tipo_equipo_id = tipo_id or None,
+        ubicacion_id   = ubic_id or None,
+        zona_id        = zona_id or None,
+        observaciones  = desc,
+        estado         = "operativo",
+        activo         = True,
+    )
+    db.add(ei)
     db.commit()
 
-    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
-    return _map_ei(ei, tipo.nombre if tipo else None)
+    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == tipo_id).first() if tipo_id else None
+    return {
+        "id":           nid,
+        "nombre":       nombre,
+        "tipo_nombre":  tipo.nombre if tipo else None,
+        "estado_intervencion": "sin_inspeccion",
+    }
 
 
-# ── PATCH /operaciones/servicio/{id}/equipos-intervenidos/{eiId} ──────────────
-
-@router.patch("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}")
-def actualizar_equipo_intervenido(
-    servicio_id: str,
-    ei_id:       str,
-    body: dict,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-
-    ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
-    ).first()
-    if not ei:
-        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
-
-    if "estado_intervencion" in body:
-        estados = {"pendiente", "en_proceso", "completado", "cancelado"}
-        if body["estado_intervencion"] not in estados:
-            raise HTTPException(status_code=422, detail="Estado inválido")
-        ei.estado_intervencion = body["estado_intervencion"]
-
-    if "observaciones" in body:
-        ei.observaciones = body["observaciones"] or None
-
-    ei.updated_at = datetime.utcnow()
-    db.commit()
-    return {"ok": True}
-
-
-# ── DELETE /operaciones/servicio/{id}/equipos-intervenidos/{eiId} ─────────────
-
-@router.delete("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}")
-def quitar_equipo_intervenido(
-    servicio_id: str,
-    ei_id:       str,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-
-    ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
-    ).first()
-    if not ei:
-        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
-
-    # Desvincular el activo del servicio (no borrar el activo en sí)
-    ei.proyecto_servicio_id = None
-    ei.estado_intervencion  = "pendiente"
-    ei.updated_at           = datetime.utcnow()
-    db.commit()
-    return {"ok": True}
-
-
-# ── GET /operaciones/servicio/{id}/equipos-intervenidos/{eiId}/detalle ─────────
+# ── GET /servicio/{id}/equipos-intervenidos/{eiId}/detalle ────────────────────
 
 @router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/detalle")
 def detalle_equipo_intervenido(
@@ -3536,9 +3472,8 @@ def detalle_equipo_intervenido(
     empresa_id = payload["empresa_id"]
 
     ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
     ).first()
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
@@ -3546,16 +3481,15 @@ def detalle_equipo_intervenido(
     tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
 
     return {
-        "id":                  str(ei.id),
-        "nombre":              ei.nombre or "",
-        "codigo":              ei.codigo or None,
-        "tipo_nombre":         tipo.nombre if tipo else None,
-        "marca":               ei.marca or None,
-        "modelo":              ei.modelo or None,
-        "numero_serie":        ei.numero_serie or None,
-        "estado":              ei.estado or "operativo",
-        "estado_intervencion": ei.estado_intervencion or "pendiente",
-        "observaciones":       ei.observaciones or None,
+        "id":           str(ei.id),
+        "nombre":       ei.nombre or "",
+        "codigo":       ei.codigo or None,
+        "tipo_nombre":  tipo.nombre if tipo else None,
+        "marca":        ei.marca or None,
+        "modelo":       ei.modelo or None,
+        "numero_serie": ei.numero_serie or None,
+        "estado":       ei.estado or "operativo",
+        "observaciones": ei.observaciones or None,
     }
 
 
@@ -3573,9 +3507,8 @@ def get_inspeccion_activa(
     empresa_id = payload["empresa_id"]
 
     ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
     ).first()
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
