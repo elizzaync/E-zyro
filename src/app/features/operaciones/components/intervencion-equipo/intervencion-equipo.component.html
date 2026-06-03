@@ -158,43 +158,51 @@
               @if (paso.descripcion) { <p class="iv-paso-desc">{{ paso.descripcion }}</p> }
 
               <!-- Zona de evidencia fotográfica -->
-              <label class="iv-foto-zona"
-                [class.iv-foto-done]="!!paso.fotoUrl"
-                [class.iv-foto-disabled]="estaFinalizado">
-
+              <div class="iv-foto-wrap">
                 @if (paso.subiendoFoto) {
                   <div class="iv-foto-uploading">
                     <app-spinner></app-spinner>
                     <span>Subiendo foto…</span>
                   </div>
                 } @else if (paso.fotoUrl) {
-                  <img class="iv-foto-thumb" [src]="paso.fotoUrl" alt="Evidencia del paso {{ paso.orden }}">
-                  @if (!estaFinalizado) {
-                    <div class="iv-foto-overlay">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                        <circle cx="12" cy="13" r="4"/>
-                      </svg>
-                      <span>Cambiar foto</span>
-                    </div>
-                  }
-                } @else {
-                  <div class="iv-foto-placeholder">
+                  <!-- Foto subida: preview + botones cambiar/quitar -->
+                  <div class="iv-foto-preview">
+                    <img class="iv-foto-thumb" [src]="paso.fotoUrl" alt="Evidencia paso {{ paso.orden }}">
+                    @if (!estaFinalizado) {
+                      <div class="iv-foto-acciones">
+                        <label class="iv-foto-btn-cambiar" title="Cambiar foto">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                          </svg>
+                          Cambiar
+                          <input type="file" accept="image/*" capture="environment" class="iv-foto-input-hidden"
+                            (change)="onFotoSeleccionada($event, paso)"
+                            [disabled]="paso.subiendoFoto">
+                        </label>
+                        <button class="iv-foto-btn-quitar" (click)="quitarFoto(paso)" title="Quitar foto">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                          Quitar
+                        </button>
+                      </div>
+                    }
+                  </div>
+                } @else if (!estaFinalizado) {
+                  <!-- Sin foto: zona de carga -->
+                  <label class="iv-foto-zona">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
                       <circle cx="12" cy="13" r="4"/>
                     </svg>
-                    <span class="iv-foto-text">Adjuntar evidencia fotográfica</span>
-                    <span class="iv-foto-sub">Toca para tomar o elegir una foto</span>
-                  </div>
+                    <span class="iv-foto-text">Subir evidencia fotográfica</span>
+                    <span class="iv-foto-sub">Toca para tomar o seleccionar una foto</span>
+                    <input type="file" accept="image/*" capture="environment" class="iv-foto-input"
+                      (change)="onFotoSeleccionada($event, paso)">
+                  </label>
                 }
-
-                @if (!estaFinalizado) {
-                  <input type="file" accept="image/*" capture="environment" class="iv-foto-input"
-                    (change)="onFotoSeleccionada($event, paso)"
-                    [disabled]="paso.subiendoFoto">
-                }
-              </label>
+              </div>
 
             </div>
           </div>

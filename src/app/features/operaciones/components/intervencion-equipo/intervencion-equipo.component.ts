@@ -156,6 +156,25 @@ export class IntervencionEquipoComponent implements OnInit {
     });
   }
 
+  // ── Quitar foto de un paso ───────────────────────────────────────────────
+  quitarFoto(paso: PasoLocal): void {
+    if (this.estaFinalizado || paso.subiendoFoto) return;
+    const urlAnterior = paso.fotoUrl;
+    paso.fotoUrl      = null;
+    paso.fotoPublicId = null;
+
+    // Si la foto ya estaba en Cloudinary (URL real, no preview local) la borramos en backend
+    if (urlAnterior && urlAnterior.startsWith('http')) {
+      this.svc.quitarFotoEI(this.servicioId, this.eiId, paso.id).subscribe({
+        error: () => {
+          // Si falla el borrado en servidor, revertir preview
+          paso.fotoUrl = urlAnterior;
+          this.toast.mostrar('No se pudo quitar la foto. Intenta de nuevo.', 'error');
+        }
+      });
+    }
+  }
+
   // ── Guardado global ──────────────────────────────────────────────────────
   guardar(): void {
     if (this.guardando || this.estaFinalizado) return;

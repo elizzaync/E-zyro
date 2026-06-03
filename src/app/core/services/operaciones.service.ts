@@ -299,4 +299,10 @@ export class OperacionesService {
       payload
     );
   }
+
+  quitarFotoEI(servicioId: string, eiId: string, pasoId: string): Observable<any> {
+    return this.http.delete(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/paso/${pasoId}/foto`
+    );
+  }
 }

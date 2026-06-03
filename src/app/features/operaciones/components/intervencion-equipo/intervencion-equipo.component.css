@@ -265,69 +265,107 @@
 .iv-btn-desmarcar svg { width: 13px; height: 13px; }
 .iv-btn-desmarcar:hover { border-color: #ef4444; color: #ef4444; }
 
-/* Zona foto */
-.iv-foto-zona {
-  display: block;
-  position: relative;
-  width: 100%;
-  max-width: 320px;
-  border-radius: var(--iv-radius-sm);
-  overflow: hidden;
-  cursor: pointer;
+/* ── Zona foto ──────────────────────────────────────────────────── */
+.iv-foto-wrap {
   margin-bottom: 10px;
-  background: var(--iv-card2);
-  border: 1.5px dashed var(--iv-border);
-  transition: border-color .15s;
+  max-width: 340px;
 }
-.iv-foto-zona:hover:not(.iv-foto-disabled) { border-color: var(--iv-accent); }
-.iv-foto-zona.iv-foto-done  { border-style: solid; border-color: var(--iv-border); }
-.iv-foto-zona.iv-foto-disabled { cursor: default; opacity: .7; }
 
-.iv-foto-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 20px 12px;
-  color: var(--iv-muted);
-  text-align: center;
-}
-.iv-foto-placeholder svg { width: 32px; height: 32px; opacity: .5; }
-.iv-foto-text { font-size: .8rem; font-weight: 500; }
-.iv-foto-sub  { font-size: .72rem; opacity: .7; }
-
-.iv-foto-thumb {
-  display: block;
-  width: 100%;
-  max-height: 180px;
-  object-fit: cover;
-}
-.iv-foto-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,.55);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  opacity: 0;
-  transition: opacity .2s;
-  color: #fff;
-  font-size: .8rem;
-}
-.iv-foto-zona:hover .iv-foto-overlay { opacity: 1; }
-.iv-foto-overlay svg { width: 20px; height: 20px; }
-
+/* Uploading */
 .iv-foto-uploading {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px;
+  padding: 14px 16px;
+  background: var(--iv-card2);
+  border: 1px solid var(--iv-border);
+  border-radius: var(--iv-radius-sm);
   color: var(--iv-muted);
   font-size: .85rem;
 }
 
+/* Preview con foto subida */
+.iv-foto-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.iv-foto-thumb {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  border-radius: var(--iv-radius-sm);
+  border: 1px solid var(--iv-border);
+}
+.iv-foto-acciones {
+  display: flex;
+  gap: 8px;
+}
+.iv-foto-btn-cambiar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: var(--iv-card2);
+  border: 1px solid var(--iv-border);
+  border-radius: 7px;
+  color: var(--iv-muted);
+  font-size: .78rem;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+  position: relative;
+  overflow: hidden;
+}
+.iv-foto-btn-cambiar svg { width: 13px; height: 13px; }
+.iv-foto-btn-cambiar:hover { border-color: var(--iv-accent); color: var(--iv-accent); }
+.iv-foto-input-hidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+.iv-foto-btn-quitar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: none;
+  border: 1px solid rgba(239,68,68,.35);
+  border-radius: 7px;
+  color: #f87171;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+.iv-foto-btn-quitar svg { width: 13px; height: 13px; }
+.iv-foto-btn-quitar:hover { background: rgba(239,68,68,.1); }
+
+/* Zona de carga (sin foto) */
+.iv-foto-zona {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 20px 14px;
+  width: 100%;
+  background: var(--iv-card2);
+  border: 1.5px dashed var(--iv-border);
+  border-radius: var(--iv-radius-sm);
+  color: var(--iv-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.iv-foto-zona:hover { border-color: var(--iv-accent); }
+.iv-foto-zona svg { width: 28px; height: 28px; opacity: .5; }
+.iv-foto-text { font-size: .82rem; font-weight: 600; }
+.iv-foto-sub  { font-size: .72rem; opacity: .7; }
 .iv-foto-input {
   position: absolute;
   inset: 0;
