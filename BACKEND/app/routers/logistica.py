@@ -216,9 +216,9 @@ def _material_out(db: Session, mat: Material, empresa_id: str) -> MaterialOut:
 
 
 def _equipo_out(e: Equipo) -> EquipoOut:
-    # Normalizar clase: valores legacy como 'equipo_tecnologico' se mapean a 'equipo'
     clase_raw = (e.clase or "equipo").lower()
-    clase = clase_raw if clase_raw in ("equipo", "herramienta") else "equipo"
+    clases_validas = ("equipo", "herramienta", "equipo_tecnologico")
+    clase = clase_raw if clase_raw in clases_validas else "equipo"
     return EquipoOut(
         id=str(e.id), codigo=e.codigo or "", nombre=e.nombre,
         clase=clase,
@@ -677,7 +677,7 @@ def eliminar_material(
 @router.get("/equipos", response_model=EquiposListResponse)
 def listar_equipos(
     q:        str = Query("", description="texto: nombre/código/marca/serie"),
-    clase:    str = Query("todas", description="todas|equipo|herramienta"),
+    clase:    str = Query("todas", description="todas|equipo|herramienta|equipo_tecnologico"),
     estado:   str = Query("todos", description="todos|operativo|en_mantenimiento|fuera_de_servicio|baja"),
     page:     int = Query(1, ge=1),
     page_size: int = Query(30, ge=1, le=200),
@@ -695,7 +695,7 @@ def listar_equipos(
             func.lower(Equipo.marca).like(like),
             func.lower(Equipo.numero_serie).like(like),
         ))
-    if clase in ("equipo", "herramienta"):
+    if clase in ("equipo", "herramienta", "equipo_tecnologico"):
         base = base.filter(Equipo.clase == clase)
     if estado != "todos":
         base = base.filter(Equipo.estado == estado)
@@ -3632,7 +3632,7 @@ def listar_incidencias(
 
     if estado:
         base = base.filter(Incidencia.estado == estado)
-    if clase in ("equipo", "herramienta"):
+    if clase in ("equipo", "herramienta", "equipo_tecnologico"):
         base = base.join(Equipo, Equipo.id == Incidencia.equipo_id).filter(Equipo.clase == clase)
     if desde:
         try:

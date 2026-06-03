@@ -77,7 +77,7 @@ class MaterialesListResponse(BaseModel):
 # EQUIPOS Y HERRAMIENTAS
 # ═══════════════════════════════════════════════════════════════════════════
 
-ClaseArticulo = Literal["equipo", "herramienta"]
+ClaseArticulo = Literal["equipo", "herramienta", "equipo_tecnologico"]
 EstadoEquipo  = Literal["operativo", "en_mantenimiento", "fuera_de_servicio", "baja"]
 FrecuenciaMant = Literal["ninguno", "mensual", "trimestral", "semestral", "anual"]
 
