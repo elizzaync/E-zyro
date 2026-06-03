@@ -115,6 +115,16 @@
             {{ getCatalogoSeleccionado()?.descripcion }}
           </div>
           }
+
+          <!-- Badge mantenimiento -->
+          @if (esMantenimiento) {
+          <div class="mant-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+            </svg>
+            Se habilitará el módulo de <strong>Equipos Intervenidos</strong> al crear este servicio.
+          </div>
+          }
         </div>
 
         <!-- Descripción -->
@@ -303,24 +313,137 @@
             <span class="field-hint">Técnico que tendrá el mando operativo durante la ejecución.</span>
           </div>
 
-          <!-- Zona de Ejecución -->
+          <!-- ── Ubicación ────────────────────────────────────────── -->
           <div class="field-group">
-            <label class="field-label" for="csm_zona">
+            <label class="field-label">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
                 <circle cx="12" cy="10" r="3"/>
               </svg>
-              Zona de Ejecución
+              Ubicación
               <span class="label-optional">(opcional)</span>
             </label>
-            <input
-              id="csm_zona"
-              type="text"
-              class="field-input"
-              formControlName="zona_ejecucion"
-              placeholder="Ej: Planta Norte — Lote 2"
-            >
+
+            <div class="geo-dropdown">
+              <!-- Trigger -->
+              <div class="geo-trigger" [class.open]="showUbicDrop" (click)="toggleUbicDrop()">
+                @if (ubicSelLabel) {
+                  <span class="geo-value">{{ ubicSelLabel }}</span>
+                  <button class="geo-clear" type="button" (click)="$event.stopPropagation(); limpiarUbicacion()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                } @else {
+                  <span class="geo-placeholder">{{ cargandoUbicaciones ? 'Cargando…' : '— Seleccionar ubicación —' }}</span>
+                  <svg class="geo-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                }
+              </div>
+
+              <!-- Panel -->
+              @if (showUbicDrop) {
+              <div class="geo-panel">
+                <input class="geo-search" type="text" placeholder="Buscar ubicación…"
+                       [(ngModel)]="ubicSearch" [ngModelOptions]="{standalone: true}"
+                       (click)="$event.stopPropagation()" autofocus>
+
+                <ul class="geo-list">
+                  @for (u of ubicFiltradas; track u.id) {
+                    <li class="geo-opt" (click)="seleccionarUbicacion(u)">{{ u.nombre }}</li>
+                  }
+                  @if (ubicFiltradas.length === 0 && !addingUbic) {
+                    <li class="geo-empty">Sin resultados</li>
+                  }
+                </ul>
+
+                <!-- Agregar nueva -->
+                @if (!addingUbic) {
+                <button class="geo-add-btn" type="button" (click)="iniciarNuevaUbic()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Agregar nueva ubicación
+                </button>
+                } @else {
+                <div class="geo-add-form" (click)="$event.stopPropagation()">
+                  <input class="geo-add-input" type="text" placeholder="Nombre de la ubicación"
+                         [(ngModel)]="nuevaUbicNom" [ngModelOptions]="{standalone: true}"
+                         (keydown.enter)="guardarNuevaUbic()">
+                  <div class="geo-add-actions">
+                    <button class="geo-add-save" type="button" [disabled]="guardandoUbic || !nuevaUbicNom.trim()" (click)="guardarNuevaUbic()">
+                      @if (guardandoUbic) { <app-spinner></app-spinner> } @else { Guardar }
+                    </button>
+                    <button class="geo-add-cancel" type="button" (click)="cancelarNuevaUbic()">Cancelar</button>
+                  </div>
+                </div>
+                }
+              </div>
+              }
+            </div>
+            <span class="field-hint">Sede o instalación donde se ejecuta el servicio. Determina qué activos del cliente estarán disponibles.</span>
           </div>
+
+          <!-- ── Zona ──────────────────────────────────────────────── -->
+          <div class="field-group">
+            <label class="field-label">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/>
+              </svg>
+              Zona / Área
+              <span class="label-optional">(opcional)</span>
+            </label>
+
+            <div class="geo-dropdown" [class.disabled]="!ctrl('ubicacion_id')?.value">
+              <div class="geo-trigger" [class.open]="showZonaDrop"
+                   [class.geo-disabled]="!ctrl('ubicacion_id')?.value"
+                   (click)="toggleZonaDrop()">
+                @if (zonaSelLabel) {
+                  <span class="geo-value">{{ zonaSelLabel }}</span>
+                  <button class="geo-clear" type="button" (click)="$event.stopPropagation(); limpiarZona()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                } @else {
+                  <span class="geo-placeholder">
+                    {{ !ctrl('ubicacion_id')?.value ? 'Selecciona una ubicación primero' : cargandoZonas ? 'Cargando…' : '— Seleccionar zona —' }}
+                  </span>
+                  <svg class="geo-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                }
+              </div>
+
+              @if (showZonaDrop) {
+              <div class="geo-panel">
+                <input class="geo-search" type="text" placeholder="Buscar zona…"
+                       [(ngModel)]="zonaSearch" [ngModelOptions]="{standalone: true}"
+                       (click)="$event.stopPropagation()" autofocus>
+
+                <ul class="geo-list">
+                  @for (z of zonasFiltradas; track z.id) {
+                    <li class="geo-opt" (click)="seleccionarZona(z)">{{ z.nombre }}</li>
+                  }
+                  @if (zonasFiltradas.length === 0 && !addingZona) {
+                    <li class="geo-empty">Sin resultados</li>
+                  }
+                </ul>
+
+                @if (!addingZona) {
+                <button class="geo-add-btn" type="button" (click)="iniciarNuevaZona()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Agregar nueva zona
+                </button>
+                } @else {
+                <div class="geo-add-form" (click)="$event.stopPropagation()">
+                  <input class="geo-add-input" type="text" placeholder="Nombre de la zona"
+                         [(ngModel)]="nuevaZonaNom" [ngModelOptions]="{standalone: true}"
+                         (keydown.enter)="guardarNuevaZona()">
+                  <div class="geo-add-actions">
+                    <button class="geo-add-save" type="button" [disabled]="guardandoZona || !nuevaZonaNom.trim()" (click)="guardarNuevaZona()">
+                      @if (guardandoZona) { <app-spinner></app-spinner> } @else { Guardar }
+                    </button>
+                    <button class="geo-add-cancel" type="button" (click)="cancelarNuevaZona()">Cancelar</button>
+                  </div>
+                </div>
+                }
+              </div>
+              }
+            </div>
+          </div>
+
         </div>
 
         <!-- Grid 3 columnas: Fechas -->

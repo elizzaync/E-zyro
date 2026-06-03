@@ -452,3 +452,212 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   BADGE MANTENIMIENTO
+══════════════════════════════════════════════════════════════ */
+.mant-badge {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: var(--csm-radius-sm);
+  background: rgba(145, 211, 55, .10);
+  border: 1px solid rgba(145, 211, 55, .30);
+  color: var(--csm-accent);
+  font-size: .8rem;
+  line-height: 1.45;
+}
+.mant-badge svg {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  stroke: var(--csm-accent);
+}
+.mant-badge strong { font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════════════
+   GEO DROPDOWN — select con búsqueda + agregar nueva
+══════════════════════════════════════════════════════════════ */
+.geo-dropdown {
+  position: relative;
+}
+.geo-dropdown.disabled { opacity: .55; pointer-events: none; }
+
+.geo-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--csm-border);
+  border-radius: var(--csm-radius-sm);
+  background: var(--csm-surface);
+  color: var(--csm-text);
+  cursor: pointer;
+  transition: border-color .18s, box-shadow .18s;
+  font-size: .9rem;
+}
+.geo-trigger:hover,
+.geo-trigger.open {
+  border-color: var(--csm-accent);
+  box-shadow: 0 0 0 3px var(--csm-accent-dim);
+}
+.geo-trigger.geo-disabled { cursor: not-allowed; }
+
+.geo-value   { flex: 1; font-weight: 500; color: var(--csm-text); }
+.geo-placeholder { flex: 1; color: var(--csm-dimmed); }
+
+.geo-chevron {
+  width: 16px; height: 16px;
+  stroke: var(--csm-dimmed);
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+.geo-trigger.open .geo-chevron { transform: rotate(180deg); }
+
+.geo-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  color: var(--csm-dimmed);
+  flex-shrink: 0;
+  transition: color .15s, background .15s;
+}
+.geo-clear:hover { color: var(--csm-danger); background: rgba(239,68,68,.1); }
+.geo-clear svg { width: 13px; height: 13px; }
+
+/* Panel desplegable */
+.geo-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0; right: 0;
+  z-index: 200;
+  background: var(--csm-surface);
+  border: 1px solid var(--csm-border);
+  border-radius: var(--csm-radius-sm);
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+  overflow: hidden;
+  animation: geoFadeIn .12s ease;
+}
+@keyframes geoFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.geo-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: none;
+  border-bottom: 1px solid var(--csm-border);
+  background: var(--csm-surface2);
+  color: var(--csm-text);
+  font-size: .875rem;
+  outline: none;
+}
+.geo-search::placeholder { color: var(--csm-dimmed); }
+
+.geo-list {
+  list-style: none;
+  margin: 0; padding: 4px 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.geo-opt {
+  padding: 9px 14px;
+  font-size: .875rem;
+  color: var(--csm-text);
+  cursor: pointer;
+  transition: background .12s;
+}
+.geo-opt:hover { background: var(--csm-accent-dim); color: var(--csm-accent); }
+
+.geo-empty {
+  padding: 9px 14px;
+  font-size: .825rem;
+  color: var(--csm-dimmed);
+  text-align: center;
+}
+
+/* Botón agregar nueva */
+.geo-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--csm-border);
+  color: var(--csm-accent);
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s;
+}
+.geo-add-btn:hover { background: var(--csm-accent-dim); }
+.geo-add-btn svg { width: 14px; height: 14px; stroke: var(--csm-accent); }
+
+/* Formulario inline agregar nueva */
+.geo-add-form {
+  padding: 10px 12px;
+  border-top: 1px solid var(--csm-border);
+  background: var(--csm-surface2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.geo-add-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid var(--csm-border);
+  border-radius: 6px;
+  background: var(--csm-surface);
+  color: var(--csm-text);
+  font-size: .875rem;
+  outline: none;
+  transition: border-color .15s;
+}
+.geo-add-input:focus { border-color: var(--csm-accent); }
+
+.geo-add-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.geo-add-save {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 14px;
+  background: var(--csm-accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.geo-add-save:disabled { opacity: .5; cursor: not-allowed; }
+.geo-add-cancel {
+  padding: 5px 12px;
+  background: none;
+  border: 1px solid var(--csm-border);
+  border-radius: 6px;
+  font-size: .8rem;
+  color: var(--csm-muted);
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.geo-add-cancel:hover { border-color: var(--csm-border2); }

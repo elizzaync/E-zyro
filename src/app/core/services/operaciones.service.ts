@@ -191,6 +191,27 @@ export class OperacionesService {
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // Catálogos geográficos (ubicacion → zona)
+  // ─────────────────────────────────────────────────────────────────────
+
+  getUbicaciones(): Observable<{ id: string; nombre: string; region?: string }[]> {
+    return this.http.get<any[]>(`${this.api}/catalogos/ubicaciones`);
+  }
+
+  getZonas(ubicacionId?: string): Observable<{ id: string; nombre: string; ubicacion_id?: string }[]> {
+    const params = ubicacionId ? `?ubicacion_id=${ubicacionId}` : '';
+    return this.http.get<any[]>(`${this.api}/catalogos/zonas${params}`);
+  }
+
+  crearUbicacion(nombre: string): Observable<{ id: string; nombre: string }> {
+    return this.http.post<any>(`${this.api}/catalogos/ubicaciones`, { nombre });
+  }
+
+  crearZona(nombre: string, ubicacionId: string): Observable<{ id: string; nombre: string }> {
+    return this.http.post<any>(`${this.api}/catalogos/zonas`, { nombre, ubicacion_id: ubicacionId });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Líderes y Técnicos del servicio (modal de servicio)
   // ─────────────────────────────────────────────────────────────────────
 
