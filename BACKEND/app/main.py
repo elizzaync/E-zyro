@@ -1029,29 +1029,9 @@ def _run_migrations():
         conn.commit()
 
         # ── Tickets de soporte interno (equipo de TI) ────────────────────────
-        # IDs String(36) → VARCHAR(36); empresa(id) es uuid pero NO declaramos
-        # la FK como uuid aquí para mantener consistencia con el modelo (no FK
-        # física estricta, igual que otras tablas operativas con String(36)).
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS ticket_soporte (
-                id            VARCHAR(36)  PRIMARY KEY,
-                empresa_id    VARCHAR(36)  NOT NULL,
-                codigo        VARCHAR(20)  NOT NULL,
-                reportado_por VARCHAR(36)  NOT NULL,
-                titulo        VARCHAR(200) NOT NULL,
-                descripcion   TEXT         NOT NULL,
-                categoria     VARCHAR(30)  NOT NULL DEFAULT 'otro',
-                prioridad     VARCHAR(20)  NOT NULL DEFAULT 'media',
-                estado        VARCHAR(20)  NOT NULL DEFAULT 'abierto',
-                pantalla      VARCHAR(120),
-                dispositivo   VARCHAR(200),
-                adjunto_url   TEXT,
-                respuesta_ti  TEXT,
-                atendido_por  VARCHAR(36),
-                created_at    TIMESTAMP    NOT NULL DEFAULT now(),
-                updated_at    TIMESTAMP
-            )
-        """))
+        # La tabla la crea Base.metadata.create_all desde el modelo (IDs uuid,
+        # sin FK física para no chocar con empresa(id)/usuario(id) uuid). Aquí
+        # solo añadimos índices de consulta (la tabla ya existe a esta altura).
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_ticket_soporte_empresa "
             "ON ticket_soporte (empresa_id, estado)"
