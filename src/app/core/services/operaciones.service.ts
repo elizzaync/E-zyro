@@ -284,25 +284,44 @@ export class OperacionesService {
     return this.http.delete(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}`);
   }
 
-  // ── Motor de Inspección: foto por paso + guardado global ─────────────────
+  // ── Motor de Inspección — nueva arquitectura (historial_inspeccion) ──────
 
-  subirFotoEI(servicioId: string, eiId: string, pasoId: string, formData: FormData): Observable<any> {
+  getInspeccionActiva(servicioId: string, eiId: string): Observable<any> {
+    return this.http.get(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/inspeccion`
+    );
+  }
+
+  subirFotoInspeccion(inspeccionId: string, orden: number, formData: FormData): Observable<any> {
     return this.http.post(
-      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/paso/${pasoId}/foto`,
+      `${this.api}/operaciones/inspeccion/${inspeccionId}/foto/${orden}`,
       formData
     );
   }
 
-  guardarInspeccion(servicioId: string, eiId: string, payload: object): Observable<any> {
+  quitarFotoInspeccion(inspeccionId: string, orden: number): Observable<any> {
+    return this.http.delete(
+      `${this.api}/operaciones/inspeccion/${inspeccionId}/foto/${orden}`
+    );
+  }
+
+  guardarInspeccion(inspeccionId: string, payload: object): Observable<any> {
     return this.http.post(
-      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/guardar`,
+      `${this.api}/operaciones/inspeccion/${inspeccionId}/guardar`,
       payload
     );
   }
 
-  quitarFotoEI(servicioId: string, eiId: string, pasoId: string): Observable<any> {
-    return this.http.delete(
-      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/paso/${pasoId}/foto`
+  finalizarInspeccion(inspeccionId: string, payload: object): Observable<any> {
+    return this.http.post(
+      `${this.api}/operaciones/inspeccion/${inspeccionId}/finalizar`,
+      payload
+    );
+  }
+
+  getHistorialEI(servicioId: string, eiId: string): Observable<any[]> {
+    return this.http.get<any[]>(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/historial`
     );
   }
 }

@@ -6,28 +6,25 @@ import { OperacionesService } from '../../../../core/services/operaciones.servic
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
-interface PasoLocal {
-  id: string;
+interface ProcLocal {
   orden: number;
   nombre: string;
-  descripcion: string | null;
+  descripcion: string;
   completado: boolean;
   fotoUrl: string | null;
   fotoPublicId: string | null;
   subiendoFoto: boolean;
+  quitandoFoto: boolean;
 }
 
-interface EquipoDetalle {
-  id: string;
+interface EquipoInfo {
   nombre: string;
   codigo: string | null;
   tipoNombre: string | null;
   marca: string | null;
   modelo: string | null;
   numeroSerie: string | null;
-  estado: string;
   estadoIntervencion: string;
-  observaciones: string | null;
 }
 
 @Component({
@@ -43,17 +40,21 @@ export class IntervencionEquipoComponent implements OnInit {
   private svc      = inject(OperacionesService);
   private toast    = inject(ToastService);
 
-  servicioId = '';
-  eiId       = '';
+  servicioId    = '';
+  eiId          = '';
+  inspeccionId  = '';
 
-  cargando  = true;
-  error     = false;
-  guardando = false;
+  cargando   = true;
+  error      = false;
+  guardando  = false;
+  finalizando = false;
 
-  equipo: EquipoDetalle | null = null;
-  pasos:  PasoLocal[]          = [];
+  equipo: EquipoInfo | null = null;
+  procs: ProcLocal[]        = [];
 
-  observaciones = '';
+  observaciones  = '';
+  proximaFecha   = '';
+  mostrarFinalizar = false;
 
   ngOnInit(): void {
     this.servicioId = this.route.snapshot.paramMap.get('id')    ?? '';
@@ -64,167 +65,138 @@ export class IntervencionEquipoComponent implements OnInit {
   cargar(): void {
     this.cargando = true;
     this.error    = false;
-
-    this.svc.getDetalleEI(this.servicioId, this.eiId).subscribe({
+    this.svc.getInspeccionActiva(this.servicioId, this.eiId).subscribe({
       next: (data: any) => {
-        this.equipo = {
-          id:                 data.id,
-          nombre:             data.nombre,
-          codigo:             data.codigo        ?? null,
-          tipoNombre:         data.tipo_nombre   ?? null,
-          marca:              data.marca         ?? null,
-          modelo:             data.modelo        ?? null,
-          numeroSerie:        data.numero_serie  ?? null,
-          estado:             data.estado,
-          estadoIntervencion: data.estado_intervencion,
-          observaciones:      data.observaciones ?? null,
-        };
+        this.inspeccionId = data.inspeccion_id;
         this.observaciones = data.observaciones ?? '';
-        this._cargarOIniciarPasos();
+        this.proximaFecha  = data.proxima_fecha ?? '';
+        this.equipo = {
+          nombre:             data.equipo.nombre,
+          codigo:             data.equipo.codigo ?? null,
+          tipoNombre:         data.equipo.tipo_nombre ?? null,
+          marca:              data.equipo.marca ?? null,
+          modelo:             data.equipo.modelo ?? null,
+          numeroSerie:        data.equipo.numero_serie ?? null,
+          estadoIntervencion: data.equipo.estado_intervencion,
+        };
+        this.procs = (data.resultado as any[]).map(r => ({
+          orden:        r.orden,
+          nombre:       r.nombre,
+          descripcion:  r.descripcion ?? '',
+          completado:   r.completado ?? false,
+          fotoUrl:      r.foto_url ?? null,
+          fotoPublicId: r.foto_public_id ?? null,
+          subiendoFoto: false,
+          quitandoFoto: false,
+        }));
+        this.cargando = false;
       },
       error: () => { this.cargando = false; this.error = true; },
     });
   }
 
-  private _cargarOIniciarPasos(): void {
-    this.svc.getProcedimientosEI(this.servicioId, this.eiId).subscribe({
-      next: (lista: any[]) => {
-        if (lista.length > 0) {
-          this.pasos    = lista.map(this._mapPaso);
-          this.cargando = false;
-        } else {
-          this.svc.iniciarProcedimientosEI(this.servicioId, this.eiId).subscribe({
-            next: (creados: any[]) => {
-              this.pasos    = creados.map(this._mapPaso);
-              this.cargando = false;
-              if (this.equipo) this.equipo.estadoIntervencion = 'en_proceso';
-            },
-            error: (err: any) => {
-              this.cargando = false;
-              this.error    = true;
-              this.toast.mostrar(err?.error?.detail ?? 'Error al iniciar la inspección.', 'error');
-            },
-          });
-        }
-      },
-      error: () => { this.cargando = false; this.error = true; },
-    });
+  // ── Toggle completado (local) ────────────────────────────────────────────
+  toggleCompletado(proc: ProcLocal): void {
+    proc.completado = !proc.completado;
   }
 
-  private _mapPaso = (r: any): PasoLocal => ({
-    id:           r.id,
-    orden:        r.orden,
-    nombre:       r.nombre,
-    descripcion:  r.descripcion ?? null,
-    completado:   r.estado === 'completado',
-    fotoUrl:      r.foto_url ?? null,
-    fotoPublicId: null,
-    subiendoFoto: false,
-  });
-
-  // ── Toggle completado (local, sin API) ───────────────────────────────────
-  toggleCompletado(paso: PasoLocal): void {
-    if (this.estaFinalizado) return;
-    paso.completado = !paso.completado;
-  }
-
-  // ── Subir foto al seleccionarla ──────────────────────────────────────────
-  onFotoSeleccionada(event: Event, paso: PasoLocal): void {
+  // ── Subir / reemplazar foto ───────────────────────────────────────────────
+  onFotoSeleccionada(event: Event, proc: ProcLocal): void {
     const file = (event.target as HTMLInputElement).files?.[0];
     (event.target as HTMLInputElement).value = '';
-    if (!file || this.estaFinalizado) return;
+    if (!file) return;
 
+    // Preview inmediato
     const reader = new FileReader();
-    reader.onload = e => { paso.fotoUrl = e.target?.result as string; };
+    reader.onload = e => { proc.fotoUrl = e.target?.result as string; };
     reader.readAsDataURL(file);
 
-    paso.subiendoFoto = true;
+    proc.subiendoFoto = true;
     const fd = new FormData();
     fd.append('archivo', file);
 
-    this.svc.subirFotoEI(this.servicioId, this.eiId, paso.id, fd).subscribe({
+    this.svc.subirFotoInspeccion(this.inspeccionId, proc.orden, fd).subscribe({
       next: (res: any) => {
-        paso.fotoUrl      = res.url ?? paso.fotoUrl;
-        paso.fotoPublicId = res.public_id ?? null;
-        paso.subiendoFoto = false;
+        proc.fotoUrl      = res.url;
+        proc.fotoPublicId = res.public_id;
+        proc.subiendoFoto = false;
       },
       error: (err: any) => {
-        paso.subiendoFoto = false;
-        paso.fotoUrl      = null;
+        proc.subiendoFoto = false;
+        proc.fotoUrl      = null;
         this.toast.mostrar(err?.error?.detail ?? 'Error al subir la foto.', 'error');
       },
     });
   }
 
-  // ── Quitar foto de un paso ───────────────────────────────────────────────
-  quitarFoto(paso: PasoLocal): void {
-    if (this.estaFinalizado || paso.subiendoFoto) return;
-    const urlAnterior = paso.fotoUrl;
-    paso.fotoUrl      = null;
-    paso.fotoPublicId = null;
+  // ── Quitar foto ──────────────────────────────────────────────────────────
+  quitarFoto(proc: ProcLocal): void {
+    if (proc.quitandoFoto) return;
+    const urlAnterior = proc.fotoUrl;
+    proc.fotoUrl      = null;
+    proc.fotoPublicId = null;
 
-    // Si la foto ya estaba en Cloudinary (URL real, no preview local) la borramos en backend
-    if (urlAnterior && urlAnterior.startsWith('http')) {
-      this.svc.quitarFotoEI(this.servicioId, this.eiId, paso.id).subscribe({
+    if (urlAnterior?.startsWith('http')) {
+      proc.quitandoFoto = true;
+      this.svc.quitarFotoInspeccion(this.inspeccionId, proc.orden).subscribe({
+        next: () => { proc.quitandoFoto = false; },
         error: () => {
-          // Si falla el borrado en servidor, revertir preview
-          paso.fotoUrl = urlAnterior;
-          this.toast.mostrar('No se pudo quitar la foto. Intenta de nuevo.', 'error');
-        }
+          proc.fotoUrl      = urlAnterior;
+          proc.quitandoFoto = false;
+          this.toast.mostrar('No se pudo quitar la foto.', 'error');
+        },
       });
     }
   }
 
-  // ── Guardado global ──────────────────────────────────────────────────────
+  // ── Guardar progreso (sin finalizar) ─────────────────────────────────────
   guardar(): void {
-    if (this.guardando || this.estaFinalizado) return;
-
-    const alguno_subiendo = this.pasos.some(p => p.subiendoFoto);
-    if (alguno_subiendo) {
-      this.toast.mostrar('Espera a que terminen de subirse las fotos.', 'error');
-      return;
-    }
-
+    if (this.guardando) return;
     this.guardando = true;
-
-    const payload = {
-      pasos: this.pasos.map(p => ({
-        id:            p.id,
-        completado:    p.completado,
-        foto_url:      p.fotoUrl      ?? null,
-        foto_public_id: p.fotoPublicId ?? null,
-      })),
+    this.svc.guardarInspeccion(this.inspeccionId, {
+      resultado:    this.procs.map(p => ({ orden: p.orden, completado: p.completado })),
       observaciones: this.observaciones.trim() || null,
-    };
-
-    this.svc.guardarInspeccion(this.servicioId, this.eiId, payload).subscribe({
+    }).subscribe({
       next: (res: any) => {
         this.guardando = false;
-        if (this.equipo) {
-          this.equipo.estadoIntervencion = res.estado_intervencion ?? this.equipo.estadoIntervencion;
-        }
-        const msg = res.estado_intervencion === 'completado'
-          ? '¡Inspección completada y guardada exitosamente!'
-          : 'Inspección guardada correctamente.';
-        this.toast.mostrar(msg, 'success');
+        this.toast.mostrar('Progreso guardado correctamente.', 'success');
+        if (res.todos_completados) this.mostrarFinalizar = true;
       },
       error: (err: any) => {
         this.guardando = false;
-        this.toast.mostrar(err?.error?.detail ?? 'Error al guardar la inspección.', 'error');
+        this.toast.mostrar(err?.error?.detail ?? 'Error al guardar.', 'error');
+      },
+    });
+  }
+
+  // ── Finalizar inspección ─────────────────────────────────────────────────
+  finalizar(): void {
+    if (this.finalizando) return;
+    this.finalizando = true;
+    this.svc.finalizarInspeccion(this.inspeccionId, {
+      resultado:    this.procs.map(p => ({ orden: p.orden, completado: p.completado })),
+      observaciones: this.observaciones.trim() || null,
+      proxima_fecha_mantenimiento: this.proximaFecha || null,
+    }).subscribe({
+      next: (res: any) => {
+        this.finalizando = false;
+        if (this.equipo) this.equipo.estadoIntervencion = 'completado';
+        this.toast.mostrar('¡Inspección finalizada y guardada en historial!', 'success');
+      },
+      error: (err: any) => {
+        this.finalizando = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al finalizar.', 'error');
       },
     });
   }
 
   // ── Computed ─────────────────────────────────────────────────────────────
-  get completados(): number  { return this.pasos.filter(p => p.completado).length; }
-  get total(): number        { return this.pasos.length; }
-  get progreso(): number     { return this.total ? Math.round((this.completados / this.total) * 100) : 0; }
+  get completados(): number      { return this.procs.filter(p => p.completado).length; }
+  get total(): number            { return this.procs.length; }
+  get progreso(): number         { return this.total ? Math.round((this.completados / this.total) * 100) : 0; }
   get todosCompletados(): boolean { return this.total > 0 && this.completados === this.total; }
-  get estaFinalizado(): boolean   { return this.equipo?.estadoIntervencion === 'completado'; }
-
-  estadoLabel(e: string): string {
-    return ({ pendiente: 'Pendiente', en_proceso: 'En Proceso', completado: 'Completado' } as Record<string, string>)[e] ?? e;
-  }
+  get estaFinalizado(): boolean  { return this.equipo?.estadoIntervencion === 'completado'; }
+  get hayAlgoSubiendo(): boolean { return this.procs.some(p => p.subiendoFoto); }
 
   volver(): void { this.location.back(); }
 }
