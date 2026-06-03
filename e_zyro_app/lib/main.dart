@@ -376,16 +376,7 @@ class _MainShellState extends State<MainShell> {
 
   void _onTabChanged() {
     if (!mounted) return;
-    var target = tabNotifier.value;
-    // Bloqueo: si alguien intenta ir a logística/personal sin permiso → Inicio.
-    if (!_puedeLogistica && target == _logisticaScreenIdx) {
-      tabNotifier.value = 0;
-      return;
-    }
-    if (!_puedePersonal && target == _personalScreenIdx) {
-      tabNotifier.value = 0;
-      return;
-    }
+    final target = tabNotifier.value;
     if (_currentIndex != target) {
       setState(() => _currentIndex = target);
     }
