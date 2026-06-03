@@ -84,6 +84,8 @@ class ServicioDetalleOut(BaseModel):
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
     es_mantenimiento: bool = False
+    ubicacion_id: Optional[str] = None
+    zona_id: Optional[str] = None
 
 
 class ProyectoListOut(BaseModel):
@@ -330,6 +332,9 @@ class CrearServicioBody(BaseModel):
     # Liderazgo
     lider_id: str                                   # empleado.id — Líder del Servicio (obligatorio)
     responsable_id: Optional[str] = None            # empleado.id — Técnico Líder (opcional)
+    # Geografía
+    ubicacion_id: Optional[str] = None
+    zona_id: Optional[str] = None
     # Alcance / zona / facturación
     zona_ejecucion: Optional[str] = None
     alcance: Optional[str] = None
@@ -349,6 +354,8 @@ class ActualizarServicioBody(BaseModel):
     fecha_fin: Optional[str] = None
     lider_id: Optional[str] = None
     responsable_id: Optional[str] = None
+    ubicacion_id: Optional[str] = None
+    zona_id: Optional[str] = None
     zona_ejecucion: Optional[str] = None
     tiene_equipos_intervenidos: Optional[bool] = None
     alcance: Optional[str] = None

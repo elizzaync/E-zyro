@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Date, DateTime, Integer, Text, ForeignKey, Boolean
+from sqlalchemy.dialects.postgresql import UUID
 from app.db.database import Base
 
 def generate_uuid():
@@ -26,6 +27,10 @@ class ProyectoServicio(Base):
     fecha_programada = Column(Date)
     fecha_inicio = Column(Date)
     fecha_fin = Column(Date)
+
+    # Geografía del servicio (FK a catálogos)
+    ubicacion_id = Column(UUID(as_uuid=False), ForeignKey("ubicacion.id"), nullable=True)
+    zona_id      = Column(UUID(as_uuid=False), ForeignKey("zona.id"),      nullable=True)
 
     # Alcance, zona y facturación heredados del legacy (por servicio)
     zona_ejecucion = Column(String(255))
