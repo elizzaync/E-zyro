@@ -23,6 +23,7 @@ import '../services/informe_servicio_service.dart';
 import '../services/catalogo_service.dart';
 import '../services/equipo_intervenido_service.dart';
 import '../services/equipo_service.dart';
+import '../services/analitica_service.dart';
 
 Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
@@ -137,4 +138,9 @@ Future<EquipoIntervenidoService> getEquipoIntervenidoService() async {
 Future<EquipoService> getEquipoService() async {
   final prefs = await SharedPreferences.getInstance();
   return EquipoService(ApiClient(prefs));
+}
+
+Future<AnaliticaService> getAnaliticaService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return AnaliticaService(ApiClient(prefs));
 }

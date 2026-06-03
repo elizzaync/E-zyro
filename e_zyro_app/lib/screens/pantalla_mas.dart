@@ -19,6 +19,7 @@ import 'pantalla_correctivos.dart';
 import 'pantalla_itse.dart';
 import 'pantalla_catalogos.dart';
 import 'pantalla_equipos_intervenidos.dart';
+import 'pantalla_dashboards.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -34,6 +35,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _puedeVerAuditoria = false;
   bool _puedeVerMantenimiento = false;
   bool _puedeVerPersonal = false;
+  bool _puedeVerDashboards = false;
   // Visibilidad de módulos por permiso (admin ve todos).
   bool _canEpp = false;
   bool _canCalibracion = false;
@@ -60,6 +62,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
         _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
+        _puedeVerDashboards  = AppSession.i.canVerDashboards;
         _canEpp          = AppSession.i.canVerEpp;
         _canCalibracion  = AppSession.i.canVerCalibracion;
         _canCorrectivo   = AppSession.i.canVerCorrectivo;
@@ -258,13 +261,22 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
               ],
             ),
-            if (_puedeVerAuditoria || _puedeVerMantenimiento || _puedeVerPersonal) ...[
+            if (_puedeVerAuditoria || _puedeVerMantenimiento || _puedeVerPersonal || _puedeVerDashboards) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
+                  if (_puedeVerDashboards)
+                    _MenuItem(
+                      icon: Icons.insights_outlined,
+                      label: 'Dashboards',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PantallaDashboards()),
+                      ),
+                    ),
                   if (_puedeVerMantenimiento)
                     _MenuItem(
                       icon: Icons.build_circle_outlined,
@@ -346,7 +358,7 @@ class _MoreScreenState extends State<MoreScreen> {
                   if (_canCatalogos)
                     _MenuItem(
                       icon: Icons.category_outlined,
-                      label: 'Catálogos (ubicación/zona/área)',
+                      label: 'Catálogos',
                       onTap: () => Navigator.push(
                         context, MaterialPageRoute(builder: (_) => const PantallaCatalogos())),
                     ),
