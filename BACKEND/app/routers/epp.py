@@ -22,7 +22,7 @@ from ..services.cloudinary_service import (
     subir_e_indexar, eliminar_imagen_cloudinary, subir_pdf_bytes_cloudinary, registrar_recurso,
 )
 from ..services.cloudinary_paths import carpeta_epp, carpeta_epp_entrega
-from ..services.pdf_docs import generar_constancia_epp
+from ..services.pdf_docs import generar_constancia_epp, generar_reporte_epp_empleado
 from ..models.usuario import Usuario
 from ..models.empresa import Empresa
 from ..schemas.epp import (
@@ -264,6 +264,75 @@ def generar_constancia(entrega_id: str, payload: dict = Depends(verificar_token)
         fecha=str(en.fecha), estado=en.estado, firma_url=en.firma_url, pdf_url=en.pdf_url,
         observacion=en.observacion, items=items,
     )
+
+
+# ── Reporte consolidado por técnico ──────────────────────────────────────────
+
+@router.get("/empleado/{empleado_id}/reporte")
+def reporte_empleado(empleado_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Genera un PDF con TODO el EPP entregado a un técnico (consolidado +
+    detalle por entrega), lo sube a Cloudinary y devuelve la URL."""
+    exigir_permiso(db, payload, "epp", "ver")
+    empresa_id = payload["empresa_id"]
+
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Técnico no encontrado")
+
+    fila = (
+        db.query(Usuario.nombre, Usuario.apellido)
+        .join(Empleado, Empleado.usuario_id == Usuario.id)
+        .filter(Empleado.id == empleado_id).first()
+    )
+    tecnico = f"{fila[0]} {fila[1] or ''}".strip() if fila else str(empleado_id)
+    empresa = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+
+    entregas = (
+        db.query(EppEntrega)
+        .filter(
+            EppEntrega.empleado_id == empleado_id,
+            EppEntrega.empresa_id == empresa_id,
+            EppEntrega.estado != "anulada",
+        )
+        .order_by(EppEntrega.fecha.desc())
+        .all()
+    )
+
+    entregas_data: list = []
+    totales: dict = {}  # nombre -> cantidad
+    for en in entregas:
+        detalles = db.query(EppEntregaDetalle).filter(
+            EppEntregaDetalle.entrega_id == en.id
+        ).all()
+        items = _items_out(db, detalles)
+        entregas_data.append({
+            "fecha": str(en.fecha),
+            "estado": en.estado,
+            "items": [{"nombre": it.nombre, "cantidad": it.cantidad} for it in items],
+        })
+        for it in items:
+            totales[it.nombre] = totales.get(it.nombre, 0) + (it.cantidad or 0)
+
+    data = {
+        "empresa": empresa,
+        "tecnico": tecnico,
+        "cargo": emp.cargo or "",
+        "generado": str(date.today()),
+        "totales": [{"nombre": k, "cantidad": v} for k, v in sorted(totales.items())],
+        "entregas": entregas_data,
+    }
+    pdf = generar_reporte_epp_empleado(data)
+    pid = f"e-zyro/{empresa_id}/epp-reportes/{empleado_id}/reporte_{empleado_id}"
+    url = subir_pdf_bytes_cloudinary(pdf, pid)
+    registrar_recurso(
+        db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+        folder=f"e-zyro/{empresa_id}/epp-reportes/{empleado_id}", recurso_tipo="pdf",
+        entidad_tipo="empleado", entidad_id=empleado_id,
+        descripcion=f"Reporte EPP de {tecnico}", creado_por_id=payload.get("id"),
+    )
+    return {"pdf_url": url, "tecnico": tecnico, "total_entregas": len(entregas)}
 
 
 # ── Ingresos ─────────────────────────────────────────────────────────────────

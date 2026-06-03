@@ -115,6 +115,54 @@ def generar_constancia_epp(data: dict) -> bytes:
     return buf.getvalue()
 
 
+def generar_reporte_epp_empleado(data: dict) -> bytes:
+    """Reporte consolidado de TODOS los EPP entregados a un técnico.
+
+    data = {
+      empresa, tecnico, cargo, generado,
+      totales: [{nombre, cantidad}],          # consolidado por tipo de EPP
+      entregas: [{fecha, estado, items:[{nombre, cantidad}]}],
+    }
+    """
+    buf = io.BytesIO()
+    doc = _doc(buf, "Reporte de EPP por técnico")
+    st = _styles()
+    e = [Paragraph("REPORTE DE EPP ENTREGADO", st["h1"]),
+         Paragraph(data.get("empresa", "") or "", st["sub"]), Spacer(1, 6)]
+    entregas = data.get("entregas", []) or []
+    e.append(_kv_table([
+        ("Técnico",  data.get("tecnico", "") or "-"),
+        ("Cargo",    data.get("cargo", "") or "-"),
+        ("Generado", str(data.get("generado") or "-")),
+        ("Entregas", str(len(entregas))),
+    ], st))
+
+    # Consolidado por tipo de EPP (suma de cantidades)
+    totales = data.get("totales", []) or []
+    e.append(Paragraph("Consolidado por EPP", st["h2"]))
+    if totales:
+        filas = [["#", "EPP", "Cantidad total"]]
+        for i, it in enumerate(totales, 1):
+            filas.append([str(i), it.get("nombre", "") or "", str(it.get("cantidad", "") or "")])
+        e.append(_data_table(filas, [12 * mm, _PAGE_W - 50 * mm, 38 * mm], st))
+    else:
+        e.append(Paragraph("Sin entregas registradas.", st["n"]))
+
+    # Detalle por entrega
+    if entregas:
+        e.append(Paragraph("Detalle de entregas", st["h2"]))
+        for en in entregas:
+            cab = f"{en.get('fecha') or '-'} · {en.get('estado') or ''}"
+            e.append(Paragraph(cab, st["sub"]))
+            filas = [["#", "EPP", "Cantidad"]]
+            for i, it in enumerate(en.get("items", []) or [], 1):
+                filas.append([str(i), it.get("nombre", "") or "", str(it.get("cantidad", "") or "")])
+            e.append(_data_table(filas, [12 * mm, _PAGE_W - 40 * mm, 28 * mm], st))
+            e.append(Spacer(1, 8))
+    doc.build(e)
+    return buf.getvalue()
+
+
 # ── Informe de correctivo ────────────────────────────────────────────────────
 def generar_informe_correctivo(data: dict) -> bytes:
     buf = io.BytesIO()

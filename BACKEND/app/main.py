@@ -106,7 +106,7 @@ from app.models import (  # noqa: F401
     # Historial de inspecciones por activo intervenido
     historial_inspeccion,
     # Tickets de soporte interno (equipo de TI)
-    ticket_soporte,
+    ticket_soporte, ticket_actividad,
 )
 
 
@@ -566,6 +566,26 @@ def _pre_create_migrations():
         conn.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_plantilla_proc_empresa_tipo "
             "ON plantilla_procedimiento (empresa_id, lower(tipo_trabajo))"
+        ))
+
+        # ── Soporte TI: historial/timeline de actividades del ticket ─────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ticket_actividad (
+                id               uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                empresa_id       uuid NOT NULL REFERENCES empresa(id),
+                ticket_id        uuid NOT NULL,
+                autor_id         uuid NOT NULL,
+                tipo             VARCHAR(20) NOT NULL DEFAULT 'comentario',
+                texto            TEXT,
+                adjunto_url      TEXT,
+                es_solucion      BOOLEAN NOT NULL DEFAULT false,
+                version_solucion INTEGER,
+                created_at       TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_ticket_actividad_ticket "
+            "ON ticket_actividad (ticket_id, created_at)"
         ))
 
         conn.commit()
