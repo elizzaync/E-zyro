@@ -3770,3 +3770,204 @@ def quitar_equipo_intervenido(
     ei.updated_at = _dt.utcnow()
     db.commit()
     return {"ok": True}
+
+
+# ── GET /operaciones/servicio/{sid}/equipos-intervenidos/{eiId} ──────────────
+@router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/detalle")
+def detalle_equipo_intervenido(
+    servicio_id: str,
+    ei_id:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Detalle completo de un equipo intervenido incluyendo template de procedimientos."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    tipo_nombre          = None
+    procedimientos_tmpl  = None
+    if ei.tipo_equipo_id:
+        te = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+        if te:
+            tipo_nombre         = te.nombre
+            procedimientos_tmpl = te.procedimientos_template
+
+    return {
+        "id":                   str(ei.id),
+        "nombre":               ei.nombre,
+        "codigo":               ei.codigo,
+        "tipo_nombre":          tipo_nombre,
+        "tipo_equipo_id":       str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
+        "marca":                ei.marca,
+        "modelo":               ei.modelo,
+        "numero_serie":         ei.numero_serie,
+        "estado":               ei.estado,
+        "estado_intervencion":  ei.estado_intervencion,
+        "observaciones":        ei.observaciones,
+        "procedimientos_template": procedimientos_tmpl or [],
+    }
+
+
+# ── GET /operaciones/servicio/{sid}/equipos-intervenidos/{eiId}/procedimientos
+@router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/procedimientos")
+def listar_procedimientos_ei(
+    servicio_id: str,
+    ei_id:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Lista los procedimientos instanciados para este equipo intervenido."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    procs = (
+        db.query(Procedimiento)
+        .filter(
+            Procedimiento.equipo_intervenido_id == ei_id,
+            Procedimiento.empresa_id            == empresa_id,
+        )
+        .order_by(Procedimiento.orden.asc())
+        .all()
+    )
+
+    result = []
+    for p in procs:
+        # Foto más reciente (evidencia)
+        ev = (
+            db.query(EvidenciaProcedimiento)
+            .filter(EvidenciaProcedimiento.procedimiento_id == p.id)
+            .order_by(EvidenciaProcedimiento.fecha_captura.desc())
+            .first()
+        )
+        result.append({
+            "id":          str(p.id),
+            "orden":       p.orden,
+            "nombre":      p.nombre,
+            "descripcion": p.descripcion,
+            "estado":      p.estado,
+            "foto_url":    ev.url_cloudinary if ev else None,
+        })
+    return result
+
+
+# ── POST /operaciones/servicio/{sid}/equipos-intervenidos/{eiId}/procedimientos/iniciar
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/procedimientos/iniciar", status_code=201)
+def iniciar_procedimientos_ei(
+    servicio_id: str,
+    ei_id:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Crea los procedimientos de intervención a partir del template del tipo de equipo.
+    Idempotente: si ya existen, los devuelve sin duplicar."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    # Idempotente: si ya hay procedimientos, devolver los existentes
+    existentes = (
+        db.query(Procedimiento)
+        .filter(
+            Procedimiento.equipo_intervenido_id == ei_id,
+            Procedimiento.empresa_id            == empresa_id,
+        )
+        .order_by(Procedimiento.orden.asc())
+        .all()
+    )
+    if existentes:
+        return [{"id": str(p.id), "orden": p.orden, "nombre": p.nombre,
+                 "descripcion": p.descripcion, "estado": p.estado, "foto_url": None}
+                for p in existentes]
+
+    # Obtener template del tipo de equipo
+    template = []
+    if ei.tipo_equipo_id:
+        te = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+        if te and te.procedimientos_template:
+            template = te.procedimientos_template
+
+    if not template:
+        raise HTTPException(
+            status_code=422,
+            detail="Este tipo de equipo no tiene procedimientos definidos. Configura el template en el catálogo."
+        )
+
+    creados = []
+    for item in template:
+        proc = Procedimiento(
+            id                    = str(_uuid.uuid4()),
+            proyecto_servicio_id  = servicio_id,
+            equipo_intervenido_id = ei_id,
+            empresa_id            = empresa_id,
+            nombre                = item.get("nombre", "Procedimiento"),
+            descripcion           = item.get("descripcion"),
+            orden                 = item.get("orden", 1),
+            estado                = "pendiente",
+        )
+        db.add(proc)
+        creados.append(proc)
+
+    # Marcar EI como en_proceso si estaba pendiente
+    if ei.estado_intervencion == "pendiente":
+        ei.estado_intervencion = "en_proceso"
+        from datetime import datetime as _dt2
+        ei.updated_at = _dt2.utcnow()
+
+    db.commit()
+    return [{"id": str(p.id), "orden": p.orden, "nombre": p.nombre,
+             "descripcion": p.descripcion, "estado": p.estado, "foto_url": None}
+            for p in creados]
+
+
+# ── POST /operaciones/servicio/{sid}/equipos-intervenidos/{eiId}/completar ───
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/completar")
+def completar_intervencion(
+    servicio_id: str,
+    ei_id:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Marca la intervención como completada (solo si todos los procedimientos están completados)."""
+    empresa_id = payload["empresa_id"]
+    _get_servicio_o_404(db, servicio_id, empresa_id)
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    procs = db.query(Procedimiento).filter(
+        Procedimiento.equipo_intervenido_id == ei_id,
+        Procedimiento.empresa_id            == empresa_id,
+    ).all()
+
+    pendientes = [p for p in procs if p.estado != "completado"]
+    if pendientes:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Faltan {len(pendientes)} procedimiento(s) por completar."
+        )
+
+    ei.estado_intervencion = "completado"
+    from datetime import datetime as _dt3
+    ei.updated_at = _dt3.utcnow()
+    db.commit()
+    return {"ok": True, "estado_intervencion": "completado"}
