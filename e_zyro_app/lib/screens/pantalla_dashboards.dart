@@ -192,22 +192,45 @@ class _PantallaDashboardsState extends State<PantallaDashboards>
     final d = _act;
     if (d == null) return _mensaje(Icons.precision_manufacturing_outlined, 'Sin datos.');
     return _scroll([
+      // ── Activos propios (inventario de la empresa) ──────────────────────
+      _sectionLabel('Activos propios', 'Herramientas, equipos y activos TI de la empresa'),
       _kpiGrid([
-        _Kpi('Equipos', '${d.equipos}', Icons.precision_manufacturing_outlined, _green),
+        _Kpi('Activos', '${d.equipos}', Icons.precision_manufacturing_outlined, _green),
         _Kpi('Operativos', '${d.operativos}', Icons.check_circle_outline, _palette[5]),
         _Kpi('Mantenim.', '${d.mantenimiento}', Icons.build_circle_outlined, _palette[2]),
-        _Kpi('Intervenidos', '${d.intervenidos}', Icons.electrical_services_outlined, _palette[1]),
-        _Kpi('ITSE', '${d.itse}', Icons.fact_check_outlined, _palette[4]),
+        _Kpi('Fuera serv.', '${d.fueraServicio}', Icons.do_not_disturb_on_outlined, _palette[3]),
+      ]),
+      _donutCard('Activos propios por clase', d.porClase),
+      _donutCard('Activos propios por estado', d.porEstado,
+          colores: [_green, _palette[2], _palette[3], _palette[7]]),
+      // ── Servicio a clientes (no son activos propios) ────────────────────
+      _sectionLabel('Servicio a clientes',
+          'Equipos de clientes intervenidos, inspecciones y entregas'),
+      _kpiGrid([
+        _Kpi('Equipos interv.', '${d.intervenidos}', Icons.electrical_services_outlined, _palette[1]),
+        _Kpi('Inspecciones ITSE', '${d.itse}', Icons.fact_check_outlined, _palette[4]),
         _Kpi('Entregas EPP', '${d.eppEntregas}', Icons.health_and_safety_outlined, _palette[7]),
       ]),
-      _donutCard('Equipos por estado', d.porEstado,
-          colores: [_green, _palette[2], _palette[3], _palette[7]]),
-      _donutCard('Equipos por clase', d.porClase),
+      _donutCard('Equipos intervenidos por tipo', d.intervenidosPorTipo),
       _trendCard('Inspecciones ITSE por mes', d.itsePorMes),
-      _rankCard('Equipos intervenidos por ubicación', d.intervenidosPorUbicacion,
-          Icons.location_on_outlined),
     ]);
   }
+
+  Widget _sectionLabel(String titulo, String subtitulo) => Padding(
+        padding: const EdgeInsets.only(bottom: 10, top: 2),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 4, height: 18,
+                decoration: BoxDecoration(color: _green, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 8),
+            Text(titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(left: 12, top: 2),
+            child: Text(subtitulo, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500)),
+          ),
+        ]),
+      );
 
   // ════════════════════════════════════════════════════════════════════════
   // WIDGETS REUTILIZABLES

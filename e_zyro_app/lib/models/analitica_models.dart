@@ -119,18 +119,19 @@ class DashPersonal {
 
 /// ── Activos ─────────────────────────────────────────────────────────────────
 class DashActivos {
-  final int equipos, operativos, mantenimiento, intervenidos, itse, eppEntregas;
-  final List<Punto> porEstado, porClase, intervenidosPorUbicacion, itsePorMes;
+  final int equipos, operativos, mantenimiento, fueraServicio, intervenidos, itse, eppEntregas;
+  final List<Punto> porEstado, porClase, intervenidosPorTipo, itsePorMes;
   const DashActivos({
     required this.equipos,
     required this.operativos,
     required this.mantenimiento,
+    required this.fueraServicio,
     required this.intervenidos,
     required this.itse,
     required this.eppEntregas,
     required this.porEstado,
     required this.porClase,
-    required this.intervenidosPorUbicacion,
+    required this.intervenidosPorTipo,
     required this.itsePorMes,
   });
   factory DashActivos.fromJson(Map<String, dynamic> j) {
@@ -139,12 +140,13 @@ class DashActivos {
       equipos: _i(k, 'equipos'),
       operativos: _i(k, 'operativos'),
       mantenimiento: _i(k, 'mantenimiento'),
+      fueraServicio: _i(k, 'fuera_servicio'),
       intervenidos: _i(k, 'intervenidos'),
       itse: _i(k, 'itse'),
       eppEntregas: _i(k, 'epp_entregas'),
       porEstado: _puntos(j['equipos_por_estado']),
       porClase: _puntos(j['equipos_por_clase']),
-      intervenidosPorUbicacion: _puntos(j['intervenidos_por_ubicacion']),
+      intervenidosPorTipo: _puntos(j['intervenidos_por_tipo']),
       itsePorMes: _puntos(j['itse_por_mes']),
     );
   }

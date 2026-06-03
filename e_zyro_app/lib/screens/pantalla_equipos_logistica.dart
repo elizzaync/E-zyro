@@ -302,7 +302,7 @@ class _State extends State<PantallaEquiposLogistica>
     final modeloCtrl = TextEditingController(text: item?.modelo ?? '');
     final serieCtrl  = TextEditingController(text: item?.numeroSerie ?? '');
     final cantCtrl   = TextEditingController(text: '${item?.cantidad ?? 1}');
-    // Tab 0=Equipos, Tab 1=Herramientas, Tab 2=Equip. Tecnológicos
+    // Tab 0=Equipos, Tab 1=Herramientas, Tab 2=Activos TI
     final clasesPorTab = ['equipo', 'herramienta', 'equipo_tecnologico'];
     String clase = item?.clase ?? clasesPorTab[_tabs.index.clamp(0, 2)];
     String estado    = item?.estado ?? 'operativo';
@@ -378,7 +378,7 @@ class _State extends State<PantallaEquiposLogistica>
                     Expanded(child: _tipoChip('herramienta', 'Herramienta',
                         Icons.handyman_outlined, clase, setLocal, (v) => clase = v)),
                     const SizedBox(width: 6),
-                    Expanded(child: _tipoChip('equipo_tecnologico', 'Tecnológico',
+                    Expanded(child: _tipoChip('equipo_tecnologico', 'Activo TI',
                         Icons.devices_outlined, clase, setLocal, (v) => clase = v)),
                   ]),
                   const SizedBox(height: 16),
@@ -658,7 +658,7 @@ class _State extends State<PantallaEquiposLogistica>
                 tabs: [
                   Tab(text: 'Equipos (${_data['equipo']!.total})'),
                   Tab(text: 'Herramientas (${_data['herramienta']!.total})'),
-                  Tab(text: 'Tecnológicos (${_data['equipo_tecnologico']!.total})'),
+                  Tab(text: 'Activos TI (${_data['equipo_tecnologico']!.total})'),
                 ],
               ),
             ]),
