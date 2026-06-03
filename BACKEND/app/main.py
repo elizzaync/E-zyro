@@ -103,6 +103,8 @@ from app.models import (  # noqa: F401
     incidencia,
     # Catálogo de activos físicos del cliente (Módulo Equipos Intervenidos)
     activo_cliente,
+    # Historial de inspecciones por activo intervenido
+    historial_inspeccion,
     # Tickets de soporte interno (equipo de TI)
     ticket_soporte,
 )

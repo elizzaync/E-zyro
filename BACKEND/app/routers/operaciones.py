@@ -45,7 +45,7 @@ from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
 from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
 from ..models.equipo_intervenido import EquipoIntervenido
-from ..models.paso_intervencion import PasoIntervencion
+from ..models.historial_inspeccion import HistorialInspeccion
 from ..models.catalogo_servicio import CatalogoServicio
 from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
 from ..models.seguimiento_proyecto import SeguimientoProyecto
@@ -3065,8 +3065,6 @@ def eliminar_nota(
 # ════════════════════════════════════════════════════════════════════════════
 # MOTOR DE INSPECCIÓN — Equipos Intervenidos + Historial
 # ════════════════════════════════════════════════════════════════════════════
-
-from ..models.historial_inspeccion import HistorialInspeccion
 
 def _map_ei(ei: EquipoIntervenido, tipo_nombre: str | None) -> dict:
     """Serializa un registro equipo_intervenido (activo de cliente) para el frontend."""
