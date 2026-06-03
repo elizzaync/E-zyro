@@ -1,50 +1,40 @@
 import uuid
-from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Date, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from datetime import datetime, date
+from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.db.database import Base
-
-def _uuid():
-    return str(uuid.uuid4())
 
 
 class EquipoIntervenido(Base):
+    """Activo instalado en cliente. Puede vincularse a un servicio activo
+    a través de proyecto_servicio_id y rastrear su estado de intervención."""
+
     __tablename__ = "equipo_intervenido"
 
-    id           = Column(String(36), primary_key=True, default=_uuid)
-    empresa_id   = Column(String(36), ForeignKey("empresa.id"),     nullable=False)
-
-    # Vínculo con el servicio que lo interviene
-    proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=True)
-    activo_cliente_id    = Column(String(36), ForeignKey("activo_cliente.id"),    nullable=True)
-    estado_intervencion  = Column(String(30), nullable=False, default="pendiente")
-    fecha_fin            = Column(Date, nullable=True)
-
-    # FK al equipo interno (legacy — no mezclar con activos del cliente)
-    equipo_id    = Column(String(36), ForeignKey("equipo.id"),       nullable=True)
-    proyecto_id  = Column(String(36), ForeignKey("proyecto.id"),    nullable=True)
-    cliente_id   = Column(String(36), ForeignKey("cliente.id"),     nullable=True)
-
-    # Ubicacion en instalacion del cliente (jerarquía ubicacion → zona → area)
-    ubicacion_id     = Column(String(36), ForeignKey("ubicacion.id"), nullable=True)
-    zona_id          = Column(String(36), ForeignKey("zona.id"),      nullable=True)
-    area_id          = Column(String(36), ForeignKey("area.id"),      nullable=True)
-    area_descripcion = Column(String(200), nullable=True)  # legacy texto (caché)
-
-    # Datos del equipo
-    nombre         = Column(String(300), nullable=False)
-    codigo         = Column(String(100), nullable=True)
-    tipo_equipo_id = Column(String(36), ForeignKey("tipo_equipo.id"), nullable=True)
-    marca          = Column(String(150), nullable=True)
-    modelo         = Column(String(150), nullable=True)
-    numero_serie   = Column(String(150), nullable=True)
-
-    # Estado
-    estado            = Column(String(50),  nullable=False, default="operativo")
-    fecha_instalacion = Column(Date,        nullable=True)
-    ficha_tecnica     = Column(JSONB,       nullable=True)
-    observaciones     = Column(Text,        nullable=True)
-
-    activo     = Column(Boolean,  nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=True)
+    id                   = Column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
+    empresa_id           = Column(UUID(as_uuid=False), ForeignKey("empresa.id"),            nullable=False)
+    proyecto_id          = Column(UUID(as_uuid=False), ForeignKey("proyecto.id"),           nullable=True)
+    cliente_id           = Column(UUID(as_uuid=False), ForeignKey("cliente.id"),            nullable=True)
+    ubicacion_id         = Column(UUID(as_uuid=False),                                      nullable=True)
+    zona_id              = Column(UUID(as_uuid=False),                                      nullable=True)
+    area_id              = Column(UUID(as_uuid=False),                                      nullable=True)
+    area_descripcion     = Column(String(200),                                              nullable=True)
+    nombre               = Column(String(200),                                              nullable=False)
+    codigo               = Column(String(50),                                               nullable=True)
+    tipo_equipo_id       = Column(UUID(as_uuid=False), ForeignKey("tipo_equipo.id"),        nullable=True)
+    marca                = Column(String(100),                                              nullable=True)
+    modelo               = Column(String(100),                                              nullable=True)
+    numero_serie         = Column(String(100),                                              nullable=True)
+    estado               = Column(String(20),  nullable=False, default="operativo")
+    fecha_instalacion    = Column(Date,         nullable=True)
+    ficha_tecnica        = Column(JSONB,         nullable=True)
+    observaciones        = Column(Text,          nullable=True)
+    activo               = Column(Boolean,       nullable=False, default=True)
+    # Campos de intervención en servicio
+    equipo_id            = Column(UUID(as_uuid=False), ForeignKey("equipo.id"),             nullable=True)
+    proyecto_servicio_id = Column(UUID(as_uuid=False), ForeignKey("proyecto_servicio.id"), nullable=True)
+    estado_intervencion  = Column(String(20),   nullable=False, default="pendiente")
+    activo_cliente_id    = Column(UUID(as_uuid=False),                                     nullable=True)
+    fecha_fin            = Column(Date,          nullable=True)
+    created_at           = Column(DateTime,      nullable=False, default=datetime.utcnow)
+    updated_at           = Column(DateTime,      nullable=True)

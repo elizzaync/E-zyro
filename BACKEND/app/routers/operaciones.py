@@ -15,8 +15,7 @@ from datetime import date, datetime
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import List
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, ProgrammingError
@@ -26,7 +25,6 @@ from ..core.security import verificar_token, es_superadmin
 from ..db.database import get_db
 import requests as _requests
 from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary
-from ..services.cloudinary_paths import carpeta_evidencia, carpeta_mantenimiento
 
 # Modelos ORM
 from ..models.proyecto_servicio import ProyectoServicio
@@ -40,19 +38,15 @@ from ..models.procedimiento import Procedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.material import Material, Stock
-from ..models.ticket_compra import TicketCompraItem
 from ..models.equipo import Equipo
 from ..models.tipo_equipo import TipoEquipo
 from ..models.orden_mantenimiento import OrdenMantenimiento
-from ..models.calibracion import Calibracion
 from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
 from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
-from ..models.catalogo_servicio import CatalogoServicio
 from ..models.equipo_intervenido import EquipoIntervenido
-from ..models.activo_cliente import ActivoCliente
-from ..models.ubicacion import Ubicacion
-from ..models.zona import Zona
+from ..models.paso_intervencion import PasoIntervencion
+from ..models.catalogo_servicio import CatalogoServicio
 from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
 from ..models.seguimiento_proyecto import SeguimientoProyecto
 from ..models.rol import Rol
@@ -98,10 +92,6 @@ from ..schemas.operaciones import (
     ValidarHorarioBody,
     PersonaServicioOut,
     SiguienteOrdenOut,
-    EquipoDisponibleOut,
-    EquipoIntervenidoOut,
-    AgregarEquipoIntervenidoIn,
-    ActualizarEstadoIntervencionIn,
 )
 
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
@@ -565,46 +555,8 @@ def get_detalle_servicio(
     mat_asignados: list[ItemMaterialOut]   = []
     mat_solicitados: list[ItemMaterialOut] = []
 
-    # Pre-cargar equipo_id y numero_serie por requerimiento_detalle_id
-    # (viene de ticket_compra_item cuando el ítem pasó por compra)
-    tci_rows = (
-        db.query(
-            TicketCompraItem.requerimiento_detalle_id,
-            TicketCompraItem.equipo_id,
-            TicketCompraItem.tipo_item,
-        )
-        .join(Requerimiento,
-              Requerimiento.id == db.query(
-                  RequerimientoDetalle.requerimiento_id
-              ).filter(RequerimientoDetalle.id == TicketCompraItem.requerimiento_detalle_id).scalar_subquery()
-              )
-        .filter(
-            Requerimiento.proyecto_servicio_id == servicio_id,
-            TicketCompraItem.equipo_id.isnot(None),
-        )
-        .all()
-    )
-    tci_map: dict[str, tuple] = {
-        str(r.requerimiento_detalle_id): (str(r.equipo_id), r.tipo_item)
-        for r in tci_rows
-    }
-
     for m in mat_rows:
         rd = m.RequerimientoDetalle
-        # Determinar clase e ids
-        clase        = (rd.tipo_item_compra or "material").lower()
-        equipo_id    = None
-        numero_serie = None
-
-        if str(rd.id) in tci_map:
-            eid, tipo = tci_map[str(rd.id)]
-            equipo_id = eid
-            clase     = (tipo or clase).lower()
-            # Obtener número de serie del equipo
-            eq = db.query(Equipo).filter(Equipo.id == eid).first()
-            if eq:
-                numero_serie = (eq.numero_serie or "").strip() or None
-
         item = ItemMaterialOut(
             id=str(rd.id),
             requerimiento_id=str(m.req_id),
@@ -612,21 +564,11 @@ def get_detalle_servicio(
             unidad=m.mat_unidad or "Und",
             cantidad=rd.cantidad or 0,
             estado_req=m.req_estado or "pendiente",
-            clase=clase if clase in ("material", "equipo", "herramienta") else "material",
-            equipo_id=equipo_id,
-            numero_serie=numero_serie,
         )
         if m.req_estado in ("entregado", "aprobado"):
             mat_asignados.append(item)
         else:
             mat_solicitados.append(item)
-
-    catalogo = db.query(CatalogoServicio).filter(
-        CatalogoServicio.id == ps.catalogo_servicio_id
-    ).first() if ps.catalogo_servicio_id else None
-    es_mantenimiento = bool(
-        catalogo and "mantenimiento" in (catalogo.tipo_trabajo or "").lower()
-    )
 
     return ServicioDetalleOut(
         id=str(ps.id),
@@ -652,12 +594,9 @@ def get_detalle_servicio(
         lider_id=str(ps.lider_id) if ps.lider_id else None,
         responsable_id=str(ps.responsable_id) if ps.responsable_id else None,
         zona_ejecucion=ps.zona_ejecucion or None,
-        ubicacion_id=str(ps.ubicacion_id) if ps.ubicacion_id else None,
-        zona_id=str(ps.zona_id) if ps.zona_id else None,
         alcance=ps.alcance or None,
         tipo_documento_cliente=ps.tipo_documento_cliente or None,
         nro_documento=ps.nro_documento or None,
-        es_mantenimiento=es_mantenimiento,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -744,20 +683,6 @@ def actualizar_estado_servicio(
     ps.estado     = nuevo
     ps.updated_at = datetime.utcnow()
     db.commit()
-
-    # Notificar en tiempo real: al completar, avisar a todos los técnicos
-    if nuevo == "Completado":
-        try:
-            from .chat_ws import manager as _ws_manager
-            import asyncio
-            asyncio.create_task(
-                _ws_manager.broadcast_servicio(
-                    servicio_id, {"tipo": "servicio_completado_retorno", "servicioId": servicio_id}
-                )
-            )
-        except Exception:
-            pass
-
     return {"ok": True, "estado": nuevo}
 
 
@@ -823,7 +748,7 @@ async def subir_evidencia(
         ProyectoServicio.id == proc.proyecto_servicio_id
     ).first()
 
-    folder = carpeta_evidencia(empresa_id, ps.proyecto_id, ps.id)
+    folder = f"evidencias/{empresa_id}/{ps.proyecto_id}"
     url    = await subir_archivo_cloudinary(archivo, folder)
     pub_id = _extract_public_id(url)
 
@@ -1005,9 +930,6 @@ def get_borrador(
                 "especificacion":      especificacion,
                 "agregado_por_nombre": autor.get("nombre", ""),
                 "agregado_por_foto":   autor.get("foto",   ""),
-                # Fase 1 — clasificación y precio estimado
-                "tipo_item_compra":    getattr(rd, "tipo_item_compra",  "material"),
-                "precio_estimado":     float(rd.precio_estimado) if getattr(rd, "precio_estimado", None) else None,
             })
 
         return {"requerimiento_id": borrador.id, "items": items}
@@ -1124,12 +1046,6 @@ async def agregar_item_borrador(
     if body.unidad:         rd.unidad_libre   = body.unidad
     if body.especificacion: rd.especificacion = body.especificacion
     rd.agregado_por_id = agregado_por_id   # None cuando admin sin empleado
-
-    # Fase 1 — clasificación y precio estimado (solo relevante para compras externas)
-    if body.material_id is None:
-        rd.tipo_item_compra = body.tipo_item_compra or "material"
-        if body.precio_estimado is not None:
-            rd.precio_estimado = body.precio_estimado
 
     try:
         db.add(rd)
@@ -1296,26 +1212,6 @@ def buscar_materiales(
 # ── GET /operaciones/proyecto/{proyecto_id}/equipos ───────────────────────────
 # HU-18: Lista de equipos del proyecto con tipo y progreso
 
-# Umbral (días) para considerar un mantenimiento "próximo a vencer".
-UMBRAL_PROXIMO_DIAS = 30
-
-
-def clasificar_mantenimiento(prox, hoy, umbral: int = UMBRAL_PROXIMO_DIAS):
-    """Devuelve (estado, dias_restantes) para una fecha de próximo mantenimiento.
-
-    estado ∈ {vigente, proximo, vencido}; dias_restantes None si no hay fecha
-    (positivo = faltan, negativo = vencido hace N).
-    """
-    if not prox:
-        return "vigente", None
-    dias = (prox - hoy).days
-    if dias < 0:
-        return "vencido", dias
-    if dias <= umbral:
-        return "proximo", dias
-    return "vigente", dias
-
-
 @router.get("/proyecto/{proyecto_id}/equipos", response_model=List[EquipoItemOut])
 def get_equipos_proyecto(
     proyecto_id: str,
@@ -1323,7 +1219,6 @@ def get_equipos_proyecto(
     db:          Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
-    hoy = date.today()
 
     rows = (
         db.query(Equipo, TipoEquipo.nombre.label("tipo_nombre"))
@@ -1334,348 +1229,19 @@ def get_equipos_proyecto(
         )
         .all()
     )
-    if not rows:
-        return []
 
-    equipo_ids = [str(r.Equipo.id) for r in rows]
-
-    # Última orden de mantenimiento completada por equipo (fecha_fin más reciente).
-    sub_ultima = (
-        db.query(
-            OrdenMantenimiento.equipo_id.label("eq"),
-            func.max(OrdenMantenimiento.fecha_fin).label("ffin"),
-        )
-        .filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.equipo_id.in_(equipo_ids),
-            OrdenMantenimiento.estado == "completado",
-            OrdenMantenimiento.fecha_fin.isnot(None),
-        )
-        .group_by(OrdenMantenimiento.equipo_id)
-        .all()
-    )
-    ult_fin_por_equipo = {r.eq: r.ffin for r in sub_ultima}
-
-    # Calibración vigente por equipo (la de fecha_proxima más reciente): de ahí
-    # sale la fecha "fija" del certificado y la URL del certificado.
-    calib_rows = (
-        db.query(Calibracion)
-        .filter(
-            Calibracion.empresa_id == empresa_id,
-            Calibracion.equipo_id.in_(equipo_ids),
-        )
-        .all()
-    )
-    calib_por_equipo: dict[str, Calibracion] = {}
-    for c in calib_rows:
-        prev = calib_por_equipo.get(c.equipo_id)
-        if prev is None or (c.fecha_proxima or date.min) > (prev.fecha_proxima or date.min):
-            calib_por_equipo[c.equipo_id] = c
-
-    salida = []
-    for r in rows:
-        e = r.Equipo
-        eid = str(e.id)
-        calib = calib_por_equipo.get(eid)
-        # Próxima fecha efectiva: preferir la del certificado/calibración; si no,
-        # la del equipo.
-        prox = (calib.fecha_proxima if calib and calib.fecha_proxima
-                else e.proxima_fecha_mantenimiento)
-        estado_mant, dias = clasificar_mantenimiento(prox, hoy)
-        ult_fin = ult_fin_por_equipo.get(eid)
-
-        salida.append(EquipoItemOut(
-            id=eid,
-            nombre=e.nombre,
-            descripcion=e.modelo,
-            ubicacion=e.ubicacion,
-            estado=e.estado,
+    return [
+        EquipoItemOut(
+            id=str(r.Equipo.id),
+            nombre=r.Equipo.nombre,
+            descripcion=r.Equipo.modelo,
+            ubicacion=r.Equipo.ubicacion,
+            estado=r.Equipo.estado,
             tipo=r.tipo_nombre,
             progreso_porcentaje=None,
-            requiere_mantenimiento=bool(e.requiere_mantenimiento),
-            frecuencia_mantenimiento=e.frecuencia_mantenimiento,
-            ultima_fecha_mantenimiento=(ult_fin.date().isoformat() if ult_fin else None),
-            proxima_fecha_mantenimiento=(prox.isoformat() if prox else None),
-            dias_restantes=dias,
-            estado_mantenimiento=(estado_mant if e.requiere_mantenimiento else None),
-            certificado_url=(calib.certificado_url if calib else None),
-        ))
-    return salida
-
-
-# ── Helpers de periodicidad y edición de mantenimiento ────────────────────────
-_MESES_FRECUENCIA = {"mensual": 1, "trimestral": 3, "semestral": 6, "anual": 12}
-_ROLES_EDIT_MANT = {"administrador", "admin", "superadmin",
-                    "jefe de operaciones", "jefe_operaciones"}
-
-
-def _sumar_meses(d: date, meses: int) -> date:
-    """Suma `meses` a una fecha respetando el fin de mes (sin dependencias)."""
-    import calendar
-    total = (d.month - 1) + meses
-    y = d.year + total // 12
-    mo = total % 12 + 1
-    day = min(d.day, calendar.monthrange(y, mo)[1])
-    return date(y, mo, day)
-
-
-def _es_admin_o_jefe(payload: dict) -> bool:
-    return (payload.get("rol") or "").lower().strip() in _ROLES_EDIT_MANT
-
-
-def _build_equipo_item(db: Session, e: Equipo, empresa_id: str, hoy: date) -> EquipoItemOut:
-    """Construye el EquipoItemOut enriquecido para un solo equipo (reusa la
-    misma lógica que get_equipos_proyecto: última orden + calibración vigente)."""
-    ult_fin = (
-        db.query(func.max(OrdenMantenimiento.fecha_fin))
-        .filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.equipo_id == str(e.id),
-            OrdenMantenimiento.estado == "completado",
-            OrdenMantenimiento.fecha_fin.isnot(None),
         )
-        .scalar()
-    )
-    calib = (
-        db.query(Calibracion)
-        .filter(Calibracion.empresa_id == empresa_id, Calibracion.equipo_id == str(e.id))
-        .order_by(Calibracion.fecha_proxima.desc().nullslast())
-        .first()
-    )
-    prox = (calib.fecha_proxima if calib and calib.fecha_proxima
-            else e.proxima_fecha_mantenimiento)
-    estado_mant, dias = clasificar_mantenimiento(prox, hoy)
-    tipo_nombre = None
-    if e.tipo_equipo_id:
-        te = db.query(TipoEquipo).filter(TipoEquipo.id == e.tipo_equipo_id).first()
-        tipo_nombre = te.nombre if te else None
-    return EquipoItemOut(
-        id=str(e.id), nombre=e.nombre, descripcion=e.modelo, ubicacion=e.ubicacion,
-        estado=e.estado, tipo=tipo_nombre, progreso_porcentaje=None,
-        requiere_mantenimiento=bool(e.requiere_mantenimiento),
-        frecuencia_mantenimiento=e.frecuencia_mantenimiento,
-        ultima_fecha_mantenimiento=(ult_fin.date().isoformat() if ult_fin else None),
-        proxima_fecha_mantenimiento=(prox.isoformat() if prox else None),
-        dias_restantes=dias,
-        estado_mantenimiento=(estado_mant if e.requiere_mantenimiento else None),
-        certificado_url=(calib.certificado_url if calib else None),
-    )
-
-
-class _MantenimientoPatchBody(BaseModel):
-    requiere_mantenimiento: Optional[bool] = None
-    frecuencia_mantenimiento: Optional[str] = None   # ninguno|mensual|trimestral|semestral|anual
-    proxima_fecha_mantenimiento: Optional[str] = None  # ISO yyyy-mm-dd
-
-
-# ── PATCH /operaciones/equipos/{id}/mantenimiento ─────────────────────────────
-# Solo Admin / Jefe de Operaciones: configura periodicidad y próxima fecha del
-# equipo intervenido. El certificado adjunto se gestiona vía el módulo Calibraciones.
-
-@router.patch("/equipos/{equipo_id}/mantenimiento", response_model=EquipoItemOut)
-def editar_mantenimiento_equipo(
-    equipo_id: str,
-    body:      _MantenimientoPatchBody,
-    payload:   dict    = Depends(verificar_token),
-    db:        Session = Depends(get_db),
-):
-    if not _es_admin_o_jefe(payload):
-        raise HTTPException(status_code=403,
-                            detail="Solo Admin o Jefe de Operaciones puede editar el mantenimiento")
-    empresa_id = payload["empresa_id"]
-    equipo = db.query(Equipo).filter(
-        Equipo.id == equipo_id, Equipo.empresa_id == empresa_id,
-    ).first()
-    if not equipo:
-        raise HTTPException(status_code=404, detail="Equipo no encontrado")
-
-    if body.requiere_mantenimiento is not None:
-        equipo.requiere_mantenimiento = bool(body.requiere_mantenimiento)
-        if not equipo.requiere_mantenimiento:
-            equipo.frecuencia_mantenimiento = "ninguno"
-            equipo.proxima_fecha_mantenimiento = None
-    if equipo.requiere_mantenimiento and body.frecuencia_mantenimiento is not None:
-        equipo.frecuencia_mantenimiento = body.frecuencia_mantenimiento
-    if equipo.requiere_mantenimiento and body.proxima_fecha_mantenimiento is not None:
-        try:
-            equipo.proxima_fecha_mantenimiento = (
-                date.fromisoformat(body.proxima_fecha_mantenimiento)
-                if body.proxima_fecha_mantenimiento else None
-            )
-        except ValueError:
-            raise HTTPException(status_code=422, detail="Fecha inválida (use yyyy-mm-dd)")
-    equipo.updated_at = datetime.utcnow()
-    db.commit()
-    db.refresh(equipo)
-    return _build_equipo_item(db, equipo, empresa_id, date.today())
-
-
-# ── GET /operaciones/mantenimientos/general ───────────────────────────────────
-# Vista del Jefe de Operaciones: estado de mantenimiento de cada equipo que lo
-# requiere (vigente | proximo | vencido). Lo consume el móvil
-# (pantalla_mantenimientos.dart).
-
-@router.get("/mantenimientos/general")
-def mantenimientos_generales(
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-    hoy = date.today()
-    UMBRAL_PROXIMO_DIAS = 30  # ventana para considerar "Próximo"
-
-    equipos = (
-        db.query(
-            Equipo.id,
-            Equipo.codigo,
-            Equipo.nombre,
-            Equipo.tipo,
-            Equipo.ubicacion,
-            Equipo.frecuencia_mantenimiento,
-            Equipo.proxima_fecha_mantenimiento,
-            Equipo.proyecto_id,
-            Equipo.cliente_id,
-        )
-        .filter(
-            Equipo.empresa_id == empresa_id,
-            Equipo.requiere_mantenimiento.is_(True),
-        )
-        .all()
-    )
-    if not equipos:
-        return []
-
-    equipo_ids = [e.id for e in equipos]
-    proyecto_ids = {e.proyecto_id for e in equipos if e.proyecto_id}
-    cliente_ids_directos = {e.cliente_id for e in equipos if e.cliente_id}
-
-    # Última orden completada por equipo (fecha_fin más reciente con estado='completado').
-    sub_ultima = (
-        db.query(
-            OrdenMantenimiento.equipo_id.label("eq"),
-            func.max(OrdenMantenimiento.fecha_fin).label("ffin"),
-        )
-        .filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.equipo_id.in_(equipo_ids),
-            OrdenMantenimiento.estado == "completado",
-            OrdenMantenimiento.fecha_fin.isnot(None),
-        )
-        .group_by(OrdenMantenimiento.equipo_id)
-        .subquery()
-    )
-
-    ordenes_rows = (
-        db.query(
-            OrdenMantenimiento.equipo_id,
-            OrdenMantenimiento.fecha_fin,
-            OrdenMantenimiento.tecnico_id,
-        )
-        .join(
-            sub_ultima,
-            (sub_ultima.c.eq == OrdenMantenimiento.equipo_id)
-            & (sub_ultima.c.ffin == OrdenMantenimiento.fecha_fin),
-        )
-        .filter(
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.estado == "completado",
-        )
-        .all()
-    )
-    ult_por_equipo = {r.equipo_id: (r.fecha_fin, r.tecnico_id) for r in ordenes_rows}
-
-    # Resolver nombres de técnicos (Empleado → Usuario.nombre/apellido).
-    tecnico_ids = {t for (_f, t) in ult_por_equipo.values() if t}
-    nombres_tecnico: dict[str, str] = {}
-    if tecnico_ids:
-        rows_tec = (
-            db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
-            .join(Usuario, Usuario.id == Empleado.usuario_id)
-            .filter(Empleado.id.in_(tecnico_ids))
-            .all()
-        )
-        for r in rows_tec:
-            nombres_tecnico[r.id] = f"{r.nombre or ''} {r.apellido or ''}".strip()
-
-    # Resolver proyecto → orden_trabajo + cliente
-    proy_info: dict[str, tuple[str, str | None]] = {}  # proyecto_id → (orden_trabajo, cliente_id)
-    if proyecto_ids:
-        rows_p = (
-            db.query(Proyecto.id, Proyecto.orden_trabajo, Proyecto.cliente_id)
-            .filter(Proyecto.id.in_(proyecto_ids))
-            .all()
-        )
-        for r in rows_p:
-            proy_info[r.id] = (r.orden_trabajo or "", r.cliente_id)
-
-    # Resolver clientes (los directos + los que vienen vía proyecto)
-    todos_los_clientes = set(cliente_ids_directos)
-    for (_ot, cid) in proy_info.values():
-        if cid:
-            todos_los_clientes.add(cid)
-    clientes: dict[str, str] = {}
-    if todos_los_clientes:
-        rows_c = (
-            db.query(Cliente.id, Cliente.razon_social)
-            .filter(Cliente.id.in_(todos_los_clientes))
-            .all()
-        )
-        clientes = {r.id: (r.razon_social or "") for r in rows_c}
-
-    def _fmt(d):
-        return d.strftime("%Y-%m-%d") if d else ""
-
-    def _estado(prox: "date | None") -> str:
-        if not prox:
-            return "vigente"
-        if prox < hoy:
-            return "vencido"
-        if (prox - hoy).days <= UMBRAL_PROXIMO_DIAS:
-            return "proximo"
-        return "vigente"
-
-    def _tipo_label(frec: str | None, tipo_libre: str | None) -> str:
-        f = (frec or "").lower()
-        etiqueta = {
-            "mensual":     "Mantenimiento Mensual",
-            "trimestral":  "Mantenimiento Trimestral",
-            "semestral":   "Mantenimiento Semestral",
-            "anual":       "Mantenimiento Anual",
-        }.get(f, "Mantenimiento")
-        if tipo_libre:
-            return f"{etiqueta} · {tipo_libre}"
-        return etiqueta
-
-    salida = []
-    for e in equipos:
-        ult_fecha, ult_tec_id = ult_por_equipo.get(e.id, (None, None))
-
-        # OT + cliente: del proyecto si está asignado; si no, del cliente directo
-        ot = ""
-        cliente_id = e.cliente_id
-        if e.proyecto_id and e.proyecto_id in proy_info:
-            ot_proy, cid_proy = proy_info[e.proyecto_id]
-            ot = ot_proy
-            cliente_id = cliente_id or cid_proy
-        if not ot:
-            ot = e.codigo or ""
-
-        salida.append({
-            "id":              str(e.id),
-            "ot":              ot,
-            "cliente":         clientes.get(cliente_id, "") if cliente_id else "",
-            "tipo":            _tipo_label(e.frecuencia_mantenimiento, e.tipo),
-            "zona":            e.ubicacion or "",
-            "tecnico_nombre":  nombres_tecnico.get(ult_tec_id, "") if ult_tec_id else "",
-            "fecha_realizado": _fmt(ult_fecha.date() if ult_fecha else None),
-            "fecha_proximo":   _fmt(e.proxima_fecha_mantenimiento),
-            "estado":          _estado(e.proxima_fecha_mantenimiento),
-        })
-
-    # Vencidos primero, luego próximos, luego vigentes; dentro de cada grupo, por fecha.
-    orden_estado = {"vencido": 0, "proximo": 1, "vigente": 2}
-    salida.sort(key=lambda r: (orden_estado.get(r["estado"], 9), r["fecha_proximo"] or "9999"))
-    return salida
+        for r in rows
+    ]
 
 
 # ── POST /operaciones/mantenimientos/{equipo_id}/finalizar ────────────────────
@@ -1731,15 +1297,6 @@ def finalizar_mantenimiento(
             orden.tecnico_id = empleado.id
 
     equipo.estado = "operativo"
-
-    # Cierre de ciclo: si el equipo lleva mantenimiento periódico, programar la
-    # próxima fecha = fecha de cierre + frecuencia. Si existe una calibración con
-    # fecha de certificado, esa tiene prioridad en la lectura (get_equipos_proyecto).
-    if equipo.requiere_mantenimiento:
-        meses = _MESES_FRECUENCIA.get((equipo.frecuencia_mantenimiento or "").lower())
-        if meses:
-            base = (orden.fecha_fin or datetime.utcnow()).date()
-            equipo.proxima_fecha_mantenimiento = _sumar_meses(base, meses)
     db.flush()
 
     evidencias = (
@@ -2218,7 +1775,7 @@ async def subir_evidencia_paso(
         orden.fecha_inicio = orden.fecha_inicio or datetime.utcnow()
 
     # Subir a Cloudinary
-    folder = carpeta_mantenimiento(empresa_id, equipo.id)
+    folder = f"e_zyro/{empresa_id}/mantenimiento/{equipo.id}"
     try:
         url = await subir_archivo_cloudinary(foto, folder)
     except Exception as exc:
@@ -2994,22 +2551,6 @@ def actualizar_proyecto(
 
 # ── POST /operaciones/proyecto/{proyecto_id}/servicios ────────────────────────
 
-def _resolver_geo_servicio(db, empresa_id, ubicacion_id, zona_id):
-    """Valida ubicacion_id/zona_id de la empresa y deriva la ubicación desde la
-    zona si no se indicó. Devuelve (ubicacion_id, zona_id)."""
-    if zona_id:
-        z = db.query(Zona).filter(Zona.id == zona_id, Zona.empresa_id == empresa_id).first()
-        if not z:
-            raise HTTPException(status_code=400, detail="Zona inválida")
-        if not ubicacion_id and z.ubicacion_id:
-            ubicacion_id = str(z.ubicacion_id)
-    if ubicacion_id:
-        u = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id, Ubicacion.empresa_id == empresa_id).first()
-        if not u:
-            raise HTTPException(status_code=400, detail="Ubicación inválida")
-    return ubicacion_id, zona_id
-
-
 @router.post("/proyecto/{proyecto_id}/servicios", status_code=status.HTTP_201_CREATED)
 def crear_servicio(
     proyecto_id: str,
@@ -3035,19 +2576,20 @@ def crear_servicio(
     if not catalogo:
         raise HTTPException(status_code=404, detail="Catálogo de servicio no encontrado")
 
-    # ── Líder del Servicio: opcional. Si se provee, debe ser Jefe de Operaciones / Proyecto ──
-    lider_id = (body.lider_id or "").strip() or None
-    if lider_id:
-        lider = db.query(Empleado).filter(
-            Empleado.id == lider_id, Empleado.empresa_id == empresa_id
-        ).first()
-        if not lider:
-            raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
-        if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
-            raise HTTPException(
-                status_code=422,
-                detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
-            )
+    # ── Líder del Servicio: obligatorio y solo Jefes de Operaciones / Proyecto ──
+    lider_id = (body.lider_id or "").strip()
+    if not lider_id:
+        raise HTTPException(status_code=422, detail="El servicio requiere un Líder del Servicio.")
+    lider = db.query(Empleado).filter(
+        Empleado.id == lider_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not lider:
+        raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
+    if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
+        raise HTTPException(
+            status_code=422,
+            detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
+        )
 
     # ── Técnico Líder (opcional): cualquier empleado activo de la empresa ──
     responsable_id = (body.responsable_id or "").strip() or None
@@ -3070,10 +2612,6 @@ def crear_servicio(
         .scalar()
     ) or 0
 
-    geo_ubicacion_id, geo_zona_id = _resolver_geo_servicio(
-        db, empresa_id, body.ubicacion_id, body.zona_id
-    )
-
     servicio_id = str(_uuid.uuid4())
     nuevo = ProyectoServicio(
         id                     = servicio_id,
@@ -3087,8 +2625,6 @@ def crear_servicio(
         lider_id               = lider_id,
         responsable_id         = responsable_id,
         zona_ejecucion         = body.zona_ejecucion or None,
-        ubicacion_id           = geo_ubicacion_id,
-        zona_id                = geo_zona_id,
         alcance                = body.alcance or None,
         tipo_documento_cliente = tipo_doc,
         nro_documento          = nro_doc,
@@ -3174,12 +2710,6 @@ def actualizar_servicio(
 
     if body.zona_ejecucion is not None:
         ps.zona_ejecucion = body.zona_ejecucion or None
-    if body.ubicacion_id is not None or body.zona_id is not None:
-        nueva_ubic = body.ubicacion_id if body.ubicacion_id is not None else ps.ubicacion_id
-        nueva_zona = body.zona_id if body.zona_id is not None else ps.zona_id
-        ps.ubicacion_id, ps.zona_id = _resolver_geo_servicio(
-            db, empresa_id, nueva_ubic or None, nueva_zona or None
-        )
     if body.alcance is not None:
         ps.alcance = body.alcance or None
     if body.tipo_documento_cliente is not None:
@@ -3528,202 +3058,202 @@ def eliminar_nota(
     return {"ok": True}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# EQUIPOS INTERVENIDOS POR SERVICIO
-# ══════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════════════════════
+# MOTOR DE INSPECCIÓN — Equipos Intervenidos por Servicio
+# ════════════════════════════════════════════════════════════════════════════
 
-def _get_servicio_o_404(db: Session, servicio_id: str, empresa_id: str) -> ProyectoServicio:
+def _map_ei(ei: EquipoIntervenido, tipo_nombre: str | None) -> dict:
+    """Serializa un registro equipo_intervenido (activo de cliente) para el frontend."""
+    return {
+        "id":                  str(ei.id),
+        "nombre":              ei.nombre or "",
+        "codigo":              ei.codigo or None,
+        "tipo_nombre":         tipo_nombre or None,
+        "tipo_equipo_id":      str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
+        "marca":               ei.marca or None,
+        "modelo":              ei.modelo or None,
+        "numero_serie":        ei.numero_serie or None,
+        "estado_intervencion": ei.estado_intervencion or "pendiente",
+        "estado":              ei.estado or "operativo",
+        "observaciones":       ei.observaciones or None,
+    }
+
+
+def _pasos_default_intervencion() -> list[tuple[str, str]]:
+    return [
+        ("Inspección visual y diagnóstico inicial",
+         "Revisión externa, identificación de fallas evidentes."),
+        ("Medición de parámetros eléctricos / mecánicos",
+         "Capturar lecturas de tensión, resistencia, presión u otros relevantes."),
+        ("Aplicación del mantenimiento técnico",
+         "Ejecutar el procedimiento correctivo o preventivo según corresponda."),
+        ("Verificación post-mantenimiento",
+         "Confirmar que el equipo opera dentro de los rangos esperados."),
+    ]
+
+
+def _parse_plantilla_intervencion(template: str | None) -> list[tuple[str, str]]:
+    if not template:
+        return _pasos_default_intervencion()
+    pasos: list[tuple[str, str]] = []
+    for raw in template.splitlines():
+        line = raw.strip().lstrip("-•").strip()
+        if not line:
+            continue
+        if ":" in line:
+            nombre, desc = line.split(":", 1)
+            pasos.append((nombre.strip(), desc.strip()))
+        else:
+            pasos.append((line, ""))
+    return pasos or _pasos_default_intervencion()
+
+
+def _map_paso(p: PasoIntervencion) -> dict:
+    return {
+        "id":          str(p.id),
+        "orden":       p.orden,
+        "nombre":      p.nombre or "",
+        "descripcion": p.descripcion or None,
+        "estado":      "completado" if p.completado else "pendiente",
+        "foto_url":    p.foto_url or None,
+    }
+
+
+# ── GET /operaciones/servicio/{id}/equipos-intervenidos ───────────────────────
+
+@router.get("/servicio/{servicio_id}/equipos-intervenidos")
+def list_equipos_intervenidos(
+    servicio_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
     ps = db.query(ProyectoServicio).filter(
         ProyectoServicio.id         == servicio_id,
         ProyectoServicio.empresa_id == empresa_id,
     ).first()
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    return ps
 
-
-@router.get("/servicio/{servicio_id}/equipos-intervenidos", response_model=List[EquipoIntervenidoOut])
-def listar_equipos_intervenidos(
-    servicio_id: str,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    """Lista todos los equipos asignados a intervenir en este servicio."""
-    empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
-
-    registros = (
-        db.query(EquipoIntervenido)
+    rows = (
+        db.query(EquipoIntervenido, TipoEquipo.nombre.label("tipo_nombre"))
+        .outerjoin(TipoEquipo, TipoEquipo.id == EquipoIntervenido.tipo_equipo_id)
         .filter(
             EquipoIntervenido.proyecto_servicio_id == servicio_id,
             EquipoIntervenido.empresa_id           == empresa_id,
-            EquipoIntervenido.activo               == True,
         )
-        .order_by(EquipoIntervenido.created_at)
+        .order_by(EquipoIntervenido.created_at.asc())
         .all()
     )
 
-    result = []
-    for r in registros:
-        tipo_nombre = None
-        if r.tipo_equipo_id:
-            te = db.query(TipoEquipo).filter(TipoEquipo.id == r.tipo_equipo_id).first()
-            tipo_nombre = te.nombre if te else None
-        result.append(EquipoIntervenidoOut(
-            id=str(r.id),
-            activo_cliente_id=str(r.activo_cliente_id) if r.activo_cliente_id else None,
-            nombre=r.nombre,
-            codigo=r.codigo,
-            tipo_nombre=tipo_nombre,
-            tipo_equipo_id=str(r.tipo_equipo_id) if r.tipo_equipo_id else None,
-            marca=r.marca,
-            modelo=r.modelo,
-            numero_serie=r.numero_serie,
-            estado_intervencion=r.estado_intervencion,
-            estado=r.estado,
-            observaciones=r.observaciones,
-            created_at=r.created_at.isoformat() if r.created_at else None,
-        ))
-    return result
+    return [_map_ei(ei, tn) for ei, tn in rows]
 
 
-@router.get("/servicio/{servicio_id}/equipos-disponibles", response_model=List[EquipoDisponibleOut])
-def listar_equipos_disponibles(
+# ── GET /operaciones/servicio/{id}/equipos-disponibles ────────────────────────
+
+@router.get("/servicio/{servicio_id}/equipos-disponibles")
+def list_equipos_disponibles(
     servicio_id: str,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Activos del cliente (activo_cliente) cuya ubicación y zona coinciden exactamente
-    con las del servicio. Excluye los ya asignados a este servicio."""
     empresa_id = payload["empresa_id"]
-    ps = _get_servicio_o_404(db, servicio_id, empresa_id)
 
-    # IDs de activos ya asignados a este servicio
-    ya_asignados = {
-        str(r.activo_cliente_id) for r in db.query(EquipoIntervenido.activo_cliente_id).filter(
-            EquipoIntervenido.proyecto_servicio_id == servicio_id,
-            EquipoIntervenido.empresa_id           == empresa_id,
-            EquipoIntervenido.activo               == True,
-            EquipoIntervenido.activo_cliente_id    != None,
-        ).all() if r.activo_cliente_id
-    }
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    query = db.query(ActivoCliente).filter(
-        ActivoCliente.empresa_id == empresa_id,
-        ActivoCliente.activo     == True,
-        ActivoCliente.estado.notin_(["baja", "fuera_de_servicio"]),
+    # IDs de activos ya vinculados a este servicio
+    ya_vinculados = (
+        db.query(EquipoIntervenido.id)
+        .filter(EquipoIntervenido.proyecto_servicio_id == servicio_id)
+        .subquery()
     )
 
-    # Filtro geográfico exacto: zona_id > ubicacion_id > sin filtro
-    if ps.zona_id:
-        query = query.filter(ActivoCliente.zona_id == ps.zona_id)
-    elif ps.ubicacion_id:
-        query = query.filter(ActivoCliente.ubicacion_id == ps.ubicacion_id)
+    rows = (
+        db.query(EquipoIntervenido, TipoEquipo.nombre.label("tipo_nombre"))
+        .outerjoin(TipoEquipo, TipoEquipo.id == EquipoIntervenido.tipo_equipo_id)
+        .filter(
+            EquipoIntervenido.empresa_id == empresa_id,
+            EquipoIntervenido.activo     == True,
+            EquipoIntervenido.id.notin_(ya_vinculados),
+        )
+        .order_by(EquipoIntervenido.nombre.asc())
+        .all()
+    )
 
-    activos = query.order_by(ActivoCliente.nombre).all()
-
-    result = []
-    for a in activos:
-        if str(a.id) in ya_asignados:
-            continue
-        te = db.query(TipoEquipo).filter(TipoEquipo.id == a.tipo_equipo_id).first() if a.tipo_equipo_id else None
-        # Resolver nombre de ubicación para el campo `ubicacion` del DTO
-        ub = db.query(Ubicacion).filter(Ubicacion.id == a.ubicacion_id).first() if a.ubicacion_id else None
-        result.append(EquipoDisponibleOut(
-            id=str(a.id),
-            nombre=a.nombre,
-            codigo=a.codigo,
-            tipo_nombre=te.nombre if te else None,
-            tipo_equipo_id=str(a.tipo_equipo_id) if a.tipo_equipo_id else None,
-            marca=a.marca,
-            modelo=a.modelo,
-            numero_serie=a.numero_serie,
-            ubicacion=ub.nombre if ub else None,
-            estado=a.estado,
-        ))
-    return result
+    return [
+        {
+            "id":         str(ei.id),
+            "nombre":     ei.nombre or "",
+            "codigo":     ei.codigo or None,
+            "tipo_nombre": tn or None,
+            "marca":      ei.marca or None,
+            "modelo":     ei.modelo or None,
+            "ubicacion":  None,
+            "estado":     ei.estado or "operativo",
+        }
+        for ei, tn in rows
+    ]
 
 
-@router.post("/servicio/{servicio_id}/equipos-intervenidos", status_code=201)
+# ── POST /operaciones/servicio/{id}/equipos-intervenidos ──────────────────────
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos", status_code=status.HTTP_201_CREATED)
 def agregar_equipo_intervenido(
     servicio_id: str,
-    body:    AgregarEquipoIntervenidoIn,
+    body: dict,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Vincula un activo del catálogo del cliente al servicio (crea registro en equipo_intervenido)."""
     empresa_id = payload["empresa_id"]
-    ps = _get_servicio_o_404(db, servicio_id, empresa_id)
+    activo_id  = (body or {}).get("activo_cliente_id", "")
 
-    activo = db.query(ActivoCliente).filter(
-        ActivoCliente.id         == body.activo_cliente_id,
-        ActivoCliente.empresa_id == empresa_id,
+    if not activo_id:
+        raise HTTPException(status_code=422, detail="activo_cliente_id requerido")
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
     ).first()
-    if not activo:
-        raise HTTPException(status_code=404, detail="Activo de cliente no encontrado")
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    # Evitar duplicados activos
-    existe = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.activo_cliente_id    == body.activo_cliente_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
-        EquipoIntervenido.activo               == True,
+    # activo_cliente_id referencia un registro en equipo_intervenido
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == activo_id,
+        EquipoIntervenido.empresa_id == empresa_id,
     ).first()
-    if existe:
-        raise HTTPException(status_code=409, detail="Este activo ya está asignado al servicio")
+    if not ei:
+        raise HTTPException(status_code=404, detail="Activo no encontrado")
 
-    ei = EquipoIntervenido(
-        id=str(_uuid.uuid4()),
-        empresa_id           = empresa_id,
-        proyecto_servicio_id = servicio_id,
-        proyecto_id          = ps.proyecto_id,
-        activo_cliente_id    = body.activo_cliente_id,
-        tipo_equipo_id       = activo.tipo_equipo_id,
-        nombre               = activo.nombre,
-        codigo               = activo.codigo,
-        marca                = activo.marca,
-        modelo               = activo.modelo,
-        numero_serie         = activo.numero_serie,
-        ubicacion_id         = activo.ubicacion_id or ps.ubicacion_id,
-        zona_id              = activo.zona_id or ps.zona_id,
-        area_id              = activo.area_id,
-        estado               = activo.estado or "operativo",
-        estado_intervencion  = "pendiente",
-        activo               = True,
-    )
-    db.add(ei)
+    if str(ei.proyecto_servicio_id) == str(servicio_id):
+        raise HTTPException(status_code=409, detail="El activo ya está vinculado a este servicio")
+
+    ei.proyecto_servicio_id = servicio_id
+    ei.estado_intervencion  = "pendiente"
+    ei.updated_at           = datetime.utcnow()
     db.commit()
-    db.refresh(ei)
 
-    te = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first() if ei.tipo_equipo_id else None
-    return EquipoIntervenidoOut(
-        id=str(ei.id),
-        activo_cliente_id=str(ei.activo_cliente_id) if ei.activo_cliente_id else None,
-        nombre=ei.nombre,
-        codigo=ei.codigo,
-        tipo_nombre=te.nombre if te else None,
-        tipo_equipo_id=str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
-        marca=ei.marca,
-        modelo=ei.modelo,
-        numero_serie=ei.numero_serie,
-        estado_intervencion=ei.estado_intervencion,
-        estado=ei.estado,
-        observaciones=ei.observaciones,
-        created_at=ei.created_at.isoformat() if ei.created_at else None,
-    )
+    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+    return _map_ei(ei, tipo.nombre if tipo else None)
 
+
+# ── PATCH /operaciones/servicio/{id}/equipos-intervenidos/{eiId} ──────────────
 
 @router.patch("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}")
-def actualizar_estado_intervencion(
+def actualizar_equipo_intervenido(
     servicio_id: str,
     ei_id:       str,
-    body:    ActualizarEstadoIntervencionIn,
+    body: dict,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Actualiza el estado de intervención de un equipo en el servicio."""
     empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
 
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id                   == ei_id,
@@ -3731,20 +3261,23 @@ def actualizar_estado_intervencion(
         EquipoIntervenido.empresa_id           == empresa_id,
     ).first()
     if not ei:
-        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
-    estados_validos = {"pendiente", "en_proceso", "completado", "cancelado"}
-    if body.estado_intervencion not in estados_validos:
-        raise HTTPException(status_code=422, detail="Estado inválido")
+    if "estado_intervencion" in body:
+        estados = {"pendiente", "en_proceso", "completado", "cancelado"}
+        if body["estado_intervencion"] not in estados:
+            raise HTTPException(status_code=422, detail="Estado inválido")
+        ei.estado_intervencion = body["estado_intervencion"]
 
-    ei.estado_intervencion = body.estado_intervencion
-    if body.observaciones is not None:
-        ei.observaciones = body.observaciones
-    from datetime import datetime as _dt
-    ei.updated_at = _dt.utcnow()
+    if "observaciones" in body:
+        ei.observaciones = body["observaciones"] or None
+
+    ei.updated_at = datetime.utcnow()
     db.commit()
-    return {"ok": True, "estado_intervencion": ei.estado_intervencion}
+    return {"ok": True}
 
+
+# ── DELETE /operaciones/servicio/{id}/equipos-intervenidos/{eiId} ─────────────
 
 @router.delete("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}")
 def quitar_equipo_intervenido(
@@ -3753,9 +3286,7 @@ def quitar_equipo_intervenido(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Desvincula un equipo del servicio (soft delete)."""
     empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
 
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id                   == ei_id,
@@ -3763,16 +3294,23 @@ def quitar_equipo_intervenido(
         EquipoIntervenido.empresa_id           == empresa_id,
     ).first()
     if not ei:
-        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
-    ei.activo = False
-    from datetime import datetime as _dt
-    ei.updated_at = _dt.utcnow()
+    # Eliminar pasos de inspección de esta intervención
+    db.query(PasoIntervencion).filter(
+        PasoIntervencion.equipo_intervenido_id == ei_id
+    ).delete(synchronize_session=False)
+
+    # Desvincular el activo del servicio (no borrar el activo en sí)
+    ei.proyecto_servicio_id = None
+    ei.estado_intervencion  = "pendiente"
+    ei.updated_at           = datetime.utcnow()
     db.commit()
     return {"ok": True}
 
 
-# ── GET /operaciones/servicio/{sid}/equipos-intervenidos/{eiId} ──────────────
+# ── GET /operaciones/servicio/{id}/equipos-intervenidos/{eiId}/detalle ─────────
+
 @router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/detalle")
 def detalle_equipo_intervenido(
     servicio_id: str,
@@ -3780,9 +3318,7 @@ def detalle_equipo_intervenido(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Detalle completo de un equipo intervenido incluyendo template de procedimientos."""
     empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
 
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id                   == ei_id,
@@ -3790,86 +3326,66 @@ def detalle_equipo_intervenido(
         EquipoIntervenido.empresa_id           == empresa_id,
     ).first()
     if not ei:
-        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
-    tipo_nombre          = None
-    procedimientos_tmpl  = None
-    if ei.tipo_equipo_id:
-        te = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
-        if te:
-            tipo_nombre         = te.nombre
-            procedimientos_tmpl = te.procedimientos_template
+    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
 
     return {
-        "id":                   str(ei.id),
-        "nombre":               ei.nombre,
-        "codigo":               ei.codigo,
-        "tipo_nombre":          tipo_nombre,
-        "tipo_equipo_id":       str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
-        "marca":                ei.marca,
-        "modelo":               ei.modelo,
-        "numero_serie":         ei.numero_serie,
-        "estado":               ei.estado,
-        "estado_intervencion":  ei.estado_intervencion,
-        "observaciones":        ei.observaciones,
-        "procedimientos_template": procedimientos_tmpl or [],
+        "id":                  str(ei.id),
+        "nombre":              ei.nombre or "",
+        "codigo":              ei.codigo or None,
+        "tipo_nombre":         tipo.nombre if tipo else None,
+        "marca":               ei.marca or None,
+        "modelo":              ei.modelo or None,
+        "numero_serie":        ei.numero_serie or None,
+        "estado":              ei.estado or "operativo",
+        "estado_intervencion": ei.estado_intervencion or "pendiente",
+        "observaciones":       ei.observaciones or None,
     }
 
 
-# ── GET /operaciones/servicio/{sid}/equipos-intervenidos/{eiId}/procedimientos
+# ── GET /operaciones/servicio/{id}/equipos-intervenidos/{eiId}/procedimientos ──
+
 @router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/procedimientos")
-def listar_procedimientos_ei(
+def get_procedimientos_ei(
     servicio_id: str,
     ei_id:       str,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Lista los procedimientos instanciados para este equipo intervenido."""
     empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
 
-    procs = (
-        db.query(Procedimiento)
-        .filter(
-            Procedimiento.equipo_intervenido_id == ei_id,
-            Procedimiento.empresa_id            == empresa_id,
-        )
-        .order_by(Procedimiento.orden.asc())
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+
+    pasos = (
+        db.query(PasoIntervencion)
+        .filter(PasoIntervencion.equipo_intervenido_id == ei_id)
+        .order_by(PasoIntervencion.orden.asc())
         .all()
     )
 
-    result = []
-    for p in procs:
-        # Foto más reciente (evidencia)
-        ev = (
-            db.query(EvidenciaProcedimiento)
-            .filter(EvidenciaProcedimiento.procedimiento_id == p.id)
-            .order_by(EvidenciaProcedimiento.fecha_captura.desc())
-            .first()
-        )
-        result.append({
-            "id":          str(p.id),
-            "orden":       p.orden,
-            "nombre":      p.nombre,
-            "descripcion": p.descripcion,
-            "estado":      p.estado,
-            "foto_url":    ev.url_cloudinary if ev else None,
-        })
-    return result
+    return [_map_paso(p) for p in pasos]
 
 
-# ── POST /operaciones/servicio/{sid}/equipos-intervenidos/{eiId}/procedimientos/iniciar
-@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/procedimientos/iniciar", status_code=201)
+# ── POST /operaciones/servicio/{id}/equipos-intervenidos/{eiId}/procedimientos/iniciar
+
+@router.post(
+    "/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/procedimientos/iniciar",
+    status_code=status.HTTP_201_CREATED,
+)
 def iniciar_procedimientos_ei(
     servicio_id: str,
     ei_id:       str,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Crea los procedimientos de intervención a partir del template del tipo de equipo.
-    Idempotente: si ya existen, los devuelve sin duplicar."""
     empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
 
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id                   == ei_id,
@@ -3877,64 +3393,171 @@ def iniciar_procedimientos_ei(
         EquipoIntervenido.empresa_id           == empresa_id,
     ).first()
     if not ei:
-        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
-    # Idempotente: si ya hay procedimientos, devolver los existentes
+    # Si ya tiene pasos, devolverlos directamente
     existentes = (
-        db.query(Procedimiento)
-        .filter(
-            Procedimiento.equipo_intervenido_id == ei_id,
-            Procedimiento.empresa_id            == empresa_id,
-        )
-        .order_by(Procedimiento.orden.asc())
+        db.query(PasoIntervencion)
+        .filter(PasoIntervencion.equipo_intervenido_id == ei_id)
+        .order_by(PasoIntervencion.orden.asc())
         .all()
     )
     if existentes:
-        return [{"id": str(p.id), "orden": p.orden, "nombre": p.nombre,
-                 "descripcion": p.descripcion, "estado": p.estado, "foto_url": None}
-                for p in existentes]
+        return [_map_paso(p) for p in existentes]
 
-    # Obtener template del tipo de equipo
-    template = []
-    if ei.tipo_equipo_id:
-        te = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
-        if te and te.procedimientos_template:
-            template = te.procedimientos_template
+    # Crear desde plantilla del tipo de equipo del activo
+    tipo      = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+    plantilla = _parse_plantilla_intervencion(tipo.procedimiento_tecnico if tipo else None)
 
-    if not template:
-        raise HTTPException(
-            status_code=422,
-            detail="Este tipo de equipo no tiene procedimientos definidos. Configura el template en el catálogo."
-        )
-
-    creados = []
-    for item in template:
-        proc = Procedimiento(
+    nuevos = []
+    for i, (nombre, desc) in enumerate(plantilla, start=1):
+        p = PasoIntervencion(
             id                    = str(_uuid.uuid4()),
-            proyecto_servicio_id  = servicio_id,
             equipo_intervenido_id = ei_id,
             empresa_id            = empresa_id,
-            nombre                = item.get("nombre", "Procedimiento"),
-            descripcion           = item.get("descripcion"),
-            orden                 = item.get("orden", 1),
-            estado                = "pendiente",
+            nombre                = nombre[:200],
+            descripcion           = desc or None,
+            orden                 = i,
+            completado            = False,
         )
-        db.add(proc)
-        creados.append(proc)
+        db.add(p)
+        nuevos.append(p)
 
-    # Marcar EI como en_proceso si estaba pendiente
-    if ei.estado_intervencion == "pendiente":
-        ei.estado_intervencion = "en_proceso"
-        from datetime import datetime as _dt2
-        ei.updated_at = _dt2.utcnow()
-
+    # Marcar intervención como en_proceso
+    ei.estado_intervencion = "en_proceso"
+    ei.updated_at          = datetime.utcnow()
     db.commit()
-    return [{"id": str(p.id), "orden": p.orden, "nombre": p.nombre,
-             "descripcion": p.descripcion, "estado": p.estado, "foto_url": None}
-            for p in creados]
+
+    return [_map_paso(p) for p in nuevos]
 
 
-# ── POST /operaciones/servicio/{sid}/equipos-intervenidos/{eiId}/completar ───
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/paso/{pasoId}/foto ─────────
+
+@router.post(
+    "/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/paso/{paso_id}/foto",
+    status_code=status.HTTP_200_OK,
+)
+async def subir_foto_paso_ei(
+    servicio_id: str,
+    ei_id:       str,
+    paso_id:     str,
+    archivo:     UploadFile = File(...),
+    payload:     dict       = Depends(verificar_token),
+    db:          Session    = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+
+    paso = db.query(PasoIntervencion).filter(
+        PasoIntervencion.id                    == paso_id,
+        PasoIntervencion.equipo_intervenido_id == ei_id,
+    ).first()
+    if not paso:
+        raise HTTPException(status_code=404, detail="Paso no encontrado")
+
+    folder = f"e_zyro/{empresa_id}/inspecciones/{ei_id}"
+    try:
+        url = await subir_archivo_cloudinary(archivo, folder)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Error subiendo a Cloudinary: {exc}")
+
+    pub_id = _extract_public_id(url)
+
+    paso.foto_url      = url
+    paso.foto_public_id = pub_id
+    db.commit()
+
+    return {"ok": True, "url": url, "public_id": pub_id}
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/guardar ───────────────────
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/guardar")
+def guardar_inspeccion(
+    servicio_id: str,
+    ei_id:       str,
+    body: dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Guardado global de la inspección: actualiza todos los pasos en una
+    sola transacción y cierra la intervención si todos están completados."""
+    empresa_id = payload["empresa_id"]
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+
+    pasos_payload: list[dict] = body.get("pasos", [])
+    observaciones: str | None = body.get("observaciones") or None
+
+    if not pasos_payload:
+        raise HTTPException(status_code=422, detail="El payload debe incluir al menos un paso")
+
+    # Mapa id → paso para actualización en bulk
+    paso_ids = [p.get("id") for p in pasos_payload if p.get("id")]
+    pasos_db = {
+        str(p.id): p
+        for p in db.query(PasoIntervencion).filter(
+            PasoIntervencion.equipo_intervenido_id == ei_id,
+            PasoIntervencion.id.in_(paso_ids),
+        ).all()
+    }
+
+    todos_completados = True
+    guardados = 0
+
+    for item in pasos_payload:
+        pid  = item.get("id", "")
+        paso = pasos_db.get(pid)
+        if not paso:
+            continue
+
+        paso.completado = bool(item.get("completado", False))
+
+        # Solo actualizar foto si viene en el payload (permite override)
+        if "foto_url" in item and item["foto_url"]:
+            paso.foto_url       = item["foto_url"]
+            paso.foto_public_id = item.get("foto_public_id") or None
+
+        if not paso.completado:
+            todos_completados = False
+
+        guardados += 1
+
+    # Actualizar estado de la intervención
+    if todos_completados and guardados > 0:
+        ei.estado_intervencion = "completado"
+    elif ei.estado_intervencion == "pendiente":
+        ei.estado_intervencion = "en_proceso"
+
+    if observaciones is not None:
+        ei.observaciones = observaciones or None
+
+    ei.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "ok":                   True,
+        "equipo_intervenido_id": str(ei.id),
+        "pasos_guardados":      guardados,
+        "estado_intervencion":  ei.estado_intervencion,
+    }
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/completar ─────────────────
+
 @router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/completar")
 def completar_intervencion(
     servicio_id: str,
@@ -3942,9 +3565,7 @@ def completar_intervencion(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Marca la intervención como completada (solo si todos los procedimientos están completados)."""
     empresa_id = payload["empresa_id"]
-    _get_servicio_o_404(db, servicio_id, empresa_id)
 
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id                   == ei_id,
@@ -3952,22 +3573,10 @@ def completar_intervencion(
         EquipoIntervenido.empresa_id           == empresa_id,
     ).first()
     if not ei:
-        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
-
-    procs = db.query(Procedimiento).filter(
-        Procedimiento.equipo_intervenido_id == ei_id,
-        Procedimiento.empresa_id            == empresa_id,
-    ).all()
-
-    pendientes = [p for p in procs if p.estado != "completado"]
-    if pendientes:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Faltan {len(pendientes)} procedimiento(s) por completar."
-        )
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
     ei.estado_intervencion = "completado"
-    from datetime import datetime as _dt3
-    ei.updated_at = _dt3.utcnow()
+    ei.updated_at          = datetime.utcnow()
     db.commit()
+
     return {"ok": True, "estado_intervencion": "completado"}
