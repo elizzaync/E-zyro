@@ -457,6 +457,10 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos-intervenidos', eq.id]);
   }
 
+  irAEquiposIntervenidos(): void {
+    this.router.navigate(['/operaciones/servicio', this.servicioId, 'equipos-intervenidos']);
+  }
+
   eiEstadoLabel(e: string): string {
     return ({ pendiente: 'Pendiente', en_proceso: 'En Proceso', completado: 'Completado', cancelado: 'Cancelado' } as Record<string, string>)[e] ?? e;
   }
