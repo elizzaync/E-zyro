@@ -97,7 +97,7 @@ class EquipoDisponibleOut(BaseModel):
 
 
 class AgregarEquipoIntervenidoIn(BaseModel):
-    equipo_id: str
+    activo_cliente_id: str
 
 
 class ActualizarEstadoIntervencionIn(BaseModel):
@@ -107,7 +107,7 @@ class ActualizarEstadoIntervencionIn(BaseModel):
 
 class EquipoIntervenidoOut(BaseModel):
     id: str
-    equipo_id: Optional[str] = None
+    activo_cliente_id: Optional[str] = None
     nombre: str
     codigo: Optional[str] = None
     tipo_nombre: Optional[str] = None

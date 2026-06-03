@@ -50,6 +50,7 @@ from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
 from ..models.catalogo_servicio import CatalogoServicio
 from ..models.equipo_intervenido import EquipoIntervenido
+from ..models.activo_cliente import ActivoCliente
 from ..models.ubicacion import Ubicacion
 from ..models.zona import Zona
 from ..models.grupo_trabajo import GrupoTrabajo, GrupoMiembro
@@ -3570,6 +3571,7 @@ def listar_equipos_intervenidos(
             tipo_nombre = te.nombre if te else None
         result.append(EquipoIntervenidoOut(
             id=str(r.id),
+            activo_cliente_id=str(r.activo_cliente_id) if r.activo_cliente_id else None,
             nombre=r.nombre,
             codigo=r.codigo,
             tipo_nombre=tipo_nombre,
@@ -3591,59 +3593,53 @@ def listar_equipos_disponibles(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Equipos del catálogo cuya ubicación coincide con la zona_ejecucion del servicio.
-    Excluye los ya asignados a este servicio."""
+    """Activos del cliente (activo_cliente) cuya ubicación y zona coinciden exactamente
+    con las del servicio. Excluye los ya asignados a este servicio."""
     empresa_id = payload["empresa_id"]
     ps = _get_servicio_o_404(db, servicio_id, empresa_id)
 
-    # IDs de equipos que ya están asignados a este servicio
+    # IDs de activos ya asignados a este servicio
     ya_asignados = {
-        str(r.equipo_id) for r in db.query(EquipoIntervenido.equipo_id).filter(
+        str(r.activo_cliente_id) for r in db.query(EquipoIntervenido.activo_cliente_id).filter(
             EquipoIntervenido.proyecto_servicio_id == servicio_id,
             EquipoIntervenido.empresa_id           == empresa_id,
             EquipoIntervenido.activo               == True,
-            EquipoIntervenido.equipo_id            != None,
-        ).all() if r.equipo_id
+            EquipoIntervenido.activo_cliente_id    != None,
+        ).all() if r.activo_cliente_id
     }
 
-    query = db.query(Equipo).filter(
-        Equipo.empresa_id == empresa_id,
-        Equipo.estado.notin_(["baja", "fuera_de_servicio"]),
+    query = db.query(ActivoCliente).filter(
+        ActivoCliente.empresa_id == empresa_id,
+        ActivoCliente.activo     == True,
+        ActivoCliente.estado.notin_(["baja", "fuera_de_servicio"]),
     )
 
-    # Filtro geográfico por jerarquía (FK). Preferimos zona_id; si el servicio
-    # solo tiene ubicación, filtramos por ubicacion_id. Respaldo legacy: match
-    # por texto (`zona_ejecucion` ≈ `equipo.ubicacion`) mientras se migran datos.
+    # Filtro geográfico exacto: zona_id > ubicacion_id > sin filtro
     if ps.zona_id:
-        query = query.filter(Equipo.zona_id == ps.zona_id)
+        query = query.filter(ActivoCliente.zona_id == ps.zona_id)
     elif ps.ubicacion_id:
-        query = query.filter(Equipo.ubicacion_id == ps.ubicacion_id)
-    else:
-        zona_txt = (ps.zona_ejecucion or "").strip().lower()
-        if zona_txt:
-            from sqlalchemy import func as sa_func
-            query = query.filter(
-                sa_func.lower(sa_func.trim(Equipo.ubicacion)) == zona_txt
-            )
+        query = query.filter(ActivoCliente.ubicacion_id == ps.ubicacion_id)
 
-    equipos = query.order_by(Equipo.nombre).all()
+    activos = query.order_by(ActivoCliente.nombre).all()
 
     result = []
-    for e in equipos:
-        if str(e.id) in ya_asignados:
+    for a in activos:
+        if str(a.id) in ya_asignados:
             continue
-        te = db.query(TipoEquipo).filter(TipoEquipo.id == e.tipo_equipo_id).first() if e.tipo_equipo_id else None
+        te = db.query(TipoEquipo).filter(TipoEquipo.id == a.tipo_equipo_id).first() if a.tipo_equipo_id else None
+        # Resolver nombre de ubicación para el campo `ubicacion` del DTO
+        ub = db.query(Ubicacion).filter(Ubicacion.id == a.ubicacion_id).first() if a.ubicacion_id else None
         result.append(EquipoDisponibleOut(
-            id=str(e.id),
-            nombre=e.nombre,
-            codigo=e.codigo,
+            id=str(a.id),
+            nombre=a.nombre,
+            codigo=a.codigo,
             tipo_nombre=te.nombre if te else None,
-            tipo_equipo_id=str(e.tipo_equipo_id) if e.tipo_equipo_id else None,
-            marca=e.marca,
-            modelo=e.modelo,
-            numero_serie=e.numero_serie,
-            ubicacion=e.ubicacion,
-            estado=e.estado,
+            tipo_equipo_id=str(a.tipo_equipo_id) if a.tipo_equipo_id else None,
+            marca=a.marca,
+            modelo=a.modelo,
+            numero_serie=a.numero_serie,
+            ubicacion=ub.nombre if ub else None,
+            estado=a.estado,
         ))
     return result
 
@@ -3655,44 +3651,43 @@ def agregar_equipo_intervenido(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Copia los datos del equipo del catálogo y lo vincula al servicio."""
+    """Vincula un activo del catálogo del cliente al servicio (crea registro en equipo_intervenido)."""
     empresa_id = payload["empresa_id"]
     ps = _get_servicio_o_404(db, servicio_id, empresa_id)
 
-    equipo = db.query(Equipo).filter(
-        Equipo.id         == body.equipo_id,
-        Equipo.empresa_id == empresa_id,
+    activo = db.query(ActivoCliente).filter(
+        ActivoCliente.id         == body.activo_cliente_id,
+        ActivoCliente.empresa_id == empresa_id,
     ).first()
-    if not equipo:
-        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    if not activo:
+        raise HTTPException(status_code=404, detail="Activo de cliente no encontrado")
 
-    # Evitar duplicados
+    # Evitar duplicados activos
     existe = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.equipo_id            == body.equipo_id,
+        EquipoIntervenido.activo_cliente_id    == body.activo_cliente_id,
         EquipoIntervenido.empresa_id           == empresa_id,
         EquipoIntervenido.activo               == True,
     ).first()
     if existe:
-        raise HTTPException(status_code=409, detail="Este equipo ya está asignado al servicio")
+        raise HTTPException(status_code=409, detail="Este activo ya está asignado al servicio")
 
     ei = EquipoIntervenido(
         id=str(_uuid.uuid4()),
         empresa_id           = empresa_id,
         proyecto_servicio_id = servicio_id,
         proyecto_id          = ps.proyecto_id,
-        equipo_id            = body.equipo_id,
-        tipo_equipo_id       = equipo.tipo_equipo_id,
-        nombre               = equipo.nombre,
-        codigo               = equipo.codigo,
-        marca                = equipo.marca,
-        modelo               = equipo.modelo,
-        numero_serie         = equipo.numero_serie,
-        # Jerarquía geográfica: del equipo del catálogo, con respaldo en el servicio.
-        ubicacion_id         = equipo.ubicacion_id or ps.ubicacion_id,
-        zona_id              = equipo.zona_id or ps.zona_id,
-        area_id              = equipo.area_id,
-        estado               = equipo.estado or "operativo",
+        activo_cliente_id    = body.activo_cliente_id,
+        tipo_equipo_id       = activo.tipo_equipo_id,
+        nombre               = activo.nombre,
+        codigo               = activo.codigo,
+        marca                = activo.marca,
+        modelo               = activo.modelo,
+        numero_serie         = activo.numero_serie,
+        ubicacion_id         = activo.ubicacion_id or ps.ubicacion_id,
+        zona_id              = activo.zona_id or ps.zona_id,
+        area_id              = activo.area_id,
+        estado               = activo.estado or "operativo",
         estado_intervencion  = "pendiente",
         activo               = True,
     )
@@ -3703,6 +3698,7 @@ def agregar_equipo_intervenido(
     te = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first() if ei.tipo_equipo_id else None
     return EquipoIntervenidoOut(
         id=str(ei.id),
+        activo_cliente_id=str(ei.activo_cliente_id) if ei.activo_cliente_id else None,
         nombre=ei.nombre,
         codigo=ei.codigo,
         tipo_nombre=te.nombre if te else None,

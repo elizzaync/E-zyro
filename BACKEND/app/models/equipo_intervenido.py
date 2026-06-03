@@ -16,9 +16,11 @@ class EquipoIntervenido(Base):
 
     # Vínculo con el servicio que lo interviene
     proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=True)
+    activo_cliente_id    = Column(String(36), ForeignKey("activo_cliente.id"),    nullable=True)
     estado_intervencion  = Column(String(30), nullable=False, default="pendiente")
+    fecha_fin            = Column(Date, nullable=True)
 
-    # Contexto del trabajo
+    # FK al equipo interno (legacy — no mezclar con activos del cliente)
     equipo_id    = Column(String(36), ForeignKey("equipo.id"),       nullable=True)
     proyecto_id  = Column(String(36), ForeignKey("proyecto.id"),    nullable=True)
     cliente_id   = Column(String(36), ForeignKey("cliente.id"),     nullable=True)

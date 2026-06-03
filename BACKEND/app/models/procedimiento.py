@@ -11,10 +11,11 @@ def _uuid():
 class Procedimiento(Base):
     __tablename__ = "procedimiento"
 
-    id                   = Column(String(36), primary_key=True, default=_uuid)
-    proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=False)
-    empresa_id           = Column(String(36), ForeignKey("empresa.id"),           nullable=False)
-    responsable_id       = Column(String(36), ForeignKey("empleado.id"))
+    id                     = Column(String(36), primary_key=True, default=_uuid)
+    proyecto_servicio_id   = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=False)
+    equipo_intervenido_id  = Column(String(36), ForeignKey("equipo_intervenido.id"), nullable=True)
+    empresa_id             = Column(String(36), ForeignKey("empresa.id"),           nullable=False)
+    responsable_id         = Column(String(36), ForeignKey("empleado.id"))
     nombre               = Column(String(200), nullable=False)
     descripcion          = Column(Text)
     orden                = Column(Integer, nullable=False, default=1)

@@ -401,6 +401,23 @@ def listar_tipos_equipo(payload: dict = Depends(verificar_token), db: Session = 
     return [CatalogoItem(id=str(r.id), nombre=r.nombre) for r in rows]
 
 
+@router.get("/tipos-equipo/{tipo_id}/procedimientos")
+def procedimientos_tipo_equipo(
+    tipo_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Devuelve la plantilla de procedimientos (checklist estático) para un tipo de equipo."""
+    empresa_id = payload["empresa_id"]
+    te = db.query(TipoEquipo).filter(
+        TipoEquipo.id         == tipo_id,
+        TipoEquipo.empresa_id == empresa_id,
+    ).first()
+    if not te:
+        raise HTTPException(status_code=404, detail="Tipo de equipo no encontrado")
+    return {"tipo_equipo_id": tipo_id, "nombre": te.nombre, "procedimientos": te.procedimientos_template or []}
+
+
 @router.post("/tipos-equipo", response_model=CatalogoItem, status_code=201)
 def crear_tipo_equipo(body: CatalogoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     _autorizar_logistica(payload)
