@@ -10,10 +10,19 @@ class CatalogoItemOut(BaseModel):
     codigo: Optional[str]
     unidad: str
     stock: int
+    stock_minimo: int = 0
     categoria: Optional[str]
     descripcion: Optional[str] = None
     imagen_url: Optional[str] = None
     tipo: str = "consumible"
+
+
+class CatalogoResumenOut(BaseModel):
+    """Conteos para el header de la vista de catálogo (por tipo)."""
+    total: int = 0
+    con_stock: int = 0
+    bajo: int = 0
+    agotado: int = 0
 
 
 class SolicitudDetalleOut(BaseModel):

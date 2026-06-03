@@ -25,6 +25,7 @@ from ..models.almacen import Almacen
 from ..models.auditoria import Auditoria
 from ..schemas.requerimientos import (
     CatalogoItemOut,
+    CatalogoResumenOut,
     SolicitudDetalleOut,
     MiSolicitudOut,
     CrearSolicitudBody,
@@ -49,32 +50,12 @@ def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Emple
 
 # ── GET /requerimientos/catalogo ──────────────────────────────────────────────
 
-@router.get("/catalogo", response_model=List[CatalogoItemOut])
-def get_catalogo(
-    q:         str = "",
-    categoria: str = "",
-    tipo:      str = "consumible",  # consumible | herramienta | todos
-    page:      int = 1,
-    page_size: int = 30,
-    payload:   dict    = Depends(verificar_token),
-    db:        Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-
-    page_size = min(max(page_size, 1), 100)
-    page      = max(page, 1)
-    offset    = (page - 1) * page_size
-
-    stock_sq = (
-        db.query(
-            Stock.material_id,
-            func.sum(Stock.cantidad).label("total"),
-        )
-        .filter(Stock.empresa_id == empresa_id)
-        .group_by(Stock.material_id)
-        .subquery()
-    )
-
+def _catalogo_base_query(db: Session, empresa_id: str, *, tipo: str, q: str,
+                         categoria: str, estado_stock: str, almacen_id: str,
+                         stock_expr, min_expr):
+    """Query base compartida por /catalogo y /catalogo/resumen.
+    Devuelve el query ya con joins + filtros (texto, categoría, tipo, almacén,
+    estado de stock). El orden/paginación se aplica fuera."""
     query = (
         db.query(
             Material.id,
@@ -83,51 +64,122 @@ def get_catalogo(
             Material.unidad,
             Material.descripcion,
             CategoriaMaterial.nombre.label("categoria"),
-            func.coalesce(stock_sq.c.total, 0).label("stock"),
+            stock_expr.label("stock"),
+            min_expr.label("minimo"),
             Material.tipo,
         )
-        .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
         .outerjoin(CategoriaMaterial, CategoriaMaterial.id == Material.categoria_id)
-        .filter(
-            Material.empresa_id == empresa_id,
-            Material.activo == True,
-        )
+        .filter(Material.empresa_id == empresa_id, Material.activo == True)
     )
-
     if tipo != "todos":
         query = query.filter(Material.tipo == tipo)
-
     if q:
         query = query.filter(
-            (Material.nombre.ilike(f"%{q}%")) |
-            (Material.codigo.ilike(f"%{q}%"))
+            (Material.nombre.ilike(f"%{q}%")) | (Material.codigo.ilike(f"%{q}%"))
         )
-
-    if categoria:
+    if categoria and categoria.lower() not in ("", "todas"):
         query = query.filter(CategoriaMaterial.nombre.ilike(f"%{categoria}%"))
 
-    rows = (
-        query
-        .order_by(Material.nombre.asc())
-        .offset(offset)
-        .limit(page_size)
-        .all()
+    # Filtro por estado de stock (sobre la expresión calculada)
+    if estado_stock == "con_stock":
+        query = query.filter(stock_expr > 0)
+    elif estado_stock == "agotado":
+        query = query.filter(stock_expr <= 0)
+    elif estado_stock == "bajo":
+        query = query.filter(stock_expr > 0, min_expr > 0, stock_expr <= min_expr)
+    return query
+
+
+def _stock_exprs(db: Session, empresa_id: str, almacen_id: str):
+    """Subconsulta de stock (sumada por material). Si se indica almacen_id,
+    se acota a ese almacén. Devuelve (stock_expr, min_expr)."""
+    sq = db.query(
+        Stock.material_id,
+        func.sum(Stock.cantidad).label("total"),
+        func.max(Stock.cantidad_minima).label("minimo"),
+    ).filter(Stock.empresa_id == empresa_id)
+    if almacen_id:
+        sq = sq.filter(Stock.almacen_id == almacen_id)
+    sq = sq.group_by(Stock.material_id).subquery()
+    return sq, func.coalesce(sq.c.total, 0), func.coalesce(sq.c.minimo, 0)
+
+
+@router.get("/catalogo", response_model=List[CatalogoItemOut])
+def get_catalogo(
+    q:            str = "",
+    categoria:    str = "",
+    tipo:         str = "consumible",   # consumible | herramienta | todos
+    estado_stock: str = "todos",        # todos | con_stock | bajo | agotado
+    orden:        str = "nombre",       # nombre | stock_asc | stock_desc | reciente
+    almacen_id:   str = "",
+    page:         int = 1,
+    page_size:    int = 30,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    page_size = min(max(page_size, 1), 100)
+    page      = max(page, 1)
+    offset    = (page - 1) * page_size
+
+    sq, stock_expr, min_expr = _stock_exprs(db, empresa_id, almacen_id)
+    query = (
+        _catalogo_base_query(db, empresa_id, tipo=tipo, q=q, categoria=categoria,
+                             estado_stock=estado_stock, almacen_id=almacen_id,
+                             stock_expr=stock_expr, min_expr=min_expr)
+        .outerjoin(sq, sq.c.material_id == Material.id)
     )
+
+    if orden == "stock_asc":
+        query = query.order_by(stock_expr.asc(), Material.nombre.asc())
+    elif orden == "stock_desc":
+        query = query.order_by(stock_expr.desc(), Material.nombre.asc())
+    elif orden == "reciente":
+        query = query.order_by(Material.created_at.desc())
+    else:
+        query = query.order_by(Material.nombre.asc())
+
+    rows = query.offset(offset).limit(page_size).all()
 
     return [
         CatalogoItemOut(
-            id=r.id,
-            nombre=r.nombre,
-            codigo=r.codigo,
-            unidad=r.unidad,
-            stock=int(r.stock),
-            categoria=r.categoria,
-            descripcion=r.descripcion,
-            imagen_url=None,
-            tipo=r.tipo or "consumible",
+            id=r.id, nombre=r.nombre, codigo=r.codigo, unidad=r.unidad,
+            stock=int(r.stock or 0), stock_minimo=int(r.minimo or 0),
+            categoria=r.categoria, descripcion=r.descripcion,
+            imagen_url=None, tipo=r.tipo or "consumible",
         )
         for r in rows
     ]
+
+
+@router.get("/catalogo/resumen", response_model=CatalogoResumenOut)
+def get_catalogo_resumen(
+    q:          str = "",
+    categoria:  str = "",
+    tipo:       str = "consumible",
+    almacen_id: str = "",
+    payload:    dict    = Depends(verificar_token),
+    db:         Session = Depends(get_db),
+):
+    """Conteos para el header: total, con stock, bajo mínimo, agotado.
+    Respeta los filtros de búsqueda/categoría/almacén (no el de estado_stock)."""
+    empresa_id = payload["empresa_id"]
+    sq, stock_expr, min_expr = _stock_exprs(db, empresa_id, almacen_id)
+    base = (
+        _catalogo_base_query(db, empresa_id, tipo=tipo, q=q, categoria=categoria,
+                             estado_stock="todos", almacen_id=almacen_id,
+                             stock_expr=stock_expr, min_expr=min_expr)
+        .outerjoin(sq, sq.c.material_id == Material.id)
+    ).subquery()
+
+    total     = db.query(func.count()).select_from(base).scalar() or 0
+    con_stock = db.query(func.count()).select_from(base).filter(base.c.stock > 0).scalar() or 0
+    agotado   = db.query(func.count()).select_from(base).filter(base.c.stock <= 0).scalar() or 0
+    bajo      = db.query(func.count()).select_from(base).filter(
+        base.c.stock > 0, base.c.minimo > 0, base.c.stock <= base.c.minimo
+    ).scalar() or 0
+
+    return CatalogoResumenOut(total=total, con_stock=con_stock, bajo=bajo, agotado=agotado)
 
 
 # ── GET /requerimientos/mis-solicitudes ───────────────────────────────────────
