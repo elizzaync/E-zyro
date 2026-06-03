@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
 import '../models/auth_models.dart';
 import '../repositories/cache_repo.dart';
@@ -23,9 +24,24 @@ class AuthService {
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 
-  static const _tokenKey = 'auth_token';
+  static const _tokenKey    = 'auth_token';
+  static const _deviceIdKey = 'device_id';
 
   AuthService(this._client, this._prefs);
+
+  // ── Device ID persistente ─────────────────────────────────────────────────
+
+  /// Genera un UUID la primera vez y lo guarda en SharedPreferences.
+  /// Las siguientes llamadas devuelven siempre el mismo valor → un solo
+  /// registro de sesión por dispositivo/navegador.
+  Future<String> _deviceId() async {
+    var id = _prefs.getString(_deviceIdKey);
+    if (id == null || id.isEmpty) {
+      id = const Uuid().v4();
+      await _prefs.setString(_deviceIdKey, id);
+    }
+    return id;
+  }
 
   // ── Login ─────────────────────────────────────────────────────────────────
 
@@ -34,9 +50,10 @@ class AuthService {
     required String password,
   }) async {
     try {
+      final deviceId = await _deviceId();
       final r = await _client.postPublic(
         '/auth/login',
-        {'username': username, 'password': password},
+        {'username': username, 'password': password, 'device_id': deviceId},
       );
       if (r.statusCode == 200) {
         final res = LoginResponse.fromJson(jsonDecode(r.body));
