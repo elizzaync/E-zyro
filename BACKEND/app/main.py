@@ -31,6 +31,7 @@ from app.routers import correctivos     as correctivos_router
 from app.routers import itse            as itse_router
 from app.routers import informes_servicio as informes_servicio_router
 from app.routers import equipos_intervenidos as equipos_intervenidos_router
+from app.routers import analitica         as analitica_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -1068,6 +1069,7 @@ app.include_router(correctivos_router.router)
 app.include_router(itse_router.router)
 app.include_router(informes_servicio_router.router)
 app.include_router(equipos_intervenidos_router.router)
+app.include_router(analitica_router.router)
 
 
 @app.get("/")
