@@ -9,7 +9,8 @@ const _kGreen = Color(0xFF8FD11B);
 const _kRed = Color(0xFFEF4444);
 const _kAmber = Color(0xFFF59E0B);
 
-/// Materiales (consumibles) + Herramientas — gestión de catálogo.
+/// Materiales consumibles — gestión de catálogo.
+/// Las herramientas están en PantallaEquiposLogistica (clase='herramienta').
 class PantallaMaterialesLogistica extends StatefulWidget {
   const PantallaMaterialesLogistica({super.key});
 
@@ -20,12 +21,10 @@ class PantallaMaterialesLogistica extends StatefulWidget {
 
 class _PantallaMaterialesLogisticaState
     extends State<PantallaMaterialesLogistica>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   RequerimientoService? _service;
   List<CatalogoItem> _materiales = [];
-  List<CatalogoItem> _herramientas = [];
   List<CategoriaItem> _categorias = [];
-  late TabController _tabs;
   bool _isLoading = true;
   final _searchCtrl = TextEditingController();
   Timer? _debounce;
@@ -33,14 +32,12 @@ class _PantallaMaterialesLogisticaState
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
     _init();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
-    _tabs.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -53,14 +50,12 @@ class _PantallaMaterialesLogisticaState
   Future<void> _loadMateriales() async {
     if (_service == null) return;
     setState(() => _isLoading = true);
-    final q = _searchCtrl.text;
-    final dataMat = await _service!.getCatalogo(q, tipo: 'consumible', pageSize: 200);
-    final dataHerr = await _service!.getCatalogo(q, tipo: 'herramienta', pageSize: 200);
+    final data = await _service!.getCatalogo(
+        _searchCtrl.text, tipo: 'consumible', pageSize: 500);
     if (!mounted) return;
     setState(() {
-      _materiales   = dataMat;
-      _herramientas = dataHerr;
-      _isLoading    = false;
+      _materiales = data;
+      _isLoading  = false;
     });
   }
 
@@ -186,28 +181,10 @@ class _PantallaMaterialesLogisticaState
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            TabBar(
-              controller: _tabs,
-              labelColor: _kGreen,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: _kGreen,
-              indicatorSize: TabBarIndicatorSize.label,
-              tabs: [
-                Tab(text: 'Materiales (${_materiales.length})'),
-                Tab(text: 'Herramientas (${_herramientas.length})'),
-              ],
-            ),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: _kGreen))
-                  : TabBarView(
-                      controller: _tabs,
-                      children: [
-                        _listaItems(_materiales),
-                        _listaItems(_herramientas),
-                      ],
-                    ),
+                  : _listaItems(_materiales),
             ),
           ],
         ),
