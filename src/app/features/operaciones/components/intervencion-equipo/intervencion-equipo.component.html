@@ -10,48 +10,10 @@
     </button>
     @if (equipo) {
       <div class="iv-header-info">
-        <span class="iv-header-nombre">{{ equipo.nombre }}</span>
-        @if (equipo.tipoNombre) { <span class="iv-header-tipo">{{ equipo.tipoNombre }}</span> }
-      </div>
-    }
-  </header>
-
-  <!-- ══ LOADING ════════════════════════════════════════════════════════ -->
-  @if (cargando) {
-  <div class="iv-loading">
-    <app-spinner></app-spinner>
-    <span>Cargando procedimientos…</span>
-  </div>
-  }
-
-  <!-- ══ ERROR ══════════════════════════════════════════════════════════ -->
-  @else if (error) {
-  <div class="iv-error">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-    <p>No se pudo cargar la intervención.</p>
-    <button class="iv-btn-retry" (click)="cargar()">Reintentar</button>
-  </div>
-  }
-
-  <!-- ══ CONTENIDO PRINCIPAL ══════════════════════════════════════════ -->
-  @else if (equipo) {
-  <div class="iv-content">
-
-    <!-- ── Tarjeta de información del equipo ─── -->
-    <div class="iv-equipo-card slide-up">
-      <div class="iv-equipo-card-top">
-        <div class="iv-equipo-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-          </svg>
-        </div>
-        <div class="iv-equipo-meta">
-          <h2 class="iv-equipo-nombre">{{ equipo.nombre }}</h2>
-          @if (equipo.codigo) { <span class="iv-equipo-codigo">{{ equipo.codigo }}</span> }
-        </div>
+        <span class="iv-header-nombre">Interviniendo: {{ equipo.nombre }}</span>
+        @if (equipo.tipoNombre) {
+          <span class="iv-header-tipo">{{ equipo.tipoNombre }}</span>
+        }
         <span class="iv-estado-badge"
           [class.iv-badge-warn]="equipo.estadoIntervencion === 'pendiente'"
           [class.iv-badge-info]="equipo.estadoIntervencion === 'en_proceso'"
@@ -59,186 +21,265 @@
           {{ estadoLabel(equipo.estadoIntervencion) }}
         </span>
       </div>
-
-      <div class="iv-equipo-grid">
-        <div class="iv-meta-item">
-          <span class="iv-meta-lbl">Tipo</span>
-          <span class="iv-meta-val">{{ equipo.tipoNombre ?? '—' }}</span>
-        </div>
-        <div class="iv-meta-item">
-          <span class="iv-meta-lbl">Marca</span>
-          <span class="iv-meta-val">{{ equipo.marca ?? '—' }}</span>
-        </div>
-        <div class="iv-meta-item">
-          <span class="iv-meta-lbl">Modelo</span>
-          <span class="iv-meta-val">{{ equipo.modelo ?? '—' }}</span>
-        </div>
-        <div class="iv-meta-item">
-          <span class="iv-meta-lbl">N° Serie</span>
-          <span class="iv-meta-val">{{ equipo.numeroSerie ?? '—' }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Barra de progreso ─── -->
-    <div class="iv-progress-card slide-up">
-      <div class="iv-progress-labels">
-        <span class="iv-progress-title">Progreso de Inspección</span>
-        <span class="iv-progress-num">{{ completados }} / {{ total }} pasos</span>
-      </div>
-      <div class="iv-progress-track">
-        <div class="iv-progress-fill"
-             [style.width.%]="progreso"
-             [class.iv-progress-done]="todosCompletados">
-        </div>
-      </div>
-      <span class="iv-progress-pct" [class.iv-pct-done]="todosCompletados">{{ progreso }}%</span>
-    </div>
-
-    <!-- ── Checklist de procedimientos ─── -->
-    <div class="iv-checklist slide-up">
-      @for (proc of procs; track proc.id; let last = $last) {
-
-      <div class="iv-step" [class.iv-step-done]="proc.estado === 'completado'">
-
-        <!-- Indicador vertical -->
-        <div class="iv-step-indicator">
-          <div class="iv-dot"
-               [class.iv-dot-done]="proc.estado === 'completado'"
-               [class.iv-dot-active]="proc.estado === 'en_proceso'">
-            @if (proc.estado === 'completado') {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            } @else {
-              <span class="iv-dot-num">{{ proc.orden }}</span>
-            }
-          </div>
-          @if (!last) { <div class="iv-connector" [class.iv-connector-done]="proc.estado === 'completado'"></div> }
-        </div>
-
-        <!-- Contenido del paso -->
-        <div class="iv-step-body">
-          <div class="iv-step-header">
-            <div>
-              <span class="iv-paso-num">Paso {{ proc.orden }}</span>
-              <span class="iv-paso-badge"
-                [class.iv-badge-warn]="proc.estado === 'pendiente'"
-                [class.iv-badge-info]="proc.estado === 'en_proceso'"
-                [class.iv-badge-ok]="proc.estado === 'completado'">
-                {{ estadoLabel(proc.estado) }}
-              </span>
-            </div>
-            <!-- Desmarcar si está completado -->
-            @if (proc.estado === 'completado' && equipo.estadoIntervencion !== 'completado') {
-              <button class="iv-btn-desmarcar" (click)="desmarcar(proc)" [disabled]="proc.completando" title="Desmarcar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
-                </svg>
-              </button>
-            }
-          </div>
-
-          <p class="iv-paso-nombre">{{ proc.nombre }}</p>
-          @if (proc.descripcion) { <p class="iv-paso-desc">{{ proc.descripcion }}</p> }
-
-          <!-- Zona de evidencia fotográfica -->
-          @if (proc.estado !== 'completado' || proc.fotoUrl) {
-          <label class="iv-foto-zona" [class.iv-foto-done]="!!proc.fotoUrl"
-                 [class.iv-foto-disabled]="proc.estado === 'completado' && equipo.estadoIntervencion === 'completado'">
-
-            @if (proc.subiendoFoto) {
-              <div class="iv-foto-uploading">
-                <app-spinner></app-spinner>
-                <span>Subiendo foto…</span>
-              </div>
-            } @else if (proc.fotoUrl) {
-              <img class="iv-foto-thumb" [src]="proc.fotoUrl" alt="Evidencia">
-              <div class="iv-foto-overlay">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
-                <span>Cambiar foto</span>
-              </div>
-            } @else {
-              <div class="iv-foto-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
-                <span class="iv-foto-text">Subir evidencia fotográfica</span>
-                <span class="iv-foto-sub">Toca para tomar o elegir una foto</span>
-              </div>
-            }
-
-            @if (proc.estado !== 'completado' || !proc.fotoUrl) {
-            <input type="file" accept="image/*" capture="environment" class="iv-foto-input"
-                   (change)="onFotoSeleccionada($event, proc)"
-                   [disabled]="proc.subiendoFoto || equipo.estadoIntervencion === 'completado'">
-            }
-          </label>
-          }
-
-          <!-- Completar sin foto -->
-          @if (proc.estado !== 'completado' && equipo.estadoIntervencion !== 'completado') {
-          <button class="iv-btn-completar-sin-foto" (click)="completarSinFoto(proc)" [disabled]="proc.completando">
-            @if (proc.completando) { <app-spinner></app-spinner> }
-            @else {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            }
-            Completar sin foto
-          </button>
-          }
-
-        </div>
-      </div>
-      }
-    </div>
-
-    <!-- ── Botón Finalizar ─── -->
-    @if (equipo.estadoIntervencion !== 'completado') {
-    <div class="iv-finalizar-bar slide-up">
-      @if (todosCompletados) {
-        <div class="iv-finalizar-ready">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/>
-          </svg>
-          ¡Todos los pasos completados! Puedes finalizar la intervención.
-        </div>
-        <button class="iv-btn-finalizar" (click)="finalizar()" [disabled]="finalizando">
-          @if (finalizando) { <app-spinner></app-spinner> Finalizando… }
-          @else {
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-              <polyline points="22 4 12 14.01 9 11.01"/>
-            </svg>
-            Finalizar Intervención
-          }
-        </button>
-      } @else {
-        <div class="iv-finalizar-pendientes">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          Completa todos los pasos para finalizar la intervención
-          ({{ total - completados }} restante{{ total - completados !== 1 ? 's' : '' }})
-        </div>
-      }
-    </div>
-    } @else {
-    <div class="iv-completado-banner slide-up">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
-      Intervención completada exitosamente
-    </div>
     }
+  </header>
 
-  </div>
+  <!-- ══ LOADING ════════════════════════════════════════════════════════ -->
+  @if (cargando) {
+    <div class="iv-loading">
+      <app-spinner></app-spinner>
+      <span>Cargando procedimientos de inspección…</span>
+    </div>
+  }
+
+  <!-- ══ ERROR ══════════════════════════════════════════════════════════ -->
+  @else if (error) {
+    <div class="iv-error">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p>No se pudo cargar la inspección. Verifica tu conexión.</p>
+      <button class="iv-btn-retry" (click)="cargar()">Reintentar</button>
+    </div>
+  }
+
+  <!-- ══ CONTENIDO PRINCIPAL ══════════════════════════════════════════ -->
+  @else if (equipo) {
+    <div class="iv-content">
+
+      <!-- ── Tarjeta de información del equipo ─── -->
+      <div class="iv-equipo-card slide-up">
+        <div class="iv-equipo-card-top">
+          <div class="iv-equipo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+            </svg>
+          </div>
+          <div class="iv-equipo-meta">
+            <h2 class="iv-equipo-nombre">{{ equipo.nombre }}</h2>
+            @if (equipo.codigo) { <span class="iv-equipo-codigo">{{ equipo.codigo }}</span> }
+          </div>
+        </div>
+        <div class="iv-equipo-grid">
+          <div class="iv-meta-item">
+            <span class="iv-meta-lbl">Tipo</span>
+            <span class="iv-meta-val">{{ equipo.tipoNombre ?? '—' }}</span>
+          </div>
+          <div class="iv-meta-item">
+            <span class="iv-meta-lbl">Marca</span>
+            <span class="iv-meta-val">{{ equipo.marca ?? '—' }}</span>
+          </div>
+          <div class="iv-meta-item">
+            <span class="iv-meta-lbl">Modelo</span>
+            <span class="iv-meta-val">{{ equipo.modelo ?? '—' }}</span>
+          </div>
+          <div class="iv-meta-item">
+            <span class="iv-meta-lbl">N° Serie</span>
+            <span class="iv-meta-val">{{ equipo.numeroSerie ?? '—' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Barra de progreso ─── -->
+      <div class="iv-progress-card slide-up">
+        <div class="iv-progress-labels">
+          <span class="iv-progress-title">Progreso de Inspección</span>
+          <span class="iv-progress-num">{{ completados }} / {{ total }} pasos</span>
+        </div>
+        <div class="iv-progress-track">
+          <div class="iv-progress-fill"
+               [style.width.%]="progreso"
+               [class.iv-progress-done]="todosCompletados">
+          </div>
+        </div>
+        <span class="iv-progress-pct" [class.iv-pct-done]="todosCompletados">{{ progreso }}%</span>
+      </div>
+
+      <!-- ── Checklist de procedimientos ─── -->
+      <div class="iv-checklist slide-up">
+        @for (paso of pasos; track paso.id; let last = $last) {
+
+          <div class="iv-step" [class.iv-step-done]="paso.completado">
+
+            <!-- Indicador vertical -->
+            <div class="iv-step-indicator">
+              <button class="iv-dot"
+                [class.iv-dot-done]="paso.completado"
+                [class.iv-dot-active]="!paso.completado && paso.orden === completados + 1"
+                [disabled]="estaFinalizado"
+                (click)="toggleCompletado(paso)"
+                title="{{ paso.completado ? 'Desmarcar paso' : 'Marcar como completado' }}">
+                @if (paso.completado) {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                } @else {
+                  <span class="iv-dot-num">{{ paso.orden }}</span>
+                }
+              </button>
+              @if (!last) {
+                <div class="iv-connector" [class.iv-connector-done]="paso.completado"></div>
+              }
+            </div>
+
+            <!-- Cuerpo del paso -->
+            <div class="iv-step-body">
+              <div class="iv-step-header">
+                <div class="iv-step-header-left">
+                  <span class="iv-paso-num">Paso {{ paso.orden }}</span>
+                  <span class="iv-paso-badge"
+                    [class.iv-badge-warn]="!paso.completado"
+                    [class.iv-badge-ok]="paso.completado">
+                    {{ paso.completado ? 'Completado' : 'Pendiente' }}
+                  </span>
+                </div>
+                @if (!estaFinalizado) {
+                  <button class="iv-btn-toggle"
+                    [class.iv-btn-toggle-done]="paso.completado"
+                    (click)="toggleCompletado(paso)"
+                    [title]="paso.completado ? 'Desmarcar' : 'Marcar como completado'">
+                    @if (paso.completado) {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                      </svg>
+                      Desmarcar
+                    } @else {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      Marcar listo
+                    }
+                  </button>
+                }
+              </div>
+
+              <p class="iv-paso-nombre">{{ paso.nombre }}</p>
+              @if (paso.descripcion) { <p class="iv-paso-desc">{{ paso.descripcion }}</p> }
+
+              <!-- Zona de evidencia fotográfica -->
+              <label class="iv-foto-zona"
+                [class.iv-foto-done]="!!paso.fotoUrl"
+                [class.iv-foto-disabled]="estaFinalizado">
+
+                @if (paso.subiendoFoto) {
+                  <div class="iv-foto-uploading">
+                    <app-spinner></app-spinner>
+                    <span>Subiendo foto…</span>
+                  </div>
+                } @else if (paso.fotoUrl) {
+                  <img class="iv-foto-thumb" [src]="paso.fotoUrl" alt="Evidencia del paso {{ paso.orden }}">
+                  @if (!estaFinalizado) {
+                    <div class="iv-foto-overlay">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                      </svg>
+                      <span>Cambiar foto</span>
+                    </div>
+                  }
+                } @else {
+                  <div class="iv-foto-placeholder">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                      <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    <span class="iv-foto-text">Adjuntar evidencia fotográfica</span>
+                    <span class="iv-foto-sub">Toca para tomar o elegir una foto</span>
+                  </div>
+                }
+
+                @if (!estaFinalizado) {
+                  <input type="file" accept="image/*" capture="environment" class="iv-foto-input"
+                    (change)="onFotoSeleccionada($event, paso)"
+                    [disabled]="paso.subiendoFoto">
+                }
+              </label>
+
+            </div>
+          </div>
+
+        }
+      </div>
+
+      <!-- ── Observaciones ─── -->
+      @if (!estaFinalizado) {
+        <div class="iv-obs-card slide-up">
+          <label class="iv-obs-label" for="obs-input">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            Observaciones del técnico
+            <span class="iv-obs-opt">(opcional)</span>
+          </label>
+          <textarea id="obs-input" class="iv-obs-textarea"
+            [(ngModel)]="observaciones"
+            placeholder="Describe fallas, acciones realizadas, materiales usados…"
+            rows="3">
+          </textarea>
+        </div>
+      }
+
+      <!-- ── Panel: Guardar Inspección ─── -->
+      @if (!estaFinalizado) {
+        <div class="iv-guardar-bar slide-up">
+
+          @if (todosCompletados) {
+            <div class="iv-guardar-ready">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><polyline points="20 6 9 17 4 12"/>
+              </svg>
+              ¡Todos los pasos marcados! Guarda la inspección para registrar el historial.
+            </div>
+          } @else {
+            <div class="iv-guardar-hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {{ total - completados }} paso{{ total - completados !== 1 ? 's' : '' }} pendiente{{ total - completados !== 1 ? 's' : '' }} — puedes guardar en cualquier momento.
+            </div>
+          }
+
+          <button class="iv-btn-guardar"
+            [class.iv-btn-guardar-ready]="todosCompletados"
+            (click)="guardar()"
+            [disabled]="guardando">
+            @if (guardando) {
+              <app-spinner></app-spinner>
+              Guardando…
+            } @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Guardar Inspección
+            }
+          </button>
+        </div>
+      }
+
+      <!-- ── Banner completado ─── -->
+      @if (estaFinalizado) {
+        <div class="iv-completado-banner slide-up">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <div>
+            <span class="iv-completado-title">Inspección registrada exitosamente</span>
+            @if (equipo.observaciones) {
+              <p class="iv-completado-obs">{{ equipo.observaciones }}</p>
+            }
+          </div>
+        </div>
+      }
+
+    </div>
   }
 
 </div>

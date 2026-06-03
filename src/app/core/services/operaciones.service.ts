@@ -283,4 +283,20 @@ export class OperacionesService {
   quitarEquipoIntervenido(servicioId: string, eiId: string): Observable<any> {
     return this.http.delete(`${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}`);
   }
+
+  // ── Motor de Inspección: foto por paso + guardado global ─────────────────
+
+  subirFotoEI(servicioId: string, eiId: string, pasoId: string, formData: FormData): Observable<any> {
+    return this.http.post(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/paso/${pasoId}/foto`,
+      formData
+    );
+  }
+
+  guardarInspeccion(servicioId: string, eiId: string, payload: object): Observable<any> {
+    return this.http.post(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/guardar`,
+      payload
+    );
+  }
 }
