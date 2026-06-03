@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import func
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
@@ -109,10 +109,34 @@ def listar_usuarios(
         raise HTTPException(status_code=403, detail="Sin permiso para ver personal")
     empresa_id = payload["empresa_id"]
 
-    # Rol por usuario (subquery: un usuario suele tener 1 rol; tomamos cualquiera).
-    rol_sub = (
-        db.query(UsuarioRol.usuario_id.label("uid"), Rol.nombre.label("rol"))
+    # Rol por usuario. Un usuario puede tener VARIOS roles; para no duplicar la
+    # fila en el listado tomamos UNO solo, prefiriendo el rol admin (mismo
+    # criterio que el claim `rol` del token en /login).
+    _rank = case(
+        (
+            func.replace(func.lower(Rol.nombre), " ", "").in_(
+                ("superadmin", "admin", "administrador")
+            ),
+            0,
+        ),
+        else_=1,
+    )
+    _rn = func.row_number().over(
+        partition_by=UsuarioRol.usuario_id,
+        order_by=[_rank, Rol.nombre.asc()],
+    ).label("rn")
+    rol_ranked = (
+        db.query(
+            UsuarioRol.usuario_id.label("uid"),
+            Rol.nombre.label("rol"),
+            _rn,
+        )
         .join(Rol, Rol.id == UsuarioRol.rol_id)
+        .subquery()
+    )
+    rol_sub = (
+        db.query(rol_ranked.c.uid, rol_ranked.c.rol)
+        .filter(rol_ranked.c.rn == 1)
         .subquery()
     )
 
