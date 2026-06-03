@@ -661,3 +661,56 @@
   transition: border-color .15s;
 }
 .geo-add-cancel:hover { border-color: var(--csm-border2); }
+
+/* ── Toggle: Inspección de Equipos Intervenidos ─────────────────────── */
+.toggle-ei-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 12px;
+  background: var(--csm-surface);
+  border: 1px solid var(--csm-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.toggle-ei-wrap:hover { border-color: #91d337; }
+
+.toggle-ei-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: rgba(145,211,55,.12);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.toggle-ei-icon svg { width: 18px; height: 18px; stroke: #91d337; }
+
+.toggle-ei-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.toggle-ei-title { font-size: .875rem; font-weight: 700; color: var(--csm-text); }
+.toggle-ei-desc  { font-size: .75rem;  color: var(--csm-muted); }
+
+/* Switch */
+.toggle-track {
+  position: relative;
+  width: 42px; height: 24px;
+  background: var(--csm-border);
+  border-radius: 99px;
+  flex-shrink: 0;
+  transition: background .2s;
+}
+.toggle-track.toggle-on { background: #91d337; }
+.toggle-input {
+  position: absolute;
+  opacity: 0; width: 0; height: 0;
+}
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  transition: transform .2s;
+}
+.toggle-on .toggle-thumb { transform: translateX(18px); }

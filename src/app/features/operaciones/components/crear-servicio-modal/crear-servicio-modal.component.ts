@@ -134,9 +134,10 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       tipo_documento_cliente: ['SIN_OC' as TipoDocumentoCliente],
       nro_documento:          ['', Validators.maxLength(100)],
       estado:                 ['Pendiente'],
-      fecha_programada:       [''],
-      fecha_inicio:           [''],
-      fecha_fin:              [''],
+      fecha_programada:           [''],
+      fecha_inicio:               [''],
+      fecha_fin:                  [''],
+      tiene_equipos_intervenidos: [false],
     });
 
     this.form.get('tipo_documento_cliente')!.valueChanges
@@ -221,9 +222,10 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
           tipo_documento_cliente: tipo,
           nro_documento:          raw.nro_documento ?? '',
           estado:                 raw.estado ?? 'Pendiente',
-          fecha_programada:       raw.fecha_programada?.split('T')[0] ?? '',
-          fecha_inicio:           raw.fecha_inicio?.split('T')[0]     ?? '',
-          fecha_fin:              raw.fecha_fin?.split('T')[0]        ?? '',
+          fecha_programada:           raw.fecha_programada?.split('T')[0] ?? '',
+          fecha_inicio:               raw.fecha_inicio?.split('T')[0]     ?? '',
+          fecha_fin:                  raw.fecha_fin?.split('T')[0]        ?? '',
+          tiene_equipos_intervenidos: raw.es_mantenimiento ?? false,
         });
         if (tipo === 'SIN_OC') this.form.get('nro_documento')?.disable({ emitEvent: false });
 
@@ -377,12 +379,13 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       ubicacion_id:           v.ubicacion_id || null,
       zona_id:                v.zona_id || null,
       alcance:                v.alcance || null,
-      tipo_documento_cliente: v.tipo_documento_cliente,
-      nro_documento:          v.tipo_documento_cliente === 'SIN_OC' ? null : (v.nro_documento || null),
-      estado:                 v.estado,
-      fecha_programada:       v.fecha_programada || null,
-      fecha_inicio:           v.fecha_inicio     || null,
-      fecha_fin:              v.fecha_fin        || null,
+      tipo_documento_cliente:     v.tipo_documento_cliente,
+      nro_documento:              v.tipo_documento_cliente === 'SIN_OC' ? null : (v.nro_documento || null),
+      estado:                     v.estado,
+      fecha_programada:           v.fecha_programada || null,
+      fecha_inicio:               v.fecha_inicio     || null,
+      fecha_fin:                  v.fecha_fin        || null,
+      tiene_equipos_intervenidos: !!v.tiene_equipos_intervenidos,
     };
 
     const obs = this.mode === 'editar' && this.servicioId
