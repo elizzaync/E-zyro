@@ -4,6 +4,29 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 
+export interface ProcedimientoEI {
+  id: string;
+  orden: number;
+  nombre: string;
+  descripcion?: string | null;
+  estado: 'pendiente' | 'en_proceso' | 'completado';
+  fotoUrl?: string | null;
+}
+
+export interface EquipoEI {
+  id: string;
+  nombre: string;
+  tag?: string | null;
+  estado: 'pendiente' | 'en_proceso' | 'completado';
+  ubicacion?: string | null;
+  procedimientos: ProcedimientoEI[];
+}
+
+export interface TipoEquipoGrupoEI {
+  nombre: string;
+  equipos: EquipoEI[];
+}
+
 export interface EquipoIntervenido {
   id: string;
   nombre: string;
