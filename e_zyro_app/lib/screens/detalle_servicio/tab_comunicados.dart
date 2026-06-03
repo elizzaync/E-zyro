@@ -28,8 +28,11 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
     super.initState();
     _init();
     _fcmSub = FcmFlutterService.messageStream.listen((msg) {
-      if ((msg.data['tipo'] as String?) == 'comunicado_proyecto' &&
-          (msg.data['proyecto_id'] as String?) == widget.proyectoId) {
+      // El backend envía el proyecto en 'ref_id'; toleramos también 'proyecto_id'.
+      final tipo = msg.data['tipo'] as String?;
+      final refProyecto =
+          (msg.data['ref_id'] ?? msg.data['proyecto_id']) as String?;
+      if (tipo == 'comunicado_proyecto' && refProyecto == widget.proyectoId) {
         _load();
       }
     });

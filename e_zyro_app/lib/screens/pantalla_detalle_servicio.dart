@@ -252,10 +252,10 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
         proc.estado = original;
         d.progreso = _calcProgreso(d.procedimientos);
       });
-      _snack(res.errorMessage.isEmpty ? 'No se pudo actualizar la tarea' : res.errorMessage,
+      _snack(res.errorMessage.isEmpty ? 'No se pudo actualizar el paso' : res.errorMessage,
           _danger);
     } else if (res.queued) {
-      _snack('Tarea actualizada · se sincronizará al reconectar', _amber);
+      _snack('Paso actualizado · se sincronizará al reconectar', _amber);
     }
   }
 
@@ -317,7 +317,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
       return;
     }
     if (d.progreso < 100) {
-      _snack('Completa todos los procedimientos antes de finalizar', _amber);
+      _snack('Completa todos los pasos antes de finalizar', _amber);
       return;
     }
     // Cerrar el servicio y abrir el pre-informe PDF
@@ -430,7 +430,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               icon: const Icon(Icons.task_alt_outlined, size: 20),
               tooltip: d.progreso >= 100
                   ? 'Finalizar y generar informe'
-                  : 'Completa las tareas para finalizar',
+                  : 'Completa los pasos para finalizar',
               color: d.progreso >= 100 ? _green : null,
               onPressed: _finalizarServicio,
             ),

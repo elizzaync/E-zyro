@@ -217,12 +217,12 @@ class _EquiposHerramientasCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Equipos y herramientas',
+                Text('Solicitar recursos',
                     style: TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 14)),
                 SizedBox(height: 2),
                 Text(
-                    'Solicita y devuelve equipos para este servicio',
+                    'Pide materiales y equipos · devuelve préstamos',
                     style: TextStyle(color: Colors.grey, fontSize: 11.5)),
               ],
             ),

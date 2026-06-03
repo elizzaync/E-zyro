@@ -68,19 +68,6 @@ class _MaterialesTabState extends State<_MaterialesTab> {
     if (mounted) await _refrescarAvisosPrestamo();
   }
 
-  Future<void> _abrirSolicitar() async {
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _SolicitarMaterialSheet(
-        servicioId: widget.servicioId,
-        service: widget.service,
-        onAgregado: widget.onChanged,
-      ),
-    );
-  }
-
   Future<void> _enviarBorrador() async {
     if (widget.borrador.items.isEmpty) return;
     setState(() => _enviando = true);
@@ -207,11 +194,9 @@ class _MaterialesTabState extends State<_MaterialesTab> {
   @override
   Widget build(BuildContext context) {
     final borrador = widget.borrador;
-    return Stack(
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-          children: [
             // ── Equipos y herramientas (préstamos FASE 5) ─────────────────────
             _EquiposHerramientasCard(
               avisosCount: _avisosPrestamoCount,
@@ -352,21 +337,6 @@ class _MaterialesTabState extends State<_MaterialesTab> {
               ...widget.solicitados.map((m) =>
                   _MaterialCard(item: m, onEdit: () => _editarMaterial(m))),
             ],
-          ],
-        ),
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: FloatingActionButton.extended(
-            heroTag: 'fab_solicitar_${widget.servicioId}',
-            onPressed: _abrirSolicitar,
-            backgroundColor: _green,
-            foregroundColor: Colors.white,
-            icon: const Icon(Icons.add_shopping_cart_outlined),
-            label: const Text('Solicitar',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ),
       ],
     );
   }

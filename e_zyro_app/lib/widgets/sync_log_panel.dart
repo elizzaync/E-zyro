@@ -307,7 +307,7 @@ class _SyncLogPanelState extends State<SyncLogPanel> {
                   color: _evidPendientes > 0 ? Colors.blue : Colors.grey,
                   icon: Icons.photo_camera_back_outlined,
                   tooltip: _evidPendientes > 0
-                      ? 'Fotos de procedimientos pendientes de subir. "Forzar sync" las envía.'
+                      ? 'Fotos de pasos pendientes de subir. "Forzar sync" las envía.'
                       : null,
                 ),
               ],

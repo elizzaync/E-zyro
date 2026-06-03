@@ -25,10 +25,12 @@ class AppSession {
   // ── Checks de permisos ────────────────────────────────────────────────────
 
   /// SuperAdmin y Admin siempre tienen permiso absoluto.
-  bool get isAdmin =>
-      _rol == 'superadmin'    ||
-      _rol == 'admin'         ||
-      _rol == 'administrador';
+  /// Normaliza espacios para reconocer variantes como "Super Admin" (con
+  /// espacio), que el backend siembra junto a "SuperAdmin" y "Administrador".
+  bool get isAdmin {
+    final r = _rol.replaceAll(' ', '');
+    return r == 'superadmin' || r == 'admin' || r == 'administrador';
+  }
 
   /// true si es admin O tiene el permiso específico en su lista.
   /// Comparación insensible a mayúsculas/acentos de formato: el backend emite
@@ -43,7 +45,10 @@ class AppSession {
 
   bool get canVerAuditoria          => hasPerm('auditoria:ver');
   bool get canVerMantenimientoGeneral => isAdmin || _esJefeOp || hasPerm('mantenimiento:ver_general');
-  bool get canEnviarComunicado => isAdmin || _esJefeOp;
+  // RBAC: el permiso 'comunicados:enviar' decide quién publica.
+  // (hasPerm ya concede acceso a Admin por bypass; el Jefe de Operaciones lo
+  //  recibe por la matriz rol→permiso.)
+  bool get canEnviarComunicado => hasPerm('comunicados:enviar');
   // Logística: admin (bypass) · rol Logístico · o cualquiera con permiso de inventario.
   bool get canGestInventario   =>
       isAdmin || _esLogistica || hasPerm('inventario:ver') || hasPerm('inventario:gestionar');

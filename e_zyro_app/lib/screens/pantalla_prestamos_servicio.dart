@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/prestamo_models.dart';
+import '../models/proyecto_models.dart';
 import '../services/prestamo_service.dart';
+import '../services/proyecto_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
 
@@ -461,6 +463,9 @@ class _SolicitarPrestamoSheet extends StatefulWidget {
 }
 
 class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
+  // Modo: 0 = Equipos/Herramientas (préstamo) · 1 = Materiales (borrador req.)
+  int _modo = 0;
+
   List<EquipoCatalogo> _catalogo = [];
   bool _loading = true;
   bool _sending = false;
@@ -469,13 +474,28 @@ class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
   Timer? _debounce;
   final _obsCtrl = TextEditingController();
 
-  // Carrito local: equipo_id → cantidad
+  // Carrito local de equipos: equipo_id → cantidad
   final Map<String, int> _carrito = {};
+
+  // ── Materiales (catálogo → borrador de requerimiento) ──────────────────────
+  ProyectoService? _proyectoService;
+  final _searchMatCtrl = TextEditingController();
+  Timer? _debounceMat;
+  List<MaterialBusqueda> _resultadosMat = [];
+  bool _loadingMat = false;
+  // Carrito de materiales: material_id → (material, cantidad)
+  final Map<String, ({MaterialBusqueda mat, int cant})> _carritoMat = {};
 
   @override
   void initState() {
     super.initState();
     _load();
+    _initProyectoService();
+  }
+
+  Future<void> _initProyectoService() async {
+    final s = await getProyectoService();
+    if (mounted) setState(() => _proyectoService = s);
   }
 
   @override
@@ -483,7 +503,52 @@ class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
     _searchCtrl.dispose();
     _obsCtrl.dispose();
     _debounce?.cancel();
+    _searchMatCtrl.dispose();
+    _debounceMat?.cancel();
     super.dispose();
+  }
+
+  void _onSearchMatChanged(String q) {
+    _debounceMat?.cancel();
+    _debounceMat = Timer(const Duration(milliseconds: 400), () async {
+      final svc = _proyectoService;
+      if (svc == null) return;
+      setState(() => _loadingMat = true);
+      final r = await svc.buscarMateriales(q);
+      if (!mounted) return;
+      setState(() {
+        _resultadosMat = r;
+        _loadingMat = false;
+      });
+    });
+  }
+
+  Future<void> _enviarMateriales() async {
+    final svc = _proyectoService;
+    if (svc == null || _carritoMat.isEmpty) return;
+    setState(() => _sending = true);
+    var fallo = false;
+    for (final e in _carritoMat.values) {
+      final res = await svc.agregarItemBorrador(
+        widget.servicioId,
+        materialId: e.mat.id,
+        nombre: e.mat.nombre,
+        unidad: e.mat.unidad,
+        cantidad: e.cant,
+      );
+      if (!res.ok) fallo = true;
+    }
+    if (!mounted) return;
+    setState(() => _sending = false);
+    if (!fallo) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Algunos materiales no se pudieron agregar'),
+        backgroundColor: _kRed,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   Future<void> _load() async {
@@ -531,6 +596,7 @@ class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
   @override
   Widget build(BuildContext context) {
     final surface = Theme.of(context).colorScheme.surface;
+    final esEquipos = _modo == 0;
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.85,
@@ -559,38 +625,52 @@ class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
                 decoration: BoxDecoration(
                     color: _kGreen.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.build_outlined,
+                child: Icon(esEquipos ? Icons.build_outlined : Icons.inventory_2_outlined,
                     color: _kGreen, size: 22),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Solicitar Equipos',
+                  const Text('Solicitar Recursos',
                       style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                  Text('Préstamo para este servicio',
-                      style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(esEquipos
+                      ? 'Préstamo de equipos para este servicio'
+                      : 'Materiales al borrador de Logística',
+                      style: const TextStyle(color: Colors.grey, fontSize: 12)),
                 ]),
               ),
-              if (_carrito.isNotEmpty)
+              if ((esEquipos ? _carrito : _carritoMat).isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
                       color: _kGreen, borderRadius: BorderRadius.circular(20)),
-                  child: Text('${_carrito.length}',
+                  child: Text('${(esEquipos ? _carrito : _carritoMat).length}',
                       style: const TextStyle(
                           color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
             ]),
           ),
           const SizedBox(height: 12),
-          // Search + filtro de clase
+          // Selector de modo: Equipos/Herramientas · Materiales
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(children: [
+              _modoChip('Equipos/Herram.', 0),
+              const SizedBox(width: 8),
+              _modoChip('Materiales', 1),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          // Search
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextField(
-              controller: _searchCtrl,
-              onChanged: _onSearchChanged,
+              controller: esEquipos ? _searchCtrl : _searchMatCtrl,
+              onChanged: esEquipos ? _onSearchChanged : _onSearchMatChanged,
               decoration: InputDecoration(
-                hintText: 'Buscar equipo / herramienta...',
+                hintText: esEquipos
+                    ? 'Buscar equipo / herramienta...'
+                    : 'Buscar material (mín. 2 letras)...',
                 prefixIcon: const Icon(Icons.search, color: Colors.grey),
                 filled: true,
                 fillColor:
@@ -602,97 +682,180 @@ class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 36,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: [
-                _claseChip('Todos',     ''),
-                _claseChip('Equipos',   'equipo'),
-                _claseChip('Herramientas', 'herramienta'),
-              ],
+          // Filtro de clase: solo para equipos
+          if (esEquipos) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: [
+                  _claseChip('Todos',     ''),
+                  _claseChip('Equipos',   'equipo'),
+                  _claseChip('Herramientas', 'herramienta'),
+                ],
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 6),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator(color: _kGreen))
-                : _catalogo.isEmpty
-                    ? const Center(child: Text('Sin resultados',
-                        style: TextStyle(color: Colors.grey)))
-                    : ListView.separated(
-                        controller: scrollCtrl,
-                        padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
-                        itemCount: _catalogo.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) {
-                          final e = _catalogo[i];
-                          final actual = _carrito[e.id] ?? 0;
-                          return _EquipoRow(
-                            equipo: e,
-                            cantidad: actual,
-                            onChange: (n) {
-                              setState(() {
-                                if (n <= 0) {
-                                  _carrito.remove(e.id);
-                                } else {
-                                  _carrito[e.id] = n;
-                                }
-                              });
-                            },
-                          );
-                        },
-                      ),
+            child: esEquipos
+                ? _buildListaEquipos(scrollCtrl)
+                : _buildListaMateriales(scrollCtrl),
           ),
-          // Observación + Enviar
+          // Observación (solo equipos) + Enviar
           Padding(
             padding: EdgeInsets.only(
               left: 20, right: 20, top: 8,
               bottom: MediaQuery.of(context).viewInsets.bottom + 16,
             ),
             child: Column(children: [
-              TextField(
-                controller: _obsCtrl,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'Observación (opcional)',
-                  filled: true,
-                  fillColor:
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.all(12),
+              if (esEquipos)
+                TextField(
+                  controller: _obsCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: 'Observación (opcional)',
+                    filled: true,
+                    fillColor:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
+              if (esEquipos) const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity, height: 48,
-                child: ElevatedButton(
-                  onPressed: _carrito.isEmpty || _sending ? null : _enviar,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kGreen,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade300,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                  ),
-                  child: _sending
-                      ? const SizedBox(width: 20, height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : Text(_carrito.isEmpty
-                          ? 'Selecciona equipos'
-                          : 'Enviar solicitud (${_carrito.values.fold<int>(0, (a, b) => a + b)} unidades)',
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                ),
+                child: esEquipos
+                    ? ElevatedButton(
+                        onPressed: _carrito.isEmpty || _sending ? null : _enviar,
+                        style: _btnStyle(),
+                        child: _sending
+                            ? const _BtnSpinner()
+                            : Text(_carrito.isEmpty
+                                ? 'Selecciona equipos'
+                                : 'Enviar solicitud (${_carrito.values.fold<int>(0, (a, b) => a + b)} unidades)',
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                      )
+                    : ElevatedButton(
+                        onPressed:
+                            _carritoMat.isEmpty || _sending ? null : _enviarMateriales,
+                        style: _btnStyle(),
+                        child: _sending
+                            ? const _BtnSpinner()
+                            : Text(_carritoMat.isEmpty
+                                ? 'Selecciona materiales'
+                                : 'Agregar al borrador (${_carritoMat.values.fold<int>(0, (a, b) => a + b.cant)} ítem(s))',
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
               ),
             ]),
           ),
         ]),
+      ),
+    );
+  }
+
+  ButtonStyle _btnStyle() => ElevatedButton.styleFrom(
+        backgroundColor: _kGreen,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: Colors.grey.shade300,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      );
+
+  Widget _buildListaEquipos(ScrollController scrollCtrl) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: _kGreen));
+    }
+    if (_catalogo.isEmpty) {
+      return const Center(
+          child: Text('Sin resultados', style: TextStyle(color: Colors.grey)));
+    }
+    return ListView.separated(
+      controller: scrollCtrl,
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+      itemCount: _catalogo.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, i) {
+        final e = _catalogo[i];
+        final actual = _carrito[e.id] ?? 0;
+        return _EquipoRow(
+          equipo: e,
+          cantidad: actual,
+          onChange: (n) {
+            setState(() {
+              if (n <= 0) {
+                _carrito.remove(e.id);
+              } else {
+                _carrito[e.id] = n;
+              }
+            });
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildListaMateriales(ScrollController scrollCtrl) {
+    if (_loadingMat) {
+      return const Center(child: CircularProgressIndicator(color: _kGreen));
+    }
+    if (_searchMatCtrl.text.trim().length < 2) {
+      return const Center(
+          child: Text('Escribe para buscar materiales',
+              style: TextStyle(color: Colors.grey)));
+    }
+    if (_resultadosMat.isEmpty) {
+      return const Center(
+          child: Text('Sin resultados', style: TextStyle(color: Colors.grey)));
+    }
+    return ListView.separated(
+      controller: scrollCtrl,
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+      itemCount: _resultadosMat.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (_, i) {
+        final m = _resultadosMat[i];
+        final actual = _carritoMat[m.id]?.cant ?? 0;
+        return _MaterialRow(
+          material: m,
+          cantidad: actual,
+          onChange: (n) {
+            setState(() {
+              if (n <= 0) {
+                _carritoMat.remove(m.id);
+              } else {
+                _carritoMat[m.id] = (mat: m, cant: n);
+              }
+            });
+          },
+        );
+      },
+    );
+  }
+
+  Widget _modoChip(String label, int value) {
+    final sel = _modo == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _modo = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: sel ? _kGreen : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: sel ? _kGreen : Colors.grey.shade300),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: sel ? Colors.white : Colors.grey.shade700,
+                  fontWeight: FontWeight.w600, fontSize: 13)),
+        ),
       ),
     );
   }
@@ -1018,6 +1181,74 @@ class _DevolverSheetState extends State<_DevolverSheet> {
               style: const TextStyle(
                   color: _kRed, fontSize: 11, fontWeight: FontWeight.w600)),
         ],
+      ]),
+    );
+  }
+}
+
+// ─── Spinner pequeño para botones ─────────────────────────────────────────────
+
+class _BtnSpinner extends StatelessWidget {
+  const _BtnSpinner();
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+        width: 20, height: 20,
+        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+      );
+}
+
+// ─── Fila de material del catálogo (modo Materiales del sheet) ────────────────
+
+class _MaterialRow extends StatelessWidget {
+  final MaterialBusqueda material;
+  final int cantidad;
+  final ValueChanged<int> onChange;
+
+  const _MaterialRow({
+    required this.material,
+    required this.cantidad,
+    required this.onChange,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+    final sinStock = material.stock <= 0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kGreen.withValues(alpha: 0.25)),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _kGreen.withValues(alpha: isDark ? 0.15 : 0.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.inventory_2_outlined, color: _kGreen, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(material.nombre,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            const SizedBox(height: 2),
+            Text('Stock: ${material.stock} ${material.unidad}',
+                style: TextStyle(
+                    fontSize: 10,
+                    color: sinStock ? _kAmber : Colors.grey,
+                    fontWeight: sinStock ? FontWeight.w600 : FontWeight.normal)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        // Sin tope por stock: se puede solicitar más (compra a Logística).
+        _Stepper(value: cantidad, max: 99999, onChanged: onChange),
       ]),
     );
   }

@@ -21,7 +21,7 @@ class _ProcedimientosTab extends StatelessWidget {
     if (procedimientos.isEmpty) {
       return _EmptyTab(
         icon: Icons.checklist_outlined,
-        label: 'Sin procedimientos registrados',
+        label: 'Sin pasos registrados',
       );
     }
     return ListView.separated(
@@ -272,7 +272,7 @@ class _EvidenciaSheetState extends State<_EvidenciaSheet> {
               style:
                   const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          const Text('Registra una foto por cada etapa del procedimiento',
+          const Text('Registra una foto por cada etapa del paso',
               style: TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 16),
           ..._etapas.map((etapa) {
