@@ -3466,7 +3466,7 @@ async def subir_foto_paso_ei(
     if not paso:
         raise HTTPException(status_code=404, detail="Paso no encontrado")
 
-    folder = f"e_zyro/{empresa_id}/inspecciones/{ei_id}"
+    folder = f"e_zyro/{empresa_id}/mantenimiento/{ei_id}"
     try:
         url = await subir_archivo_cloudinary(archivo, folder)
     except Exception as exc:
@@ -3479,6 +3479,51 @@ async def subir_foto_paso_ei(
     db.commit()
 
     return {"ok": True, "url": url, "public_id": pub_id}
+
+
+# ── DELETE /servicio/{id}/equipos-intervenidos/{eiId}/paso/{pasoId}/foto ──────
+
+@router.delete(
+    "/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/paso/{paso_id}/foto",
+    status_code=status.HTTP_200_OK,
+)
+def quitar_foto_paso_ei(
+    servicio_id: str,
+    ei_id:       str,
+    paso_id:     str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id                   == ei_id,
+        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+        EquipoIntervenido.empresa_id           == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+
+    paso = db.query(PasoIntervencion).filter(
+        PasoIntervencion.id                    == paso_id,
+        PasoIntervencion.equipo_intervenido_id == ei_id,
+    ).first()
+    if not paso:
+        raise HTTPException(status_code=404, detail="Paso no encontrado")
+
+    # Eliminar de Cloudinary si existe
+    if paso.foto_public_id:
+        try:
+            import cloudinary.uploader
+            cloudinary.uploader.destroy(paso.foto_public_id)
+        except Exception:
+            pass
+
+    paso.foto_url       = None
+    paso.foto_public_id = None
+    db.commit()
+
+    return {"ok": True}
 
 
 # ── POST /servicio/{id}/equipos-intervenidos/{eiId}/guardar ───────────────────
