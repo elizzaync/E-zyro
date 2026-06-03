@@ -32,6 +32,7 @@ from app.routers import itse            as itse_router
 from app.routers import informes_servicio as informes_servicio_router
 from app.routers import equipos_intervenidos as equipos_intervenidos_router
 from app.routers import activo_cliente    as activo_cliente_router
+from app.routers import soporte           as soporte_router
 from app.routers import analitica         as analitica_router
 from app.routers import planos            as planos_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
@@ -102,6 +103,8 @@ from app.models import (  # noqa: F401
     incidencia,
     # Catálogo de activos físicos del cliente (Módulo Equipos Intervenidos)
     activo_cliente,
+    # Tickets de soporte interno (equipo de TI)
+    ticket_soporte,
 )
 
 
@@ -1025,6 +1028,40 @@ def _run_migrations():
             ))
         conn.commit()
 
+        # ── Tickets de soporte interno (equipo de TI) ────────────────────────
+        # IDs String(36) → VARCHAR(36); empresa(id) es uuid pero NO declaramos
+        # la FK como uuid aquí para mantener consistencia con el modelo (no FK
+        # física estricta, igual que otras tablas operativas con String(36)).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ticket_soporte (
+                id            VARCHAR(36)  PRIMARY KEY,
+                empresa_id    VARCHAR(36)  NOT NULL,
+                codigo        VARCHAR(20)  NOT NULL,
+                reportado_por VARCHAR(36)  NOT NULL,
+                titulo        VARCHAR(200) NOT NULL,
+                descripcion   TEXT         NOT NULL,
+                categoria     VARCHAR(30)  NOT NULL DEFAULT 'otro',
+                prioridad     VARCHAR(20)  NOT NULL DEFAULT 'media',
+                estado        VARCHAR(20)  NOT NULL DEFAULT 'abierto',
+                pantalla      VARCHAR(120),
+                dispositivo   VARCHAR(200),
+                adjunto_url   TEXT,
+                respuesta_ti  TEXT,
+                atendido_por  VARCHAR(36),
+                created_at    TIMESTAMP    NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMP
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_ticket_soporte_empresa "
+            "ON ticket_soporte (empresa_id, estado)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_ticket_soporte_reportante "
+            "ON ticket_soporte (reportado_por)"
+        ))
+        conn.commit()
+
         # ── Semillas básicas: unidades por defecto si la empresa no tiene ─────
         # Se ejecuta una sola vez por empresa cuando aún no hay unidades cargadas.
         conn.execute(text("""
@@ -1113,6 +1150,7 @@ app.include_router(equipos_intervenidos_router.router)
 app.include_router(activo_cliente_router.router)
 app.include_router(analitica_router.router)
 app.include_router(planos_router.router)
+app.include_router(soporte_router.router)
 
 
 @app.get("/")
