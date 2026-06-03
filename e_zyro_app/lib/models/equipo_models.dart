@@ -65,7 +65,9 @@ class EquipoItem {
         fichaTecnica: j['fichaTecnica']?.toString(),
       );
 
-  bool get esHerramienta => clase == 'herramienta';
+  bool get esHerramienta      => clase == 'herramienta';
+  bool get esEquipoTecnologico => clase == 'equipo_tecnologico';
+  bool get esEquipo            => clase == 'equipo';
 }
 
 class EquiposListResponse {

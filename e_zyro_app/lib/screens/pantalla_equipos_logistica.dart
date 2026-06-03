@@ -20,10 +20,12 @@ class _State extends State<PantallaEquiposLogistica>
   EquipoService? _svc;
   late TabController _tabs;
 
-  // Tab 0 = Activos Electrónicos (clase='equipo', tipo='activo_electronico')
-  // Tab 1 = Herramientas (clase='herramienta': tecnológicas + manuales)
-  List<EquipoItem> _activosElec = [];
+  // Tab 0 = Equipos  (clase='equipo')         — requieren calibración/mantenimiento
+  // Tab 1 = Herramientas (clase='herramienta') — manuales, rara vez con mantenimiento
+  // Tab 2 = Equip. Tecnológicos (clase='equipo_tecnologico') — PCs, laptops, impresoras
+  List<EquipoItem> _equipos = [];
   List<EquipoItem> _herramientas = [];
+  List<EquipoItem> _equiposTecno = [];
   bool _cargando = true;
   String? _error;
 
@@ -33,7 +35,7 @@ class _State extends State<PantallaEquiposLogistica>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _searchCtrl.addListener(() {
       if (_searchCtrl.text != _q) {
         setState(() => _q = _searchCtrl.text);
@@ -58,14 +60,18 @@ class _State extends State<PantallaEquiposLogistica>
   Future<void> _cargar() async {
     if (_svc == null) return;
     setState(() { _cargando = true; _error = null; });
-    final resEq = await _svc!.listar(q: _q, clase: 'equipo',      pageSize: 200);
-    final resHr = await _svc!.listar(q: _q, clase: 'herramienta', pageSize: 200);
+    final results = await Future.wait([
+      _svc!.listar(q: _q, clase: 'equipo',              pageSize: 200),
+      _svc!.listar(q: _q, clase: 'herramienta',         pageSize: 200),
+      _svc!.listar(q: _q, clase: 'equipo_tecnologico',  pageSize: 200),
+    ]);
     if (!mounted) return;
     setState(() {
       _cargando = false;
-      if (resEq.ok) _activosElec  = resEq.data?.items ?? [];
-      if (resHr.ok) _herramientas = resHr.data?.items ?? [];
-      if (!resEq.ok) _error = resEq.errorMessage;
+      if (results[0].ok) _equipos      = results[0].data?.items ?? [];
+      if (results[1].ok) _herramientas = results[1].data?.items ?? [];
+      if (results[2].ok) _equiposTecno = results[2].data?.items ?? [];
+      if (!results[0].ok) _error = results[0].errorMessage;
     });
   }
 
@@ -127,8 +133,10 @@ class _State extends State<PantallaEquiposLogistica>
                     color: color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(e.esHerramienta ? Icons.handyman_outlined
-                      : Icons.computer_outlined,
+                  child: Icon(
+                      e.esHerramienta      ? Icons.handyman_outlined
+                    : e.esEquipoTecnologico ? Icons.devices_outlined
+                    : Icons.precision_manufacturing_outlined,
                       color: color, size: 24),
                 ),
                 const SizedBox(width: 12),
@@ -237,8 +245,9 @@ class _State extends State<PantallaEquiposLogistica>
     final modeloCtrl = TextEditingController(text: item?.modelo ?? '');
     final serieCtrl  = TextEditingController(text: item?.numeroSerie ?? '');
     final cantCtrl   = TextEditingController(text: '${item?.cantidad ?? 1}');
-    // Tab 0 = Activos Electrónicos (clase='equipo'), Tab 1 = Herramientas
-    String clase     = item?.clase ?? (_tabs.index == 0 ? 'equipo' : 'herramienta');
+    // Tab 0=Equipos, Tab 1=Herramientas, Tab 2=Equip. Tecnológicos
+    final clasesPorTab = ['equipo', 'herramienta', 'equipo_tecnologico'];
+    String clase = item?.clase ?? clasesPorTab[_tabs.index.clamp(0, 2)];
     String estado    = item?.estado ?? 'operativo';
     bool reqMant     = item?.requiereMantenimiento ?? false;
     String frecuencia= item?.frecuenciaMantenimiento ?? 'ninguno';
@@ -292,9 +301,10 @@ class _State extends State<PantallaEquiposLogistica>
                         color: _green.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(clase == 'herramienta'
-                          ? Icons.handyman_outlined
-                          : Icons.precision_manufacturing_outlined,
+                      child: Icon(
+                          clase == 'herramienta'        ? Icons.handyman_outlined
+                        : clase == 'equipo_tecnologico' ? Icons.devices_outlined
+                        : Icons.precision_manufacturing_outlined,
                           color: _green, size: 20),
                     ),
                     const SizedBox(width: 12),
@@ -303,13 +313,16 @@ class _State extends State<PantallaEquiposLogistica>
                   ]),
                   const SizedBox(height: 20),
 
-                  // Tipo (equipo / herramienta)
+                  // Tipo (equipo / herramienta / equipo_tecnologico)
                   Row(children: [
-                    Expanded(child: _tipoChip('equipo', 'Activo Electrónico',
-                        Icons.computer_outlined, clase, setLocal, (v) => clase = v)),
-                    const SizedBox(width: 10),
+                    Expanded(child: _tipoChip('equipo', 'Equipo',
+                        Icons.precision_manufacturing_outlined, clase, setLocal, (v) => clase = v)),
+                    const SizedBox(width: 6),
                     Expanded(child: _tipoChip('herramienta', 'Herramienta',
                         Icons.handyman_outlined, clase, setLocal, (v) => clase = v)),
+                    const SizedBox(width: 6),
+                    Expanded(child: _tipoChip('equipo_tecnologico', 'Tecnológico',
+                        Icons.devices_outlined, clase, setLocal, (v) => clase = v)),
                   ]),
                   const SizedBox(height: 16),
 
@@ -542,7 +555,7 @@ class _State extends State<PantallaEquiposLogistica>
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(),
                 ),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('Equipos y Herramientas',
+                const Expanded(child: Text('Equipos',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
                 if (AppSession.i.canGestionarInventario)
                   IconButton(
@@ -584,9 +597,11 @@ class _State extends State<PantallaEquiposLogistica>
                 unselectedLabelColor: Colors.grey,
                 indicatorColor: _green,
                 indicatorSize: TabBarIndicatorSize.label,
+                isScrollable: true,
                 tabs: [
-                  Tab(text: 'Activos Electrónicos (${_activosElec.length})'),
+                  Tab(text: 'Equipos (${_equipos.length})'),
                   Tab(text: 'Herramientas (${_herramientas.length})'),
+                  Tab(text: 'Tecnológicos (${_equiposTecno.length})'),
                 ],
               ),
             ]),
@@ -601,8 +616,9 @@ class _State extends State<PantallaEquiposLogistica>
                     : TabBarView(
                         controller: _tabs,
                         children: [
-                          _lista(_activosElec, Icons.computer_outlined),
+                          _lista(_equipos,      Icons.precision_manufacturing_outlined),
                           _lista(_herramientas, Icons.handyman_outlined),
+                          _lista(_equiposTecno, Icons.devices_outlined),
                         ],
                       ),
           ),
