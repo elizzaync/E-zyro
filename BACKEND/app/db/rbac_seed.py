@@ -82,6 +82,17 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "informe_servicio:ver",
         "galeria:ver", "galeria:subir",
     ],
+    # Equipo de soporte interno: gestiona los tickets de TI de su empresa.
+    "TI": [
+        "dashboard:ver",
+        "soporte:ver", "soporte:gestionar",
+    ],
+}
+
+# Roles "de sistema" que deben existir en TODA empresa, creados por el seed si
+# faltan (nombre → descripción). El resto de roles los crea cada empresa a mano.
+ROLES_SISTEMA: dict[str, str] = {
+    "TI": "Equipo de soporte interno (TI)",
 }
 
 # Roles que reciben TODO el catálogo de permisos.
@@ -137,3 +148,38 @@ def sembrar_rol_permiso(conn) -> None:
         for perm in permisos:
             modulo, _, accion = perm.partition(":")
             _vincular(conn, rol_nombre, modulo, accion)
+
+
+def sembrar_roles_sistema(conn) -> None:
+    """Crea los roles de ROLES_SISTEMA en cada empresa que aún no los tenga.
+
+    Idempotente: compara por (empresa_id, nombre en minúsculas). Debe correr
+    ANTES de `sembrar_rol_permiso`, que solo vincula permisos a roles ya
+    existentes. Se castea con ::text en ambos lados de la comparación para no
+    depender de si las columnas id/empresa_id son uuid o varchar en la BD.
+    """
+    for nombre, descripcion in ROLES_SISTEMA.items():
+        empresas = conn.execute(
+            text(
+                """
+                SELECT e.id::text FROM empresa e
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM rol r
+                      WHERE r.empresa_id::text = e.id::text
+                        AND lower(r.nombre) = lower(:n)
+                 )
+                """
+            ),
+            {"n": nombre},
+        ).fetchall()
+        for (empresa_id,) in empresas:
+            conn.execute(
+                text(
+                    """
+                    INSERT INTO rol (id, empresa_id, nombre, descripcion,
+                                     es_rol_sistema, created_at)
+                    VALUES (:id, :eid, :n, :d, true, now())
+                    """
+                ),
+                {"id": str(uuid.uuid4()), "eid": empresa_id, "n": nombre, "d": descripcion},
+            )

@@ -9,7 +9,7 @@ import time
 logger = logging.getLogger(__name__)
 
 from app.db.database import engine, Base
-from app.db.rbac_seed import sembrar_permisos, sembrar_rol_permiso
+from app.db.rbac_seed import sembrar_permisos, sembrar_rol_permiso, sembrar_roles_sistema
 from app.routers import auth, dashboard
 from app.routers import permisos        as permisos_router
 from app.routers import asistencia      as asistencia_router
@@ -563,6 +563,11 @@ def _run_migrations():
         # ── Comunicados por proyecto (canal de difusión) ─────────────────────
         sembrar_permisos(conn, "comunicados", ["ver", "enviar"],
                          descripcion_base="Comunicados:")
+        # ── Soporte interno de TI (tickets) ──────────────────────────────────
+        sembrar_permisos(conn, "soporte", ["ver", "gestionar"],
+                         descripcion_base="Soporte TI:")
+        # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
+        sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
         sembrar_rol_permiso(conn)
         conn.commit()

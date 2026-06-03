@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Security
-from sqlalchemy import text
+from sqlalchemy import text, case, func
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
@@ -65,10 +65,26 @@ def _rol_y_permisos(db: Session, usuario_id: str) -> tuple[str, list[str]]:
     Fuente única usada por /login y /auth/me para que la app siempre reciba lo
     mismo y pueda autosanar su sesión.
     """
+    # Si el usuario tiene varios roles, preferimos un rol administrativo para el
+    # claim `rol` del token, de modo que el bypass es_admin/es_superadmin (que
+    # mira el string del token) funcione en todo el backend. Los permisos finos
+    # se combinan aparte vía rol_permiso + usuario_permiso (ver abajo).
     rol_row = (
         db.query(Rol)
         .join(UsuarioRol, UsuarioRol.rol_id == Rol.id)
         .filter(UsuarioRol.usuario_id == usuario_id)
+        .order_by(
+            case(
+                (
+                    func.replace(func.lower(Rol.nombre), " ", "").in_(
+                        ("superadmin", "admin", "administrador")
+                    ),
+                    0,
+                ),
+                else_=1,
+            ),
+            Rol.created_at.asc(),
+        )
         .first()
     )
     nombre_rol = rol_row.nombre if rol_row else "Sin Rol Asignado"

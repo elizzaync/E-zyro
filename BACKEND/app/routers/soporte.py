@@ -3,8 +3,9 @@ Router: /soporte
 Tickets de soporte interno para el equipo de TI.
 
 - Cualquier usuario autenticado crea tickets y ve los suyos.
-- El equipo de TI (admin/superadmin) ve todos los de su empresa y los gestiona
-  (cambiar estado, responder, asignarse).
+- El equipo de TI (permiso soporte:ver / soporte:gestionar, p.ej. rol "TI" o
+  Administrador) ve todos los de su empresa y los gestiona (cambiar estado,
+  responder, asignarse).
 """
 from __future__ import annotations
 
@@ -17,12 +18,23 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..core.security import verificar_token, es_superadmin
+from ..core.security import verificar_token
+from ..core.permisos import tiene_permiso
 from ..db.database import get_db
 from ..models.ticket_soporte import TicketSoporte
 from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/soporte", tags=["soporte"])
+
+
+def _puede_ver_todos(db: Session, payload: dict) -> bool:
+    """Equipo de TI: puede ver los tickets de toda la empresa."""
+    return tiene_permiso(db, payload, "soporte", "ver")
+
+
+def _puede_gestionar(db: Session, payload: dict) -> bool:
+    """Equipo de TI: puede gestionar (cambiar estado / responder) tickets."""
+    return tiene_permiso(db, payload, "soporte", "gestionar")
 
 _CATEGORIAS = {"app_movil", "sistema_web", "acceso", "datos", "otro"}
 _PRIORIDADES = {"baja", "media", "alta", "urgente"}
@@ -163,8 +175,8 @@ def listar_tickets(
 
     q = db.query(TicketSoporte).filter(TicketSoporte.empresa_id == empresa_id)
 
-    # 'todos' solo lo puede usar el equipo de TI (admin); el resto ve los suyos.
-    if alcance == "todos" and es_superadmin(payload):
+    # 'todos' solo lo puede usar el equipo de TI; el resto ve los suyos.
+    if alcance == "todos" and _puede_ver_todos(db, payload):
         pass
     else:
         q = q.filter(TicketSoporte.reportado_por == usuario_id)
@@ -190,8 +202,8 @@ def detalle_ticket(
     ).first()
     if not t:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
-    # Solo el reportante o TI pueden verlo
-    if str(t.reportado_por) != str(usuario_id) and not es_superadmin(payload):
+    # Solo el reportante o el equipo de TI pueden verlo
+    if str(t.reportado_por) != str(usuario_id) and not _puede_ver_todos(db, payload):
         raise HTTPException(status_code=403, detail="Sin acceso a este ticket")
     return _out(db, t)
 
@@ -207,7 +219,7 @@ def gestionar_ticket(
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
-    if not es_superadmin(payload):
+    if not _puede_gestionar(db, payload):
         raise HTTPException(status_code=403, detail="Solo el equipo de TI gestiona tickets")
 
     t = db.query(TicketSoporte).filter(
