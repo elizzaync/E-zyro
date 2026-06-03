@@ -6,6 +6,19 @@ import { OperacionesService } from '../../../../core/services/operaciones.servic
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ToastService } from '../../../../core/services/toast.service';
 
+// Interfaces legacy requeridas por sub-componentes heredados
+export interface ProcedimientoEI {
+  id: string; orden: number; nombre: string;
+  descripcion?: string | null; estado: 'pendiente' | 'en_proceso' | 'completado';
+  fotoUrl?: string | null;
+}
+export interface EquipoEI {
+  id: string; nombre: string; tag?: string | null;
+  estado: 'pendiente' | 'en_proceso' | 'completado';
+  ubicacion?: string | null; procedimientos: ProcedimientoEI[];
+}
+export interface TipoEquipoGrupoEI { nombre: string; equipos: EquipoEI[]; }
+
 export interface EquipoIntervenido {
   id: string;
   nombre: string;
