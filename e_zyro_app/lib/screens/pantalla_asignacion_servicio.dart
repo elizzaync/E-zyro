@@ -111,13 +111,13 @@ class _PantallaAsignacionServicioState
             ? existente.first
             : TecnicoDisponible.fromMiembro(m));
       }
-      // Precargar cronograma
-      for (final p in detalle.procedimientos) {
+      // Precargar cronograma (Tareas)
+      for (final t in detalle.tareas) {
         _tareas.add(_TareaForm(
-          nombre: p.nombre,
-          responsableId: p.responsableId,
-          fechaInicio: _soloFecha(p.fechaInicioTarea),
-          fechaFin: _soloFecha(p.fechaLimite),
+          nombre: t.nombre,
+          responsableId: t.responsableId,
+          fechaInicio: _soloFecha(t.fechaInicioTarea),
+          fechaFin: _soloFecha(t.fechaLimite),
         ));
       }
     }

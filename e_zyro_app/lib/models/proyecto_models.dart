@@ -153,7 +153,7 @@ class EvidenciaDetalle {
       );
 }
 
-// ── Procedimiento ─────────────────────────────────────────────────────────────
+// ── Procedimiento (paso FIJO del servicio: evidencias + avance/informe) ───────
 
 class ProcedimientoDetalle {
   final String id;
@@ -162,10 +162,11 @@ class ProcedimientoDetalle {
   final int orden;
   String estado; // mutable: permite toggle optimista con rollback
   final List<EvidenciaDetalle> evidencias;
-  // Cronograma (asignación) — el backend los entrega en /operaciones/servicio/{id}
-  final String? responsableId; // empleado.id responsable de la tarea
-  final String? fechaInicioTarea; // YYYY-MM-DD
-  final String? fechaLimite; // YYYY-MM-DD
+  // Campos legacy del cronograma: el backend ya NO los envía aquí (viven en
+  // Tarea). Se conservan opcionales para compatibilidad; siempre null.
+  final String? responsableId;
+  final String? fechaInicioTarea;
+  final String? fechaLimite;
 
   ProcedimientoDetalle({
     required this.id,
@@ -189,6 +190,41 @@ class ProcedimientoDetalle {
         evidencias: (j['evidencias'] as List? ?? [])
             .map((e) => EvidenciaDetalle.fromJson(e as Map<String, dynamic>))
             .toList(),
+        responsableId: j['responsable_id'] as String?,
+        fechaInicioTarea: j['fecha_inicio_tarea'] as String?,
+        fechaLimite: j['fecha_limite'] as String?,
+      );
+}
+
+// ── Tarea (cronograma: responsable + fechas, la asigna el jefe) ───────────────
+
+class TareaDetalle {
+  final String id;
+  final String nombre;
+  final String descripcion;
+  final int orden;
+  String estado; // mutable: toggle optimista con rollback
+  final String? responsableId; // empleado.id responsable de la tarea
+  final String? fechaInicioTarea; // YYYY-MM-DD
+  final String? fechaLimite; // YYYY-MM-DD
+
+  TareaDetalle({
+    required this.id,
+    required this.nombre,
+    required this.descripcion,
+    required this.orden,
+    required this.estado,
+    this.responsableId,
+    this.fechaInicioTarea,
+    this.fechaLimite,
+  });
+
+  factory TareaDetalle.fromJson(Map<String, dynamic> j) => TareaDetalle(
+        id: j['id'] as String? ?? '',
+        nombre: j['nombre'] as String? ?? '',
+        descripcion: j['descripcion'] as String? ?? '',
+        orden: j['orden'] as int? ?? 0,
+        estado: j['estado'] as String? ?? 'pendiente',
         responsableId: j['responsable_id'] as String?,
         fechaInicioTarea: j['fecha_inicio_tarea'] as String?,
         fechaLimite: j['fecha_limite'] as String?,
@@ -639,7 +675,8 @@ class ServicioDetalle {
   final String estado;
   double progreso; // mutable: refleja el progreso optimista al togglear tareas
   final List<MiembroEquipo> equipo;
-  final List<ProcedimientoDetalle> procedimientos;
+  final List<ProcedimientoDetalle> procedimientos; // pasos fijos (avance)
+  final List<TareaDetalle> tareas; // cronograma (responsable + fechas)
   final List<ItemMaterial> materialesAsignados;
   final List<ItemMaterial> materialesSolicitados;
   final List<NotaSeguimiento> notas;
@@ -670,6 +707,7 @@ class ServicioDetalle {
     required this.progreso,
     required this.equipo,
     required this.procedimientos,
+    this.tareas = const [],
     required this.materialesAsignados,
     required this.materialesSolicitados,
     required this.notas,
@@ -704,6 +742,9 @@ class ServicioDetalle {
         procedimientos: (j['procedimientos'] as List? ?? [])
             .map((e) =>
                 ProcedimientoDetalle.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        tareas: (j['tareas'] as List? ?? [])
+            .map((e) => TareaDetalle.fromJson(e as Map<String, dynamic>))
             .toList(),
         materialesAsignados: (j['materiales_asignados'] as List? ?? [])
             .map((e) => ItemMaterial.fromJson(e as Map<String, dynamic>))

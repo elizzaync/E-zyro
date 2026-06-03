@@ -236,6 +236,52 @@ class ProyectoService {
         servicioId,
       );
 
+  // PATCH /operaciones/tarea/{id}/estado  (estado del cronograma; online)
+  // No mueve el avance del servicio (eso lo controlan los procedimientos).
+  Future<ApiResult<bool>> toggleTarea(String tareaId, String estado) => _run(
+        () => _client.patch(
+            '/operaciones/tarea/$tareaId/estado', {'estado': estado}),
+        (_) => true,
+      );
+
+  // ── Plantillas de procedimientos (estándar por tipo de trabajo) ─────────────
+
+  // GET /operaciones/plantillas-procedimiento
+  Future<List<Map<String, dynamic>>> getPlantillas() async {
+    try {
+      final r = await _client.get('/operaciones/plantillas-procedimiento');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // GET /operaciones/plantillas-procedimiento/{tipo_trabajo}
+  Future<Map<String, dynamic>?> getPlantilla(String tipoTrabajo) async {
+    try {
+      final r = await _client
+          .get('/operaciones/plantillas-procedimiento/$tipoTrabajo');
+      if (r.statusCode == 200) {
+        return jsonDecode(r.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // PUT /operaciones/plantillas-procedimiento  (upsert por tipo_trabajo)
+  // body: { tipo_trabajo, nombre, procesos: [{orden, nombre, descripcion}], activo }
+  Future<bool> guardarPlantilla(Map<String, dynamic> body) async {
+    try {
+      final r =
+          await _client.put('/operaciones/plantillas-procedimiento', body);
+      return r.statusCode == 200 || r.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // POST /operaciones/procedimiento/{id}/evidencia  (multipart)
   // etapa: 'antes' | 'durante' | 'despues'. Devuelve la URL subida o null.
   Future<String?> subirEvidencia(

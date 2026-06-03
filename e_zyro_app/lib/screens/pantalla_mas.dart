@@ -19,6 +19,7 @@ import 'pantalla_calibraciones.dart';
 import 'pantalla_correctivos.dart';
 import 'pantalla_itse.dart';
 import 'pantalla_catalogos.dart';
+import 'pantalla_plantillas_procedimiento.dart';
 import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
 import 'pantalla_planos.dart';
@@ -371,6 +372,14 @@ class _MoreScreenState extends State<MoreScreen> {
                       label: 'Catálogos',
                       onTap: () => Navigator.push(
                         context, MaterialPageRoute(builder: (_) => const PantallaCatalogos())),
+                    ),
+                  if (_canCatalogos)
+                    _MenuItem(
+                      icon: Icons.menu_book_outlined,
+                      label: 'Procedimientos estándar',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(
+                            builder: (_) => const PantallaPlantillasProcedimiento())),
                     ),
                 ],
               ),

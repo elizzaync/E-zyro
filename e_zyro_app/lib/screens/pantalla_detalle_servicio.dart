@@ -31,6 +31,7 @@ import 'pantalla_crear_servicio.dart';
 
 part 'detalle_servicio/header.dart';
 part 'detalle_servicio/tab_procedimientos.dart';
+part 'detalle_servicio/tab_tareas.dart';
 part 'detalle_servicio/tab_equipo.dart';
 part 'detalle_servicio/tab_materiales.dart';
 part 'detalle_servicio/materiales_solicitar.dart';
@@ -79,7 +80,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _checkRol();
     _load();
     _conectarEventos();
@@ -192,9 +193,9 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     if (d == null) return const [];
     final m = <String>[];
     if (d.equipo.isEmpty) m.add('asignar el equipo técnico');
-    if (d.procedimientos.isEmpty) {
+    if (d.tareas.isEmpty) {
       m.add('repartir las tareas del servicio');
-    } else if (d.procedimientos.any((p) => (p.responsableId ?? '').isEmpty)) {
+    } else if (d.tareas.any((t) => (t.responsableId ?? '').isEmpty)) {
       m.add('asignar un responsable a todas las tareas');
     }
     final totalMat =
@@ -213,8 +214,8 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   // Sub-pasos de la Fase 1 (mismos criterios que la web).
   bool get _prepEquipoListo => (_detalle?.equipo.isNotEmpty ?? false);
   bool get _prepTareasListo {
-    final p = _detalle?.procedimientos ?? const [];
-    return p.isNotEmpty && p.every((t) => (t.responsableId ?? '').isNotEmpty);
+    final t = _detalle?.tareas ?? const [];
+    return t.isNotEmpty && t.every((x) => (x.responsableId ?? '').isNotEmpty);
   }
 
   bool get _prepMaterialesListo {
@@ -256,6 +257,29 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
           _danger);
     } else if (res.queued) {
       _snack('Paso actualizado · se sincronizará al reconectar', _amber);
+    }
+  }
+
+  // ── Toggle de tarea (cronograma) — no afecta el avance del servicio ─────────
+  Future<void> _toggleTareaOptimista(TareaDetalle tarea) async {
+    final d = _detalle;
+    if (d == null) return;
+    if (d.estado == 'Completado') {
+      _snack('El servicio está cerrado (solo lectura).', _amber);
+      return;
+    }
+    final original = tarea.estado;
+    final nuevo = original == 'completado' ? 'pendiente' : 'completado';
+    setState(() => tarea.estado = nuevo);
+    final res = await widget.service.toggleTarea(tarea.id, nuevo);
+    if (!mounted) return;
+    if (!res.ok) {
+      setState(() => tarea.estado = original);
+      _snack(
+          res.errorMessage.isEmpty
+              ? 'No se pudo actualizar la tarea'
+              : res.errorMessage,
+          _danger);
     }
   }
 
@@ -535,7 +559,11 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                         Tab(
                             height: 46,
                             icon: const Icon(Icons.checklist_rounded, size: 18),
-                            text: 'Pasos · ${d.procedimientos.length}'),
+                            text: 'Procedimientos · ${d.procedimientos.length}'),
+                        Tab(
+                            height: 46,
+                            icon: const Icon(Icons.assignment_outlined, size: 18),
+                            text: 'Tareas · ${d.tareas.length}'),
                         Tab(
                             height: 46,
                             icon: const Icon(Icons.groups_outlined, size: 18),
@@ -570,6 +598,11 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             service: widget.service,
                             onChanged: _reloadDetalle,
                             onToggle: _toggleOptimista,
+                          ),
+                          _TareasTab(
+                            tareas: d.tareas,
+                            equipo: d.equipo,
+                            onToggle: _toggleTareaOptimista,
                           ),
                           _EquipoTab(
                             equipo: d.equipo,

@@ -21,7 +21,7 @@ class _ProcedimientosTab extends StatelessWidget {
     if (procedimientos.isEmpty) {
       return _EmptyTab(
         icon: Icons.checklist_outlined,
-        label: 'Sin pasos registrados',
+        label: 'Sin procedimientos registrados\nSe cargan desde la plantilla del tipo de trabajo',
       );
     }
     return ListView.separated(
