@@ -62,3 +62,7 @@ def carpeta_correctivo(empresa_id: str, correctivo_id: str) -> str:
 
 def carpeta_galeria(empresa_id: str, aaaa: str | int, mm: str | int) -> str:
     return f"{_emp(empresa_id)}/galeria/{aaaa}/{int(mm):02d}" if str(mm).isdigit() else f"{_emp(empresa_id)}/galeria/{aaaa}/{mm}"
+
+
+def carpeta_planos(empresa_id: str) -> str:
+    return f"{_emp(empresa_id)}/planos"

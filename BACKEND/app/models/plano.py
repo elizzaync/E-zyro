@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, Date, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, BigInteger, Date, DateTime, ForeignKey
 from app.db.database import Base
 
 def _uuid():
@@ -11,7 +11,8 @@ class Plano(Base):
 
     id          = Column(String(36), primary_key=True, default=_uuid)
     empresa_id  = Column(String(36), ForeignKey("empresa.id"), nullable=False)
-    proyecto_id = Column(String(36), ForeignKey("proyecto.id"), nullable=False)
+    # Híbrido: proyecto_id opcional (planos globales tipo Drive o ligados a proyecto)
+    proyecto_id = Column(String(36), ForeignKey("proyecto.id"), nullable=True)
     carpeta_id  = Column(String(36), ForeignKey("carpeta_documental.id"), nullable=True)
     nombre      = Column(String(200), nullable=False)
     disciplina  = Column(String(50), nullable=True)
@@ -28,7 +29,10 @@ class VersionPlano(Base):
     version              = Column(String(20), nullable=False)
     url_cloudinary       = Column(String(500), nullable=False)
     public_id_cloudinary = Column(String(255), nullable=False)
-    subido_por           = Column(String(36), ForeignKey("empleado.id"), nullable=False)
+    # FK real en BD apunta a usuario.id (no empleado). Guardamos el usuario_id.
+    subido_por           = Column(String(36), ForeignKey("usuario.id"), nullable=True)
     fecha                = Column(Date, nullable=False)
     es_version_activa    = Column(Boolean, nullable=False, default=True)
+    formato              = Column(String(20), nullable=True)
+    bytes                = Column(BigInteger, nullable=True)
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)

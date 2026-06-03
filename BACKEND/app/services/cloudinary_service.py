@@ -130,6 +130,54 @@ async def subir_archivo_cloudinary(archivo, folder: str) -> str:
         raise Exception(f"Fallo al subir archivo a Cloudinary: {str(e)}")
 
 
+# Formatos de imagen → resource_type 'image'; el resto (pdf, dwg, dxf, etc) → 'raw'
+_IMAGEN_EXT = {"jpg", "jpeg", "png", "webp", "gif", "bmp", "tif", "tiff"}
+
+
+def subir_archivo_base64(base64_data: str, folder: str, public_id: str,
+                         extension: str = "") -> dict:
+    """Sube un archivo (base64) a Cloudinary eligiendo resource_type por extensión.
+    Imágenes → 'image'; PDF/DWG/DXF/otros → 'raw' (con la extensión en el
+    public_id para que la URL sea descargable/abrible).
+    Devuelve dict {secure_url, public_id, bytes, format, resource_type}."""
+    import io, base64 as _b64
+
+    ext = (extension or "").lower().lstrip(".")
+    es_imagen = ext in _IMAGEN_EXT
+    resource_type = "image" if es_imagen else "raw"
+
+    # Quitar prefijo data URI si viene
+    payload = base64_data.split(",", 1)[1] if base64_data.startswith("data:") and "," in base64_data else base64_data
+    try:
+        raw = _b64.b64decode(payload)
+    except Exception as e:
+        raise Exception(f"base64 inválido: {e}")
+
+    pid = public_id
+    if resource_type == "raw" and ext and not pid.lower().endswith("." + ext):
+        pid = f"{pid}.{ext}"
+
+    try:
+        res = cloudinary.uploader.upload(
+            io.BytesIO(raw),
+            folder=folder,
+            public_id=pid,
+            resource_type=resource_type,
+            overwrite=True,
+            invalidate=True,
+        )
+        return {
+            "secure_url": res.get("secure_url", ""),
+            "public_id": res.get("public_id", ""),
+            "bytes": res.get("bytes"),
+            "format": res.get("format") or ext,
+            "resource_type": res.get("resource_type", resource_type),
+        }
+    except Exception as e:
+        logging.error(f"Error subiendo archivo base64 a Cloudinary: {str(e)}")
+        raise Exception(f"Fallo al subir archivo a Cloudinary: {str(e)}")
+
+
 def subir_pdf_cloudinary(base64_data: str, public_id: str) -> str:
     """
     Sube un PDF en base64 a Cloudinary como recurso raw.
