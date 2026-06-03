@@ -582,6 +582,40 @@ def _run_migrations():
             "ALTER TABLE auditoria "
             "ADD COLUMN IF NOT EXISTS empresa_id VARCHAR(36)"
         ))
+        # Columnas que el modelo Auditoria usa pero pueden faltar si la tabla
+        # fue creada antes de que se añadieran al esquema. Sin ellas cualquier
+        # INSERT explícito de Auditoria falla con "column does not exist" → 500.
+        conn.execute(text(
+            "ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS modulo      VARCHAR(100)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS ip          VARCHAR(45)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS user_agent  VARCHAR(500)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS descripcion VARCHAR(500)"
+        ))
+        # datos_anteriores / datos_nuevos: se agregan como JSONB si no existen.
+        # Si existen como TEXT, el bloque posterior las convierte a JSONB.
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='auditoria' AND column_name='datos_anteriores'
+                ) THEN
+                    ALTER TABLE auditoria ADD COLUMN datos_anteriores JSONB;
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name='auditoria' AND column_name='datos_nuevos'
+                ) THEN
+                    ALTER TABLE auditoria ADD COLUMN datos_nuevos JSONB;
+                END IF;
+            END $$;
+        """))
         # ── HU-MANT: tabla paso_mantenimiento (checklist técnico por equipo) ──
         # NOTA: los IDs en este esquema son `uuid` (vienen del backup original).
         # Las FKs DEBEN ser uuid para no romper. SQLAlchemy mapea el campo Python
