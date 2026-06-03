@@ -3,59 +3,28 @@ import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
-
-export interface ProcedimientoEI {
-  id: string;
-  orden: number;
-  nombre: string;
-  descripcion?: string | null;
-  estado: 'pendiente' | 'en_proceso' | 'completado';
-  fotoUrl?: string | null;
-}
-
-export interface EquipoEI {
-  id: string;
-  nombre: string;
-  tag?: string | null;
-  estado: 'pendiente' | 'en_proceso' | 'completado';
-  ubicacion?: string | null;
-  procedimientos: ProcedimientoEI[];
-}
-
-export interface TipoEquipoGrupoEI {
-  nombre: string;
-  equipos: EquipoEI[];
-}
+import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { ToastService } from '../../../../core/services/toast.service';
 
 export interface EquipoIntervenido {
   id: string;
   nombre: string;
-  codigo?: string | null;
-  tipoNombre?: string | null;
-  tipoEquipoId?: string | null;
-  marca?: string | null;
-  modelo?: string | null;
-  numeroSerie?: string | null;
-  estadoIntervencion: 'pendiente' | 'en_proceso' | 'completado' | 'cancelado';
-  estado: string;
-  observaciones?: string | null;
-}
-
-export interface EquipoDisponible {
-  id: string;
-  nombre: string;
-  codigo?: string | null;
-  tipoNombre?: string | null;
-  marca?: string | null;
-  modelo?: string | null;
-  ubicacion?: string | null;
+  codigo: string | null;
+  tipoNombre: string | null;
+  tipoEquipoId: string | null;
+  marca: string | null;
+  modelo: string | null;
+  numeroSerie: string | null;
+  ubicacion: string | null;
+  zona: string | null;
+  estadoIntervencion: string;
   estado: string;
 }
 
 @Component({
   selector: 'app-equipos-intervenidos',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, SpinnerComponent],
   templateUrl: './equipos-intervenidos.component.html',
   styleUrls: ['./equipos-intervenidos.component.css'],
 })
@@ -64,21 +33,24 @@ export class EquiposIntervenidosComponent implements OnInit {
   private router   = inject(Router);
   private location = inject(Location);
   private svc      = inject(OperacionesService);
+  private toast    = inject(ToastService);
 
-  servicioId: string = '';
-  cargando    = true;
-  error       = false;
+  servicioId = '';
+  cargando   = true;
+  error      = false;
+
   equipos: EquipoIntervenido[] = [];
+  filtro = '';
 
-  // Modal agregar
-  showModal      = false;
-  cargandoModal  = false;
-  equiposDisp: EquipoDisponible[] = [];
-  filtroModal    = '';
-  agregando      = false;
+  // Modal nuevo equipo
+  showFormNuevo  = false;
+  guardandoNuevo = false;
+  nuevoNombre    = '';
+  nuevoTipo      = '';
+  nuevoDesc      = '';
 
-  // Confirmación quitar
-  confirmandoQuitarId: string | null = null;
+  // Tipos de equipo disponibles para el form
+  tiposDisp: { id: string; nombre: string }[] = [];
 
   ngOnInit(): void {
     this.servicioId = this.route.snapshot.paramMap.get('id') ?? '';
@@ -89,122 +61,108 @@ export class EquiposIntervenidosComponent implements OnInit {
     this.cargando = true;
     this.error    = false;
     this.svc.getEquiposIntervenidos(this.servicioId).subscribe({
-      next: (data) => {
-        this.equipos = data.map(this._mapEquipo);
+      next: (data: any[]) => {
+        this.equipos = data.map(r => ({
+          id:                  r.id,
+          nombre:              r.nombre,
+          codigo:              r.codigo       ?? null,
+          tipoNombre:          r.tipo_nombre  ?? null,
+          tipoEquipoId:        r.tipo_equipo_id ?? null,
+          marca:               r.marca        ?? null,
+          modelo:              r.modelo       ?? null,
+          numeroSerie:         r.numero_serie ?? null,
+          ubicacion:           r.ubicacion    ?? null,
+          zona:                r.zona         ?? null,
+          estadoIntervencion:  r.estado_intervencion ?? 'sin_inspeccion',
+          estado:              r.estado ?? 'operativo',
+        }));
         this.cargando = false;
+
+        // Extraer tipos únicos para el formulario
+        const vistos = new Set<string>();
+        this.tiposDisp = [];
+        data.forEach((r: any) => {
+          if (r.tipo_equipo_id && r.tipo_nombre && !vistos.has(r.tipo_equipo_id)) {
+            vistos.add(r.tipo_equipo_id);
+            this.tiposDisp.push({ id: r.tipo_equipo_id, nombre: r.tipo_nombre });
+          }
+        });
+        this.tiposDisp.sort((a, b) => a.nombre.localeCompare(b.nombre));
       },
       error: () => { this.cargando = false; this.error = true; }
     });
   }
 
-  // ── Modal ────────────────────────────────────────────────────────────────
-  abrirModal(): void {
-    this.showModal    = true;
-    this.filtroModal  = '';
-    this.cargandoModal = true;
-    this.svc.getEquiposDisponibles(this.servicioId).subscribe({
-      next: (data) => {
-        this.equiposDisp  = data.map(this._mapDisp);
-        this.cargandoModal = false;
-      },
-      error: () => { this.cargandoModal = false; }
-    });
-  }
-
-  cerrarModal(): void { this.showModal = false; }
-
-  get equiposFiltrados(): EquipoDisponible[] {
-    const q = this.filtroModal.toLowerCase().trim();
-    if (!q) return this.equiposDisp;
-    return this.equiposDisp.filter(e =>
+  // ── Filtro ────────────────────────────────────────────────────────────────
+  get equiposFiltrados(): EquipoIntervenido[] {
+    const q = this.filtro.toLowerCase().trim();
+    if (!q) return this.equipos;
+    return this.equipos.filter(e =>
       e.nombre.toLowerCase().includes(q) ||
-      (e.codigo ?? '').toLowerCase().includes(q) ||
-      (e.tipoNombre ?? '').toLowerCase().includes(q)
+      (e.tipoNombre ?? '').toLowerCase().includes(q) ||
+      (e.ubicacion  ?? '').toLowerCase().includes(q) ||
+      (e.zona       ?? '').toLowerCase().includes(q) ||
+      (e.codigo     ?? '').toLowerCase().includes(q)
     );
   }
 
-  agregar(equipo: EquipoDisponible): void {
-    if (this.agregando) return;
-    this.agregando = true;
-    this.svc.agregarEquipoIntervenido(this.servicioId, equipo.id).subscribe({ // id = activo_cliente_id
-      next: (nuevo) => {
-        this.equipos.push(this._mapEquipo(nuevo));
-        this.equiposDisp = this.equiposDisp.filter(e => e.id !== equipo.id);
-        this.agregando = false;
-      },
-      error: () => { this.agregando = false; }
-    });
-  }
-
-  // ── Quitar ───────────────────────────────────────────────────────────────
-  confirmarQuitar(id: string): void { this.confirmandoQuitarId = id; }
-  cancelarQuitar(): void            { this.confirmandoQuitarId = null; }
-
-  quitar(id: string): void {
-    this.svc.quitarEquipoIntervenido(this.servicioId, id).subscribe({
-      next: () => {
-        this.equipos = this.equipos.filter(e => e.id !== id);
-        this.confirmandoQuitarId = null;
-      }
-    });
-  }
-
-  // ── Intervenir ───────────────────────────────────────────────────────────
-  intervenir(ei: EquipoIntervenido): void {
-    if (ei.estadoIntervencion === 'pendiente') {
-      this.svc.actualizarEstadoIntervencion(this.servicioId, ei.id, 'en_proceso').subscribe({
-        next: () => { ei.estadoIntervencion = 'en_proceso'; }
-      });
-    }
+  // ── Inspeccionar ──────────────────────────────────────────────────────────
+  inspeccionar(ei: EquipoIntervenido): void {
     this.router.navigate([
       '/operaciones/servicio', this.servicioId,
       'equipos-intervenidos', ei.id
     ]);
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Crear nuevo equipo en catálogo ────────────────────────────────────────
+  abrirFormNuevo(): void {
+    this.showFormNuevo = true;
+    this.nuevoNombre   = '';
+    this.nuevoTipo     = '';
+    this.nuevoDesc     = '';
+  }
+  cerrarFormNuevo(): void { this.showFormNuevo = false; }
+
+  guardarNuevo(): void {
+    if (!this.nuevoNombre.trim()) {
+      this.toast.mostrar('Ingresa el nombre del equipo.', 'error');
+      return;
+    }
+    this.guardandoNuevo = true;
+    this.svc.crearEquipoCatalogo(this.servicioId, {
+      nombre:        this.nuevoNombre.trim(),
+      tipo_equipo_id: this.nuevoTipo || null,
+      descripcion:   this.nuevoDesc.trim() || null,
+    }).subscribe({
+      next: (nuevo: any) => {
+        this.guardandoNuevo = false;
+        this.showFormNuevo  = false;
+        this.toast.mostrar('Equipo agregado al catálogo.', 'success');
+        this.cargar();
+      },
+      error: (err: any) => {
+        this.guardandoNuevo = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al crear el equipo.', 'error');
+      }
+    });
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
   volver(): void { this.location.back(); }
 
   estadoLabel(e: string): string {
     return ({
-      pendiente:   'Pendiente',
-      en_proceso:  'En Proceso',
-      completado:  'Completado',
-      cancelado:   'Cancelado',
+      sin_inspeccion: 'Sin inspección',
+      en_proceso:     'En Proceso',
+      completado:     'Completado',
     } as Record<string, string>)[e] ?? e;
   }
 
   estadoClass(e: string): string {
     return ({
-      pendiente:  'badge--warn',
-      en_proceso: 'badge--info',
-      completado: 'badge--ok',
-      cancelado:  'badge--muted',
-    } as Record<string, string>)[e] ?? '';
+      sin_inspeccion: 'badge--muted',
+      en_proceso:     'badge--info',
+      completado:     'badge--ok',
+    } as Record<string, string>)[e] ?? 'badge--muted';
   }
-
-  private _mapEquipo = (r: any): EquipoIntervenido => ({
-    id:                 r.id,
-    nombre:             r.nombre,
-    codigo:             r.codigo       ?? null,
-    tipoNombre:         r.tipo_nombre  ?? null,
-    tipoEquipoId:       r.tipo_equipo_id ?? null,
-    marca:              r.marca        ?? null,
-    modelo:             r.modelo       ?? null,
-    numeroSerie:        r.numero_serie ?? null,
-    estadoIntervencion: r.estado_intervencion ?? 'pendiente',
-    estado:             r.estado ?? 'operativo',
-    observaciones:      r.observaciones ?? null,
-  });
-
-  private _mapDisp = (r: any): EquipoDisponible => ({
-    id:        r.id,
-    nombre:    r.nombre,
-    codigo:    r.codigo      ?? null,
-    tipoNombre:r.tipo_nombre ?? null,
-    marca:     r.marca       ?? null,
-    modelo:    r.modelo      ?? null,
-    ubicacion: r.ubicacion   ?? null,
-    estado:    r.estado,
-  });
 }

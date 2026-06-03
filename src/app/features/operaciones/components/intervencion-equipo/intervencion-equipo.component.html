@@ -268,7 +268,7 @@
             <!-- Finalizar inspección -->
             <button class="iv-btn-primary"
               [class.iv-btn-ready]="todosCompletados"
-              (click)="finalizar()"
+              (click)="intentarFinalizar()"
               [disabled]="finalizando || hayAlgoSubiendo">
               @if (finalizando) { <app-spinner></app-spinner> Finalizando… }
               @else {
@@ -313,3 +313,32 @@
   }
 
 </div>
+
+<!-- ══ ALERTA: Finalizar con procedimientos incompletos ════════════════ -->
+@if (showAlertaFinalizar) {
+<div class="iv-alerta-backdrop" (click)="cancelarFinalizar()">
+  <div class="iv-alerta-panel" (click)="$event.stopPropagation()">
+    <div class="iv-alerta-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+    <h3 class="iv-alerta-titulo">Procedimientos incompletos</h3>
+    <p class="iv-alerta-texto">
+      Tienes <strong>{{ total - completados }}</strong>
+      procedimiento{{ total - completados !== 1 ? 's' : '' }} sin completar.
+      ¿Estás seguro de finalizar la inspección así?
+    </p>
+    <div class="iv-alerta-acciones">
+      <button class="iv-alerta-cancelar" (click)="cancelarFinalizar()">
+        Volver y completar
+      </button>
+      <button class="iv-alerta-confirmar" (click)="finalizar()" [disabled]="finalizando">
+        @if (finalizando) { Finalizando… } @else { Sí, finalizar igual }
+      </button>
+    </div>
+  </div>
+</div>
+}

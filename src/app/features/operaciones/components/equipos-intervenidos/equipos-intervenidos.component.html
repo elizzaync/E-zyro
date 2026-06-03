@@ -11,17 +11,15 @@
       </button>
       <div>
         <h2 class="ei-title">Equipos Intervenidos</h2>
-        <p class="ei-subtitle">Activos del cliente asociados a este servicio</p>
+        <p class="ei-subtitle">{{ equipos.length }} activos registrados</p>
       </div>
     </div>
 
     <div class="ei-header-actions">
-      <!-- Botones secundarios (futura funcionalidad) -->
       <button class="btn-accion btn-informe" disabled title="Próximamente">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
         Generar Informe
       </button>
@@ -31,8 +29,7 @@
         </svg>
         Carta Garantía
       </button>
-      <!-- Agregar nuevo activo -->
-      <button class="btn-agregar" (click)="abrirModal()" [disabled]="cargando">
+      <button class="btn-agregar" (click)="abrirFormNuevo()" [disabled]="cargando">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
@@ -44,166 +41,159 @@
 
   <!-- ══ LOADING ════════════════════════════════════════════════════════ -->
   @if (cargando) {
-  <div class="ei-loading">
-    <div class="ei-spinner"></div>
-    <span>Cargando equipos…</span>
-  </div>
+    <div class="ei-loading">
+      <div class="ei-spinner"></div>
+      <span>Cargando activos…</span>
+    </div>
   }
 
   <!-- ══ ERROR ══════════════════════════════════════════════════════════ -->
   @else if (error) {
-  <div class="ei-empty">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-    <p>No se pudieron cargar los equipos.</p>
-    <button class="btn-retry" (click)="cargar()">Reintentar</button>
-  </div>
+    <div class="ei-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p>No se pudieron cargar los activos.</p>
+      <button class="btn-retry" (click)="cargar()">Reintentar</button>
+    </div>
   }
 
-  <!-- ══ EMPTY STATE ════════════════════════════════════════════════════ -->
-  @else if (equipos.length === 0) {
-  <div class="ei-empty">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <rect x="2" y="3" width="20" height="14" rx="2"/>
-      <path d="M8 21h8M12 17v4"/>
-    </svg>
-    <p>No hay equipos asignados a este servicio.</p>
-    <button class="btn-agregar-sm" (click)="abrirModal()">Agregar el primero</button>
-  </div>
-  }
-
-  <!-- ══ TABLA ══════════════════════════════════════════════════════════ -->
+  <!-- ══ CONTENIDO ══════════════════════════════════════════════════════ -->
   @else {
-  <div class="ei-table-wrap">
-    <table class="ei-table">
-      <thead>
-        <tr>
-          <th>Equipo / Código</th>
-          <th>Tipo</th>
-          <th>Marca / Modelo</th>
-          <th>N° Serie</th>
-          <th>Estado</th>
-          <th class="col-actions">Inspección</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (eq of equipos; track eq.id) {
-        <tr [class.fila-completada]="eq.estadoIntervencion === 'completado'">
-          <td>
-            <span class="eq-nombre">{{ eq.nombre }}</span>
-            @if (eq.codigo) { <span class="eq-codigo">{{ eq.codigo }}</span> }
-          </td>
-          <td class="td-muted">{{ eq.tipoNombre ?? '—' }}</td>
-          <td class="td-muted">
-            @if (eq.marca || eq.modelo) {
-              {{ eq.marca ?? '' }}{{ eq.marca && eq.modelo ? ' / ' : '' }}{{ eq.modelo ?? '' }}
-            } @else { — }
-          </td>
-          <td class="td-muted td-mono">{{ eq.numeroSerie ?? '—' }}</td>
-          <td>
-            <span class="badge" [ngClass]="estadoClass(eq.estadoIntervencion)">
-              {{ estadoLabel(eq.estadoIntervencion) }}
-            </span>
-          </td>
-          <td class="col-actions">
-            @if (eq.estadoIntervencion === 'completado') {
-              <span class="badge badge--ok">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                Completado
-              </span>
-            } @else if (eq.estadoIntervencion !== 'cancelado') {
-              <button class="btn-intervenir" (click)="intervenir(eq)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9 11l3 3L22 4"/>
-                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-                </svg>
-                Inspeccionar
-              </button>
-            } @else {
-              <span class="badge badge--muted">Cancelado</span>
-            }
-          </td>
-        </tr>
+
+    <!-- Buscador -->
+    <div class="ei-search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" class="ei-search" placeholder="Buscar por nombre, tipo, ubicación, zona…"
+             [(ngModel)]="filtro">
+      @if (filtro) {
+        <button class="ei-search-clear" (click)="filtro=''">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      }
+    </div>
+
+    @if (equiposFiltrados.length === 0) {
+      <div class="ei-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <p>{{ filtro ? 'No se encontraron resultados.' : 'No hay activos registrados.' }}</p>
+        @if (!filtro) {
+          <button class="btn-agregar-sm" (click)="abrirFormNuevo()">Agregar el primero</button>
         }
-      </tbody>
-    </table>
-  </div>
+      </div>
+    } @else {
+      <div class="ei-table-wrap">
+        <table class="ei-table">
+          <thead>
+            <tr>
+              <th>Equipo</th>
+              <th>Tipo</th>
+              <th>Ubicación</th>
+              <th>Zona</th>
+              <th>Estado Inspección</th>
+              <th class="col-actions">Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (eq of equiposFiltrados; track eq.id) {
+              <tr [class.fila-completada]="eq.estadoIntervencion === 'completado'">
+                <td>
+                  <span class="eq-nombre">{{ eq.nombre }}</span>
+                  @if (eq.codigo) { <span class="eq-codigo">{{ eq.codigo }}</span> }
+                </td>
+                <td class="td-muted">{{ eq.tipoNombre ?? '—' }}</td>
+                <td class="td-muted">{{ eq.ubicacion ?? '—' }}</td>
+                <td class="td-muted">{{ eq.zona ?? '—' }}</td>
+                <td>
+                  <span class="badge" [ngClass]="estadoClass(eq.estadoIntervencion)">
+                    {{ estadoLabel(eq.estadoIntervencion) }}
+                  </span>
+                </td>
+                <td class="col-actions">
+                  <button class="btn-intervenir" (click)="inspeccionar(eq)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M9 11l3 3L22 4"/>
+                      <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                    </svg>
+                    Inspeccionar
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
   }
 
 </div>
 
-<!-- ══ MODAL: AGREGAR EQUIPO ════════════════════════════════════════════ -->
-@if (showModal) {
-<div class="modal-backdrop" (click)="cerrarModal()">
+<!-- ══ MODAL: AGREGAR NUEVO EQUIPO ════════════════════════════════════════ -->
+@if (showFormNuevo) {
+<div class="modal-backdrop" (click)="cerrarFormNuevo()">
   <div class="modal-panel" (click)="$event.stopPropagation()">
 
     <div class="modal-header">
       <div>
-        <h3 class="modal-title">Agregar Equipo al Servicio</h3>
-        <p class="modal-sub">Selecciona un activo del cliente disponible</p>
+        <h3 class="modal-title">Agregar Equipo al Catálogo</h3>
+        <p class="modal-sub">El equipo quedará registrado y disponible para futuras inspecciones</p>
       </div>
-      <button class="modal-close" (click)="cerrarModal()">
+      <button class="modal-close" (click)="cerrarFormNuevo()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
       </button>
     </div>
 
-    <div class="modal-search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input type="text" placeholder="Buscar por nombre, código o tipo…"
-             [(ngModel)]="filtroModal" class="modal-input"/>
+    <div class="modal-body">
+      <!-- Nombre -->
+      <div class="field-group">
+        <label class="field-label">Nombre del equipo *</label>
+        <input type="text" class="field-input"
+               [(ngModel)]="nuevoNombre"
+               placeholder="Ej: Pozo a tierra N1, Tablero TG-OMA…">
+      </div>
+
+      <!-- Tipo de equipo -->
+      <div class="field-group">
+        <label class="field-label">Tipo de equipo</label>
+        <select class="field-input" [(ngModel)]="nuevoTipo">
+          <option value="">— Selecciona un tipo —</option>
+          @for (t of tiposDisp; track t.id) {
+            <option [value]="t.id">{{ t.nombre }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Descripción -->
+      <div class="field-group">
+        <label class="field-label">Descripción <span class="field-opt">(opcional)</span></label>
+        <input type="text" class="field-input"
+               [(ngModel)]="nuevoDesc"
+               placeholder="Ej: 220v 3ø 60Hz, Pozo vertical…">
+      </div>
     </div>
 
-    @if (cargandoModal) {
-    <div class="modal-loading">
-      <div class="ei-spinner"></div>
-      <span>Buscando equipos disponibles…</span>
-    </div>
-    } @else if (equiposFiltrados.length === 0) {
-    <div class="modal-empty">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-      </svg>
-      <p>No hay equipos disponibles para este servicio.</p>
-    </div>
-    } @else {
-    <ul class="modal-list">
-      @for (e of equiposFiltrados; track e.id) {
-      <li class="modal-item">
-        <div class="modal-item-info">
-          <span class="modal-item-nombre">{{ e.nombre }}</span>
-          <span class="modal-item-meta">
-            {{ e.tipoNombre ?? '' }}
-            @if (e.tipoNombre && (e.marca || e.modelo)) { · }
-            {{ e.marca ?? '' }}{{ e.marca && e.modelo ? ' / ' : '' }}{{ e.modelo ?? '' }}
-          </span>
-          @if (e.ubicacion) {
-            <span class="modal-item-zona">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                <circle cx="12" cy="10" r="3"/>
-              </svg>
-              {{ e.ubicacion }}
-            </span>
-          }
-        </div>
-        <button class="btn-modal-agregar" (click)="agregar(e)" [disabled]="agregando">
+    <div class="modal-footer">
+      <button class="btn-cancel-modal" (click)="cerrarFormNuevo()">Cancelar</button>
+      <button class="btn-save-modal" (click)="guardarNuevo()" [disabled]="guardandoNuevo || !nuevoNombre.trim()">
+        @if (guardandoNuevo) {
+          <app-spinner></app-spinner> Guardando…
+        } @else {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
           Agregar
-        </button>
-      </li>
-      }
-    </ul>
-    }
+        }
+      </button>
+    </div>
 
   </div>
 </div>

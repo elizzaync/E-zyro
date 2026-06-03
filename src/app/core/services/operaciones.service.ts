@@ -324,4 +324,11 @@ export class OperacionesService {
       `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/historial`
     );
   }
+
+  crearEquipoCatalogo(servicioId: string, payload: object): Observable<any> {
+    return this.http.post(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos`,
+      payload
+    );
+  }
 }

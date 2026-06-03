@@ -46,8 +46,11 @@ export class IntervencionEquipoComponent implements OnInit {
 
   cargando   = true;
   error      = false;
-  guardando  = false;
+  guardando   = false;
   finalizando = false;
+
+  // Alerta confirmación finalizar con incompletos
+  showAlertaFinalizar = false;
 
   equipo: EquipoInfo | null = null;
   procs: ProcLocal[]        = [];
@@ -170,7 +173,19 @@ export class IntervencionEquipoComponent implements OnInit {
   }
 
   // ── Finalizar inspección ─────────────────────────────────────────────────
+  intentarFinalizar(): void {
+    if (this.finalizando) return;
+    if (!this.todosCompletados) {
+      this.showAlertaFinalizar = true;
+      return;
+    }
+    this.finalizar();
+  }
+
+  cancelarFinalizar(): void { this.showAlertaFinalizar = false; }
+
   finalizar(): void {
+    this.showAlertaFinalizar = false;
     if (this.finalizando) return;
     this.finalizando = true;
     this.svc.finalizarInspeccion(this.inspeccionId, {
