@@ -3063,8 +3063,10 @@ def eliminar_nota(
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# MOTOR DE INSPECCIÓN — Equipos Intervenidos por Servicio
+# MOTOR DE INSPECCIÓN — Equipos Intervenidos + Historial
 # ════════════════════════════════════════════════════════════════════════════
+
+from ..models.historial_inspeccion import HistorialInspeccion
 
 def _map_ei(ei: EquipoIntervenido, tipo_nombre: str | None) -> dict:
     """Serializa un registro equipo_intervenido (activo de cliente) para el frontend."""
@@ -3083,70 +3085,52 @@ def _map_ei(ei: EquipoIntervenido, tipo_nombre: str | None) -> dict:
     }
 
 
-_PASOS_DEFAULT_INTERVENCION = [
-    ("Inspección visual y diagnóstico inicial",
-     "Revisión externa, identificación de fallas evidentes."),
-    ("Medición de parámetros eléctricos / mecánicos",
-     "Capturar lecturas de tensión, resistencia, presión u otros relevantes."),
-    ("Aplicación del mantenimiento técnico",
-     "Ejecutar el procedimiento correctivo o preventivo según corresponda."),
-    ("Verificación post-mantenimiento",
-     "Confirmar que el equipo opera dentro de los rangos esperados."),
+_PROCS_DEFAULT = [
+    {"orden": 1, "nombre": "Inspección visual y diagnóstico inicial",       "descripcion": "Revisión externa, identificación de fallas evidentes."},
+    {"orden": 2, "nombre": "Medición de parámetros eléctricos / mecánicos", "descripcion": "Capturar lecturas relevantes."},
+    {"orden": 3, "nombre": "Aplicación del mantenimiento técnico",          "descripcion": "Ejecutar el procedimiento correctivo o preventivo."},
+    {"orden": 4, "nombre": "Verificación post-mantenimiento",               "descripcion": "Confirmar que el equipo opera dentro de los rangos esperados."},
 ]
 
 
-def _pasos_desde_jsonb(jsonb: list | None) -> list[tuple[str, str]]:
-    """Lee [{"orden": N, "nombre": "...", "descripcion": "..."}] del JSONB."""
-    if not jsonb or not isinstance(jsonb, list):
-        return []
-    resultado = []
-    for item in sorted(jsonb, key=lambda x: x.get("orden", 0)):
-        nombre = (item.get("nombre") or "").strip()
-        desc   = (item.get("descripcion") or "").strip()
-        if nombre:
-            resultado.append((nombre, desc))
-    return resultado
-
-
-def _parse_plantilla_intervencion(tipo: "TipoEquipo | None") -> list[tuple[str, str]]:
-    """Prioridad: procedimientos_template (JSONB) > procedimiento_tecnico (texto)."""
+def _get_plantilla_jsonb(tipo: "TipoEquipo | None") -> list[dict]:
+    """Devuelve la plantilla como lista de dicts [{orden, nombre, descripcion}]."""
     if tipo is None:
-        return list(_PASOS_DEFAULT_INTERVENCION)
-
-    # 1. JSONB (fuente correcta)
+        return list(_PROCS_DEFAULT)
     jsonb = getattr(tipo, "procedimientos_template", None)
-    if jsonb:
-        pasos = _pasos_desde_jsonb(jsonb)
-        if pasos:
-            return pasos
-
-    # 2. Fallback texto multilínea
-    texto = getattr(tipo, "procedimiento_tecnico", None) or ""
-    pasos_texto: list[tuple[str, str]] = []
-    for raw in texto.splitlines():
-        line = raw.strip().lstrip("-•").strip()
-        if not line:
-            continue
-        if ":" in line:
-            nombre, desc = line.split(":", 1)
-            pasos_texto.append((nombre.strip(), desc.strip()))
-        else:
-            pasos_texto.append((line, ""))
-    return pasos_texto or list(_PASOS_DEFAULT_INTERVENCION)
+    if jsonb and isinstance(jsonb, list):
+        return sorted(jsonb, key=lambda x: x.get("orden", 0))
+    return list(_PROCS_DEFAULT)
 
 
-def _map_paso(p: PasoIntervencion) -> dict:
+def _resultado_inicial(plantilla: list[dict]) -> list[dict]:
+    """Crea el resultado vacío para una nueva sesión."""
+    return [
+        {
+            "orden":         item.get("orden"),
+            "nombre":        item.get("nombre", ""),
+            "descripcion":   item.get("descripcion", ""),
+            "completado":    False,
+            "foto_url":      None,
+            "foto_public_id": None,
+        }
+        for item in plantilla
+    ]
+
+
+def _map_hi(hi: HistorialInspeccion) -> dict:
     return {
-        "id":          str(p.id),
-        "orden":       p.orden,
-        "nombre":      p.nombre or "",
-        "descripcion": p.descripcion or None,
-        "estado":      "completado" if p.completado else "pendiente",
-        "foto_url":    p.foto_url or None,
+        "id":                           str(hi.id),
+        "estado":                       hi.estado,
+        "resultado":                    hi.resultado or [],
+        "observaciones":                hi.observaciones or None,
+        "proxima_fecha_mantenimiento":  hi.proxima_fecha_mantenimiento.isoformat() if hi.proxima_fecha_mantenimiento else None,
+        "fecha_inicio":                 hi.fecha_inicio.isoformat() if hi.fecha_inicio else None,
+        "fecha_fin":                    hi.fecha_fin.isoformat() if hi.fecha_fin else None,
     }
 
 
-# ── GET /operaciones/servicio/{id}/equipos-intervenidos ───────────────────────
+# ── GET  /operaciones/servicio/{id}/equipos-intervenidos ─────────────────────
 
 @router.get("/servicio/{servicio_id}/equipos-intervenidos")
 def list_equipos_intervenidos(
@@ -3323,11 +3307,6 @@ def quitar_equipo_intervenido(
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
-    # Eliminar pasos de inspección de esta intervención
-    db.query(PasoIntervencion).filter(
-        PasoIntervencion.equipo_intervenido_id == ei_id
-    ).delete(synchronize_session=False)
-
     # Desvincular el activo del servicio (no borrar el activo en sí)
     ei.proyecto_servicio_id = None
     ei.estado_intervencion  = "pendiente"
@@ -3371,10 +3350,12 @@ def detalle_equipo_intervenido(
     }
 
 
-# ── GET /operaciones/servicio/{id}/equipos-intervenidos/{eiId}/procedimientos ──
+# ── GET /servicio/{sid}/equipos-intervenidos/{eiId}/inspeccion ────────────────
+# Devuelve la sesión activa (en_proceso). Si no hay ninguna, crea una nueva
+# con los procedimientos de la plantilla del tipo de equipo.
 
-@router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/procedimientos")
-def get_procedimientos_ei(
+@router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/inspeccion")
+def get_inspeccion_activa(
     servicio_id: str,
     ei_id:       str,
     payload: dict    = Depends(verificar_token),
@@ -3390,248 +3371,293 @@ def get_procedimientos_ei(
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
-    pasos = (
-        db.query(PasoIntervencion)
-        .filter(PasoIntervencion.equipo_intervenido_id == ei_id)
-        .order_by(PasoIntervencion.orden.asc())
-        .all()
+    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+    plantilla = _get_plantilla_jsonb(tipo)
+
+    # Buscar sesión activa (en_proceso)
+    hi = (
+        db.query(HistorialInspeccion)
+        .filter(
+            HistorialInspeccion.equipo_intervenido_id == ei_id,
+            HistorialInspeccion.estado                == "en_proceso",
+        )
+        .order_by(HistorialInspeccion.created_at.desc())
+        .first()
     )
 
-    return [_map_paso(p) for p in pasos]
-
-
-# ── POST /operaciones/servicio/{id}/equipos-intervenidos/{eiId}/procedimientos/iniciar
-
-@router.post(
-    "/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/procedimientos/iniciar",
-    status_code=status.HTTP_201_CREATED,
-)
-def iniciar_procedimientos_ei(
-    servicio_id: str,
-    ei_id:       str,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    empresa_id = payload["empresa_id"]
-
-    ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
-    ).first()
-    if not ei:
-        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
-
-    # Si ya tiene pasos, devolverlos directamente
-    existentes = (
-        db.query(PasoIntervencion)
-        .filter(PasoIntervencion.equipo_intervenido_id == ei_id)
-        .order_by(PasoIntervencion.orden.asc())
-        .all()
-    )
-    if existentes:
-        return [_map_paso(p) for p in existentes]
-
-    # Crear desde plantilla del tipo de equipo del activo (JSONB tiene prioridad)
-    tipo      = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
-    plantilla = _parse_plantilla_intervencion(tipo)
-
-    nuevos = []
-    for i, (nombre, desc) in enumerate(plantilla, start=1):
-        p = PasoIntervencion(
+    if not hi:
+        # Primera vez o nueva sesión — crear con resultado vacío
+        hi = HistorialInspeccion(
             id                    = str(_uuid.uuid4()),
             equipo_intervenido_id = ei_id,
+            proyecto_servicio_id  = servicio_id,
             empresa_id            = empresa_id,
-            nombre                = nombre[:200],
-            descripcion           = desc or None,
-            orden                 = i,
-            completado            = False,
+            estado                = "en_proceso",
+            resultado             = _resultado_inicial(plantilla),
         )
-        db.add(p)
-        nuevos.append(p)
+        db.add(hi)
+        ei.estado_intervencion = "en_proceso"
+        ei.updated_at          = datetime.utcnow()
+        db.commit()
 
-    # Marcar intervención como en_proceso
-    ei.estado_intervencion = "en_proceso"
-    ei.updated_at          = datetime.utcnow()
-    db.commit()
+    # Mezclar resultado guardado con plantilla (para añadir nuevos procs si la plantilla creció)
+    resultado = hi.resultado or []
+    ordenes_guardados = {r["orden"] for r in resultado}
+    for item in plantilla:
+        if item["orden"] not in ordenes_guardados:
+            resultado.append({
+                "orden": item["orden"], "nombre": item["nombre"],
+                "descripcion": item.get("descripcion", ""),
+                "completado": False, "foto_url": None, "foto_public_id": None,
+            })
+    resultado.sort(key=lambda x: x["orden"])
 
-    return [_map_paso(p) for p in nuevos]
+    return {
+        "inspeccion_id":       str(hi.id),
+        "estado":              hi.estado,
+        "resultado":           resultado,
+        "observaciones":       hi.observaciones or None,
+        "proxima_fecha":       hi.proxima_fecha_mantenimiento.isoformat() if hi.proxima_fecha_mantenimiento else None,
+        "equipo": {
+            "id":           str(ei.id),
+            "nombre":       ei.nombre or "",
+            "codigo":       ei.codigo or None,
+            "tipo_nombre":  tipo.nombre if tipo else None,
+            "marca":        ei.marca or None,
+            "modelo":       ei.modelo or None,
+            "numero_serie": ei.numero_serie or None,
+            "estado":       ei.estado or "operativo",
+            "estado_intervencion": ei.estado_intervencion or "en_proceso",
+        },
+    }
 
 
-# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/paso/{pasoId}/foto ─────────
+# ── POST /inspeccion/{id}/foto/{orden} ────────────────────────────────────────
+# Sube o reemplaza la foto del procedimiento N en la sesión activa.
+# Misma sesión → reemplaza el recurso en Cloudinary (mismo public_id).
 
 @router.post(
-    "/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/paso/{paso_id}/foto",
+    "/inspeccion/{inspeccion_id}/foto/{orden}",
     status_code=status.HTTP_200_OK,
 )
-async def subir_foto_paso_ei(
-    servicio_id: str,
-    ei_id:       str,
-    paso_id:     str,
-    archivo:     UploadFile = File(...),
-    payload:     dict       = Depends(verificar_token),
-    db:          Session    = Depends(get_db),
+async def subir_foto_inspeccion(
+    inspeccion_id: str,
+    orden:         int,
+    archivo:       UploadFile = File(...),
+    payload:       dict       = Depends(verificar_token),
+    db:            Session    = Depends(get_db),
 ):
+    import cloudinary.uploader as cl_up
+
     empresa_id = payload["empresa_id"]
 
-    ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
+    hi = db.query(HistorialInspeccion).filter(
+        HistorialInspeccion.id         == inspeccion_id,
+        HistorialInspeccion.empresa_id == empresa_id,
+        HistorialInspeccion.estado     == "en_proceso",
     ).first()
-    if not ei:
-        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+    if not hi:
+        raise HTTPException(status_code=404, detail="Sesión de inspección no encontrada o ya finalizada")
 
-    paso = db.query(PasoIntervencion).filter(
-        PasoIntervencion.id                    == paso_id,
-        PasoIntervencion.equipo_intervenido_id == ei_id,
-    ).first()
-    if not paso:
-        raise HTTPException(status_code=404, detail="Paso no encontrado")
+    resultado = list(hi.resultado or [])
+    paso = next((r for r in resultado if r["orden"] == orden), None)
+    if paso is None:
+        raise HTTPException(status_code=404, detail=f"Procedimiento {orden} no encontrado")
 
-    folder = f"e_zyro/{empresa_id}/mantenimiento/{ei_id}"
-    try:
-        url = await subir_archivo_cloudinary(archivo, folder)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Error subiendo a Cloudinary: {exc}")
+    # Si ya tiene foto en esta sesión → usar mismo public_id para reemplazar en Cloudinary
+    old_pub_id = paso.get("foto_public_id")
+    ei_id      = str(hi.equipo_intervenido_id)
 
-    pub_id = _extract_public_id(url)
+    if old_pub_id:
+        # Reemplazar: subir con mismo public_id (overwrite=True)
+        try:
+            contenido = await archivo.read()
+            result    = cl_up.upload(
+                contenido,
+                public_id  = old_pub_id,
+                overwrite  = True,
+                invalidate = True,
+                resource_type = "image",
+            )
+            url    = result.get("secure_url", "")
+            pub_id = old_pub_id
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Error Cloudinary: {exc}")
+    else:
+        # Foto nueva para este procedimiento en esta sesión
+        folder = f"e_zyro/{empresa_id}/mantenimiento/{ei_id}/{inspeccion_id}"
+        try:
+            url    = await subir_archivo_cloudinary(archivo, folder)
+            pub_id = _extract_public_id(url)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Error Cloudinary: {exc}")
 
-    paso.foto_url      = url
-    paso.foto_public_id = pub_id
+    paso["foto_url"]      = url
+    paso["foto_public_id"] = pub_id
+
+    # Persistir JSONB actualizado
+    from sqlalchemy import text as _text
+    db.execute(
+        _text("UPDATE historial_inspeccion SET resultado = :r WHERE id = :id"),
+        {"r": __import__("json").dumps(resultado), "id": inspeccion_id},
+    )
     db.commit()
 
-    return {"ok": True, "url": url, "public_id": pub_id}
+    return {"ok": True, "url": url, "public_id": pub_id, "orden": orden}
 
 
-# ── DELETE /servicio/{id}/equipos-intervenidos/{eiId}/paso/{pasoId}/foto ──────
+# ── DELETE /inspeccion/{id}/foto/{orden} ──────────────────────────────────────
 
-@router.delete(
-    "/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/paso/{paso_id}/foto",
-    status_code=status.HTTP_200_OK,
-)
-def quitar_foto_paso_ei(
-    servicio_id: str,
-    ei_id:       str,
-    paso_id:     str,
-    payload:     dict    = Depends(verificar_token),
-    db:          Session = Depends(get_db),
+@router.delete("/inspeccion/{inspeccion_id}/foto/{orden}", status_code=status.HTTP_200_OK)
+def quitar_foto_inspeccion(
+    inspeccion_id: str,
+    orden:         int,
+    payload:       dict    = Depends(verificar_token),
+    db:            Session = Depends(get_db),
 ):
+    import cloudinary.uploader as cl_up
+
     empresa_id = payload["empresa_id"]
 
-    ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
+    hi = db.query(HistorialInspeccion).filter(
+        HistorialInspeccion.id         == inspeccion_id,
+        HistorialInspeccion.empresa_id == empresa_id,
+        HistorialInspeccion.estado     == "en_proceso",
     ).first()
-    if not ei:
-        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+    if not hi:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada o ya finalizada")
 
-    paso = db.query(PasoIntervencion).filter(
-        PasoIntervencion.id                    == paso_id,
-        PasoIntervencion.equipo_intervenido_id == ei_id,
-    ).first()
-    if not paso:
-        raise HTTPException(status_code=404, detail="Paso no encontrado")
+    resultado = list(hi.resultado or [])
+    paso = next((r for r in resultado if r["orden"] == orden), None)
+    if paso is None:
+        raise HTTPException(status_code=404, detail=f"Procedimiento {orden} no encontrado")
 
-    # Eliminar de Cloudinary si existe
-    if paso.foto_public_id:
+    if paso.get("foto_public_id"):
         try:
-            import cloudinary.uploader
-            cloudinary.uploader.destroy(paso.foto_public_id)
+            cl_up.destroy(paso["foto_public_id"])
         except Exception:
             pass
 
-    paso.foto_url       = None
-    paso.foto_public_id = None
-    db.commit()
+    paso["foto_url"]       = None
+    paso["foto_public_id"] = None
 
+    from sqlalchemy import text as _text
+    db.execute(
+        _text("UPDATE historial_inspeccion SET resultado = :r WHERE id = :id"),
+        {"r": __import__("json").dumps(resultado), "id": inspeccion_id},
+    )
+    db.commit()
     return {"ok": True}
 
 
-# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/guardar ───────────────────
+# ── POST /inspeccion/{id}/guardar ─────────────────────────────────────────────
+# Guarda el estado del checklist sin finalizar la sesión.
 
-@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/guardar")
+@router.post("/inspeccion/{inspeccion_id}/guardar")
 def guardar_inspeccion(
-    servicio_id: str,
-    ei_id:       str,
-    body: dict,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
+    inspeccion_id: str,
+    body:          dict,
+    payload:       dict    = Depends(verificar_token),
+    db:            Session = Depends(get_db),
 ):
-    """Guardado global de la inspección: actualiza todos los pasos en una
-    sola transacción y cierra la intervención si todos están completados."""
     empresa_id = payload["empresa_id"]
 
-    ei = db.query(EquipoIntervenido).filter(
-        EquipoIntervenido.id                   == ei_id,
-        EquipoIntervenido.proyecto_servicio_id == servicio_id,
-        EquipoIntervenido.empresa_id           == empresa_id,
+    hi = db.query(HistorialInspeccion).filter(
+        HistorialInspeccion.id         == inspeccion_id,
+        HistorialInspeccion.empresa_id == empresa_id,
+        HistorialInspeccion.estado     == "en_proceso",
     ).first()
-    if not ei:
-        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+    if not hi:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada o ya finalizada")
 
-    pasos_payload: list[dict] = body.get("pasos", [])
-    observaciones: str | None = body.get("observaciones") or None
+    resultado     = list(hi.resultado or [])
+    nuevo_estado  = {r["orden"]: r for r in body.get("resultado", [])}
+    observaciones = body.get("observaciones") or None
 
-    if not pasos_payload:
-        raise HTTPException(status_code=422, detail="El payload debe incluir al menos un paso")
+    for paso in resultado:
+        upd = nuevo_estado.get(paso["orden"])
+        if upd:
+            paso["completado"] = bool(upd.get("completado", False))
+            # No sobreescribir foto_url desde aquí — eso lo hace /foto/{orden}
 
-    # Mapa id → paso para actualización en bulk
-    paso_ids = [p.get("id") for p in pasos_payload if p.get("id")]
-    pasos_db = {
-        str(p.id): p
-        for p in db.query(PasoIntervencion).filter(
-            PasoIntervencion.equipo_intervenido_id == ei_id,
-            PasoIntervencion.id.in_(paso_ids),
-        ).all()
-    }
+    from sqlalchemy import text as _text
+    db.execute(
+        _text("UPDATE historial_inspeccion SET resultado = :r, observaciones = :o WHERE id = :id"),
+        {"r": __import__("json").dumps(resultado), "o": observaciones, "id": inspeccion_id},
+    )
+    db.commit()
 
-    todos_completados = True
-    guardados = 0
+    todos = all(p.get("completado") for p in resultado)
+    return {"ok": True, "todos_completados": todos}
 
-    for item in pasos_payload:
-        pid  = item.get("id", "")
-        paso = pasos_db.get(pid)
-        if not paso:
-            continue
 
-        paso.completado = bool(item.get("completado", False))
+# ── POST /inspeccion/{id}/finalizar ───────────────────────────────────────────
+# Cierra la sesión, registra la próxima fecha y preserva el historial.
 
-        # Solo actualizar foto si viene en el payload (permite override)
-        if "foto_url" in item and item["foto_url"]:
-            paso.foto_url       = item["foto_url"]
-            paso.foto_public_id = item.get("foto_public_id") or None
+@router.post("/inspeccion/{inspeccion_id}/finalizar")
+def finalizar_inspeccion(
+    inspeccion_id: str,
+    body:          dict,
+    payload:       dict    = Depends(verificar_token),
+    db:            Session = Depends(get_db),
+):
+    from datetime import date as _date
 
-        if not paso.completado:
-            todos_completados = False
+    empresa_id = payload["empresa_id"]
 
-        guardados += 1
+    hi = db.query(HistorialInspeccion).filter(
+        HistorialInspeccion.id         == inspeccion_id,
+        HistorialInspeccion.empresa_id == empresa_id,
+        HistorialInspeccion.estado     == "en_proceso",
+    ).first()
+    if not hi:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada o ya finalizada")
 
-    # Actualizar estado de la intervención
-    if todos_completados and guardados > 0:
+    # Guardar resultado final
+    resultado     = list(hi.resultado or [])
+    nuevo_estado  = {r["orden"]: r for r in body.get("resultado", [])}
+    observaciones = body.get("observaciones") or hi.observaciones
+
+    for paso in resultado:
+        upd = nuevo_estado.get(paso["orden"])
+        if upd:
+            paso["completado"] = bool(upd.get("completado", False))
+
+    proxima_str = body.get("proxima_fecha_mantenimiento")
+    proxima_fecha = None
+    if proxima_str:
+        try:
+            proxima_fecha = _date.fromisoformat(proxima_str)
+        except ValueError:
+            pass
+
+    hi.estado                       = "completado"
+    hi.resultado                    = resultado
+    hi.observaciones                = observaciones
+    hi.proxima_fecha_mantenimiento  = proxima_fecha
+    hi.fecha_fin                    = datetime.utcnow()
+
+    # Actualizar estado del activo
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id == hi.equipo_intervenido_id
+    ).first()
+    if ei:
         ei.estado_intervencion = "completado"
-    elif ei.estado_intervencion == "pendiente":
-        ei.estado_intervencion = "en_proceso"
+        ei.updated_at          = datetime.utcnow()
 
-    if observaciones is not None:
-        ei.observaciones = observaciones or None
-
-    ei.updated_at = datetime.utcnow()
     db.commit()
 
     return {
-        "ok":                   True,
-        "equipo_intervenido_id": str(ei.id),
-        "pasos_guardados":      guardados,
-        "estado_intervencion":  ei.estado_intervencion,
+        "ok":            True,
+        "inspeccion_id": inspeccion_id,
+        "proxima_fecha": proxima_fecha.isoformat() if proxima_fecha else None,
     }
 
 
-# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/completar ─────────────────
+# ── GET /servicio/{sid}/equipos-intervenidos/{eiId}/historial ─────────────────
 
-@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/completar")
-def completar_intervencion(
+@router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/historial")
+def get_historial_ei(
     servicio_id: str,
     ei_id:       str,
     payload: dict    = Depends(verificar_token),
@@ -3639,6 +3665,31 @@ def completar_intervencion(
 ):
     empresa_id = payload["empresa_id"]
 
+    registros = (
+        db.query(HistorialInspeccion)
+        .filter(
+            HistorialInspeccion.equipo_intervenido_id == ei_id,
+            HistorialInspeccion.empresa_id            == empresa_id,
+            HistorialInspeccion.estado                == "completado",
+        )
+        .order_by(HistorialInspeccion.fecha_fin.desc())
+        .all()
+    )
+
+    return [_map_hi(r) for r in registros]
+
+
+# ── PATCH /servicio/{sid}/equipos-intervenidos/{eiId} — actualizar estado ─────
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/completar")
+def completar_intervencion_legacy(
+    servicio_id: str,
+    ei_id:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Compatibilidad con el frontend anterior."""
+    empresa_id = payload["empresa_id"]
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id                   == ei_id,
         EquipoIntervenido.proyecto_servicio_id == servicio_id,
@@ -3646,9 +3697,7 @@ def completar_intervencion(
     ).first()
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
-
     ei.estado_intervencion = "completado"
     ei.updated_at          = datetime.utcnow()
     db.commit()
-
     return {"ok": True, "estado_intervencion": "completado"}
