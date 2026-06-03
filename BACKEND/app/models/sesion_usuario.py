@@ -12,6 +12,7 @@ class SesionUsuario(Base):
     id               = Column(String(36), primary_key=True, default=generate_uuid)
     usuario_id       = Column(String(36), ForeignKey("usuario.id"), nullable=False)
     token_hash       = Column(String(255), nullable=False)
+    device_id        = Column(String(100), nullable=True, index=True)
     dispositivo      = Column(String(100))
     ip               = Column(String(45))
     user_agent       = Column(String(255))

@@ -1,8 +1,10 @@
+from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 # --- LOGIN ---
 class LoginData(BaseModel):
-    username: str
-    password: str
+    username:  str
+    password:  str
+    device_id: Optional[str] = None   # UUID persistente generado en el cliente
 # --- RECUPERACIÓN DE CONTRASEÑA ---
 # 1. Para la solicitud inicial
 class PasswordResetRequest(BaseModel):

@@ -114,24 +114,52 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
     }
     token_real = crear_token_acceso(datos_para_token)
 
-    # Registrar sesión en sesion_usuario
+    # Registrar / actualizar sesión en sesion_usuario
     try:
         ip_cliente  = request.client.host if request.client else None
         user_agent  = request.headers.get("user-agent", "")[:255]
         dispositivo = user_agent[:100]
         token_hash  = hashlib.sha256(token_real.encode()).hexdigest()
         fecha_exp   = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        device_id   = (credenciales.device_id or "")[:100] or None
 
-        nueva_sesion = SesionUsuario(
-            usuario_id       = str(usuario_db.id),
-            token_hash       = token_hash,
-            ip               = ip_cliente,
-            user_agent       = user_agent,
-            dispositivo      = dispositivo,
-            activa           = True,
-            fecha_expiracion = fecha_exp
-        )
-        db.add(nueva_sesion)
+        # Limpiar sesiones cerradas con más de 30 días (mantenimiento silencioso)
+        cutoff = datetime.now(ZONA_HORARIA) - timedelta(days=30)
+        db.query(SesionUsuario).filter(
+            SesionUsuario.usuario_id  == str(usuario_db.id),
+            SesionUsuario.activa      == False,
+            SesionUsuario.fecha_cierre < cutoff,
+        ).delete(synchronize_session=False)
+
+        sesion_existente = None
+        if device_id:
+            # Buscar sesión previa del mismo dispositivo (activa o cerrada)
+            sesion_existente = db.query(SesionUsuario).filter(
+                SesionUsuario.usuario_id == str(usuario_db.id),
+                SesionUsuario.device_id  == device_id,
+            ).first()
+
+        if sesion_existente:
+            # Reutilizar el registro: actualiza token, reactiva y extiende expiración
+            sesion_existente.token_hash       = token_hash
+            sesion_existente.activa           = True
+            sesion_existente.fecha_expiracion = fecha_exp
+            sesion_existente.fecha_cierre     = None
+            sesion_existente.ip               = ip_cliente
+            sesion_existente.user_agent       = user_agent
+            sesion_existente.dispositivo      = dispositivo
+        else:
+            db.add(SesionUsuario(
+                usuario_id       = str(usuario_db.id),
+                token_hash       = token_hash,
+                device_id        = device_id,
+                ip               = ip_cliente,
+                user_agent       = user_agent,
+                dispositivo      = dispositivo,
+                activa           = True,
+                fecha_expiracion = fecha_exp,
+            ))
+
         db.commit()
     except Exception:
         db.rollback()  # No bloqueamos el login si falla el registro de sesión
