@@ -29,7 +29,7 @@ class _MaterialesTab extends StatefulWidget {
 class _MaterialesTabState extends State<_MaterialesTab> {
   bool _enviando = false;
   bool _consenso = false;
-  String? _firmandoReqId;
+  bool _firmandoLote = false;
 
   // Préstamos del servicio (chip de aviso si hay devoluciones sin confirmar)
   int _avisosPrestamoCount = 0;
@@ -115,80 +115,86 @@ class _MaterialesTabState extends State<_MaterialesTab> {
   // "X está firmando" en tiempo real por WS). Liberamos el lock si cancela o
   // si la firma falla. Si todo va bien, el endpoint /firmar libera el lock
   // automáticamente al hacer commit del nuevo estado 'aprobado'.
-  Future<void> _firmarRecepcion(ReqRecepcion req) async {
-    // 1) Tomar el lock
-    final lock = await widget.service.bloquearFirmaRequerimiento(req.id);
-    if (!mounted) return;
-    if (!lock.ok) {
-      // El backend devuelve detail='firmando_por:Juan Pérez' cuando otro tiene el lock.
-      final quien = (lock.error ?? '').startsWith('firmando_por:')
-          ? lock.error!.substring('firmando_por:'.length)
-          : null;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-          quien != null
-              ? '$quien está firmando ahora. Espera unos segundos…'
-              : 'No se pudo iniciar la firma. Reintenta en unos segundos.',
-          style: const TextStyle(color: Colors.white),
+  /// Agrupa las solicitudes de recepción por etapa y devuelve una tarjeta por
+  /// grupo. La etapa "listo para recibir" se firma toda con una sola firma.
+  List<Widget> _buildRecepcionGrupos() {
+    final reqs = widget.reqsRecepcion;
+    final listo = reqs.where((r) => r.porFirmar).toList();
+    final compra = reqs.where((r) => r.enCompra).toList();
+    final recibido = reqs.where((r) => r.recibido).toList();
+    final cerrado = reqs.where((r) => r.cerrado).toList();
+    return [
+      if (listo.isNotEmpty)
+        _RecepcionGrupoCard(
+          bucket: 'listo',
+          reqs: listo,
+          firmando: _firmandoLote,
+          onFirmar: () => _firmarRecepcionLote(listo),
         ),
-        backgroundColor: _amber,
-        behavior: SnackBarBehavior.floating,
-      ));
-      // Refrescar para que la UI pinte el banner "X está firmando"
-      await widget.onChanged();
+      if (compra.isNotEmpty)
+        _RecepcionGrupoCard(bucket: 'compra', reqs: compra),
+      if (recibido.isNotEmpty)
+        _RecepcionGrupoCard(bucket: 'recibido', reqs: recibido),
+      if (cerrado.isNotEmpty)
+        _RecepcionGrupoCard(bucket: 'cerrado', reqs: cerrado),
+    ];
+  }
+
+  /// Firma de recepción en lote: una sola firma recibe todas las solicitudes
+  /// "listo para recibir". Se toma el lock por requerimiento antes de firmar
+  /// cada uno (mantiene la anti-duplicidad por solicitud).
+  Future<void> _firmarRecepcionLote(List<ReqRecepcion> reqs) async {
+    final firmables =
+        reqs.where((r) => r.porFirmar && !r.hayAlguienFirmando).toList();
+    if (firmables.isEmpty) {
+      _snack('No hay recepciones disponibles para firmar ahora.', _amber);
       return;
     }
+    final totalItems =
+        firmables.fold<int>(0, (a, r) => a + r.itemsValidos.length);
 
-    // 2) Abrir la sheet de firma (con el lock tomado)
+    // 1) Capturar UNA firma para todo el lote.
     final firmaUrl = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _FirmaRecepcionSheet(req: req),
+      builder: (_) => _FirmaRecepcionSheet(itemsCount: totalItems),
     );
+    if (firmaUrl == null || firmaUrl.isEmpty || !mounted) return;
 
-    // 3) Si canceló (no devolvió firma), liberar el lock y salir
-    if (firmaUrl == null || firmaUrl.isEmpty) {
-      await widget.service.liberarFirmaRequerimiento(req.id);
-      return;
+    // 2) Por cada requerimiento: lock → firmar (el backend libera el lock).
+    setState(() => _firmandoLote = true);
+    int ok = 0, encolados = 0, fallidos = 0;
+    for (final req in firmables) {
+      final lock = await widget.service.bloquearFirmaRequerimiento(req.id);
+      if (!lock.ok) {
+        fallidos++;
+        continue;
+      }
+      final res = await widget.service
+          .firmarRequerimiento(req.id, firmaUrl, servicioId: widget.servicioId);
+      if (res.queued) {
+        encolados++;
+      } else if (res.ok) {
+        ok++;
+      } else {
+        fallidos++;
+        await widget.service.liberarFirmaRequerimiento(req.id);
+      }
     }
-
-    // 4) Enviar la firma — el backend libera el lock al hacer commit
-    setState(() => _firmandoReqId = req.id);
-    final res = await widget.service
-        .firmarRequerimiento(req.id, firmaUrl, servicioId: widget.servicioId);
     if (!mounted) return;
-    setState(() => _firmandoReqId = null);
+    setState(() => _firmandoLote = false);
 
-    // 5) Si el POST online falló, liberamos el lock manualmente (offline
-    // queda encolado: NO liberamos para no soltar el "asiento" durante la
-    // ventana hasta el reintento).
-    if (!res.ok && !res.queued) {
-      await widget.service.liberarFirmaRequerimiento(req.id);
-      if (!mounted) return;
-    }
+    final partes = <String>[];
+    if (ok > 0) partes.add('$ok firmada(s)');
+    if (encolados > 0) partes.add('$encolados en cola');
+    if (fallidos > 0) partes.add('$fallidos no disponible(s)');
+    final color = fallidos > 0 && ok == 0 && encolados == 0
+        ? _danger
+        : (encolados > 0 ? _amber : _green);
+    _snack('Recepción: ${partes.join(' · ')}', color);
 
-    final String msg;
-    final Color color;
-    if (res.queued) {
-      msg = 'Firma guardada · se enviará a Logística al reconectar';
-      color = _amber;
-    } else if (res.ok) {
-      msg = 'Recepción firmada · Logística fue notificada';
-      color = _green;
-    } else {
-      msg = res.errorMessage.isEmpty ? 'No se pudo registrar la firma' : res.errorMessage;
-      color = _danger;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(color: Colors.white)),
-        backgroundColor: color,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    // Solo recargar si se confirmó online (offline el servidor aún no cambió).
-    if (res.ok && !res.queued) await widget.onChanged();
+    if (ok > 0) await widget.onChanged();
   }
 
   @override
@@ -204,16 +210,12 @@ class _MaterialesTabState extends State<_MaterialesTab> {
             ),
             const SizedBox(height: 16),
 
-            // ── Recepción de materiales (firma HU-16) ─────────────────────────
+            // ── Recepción de materiales (firma HU-16, agrupada por etapa) ─────
             if (widget.reqsRecepcion.isNotEmpty) ...[
               const _SectionTitle('Recepción de Materiales',
                   Icons.assignment_turned_in_outlined, _green),
               const SizedBox(height: 8),
-              ...widget.reqsRecepcion.map((req) => _RecepcionCard(
-                    req: req,
-                    firmando: _firmandoReqId == req.id,
-                    onFirmar: () => _firmarRecepcion(req),
-                  )),
+              ..._buildRecepcionGrupos(),
               const SizedBox(height: 20),
             ],
 

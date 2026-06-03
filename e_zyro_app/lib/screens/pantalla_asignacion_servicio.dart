@@ -391,13 +391,16 @@ class _PantallaAsignacionServicioState
                 children: [
                   Row(
                     children: [
-                      if (i > 0)
-                        Expanded(
-                            child: Container(
-                                height: 2,
-                                color: (hecho || activo)
-                                    ? _green
-                                    : Colors.grey.shade300)),
+                      // Línea izquierda: transparente en el primer paso para que
+                      // el círculo quede centrado y alineado con su etiqueta.
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          color: i == 0
+                              ? Colors.transparent
+                              : ((hecho || activo) ? _green : Colors.grey.shade300),
+                        ),
+                      ),
                       Container(
                         width: 28,
                         height: 28,
@@ -423,13 +426,15 @@ class _PantallaAsignacionServicioState
                                       fontSize: 13)),
                         ),
                       ),
-                      if (i < 2)
-                        Expanded(
-                            child: Container(
-                                height: 2,
-                                color: hecho
-                                    ? _green
-                                    : Colors.grey.shade300)),
+                      // Línea derecha: transparente en el último paso.
+                      Expanded(
+                        child: Container(
+                          height: 2,
+                          color: i == 2
+                              ? Colors.transparent
+                              : (hecho ? _green : Colors.grey.shade300),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),

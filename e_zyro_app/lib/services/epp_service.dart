@@ -69,6 +69,22 @@ class EppService {
     }
   }
 
+  /// Genera el reporte PDF consolidado de todo el EPP entregado a un técnico;
+  /// devuelve la URL del PDF.
+  Future<ApiResult<String>> reporteEmpleado(String empleadoId) async {
+    try {
+      final r = await _client.get('/epp/empleado/$empleadoId/reporte',
+          timeout: const Duration(seconds: 90));
+      if (r.statusCode == 200) {
+        final url = (jsonDecode(r.body) as Map)['pdf_url']?.toString() ?? '';
+        return ApiResult.ok(url);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<EppEntrega>>> listarEntregas({String? empleadoId}) async {
     try {
       final qs = (empleadoId != null && empleadoId.isNotEmpty) ? '?empleado_id=$empleadoId' : '';

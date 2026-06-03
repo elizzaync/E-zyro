@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../models/epp_models.dart';
+import '../models/proyecto_models.dart';
 import '../services/epp_service.dart';
 import '../utils/api_provider.dart';
-import '../utils/abrir_enlace.dart';
+import '../utils/abrir_pdf.dart';
 import '../utils/app_session.dart';
 import 'pantalla_epp_entrega.dart';
 
@@ -112,6 +113,11 @@ class _PantallaEppState extends State<PantallaEpp> {
                   if (ok == true) _cargar();
                 },
               ),
+            IconButton(
+              icon: const Icon(Icons.summarize_outlined),
+              tooltip: 'Reporte por técnico',
+              onPressed: _svc == null ? null : _reportePorTecnico,
+            ),
             IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh)),
           ],
         ),
@@ -160,9 +166,42 @@ class _PantallaEppState extends State<PantallaEpp> {
     final res = await _svc!.generarConstancia(en.id);
     if (!mounted) return;
     if (res.ok) {
+      await abrirPdfRemoto(context, res.data,
+          titulo: 'Constancia EPP', nombreArchivo: 'constancia-epp.pdf');
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Constancia generada')));
-      await abrirEnlace(res.data);
+          SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));
+    }
+  }
+
+  // ── Reporte consolidado por técnico (PDF) ──────────────────────────────────
+  Future<void> _reportePorTecnico() async {
+    // Cargar técnicos (mismo origen que el modal de entrega).
+    final proy = await getProyectoService();
+    final personal = await proy.getPersonalTecnicos();
+    if (!mounted) return;
+    final tecnicos = personal.tecnicos;
+    if (tecnicos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hay técnicos disponibles.')));
+      return;
+    }
+
+    final elegido = await showModalBottomSheet<TecnicoDisponible>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _SelectorTecnico(tecnicos: tecnicos),
+    );
+    if (elegido == null || !mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Generando reporte…')));
+    final res = await _svc!.reporteEmpleado(elegido.id);
+    if (!mounted) return;
+    if (res.ok) {
+      await abrirPdfRemoto(context, res.data,
+          titulo: 'Reporte EPP · ${elegido.nombreCompleto}',
+          nombreArchivo: 'reporte-epp.pdf');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(res.errorMessage), backgroundColor: Colors.red.shade700));
@@ -202,3 +241,94 @@ class _PantallaEppState extends State<PantallaEpp> {
     );
   }
 }
+
+// ── Selector de técnico para el reporte de EPP ──────────────────────────────
+class _SelectorTecnico extends StatefulWidget {
+  final List<TecnicoDisponible> tecnicos;
+  const _SelectorTecnico({required this.tecnicos});
+
+  @override
+  State<_SelectorTecnico> createState() => _SelectorTecnicoState();
+}
+
+class _SelectorTecnicoState extends State<_SelectorTecnico> {
+  String _q = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _q.toLowerCase().trim();
+    final filtrados = q.isEmpty
+        ? widget.tecnicos
+        : widget.tecnicos
+            .where((t) =>
+                t.nombreCompleto.toLowerCase().contains(q) ||
+                t.cargo.toLowerCase().contains(q))
+            .toList();
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 12,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Reporte por técnico',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            const Text('Elige un técnico para generar su reporte de EPP',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 12),
+            TextField(
+              autofocus: true,
+              onChanged: (v) => setState(() => _q = v),
+              decoration: InputDecoration(
+                hintText: 'Buscar técnico…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.5),
+              child: filtrados.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: Text('Sin coincidencias')),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: filtrados.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final t = filtrados[i];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: _kGreen.withValues(alpha: 0.18),
+                            child: Text(t.iniciales,
+                                style: const TextStyle(
+                                    color: Color(0xFF5A9A00),
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
+                          ),
+                          title: Text(t.nombreCompleto),
+                          subtitle: Text(t.cargo),
+                          onTap: () => Navigator.pop(context, t),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _kGreen = Color(0xFF8FD11B);

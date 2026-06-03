@@ -1,49 +1,54 @@
 // Materiales: recepcion (HU-16) — tarjeta + sheet de firma.
 part of '../pantalla_detalle_servicio.dart';
 
-// ─── Recepción de materiales: tarjeta + firma (HU-16) ─────────────────────────
+// ─── Recepción de materiales: tarjeta AGRUPADA por etapa + firma (HU-16) ──────
+// Varias solicitudes de la misma etapa se juntan en una sola tarjeta. En la
+// etapa "listo para recibir" una sola firma recibe todas a la vez.
 
-class _RecepcionCard extends StatelessWidget {
-  final ReqRecepcion req;
-  final bool firmando;
-  final VoidCallback onFirmar;
+const _kBlueRecepcion = Color(0xFF3B82F6);
 
-  const _RecepcionCard({
-    required this.req,
-    required this.firmando,
-    required this.onFirmar,
+class _RecepcionGrupoCard extends StatelessWidget {
+  final String bucket; // 'listo' | 'compra' | 'recibido' | 'cerrado'
+  final List<ReqRecepcion> reqs;
+  final bool firmando; // firma de lote en progreso (solo bucket 'listo')
+  final VoidCallback? onFirmar; // solo bucket 'listo'
+
+  const _RecepcionGrupoCard({
+    required this.bucket,
+    required this.reqs,
+    this.firmando = false,
+    this.onFirmar,
   });
+
+  (String, Color, IconData) get _cfg => switch (bucket) {
+        'cerrado' => ('Cerrado por logística', _green, Icons.verified_outlined),
+        'recibido' => ('Recibido · pendiente cierre log', _kBlueRecepcion,
+            Icons.assignment_turned_in_outlined),
+        'compra' => ('En compra · llegará pronto', _amber,
+            Icons.shopping_cart_outlined),
+        _ => ('Listo para recibir', _green, Icons.inventory_2_outlined),
+      };
 
   @override
   Widget build(BuildContext context) {
+    if (reqs.isEmpty) return const SizedBox.shrink();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
-
-    // MODELO HÍBRIDO — flujo: comprando → listo → aprobado → entregado.
-    //   'comprando'  ámbar  → sin stock, en proceso de compra
-    //   'listo'      verde  → disponible, técnico puede firmar
-    //   'aprobado'   azul   → técnico firmó, pendiente cierre administrativo
-    //   'entregado'  verde  → logística cerró contablemente (final completo)
-    const kBlueRecepcion = Color(0xFF3B82F6);
-    final (String titulo, Color colorEstado, IconData iconoEstado) =
-        req.cerrado
-            ? ('Cerrado por logística', _green, Icons.verified_outlined)
-            : req.recibido
-                ? ('Recibido · pendiente cierre log', kBlueRecepcion,
-                   Icons.assignment_turned_in_outlined)
-                : req.enCompra
-                    ? ('En compra · llegará pronto', _amber,
-                       Icons.shopping_cart_outlined)
-                    : ('Listo para recibir', _green,
-                       Icons.inventory_2_outlined);
+    final (titulo, colorEstado, iconoEstado) = _cfg;
+    final alguienFirmando = reqs.any((r) => r.hayAlguienFirmando);
+    final firmandoPor = reqs
+        .firstWhere((r) => r.hayAlguienFirmando,
+            orElse: () => reqs.first)
+        .firmandoPorNombre;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorEstado.withValues(alpha: isDark ? 0.30 : 0.25)),
+        border:
+            Border.all(color: colorEstado.withValues(alpha: isDark ? 0.30 : 0.25)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,133 +66,173 @@ class _RecepcionCard extends StatelessWidget {
                       color: colorEstado.withValues(alpha: isDark ? 1 : 0.9)),
                 ),
               ),
-              Text('REQ ${req.id.substring(0, req.id.length >= 6 ? 6 : req.id.length).toUpperCase()}',
-                  style: const TextStyle(
-                      color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorEstado.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text('${reqs.length} solicitud(es)',
+                    style: TextStyle(
+                        color: colorEstado,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700)),
+              ),
             ],
           ),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: req.itemsValidos
-                .map((it) => Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${it.nombre} × ${it.cantidadEfectiva} ${it.unidad}'
-                        '${it.esCompra ? ' (compra)' : ''}',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 8),
-          Text('Solicitado por ${req.solicitanteNombre}${req.fecha != null ? ' · ${req.fecha}' : ''}',
-              style: const TextStyle(color: Colors.grey, fontSize: 11)),
-          const SizedBox(height: 12),
-          if (req.cerrado)
-            Row(
-              children: const [
-                Icon(Icons.verified, size: 16, color: _green),
-                SizedBox(width: 6),
-                Text('Cerrado · doble firma archivada',
-                    style: TextStyle(
-                        color: _green, fontSize: 12.5, fontWeight: FontWeight.w600)),
-              ],
-            )
-          else if (req.recibido)
-            Row(
-              children: const [
-                Icon(Icons.check_circle, size: 16, color: kBlueRecepcion),
-                SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Firmado por el equipo · esperando cierre de logística',
-                    style: TextStyle(
-                        color: kBlueRecepcion,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            )
-          else if (req.enCompra)
-            Row(
-              children: const [
-                Icon(Icons.schedule, size: 16, color: _amber),
-                SizedBox(width: 6),
-                Expanded(
-                  child: Text('Sin stock · en proceso de compra',
-                      style: TextStyle(
-                          color: _amber,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600)),
-                ),
-              ],
-            )
-          else ...[
-            // Banner "X está firmando ahora" — actualizado en tiempo real por WS.
-            if (req.hayAlguienFirmando && !firmando) ...[
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                  color: _amber.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _amber.withValues(alpha: 0.4)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.draw_outlined, size: 14, color: _amber),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '${req.firmandoPorNombre} está firmando ahora…',
-                      style: const TextStyle(
-                          fontSize: 11.5, color: _amber, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ]),
-              ),
-            ],
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: (firmando || req.hayAlguienFirmando) ? null : onFirmar,
-                icon: firmando
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.draw_outlined, size: 16),
-                label: Text(
-                    firmando
-                        ? 'Firmando...'
-                        : (req.hayAlguienFirmando
-                            ? 'Otro técnico está firmando'
-                            : 'Firmar recepción'),
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _green,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade400,
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ),
+          // Cada solicitud del grupo, distinguible pero dentro de la misma tarjeta.
+          for (var i = 0; i < reqs.length; i++) ...[
+            if (i > 0)
+              Divider(height: 18, color: Colors.grey.withValues(alpha: 0.25)),
+            _reqBloque(context, reqs[i], isDark),
           ],
+          const SizedBox(height: 12),
+          ..._footer(context, alguienFirmando, firmandoPor),
         ],
       ),
     );
+  }
+
+  Widget _reqBloque(BuildContext context, ReqRecepcion req, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Solicitado por ${req.solicitanteNombre}'
+                '${req.fecha != null ? ' · ${req.fecha}' : ''}',
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+            ),
+            Text(
+                'REQ ${req.id.substring(0, req.id.length >= 6 ? 6 : req.id.length).toUpperCase()}',
+                style: const TextStyle(
+                    color: Colors.grey, fontSize: 10, fontFamily: 'monospace')),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: req.itemsValidos
+              .map((it) => Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${it.nombre} × ${it.cantidadEfectiva} ${it.unidad}'
+                      '${it.esCompra ? ' (compra)' : ''}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ))
+              .toList(),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _footer(
+      BuildContext context, bool alguienFirmando, String? firmandoPor) {
+    switch (bucket) {
+      case 'cerrado':
+        return const [
+          Row(children: [
+            Icon(Icons.verified, size: 16, color: _green),
+            SizedBox(width: 6),
+            Expanded(
+              child: Text('Cerrado · doble firma archivada',
+                  style: TextStyle(
+                      color: _green, fontSize: 12.5, fontWeight: FontWeight.w600)),
+            ),
+          ]),
+        ];
+      case 'recibido':
+        return const [
+          Row(children: [
+            Icon(Icons.check_circle, size: 16, color: _kBlueRecepcion),
+            SizedBox(width: 6),
+            Expanded(
+              child: Text('Firmado por el equipo · esperando cierre de logística',
+                  style: TextStyle(
+                      color: _kBlueRecepcion,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600)),
+            ),
+          ]),
+        ];
+      case 'compra':
+        return const [
+          Row(children: [
+            Icon(Icons.schedule, size: 16, color: _amber),
+            SizedBox(width: 6),
+            Expanded(
+              child: Text('Sin stock · en proceso de compra',
+                  style: TextStyle(
+                      color: _amber, fontSize: 12.5, fontWeight: FontWeight.w600)),
+            ),
+          ]),
+        ];
+      default: // 'listo'
+        return [
+          if (alguienFirmando && !firmando)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: _amber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _amber.withValues(alpha: 0.4)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.draw_outlined, size: 14, color: _amber),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text('${firmandoPor ?? 'Otro técnico'} está firmando ahora…',
+                      style: const TextStyle(
+                          fontSize: 11.5,
+                          color: _amber,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ]),
+            ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: (firmando || alguienFirmando) ? null : onFirmar,
+              icon: firmando
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.draw_outlined, size: 16),
+              label: Text(
+                  firmando
+                      ? 'Firmando...'
+                      : (alguienFirmando
+                          ? 'Otro técnico está firmando'
+                          : 'Firmar recepción (${reqs.length})'),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _green,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade400,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+        ];
+    }
   }
 }
 
@@ -195,8 +240,9 @@ class _RecepcionCard extends StatelessWidget {
 /// Trámites/Permisos: dibujar con el dedo, usar la firma guardada en la nube,
 /// o subir una imagen. Devuelve la firma como URL (nube) o data-url base64.
 class _FirmaRecepcionSheet extends StatefulWidget {
-  final ReqRecepcion req;
-  const _FirmaRecepcionSheet({required this.req});
+  /// Nº de ítems que se reciben con esta firma (puede abarcar varias solicitudes).
+  final int itemsCount;
+  const _FirmaRecepcionSheet({required this.itemsCount});
 
   @override
   State<_FirmaRecepcionSheet> createState() => _FirmaRecepcionSheetState();
@@ -328,7 +374,7 @@ class _FirmaRecepcionSheetState extends State<_FirmaRecepcionSheet> {
               ],
             ),
             const SizedBox(height: 2),
-            Text('Recibe: los ${widget.req.itemsValidos.length} ítem(s) aprobados',
+            Text('Recibe: los ${widget.itemsCount} ítem(s) aprobados',
                 style: TextStyle(color: muted, fontSize: 12)),
             const SizedBox(height: 14),
 
