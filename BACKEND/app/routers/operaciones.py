@@ -597,6 +597,7 @@ def get_detalle_servicio(
         alcance=ps.alcance or None,
         tipo_documento_cliente=ps.tipo_documento_cliente or None,
         nro_documento=ps.nro_documento or None,
+        es_mantenimiento=True,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────

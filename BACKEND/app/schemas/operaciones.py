@@ -41,10 +41,6 @@ class ItemMaterialOut(BaseModel):
     unidad: str
     cantidad: int
     estado_req: str
-    # Campos de clasificación e inventario
-    clase:        str = "material"          # material | equipo | herramienta
-    equipo_id:    Optional[str] = None      # FK equipo si es equipo/herramienta
-    numero_serie: Optional[str] = None      # número de serie del equipo
 
 
 class ServicioDetalleOut(BaseModel):
@@ -72,53 +68,10 @@ class ServicioDetalleOut(BaseModel):
     lider_id: Optional[str] = None
     responsable_id: Optional[str] = None
     zona_ejecucion: Optional[str] = None
-    # Jerarquía geográfica (FK) para prefill del picker en cascada
-    ubicacion_id: Optional[str] = None
-    zona_id: Optional[str] = None
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
-    es_mantenimiento: bool = False
-
-
-# ── Equipos Intervenidos ─────────────────────────────────────────────────────
-
-class EquipoDisponibleOut(BaseModel):
-    id: str
-    nombre: str
-    codigo: Optional[str] = None
-    tipo_nombre: Optional[str] = None
-    tipo_equipo_id: Optional[str] = None
-    marca: Optional[str] = None
-    modelo: Optional[str] = None
-    numero_serie: Optional[str] = None
-    ubicacion: Optional[str] = None
-    estado: str
-
-
-class AgregarEquipoIntervenidoIn(BaseModel):
-    activo_cliente_id: str
-
-
-class ActualizarEstadoIntervencionIn(BaseModel):
-    estado_intervencion: str
-    observaciones: Optional[str] = None
-
-
-class EquipoIntervenidoOut(BaseModel):
-    id: str
-    activo_cliente_id: Optional[str] = None
-    nombre: str
-    codigo: Optional[str] = None
-    tipo_nombre: Optional[str] = None
-    tipo_equipo_id: Optional[str] = None
-    marca: Optional[str] = None
-    modelo: Optional[str] = None
-    numero_serie: Optional[str] = None
-    estado_intervencion: str
-    estado: str
-    observaciones: Optional[str] = None
-    created_at: Optional[str] = None
+    es_mantenimiento: bool = True
 
 
 class ProyectoListOut(BaseModel):
@@ -186,14 +139,6 @@ class EquipoItemOut(BaseModel):
     estado: str
     tipo: Optional[str] = None
     progreso_porcentaje: Optional[float] = None
-    # ── Equipos Intervenidos: periodicidad de mantenimiento (Fase A) ──────────
-    requiere_mantenimiento: bool = False
-    frecuencia_mantenimiento: Optional[str] = None      # ninguno|mensual|trimestral|semestral|anual
-    ultima_fecha_mantenimiento: Optional[str] = None     # ISO yyyy-mm-dd
-    proxima_fecha_mantenimiento: Optional[str] = None    # ISO; efectiva (calibración o equipo)
-    dias_restantes: Optional[int] = None                 # +faltan / -vencido
-    estado_mantenimiento: Optional[str] = None           # vigente|proximo|vencido
-    certificado_url: Optional[str] = None
 
 
 # ── HU-19: Historial de mantenimientos ───────────────────────────────────────
@@ -238,14 +183,11 @@ class ActualizarReqDetalleBody(BaseModel):
 
 
 class AgregarBorradorBody(BaseModel):
-    material_id:      Optional[str]   = None
-    nombre:           Optional[str]   = None
-    unidad:           Optional[str]   = None
-    cantidad:         int
-    especificacion:   Optional[str]   = None
-    # Fase 1: solo para compras externas (material_id IS NULL)
-    tipo_item_compra: Optional[str]   = "material"   # material | equipo | herramienta
-    precio_estimado:  Optional[float] = None
+    material_id:    Optional[str] = None
+    nombre:         Optional[str] = None
+    unidad:         Optional[str] = None
+    cantidad:       int
+    especificacion: Optional[str] = None
 
 
 # ── HU-MANT: Checklist de equipo (pasos + evidencias) ────────────────────────
@@ -378,9 +320,6 @@ class CrearServicioBody(BaseModel):
     responsable_id: Optional[str] = None            # empleado.id — Técnico Líder (opcional)
     # Alcance / zona / facturación
     zona_ejecucion: Optional[str] = None
-    # Jerarquía geográfica (FK). El servicio posee la ubicación/zona.
-    ubicacion_id: Optional[str] = None
-    zona_id: Optional[str] = None
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = "SIN_OC"   # 'OC' | 'PROF' | 'SIN_OC'
     nro_documento: Optional[str] = None
@@ -398,8 +337,6 @@ class ActualizarServicioBody(BaseModel):
     lider_id: Optional[str] = None
     responsable_id: Optional[str] = None
     zona_ejecucion: Optional[str] = None
-    ubicacion_id: Optional[str] = None
-    zona_id: Optional[str] = None
     alcance: Optional[str] = None
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
