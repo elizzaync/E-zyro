@@ -2177,7 +2177,9 @@ async def _aplicar_ingreso_ticket(
             db.add(MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=it.material_id, almacen_id=alm_id,
-                tipo="ingreso", cantidad=cant,
+                # 'entrada' = ingreso de stock (chk_mov_tipo no admite 'ingreso');
+                # referencia_tipo='compra' ya marca la procedencia.
+                tipo="entrada", cantidad=cant,
                 referencia_id=str(tc.id), referencia_tipo="compra",
                 responsable_id=str(emp.id) if emp else None,
                 fecha=datetime.utcnow(),
@@ -2330,7 +2332,8 @@ def vincular_inventario(
             db.add(MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=mat.id, almacen_id=alm_id,
-                tipo="ingreso", cantidad=cant_comprada,
+                # 'entrada' = ingreso de stock (chk_mov_tipo no admite 'ingreso').
+                tipo="entrada", cantidad=cant_comprada,
                 referencia_id=str(it.ticket_id), referencia_tipo="compra",
                 responsable_id=str(emp.id) if emp else None,
                 fecha=datetime.utcnow(),
@@ -3637,7 +3640,9 @@ def completar_retorno(
             db.add(MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=d.material_id, almacen_id=almacen_id,
-                tipo="retorno", cantidad=cant,
+                # 'entrada' = stock que vuelve (chk_mov_tipo no admite 'retorno');
+                # referencia_tipo='retorno' marca la procedencia.
+                tipo="entrada", cantidad=cant,
                 referencia_id=str(r.id), referencia_tipo="retorno",
                 responsable_id=str(emp.id) if emp else None,
                 motivo=f"Retorno de campo – {r.proyecto_servicio_id or ''}",
@@ -3877,7 +3882,9 @@ def resolver_incidencia(
             db.add(MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=None, almacen_id=None,
-                tipo="baja", cantidad=int(inc.cantidad_afectada or 1),
+                # 'salida' = baja de stock (chk_mov_tipo no admite 'baja');
+                # referencia_tipo='incidencia' marca el motivo.
+                tipo="salida", cantidad=int(inc.cantidad_afectada or 1),
                 referencia_id=str(inc.id), referencia_tipo="incidencia",
                 responsable_id=str(emp.id) if emp else None,
                 motivo=f"Dado de baja por incidencia – {inc.descripcion[:80]}",
