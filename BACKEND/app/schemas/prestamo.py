@@ -53,9 +53,13 @@ class EntregarPrestamoItem(BaseModel):
 
 
 class EntregarPrestamoBody(BaseModel):
-    items:             List[EntregarPrestamoItem] = []   # vacío → entrega cantidad solicitada
-    observacion:       Optional[str] = None
-    firmaReceptorUrl:  Optional[str] = None   # firma del técnico al recibir
+    items:              List[EntregarPrestamoItem] = []   # vacío → entrega cantidad solicitada
+    observacion:        Optional[str] = None
+    firmaEntregadorUrl: Optional[str] = None   # firma de logística al despachar
+
+
+class FirmarRecepcionBody(BaseModel):
+    firmaReceptorUrl: Optional[str] = None   # firma del técnico que recibe (en nombre del equipo)
 
 
 class DevolverPrestamoItem(BaseModel):
@@ -96,6 +100,8 @@ class PrestamoOut(BaseModel):
     fecha_devolucion:     Optional[str] = None
     fecha_confirmacion:   Optional[str] = None
     firma_receptor_url:   Optional[str] = None
+    firma_entregador_url: Optional[str] = None
+    firmando_por_nombre:  Optional[str] = None   # cinema-seat: quién está firmando la recepción
     items:                List[PrestamoItemOut]
 
 

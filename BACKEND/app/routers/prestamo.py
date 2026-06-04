@@ -33,6 +33,7 @@ from ..schemas.prestamo import (
     EquipoCatalogoOut,
     CrearPrestamoBody,
     EntregarPrestamoBody,
+    FirmarRecepcionBody,
     DevolverPrestamoBody,
     ConfirmarDevolucionBody,
     RechazarPrestamoBody,
@@ -77,16 +78,29 @@ def _nombre_empleado(db: Session, empleado_id: Optional[str]) -> str:
     return f"{row[0]} {row[1]}".strip() if row else ""
 
 
+def _nombre_firmando(db: Session, usuario_id: Optional[str], desde) -> Optional[str]:
+    """Nombre de quien tiene el lock de firma (cinema-seat) si sigue vigente.
+    El lock guarda usuario_id; expira a los 120s. Devuelve None si no aplica."""
+    if not usuario_id or not desde:
+        return None
+    if (datetime.utcnow() - desde).total_seconds() >= 120:
+        return None
+    row = db.query(Usuario.nombre, Usuario.apellido).filter(Usuario.id == usuario_id).first()
+    return f"{row[0]} {row[1]}".strip() if row else None
+
+
 def _prestamos_activos_por_equipo(db: Session, empresa_id: str) -> dict[str, int]:
-    """Suma de cantidades en préstamos NO cerrados (estados solicitado/entregado/devuelto),
-    agrupado por equipo_id. Usado para calcular disponibilidad."""
+    """Suma de cantidades en préstamos NO cerrados (solicitado/por_recibir/entregado/devuelto),
+    agrupado por equipo_id. Usado para calcular disponibilidad. 'por_recibir' ya está
+    despachado físicamente → cuenta como no disponible."""
     rows = (
         db.query(
             PrestamoItem.equipo_id,
             func.sum(
                 case(
-                    (Prestamo.estado == "entregado", func.coalesce(PrestamoItem.cantidad_entregada,
-                                                                    PrestamoItem.cantidad_solicitada)),
+                    (Prestamo.estado.in_(("entregado", "por_recibir")),
+                        func.coalesce(PrestamoItem.cantidad_entregada,
+                                      PrestamoItem.cantidad_solicitada)),
                     (Prestamo.estado == "solicitado", PrestamoItem.cantidad_solicitada),
                     (Prestamo.estado == "devuelto",
                         func.coalesce(PrestamoItem.cantidad_entregada,
@@ -99,7 +113,7 @@ def _prestamos_activos_por_equipo(db: Session, empresa_id: str) -> dict[str, int
         .join(Prestamo, Prestamo.id == PrestamoItem.prestamo_id)
         .filter(
             Prestamo.empresa_id == empresa_id,
-            Prestamo.estado.in_(("solicitado", "entregado", "devuelto")),
+            Prestamo.estado.in_(("solicitado", "por_recibir", "entregado", "devuelto")),
         )
         .group_by(PrestamoItem.equipo_id)
         .all()
@@ -216,6 +230,9 @@ def _prestamo_out(db: Session, p: Prestamo) -> PrestamoOut:
         fecha_devolucion=_fmt(p.fecha_devolucion),
         fecha_confirmacion=_fmt(p.fecha_confirmacion),
         firma_receptor_url=getattr(p, "firma_receptor_url", None),
+        firma_entregador_url=getattr(p, "firma_entregador_url", None),
+        firmando_por_nombre=_nombre_firmando(db, getattr(p, "firmando_por_id", None),
+                                             getattr(p, "firmando_desde", None)),
         items=items,
     )
 
@@ -477,7 +494,7 @@ def avisos_servicio(
 # ─────────────────────────────────────────────────────────────────────────
 
 @router.post("/{prestamo_id}/entregar", response_model=PrestamoOut)
-def entregar_prestamo(
+async def entregar_prestamo(
     prestamo_id: str,
     body:        EntregarPrestamoBody,
     payload:     dict    = Depends(verificar_token),
@@ -494,10 +511,10 @@ def entregar_prestamo(
         raise HTTPException(status_code=404, detail="Préstamo no encontrado")
     if p.estado != "solicitado":
         raise HTTPException(status_code=409, detail="El préstamo no está pendiente de entrega")
-    if not body.firmaReceptorUrl:
+    if not body.firmaEntregadorUrl:
         raise HTTPException(
             status_code=422,
-            detail="Se requiere la firma del técnico que recibe el préstamo.",
+            detail="Se requiere la firma de logística (entregador) para despachar el préstamo.",
         )
 
     decisiones = {d.item_id: d.cantidad_entregada for d in body.items}
@@ -507,24 +524,141 @@ def entregar_prestamo(
         cant = decisiones.get(str(it.id))
         it.cantidad_entregada = int(cant) if cant is not None else int(it.cantidad_solicitada)
 
-    p.estado = "entregado"
+    # Logística despacha y firma como entregador. Queda 'por_recibir' a la espera
+    # de que el equipo técnico firme la recepción (doble firma + consenso).
+    p.estado = "por_recibir"
     p.entregado_por_id = emp.id
-    p.firma_receptor_url = body.firmaReceptorUrl
+    p.firma_entregador_url = body.firmaEntregadorUrl
     p.fecha_entrega = datetime.utcnow()
     p.updated_at = datetime.utcnow()
     if body.observacion:
         p.observacion_logistico = body.observacion
 
-    # Notificar al solicitante
+    # Notificar al solicitante: debe firmar la recepción
     sol_row = db.query(Empleado.usuario_id).filter(Empleado.id == p.solicitante_id).first()
     if sol_row:
         _notificar(db, empresa_id, sol_row[0],
-                   "Equipos entregados",
-                   "Logística entregó los equipos de tu préstamo.",
+                   "Equipos listos para recibir",
+                   "Logística despachó tu préstamo. Firma la recepción en el servicio.",
                    referencia_id=p.id)
 
     db.commit()
     db.refresh(p)
+    # Avisar en vivo al room del servicio (cambió a 'por_recibir')
+    await _ws_servicio(p.proyecto_servicio_id)
+    return _prestamo_out(db, p)
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Recepción del préstamo por el equipo técnico (consenso + firma receptor)
+# ─────────────────────────────────────────────────────────────────────────
+
+async def _ws_servicio(servicio_id) -> None:
+    """Broadcast al room WS del servicio (reusa el helper de logistica)."""
+    try:
+        from .logistica import _notificar_servicio_ws
+        await _notificar_servicio_ws(servicio_id)
+    except Exception:
+        pass
+
+
+@router.post("/{prestamo_id}/bloquear-firma")
+async def bloquear_firma_prestamo(
+    prestamo_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Cinema-seat: toma el lock para firmar la recepción (timeout 2 min).
+    409 si otro técnico lo tiene activo. Emite WS para 'X está firmando'."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    p = db.query(Prestamo).filter(
+        Prestamo.id == prestamo_id, Prestamo.empresa_id == empresa_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+    if p.estado != "por_recibir":
+        raise HTTPException(status_code=409, detail="El préstamo no está pendiente de recepción")
+
+    ahora = datetime.utcnow()
+    if p.firmando_por_id and p.firmando_desde:
+        seg = (ahora - p.firmando_desde).total_seconds()
+        if seg < 120 and p.firmando_por_id != usuario_id:
+            nombre = _nombre_firmando(db, p.firmando_por_id, p.firmando_desde) or "otro técnico"
+            raise HTTPException(status_code=409, detail=f"firmando_por:{nombre}")
+    p.firmando_por_id = usuario_id
+    p.firmando_desde  = ahora
+    p.updated_at      = ahora
+    db.commit()
+    await _ws_servicio(p.proyecto_servicio_id)
+    return {"ok": True}
+
+
+@router.delete("/{prestamo_id}/bloquear-firma")
+async def liberar_firma_prestamo(
+    prestamo_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Libera el lock (cancelación). Solo lo libera quien lo tomó."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    p = db.query(Prestamo).filter(
+        Prestamo.id == prestamo_id, Prestamo.empresa_id == empresa_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+    if p.firmando_por_id == usuario_id:
+        p.firmando_por_id = None
+        p.firmando_desde  = None
+        p.updated_at      = datetime.utcnow()
+        db.commit()
+        await _ws_servicio(p.proyecto_servicio_id)
+    return {"ok": True}
+
+
+@router.post("/{prestamo_id}/firmar-recepcion", response_model=PrestamoOut)
+async def firmar_recepcion_prestamo(
+    prestamo_id: str,
+    body:        FirmarRecepcionBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """El equipo técnico confirma la recepción del préstamo (segunda firma).
+    Precondición: 'por_recibir'. Pasa a 'entregado' (recibido por el equipo) y
+    libera el lock. Cualquier miembro del servicio puede firmar (el lock da
+    atomicidad)."""
+    empresa_id = payload["empresa_id"]
+    emp = _empleado_or_403(db, payload)
+
+    p = db.query(Prestamo).filter(
+        Prestamo.id == prestamo_id, Prestamo.empresa_id == empresa_id
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+    if p.estado != "por_recibir":
+        raise HTTPException(status_code=409, detail="El préstamo no está pendiente de recepción")
+    if not body.firmaReceptorUrl:
+        raise HTTPException(status_code=422, detail="Se requiere la firma de recepción del equipo.")
+
+    p.firma_receptor_url = body.firmaReceptorUrl
+    p.estado             = "entregado"   # recibido por el equipo (doble firma completa)
+    p.firmando_por_id    = None          # liberar lock
+    p.firmando_desde     = None
+    p.updated_at         = datetime.utcnow()
+
+    # Notificar a logística (entregador) que el equipo confirmó la recepción
+    if p.entregado_por_id:
+        log_row = db.query(Empleado.usuario_id).filter(Empleado.id == p.entregado_por_id).first()
+        if log_row:
+            _notificar(db, empresa_id, log_row[0],
+                       "Recepción confirmada",
+                       "El equipo técnico firmó la recepción del préstamo.",
+                       referencia_id=p.id)
+
+    db.commit()
+    db.refresh(p)
+    await _ws_servicio(p.proyecto_servicio_id)
     return _prestamo_out(db, p)
 
 

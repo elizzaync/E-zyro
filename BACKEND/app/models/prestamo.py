@@ -21,7 +21,8 @@ class Prestamo(Base):
     proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=False)
     solicitante_id       = Column(String(36), ForeignKey("empleado.id"), nullable=False)
 
-    # Estados: solicitado | entregado | devuelto | confirmado | rechazado
+    # Estados: solicitado | por_recibir | entregado | devuelto | confirmado | rechazado
+    #   por_recibir = logística despachó y firmó (entregador); falta firma de recepción del equipo
     estado               = Column(String(20), nullable=False, default="solicitado")
 
     observacion              = Column(Text, nullable=True)   # del técnico al solicitar
@@ -32,6 +33,11 @@ class Prestamo(Base):
     confirmado_por_id    = Column(String(36), ForeignKey("empleado.id"), nullable=True)
 
     firma_receptor_url   = Column(Text, nullable=True)   # firma del técnico al recibir el préstamo
+    firma_entregador_url = Column(Text, nullable=True)   # firma de logística al despachar
+
+    # Cinema-seat lock para la firma de recepción (anti-duplicidad entre técnicos)
+    firmando_por_id      = Column(String(36), nullable=True)   # usuario_id que tiene el lock
+    firmando_desde       = Column(DateTime, nullable=True)     # inicio del lock (timeout 2 min)
 
     fecha_solicitud      = Column(DateTime, nullable=False, default=datetime.utcnow)
     fecha_entrega        = Column(DateTime, nullable=True)
