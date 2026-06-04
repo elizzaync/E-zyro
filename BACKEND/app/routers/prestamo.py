@@ -441,7 +441,7 @@ def listar_por_servicio(
 
 @router.get("", response_model=List[PrestamoOut])
 def listar_prestamos(
-    estado:  str = Query("todos", description="todos|solicitado|entregado|devuelto|confirmado|rechazado"),
+    estado:  str = Query("todos", description="todos|solicitado|por_recibir|entregado|devuelto|confirmado|rechazado"),
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
