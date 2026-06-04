@@ -66,3 +66,7 @@ def carpeta_galeria(empresa_id: str, aaaa: str | int, mm: str | int) -> str:
 
 def carpeta_planos(empresa_id: str) -> str:
     return f"{_emp(empresa_id)}/planos"
+
+
+def carpeta_soporte(empresa_id: str, ticket_id: str) -> str:
+    return f"{_emp(empresa_id)}/soporte/{ticket_id}"

@@ -16,13 +16,17 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
 from ..core.permisos import tiene_permiso
 from ..db.database import get_db
 from ..models.ticket_soporte import TicketSoporte
+from ..models.ticket_actividad import TicketActividad
 from ..models.usuario import Usuario
+from ..services.cloudinary_service import subir_e_indexar
+from ..services.cloudinary_paths import carpeta_soporte
 
 router = APIRouter(prefix="/soporte", tags=["soporte"])
 
@@ -39,6 +43,9 @@ def _puede_gestionar(db: Session, payload: dict) -> bool:
 _CATEGORIAS = {"app_movil", "sistema_web", "acceso", "datos", "otro"}
 _PRIORIDADES = {"baja", "media", "alta", "urgente"}
 _ESTADOS = {"abierto", "en_proceso", "resuelto", "cerrado"}
+# Tipos de actividad del timeline. 'tomado'/'cambio_estado' los genera el sistema;
+# 'comentario'/'avance'/'solucion' los crea el usuario.
+_TIPOS_ACTIVIDAD = {"comentario", "avance", "solucion", "cambio_estado", "tomado"}
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -73,8 +80,29 @@ class TicketSoporteOut(BaseModel):
     reportado_por:  str
     reportante_nombre: str
     atendido_por:   Optional[str]
+    atendido_por_nombre: Optional[str]
     creado_en:      str
     actualizado_en: Optional[str]
+
+
+class ActividadOut(BaseModel):
+    id:           str
+    tipo:         str
+    texto:        Optional[str]
+    adjunto_url:  Optional[str]
+    es_solucion:  bool
+    version_solucion: Optional[int]
+    autor_id:     str
+    autor_nombre: str
+    creado_en:    str
+
+
+class CrearActividadBody(BaseModel):
+    tipo:           str = "comentario"
+    texto:          Optional[str] = None
+    es_solucion:    bool = False
+    # Imagen opcional (captura del avance/error) en base64; se sube a Cloudinary.
+    adjunto_base64: Optional[str] = None
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -118,9 +146,60 @@ def _out(db: Session, t: TicketSoporte) -> TicketSoporteOut:
         reportado_por=str(t.reportado_por),
         reportante_nombre=_nombre_usuario(db, t.reportado_por),
         atendido_por=str(t.atendido_por) if t.atendido_por else None,
+        atendido_por_nombre=_nombre_usuario(db, t.atendido_por) if t.atendido_por else None,
         creado_en=t.created_at.isoformat() if t.created_at else "",
         actualizado_en=t.updated_at.isoformat() if t.updated_at else None,
     )
+
+
+def _act_out(db: Session, a: TicketActividad) -> ActividadOut:
+    return ActividadOut(
+        id=str(a.id),
+        tipo=a.tipo,
+        texto=a.texto,
+        adjunto_url=a.adjunto_url,
+        es_solucion=bool(a.es_solucion),
+        version_solucion=a.version_solucion,
+        autor_id=str(a.autor_id),
+        autor_nombre=_nombre_usuario(db, a.autor_id),
+        creado_en=a.created_at.isoformat() if a.created_at else "",
+    )
+
+
+def _ticket_visible_o_404(db: Session, payload: dict, ticket_id: str) -> TicketSoporte:
+    """Devuelve el ticket si el usuario puede verlo (reportante o equipo de TI)."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    t = db.query(TicketSoporte).filter(
+        TicketSoporte.id == ticket_id,
+        TicketSoporte.empresa_id == empresa_id,
+    ).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if str(t.reportado_por) != str(usuario_id) and not _puede_ver_todos(db, payload):
+        raise HTTPException(status_code=403, detail="Sin acceso a este ticket")
+    return t
+
+
+def _registrar_actividad(
+    db: Session, *, empresa_id: str, ticket_id: str, autor_id: str,
+    tipo: str, texto: Optional[str] = None, adjunto_url: Optional[str] = None,
+    es_solucion: bool = False, version_solucion: Optional[int] = None,
+) -> TicketActividad:
+    a = TicketActividad(
+        id=str(_uuid.uuid4()),
+        empresa_id=empresa_id,
+        ticket_id=ticket_id,
+        autor_id=autor_id,
+        tipo=tipo,
+        texto=texto,
+        adjunto_url=adjunto_url,
+        es_solucion=es_solucion,
+        version_solucion=version_solucion,
+        created_at=datetime.utcnow(),
+    )
+    db.add(a)
+    return a
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -229,6 +308,7 @@ def gestionar_ticket(
     if not t:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
 
+    estado_anterior = t.estado
     if body.estado is not None:
         if body.estado not in _ESTADOS:
             raise HTTPException(status_code=422, detail="Estado inválido")
@@ -238,6 +318,150 @@ def gestionar_ticket(
 
     t.atendido_por = usuario_id
     t.updated_at = datetime.utcnow()
+
+    # Registrar el cambio de estado en el timeline para trazabilidad.
+    if body.estado is not None and body.estado != estado_anterior:
+        _registrar_actividad(
+            db, empresa_id=empresa_id, ticket_id=t.id, autor_id=usuario_id,
+            tipo="cambio_estado",
+            texto=f"Estado: {estado_anterior} → {body.estado}",
+        )
+
     db.commit()
     db.refresh(t)
     return _out(db, t)
+
+
+# ── Tomar / asignarse el ticket ───────────────────────────────────────────────
+
+@router.post("/{ticket_id}/tomar", response_model=TicketSoporteOut)
+def tomar_ticket(
+    ticket_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """Cualquier miembro de TI se asigna el ticket para atenderlo.
+
+    Si estaba 'abierto' pasa a 'en_proceso'. Permite reasignación (otro TI puede
+    tomarlo) y deja constancia en el timeline.
+    """
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Solo el equipo de TI puede tomar tickets")
+
+    t = db.query(TicketSoporte).filter(
+        TicketSoporte.id == ticket_id,
+        TicketSoporte.empresa_id == empresa_id,
+    ).first()
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    ya_era_mio = str(t.atendido_por) == str(usuario_id)
+    t.atendido_por = usuario_id
+    if t.estado == "abierto":
+        t.estado = "en_proceso"
+    t.updated_at = datetime.utcnow()
+
+    if not ya_era_mio:
+        _registrar_actividad(
+            db, empresa_id=empresa_id, ticket_id=t.id, autor_id=usuario_id,
+            tipo="tomado", texto="Tomó el ticket para atenderlo",
+        )
+
+    db.commit()
+    db.refresh(t)
+    return _out(db, t)
+
+
+# ── Actividades (timeline / soluciones versionadas) ───────────────────────────
+
+@router.get("/{ticket_id}/actividades", response_model=List[ActividadOut])
+def listar_actividades(
+    ticket_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    _ticket_visible_o_404(db, payload, ticket_id)
+    rows = (
+        db.query(TicketActividad)
+        .filter(TicketActividad.ticket_id == ticket_id)
+        .order_by(TicketActividad.created_at.asc())
+        .all()
+    )
+    return [_act_out(db, a) for a in rows]
+
+
+@router.post("/{ticket_id}/actividades", response_model=ActividadOut, status_code=status.HTTP_201_CREATED)
+def crear_actividad(
+    ticket_id: str,
+    body:      CrearActividadBody,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """Agrega una entrada al timeline: comentario, avance o solución.
+
+    - El reportante y el equipo de TI pueden comentar.
+    - Marcar 'solución' (es_solucion) solo lo hace el equipo de TI; cada solución
+      se versiona automáticamente (1, 2, 3…) para llevar el control de versiones.
+    - Acepta una imagen opcional (base64) que se sube a Cloudinary como adjunto.
+    """
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    t = _ticket_visible_o_404(db, payload, ticket_id)
+
+    tipo = body.tipo if body.tipo in _TIPOS_ACTIVIDAD else "comentario"
+    # Los tipos de sistema no se crean manualmente.
+    if tipo in ("tomado", "cambio_estado"):
+        tipo = "comentario"
+
+    es_solucion = bool(body.es_solucion) or tipo == "solucion"
+    if es_solucion and not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Solo el equipo de TI registra soluciones")
+    if es_solucion:
+        tipo = "solucion"
+
+    texto = (body.texto or "").strip() or None
+    if not texto and not body.adjunto_base64:
+        raise HTTPException(status_code=422, detail="Escribe un texto o adjunta una imagen")
+
+    # Versionado de soluciones: siguiente número correlativo para este ticket.
+    version_solucion = None
+    if es_solucion:
+        max_v = (
+            db.query(func.max(TicketActividad.version_solucion))
+            .filter(
+                TicketActividad.ticket_id == ticket_id,
+                TicketActividad.es_solucion.is_(True),
+            )
+            .scalar()
+        )
+        version_solucion = (max_v or 0) + 1
+
+    adjunto_url = None
+    if body.adjunto_base64:
+        act_id = str(_uuid.uuid4())
+        rec = subir_e_indexar(
+            db, empresa_id=empresa_id, base64_data=body.adjunto_base64,
+            folder=carpeta_soporte(empresa_id, ticket_id),
+            public_id=f"act_{act_id}",
+            entidad_tipo="ticket_actividad", entidad_id=ticket_id,
+            creado_por_id=usuario_id,
+        )
+        adjunto_url = rec.secure_url
+
+    a = _registrar_actividad(
+        db, empresa_id=empresa_id, ticket_id=ticket_id, autor_id=usuario_id,
+        tipo=tipo, texto=texto, adjunto_url=adjunto_url,
+        es_solucion=es_solucion, version_solucion=version_solucion,
+    )
+    # Una solución marca el ticket como resuelto automáticamente.
+    if es_solucion and t.estado not in ("resuelto", "cerrado"):
+        t.estado = "resuelto"
+        t.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(a)
+    return _act_out(db, a)
