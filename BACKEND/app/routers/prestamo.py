@@ -143,6 +143,7 @@ def _crear_requerimiento_faltante(
             id=str(_uuid.uuid4()),
             requerimiento_id=req.id,
             material_id=None,
+            equipo_id=str(eq.id),   # enlaza con el equipo EXISTENTE → al recibir, reabastece (no crea nuevo)
             cantidad=int(faltante),
             nombre_libre=eq.nombre,
             unidad_libre="Unidad",

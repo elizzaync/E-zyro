@@ -41,6 +41,7 @@ class RequerimientoDetalle(Base):
     id                = Column(String(36), primary_key=True, default=_uuid)
     requerimiento_id  = Column(String(36), ForeignKey("requerimiento.id"), nullable=False)
     material_id       = Column(String(36), ForeignKey("material.id"),      nullable=True)
+    equipo_id         = Column(String(36), ForeignKey("equipo.id"),        nullable=True)   # equipo/herramienta existente (compra del faltante de un préstamo)
     cantidad          = Column(Integer, nullable=False)
     cantidad_aprobada = Column(Integer)
     observacion       = Column(String(255))

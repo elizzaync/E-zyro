@@ -1891,7 +1891,7 @@ def _crear_ticket_compra(
         # - tipo_item_compra de la línea → tiene prioridad (lo fija la solicitud)
         # - material_id presente → se deriva del catálogo (material.tipo)
         # - texto libre → heurística por especificación
-        if getattr(d, "tipo_item_compra", None) in ("material", "herramienta"):
+        if getattr(d, "tipo_item_compra", None) in ("material", "herramienta", "equipo"):
             tipo_item = d.tipo_item_compra
         elif d.material_id:
             tipo_item = "herramienta" if (mat and mat.tipo == "herramienta") else "material"
@@ -1910,6 +1910,9 @@ def _crear_ticket_compra(
             ticket_id=tc.id,
             requerimiento_detalle_id=str(d.id),
             material_id=str(d.material_id) if d.material_id else None,
+            # Enlace al equipo/herramienta EXISTENTE: al recibir el ingreso se
+            # reabastece su cantidad en vez de pedir crear un ítem nuevo.
+            equipo_id=str(d.equipo_id) if getattr(d, "equipo_id", None) else None,
             nombre=nombre,
             cantidad=cantidad_ticket,
             unidad=unidad,
