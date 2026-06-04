@@ -3588,6 +3588,38 @@ def crear_equipo_catalogo(
     }
 
 
+def _equipo_info_dict(db: Session, ei, tipo=None) -> dict:
+    """Datos del equipo intervenido para la vista de inspeccion.
+    Reemplaza marca/modelo/serie (vacios en la data) por campos utiles:
+    ubicacion, cliente, descripcion e historial de mantenimiento."""
+    if tipo is None and ei.tipo_equipo_id:
+        tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+    cliente = db.query(Cliente).filter(Cliente.id == ei.cliente_id).first() if ei.cliente_id else None
+
+    ubic_ref = ei.ubicacion_referencia
+    if not ubic_ref and ei.ubicacion_id:
+        u = db.query(Ubicacion).filter(Ubicacion.id == ei.ubicacion_id).first()
+        z = db.query(Zona).filter(Zona.id == ei.zona_id).first() if ei.zona_id else None
+        if u:
+            ubic_ref = f"{u.nombre} / {z.nombre}" if z else u.nombre
+
+    ficha = ei.ficha_tecnica if isinstance(ei.ficha_tecnica, dict) else {}
+    return {
+        "id":           str(ei.id),
+        "nombre":       ei.nombre or "",
+        "codigo":       ei.codigo or None,
+        "tipo_nombre":  tipo.nombre if tipo else None,
+        "ubicacion_referencia": ubic_ref or None,
+        "cliente_nombre": cliente.razon_social if cliente else None,
+        "descripcion":  ei.observaciones or None,
+        "n_mantenimientos": ficha.get("n_mantenimientos"),
+        "ultimo_mantenimiento":  ei.ultimo_mantenimiento.isoformat() if ei.ultimo_mantenimiento else None,
+        "proximo_mantenimiento": ei.proximo_mantenimiento.isoformat() if ei.proximo_mantenimiento else None,
+        "estado":       ei.estado or "operativo",
+        "estado_intervencion": ei.estado_intervencion or "en_proceso",
+    }
+
+
 # ── GET /servicio/{id}/equipos-intervenidos/{eiId}/detalle ────────────────────
 
 @router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/detalle")
@@ -3607,15 +3639,30 @@ def detalle_equipo_intervenido(
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
     tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first()
+    cliente = db.query(Cliente).filter(Cliente.id == ei.cliente_id).first() if ei.cliente_id else None
+
+    # Referencia de ubicacion: usa la columna; si no, la arma desde ubicacion/zona
+    ubic_ref = ei.ubicacion_referencia
+    if not ubic_ref and ei.ubicacion_id:
+        u = db.query(Ubicacion).filter(Ubicacion.id == ei.ubicacion_id).first()
+        z = db.query(Zona).filter(Zona.id == ei.zona_id).first() if ei.zona_id else None
+        if u:
+            ubic_ref = f"{u.nombre} / {z.nombre}" if z else u.nombre
+
+    ficha = ei.ficha_tecnica or {}
+    n_mtto = ficha.get("n_mantenimientos") if isinstance(ficha, dict) else None
 
     return {
         "id":           str(ei.id),
         "nombre":       ei.nombre or "",
         "codigo":       ei.codigo or None,
         "tipo_nombre":  tipo.nombre if tipo else None,
-        "marca":        ei.marca or None,
-        "modelo":       ei.modelo or None,
-        "numero_serie": ei.numero_serie or None,
+        "ubicacion_referencia": ubic_ref or None,
+        "cliente_nombre": cliente.razon_social if cliente else None,
+        "descripcion":  ei.observaciones or None,
+        "n_mantenimientos": n_mtto,
+        "ultimo_mantenimiento":  ei.ultimo_mantenimiento.isoformat() if ei.ultimo_mantenimiento else None,
+        "proximo_mantenimiento": ei.proximo_mantenimiento.isoformat() if ei.proximo_mantenimiento else None,
         "estado":       ei.estado or "operativo",
         "observaciones": ei.observaciones or None,
     }
@@ -3712,17 +3759,7 @@ def get_inspeccion_activa(
         "resultado":           resultado,
         "observaciones":       hi.observaciones or None,
         "proxima_fecha":       hi.proxima_fecha_mantenimiento.isoformat() if hi.proxima_fecha_mantenimiento else None,
-        "equipo": {
-            "id":           str(ei.id),
-            "nombre":       ei.nombre or "",
-            "codigo":       ei.codigo or None,
-            "tipo_nombre":  tipo.nombre if tipo else None,
-            "marca":        ei.marca or None,
-            "modelo":       ei.modelo or None,
-            "numero_serie": ei.numero_serie or None,
-            "estado":       ei.estado or "operativo",
-            "estado_intervencion": ei.estado_intervencion or "en_proceso",
-        },
+        "equipo": _equipo_info_dict(db, ei, tipo),
     }
 
 
