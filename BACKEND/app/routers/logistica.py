@@ -2157,8 +2157,10 @@ async def _aplicar_ingreso_ticket(
                 stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
                 stock_row.updated_at = datetime.utcnow()
             else:
+                # Stock tiene PK compuesta (material_id, empresa_id, almacen_id):
+                # NO lleva columna 'id'.
                 db.add(Stock(
-                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    empresa_id=empresa_id,
                     material_id=it.material_id, almacen_id=alm_id,
                     cantidad=cant, cantidad_minima=0,
                     updated_at=datetime.utcnow(),
@@ -2316,8 +2318,9 @@ def vincular_inventario(
         db.flush()
 
         # Stock inicial = cantidad comprada (ingreso inmediato al crear)
+        # Stock: PK compuesta, sin columna 'id'.
         db.add(Stock(
-            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            empresa_id=empresa_id,
             material_id=mat.id, almacen_id=alm_id,
             cantidad=cant_comprada, cantidad_minima=int(body.stockMinimo or 0),
             updated_at=datetime.utcnow(),
@@ -3625,8 +3628,9 @@ def completar_retorno(
                 stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
                 stock_row.updated_at = datetime.utcnow()
             else:
+                # Stock: PK compuesta, sin columna 'id'.
                 db.add(Stock(
-                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    empresa_id=empresa_id,
                     material_id=d.material_id, almacen_id=almacen_id,
                     cantidad=cant, cantidad_minima=0, updated_at=datetime.utcnow(),
                 ))
