@@ -2009,24 +2009,19 @@ def detalle_compra(
 
 
 async def _generar_prestamo_desde_compra(db: Session, tc, empresa_id: str) -> None:
-    """Convierte una compra de faltante de préstamo en un Préstamo 'solicitado'.
+    """Lleva las unidades compradas (faltante de préstamo) a un Préstamo.
 
-    Idempotente: si ya existe un préstamo generado desde este ticket (mismo
-    servicio + observación marcada), no duplica. Reusa el técnico solicitante
-    guardado en tc.solicitante_id.
+    Fusión automática: si el préstamo original (tc.prestamo_id, lo disponible)
+    sigue PENDIENTE ('solicitado', no entregado), las unidades compradas se
+    SUMAN a él → una sola entrega. Si ese préstamo ya se entregó (o no existe),
+    se crea un préstamo NUEVO 'solicitado' para lo comprado → segunda entrega.
+
+    Reusa el técnico (tc.solicitante_id). El puente corre una sola vez por
+    ticket (guard externo tc.ingreso_registrado).
     """
     from ..models.prestamo import Prestamo, PrestamoItem
 
     if not tc.solicitante_id:
-        return
-
-    marca = f"[auto:tc:{tc.id}]"
-    # Guard de idempotencia: ¿ya generamos el préstamo de este ticket?
-    ya = db.query(Prestamo).filter(
-        Prestamo.proyecto_servicio_id == str(tc.proyecto_servicio_id),
-        Prestamo.observacion == marca,
-    ).first()
-    if ya:
         return
 
     items = (
@@ -2043,37 +2038,73 @@ async def _generar_prestamo_desde_compra(db: Session, tc, empresa_id: str) -> No
     if not lineas:
         return
 
-    p = Prestamo(
-        id=str(_uuid.uuid4()),
-        empresa_id=empresa_id,
-        proyecto_servicio_id=str(tc.proyecto_servicio_id),
-        solicitante_id=str(tc.solicitante_id),
-        estado="solicitado",
-        observacion=marca,   # marca interna de idempotencia/trazabilidad
-        fecha_solicitud=datetime.utcnow(),
-        created_at=datetime.utcnow(),
-    )
-    db.add(p)
-    db.flush()
+    # ¿Fusionar en el préstamo original (si sigue pendiente de entrega)?
+    prestamo = None
+    if getattr(tc, "prestamo_id", None):
+        prestamo = db.query(Prestamo).filter(
+            Prestamo.id == str(tc.prestamo_id)
+        ).first()
+        if prestamo and prestamo.estado != "solicitado":
+            prestamo = None   # ya entregado/cerrado → no se fusiona
+
+    marca = f"[auto:tc:{tc.id}]"
+    fusion = prestamo is not None
+
+    if not fusion:
+        # Guard de idempotencia para el caso "crear nuevo".
+        ya = db.query(Prestamo).filter(
+            Prestamo.proyecto_servicio_id == str(tc.proyecto_servicio_id),
+            Prestamo.observacion == marca,
+        ).first()
+        if ya:
+            return
+        prestamo = Prestamo(
+            id=str(_uuid.uuid4()),
+            empresa_id=empresa_id,
+            proyecto_servicio_id=str(tc.proyecto_servicio_id),
+            solicitante_id=str(tc.solicitante_id),
+            estado="solicitado",
+            observacion=marca,   # marca interna de idempotencia/trazabilidad
+            fecha_solicitud=datetime.utcnow(),
+            created_at=datetime.utcnow(),
+        )
+        db.add(prestamo)
+        db.flush()
+
+    # Sumar/añadir líneas: si el préstamo ya tiene ese equipo, incrementa;
+    # si no, añade una línea nueva.
     for equipo_id, cant in lineas:
-        db.add(PrestamoItem(
-            id=str(_uuid.uuid4()), prestamo_id=p.id,
-            equipo_id=str(equipo_id), cantidad_solicitada=cant,
-        ))
+        existente = db.query(PrestamoItem).filter(
+            PrestamoItem.prestamo_id == prestamo.id,
+            PrestamoItem.equipo_id == str(equipo_id),
+        ).first()
+        if existente:
+            existente.cantidad_solicitada = int(existente.cantidad_solicitada or 0) + cant
+        else:
+            db.add(PrestamoItem(
+                id=str(_uuid.uuid4()), prestamo_id=prestamo.id,
+                equipo_id=str(equipo_id), cantidad_solicitada=cant,
+            ))
 
     # Notificar al técnico solicitante (vía su usuario)
     sol_row = db.query(Empleado.usuario_id).filter(
         Empleado.id == str(tc.solicitante_id)
     ).first()
     if sol_row:
+        msg = (
+            "La compra de tus equipos/herramientas llegó y se sumó a tu préstamo "
+            "pendiente. Ya está completo para que Logística te lo entregue."
+            if fusion else
+            "La compra de tus equipos/herramientas llegó. Ya están listos "
+            "para que Logística te los entregue."
+        )
         db.add(Notificacion(
             id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=sol_row[0],
             tipo="info", categoria="logistica",
             titulo="Equipos comprados listos para préstamo",
-            mensaje="La compra de tus equipos/herramientas llegó. Ya están listos "
-                    "para que Logística te los entregue.",
+            mensaje=msg,
             leido=False, enviado=False,
-            referencia_tabla="prestamo", referencia_id=str(p.id),
+            referencia_tabla="prestamo", referencia_id=str(prestamo.id),
         ))
     db.commit()
     await _notificar_servicio_ws(tc.proyecto_servicio_id)

@@ -113,6 +113,7 @@ def _crear_ticket_compra_faltante(
     emp: Empleado,
     empresa_id: str,
     faltantes: list[tuple[Equipo, int]],
+    prestamo_id: str | None = None,
 ) -> str:
     """Crea un TicketCompra DIRECTO (sin requerimiento) para el faltante de un
     préstamo. Va directo a la bandeja de Compras.
@@ -120,7 +121,8 @@ def _crear_ticket_compra_faltante(
     Cada ítem queda enlazado al equipo EXISTENTE (equipo_id) → al recibir el
     ingreso se reabastece su cantidad. `origen='prestamo_faltante'` +
     `solicitante_id` permiten, al completar la compra, auto-generar el préstamo
-    de las unidades compradas para el técnico.
+    de las unidades compradas para el técnico. `prestamo_id` apunta al préstamo
+    original (lo disponible) para fusionar en él al recibir la compra.
     """
     # _siguiente_codigo_ticket vive en logistica; import local para evitar ciclo.
     from .logistica import _siguiente_codigo_ticket
@@ -134,6 +136,7 @@ def _crear_ticket_compra_faltante(
         estado="pendiente",
         origen="prestamo_faltante",
         solicitante_id=str(emp.id),
+        prestamo_id=prestamo_id,
         proyecto_id=str(srv.proyecto_id) if srv.proyecto_id else None,
         proyecto_servicio_id=str(srv.id),
         proyecto_nombre=proyecto.nombre_proyecto if proyecto else None,
@@ -366,10 +369,14 @@ def crear_prestamo(
         if faltante > 0:
             faltantes.append((equipo, faltante))
 
-    # Compra del faltante (si lo hay) → TicketCompra DIRECTO a la bandeja de Compras
+    # Compra del faltante (si lo hay) → TicketCompra DIRECTO a la bandeja de Compras.
+    # Si hubo préstamo de lo disponible, se vincula para fusionar al recibir.
     ticket_id = None
     if faltantes:
-        ticket_id = _crear_ticket_compra_faltante(db, srv, emp, empresa_id, faltantes)
+        ticket_id = _crear_ticket_compra_faltante(
+            db, srv, emp, empresa_id, faltantes,
+            prestamo_id=str(p.id) if hubo_prestamo else None,
+        )
 
     # Si todo fue a compra (nada disponible para prestar), no dejamos un
     # préstamo vacío: lo eliminamos antes de commit.

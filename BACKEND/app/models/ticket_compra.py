@@ -19,6 +19,7 @@ class TicketCompra(Base):
     estado                 = Column(String(20), nullable=False, default="pendiente")
     origen                 = Column(String(30), nullable=True)          # 'prestamo_faltante' → al recibir genera préstamo
     solicitante_id         = Column(UUID(as_uuid=False), nullable=True)  # técnico que pidió (para el auto-préstamo)
+    prestamo_id            = Column(UUID(as_uuid=False), nullable=True)  # préstamo original (faltante) → fusionar al recibir
     proyecto_id            = Column(UUID(as_uuid=False), nullable=True)
     proyecto_servicio_id   = Column(UUID(as_uuid=False), nullable=True)
     proyecto_nombre        = Column(String(300), nullable=True)
