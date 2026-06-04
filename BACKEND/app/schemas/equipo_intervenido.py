@@ -13,12 +13,16 @@ class EquipoIntervenidoIn(BaseModel):
     area_descripcion: Optional[str]  = None
     nombre:           str
     codigo:           Optional[str]  = None
+    ubicacion_referencia: Optional[str] = None
     tipo_equipo_id:   Optional[str]  = None
     marca:            Optional[str]  = None
     modelo:           Optional[str]  = None
     numero_serie:     Optional[str]  = None
     estado:           Optional[str]  = "operativo"
     fecha_instalacion: Optional[date] = None
+    ultimo_mantenimiento:  Optional[date] = None
+    proximo_mantenimiento: Optional[date] = None
+    frecuencia_meses:      Optional[int]  = 6
     ficha_tecnica:    Optional[dict[str, Any]] = None
     observaciones:    Optional[str]  = None
     activo:           Optional[bool] = True
@@ -35,12 +39,16 @@ class EquipoIntervenidoOut(BaseModel):
     area_descripcion: Optional[str]
     nombre:           str
     codigo:           Optional[str]
+    ubicacion_referencia: Optional[str] = None
     tipo_equipo_id:   Optional[str]
     marca:            Optional[str]
     modelo:           Optional[str]
     numero_serie:     Optional[str]
     estado:           str
     fecha_instalacion: Optional[date]
+    ultimo_mantenimiento:  Optional[date] = None
+    proximo_mantenimiento: Optional[date] = None
+    frecuencia_meses:      Optional[int]  = None
     ficha_tecnica:    Optional[dict[str, Any]]
     observaciones:    Optional[str]
     activo:           bool

@@ -3448,6 +3448,7 @@ def list_equipos_intervenidos(
             "id":                    str(ei.id),
             "nombre":                ei.nombre or "",
             "codigo":                ei.codigo or None,
+            "ubicacion_referencia":  ei.ubicacion_referencia or None,
             "tipo_nombre":           tipo_nombre or None,
             "tipo_equipo_id":        str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
             "marca":                 ei.marca or None,
@@ -3456,6 +3457,8 @@ def list_equipos_intervenidos(
             "estado":                ei.estado or "operativo",
             "ubicacion":             ubicacion_nombre or None,
             "zona":                  zona_nombre or None,
+            "ultimo_mantenimiento":  ei.ultimo_mantenimiento.isoformat() if ei.ultimo_mantenimiento else None,
+            "proximo_mantenimiento": ei.proximo_mantenimiento.isoformat() if ei.proximo_mantenimiento else None,
             "estado_intervencion":   estado_inspeccion or "sin_inspeccion",
             "observaciones":         ei.observaciones or None,
         }
@@ -3484,12 +3487,74 @@ def crear_equipo_catalogo(
     desc     = (body or {}).get("descripcion") or None
     cliente_id = (body or {}).get("cliente_id") or None
 
+    # Heredar ubicacion/zona/cliente del servicio si no vienen en el body.
+    # Asi el equipo nuevo queda ligado a la misma ubicacion+zona del servicio.
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if ps:
+        ubic_id    = ubic_id    or (str(ps.ubicacion_id) if ps.ubicacion_id else None)
+        zona_id    = zona_id    or (str(ps.zona_id)      if ps.zona_id      else None)
+        cliente_id = cliente_id or (str(ps.cliente_id)   if getattr(ps, "cliente_id", None) else None)
+
+    # Anti-duplicado: no recrear un equipo ya existente en la misma ubicacion+zona+tipo.
+    dup = (
+        db.query(EquipoIntervenido)
+        .filter(
+            EquipoIntervenido.empresa_id == empresa_id,
+            EquipoIntervenido.activo == True,
+            func.lower(func.trim(EquipoIntervenido.nombre)) == nombre.lower(),
+            EquipoIntervenido.ubicacion_id == ubic_id if ubic_id else EquipoIntervenido.ubicacion_id.is_(None),
+            EquipoIntervenido.zona_id == zona_id if zona_id else EquipoIntervenido.zona_id.is_(None),
+        )
+        .first()
+    )
+    if dup and (not tipo_id or str(dup.tipo_equipo_id) == str(tipo_id)):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ya existe '{dup.nombre}' (codigo {dup.codigo}) en esta ubicacion y zona. "
+                   f"Registra el mantenimiento sobre el equipo existente.",
+        )
+
+    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == tipo_id).first() if tipo_id else None
+
+    # Codigo unico {PROV}-{TIPO}-{NNN}
+    prov3 = "GEN"
+    ubic_ref = None
+    if ubic_id:
+        u = db.query(Ubicacion).filter(Ubicacion.id == ubic_id).first()
+        if u and u.nombre:
+            prov3 = "".join(ch for ch in u.nombre.upper() if ch.isalnum())[:3] or "GEN"
+            zname = None
+            if zona_id:
+                z = db.query(Zona).filter(Zona.id == zona_id).first()
+                zname = z.nombre if z else None
+            ubic_ref = f"{u.nombre} / {zname}" if zname else u.nombre
+    _PREF = {"POZOS": "POZ", "POZO A TIERRA": "POZ", "TABLEROS": "TAB", "TABLERO ELECTRICO": "TAB",
+             "UPS": "UPS", "TRANS. AISLAMIENTO": "TRA", "PARARRAYOS": "PAR",
+             "LUMINARIAS": "LUM", "TOMACORRIENTES": "TOM"}
+    tname = (tipo.nombre.strip().upper() if tipo and tipo.nombre else "")
+    t3 = _PREF.get(tname, (tname[:3] or "EQ"))
+    pref = f"{prov3}-{t3}-"
+    maxn = 0
+    for (cod,) in db.query(EquipoIntervenido.codigo).filter(
+            EquipoIntervenido.empresa_id == empresa_id,
+            EquipoIntervenido.codigo.like(f"{pref}%")).all():
+        try:
+            maxn = max(maxn, int((cod or "").rsplit("-", 1)[-1]))
+        except (ValueError, IndexError):
+            continue
+    codigo = f"{pref}{maxn + 1:03d}"
+
     nid = str(_uuid.uuid4())
     ei  = EquipoIntervenido(
         id             = nid,
         empresa_id     = empresa_id,
         cliente_id     = cliente_id,
         nombre         = nombre,
+        codigo         = codigo,
+        ubicacion_referencia = ubic_ref,
         tipo_equipo_id = tipo_id or None,
         ubicacion_id   = ubic_id or None,
         zona_id        = zona_id or None,
@@ -3500,10 +3565,11 @@ def crear_equipo_catalogo(
     db.add(ei)
     db.commit()
 
-    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == tipo_id).first() if tipo_id else None
     return {
         "id":           nid,
         "nombre":       nombre,
+        "codigo":       codigo,
+        "ubicacion_referencia": ubic_ref,
         "tipo_nombre":  tipo.nombre if tipo else None,
         "estado_intervencion": "sin_inspeccion",
     }

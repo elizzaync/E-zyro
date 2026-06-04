@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, ForeignKey
+from sqlalchemy import Column, String, Text, DateTime, Date, Boolean, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.db.database import Base
 
@@ -21,6 +21,7 @@ class EquipoIntervenido(Base):
     area_descripcion     = Column(String(200),                                              nullable=True)
     nombre               = Column(String(200),                                              nullable=False)
     codigo               = Column(String(50),                                               nullable=True)
+    ubicacion_referencia = Column(String(200),                                              nullable=True)
     tipo_equipo_id       = Column(UUID(as_uuid=False), ForeignKey("tipo_equipo.id"),        nullable=True)
     marca                = Column(String(100),                                              nullable=True)
     modelo               = Column(String(100),                                              nullable=True)
@@ -36,5 +37,9 @@ class EquipoIntervenido(Base):
     estado_intervencion  = Column(String(20),   nullable=False, default="pendiente")
     activo_cliente_id    = Column(UUID(as_uuid=False),                                     nullable=True)
     fecha_fin            = Column(Date,          nullable=True)
+    # Plan de mantenimiento (cada N meses)
+    ultimo_mantenimiento  = Column(Date,         nullable=True)
+    proximo_mantenimiento = Column(Date,         nullable=True)
+    frecuencia_meses      = Column(Integer,      nullable=True, default=6)
     created_at           = Column(DateTime,      nullable=False, default=datetime.utcnow)
     updated_at           = Column(DateTime,      nullable=True)

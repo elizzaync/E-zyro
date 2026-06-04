@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
@@ -28,6 +29,69 @@ from ..schemas.equipo_intervenido import EquipoIntervenidoIn, EquipoIntervenidoO
 router = APIRouter(prefix="/equipos-intervenidos", tags=["equipos-intervenidos"])
 
 ESTADOS_VALIDOS = {"operativo", "inoperativo", "mantenimiento", "en_revision"}
+
+# Prefijo de 3 letras por tipo de equipo, para el codigo unico {PROV}-{TIPO}-{NNN}
+TIPO_PREFIJO = {
+    "POZOS": "POZ", "POZO A TIERRA": "POZ", "TABLEROS": "TAB", "TABLERO ELECTRICO": "TAB",
+    "UPS": "UPS", "TRANS. AISLAMIENTO": "TRA", "PARARRAYOS": "PAR",
+    "LUMINARIAS": "LUM", "TOMACORRIENTES": "TOM",
+}
+
+
+def _prefijo_tipo(nombre_tipo: Optional[str]) -> str:
+    if not nombre_tipo:
+        return "EQ"
+    return TIPO_PREFIJO.get(nombre_tipo.strip().upper(), nombre_tipo.strip().upper()[:3])
+
+
+def generar_codigo(db: Session, empresa_id: str, ubicacion_id: Optional[str],
+                   tipo_equipo_id: Optional[str]) -> str:
+    """Genera un codigo unico {PROV}-{TIPO}-{NNN} dentro de la empresa."""
+    prov = "GEN"
+    if ubicacion_id:
+        u = db.query(Ubicacion).filter(Ubicacion.id == ubicacion_id).first()
+        if u and u.nombre:
+            prov = "".join(ch for ch in u.nombre.upper() if ch.isalnum())[:3] or "GEN"
+    tipo_nombre = None
+    if tipo_equipo_id:
+        t = db.query(TipoEquipo).filter(TipoEquipo.id == tipo_equipo_id).first()
+        tipo_nombre = t.nombre if t else None
+    pref = f"{prov}-{_prefijo_tipo(tipo_nombre)}-"
+    existentes = (
+        db.query(EquipoIntervenido.codigo)
+        .filter(EquipoIntervenido.empresa_id == empresa_id,
+                EquipoIntervenido.codigo.like(f"{pref}%"))
+        .all()
+    )
+    maxn = 0
+    for (cod,) in existentes:
+        try:
+            maxn = max(maxn, int((cod or "").rsplit("-", 1)[-1]))
+        except (ValueError, IndexError):
+            continue
+    return f"{pref}{maxn + 1:03d}"
+
+
+def buscar_duplicado(db: Session, empresa_id: str, nombre: str,
+                     ubicacion_id: Optional[str], zona_id: Optional[str],
+                     tipo_equipo_id: Optional[str], excluir_id: Optional[str] = None):
+    """Devuelve un equipo existente con misma ubicacion+zona+tipo+nombre (case-insensitive)."""
+    if not nombre:
+        return None
+    q = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.empresa_id == empresa_id,
+        EquipoIntervenido.activo == True,
+        func.lower(func.trim(EquipoIntervenido.nombre)) == nombre.strip().lower(),
+    )
+    q = q.filter(EquipoIntervenido.ubicacion_id == ubicacion_id) if ubicacion_id \
+        else q.filter(EquipoIntervenido.ubicacion_id.is_(None))
+    q = q.filter(EquipoIntervenido.zona_id == zona_id) if zona_id \
+        else q.filter(EquipoIntervenido.zona_id.is_(None))
+    if tipo_equipo_id:
+        q = q.filter(EquipoIntervenido.tipo_equipo_id == tipo_equipo_id)
+    if excluir_id:
+        q = q.filter(EquipoIntervenido.id != excluir_id)
+    return q.first()
 
 
 def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
@@ -72,9 +136,13 @@ def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
         area_id=str(e.area_id) if e.area_id else None,
         area_descripcion=e.area_descripcion,
         nombre=e.nombre, codigo=e.codigo,
+        ubicacion_referencia=e.ubicacion_referencia,
         tipo_equipo_id=str(e.tipo_equipo_id) if e.tipo_equipo_id else None,
         marca=e.marca, modelo=e.modelo, numero_serie=e.numero_serie,
         estado=e.estado, fecha_instalacion=e.fecha_instalacion,
+        ultimo_mantenimiento=e.ultimo_mantenimiento,
+        proximo_mantenimiento=e.proximo_mantenimiento,
+        frecuencia_meses=e.frecuencia_meses,
         ficha_tecnica=e.ficha_tecnica, observaciones=e.observaciones,
         activo=e.activo, created_at=e.created_at, updated_at=e.updated_at,
         proyecto_nombre=proyecto_nombre, cliente_nombre=cliente_nombre,
@@ -147,11 +215,27 @@ def crear(
     if body.estado and body.estado not in ESTADOS_VALIDOS:
         raise HTTPException(status_code=422, detail=f"Estado invalido. Usar: {ESTADOS_VALIDOS}")
 
+    # Anti-duplicado: no recrear un equipo que ya existe en la misma ubicacion+zona+tipo.
+    # Asi evitamos la duplicidad historica (recrear el equipo en cada mantenimiento).
+    dup = buscar_duplicado(db, empresa_id, body.nombre, body.ubicacion_id,
+                           body.zona_id, body.tipo_equipo_id)
+    if dup:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Ya existe el equipo '{dup.nombre}' (codigo {dup.codigo}) en esta "
+                   f"ubicacion y zona. Registra un mantenimiento sobre el existente "
+                   f"en vez de crearlo de nuevo.",
+        )
+
+    datos = body.model_dump(exclude_none=True)
     e = EquipoIntervenido(
         id=str(uuid.uuid4()),
         empresa_id=empresa_id,
-        **body.model_dump(exclude_none=True),
+        **datos,
     )
+    # Codigo unico autogenerado si no se envio
+    if not e.codigo:
+        e.codigo = generar_codigo(db, empresa_id, body.ubicacion_id, body.tipo_equipo_id)
     db.add(e)
     db.commit()
     db.refresh(e)
