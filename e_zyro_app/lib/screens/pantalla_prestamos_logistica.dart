@@ -3,6 +3,7 @@ import '../models/prestamo_models.dart';
 import '../services/prestamo_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
+import '../widgets/firma_sheet.dart';
 import 'pantalla_prestamos_servicio.dart' show PrestamoCard;
 
 const _kGreen  = Color(0xFF8FD11B);
@@ -56,26 +57,21 @@ class _PantallaPrestamosLogisticaState extends State<PantallaPrestamosLogistica>
   }
 
   Future<void> _entregar(Prestamo p) async {
-    final confirmar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Entregar préstamo'),
-        content: Text(
-            '¿Confirmas la entrega física de ${p.items.length} equipo(s) a ${p.solicitanteNombre}?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Entregar', style: TextStyle(color: _kBlue))),
-        ],
-      ),
+    // Firma de logística como ENTREGADOR. El préstamo queda 'por_recibir':
+    // el equipo técnico debe firmar la recepción para completar la doble firma.
+    final firma = await FirmaSheet.mostrar(
+      context,
+      titulo: 'Firma de entrega (logística)',
+      subtitulo:
+          'Despachas ${p.items.length} equipo(s)/herramienta(s) a ${p.solicitanteNombre}',
+      textoBoton: 'Confirmar despacho',
     );
-    if (confirmar != true) return;
-    final res = await _service!.entregar(p.id);
+    if (firma == null || firma.isEmpty || !mounted) return;
+
+    final res = await _service!.entregar(p.id, firmaEntregadorUrl: firma);
     if (!mounted) return;
-    _msg(res.ok, 'Préstamo entregado', res.error ?? 'No se pudo entregar');
+    _msg(res.ok, 'Despachado · espera la firma de recepción del equipo',
+        res.error ?? 'No se pudo entregar');
     if (res.ok) await _load();
   }
 
@@ -239,6 +235,8 @@ class _PantallaPrestamosLogisticaState extends State<PantallaPrestamosLogistica>
                 child: Row(children: [
                   _Chip(label: 'Solicitados', value: 'solicitado',
                       sel: _filtro, color: _kAmber, onTap: _setFiltro),
+                  _Chip(label: 'Por recibir', value: 'por_recibir',
+                      sel: _filtro, color: _kBlue, onTap: _setFiltro),
                   _Chip(label: 'Por confirmar', value: 'devuelto',
                       sel: _filtro, color: _kPurple, onTap: _setFiltro),
                   _Chip(label: 'Entregados', value: 'entregado',

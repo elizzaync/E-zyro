@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/prestamo_models.dart';
 import '../models/proyecto_models.dart';
 import '../services/prestamo_service.dart';
 import '../services/proyecto_service.dart';
+import '../services/chat_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
+import '../widgets/firma_sheet.dart';
 
 const _kGreen = Color(0xFF8FD11B);
 const _kRed   = Color(0xFFEF4444);
@@ -36,10 +39,39 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
   List<Prestamo> _prestamos = [];
   bool _loading = true;
 
+  // WS en vivo: refresca cuando otro técnico toma/suelta el lock de firma o
+  // cuando logística despacha (banner "X está firmando" sin recargar).
+  ChatService? _eventosWs;
+  Timer? _eventDebounce;
+
   @override
   void initState() {
     super.initState();
     _init();
+    _conectarEventos();
+  }
+
+  @override
+  void dispose() {
+    _eventDebounce?.cancel();
+    _eventosWs?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _conectarEventos() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token') ?? '';
+    if (token.isEmpty || !mounted) return;
+    final ws = ChatService();
+    ws.connect('servicio/${widget.servicioId}', token);
+    ws.eventos.listen((_) {
+      // Coalescer ráfagas de eventos en una sola recarga.
+      _eventDebounce?.cancel();
+      _eventDebounce = Timer(const Duration(milliseconds: 600), () {
+        if (mounted) _load();
+      });
+    });
+    _eventosWs = ws;
   }
 
   Future<void> _init() async {
@@ -81,6 +113,58 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
       builder: (_) => _DevolverSheet(prestamo: p, service: _service!),
     );
     if (ok == true) await _load();
+  }
+
+  void _snack(String msg, Color color) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg, style: const TextStyle(color: Colors.white)),
+      backgroundColor: color,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  /// Firma de recepción del préstamo (consenso cinema-seat + firma del equipo).
+  /// Toma el lock ANTES de abrir la firma para que ningún otro técnico firme a
+  /// la vez (los demás ven "X está firmando"). Libera el lock si cancela/falla.
+  Future<void> _firmarRecepcion(Prestamo p) async {
+    if (_service == null) return;
+    if (p.hayAlguienFirmando) {
+      _snack('${p.firmandoPorNombre} está firmando la recepción ahora.', _kAmber);
+      return;
+    }
+    final lock = await _service!.bloquearFirmaPrestamo(p.id);
+    if (!lock.ok) {
+      // 409 → detalle 'firmando_por:<nombre>'
+      final det = lock.error ?? '';
+      final quien = det.startsWith('firmando_por:') ? det.substring(13) : 'Otro técnico';
+      if (mounted) _snack('$quien está firmando la recepción ahora.', _kAmber);
+      await _load();
+      return;
+    }
+    if (!mounted) return;
+    final firma = await FirmaSheet.mostrar(
+      context,
+      titulo: 'Firmar recepción del equipo',
+      subtitulo:
+          'Confirmas recibir ${p.items.length} equipo(s)/herramienta(s) de ${p.solicitanteNombre}',
+      textoBoton: 'Confirmar recepción',
+    );
+    if (firma == null || firma.isEmpty) {
+      await _service!.liberarFirmaPrestamo(p.id);
+      if (mounted) await _load();
+      return;
+    }
+    final res = await _service!.firmarRecepcion(p.id, firmaReceptorUrl: firma);
+    if (!mounted) return;
+    if (res.ok) {
+      _snack('Recepción firmada. El préstamo quedó recibido.', _kGreen);
+      await _load();
+    } else {
+      await _service!.liberarFirmaPrestamo(p.id);
+      _snack(res.error ?? 'No se pudo firmar la recepción', _kRed);
+      await _load();
+    }
   }
 
   @override
@@ -138,6 +222,9 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
                                 prestamo: _prestamos[i],
                                 onDevolver: _prestamos[i].estado == 'entregado'
                                     ? () => _abrirDevolverSheet(_prestamos[i])
+                                    : null,
+                                onFirmarRecepcion: _prestamos[i].porRecibir
+                                    ? () => _firmarRecepcion(_prestamos[i])
                                     : null,
                               ),
                             ),
@@ -206,6 +293,7 @@ class PrestamoCard extends StatelessWidget {
   final VoidCallback? onEntregar;
   final VoidCallback? onConfirmar;
   final VoidCallback? onRechazar;
+  final VoidCallback? onFirmarRecepcion;
   final bool mostrarServicio;
 
   const PrestamoCard({
@@ -215,12 +303,14 @@ class PrestamoCard extends StatelessWidget {
     this.onEntregar,
     this.onConfirmar,
     this.onRechazar,
+    this.onFirmarRecepcion,
     this.mostrarServicio = false,
   });
 
   ({Color color, IconData icon, String label}) get _estado {
     switch (prestamo.estado) {
       case 'solicitado':  return (color: _kAmber,  icon: Icons.hourglass_top_rounded,    label: 'Solicitado');
+      case 'por_recibir': return (color: _kBlue,   icon: Icons.inventory_2_outlined,     label: 'Por recibir');
       case 'entregado':   return (color: _kBlue,   icon: Icons.local_shipping_outlined,  label: 'Entregado');
       case 'devuelto':    return (color: _kPurple, icon: Icons.assignment_return_outlined,label: 'Pendiente confirmar');
       case 'confirmado':  return (color: _kGreen,  icon: Icons.check_circle_outline,     label: 'Confirmado');
@@ -299,7 +389,14 @@ class PrestamoCard extends StatelessWidget {
           // Items
           ...prestamo.items.map((it) => _itemRow(it, isDark)),
 
-          if (prestamo.observacion != null && prestamo.observacion!.isNotEmpty) ...[
+          // Préstamo auto-generado al recibir una compra de faltante: mostramos
+          // una nota legible en vez de la marca técnica interna.
+          if (prestamo.esAutoCompra) ...[
+            const SizedBox(height: 8),
+            _notaBox('Origen', 'Generado por compra de faltante de stock',
+                _kBlue),
+          ] else if (prestamo.observacion != null &&
+              prestamo.observacion!.isNotEmpty) ...[
             const SizedBox(height: 8),
             _notaBox('Solicitante', prestamo.observacion!, _kGray),
           ],
@@ -308,6 +405,48 @@ class PrestamoCard extends StatelessWidget {
             const SizedBox(height: 6),
             _notaBox('Logística', prestamo.observacionLogistico!,
                 prestamo.estado == 'rechazado' ? _kRed : _kGreen),
+          ],
+
+          // Banner cinema-seat: otro técnico está firmando la recepción ahora.
+          if (prestamo.porRecibir && prestamo.hayAlguienFirmando) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+              decoration: BoxDecoration(
+                color: _kAmber.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _kAmber.withValues(alpha: 0.35)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.draw_outlined, size: 15, color: _kAmber),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('${prestamo.firmandoPorNombre} está firmando la recepción…',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600, color: _kAmber)),
+                ),
+              ]),
+            ),
+          ],
+
+          if (onFirmarRecepcion != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed:
+                    prestamo.hayAlguienFirmando ? null : onFirmarRecepcion,
+                icon: const Icon(Icons.draw_outlined, size: 16),
+                label: const Text('Firmar recepción'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
           ],
 
           if (onDevolver != null || onEntregar != null ||
@@ -583,7 +722,16 @@ class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
     if (!mounted) return;
     setState(() => _sending = false);
     if (res.ok) {
+      // Si hubo faltantes, se generó una solicitud de compra a Logística.
+      final msg = res.faltanteCount > 0
+          ? 'Préstamo solicitado. ${res.faltanteCount} ítem(s) sin stock se enviaron a compra a Logística.'
+          : 'Préstamo solicitado';
       Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: res.faltanteCount > 0 ? _kAmber : _kGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(res.error ?? 'Error al solicitar'),
@@ -950,12 +1098,25 @@ class _EquipoRow extends StatelessWidget {
                 ),
               ],
             ]),
+            // Desglose préstamo / compra cuando se pide más de lo disponible.
+            if (cantidad > disponible) ...[
+              const SizedBox(height: 3),
+              Text(
+                  disponible > 0
+                      ? '$disponible en préstamo · ${cantidad - disponible} a compra'
+                      : '${cantidad - disponible} a compra (sin stock)',
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: _kAmber,
+                      fontWeight: FontWeight.w600)),
+            ],
           ]),
         ),
         const SizedBox(width: 8),
+        // Sin tope al stock: el excedente se solicita a compra a Logística.
         _Stepper(
           value: cantidad,
-          max: disponible,
+          max: 9999,
           onChanged: onChange,
         ),
       ]),

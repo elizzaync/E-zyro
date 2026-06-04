@@ -2,10 +2,25 @@ import 'dart:convert';
 import '../core/api_client.dart';
 import '../core/api_result.dart';
 import '../models/compras_models.dart';
+import '../models/requerimiento_models.dart' show AlmacenItem;
 
 class ComprasService {
   final ApiClient _client;
   ComprasService(this._client);
+
+  /// Almacenes activos de la empresa (para elegir destino del ingreso).
+  Future<List<AlmacenItem>> getAlmacenes() async {
+    try {
+      final r = await _client.get('/logistica/almacenes');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => AlmacenItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // TICKETS DE COMPRA (flujo Logística — /logistica/compras)

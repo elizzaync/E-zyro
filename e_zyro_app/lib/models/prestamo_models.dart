@@ -97,6 +97,9 @@ class Prestamo {
   final String? fechaEntrega;
   final String? fechaDevolucion;
   final String? fechaConfirmacion;
+  final String? firmaReceptorUrl;
+  final String? firmaEntregadorUrl;
+  final String? firmandoPorNombre;   // cinema-seat: quién firma la recepción ahora
   final List<PrestamoItem> items;
 
   const Prestamo({
@@ -116,8 +119,21 @@ class Prestamo {
     this.fechaEntrega,
     this.fechaDevolucion,
     this.fechaConfirmacion,
+    this.firmaReceptorUrl,
+    this.firmaEntregadorUrl,
+    this.firmandoPorNombre,
     required this.items,
   });
+
+  /// Préstamo auto-generado al recibir la compra de un faltante (marca interna).
+  bool get esAutoCompra => (observacion ?? '').startsWith('[auto:tc:');
+
+  /// Despachado por logística, pendiente de que el equipo firme la recepción.
+  bool get porRecibir => estado == 'por_recibir';
+
+  /// Otro técnico tiene el lock de firma de recepción ahora mismo.
+  bool get hayAlguienFirmando =>
+      firmandoPorNombre != null && firmandoPorNombre!.isNotEmpty;
 
   factory Prestamo.fromJson(Map<String, dynamic> j) => Prestamo(
         id: j['id'] as String,
@@ -136,6 +152,9 @@ class Prestamo {
         fechaEntrega: j['fecha_entrega'] as String?,
         fechaDevolucion: j['fecha_devolucion'] as String?,
         fechaConfirmacion: j['fecha_confirmacion'] as String?,
+        firmaReceptorUrl: j['firma_receptor_url'] as String?,
+        firmaEntregadorUrl: j['firma_entregador_url'] as String?,
+        firmandoPorNombre: j['firmando_por_nombre'] as String?,
         items: (j['items'] as List? ?? [])
             .map((e) => PrestamoItem.fromJson(e as Map<String, dynamic>))
             .toList(),

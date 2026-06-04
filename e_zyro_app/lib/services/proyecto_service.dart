@@ -494,6 +494,7 @@ class ProyectoService {
     required String unidad,
     required int cantidad,
     String? especificacion,
+    String tipo = 'material', // material | herramienta (texto libre)
   }) =>
       _run(
         () => _client.post('/operaciones/servicio/$servicioId/borrador/item', {
@@ -501,6 +502,7 @@ class ProyectoService {
           'nombre': nombre,
           'unidad': unidad,
           'cantidad': cantidad,
+          'tipo': tipo,
           if (especificacion != null && especificacion.isNotEmpty)
             'especificacion': especificacion,
         }),

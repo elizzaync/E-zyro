@@ -502,6 +502,7 @@ class ItemMaterial {
   final String unidad;
   final int cantidad;
   final String estadoReq;
+  final String tipo; // material | herramienta
 
   const ItemMaterial({
     required this.id,
@@ -510,6 +511,7 @@ class ItemMaterial {
     required this.unidad,
     required this.cantidad,
     required this.estadoReq,
+    this.tipo = 'material',
   });
 
   factory ItemMaterial.fromJson(Map<String, dynamic> j) => ItemMaterial(
@@ -519,6 +521,7 @@ class ItemMaterial {
         unidad: j['unidad'] as String? ?? 'Und',
         cantidad: j['cantidad'] as int? ?? 0,
         estadoReq: j['estado_req'] as String? ?? 'pendiente',
+        tipo: j['tipo'] as String? ?? 'material',
       );
 }
 
@@ -529,12 +532,14 @@ class MaterialBusqueda {
   final String nombre;
   final String unidad;
   final int stock;
+  final String tipo; // material | herramienta (del catálogo)
 
   const MaterialBusqueda({
     required this.id,
     required this.nombre,
     required this.unidad,
     required this.stock,
+    this.tipo = 'material',
   });
 
   factory MaterialBusqueda.fromJson(Map<String, dynamic> j) => MaterialBusqueda(
@@ -542,6 +547,7 @@ class MaterialBusqueda {
         nombre: j['nombre'] as String? ?? '',
         unidad: j['unidad'] as String? ?? 'Und',
         stock: j['stock'] as int? ?? 0,
+        tipo: j['tipo'] as String? ?? 'material',
       );
 }
 

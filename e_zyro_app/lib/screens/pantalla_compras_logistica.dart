@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../core/api_result.dart';
 import '../models/compras_models.dart';
+import '../models/requerimiento_models.dart' show AlmacenItem;
 import '../services/compras_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
@@ -160,6 +162,15 @@ class _PantallaComprasLogisticaState extends State<PantallaComprasLogistica>
     if (!mounted) return;
 
     final sinVincular = fresco.items.where((i) => i.sinVincular).toList();
+    final hayQueIngresar = sinVincular.isNotEmpty || !fresco.ingresoRegistrado;
+
+    // Elegir almacén DESTINO antes de ingresar (si ya está ingresado, no aplica).
+    String? almacenId;
+    if (hayQueIngresar) {
+      final destino = await _elegirAlmacenDestino();
+      if (destino == null) return;             // canceló
+      almacenId = destino.isEmpty ? null : destino;  // '' = usar predeterminado
+    }
 
     if (sinVincular.isNotEmpty) {
       // Cola de vinculación: un modal por cada ítem nuevo.
@@ -174,6 +185,7 @@ class _PantallaComprasLogisticaState extends State<PantallaComprasLogistica>
             ticketId: fresco.id,
             item: item,
             service: _service!,
+            almacenId: almacenId,
           ),
         );
         if (ok != true) break; // el usuario omitió el resto
@@ -183,6 +195,7 @@ class _PantallaComprasLogisticaState extends State<PantallaComprasLogistica>
       // No hay ítems nuevos pero el ingreso no se aplicó: forzarlo.
       final res = await _service!.registrarIngreso(
         fresco.id,
+        almacenId: almacenId,
         items: fresco.items
             .where((i) => (i.cantidadComprada ?? 0) > 0)
             .map((i) => {'itemId': i.id, 'cantidad': i.cantidadComprada})
@@ -197,6 +210,23 @@ class _PantallaComprasLogisticaState extends State<PantallaComprasLogistica>
     }
     await _loadResumen();
     await _load();
+  }
+
+  /// Pide el almacén destino del ingreso. Devuelve:
+  ///   - id del almacén elegido,
+  ///   - '' si no hay almacenes (usar predeterminado del backend),
+  ///   - null si el usuario canceló.
+  /// Con un solo almacén lo usa directo sin preguntar.
+  Future<String?> _elegirAlmacenDestino() async {
+    final almacenes = await _service!.getAlmacenes();
+    if (!mounted) return null;
+    if (almacenes.isEmpty) return '';
+    if (almacenes.length == 1) return almacenes.first.id;
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AlmacenPickerSheet(almacenes: almacenes),
+    );
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -821,6 +851,19 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
     if (res.ok) {
       Navigator.pop(context,
           _ResultadoProceso(completado: completado, ticket: res.data));
+    } else if (_yaProcesadoEnServidor(res)) {
+      // El servidor ya tenía el ticket completado/cancelado (típicamente la
+      // respuesta del primer envío se perdió por red y este es un reintento).
+      // La operación ya está hecha: cerramos como éxito y dejamos que la lista
+      // se refresque. ticket=null evita re-disparar el flujo de ingreso, que
+      // el backend ya registró de forma idempotente.
+      Navigator.pop(context,
+          const _ResultadoProceso(completado: true, ticket: null));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Esta compra ya estaba registrada.'),
+        backgroundColor: _kGreen,
+        behavior: SnackBarBehavior.floating,
+      ));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(res.errorMessage),
@@ -828,6 +871,13 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
         behavior: SnackBarBehavior.floating,
       ));
     }
+  }
+
+  /// `true` cuando el fallo es un 409 porque el ticket ya estaba
+  /// completado/cancelado en el servidor (no es un error real para el usuario).
+  bool _yaProcesadoEnServidor(ApiResult res) {
+    final d = res.error?.detail?.toLowerCase() ?? '';
+    return d.contains('ya está completado') || d.contains('ya está cancelado');
   }
 
   @override
@@ -1289,6 +1339,95 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// Modal: elegir almacén destino del ingreso (devuelve el id elegido)
+// ════════════════════════════════════════════════════════════════════════════
+
+class _AlmacenPickerSheet extends StatelessWidget {
+  final List<AlmacenItem> almacenes;
+  const _AlmacenPickerSheet({required this.almacenes});
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: EdgeInsets.only(
+        left: 18, right: 18, top: 14,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            Row(children: const [
+              Icon(Icons.warehouse_outlined, color: _kBlue, size: 20),
+              SizedBox(width: 8),
+              Text('Almacén destino',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ]),
+            const SizedBox(height: 4),
+            const Text('¿A qué almacén ingresan los materiales comprados?',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 12),
+            ...almacenes.map((a) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () => Navigator.pop(context, a.id),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.warehouse_outlined,
+                            size: 18, color: _kBlue),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(a.nombre,
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600)),
+                              if (a.ubicacion != null &&
+                                  a.ubicacion!.isNotEmpty)
+                                Text(a.ubicacion!,
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right,
+                            size: 18, color: Colors.grey),
+                      ]),
+                    ),
+                  ),
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Modal: Vincular ítem nuevo a inventario
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -1296,11 +1435,13 @@ class _VincularSheet extends StatefulWidget {
   final String ticketId;
   final TicketCompraItem item;
   final ComprasService service;
+  final String? almacenId;   // destino elegido para el ingreso
 
   const _VincularSheet({
     required this.ticketId,
     required this.item,
     required this.service,
+    this.almacenId,
   });
 
   @override
@@ -1352,6 +1493,7 @@ class _VincularSheetState extends State<_VincularSheet> {
       'descripcion':
           _descripcion.text.trim().isEmpty ? null : _descripcion.text.trim(),
       'precioUnitario': double.tryParse(_precio.text.trim()),
+      if (widget.almacenId != null) 'almacenId': widget.almacenId,
     };
     if (_esMaterial) {
       body['unidad'] = _unidad;
