@@ -5,7 +5,6 @@ import '../models/catalogo_models.dart';
 import '../services/catalogo_service.dart';
 import '../utils/api_provider.dart';
 
-/// Gestión de catálogos base (Fase 0): Ubicaciones, Zonas, Áreas.
 class PantallaCatalogos extends StatefulWidget {
   const PantallaCatalogos({super.key});
 
@@ -13,19 +12,22 @@ class PantallaCatalogos extends StatefulWidget {
   State<PantallaCatalogos> createState() => _PantallaCatalogosState();
 }
 
-class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTickerProviderStateMixin {
+class _PantallaCatalogosState extends State<PantallaCatalogos>
+    with SingleTickerProviderStateMixin {
   CatalogoService? _svc;
   late final TabController _tab;
+
   List<UbicacionArbol> _arbol = [];
   List<Ubicacion> _ubic = [];
   List<Zona> _zonas = [];
-  List<Area> _areas = [];
   bool _cargando = true;
+
+  static const _kVerde = Color(0xFF8FD11B);
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
     _init();
   }
@@ -44,162 +46,201 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
   Future<void> _cargar() async {
     if (_svc == null) return;
     setState(() => _cargando = true);
-    final arbol = await _svc!.arbol();
-    final u = await _svc!.ubicaciones();
-    final z = await _svc!.zonas();
-    final a = await _svc!.areas();
+    final results = await Future.wait([
+      _svc!.arbol(),
+      _svc!.ubicaciones(),
+      _svc!.zonas(),
+    ]);
     if (!mounted) return;
     setState(() {
       _cargando = false;
+      final arbol = results[0] as ApiResult<List<UbicacionArbol>>;
+      final u = results[1] as ApiResult<List<Ubicacion>>;
+      final z = results[2] as ApiResult<List<Zona>>;
       if (arbol.ok) _arbol = arbol.data ?? [];
       if (u.ok) _ubic = u.data ?? [];
       if (z.ok) _zonas = z.data ?? [];
-      if (a.ok) _areas = a.data ?? [];
     });
   }
 
   void _snack(String m, {bool error = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(m), backgroundColor: error ? Colors.red.shade700 : null));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(m),
+      backgroundColor: error ? Colors.red.shade700 : null,
+    ));
   }
 
   Future<void> _afterMutation(ApiResult<void> res) async {
     if (!mounted) return;
-    res.ok ? await _cargar() : _snack(res.errorMessage, error: true);
-  }
-
-  Future<void> _add() async {
-    // Tab 0 = Jerarquía (vista árbol): el "+" agrega una ubicación (raíz).
-    switch (_tab.index) {
-      case 0:
-      case 1:
-        await _addUbicacion();
-      case 2:
-        await _addZona();
-      default:
-        await _addArea();
+    if (res.ok) {
+      await _cargar();
+    } else {
+      _snack(res.errorMessage, error: true);
     }
   }
 
-  Future<void> _addUbicacion() async {
-    final n = TextEditingController();
-    final r = TextEditingController();
-    final ok = await _dialogo('Nueva ubicación', [
-      TextField(controller: n, decoration: const InputDecoration(labelText: 'Nombre')),
-      TextField(controller: r, decoration: const InputDecoration(labelText: 'Región')),
-    ]);
-    if (ok != true || n.text.trim().isEmpty) return;
-    await _afterMutation(await _svc!.crearUbicacion(n.text.trim(), r.text.trim().isEmpty ? null : r.text.trim()));
+  // ── FAB: agrega según la pestaña activa ─────────────────────────────────────
+  Future<void> _add() async {
+    switch (_tab.index) {
+      case 0:
+      case 1:
+        await _dlgAddUbicacion();
+      default:
+        await _dlgAddZona();
+    }
   }
 
-  Future<void> _addZona() async {
+  // ── Diálogos: crear ─────────────────────────────────────────────────────────
+
+  Future<void> _dlgAddUbicacion() async {
+    final n = TextEditingController();
+    final r = TextEditingController();
+    final ok = await _dlg('Nueva ubicación', [
+      _field(n, 'Nombre'),
+      _field(r, 'Región (opcional)'),
+    ]);
+    if (ok != true || n.text.trim().isEmpty) return;
+    await _afterMutation(await _svc!.crearUbicacion(
+      n.text.trim(),
+      r.text.trim().isEmpty ? null : r.text.trim(),
+    ));
+  }
+
+  Future<void> _dlgAddZona({String? ubicacionIdFijo}) async {
     final n = TextEditingController();
     final t = TextEditingController();
-    String? ubicId = _ubic.isNotEmpty ? _ubic.first.id : null;
+    String? ubicId = ubicacionIdFijo ?? (_ubic.isNotEmpty ? _ubic.first.id : null);
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) => AlertDialog(
+        builder: (ctx, setL) => AlertDialog(
           title: const Text('Nueva zona'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: n, decoration: const InputDecoration(labelText: 'Nombre')),
-            TextField(controller: t, decoration: const InputDecoration(labelText: 'Tipo')),
-            if (_ubic.isNotEmpty)
+            _field(n, 'Nombre'),
+            _field(t, 'Tipo (opcional)'),
+            if (ubicacionIdFijo == null && _ubic.isNotEmpty)
               DropdownButtonFormField<String>(
                 initialValue: ubicId,
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Ubicación'),
-                items: _ubic.map((u) => DropdownMenuItem(value: u.id, child: Text(u.nombre, overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (v) => setLocal(() => ubicId = v),
+                items: _ubic
+                    .map((u) => DropdownMenuItem(
+                          value: u.id,
+                          child: Text(u.nombre, overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setL(() => ubicId = v),
               ),
           ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
-          ],
+          actions: _acciones(ctx),
         ),
       ),
     );
     if (ok != true || n.text.trim().isEmpty) return;
-    await _afterMutation(await _svc!.crearZona(n.text.trim(), t.text.trim().isEmpty ? null : t.text.trim(), ubicId));
+    await _afterMutation(await _svc!.crearZona(
+      n.text.trim(),
+      t.text.trim().isEmpty ? null : t.text.trim(),
+      ubicId,
+    ));
   }
 
-  Future<void> _addArea() async {
-    final n = TextEditingController();
-    // Cascada Ubicación → Zona: el área cuelga de una zona (mantiene el orden).
-    String? ubicId = _ubic.isNotEmpty ? _ubic.first.id : null;
-    List<Zona> zonasUbic = _zonas.where((z) => z.ubicacionId == ubicId).toList();
-    String? zonaId = zonasUbic.isNotEmpty ? zonasUbic.first.id : null;
+  // ── Diálogos: editar ────────────────────────────────────────────────────────
+
+  Future<void> _dlgEditUbicacion(String id, String nombre, String? region) async {
+    final n = TextEditingController(text: nombre);
+    final r = TextEditingController(text: region ?? '');
+    final ok = await _dlg('Editar ubicación', [
+      _field(n, 'Nombre'),
+      _field(r, 'Región (opcional)'),
+    ]);
+    if (ok != true || n.text.trim().isEmpty) return;
+    await _afterMutation(await _svc!.actualizarUbicacion(
+      id,
+      n.text.trim(),
+      r.text.trim().isEmpty ? null : r.text.trim(),
+    ));
+  }
+
+  Future<void> _dlgEditZona(String id, String nombre, String? tipo) async {
+    final n = TextEditingController(text: nombre);
+    final t = TextEditingController(text: tipo ?? '');
+    final ok = await _dlg('Editar zona', [
+      _field(n, 'Nombre'),
+      _field(t, 'Tipo (opcional)'),
+    ]);
+    if (ok != true || n.text.trim().isEmpty) return;
+    await _afterMutation(await _svc!.actualizarZona(
+      id,
+      n.text.trim(),
+      t.text.trim().isEmpty ? null : t.text.trim(),
+      null,
+    ));
+  }
+
+  // ── Confirmar eliminación ────────────────────────────────────────────────────
+  Future<void> _confirmDel(String tipo, String id, String nombre) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) {
-          zonasUbic = _zonas.where((z) => z.ubicacionId == ubicId).toList();
-          return AlertDialog(
-            title: const Text('Nueva área'),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              TextField(controller: n, decoration: const InputDecoration(labelText: 'Nombre')),
-              const SizedBox(height: 8),
-              if (_ubic.isNotEmpty)
-                DropdownButtonFormField<String>(
-                  initialValue: ubicId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Ubicación'),
-                  items: _ubic.map((u) => DropdownMenuItem(value: u.id, child: Text(u.nombre, overflow: TextOverflow.ellipsis))).toList(),
-                  onChanged: (v) => setLocal(() {
-                    ubicId = v;
-                    final zs = _zonas.where((z) => z.ubicacionId == v).toList();
-                    zonaId = zs.isNotEmpty ? zs.first.id : null;
-                  }),
-                ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: zonaId,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Zona'),
-                hint: const Text('Selecciona una zona'),
-                items: zonasUbic.map((z) => DropdownMenuItem(value: z.id, child: Text(z.nombre, overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (v) => setLocal(() => zonaId = v),
-              ),
-            ]),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
-            ],
-          );
-        },
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar eliminación'),
+        content: Text('¿Eliminar "$nombre"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
       ),
     );
-    if (ok != true || n.text.trim().isEmpty) return;
-    if (zonaId == null) {
-      _snack('Selecciona una zona para el área', error: true);
-      return;
-    }
-    await _afterMutation(await _svc!.crearArea(n.text.trim(), zonaId: zonaId));
+    if (ok != true) return;
+    await _afterMutation(await _svc!.eliminar(tipo, id));
   }
 
-  Future<bool?> _dialogo(String titulo, List<Widget> campos) => showDialog<bool>(
+  // ── Helpers de diálogo ───────────────────────────────────────────────────────
+  Future<bool?> _dlg(String titulo, List<Widget> campos) => showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(titulo),
           content: Column(mainAxisSize: MainAxisSize.min, children: campos),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
-          ],
+          actions: _acciones(ctx),
         ),
       );
 
-  Future<void> _del(String tipo, String id) async {
-    await _afterMutation(await _svc!.eliminar(tipo, id));
-  }
+  List<Widget> _acciones(BuildContext ctx) => [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Guardar'),
+        ),
+      ];
+
+  Widget _field(TextEditingController ctrl, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TextField(
+          controller: ctrl,
+          decoration: InputDecoration(labelText: label),
+          textCapitalization: TextCapitalization.characters,
+        ),
+      );
+
+  // ── BUILD ────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Catálogos', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Catálogos',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         bottom: TabBar(
           controller: _tab,
           isScrollable: true,
@@ -207,108 +248,222 @@ class _PantallaCatalogosState extends State<PantallaCatalogos> with SingleTicker
             Tab(text: 'Jerarquía'),
             Tab(text: 'Ubicaciones'),
             Tab(text: 'Zonas'),
-            Tab(text: 'Áreas'),
           ],
         ),
-        actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
+        actions: [
+          IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh)),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(onPressed: _add, child: const Icon(Icons.add)),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _add,
+        backgroundColor: _kVerde,
+        child: const Icon(Icons.add),
+      ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(controller: _tab, children: [_arbolTab(), _ubicTab(), _zonasTab(), _areasTab()]),
+          : TabBarView(
+              controller: _tab,
+              children: [
+                _arbolTab(),
+                _ubicTab(),
+                _zonasTab(),
+              ],
+            ),
     );
   }
 
-  /// Vista de árbol jerárquico Ubicación → Zona → Área (relaciones de un vistazo).
+  // ── TAB: Jerarquía ──────────────────────────────────────────────────────────
+
   Widget _arbolTab() {
     if (_arbol.isEmpty) {
       return RefreshIndicator(
         onRefresh: _cargar,
         child: ListView(children: const [
           SizedBox(height: 120),
-          Center(child: Text('Sin ubicaciones con zonas.\nCrea desde las otras pestañas.',
-              textAlign: TextAlign.center)),
+          Center(
+            child: Text(
+              'Sin ubicaciones registradas.\nUsa el botón + para comenzar.',
+              textAlign: TextAlign.center,
+            ),
+          ),
         ]),
       );
     }
+
     return RefreshIndicator(
       onRefresh: _cargar,
       child: ListView(
         padding: const EdgeInsets.symmetric(vertical: 4),
         children: [
-          for (final u in _arbol)
-            Card(
-              margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-              clipBehavior: Clip.antiAlias,
-              child: ExpansionTile(
-                initiallyExpanded: true,
-                leading: const Icon(Icons.location_on_outlined, color: Color(0xFF8FD11B)),
-                title: Text(u.nombre, style: const TextStyle(fontWeight: FontWeight.w700)),
-                subtitle: Text([u.region, '${u.zonas.length} zona(s)']
-                    .where((x) => (x ?? '').isNotEmpty).join(' · ')),
-                childrenPadding: const EdgeInsets.only(left: 8, bottom: 8),
-                children: [
-                  if (u.zonas.isEmpty)
-                    const ListTile(dense: true, title: Text('— sin zonas —', style: TextStyle(color: Colors.grey))),
-                  for (final z in u.zonas)
-                    ExpansionTile(
-                      leading: const Icon(Icons.crop_free, size: 20),
-                      title: Text(z.nombre),
-                      subtitle: Text([z.tipo, '${z.areas.length} área(s)']
-                          .where((x) => (x ?? '').isNotEmpty).join(' · ')),
-                      childrenPadding: const EdgeInsets.only(left: 16),
-                      children: [
-                        if (z.areas.isEmpty)
-                          const ListTile(dense: true, title: Text('— sin áreas —', style: TextStyle(color: Colors.grey))),
-                        for (final a in z.areas)
-                          ListTile(
-                            dense: true,
-                            leading: const Icon(Icons.workspaces_outline, size: 18),
-                            title: Text(a.nombre),
-                          ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
+          for (final u in _arbol) _ubicacionCard(u),
           const SizedBox(height: 80),
         ],
       ),
     );
   }
 
-  Widget _lista(List<Widget> tiles, String vacio) =>
-      tiles.isEmpty ? Center(child: Text(vacio)) : RefreshIndicator(onRefresh: _cargar, child: ListView(children: tiles));
-
-  Widget _ubicTab() => _lista([
-        for (final u in _ubic)
-          ListTile(
-            leading: const Icon(Icons.location_on_outlined),
-            title: Text(u.nombre),
-            subtitle: Text(u.region ?? '-'),
-            trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _del('ubicaciones', u.id)),
-          ),
-      ], 'Sin ubicaciones.');
-
-  Widget _zonasTab() => _lista([
-        for (final z in _zonas)
-          ListTile(
-            leading: const Icon(Icons.crop_free),
-            title: Text(z.nombre),
-            subtitle: Text([z.tipo, z.ubicacionNombre].where((x) => (x ?? '').isNotEmpty).join(' · ')),
-            trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _del('zonas', z.id)),
-          ),
-      ], 'Sin zonas.');
-
-  Widget _areasTab() => _lista([
-        for (final a in _areas)
-          ListTile(
-            leading: const Icon(Icons.workspaces_outline),
-            title: Text(a.nombre),
-            subtitle: Text(
-              [a.ubicacionNombre, a.zonaNombre].where((x) => (x ?? '').isNotEmpty).join(' › '),
+  Widget _ubicacionCard(UbicacionArbol u) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        initiallyExpanded: _arbol.length <= 5,
+        leading: const Icon(Icons.location_on_outlined, color: _kVerde),
+        title: Text(u.nombre,
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text(
+          [u.region, '${u.zonas.length} zona(s)']
+              .where((x) => (x ?? '').isNotEmpty)
+              .join(' · '),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _menuNodo(items: [
+              _MenuOpt(Icons.add_circle_outline, 'Agregar zona', () {
+                _dlgAddZona(ubicacionIdFijo: u.id);
+              }),
+              _MenuOpt(Icons.edit_outlined, 'Editar', () {
+                _dlgEditUbicacion(u.id, u.nombre, u.region);
+              }),
+              _MenuOpt(Icons.delete_outline, 'Eliminar', () {
+                _confirmDel('ubicaciones', u.id, u.nombre);
+              }, danger: true),
+            ]),
+            const Icon(Icons.expand_more),
+          ],
+        ),
+        childrenPadding: const EdgeInsets.only(left: 8, bottom: 8),
+        children: [
+          if (u.zonas.isEmpty)
+            ListTile(
+              dense: true,
+              title: const Text('— sin zonas —',
+                  style: TextStyle(color: Colors.grey)),
+              trailing: TextButton.icon(
+                onPressed: () => _dlgAddZona(ubicacionIdFijo: u.id),
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Zona'),
+              ),
             ),
-            trailing: IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), onPressed: () => _del('areas', a.id)),
-          ),
-      ], 'Sin áreas.');
+          for (final z in u.zonas) _zonaExpansion(z),
+        ],
+      ),
+    );
+  }
+
+  Widget _zonaExpansion(ZonaArbol z) {
+    return ListTile(
+      leading: const Icon(Icons.crop_free, size: 20),
+      title: Text(z.nombre),
+      subtitle: z.tipo != null ? Text(z.tipo!) : null,
+      trailing: _menuNodo(items: [
+        _MenuOpt(Icons.edit_outlined, 'Editar', () {
+          _dlgEditZona(z.id, z.nombre, z.tipo);
+        }),
+        _MenuOpt(Icons.delete_outline, 'Eliminar', () {
+          _confirmDel('zonas', z.id, z.nombre);
+        }, danger: true),
+      ]),
+    );
+  }
+
+  Widget _menuNodo({required List<_MenuOpt> items}) {
+    return PopupMenuButton<_MenuOpt>(
+      icon: const Icon(Icons.more_vert, size: 20),
+      padding: EdgeInsets.zero,
+      onSelected: (opt) => opt.accion(),
+      itemBuilder: (_) => items
+          .map((o) => PopupMenuItem(
+                value: o,
+                child: Row(children: [
+                  Icon(o.icon,
+                      size: 18,
+                      color: o.danger ? Colors.red : null),
+                  const SizedBox(width: 10),
+                  Text(o.label,
+                      style: TextStyle(
+                          color: o.danger ? Colors.red : null)),
+                ]),
+              ))
+          .toList(),
+    );
+  }
+
+  // ── TAB: Ubicaciones (lista plana) ───────────────────────────────────────────
+
+  Widget _ubicTab() {
+    if (_ubic.isEmpty) {
+      return const Center(child: Text('Sin ubicaciones.'));
+    }
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      child: ListView(
+        children: _ubic
+            .map((u) => ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: Text(u.nombre),
+                  subtitle: Text(u.region ?? '-'),
+                  trailing: _rowAcciones(
+                    onEdit: () => _dlgEditUbicacion(u.id, u.nombre, u.region),
+                    onDel: () => _confirmDel('ubicaciones', u.id, u.nombre),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  // ── TAB: Zonas (lista plana) ─────────────────────────────────────────────────
+
+  Widget _zonasTab() {
+    if (_zonas.isEmpty) return const Center(child: Text('Sin zonas.'));
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      child: ListView(
+        children: _zonas
+            .map((z) => ListTile(
+                  leading: const Icon(Icons.crop_free),
+                  title: Text(z.nombre),
+                  subtitle: Text(
+                    [z.tipo, z.ubicacionNombre]
+                        .where((x) => (x ?? '').isNotEmpty)
+                        .join(' · '),
+                  ),
+                  trailing: _rowAcciones(
+                    onEdit: () => _dlgEditZona(z.id, z.nombre, z.tipo),
+                    onDel: () => _confirmDel('zonas', z.id, z.nombre),
+                  ),
+                ))
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _rowAcciones({required VoidCallback onEdit, required VoidCallback onDel}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.edit_outlined, size: 20),
+          onPressed: onEdit,
+          tooltip: 'Editar',
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+          onPressed: onDel,
+          tooltip: 'Eliminar',
+        ),
+      ],
+    );
+  }
+}
+
+// ── Modelos internos ─────────────────────────────────────────────────────────
+class _MenuOpt {
+  final IconData icon;
+  final String label;
+  final VoidCallback accion;
+  final bool danger;
+  const _MenuOpt(this.icon, this.label, this.accion, {this.danger = false});
 }

@@ -96,6 +96,25 @@ class CatalogoService {
     }
   }
 
+  Future<ApiResult<void>> actualizarUbicacion(String id, String nombre, String? region) =>
+      _put('/catalogos/ubicaciones/$id', {'nombre': nombre, 'region': ?region});
+
+  Future<ApiResult<void>> actualizarZona(String id, String nombre, String? tipo, String? ubicacionId) =>
+      _put('/catalogos/zonas/$id', {'nombre': nombre, 'tipo': ?tipo, 'ubicacion_id': ?ubicacionId});
+
+  Future<ApiResult<void>> actualizarArea(String id, String nombre, {String? zonaId}) =>
+      _put('/catalogos/areas/$id', {'nombre': nombre, 'zona_id': ?zonaId});
+
+  Future<ApiResult<void>> _put(String path, Map<String, dynamic> body) async {
+    try {
+      final r = await _client.put(path, body);
+      if (r.statusCode == 200) return const ApiResult.ok();
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<void>> eliminar(String tipo, String id) async {
     try {
       final r = await _client.delete('/catalogos/$tipo/$id');
