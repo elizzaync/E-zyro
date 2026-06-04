@@ -52,6 +52,7 @@ class ItemMaterialOut(BaseModel):
     unidad: str
     cantidad: int
     estado_req: str
+    tipo: str = "material"   # material | herramienta
 
 
 class ServicioDetalleOut(BaseModel):
@@ -202,6 +203,9 @@ class AgregarBorradorBody(BaseModel):
     unidad:         Optional[str] = None
     cantidad:       int
     especificacion: Optional[str] = None
+    # Clasificación de la línea cuando es texto libre (sin material_id).
+    # Para ítems del catálogo se deriva de material.tipo y este valor se ignora.
+    tipo:           Optional[str] = None   # material | herramienta
 
 
 # ── HU-MANT: Checklist de equipo (pasos + evidencias) ────────────────────────

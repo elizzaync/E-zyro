@@ -1856,6 +1856,7 @@ def _crear_ticket_compra(
         sugerida        = None             # snapshot inmutable
         stock_snap      = None
         minimo_snap     = None
+        mat             = None
 
         if d.material_id:
             mat = db.query(Material).filter(Material.id == d.material_id).first()
@@ -1886,14 +1887,14 @@ def _crear_ticket_compra(
             # Ítem de texto libre: sin stock de referencia, comprar lo solicitado
             sugerida = qty_solicitada
 
-        # Clasificación del ítem: desde campo explícito o derivada del contexto
-        # - material_id presente → siempre 'material'
-        # - compra externa con tipo_item_compra → usar ese valor
-        # - equipo/herramienta de inventario (especificación heurística)
-        if d.material_id:
-            tipo_item = "material"
-        elif getattr(d, "tipo_item_compra", None):
+        # Clasificación del ítem: campo explícito o derivada del contexto
+        # - tipo_item_compra de la línea → tiene prioridad (lo fija la solicitud)
+        # - material_id presente → se deriva del catálogo (material.tipo)
+        # - texto libre → heurística por especificación
+        if getattr(d, "tipo_item_compra", None) in ("material", "herramienta"):
             tipo_item = d.tipo_item_compra
+        elif d.material_id:
+            tipo_item = "herramienta" if (mat and mat.tipo == "herramienta") else "material"
         else:
             # fallback: inferir de especificacion para ítems del tab 'equipos'
             espec = (d.especificacion or "").lower()
@@ -3208,14 +3209,24 @@ def crear_retorno(
     )
     for d in detalles_req:
         cant_ret = max(0, items_map.get(str(d.id), 0))
-        tipo     = (getattr(d, "tipo_item_compra", None) or "material").lower()
+        explicit = (getattr(d, "tipo_item_compra", None) or "").lower()
         nombre   = d.nombre_libre or ""
         unidad   = d.unidad_libre or "Unidades"
+        mat      = None
         if d.material_id:
             mat = db.query(Material).filter(Material.id == d.material_id).first()
             if mat:
                 nombre = mat.nombre
                 unidad = mat.unidad or unidad
+        # Clasificación: valor explícito de la línea tiene prioridad; si no,
+        # se deriva del catálogo (material.tipo); por defecto 'material'.
+        # (Antes se forzaba 'material' cuando había material_id → herramientas
+        #  del catálogo no se marcaban retornables.)
+        if explicit in ("material", "herramienta", "equipo"):
+            tipo = explicit
+        elif mat is not None:
+            tipo = "herramienta" if mat.tipo == "herramienta" else "material"
+        else:
             tipo = "material"
         db.add(RetornoDetalle(
             id=str(_uuid.uuid4()),
@@ -3304,14 +3315,24 @@ def crear_retorno_desde_servicio(
 
     for d in detalles_todos:
         cant_ret = max(0, items_map.get(str(d.id), 0))
-        tipo     = (getattr(d, "tipo_item_compra", None) or "material").lower()
+        explicit = (getattr(d, "tipo_item_compra", None) or "").lower()
         nombre   = d.nombre_libre or ""
         unidad   = d.unidad_libre or "Unidades"
+        mat      = None
         if d.material_id:
             mat = db.query(Material).filter(Material.id == d.material_id).first()
             if mat:
                 nombre = mat.nombre
                 unidad = mat.unidad or unidad
+        # Clasificación: valor explícito de la línea tiene prioridad; si no,
+        # se deriva del catálogo (material.tipo); por defecto 'material'.
+        # (Antes se forzaba 'material' cuando había material_id → herramientas
+        #  del catálogo no se marcaban retornables.)
+        if explicit in ("material", "herramienta", "equipo"):
+            tipo = explicit
+        elif mat is not None:
+            tipo = "herramienta" if mat.tipo == "herramienta" else "material"
+        else:
             tipo = "material"
         db.add(RetornoDetalle(
             id=str(_uuid.uuid4()),

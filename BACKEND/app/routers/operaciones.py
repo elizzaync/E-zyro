@@ -627,6 +627,7 @@ def get_detalle_servicio(
                 Material.unidad,
                 RequerimientoDetalle.unidad_libre,
             ).label("mat_unidad"),
+            Material.tipo.label("mat_tipo"),
         )
         .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
         .outerjoin(Material, Material.id      == RequerimientoDetalle.material_id)
@@ -645,6 +646,11 @@ def get_detalle_servicio(
 
     for m in mat_rows:
         rd = m.RequerimientoDetalle
+        # Clasificación: campo explícito de la línea; si falta, derivar del
+        # catálogo (material.tipo); por defecto 'material'.
+        tipo_item = (getattr(rd, "tipo_item_compra", None) or "").lower()
+        if tipo_item not in ("material", "herramienta"):
+            tipo_item = "herramienta" if (m.mat_tipo == "herramienta") else "material"
         item = ItemMaterialOut(
             id=str(rd.id),
             requerimiento_id=str(m.req_id),
@@ -652,6 +658,7 @@ def get_detalle_servicio(
             unidad=m.mat_unidad or "Und",
             cantidad=rd.cantidad or 0,
             estado_req=m.req_estado or "pendiente",
+            tipo=tipo_item,
         )
         if m.req_estado in ("entregado", "aprobado"):
             mat_asignados.append(item)
@@ -1264,6 +1271,15 @@ async def agregar_item_borrador(
     if body.especificacion: rd.especificacion = body.especificacion
     rd.agregado_por_id = agregado_por_id   # None cuando admin sin empleado
 
+    # Clasificación de la línea (material | herramienta):
+    #  - Con material_id → se deriva del catálogo (material.tipo).
+    #  - Texto libre     → se respeta lo que indique el usuario (body.tipo).
+    if body.material_id:
+        mat = db.query(Material).filter(Material.id == body.material_id).first()
+        rd.tipo_item_compra = "herramienta" if (mat and mat.tipo == "herramienta") else "material"
+    else:
+        rd.tipo_item_compra = "herramienta" if (body.tipo or "").lower() == "herramienta" else "material"
+
     try:
         db.add(rd)
         db.commit()
@@ -1410,6 +1426,7 @@ def buscar_materiales(
             Material.id,
             Material.nombre,
             Material.unidad,
+            Material.tipo,
             func.coalesce(stock_sq.c.total, 0).label("stock"),
         )
         .outerjoin(stock_sq, stock_sq.c.material_id == Material.id)
@@ -1423,7 +1440,15 @@ def buscar_materiales(
         .all()
     )
 
-    return [{"id": r.id, "nombre": r.nombre, "unidad": r.unidad, "stock": int(r.stock)} for r in rows]
+    return [
+        {
+            "id": r.id, "nombre": r.nombre, "unidad": r.unidad,
+            "stock": int(r.stock),
+            # Clasificación del catálogo: consumible → 'material', herramienta → 'herramienta'
+            "tipo": "herramienta" if r.tipo == "herramienta" else "material",
+        }
+        for r in rows
+    ]
 
 
 # ── GET /operaciones/proyecto/{proyecto_id}/equipos ───────────────────────────
