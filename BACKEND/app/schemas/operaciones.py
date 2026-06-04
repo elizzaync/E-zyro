@@ -87,6 +87,8 @@ class ServicioDetalleOut(BaseModel):
     es_mantenimiento: bool = False
     ubicacion_id: Optional[str] = None
     zona_id: Optional[str] = None
+    ubicacion_nombre: Optional[str] = None
+    zona_nombre: Optional[str] = None
 
 
 class ProyectoListOut(BaseModel):

@@ -475,6 +475,15 @@ def get_detalle_servicio(
     cliente  = db.query(Cliente).filter(Cliente.id  == proyecto.cliente_id).first()
     # La zona ahora vive en el servicio; el nombre del proyecto es el fallback.
     ubicacion = (ps.zona_ejecucion or proyecto.nombre_proyecto) or ""
+    # Nombres de ubicacion/zona para prefill del modal de edicion (evita race en frontend)
+    ubic_nombre = None
+    zona_nombre = None
+    if ps.ubicacion_id:
+        _u = db.query(Ubicacion).filter(Ubicacion.id == ps.ubicacion_id).first()
+        ubic_nombre = _u.nombre if _u else None
+    if ps.zona_id:
+        _z = db.query(Zona).filter(Zona.id == ps.zona_id).first()
+        zona_nombre = _z.nombre if _z else None
 
     # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass)
     if payload.get("rol", "") != "Administrador":
@@ -696,6 +705,8 @@ def get_detalle_servicio(
         es_mantenimiento=bool(ps.tiene_equipos_intervenidos),
         ubicacion_id=str(ps.ubicacion_id) if ps.ubicacion_id else None,
         zona_id=str(ps.zona_id) if ps.zona_id else None,
+        ubicacion_nombre=ubic_nombre,
+        zona_nombre=zona_nombre,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
