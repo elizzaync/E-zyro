@@ -78,12 +78,20 @@
       }
     </div>
 
+    <!-- Aviso: la lista está acotada a la ubicación/zona del servicio -->
+    <div class="ei-filtro-aviso">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 00-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 00-8-8z"/>
+      </svg>
+      <span>Mostrando únicamente los equipos de la <strong>ubicación y zona de este servicio</strong>.</span>
+    </div>
+
     @if (equiposFiltrados.length === 0) {
       <div class="ei-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
         </svg>
-        <p>{{ filtro ? 'No se encontraron resultados.' : 'No hay activos registrados.' }}</p>
+        <p>{{ filtro ? 'No se encontraron resultados.' : 'No hay equipos registrados para la ubicación y zona de este servicio.' }}</p>
         @if (!filtro) {
           <button class="btn-agregar-sm" (click)="abrirFormNuevo()">Agregar el primero</button>
         }
@@ -95,8 +103,8 @@
             <tr>
               <th>Equipo</th>
               <th>Tipo</th>
-              <th>Ubicación</th>
-              <th>Zona</th>
+              <th>Referencia (ubicación / zona)</th>
+              <th>Próximo Mtto</th>
               <th>Estado Inspección</th>
               <th class="col-actions">Acción</th>
             </tr>
@@ -109,8 +117,10 @@
                   @if (eq.codigo) { <span class="eq-codigo">{{ eq.codigo }}</span> }
                 </td>
                 <td class="td-muted">{{ eq.tipoNombre ?? '—' }}</td>
-                <td class="td-muted">{{ eq.ubicacion ?? '—' }}</td>
-                <td class="td-muted">{{ eq.zona ?? '—' }}</td>
+                <td class="td-muted">
+                  {{ eq.ubicacionReferencia ?? ((eq.ubicacion ?? '—') + (eq.zona ? ' / ' + eq.zona : '')) }}
+                </td>
+                <td class="td-muted">{{ eq.proximoMantenimiento ? (eq.proximoMantenimiento | date:'dd/MM/yyyy') : '—' }}</td>
                 <td>
                   <span class="badge" [ngClass]="estadoClass(eq.estadoIntervencion)">
                     {{ estadoLabel(eq.estadoIntervencion) }}

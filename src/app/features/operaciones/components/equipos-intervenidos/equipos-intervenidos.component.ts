@@ -23,6 +23,7 @@ export interface EquipoIntervenido {
   id: string;
   nombre: string;
   codigo: string | null;
+  ubicacionReferencia: string | null;
   tipoNombre: string | null;
   tipoEquipoId: string | null;
   marca: string | null;
@@ -30,6 +31,8 @@ export interface EquipoIntervenido {
   numeroSerie: string | null;
   ubicacion: string | null;
   zona: string | null;
+  ultimoMantenimiento: string | null;
+  proximoMantenimiento: string | null;
   estadoIntervencion: string;
   estado: string;
 }
@@ -79,6 +82,7 @@ export class EquiposIntervenidosComponent implements OnInit {
           id:                  r.id,
           nombre:              r.nombre,
           codigo:              r.codigo       ?? null,
+          ubicacionReferencia: r.ubicacion_referencia ?? null,
           tipoNombre:          r.tipo_nombre  ?? null,
           tipoEquipoId:        r.tipo_equipo_id ?? null,
           marca:               r.marca        ?? null,
@@ -86,6 +90,8 @@ export class EquiposIntervenidosComponent implements OnInit {
           numeroSerie:         r.numero_serie ?? null,
           ubicacion:           r.ubicacion    ?? null,
           zona:                r.zona         ?? null,
+          ultimoMantenimiento: r.ultimo_mantenimiento ?? null,
+          proximoMantenimiento: r.proximo_mantenimiento ?? null,
           estadoIntervencion:  r.estado_intervencion ?? 'sin_inspeccion',
           estado:              r.estado ?? 'operativo',
         }));

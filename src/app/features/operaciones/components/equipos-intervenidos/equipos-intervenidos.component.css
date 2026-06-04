@@ -373,3 +373,19 @@
   .ei-header-actions { width: 100%; justify-content: flex-end; }
   .ei-table-wrap { overflow-x: auto; }
 }
+
+/* Aviso de filtro por ubicación/zona del servicio */
+.ei-filtro-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 9px 14px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 13px;
+}
+.ei-filtro-aviso svg { width: 16px; height: 16px; flex-shrink: 0; }
+.ei-filtro-aviso strong { font-weight: 600; }
