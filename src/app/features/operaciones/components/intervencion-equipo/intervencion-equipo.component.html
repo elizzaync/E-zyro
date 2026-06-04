@@ -51,53 +51,10 @@
   <!-- ══ CONTENIDO ══════════════════════════════════════════════════════ -->
   @else if (equipo) {
     <div class="iv-body">
+     <div class="iv-grid">
 
-      <!-- Tarjeta datos equipo -->
-      <div class="iv-card slide-up">
-        <div class="iv-card-head">
-          <div class="iv-equipo-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="iv-equipo-nombre">{{ equipo.nombre }}</h2>
-            @if (equipo.codigo) { <span class="iv-equipo-codigo">{{ equipo.codigo }}</span> }
-          </div>
-        </div>
-        <div class="iv-equipo-grid">
-          <div class="iv-meta">
-            <span class="iv-meta-lbl">Tipo</span>
-            <span class="iv-meta-val">{{ equipo.tipoNombre ?? '—' }}</span>
-          </div>
-          <div class="iv-meta">
-            <span class="iv-meta-lbl">Marca</span>
-            <span class="iv-meta-val">{{ equipo.marca ?? '—' }}</span>
-          </div>
-          <div class="iv-meta">
-            <span class="iv-meta-lbl">Modelo</span>
-            <span class="iv-meta-val">{{ equipo.modelo ?? '—' }}</span>
-          </div>
-          <div class="iv-meta">
-            <span class="iv-meta-lbl">N° Serie</span>
-            <span class="iv-meta-val">{{ equipo.numeroSerie ?? '—' }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Barra de progreso -->
-      <div class="iv-card iv-progress-card slide-up">
-        <div class="iv-progress-row">
-          <div>
-            <span class="iv-progress-title">Progreso de Inspección</span>
-            <span class="iv-progress-sub">{{ completados }} / {{ total }} procedimientos</span>
-          </div>
-          <span class="iv-progress-pct" [class.iv-pct-done]="todosCompletados">{{ progreso }}%</span>
-        </div>
-        <div class="iv-pbar-track">
-          <div class="iv-pbar-fill" [style.width.%]="progreso" [class.iv-pbar-done]="todosCompletados"></div>
-        </div>
-      </div>
+      <!-- ═══════════ COLUMNA PRINCIPAL (izquierda): checklist ═══════════ -->
+      <div class="iv-main">
 
       <!-- Checklist de procedimientos -->
       <div class="iv-card slide-up">
@@ -235,6 +192,58 @@
         </div>
       }
 
+      </div><!-- /iv-main -->
+
+      <!-- ═══════════ PANEL LATERAL (derecha, sticky) ═══════════ -->
+      <aside class="iv-aside">
+
+      <!-- Tarjeta datos equipo -->
+      <div class="iv-card slide-up">
+        <div class="iv-card-head">
+          <div class="iv-equipo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="iv-equipo-nombre">{{ equipo.nombre }}</h2>
+            @if (equipo.codigo) { <span class="iv-equipo-codigo">{{ equipo.codigo }}</span> }
+          </div>
+        </div>
+        <div class="iv-equipo-grid">
+          <div class="iv-meta">
+            <span class="iv-meta-lbl">Tipo</span>
+            <span class="iv-meta-val">{{ equipo.tipoNombre ?? '—' }}</span>
+          </div>
+          <div class="iv-meta">
+            <span class="iv-meta-lbl">Marca</span>
+            <span class="iv-meta-val">{{ equipo.marca ?? '—' }}</span>
+          </div>
+          <div class="iv-meta">
+            <span class="iv-meta-lbl">Modelo</span>
+            <span class="iv-meta-val">{{ equipo.modelo ?? '—' }}</span>
+          </div>
+          <div class="iv-meta">
+            <span class="iv-meta-lbl">N° Serie</span>
+            <span class="iv-meta-val">{{ equipo.numeroSerie ?? '—' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Barra de progreso -->
+      <div class="iv-card iv-progress-card slide-up">
+        <div class="iv-progress-row">
+          <div>
+            <span class="iv-progress-title">Progreso de Inspección</span>
+            <span class="iv-progress-sub">{{ completados }} / {{ total }} procedimientos</span>
+          </div>
+          <span class="iv-progress-pct" [class.iv-pct-done]="todosCompletados">{{ progreso }}%</span>
+        </div>
+        <div class="iv-pbar-track">
+          <div class="iv-pbar-fill" [style.width.%]="progreso" [class.iv-pbar-done]="todosCompletados"></div>
+        </div>
+      </div>
+
       <!-- Próxima fecha + Finalizar -->
       @if (!estaFinalizado) {
         <div class="iv-card iv-actions-card slide-up">
@@ -309,6 +318,8 @@
         </div>
       }
 
+      </aside><!-- /iv-aside -->
+     </div><!-- /iv-grid -->
     </div>
   }
 

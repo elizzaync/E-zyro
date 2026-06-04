@@ -78,10 +78,34 @@
 
 /* ── Cuerpo ──────────────────────────────────────────────────── */
 .iv-body {
+  width: 100%;
+}
+
+/* Layout de 2 columnas: checklist (izq) + panel resumen/acciones (der) */
+.iv-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+  align-items: start;
+}
+.iv-main {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  max-width: 780px;
+  min-width: 0;
+}
+.iv-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: sticky;
+  top: 18px;
+}
+
+/* Tablet / pantallas medianas: una sola columna */
+@media (max-width: 1024px) {
+  .iv-grid { grid-template-columns: 1fr; }
+  .iv-aside { position: static; }
 }
 
 /* ── Tarjeta base ────────────────────────────────────────────── */
@@ -370,7 +394,8 @@
 }
 .iv-date-input:focus { outline: none; border-color: var(--brand-green, #91d337); }
 
-.iv-btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.iv-btn-row { display: flex; flex-direction: column; gap: 10px; }
+.iv-btn-row .iv-btn-secondary, .iv-btn-row .iv-btn-primary { width: 100%; justify-content: center; }
 
 .iv-btn-secondary {
   display: inline-flex; align-items: center; gap: 7px;
