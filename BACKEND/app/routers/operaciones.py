@@ -3432,16 +3432,18 @@ def list_equipos_intervenidos(
         )
     )
 
-    # Filtro geográfico: zona > ubicacion > todo
-    if servicio_zona_id:
-        q = q.filter(EquipoIntervenido.zona_id == servicio_zona_id)
-    elif servicio_ubicacion_id:
-        q = q.filter(EquipoIntervenido.ubicacion_id == servicio_ubicacion_id)
+    # Filtro geográfico inteligente: zona exacta -> (si vacia) ubicacion -> (si no hay) todos.
+    # Caso real: un servicio en AREQUIPA/AREQUIPA donde la zona "AREQUIPA" es la generica
+    # y los equipos viven en sub-zonas (RAMPA/CARGA/PAX): cae a la ubicacion y los muestra.
+    orden = (TipoEquipo.nombre.asc(), EquipoIntervenido.nombre.asc())
 
-    rows = q.order_by(
-        TipoEquipo.nombre.asc(),
-        EquipoIntervenido.nombre.asc(),
-    ).all()
+    rows = []
+    if servicio_zona_id:
+        rows = q.filter(EquipoIntervenido.zona_id == servicio_zona_id).order_by(*orden).all()
+    if not rows and servicio_ubicacion_id:
+        rows = q.filter(EquipoIntervenido.ubicacion_id == servicio_ubicacion_id).order_by(*orden).all()
+    if not rows and not servicio_zona_id and not servicio_ubicacion_id:
+        rows = q.order_by(*orden).all()
 
     return [
         {
