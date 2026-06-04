@@ -8,7 +8,7 @@ Las solicitudes se vinculan a un `proyecto_servicio_id` (NO a proyecto).
 from __future__ import annotations
 
 import uuid as _uuid
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -27,6 +27,7 @@ from ..models.proyecto_servicio import ProyectoServicio
 from ..models.proyecto import Proyecto
 from ..models.proyecto_miembro import ProyectoMiembro
 from ..models.notificacion import Notificacion
+from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 
 from ..schemas.prestamo import (
     EquipoCatalogoOut,
@@ -104,6 +105,53 @@ def _prestamos_activos_por_equipo(db: Session, empresa_id: str) -> dict[str, int
         .all()
     )
     return {r.equipo_id: int(r.activos or 0) for r in rows}
+
+
+def _crear_requerimiento_faltante(
+    db: Session,
+    srv: ProyectoServicio,
+    emp: Empleado,
+    empresa_id: str,
+    faltantes: list[tuple[Equipo, int]],
+) -> str:
+    """Crea un requerimiento de COMPRA para el faltante de stock de un préstamo.
+
+    Cada ítem va como texto libre (sin material_id) clasificado por su clase
+    (herramienta|equipo). Entra a la bandeja de Logística como 'pendiente';
+    al aprobarse, por ser texto libre va a compra → ticket → vincular-inventario
+    crea la fila en `equipo` → queda disponible para préstamo.
+    """
+    hay_equipo = any((eq.clase or "equipo") == "equipo" for eq, _ in faltantes)
+    req = Requerimiento(
+        id=str(_uuid.uuid4()),
+        proyecto_id=srv.proyecto_id,
+        proyecto_servicio_id=srv.id,
+        empresa_id=empresa_id,
+        solicitante_id=emp.id,
+        tipo="equipo_especial" if hay_equipo else "herramienta",
+        estado="pendiente",
+        fecha=date.today(),
+        observacion="Compra por faltante de stock (solicitado desde Préstamos)",
+        created_at=datetime.utcnow(),
+    )
+    db.add(req)
+    db.flush()
+
+    for eq, faltante in faltantes:
+        clase = eq.clase or "equipo"
+        db.add(RequerimientoDetalle(
+            id=str(_uuid.uuid4()),
+            requerimiento_id=req.id,
+            material_id=None,
+            cantidad=int(faltante),
+            nombre_libre=eq.nombre,
+            unidad_libre="Unidad",
+            especificacion=f"[{clase}] {eq.codigo or ''}".strip(),
+            tipo_item_compra="herramienta" if clase == "herramienta" else "equipo",
+            estado_item="pendiente",
+            agregado_por_id=str(emp.id),
+        ))
+    return str(req.id)
 
 
 def _prestamo_out(db: Session, p: Prestamo) -> PrestamoOut:
@@ -268,6 +316,9 @@ def crear_prestamo(
     if not body.items:
         raise HTTPException(status_code=422, detail="Agrega al menos un equipo")
 
+    # Disponibilidad actual por equipo (para dividir préstamo vs compra del faltante)
+    activos = _prestamos_activos_por_equipo(db, empresa_id)
+
     p = Prestamo(
         id=str(_uuid.uuid4()),
         empresa_id=empresa_id,
@@ -280,6 +331,9 @@ def crear_prestamo(
     db.add(p)
     db.flush()
 
+    faltantes: list[tuple[Equipo, int]] = []
+    hubo_prestamo = False
+
     for it in body.items:
         equipo = db.query(Equipo).filter(
             Equipo.id == it.equipo_id, Equipo.empresa_id == empresa_id
@@ -288,14 +342,41 @@ def crear_prestamo(
             raise HTTPException(status_code=404, detail=f"Equipo {it.equipo_id} no encontrado")
         if it.cantidad <= 0:
             raise HTTPException(status_code=422, detail="Cantidad debe ser > 0")
-        db.add(PrestamoItem(
-            id=str(_uuid.uuid4()), prestamo_id=p.id,
-            equipo_id=it.equipo_id, cantidad_solicitada=it.cantidad,
-        ))
+
+        # Se presta lo disponible; el excedente se solicita a compra.
+        disponible = max(0, int(equipo.cantidad or 0) - activos.get(equipo.id, 0))
+        a_prestar  = min(int(it.cantidad), disponible)
+        faltante   = int(it.cantidad) - a_prestar
+
+        if a_prestar > 0:
+            db.add(PrestamoItem(
+                id=str(_uuid.uuid4()), prestamo_id=p.id,
+                equipo_id=it.equipo_id, cantidad_solicitada=a_prestar,
+            ))
+            hubo_prestamo = True
+        if faltante > 0:
+            faltantes.append((equipo, faltante))
+
+    # Compra del faltante (si lo hay) → requerimiento a Logística
+    requerimiento_id = None
+    if faltantes:
+        requerimiento_id = _crear_requerimiento_faltante(db, srv, emp, empresa_id, faltantes)
+
+    # Si todo fue a compra (nada disponible para prestar), no dejamos un
+    # préstamo vacío: lo eliminamos antes de commit.
+    if not hubo_prestamo:
+        db.delete(p)
 
     db.commit()
-    db.refresh(p)
-    return {"ok": True, "prestamo_id": p.id}
+
+    return {
+        "ok": True,
+        "prestamo_id": str(p.id) if hubo_prestamo else None,
+        "requerimiento_id": requerimiento_id,
+        "faltantes": [
+            {"equipo": eq.nombre, "cantidad": f} for eq, f in faltantes
+        ],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────
