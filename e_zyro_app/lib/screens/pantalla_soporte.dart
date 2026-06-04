@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/soporte_models.dart';
 import '../services/soporte_service.dart';
 import '../utils/api_provider.dart';
@@ -651,57 +653,134 @@ class _DetalleTicketSheet extends StatefulWidget {
 }
 
 class _DetalleTicketSheetState extends State<_DetalleTicketSheet> {
-  late String _estado;
-  late final TextEditingController _respuesta;
-  bool _guardando = false;
+  final _picker = ImagePicker();
+  late TicketSoporte _t;
+
+  List<TicketActividad> _actividades = [];
+  bool _loadingAct = true;
   bool _cambio = false;
+
+  // Composer
+  final _texto = TextEditingController();
+  String _tipo = 'comentario'; // comentario | avance | solucion
+  String? _adjuntoB64;
+  bool _enviando = false;
+  bool _tomando = false;
 
   @override
   void initState() {
     super.initState();
-    _estado = widget.ticket.estado;
-    _respuesta = TextEditingController(text: widget.ticket.respuestaTi ?? '');
+    _t = widget.ticket;
+    _loadActividades();
   }
 
   @override
   void dispose() {
-    _respuesta.dispose();
+    _texto.dispose();
     super.dispose();
   }
 
-  Future<void> _guardar() async {
-    setState(() => _guardando = true);
-    final res = await widget.service.gestionar(
-      widget.ticket.id,
-      estado: _estado,
-      respuestaTi: _respuesta.text.trim().isEmpty ? null : _respuesta.text.trim(),
+  Future<void> _loadActividades() async {
+    final data = await widget.service.getActividades(_t.id);
+    if (!mounted) return;
+    setState(() {
+      _actividades = data;
+      _loadingAct = false;
+    });
+  }
+
+  void _err(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(m),
+      backgroundColor: _kRed,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  Future<void> _tomar() async {
+    setState(() => _tomando = true);
+    final res = await widget.service.tomar(_t.id);
+    if (!mounted) return;
+    setState(() => _tomando = false);
+    if (res.ok) {
+      setState(() {
+        _t = res.data!;
+        _cambio = true;
+      });
+      await _loadActividades();
+    } else {
+      _err(res.errorMessage);
+    }
+  }
+
+  Future<void> _cambiarEstado(String estado) async {
+    if (estado == _t.estado) return;
+    final res = await widget.service.gestionar(_t.id, estado: estado);
+    if (!mounted) return;
+    if (res.ok) {
+      setState(() {
+        _t = res.data!;
+        _cambio = true;
+      });
+      await _loadActividades();
+    } else {
+      _err(res.errorMessage);
+    }
+  }
+
+  Future<void> _adjuntar() async {
+    final x = await _picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 80, maxWidth: 1920);
+    if (x == null) return;
+    final b64 = base64Encode(await x.readAsBytes());
+    if (!mounted) return;
+    setState(() => _adjuntoB64 = b64);
+  }
+
+  Future<void> _enviarActividad() async {
+    if (_texto.text.trim().isEmpty && _adjuntoB64 == null) {
+      _err('Escribe un texto o adjunta una imagen');
+      return;
+    }
+    setState(() => _enviando = true);
+    final res = await widget.service.crearActividad(
+      _t.id,
+      tipo: _tipo,
+      texto: _texto.text.trim().isEmpty ? null : _texto.text.trim(),
+      esSolucion: _tipo == 'solucion',
+      adjuntoBase64: _adjuntoB64,
     );
     if (!mounted) return;
-    setState(() => _guardando = false);
+    setState(() => _enviando = false);
     if (res.ok) {
-      _cambio = true;
-      Navigator.pop(context, true);
+      _texto.clear();
+      setState(() {
+        _adjuntoB64 = null;
+        _tipo = 'comentario';
+        _cambio = true;
+      });
+      // Una solución puede haber cambiado el estado del ticket → recargar ambos.
+      final t = await widget.service.getTickets(alcance: widget.esTi ? 'todos' : 'mios');
+      final actualizado = t.where((x) => x.id == _t.id);
+      if (actualizado.isNotEmpty && mounted) setState(() => _t = actualizado.first);
+      await _loadActividades();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res.errorMessage),
-        backgroundColor: _kRed,
-        behavior: SnackBarBehavior.floating,
-      ));
+      _err(res.errorMessage);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final t = widget.ticket;
+    final t = _t;
     final surface = Theme.of(context).colorScheme.surface;
-    final fill = Theme.of(context).colorScheme.surfaceContainerHighest;
-    final est = _estadoCfg(_estado);
+    final est = _estadoCfg(t.estado);
     final pri = _prioridadCfg(t.prioridad);
 
     return DraggableScrollableSheet(
       expand: false,
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
       maxChildSize: 0.95,
       builder: (_, scrollCtrl) => Container(
         decoration: BoxDecoration(
@@ -756,68 +835,52 @@ class _DetalleTicketSheetState extends State<_DetalleTicketSheet> {
                   const SizedBox(height: 8),
                   Text(t.descripcion,
                       style: const TextStyle(fontSize: 13.5, height: 1.5)),
+                  if (t.adjuntoUrl != null && t.adjuntoUrl!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _thumb(t.adjuntoUrl!),
+                  ],
                   const SizedBox(height: 14),
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Icon(Icons.person_outline, size: 14, color: Colors.grey.shade500),
-                      const SizedBox(width: 4),
-                      Text(t.reportanteNombre,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      const SizedBox(width: 12),
-                      Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
-                      const SizedBox(width: 4),
-                      Text(_fechaCorta(t.creadoEn),
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      _metaItem(Icons.person_outline, t.reportanteNombre),
+                      _metaItem(Icons.schedule, _fechaCorta(t.creadoEn)),
+                      if (t.atendidoPorNombre != null)
+                        _metaItem(Icons.support_agent_rounded,
+                            'Atiende: ${t.atendidoPorNombre}',
+                            color: _kIndigo),
                     ],
                   ),
 
-                  // Respuesta de TI (visible para todos si existe)
-                  if (!widget.esTi &&
-                      t.respuestaTi != null &&
-                      t.respuestaTi!.isNotEmpty) ...[
+                  // ── Acciones de TI: tomar + estado ──────────────────────────
+                  if (widget.esTi) ...[
                     const SizedBox(height: 16),
-                    Container(
+                    SizedBox(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: _kGreen.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _kGreen.withValues(alpha: 0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: const [
-                              Icon(Icons.support_agent_rounded,
-                                  size: 15, color: _kGreen),
-                              SizedBox(width: 6),
-                              Text('Respuesta del equipo de TI',
-                                  style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: _kGreen)),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(t.respuestaTi!,
-                              style: const TextStyle(fontSize: 13, height: 1.4)),
-                        ],
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: _tomando ? null : _tomar,
+                        icon: _tomando
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: _kIndigo))
+                            : const Icon(Icons.pan_tool_alt_outlined, size: 18),
+                        label: Text(t.atendidoPor == null
+                            ? 'Tomar este ticket'
+                            : 'Reasignármelo'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _kIndigo,
+                          side: const BorderSide(color: _kIndigo),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
                       ),
                     ),
-                  ],
-
-                  // Gestión (solo TI)
-                  if (widget.esTi) ...[
-                    const SizedBox(height: 20),
-                    const Divider(),
-                    const SizedBox(height: 8),
-                    const Text('Gestión TI',
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: _kIndigo)),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     const Text('Estado',
                         style: TextStyle(fontSize: 12.5, color: Colors.grey)),
                     const SizedBox(height: 6),
@@ -826,16 +889,19 @@ class _DetalleTicketSheetState extends State<_DetalleTicketSheet> {
                       runSpacing: 8,
                       children: kEstadosSoporte.entries.map((e) {
                         final cfg = _estadoCfg(e.key);
-                        final sel = _estado == e.key;
+                        final sel = t.estado == e.key;
                         return GestureDetector(
-                          onTap: () => setState(() => _estado = e.key),
+                          onTap: () => _cambiarEstado(e.key),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 7),
                             decoration: BoxDecoration(
                               color: sel
                                   ? cfg.color.withValues(alpha: 0.15)
-                                  : fill.withValues(alpha: 0.4),
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest
+                                      .withValues(alpha: 0.4),
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                   color: sel ? cfg.color : Colors.transparent),
@@ -849,52 +915,276 @@ class _DetalleTicketSheetState extends State<_DetalleTicketSheet> {
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 14),
-                    const Text('Respuesta al reportante',
-                        style: TextStyle(fontSize: 12.5, color: Colors.grey)),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _respuesta,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText: 'Escribe una respuesta o el estado de la solución…',
-                        filled: true,
-                        fillColor: fill,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.all(12),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: _guardando ? null : _guardar,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _kIndigo,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: _guardando
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                            : const Text('Guardar cambios',
-                                style: TextStyle(fontWeight: FontWeight.w600)),
-                      ),
-                    ),
                   ],
+
+                  // ── Timeline de seguimiento ─────────────────────────────────
+                  const SizedBox(height: 20),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.timeline, size: 16, color: _kIndigo),
+                      const SizedBox(width: 6),
+                      const Text('Seguimiento',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _kIndigo)),
+                      const Spacer(),
+                      if (!_loadingAct)
+                        Text('${_actividades.length}',
+                            style:
+                                TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (_loadingAct)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Center(
+                          child: CircularProgressIndicator(color: _kIndigo)),
+                    )
+                  else if (_actividades.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Text('Sin movimientos todavía.',
+                          style: TextStyle(
+                              fontSize: 12.5, color: Colors.grey.shade500)),
+                    )
+                  else
+                    ..._actividades.map(_buildActividad),
+
+                  // ── Composer ────────────────────────────────────────────────
+                  const SizedBox(height: 16),
+                  _buildComposer(),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _metaItem(IconData icon, String text, {Color? color}) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color ?? Colors.grey.shade500),
+          const SizedBox(width: 4),
+          Text(text,
+              style: TextStyle(
+                  fontSize: 12, color: color ?? Colors.grey.shade600)),
+        ],
+      );
+
+  Widget _thumb(String url) => ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          url,
+          height: 140,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(
+            height: 60,
+            color: Colors.grey.withValues(alpha: 0.15),
+            alignment: Alignment.center,
+            child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+          ),
+        ),
+      );
+
+  ({IconData icon, Color color}) _tipoCfg(TicketActividad a) {
+    if (a.esSolucion) return (icon: Icons.verified_rounded, color: _kGreen);
+    return switch (a.tipo) {
+      'avance' => (icon: Icons.trending_up_rounded, color: _kAmber),
+      'cambio_estado' => (icon: Icons.swap_horiz_rounded, color: _kBlue),
+      'tomado' => (icon: Icons.pan_tool_alt_outlined, color: _kIndigo),
+      _ => (icon: Icons.chat_bubble_outline_rounded, color: _kGray),
+    };
+  }
+
+  Widget _buildActividad(TicketActividad a) {
+    final cfg = _tipoCfg(a);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: cfg.color.withValues(alpha: 0.13),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(cfg.icon, size: 16, color: cfg.color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(a.autorNombre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12.5, fontWeight: FontWeight.w700)),
+                    ),
+                    if (a.esSolucion) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: _kGreen.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text('Solución v${a.versionSolucion ?? 1}',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: _kGreen)),
+                      ),
+                    ],
+                    const Spacer(),
+                    Text(_fechaCorta(a.creadoEn),
+                        style: TextStyle(
+                            fontSize: 10, color: Colors.grey.shade500)),
+                  ],
+                ),
+                if (a.texto != null && a.texto!.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(a.texto!,
+                      style: const TextStyle(fontSize: 12.5, height: 1.4)),
+                ],
+                if (a.adjuntoUrl != null && a.adjuntoUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _thumb(a.adjuntoUrl!),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildComposer() {
+    final fill = Theme.of(context).colorScheme.surfaceContainerHighest;
+    // El reportante solo comenta; el equipo de TI puede registrar avances y soluciones.
+    final tipos = widget.esTi
+        ? const {'comentario': 'Comentario', 'avance': 'Avance', 'solucion': 'Solución'}
+        : const {'comentario': 'Comentario'};
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: fill.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (tipos.length > 1)
+            Wrap(
+              spacing: 8,
+              children: tipos.entries.map((e) {
+                final sel = _tipo == e.key;
+                final c = e.key == 'solucion'
+                    ? _kGreen
+                    : (e.key == 'avance' ? _kAmber : _kGray);
+                return GestureDetector(
+                  onTap: () => setState(() => _tipo = e.key),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: sel ? c.withValues(alpha: 0.15) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: sel ? c : Colors.grey.shade300),
+                    ),
+                    child: Text(e.value,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: sel ? c : Colors.grey)),
+                  ),
+                );
+              }).toList(),
+            ),
+          if (tipos.length > 1) const SizedBox(height: 10),
+          TextField(
+            controller: _texto,
+            maxLines: 3,
+            minLines: 1,
+            decoration: InputDecoration(
+              hintText: _tipo == 'solucion'
+                  ? 'Describe la solución aplicada…'
+                  : (_tipo == 'avance'
+                      ? '¿Qué avance hubo? ¿Algún error encontrado?'
+                      : 'Escribe un comentario…'),
+              filled: true,
+              fillColor: Theme.of(context).colorScheme.surface,
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
+          if (_adjuntoB64 != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.image_outlined, size: 16, color: _kIndigo),
+                const SizedBox(width: 6),
+                const Text('Imagen adjunta',
+                    style: TextStyle(fontSize: 12, color: _kIndigo)),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => setState(() => _adjuntoB64 = null),
+                  child: Icon(Icons.close, size: 16, color: Colors.grey.shade500),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              IconButton(
+                onPressed: _enviando ? null : _adjuntar,
+                icon: const Icon(Icons.attach_file_rounded),
+                color: _kIndigo,
+                tooltip: 'Adjuntar imagen',
+              ),
+              const Spacer(),
+              SizedBox(
+                height: 40,
+                child: ElevatedButton.icon(
+                  onPressed: _enviando ? null : _enviarActividad,
+                  icon: _enviando
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.send_rounded, size: 16),
+                  label: const Text('Enviar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kIndigo,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
