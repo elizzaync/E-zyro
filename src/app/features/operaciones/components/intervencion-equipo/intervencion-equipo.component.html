@@ -216,18 +216,32 @@
             <span class="iv-meta-val">{{ equipo.tipoNombre ?? '—' }}</span>
           </div>
           <div class="iv-meta">
-            <span class="iv-meta-lbl">Marca</span>
-            <span class="iv-meta-val">{{ equipo.marca ?? '—' }}</span>
+            <span class="iv-meta-lbl">Ubicación / Zona</span>
+            <span class="iv-meta-val">{{ equipo.ubicacionReferencia ?? '—' }}</span>
           </div>
           <div class="iv-meta">
-            <span class="iv-meta-lbl">Modelo</span>
-            <span class="iv-meta-val">{{ equipo.modelo ?? '—' }}</span>
+            <span class="iv-meta-lbl">Cliente</span>
+            <span class="iv-meta-val">{{ equipo.clienteNombre ?? '—' }}</span>
           </div>
           <div class="iv-meta">
-            <span class="iv-meta-lbl">N° Serie</span>
-            <span class="iv-meta-val">{{ equipo.numeroSerie ?? '—' }}</span>
+            <span class="iv-meta-lbl">N° Mantenimientos</span>
+            <span class="iv-meta-val">{{ equipo.nMantenimientos ?? '—' }}</span>
+          </div>
+          <div class="iv-meta">
+            <span class="iv-meta-lbl">Último mtto.</span>
+            <span class="iv-meta-val">{{ equipo.ultimoMantenimiento ? (equipo.ultimoMantenimiento | date:'dd/MM/yyyy') : '—' }}</span>
+          </div>
+          <div class="iv-meta">
+            <span class="iv-meta-lbl">Próximo mtto.</span>
+            <span class="iv-meta-val">{{ equipo.proximoMantenimiento ? (equipo.proximoMantenimiento | date:'dd/MM/yyyy') : '—' }}</span>
           </div>
         </div>
+        @if (equipo.descripcion) {
+          <div class="iv-equipo-desc">
+            <span class="iv-meta-lbl">Descripción</span>
+            <p>{{ equipo.descripcion }}</p>
+          </div>
+        }
       </div>
 
       <!-- Barra de progreso -->

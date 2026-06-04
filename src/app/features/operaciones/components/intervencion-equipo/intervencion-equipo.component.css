@@ -526,3 +526,16 @@
   .iv-btn-row { flex-direction: column; }
   .iv-btn-secondary, .iv-btn-primary { width: 100%; justify-content: center; }
 }
+
+/* Descripción del equipo (bajo la grilla de metadatos) */
+.iv-equipo-desc {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+}
+.iv-equipo-desc p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-main, #334155);
+  line-height: 1.5;
+}

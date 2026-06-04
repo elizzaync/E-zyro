@@ -21,9 +21,12 @@ interface EquipoInfo {
   nombre: string;
   codigo: string | null;
   tipoNombre: string | null;
-  marca: string | null;
-  modelo: string | null;
-  numeroSerie: string | null;
+  ubicacionReferencia: string | null;
+  clienteNombre: string | null;
+  descripcion: string | null;
+  nMantenimientos: number | null;
+  ultimoMantenimiento: string | null;
+  proximoMantenimiento: string | null;
   estadoIntervencion: string;
 }
 
@@ -74,13 +77,16 @@ export class IntervencionEquipoComponent implements OnInit {
         this.observaciones = data.observaciones ?? '';
         this.proximaFecha  = data.proxima_fecha ?? '';
         this.equipo = {
-          nombre:             data.equipo.nombre,
-          codigo:             data.equipo.codigo ?? null,
-          tipoNombre:         data.equipo.tipo_nombre ?? null,
-          marca:              data.equipo.marca ?? null,
-          modelo:             data.equipo.modelo ?? null,
-          numeroSerie:        data.equipo.numero_serie ?? null,
-          estadoIntervencion: data.equipo.estado_intervencion,
+          nombre:               data.equipo.nombre,
+          codigo:               data.equipo.codigo ?? null,
+          tipoNombre:           data.equipo.tipo_nombre ?? null,
+          ubicacionReferencia:  data.equipo.ubicacion_referencia ?? null,
+          clienteNombre:        data.equipo.cliente_nombre ?? null,
+          descripcion:          data.equipo.descripcion ?? null,
+          nMantenimientos:      data.equipo.n_mantenimientos ?? null,
+          ultimoMantenimiento:  data.equipo.ultimo_mantenimiento ?? null,
+          proximoMantenimiento: data.equipo.proximo_mantenimiento ?? null,
+          estadoIntervencion:   data.equipo.estado_intervencion,
         };
         this.procs = (data.resultado as any[]).map(r => ({
           orden:        r.orden,
