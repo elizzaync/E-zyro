@@ -230,13 +230,16 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
         if (tipo === 'SIN_OC') this.form.get('nro_documento')?.disable({ emitEvent: false });
 
         if (raw.ubicacion_id) {
-          const ub = this.ubicaciones.find(u => u.id === raw.ubicacion_id);
-          this.ubicSelLabel = ub?.nombre ?? '';
+          // Usa el nombre que viene del backend (no depende de que la lista async ya cargó).
+          // Fallback: buscar en la lista si el backend no lo envió.
+          this.ubicSelLabel = raw.ubicacion_nombre
+            ?? this.ubicaciones.find(u => u.id === raw.ubicacion_id)?.nombre
+            ?? '';
+          this.zonaSelLabel = raw.zona_nombre ?? '';
           this._cargarZonas(raw.ubicacion_id);
-          if (raw.zona_id) {
+          if (raw.zona_id && !this.zonaSelLabel) {
             this.svc.getZonas(raw.ubicacion_id).pipe(takeUntil(this.destroy$)).subscribe(zs => {
-              const z = zs.find(x => x.id === raw.zona_id);
-              this.zonaSelLabel = z?.nombre ?? '';
+              this.zonaSelLabel = zs.find(x => x.id === raw.zona_id)?.nombre ?? '';
             });
           }
         }
