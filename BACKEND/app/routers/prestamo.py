@@ -136,7 +136,7 @@ def _crear_ticket_compra_faltante(
         solicitante_id=str(emp.id),
         proyecto_id=str(srv.proyecto_id) if srv.proyecto_id else None,
         proyecto_servicio_id=str(srv.id),
-        proyecto_nombre=proyecto.nombre if proyecto else None,
+        proyecto_nombre=proyecto.nombre_proyecto if proyecto else None,
         servicio_nombre=srv.nombre,
         solicitante_nombre=_nombre_empleado(db, emp.id),
         nota="Compra por faltante de stock (solicitado desde Préstamos)",
