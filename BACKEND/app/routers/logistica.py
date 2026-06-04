@@ -2008,6 +2008,77 @@ def detalle_compra(
     return _ticket_out(db, tc)
 
 
+async def _generar_prestamo_desde_compra(db: Session, tc, empresa_id: str) -> None:
+    """Convierte una compra de faltante de préstamo en un Préstamo 'solicitado'.
+
+    Idempotente: si ya existe un préstamo generado desde este ticket (mismo
+    servicio + observación marcada), no duplica. Reusa el técnico solicitante
+    guardado en tc.solicitante_id.
+    """
+    from ..models.prestamo import Prestamo, PrestamoItem
+
+    if not tc.solicitante_id:
+        return
+
+    marca = f"[auto:tc:{tc.id}]"
+    # Guard de idempotencia: ¿ya generamos el préstamo de este ticket?
+    ya = db.query(Prestamo).filter(
+        Prestamo.proyecto_servicio_id == str(tc.proyecto_servicio_id),
+        Prestamo.observacion == marca,
+    ).first()
+    if ya:
+        return
+
+    items = (
+        db.query(TicketCompraItem)
+        .filter(TicketCompraItem.ticket_id == tc.id)
+        .all()
+    )
+    # Solo ítems con equipo y cantidad efectiva
+    lineas = [
+        (it.equipo_id, int(it.cantidad_comprada or it.cantidad or 0))
+        for it in items
+        if it.equipo_id and int(it.cantidad_comprada or it.cantidad or 0) > 0
+    ]
+    if not lineas:
+        return
+
+    p = Prestamo(
+        id=str(_uuid.uuid4()),
+        empresa_id=empresa_id,
+        proyecto_servicio_id=str(tc.proyecto_servicio_id),
+        solicitante_id=str(tc.solicitante_id),
+        estado="solicitado",
+        observacion=marca,   # marca interna de idempotencia/trazabilidad
+        fecha_solicitud=datetime.utcnow(),
+        created_at=datetime.utcnow(),
+    )
+    db.add(p)
+    db.flush()
+    for equipo_id, cant in lineas:
+        db.add(PrestamoItem(
+            id=str(_uuid.uuid4()), prestamo_id=p.id,
+            equipo_id=str(equipo_id), cantidad_solicitada=cant,
+        ))
+
+    # Notificar al técnico solicitante (vía su usuario)
+    sol_row = db.query(Empleado.usuario_id).filter(
+        Empleado.id == str(tc.solicitante_id)
+    ).first()
+    if sol_row:
+        db.add(Notificacion(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=sol_row[0],
+            tipo="info", categoria="logistica",
+            titulo="Equipos comprados listos para préstamo",
+            mensaje="La compra de tus equipos/herramientas llegó. Ya están listos "
+                    "para que Logística te los entregue.",
+            leido=False, enviado=False,
+            referencia_tabla="prestamo", referencia_id=str(p.id),
+        ))
+    db.commit()
+    await _notificar_servicio_ws(tc.proyecto_servicio_id)
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # FASE 3 — helper de ingreso reutilizable
 # ──────────────────────────────────────────────────────────────────────────
@@ -2105,6 +2176,13 @@ async def _aplicar_ingreso_ticket(
     tc.ingreso_registrado = True
     tc.updated_at         = datetime.utcnow()
     db.commit()
+
+    # ── Puente compra → préstamo (faltante de un préstamo) ─────────────────
+    # Si la compra nació de un faltante de préstamo, las unidades compradas
+    # (ya reabastecidas en `equipo`) se convierten en un Préstamo 'solicitado'
+    # para el técnico, que aparece en la bandeja de préstamos para entregarse.
+    if getattr(tc, "origen", None) == "prestamo_faltante" and tc.proyecto_servicio_id:
+        await _generar_prestamo_desde_compra(db, tc, empresa_id)
 
     # ── Transición automática comprando → listo ───────────────────────────
     if tc.requerimiento_id:

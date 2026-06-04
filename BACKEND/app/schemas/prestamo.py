@@ -53,8 +53,9 @@ class EntregarPrestamoItem(BaseModel):
 
 
 class EntregarPrestamoBody(BaseModel):
-    items:        List[EntregarPrestamoItem] = []   # vacío → entrega cantidad solicitada
-    observacion:  Optional[str] = None
+    items:             List[EntregarPrestamoItem] = []   # vacío → entrega cantidad solicitada
+    observacion:       Optional[str] = None
+    firmaReceptorUrl:  Optional[str] = None   # firma del técnico al recibir
 
 
 class DevolverPrestamoItem(BaseModel):
@@ -94,6 +95,7 @@ class PrestamoOut(BaseModel):
     fecha_entrega:        Optional[str] = None
     fecha_devolucion:     Optional[str] = None
     fecha_confirmacion:   Optional[str] = None
+    firma_receptor_url:   Optional[str] = None
     items:                List[PrestamoItemOut]
 
 

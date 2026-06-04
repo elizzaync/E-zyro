@@ -31,6 +31,8 @@ class Prestamo(Base):
     devuelto_por_id      = Column(String(36), ForeignKey("empleado.id"), nullable=True)
     confirmado_por_id    = Column(String(36), ForeignKey("empleado.id"), nullable=True)
 
+    firma_receptor_url   = Column(Text, nullable=True)   # firma del técnico al recibir el préstamo
+
     fecha_solicitud      = Column(DateTime, nullable=False, default=datetime.utcnow)
     fecha_entrega        = Column(DateTime, nullable=True)
     fecha_devolucion     = Column(DateTime, nullable=True)

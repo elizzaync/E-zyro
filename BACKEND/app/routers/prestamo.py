@@ -8,7 +8,7 @@ Las solicitudes se vinculan a un `proyecto_servicio_id` (NO a proyecto).
 from __future__ import annotations
 
 import uuid as _uuid
-from datetime import datetime, date
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -27,7 +27,7 @@ from ..models.proyecto_servicio import ProyectoServicio
 from ..models.proyecto import Proyecto
 from ..models.proyecto_miembro import ProyectoMiembro
 from ..models.notificacion import Notificacion
-from ..models.requerimiento import Requerimiento, RequerimientoDetalle
+from ..models.ticket_compra import TicketCompra, TicketCompraItem
 
 from ..schemas.prestamo import (
     EquipoCatalogoOut,
@@ -107,52 +107,59 @@ def _prestamos_activos_por_equipo(db: Session, empresa_id: str) -> dict[str, int
     return {r.equipo_id: int(r.activos or 0) for r in rows}
 
 
-def _crear_requerimiento_faltante(
+def _crear_ticket_compra_faltante(
     db: Session,
     srv: ProyectoServicio,
     emp: Empleado,
     empresa_id: str,
     faltantes: list[tuple[Equipo, int]],
 ) -> str:
-    """Crea un requerimiento de COMPRA para el faltante de stock de un préstamo.
+    """Crea un TicketCompra DIRECTO (sin requerimiento) para el faltante de un
+    préstamo. Va directo a la bandeja de Compras.
 
-    Cada ítem va como texto libre (sin material_id) clasificado por su clase
-    (herramienta|equipo). Entra a la bandeja de Logística como 'pendiente';
-    al aprobarse, por ser texto libre va a compra → ticket → vincular-inventario
-    crea la fila en `equipo` → queda disponible para préstamo.
+    Cada ítem queda enlazado al equipo EXISTENTE (equipo_id) → al recibir el
+    ingreso se reabastece su cantidad. `origen='prestamo_faltante'` +
+    `solicitante_id` permiten, al completar la compra, auto-generar el préstamo
+    de las unidades compradas para el técnico.
     """
-    hay_equipo = any((eq.clase or "equipo") == "equipo" for eq, _ in faltantes)
-    req = Requerimiento(
+    # _siguiente_codigo_ticket vive en logistica; import local para evitar ciclo.
+    from .logistica import _siguiente_codigo_ticket
+
+    proyecto = db.query(Proyecto).filter(Proyecto.id == srv.proyecto_id).first()
+    tc = TicketCompra(
         id=str(_uuid.uuid4()),
-        proyecto_id=srv.proyecto_id,
-        proyecto_servicio_id=srv.id,
         empresa_id=empresa_id,
-        solicitante_id=emp.id,
-        tipo="equipo_especial" if hay_equipo else "herramienta",
+        requerimiento_id=None,
+        codigo=_siguiente_codigo_ticket(db, empresa_id),
         estado="pendiente",
-        fecha=date.today(),
-        observacion="Compra por faltante de stock (solicitado desde Préstamos)",
+        origen="prestamo_faltante",
+        solicitante_id=str(emp.id),
+        proyecto_id=str(srv.proyecto_id) if srv.proyecto_id else None,
+        proyecto_servicio_id=str(srv.id),
+        proyecto_nombre=proyecto.nombre if proyecto else None,
+        servicio_nombre=srv.nombre,
+        solicitante_nombre=_nombre_empleado(db, emp.id),
+        nota="Compra por faltante de stock (solicitado desde Préstamos)",
         created_at=datetime.utcnow(),
     )
-    db.add(req)
+    db.add(tc)
     db.flush()
 
     for eq, faltante in faltantes:
         clase = eq.clase or "equipo"
-        db.add(RequerimientoDetalle(
+        db.add(TicketCompraItem(
             id=str(_uuid.uuid4()),
-            requerimiento_id=req.id,
+            ticket_id=tc.id,
+            requerimiento_detalle_id=None,
             material_id=None,
-            equipo_id=str(eq.id),   # enlaza con el equipo EXISTENTE → al recibir, reabastece (no crea nuevo)
+            equipo_id=str(eq.id),   # equipo EXISTENTE → al recibir reabastece (no crea nuevo)
+            nombre=eq.nombre,
             cantidad=int(faltante),
-            nombre_libre=eq.nombre,
-            unidad_libre="Unidad",
-            especificacion=f"[{clase}] {eq.codigo or ''}".strip(),
-            tipo_item_compra="herramienta" if clase == "herramienta" else "equipo",
+            unidad="Unidad",
             estado_item="pendiente",
-            agregado_por_id=str(emp.id),
+            tipo_item="herramienta" if clase == "herramienta" else "equipo",
         ))
-    return str(req.id)
+    return str(tc.id)
 
 
 def _prestamo_out(db: Session, p: Prestamo) -> PrestamoOut:
@@ -205,6 +212,7 @@ def _prestamo_out(db: Session, p: Prestamo) -> PrestamoOut:
         fecha_entrega=_fmt(p.fecha_entrega),
         fecha_devolucion=_fmt(p.fecha_devolucion),
         fecha_confirmacion=_fmt(p.fecha_confirmacion),
+        firma_receptor_url=getattr(p, "firma_receptor_url", None),
         items=items,
     )
 
@@ -358,10 +366,10 @@ def crear_prestamo(
         if faltante > 0:
             faltantes.append((equipo, faltante))
 
-    # Compra del faltante (si lo hay) → requerimiento a Logística
-    requerimiento_id = None
+    # Compra del faltante (si lo hay) → TicketCompra DIRECTO a la bandeja de Compras
+    ticket_id = None
     if faltantes:
-        requerimiento_id = _crear_requerimiento_faltante(db, srv, emp, empresa_id, faltantes)
+        ticket_id = _crear_ticket_compra_faltante(db, srv, emp, empresa_id, faltantes)
 
     # Si todo fue a compra (nada disponible para prestar), no dejamos un
     # préstamo vacío: lo eliminamos antes de commit.
@@ -373,7 +381,7 @@ def crear_prestamo(
     return {
         "ok": True,
         "prestamo_id": str(p.id) if hubo_prestamo else None,
-        "requerimiento_id": requerimiento_id,
+        "ticket_id": ticket_id,
         "faltantes": [
             {"equipo": eq.nombre, "cantidad": f} for eq, f in faltantes
         ],
@@ -479,6 +487,11 @@ def entregar_prestamo(
         raise HTTPException(status_code=404, detail="Préstamo no encontrado")
     if p.estado != "solicitado":
         raise HTTPException(status_code=409, detail="El préstamo no está pendiente de entrega")
+    if not body.firmaReceptorUrl:
+        raise HTTPException(
+            status_code=422,
+            detail="Se requiere la firma del técnico que recibe el préstamo.",
+        )
 
     decisiones = {d.item_id: d.cantidad_entregada for d in body.items}
 
@@ -489,6 +502,7 @@ def entregar_prestamo(
 
     p.estado = "entregado"
     p.entregado_por_id = emp.id
+    p.firma_receptor_url = body.firmaReceptorUrl
     p.fecha_entrega = datetime.utcnow()
     p.updated_at = datetime.utcnow()
     if body.observacion:
