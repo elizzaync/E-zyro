@@ -186,45 +186,6 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
     super.dispose();
   }
 
-  Future<void> _openNuevoMaterialSheet() async {
-    if (_service == null) return;
-
-    List<CategoriaItem> categorias = [];
-    List<AlmacenItem> almacenes = [];
-    await Future.wait([
-      _service!.getCategorias().then((v) => categorias = v),
-      _service!.getAlmacenes().then((v) => almacenes = v),
-    ]);
-
-    if (!mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _NuevoMaterialSheet(
-        categorias: categorias,
-        almacenes: almacenes,
-        service: _service!,
-        onCreado: () {
-          _loadCatalogo();
-          messenger.showSnackBar(
-            SnackBar(
-              content: const Text('Material agregado al inventario'),
-              backgroundColor: _green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -404,26 +365,6 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
               ],
             ),
 
-            // FAB único: agregar material al inventario (solo logística/admin
-            // en la pestaña Catálogo). El antiguo FAB "Solicitar" se eliminó �?"
-            // las solicitudes ahora se crean desde el detalle del servicio.
-            if (_puedeGestionar && _showCatalogo)
-              Positioned(
-                right: 20,
-                bottom: 20,
-                child: FloatingActionButton.extended(
-                  heroTag: 'fab_inventario',
-                  onPressed: _openNuevoMaterialSheet,
-                  backgroundColor: _green,
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  icon: const Icon(Icons.add_box_outlined),
-                  label: const Text(
-                    'Nuevo material',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
