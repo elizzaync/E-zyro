@@ -293,6 +293,38 @@ class _PantallaTramitesState extends State<PantallaTramites>
     }
   }
 
+  /// Descarga el PDF del trámite desde su URL y lo abre en el visor embebido
+  /// (lectura + imprimir + compartir), en vez de mostrar el link en crudo.
+  Future<void> _verPdfTramite(String url, String nombreArchivo) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: _C.green)),
+    );
+    try {
+      final resp = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 30));
+      if (!mounted) return;
+      Navigator.of(context).pop(); // cierra el loading
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        await PdfPreviewScreen.abrir(
+          context,
+          bytes: resp.bodyBytes,
+          nombreArchivo: nombreArchivo,
+          titulo: 'Mi Trámite',
+        );
+      } else {
+        _showError('No se pudo cargar el PDF (${resp.statusCode})');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showError('No se pudo abrir el PDF: $e');
+    }
+  }
+
   void _showError(String msg) => _showSnack(msg, _C.danger);
 
   void _showSnack(String msg, Color color) {
@@ -1188,20 +1220,11 @@ class _PantallaTramitesState extends State<PantallaTramites>
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'URL: ${s['url_pdf']}',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        backgroundColor: c.surfaceHigh,
-                        action: SnackBarAction(
-                          label: 'Copiar',
-                          textColor: _C.green,
-                          onPressed: () {},
-                        ),
-                      ),
-                    );
+                    final tipoLabel =
+                        (s['tipo_label'] ?? s['tipo'] ?? 'Tramite').toString();
+                    final nombre =
+                        'Tramite_${tipoLabel.replaceAll(' ', '_')}.pdf';
+                    _verPdfTramite(s['url_pdf'] as String, nombre);
                   },
                   icon: const Icon(
                     Icons.picture_as_pdf_outlined,
