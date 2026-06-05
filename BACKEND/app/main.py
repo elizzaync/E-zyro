@@ -677,6 +677,19 @@ def _run_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_firma_evento_susp     ON firma_evento (sospechoso)"))
         conn.commit()
 
+        # ── Tipos de trámite/permiso: alinear el CHECK con los valores reales
+        # que maneja el código (TIPO_DB_MAP en routers/permisos.py). El CHECK
+        # viejo solo permitía 'permiso'/'vacaciones'/… y reventaba el resto. Se
+        # incluyen los legados para no invalidar datos antiguos.
+        conn.execute(text("ALTER TABLE solicitud_laboral DROP CONSTRAINT IF EXISTS chk_solicitud_tipo"))
+        conn.execute(text("""
+            ALTER TABLE solicitud_laboral ADD CONSTRAINT chk_solicitud_tipo CHECK (tipo IN (
+                'permiso_personal','comision_trabajo','cita_essalud','permanencia_capacitacion',
+                'permanencia_extra','recuperacion','vacaciones','dias_libres','transferencia','otros',
+                'justificacion_falta','permiso','adelanto','otro'))
+        """))
+        conn.commit()
+
         conn.execute(text(
             "ALTER TABLE solicitud_laboral "
             "ADD COLUMN IF NOT EXISTS url_pdf VARCHAR(500)"
