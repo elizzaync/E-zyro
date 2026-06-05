@@ -15,5 +15,6 @@ class Almacen(Base):
     ubicacion      = Column(String(255), nullable=True)
     responsable_id = Column(String(36), ForeignKey("empleado.id"), nullable=True)
     activo         = Column(Boolean, nullable=False, default=True)
+    predeterminado = Column(Boolean, nullable=False, default=False)  # almacén por defecto (Oficina): destino de altas/compras
     created_at     = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at     = Column(DateTime, nullable=True)

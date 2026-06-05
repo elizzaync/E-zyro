@@ -327,7 +327,8 @@ def listar_almacenes(payload: dict = Depends(verificar_token), db: Session = Dep
         .order_by(Almacen.nombre)
         .all()
     )
-    return [AlmacenOut(id=str(r.id), nombre=r.nombre, ubicacion=r.ubicacion) for r in rows]
+    return [AlmacenOut(id=str(r.id), nombre=r.nombre, ubicacion=r.ubicacion,
+                       predeterminado=bool(r.predeterminado)) for r in rows]
 
 
 @router.post("/almacenes", response_model=AlmacenOut, status_code=201)
@@ -650,8 +651,8 @@ def actualizar_material(
         ).first()
         if not stock:
             if not alm:
-                # Crear en el primer almacén disponible si aún no hay stock
-                alm = db.query(Almacen).filter(Almacen.empresa_id == empresa_id).first()
+                # Crear en el almacén predeterminado (Oficina) si aún no hay stock
+                alm = _almacen_default(db, empresa_id)
             stock = Stock(
                 material_id=mat.id, empresa_id=empresa_id,
                 almacen_id=alm.id if alm else None,
@@ -2525,9 +2526,7 @@ async def procesar_compra(
 
     # ── Fase 3: auto-ingreso cuando se confirma la compra ─────────────────
     if body.completado and not tc.ingreso_registrado:
-        alm = db.query(Almacen).filter(
-            Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)
-        ).first()
+        alm = _almacen_default(db, empresa_id)
         await _aplicar_ingreso_ticket(
             db, tc, empresa_id, emp,
             almacen_default=str(alm.id) if alm else None,
@@ -2618,9 +2617,7 @@ async def registrar_ingreso_compra(
     db.commit()
     db.refresh(tc)
 
-    alm = db.query(Almacen).filter(
-        Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)
-    ).first()
+    alm = _almacen_default(db, empresa_id)
     almacen_default = body.almacenId or (str(alm.id) if alm else None)
 
     await _aplicar_ingreso_ticket(db, tc, empresa_id, emp, almacen_default)
@@ -3042,10 +3039,14 @@ def listar_ingresos(
 # ══════════════════════════════════════════════════════════════════════════
 
 def _almacen_default(db: Session, empresa_id: str) -> "Almacen | None":
-    return db.query(Almacen).filter(
+    """Almacén destino por defecto: el marcado como predeterminado (Oficina);
+    si no hay, el primero por nombre."""
+    base = db.query(Almacen).filter(
         Almacen.empresa_id == empresa_id,
         Almacen.activo.is_(True),
-    ).order_by(Almacen.nombre).first()
+    )
+    return (base.filter(Almacen.predeterminado.is_(True)).first()
+            or base.order_by(Almacen.nombre).first())
 
 
 @router.post("/inventario/ajuste", status_code=201)
@@ -3301,6 +3302,208 @@ def transferir_stock(
 
     db.commit()
     return {"ok": True}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Transferencias mejoradas: contenido de un almacén + transferencia en lote
+# (materiales por Stock y equipos/herramientas por Equipo, repartibles por
+# cantidad). Cualquier cosa se puede mover de un almacén a otro.
+# ──────────────────────────────────────────────────────────────────────────
+
+@router.get("/almacenes/{almacen_id}/contenido")
+def contenido_almacen(
+    almacen_id: str,
+    payload:    dict    = Depends(verificar_token),
+    db:         Session = Depends(get_db),
+):
+    """Qué hay en un almacén: materiales con stock>0 (fuente='stock') y
+    equipos/herramientas con cantidad>0 (fuente='equipo'). Para poblar el
+    selector de origen al transferir."""
+    empresa_id = payload["empresa_id"]
+    _almacen_or_404(db, empresa_id, almacen_id)
+
+    out: list[dict] = []
+    rows = (
+        db.query(Stock, Material)
+        .join(Material, Material.id == Stock.material_id)
+        .filter(
+            Stock.empresa_id == empresa_id,
+            Stock.almacen_id == almacen_id,
+            Stock.cantidad > 0,
+        )
+        .all()
+    )
+    for st, m in rows:
+        out.append({
+            "fuente": "stock",
+            "id": str(m.id),
+            "nombre": m.nombre,
+            "codigo": m.codigo,
+            "unidad": m.unidad or "und",
+            "tipo": "herramienta" if (m.tipo == "herramienta") else "material",
+            "disponible": int(st.cantidad or 0),
+        })
+
+    eqs = (
+        db.query(Equipo)
+        .filter(
+            Equipo.empresa_id == empresa_id,
+            Equipo.almacen_id == almacen_id,
+            Equipo.cantidad > 0,
+        )
+        .all()
+    )
+    for e in eqs:
+        out.append({
+            "fuente": "equipo",
+            "id": str(e.id),
+            "nombre": e.nombre,
+            "codigo": e.codigo,
+            "unidad": "u",
+            "tipo": e.clase or "equipo",
+            "disponible": int(e.cantidad or 0),
+        })
+
+    out.sort(key=lambda x: (x["nombre"] or "").lower())
+    return out
+
+
+def _buscar_equipo_gemelo(db, empresa_id, destino_id, eq):
+    """Equipo 'gemelo' en el almacén destino para acumular cantidad: mismo
+    código (si lo tiene) o mismo nombre, misma clase."""
+    q = db.query(Equipo).filter(
+        Equipo.empresa_id == empresa_id,
+        Equipo.almacen_id == destino_id,
+        Equipo.clase == eq.clase,
+    )
+    if eq.codigo:
+        return q.filter(Equipo.codigo == eq.codigo).first()
+    return q.filter(Equipo.nombre == eq.nombre).first()
+
+
+@router.post("/inventario/transferencia-lote", status_code=201)
+def transferir_lote(
+    body:    dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Transfiere uno o varios ítems (materiales y/o equipos) de un almacén a
+    otro. Body: { almacen_origen_id, almacen_destino_id, motivo?, items: [
+    { fuente: 'stock'|'equipo', id, cantidad } ] }.
+    Materiales mueven Stock; equipos se reparten por cantidad (gemelo en destino
+    o copia nueva). Se valida TODO antes de aplicar (atómico)."""
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    origen_id  = (body.get("almacen_origen_id")  or "").strip()
+    destino_id = (body.get("almacen_destino_id") or "").strip()
+    motivo     = (body.get("motivo") or "").strip() or None
+    items      = body.get("items")
+
+    if not origen_id or not destino_id:
+        raise HTTPException(status_code=422, detail="almacen_origen_id y almacen_destino_id son requeridos")
+    if origen_id == destino_id:
+        raise HTTPException(status_code=422, detail="El almacén origen y destino deben ser distintos")
+    if not isinstance(items, list) or not items:
+        raise HTTPException(status_code=422, detail="Se requiere al menos un ítem para transferir")
+
+    a_o = _almacen_or_404(db, empresa_id, origen_id)
+    a_d = _almacen_or_404(db, empresa_id, destino_id)
+
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
+    ).first()
+
+    # ── 1) Validar todo antes de aplicar ─────────────────────────────────────
+    plan: list[tuple] = []
+    for it in items:
+        fuente = (it.get("fuente") or "stock").lower()
+        iid    = (it.get("id") or "").strip()
+        try:
+            cant = int(it.get("cantidad") or 0)
+        except (TypeError, ValueError):
+            cant = 0
+        if not iid or cant <= 0:
+            raise HTTPException(status_code=422, detail="Cada ítem requiere id y cantidad > 0")
+
+        if fuente == "stock":
+            st_o = db.query(Stock).filter(
+                Stock.material_id == iid, Stock.empresa_id == empresa_id,
+                Stock.almacen_id == origen_id,
+            ).first()
+            disp = int(st_o.cantidad or 0) if st_o else 0
+            if cant > disp:
+                nom = st_o and db.query(Material.nombre).filter(Material.id == iid).scalar()
+                raise HTTPException(status_code=422, detail=f"Stock insuficiente de '{nom or iid}' (disp {disp}, pedido {cant})")
+            plan.append(("stock", iid, cant, st_o))
+        elif fuente == "equipo":
+            eq = db.query(Equipo).filter(
+                Equipo.id == iid, Equipo.empresa_id == empresa_id,
+                Equipo.almacen_id == origen_id,
+            ).first()
+            if not eq:
+                raise HTTPException(status_code=404, detail=f"Equipo {iid} no está en el almacén origen")
+            if cant > int(eq.cantidad or 0):
+                raise HTTPException(status_code=422, detail=f"Cantidad insuficiente de '{eq.nombre}' (disp {eq.cantidad}, pedido {cant})")
+            plan.append(("equipo", iid, cant, eq))
+        else:
+            raise HTTPException(status_code=422, detail=f"Fuente inválida: {fuente}")
+
+    # ── 2) Aplicar ───────────────────────────────────────────────────────────
+    ref_id = str(_uuid.uuid4())  # agrupa los movimientos de este lote
+    for kind, iid, cant, obj in plan:
+        if kind == "stock":
+            st_o = obj
+            st_o.cantidad = int(st_o.cantidad or 0) - cant
+            st_o.updated_at = datetime.utcnow()
+            st_d = db.query(Stock).filter(
+                Stock.material_id == iid, Stock.empresa_id == empresa_id,
+                Stock.almacen_id == destino_id,
+            ).first()
+            if st_d:
+                st_d.cantidad = int(st_d.cantidad or 0) + cant
+                st_d.updated_at = datetime.utcnow()
+            else:
+                db.add(Stock(
+                    material_id=iid, empresa_id=empresa_id, almacen_id=destino_id,
+                    cantidad=cant, cantidad_minima=0, updated_at=datetime.utcnow(),
+                ))
+            mot = motivo or f"Transferencia {a_o.nombre} → {a_d.nombre}"
+            for aid in (origen_id, destino_id):
+                db.add(MovimientoInventario(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    material_id=iid, almacen_id=aid,
+                    tipo="transferencia", cantidad=cant,
+                    referencia_id=ref_id, referencia_tipo="transferencia",
+                    responsable_id=emp.id if emp else None,
+                    motivo=mot, fecha=datetime.utcnow(),
+                ))
+        else:  # equipo
+            eq = obj
+            eq.cantidad = int(eq.cantidad or 0) - cant
+            eq.updated_at = datetime.utcnow()
+            twin = _buscar_equipo_gemelo(db, empresa_id, destino_id, eq)
+            if twin:
+                twin.cantidad = int(twin.cantidad or 0) + cant
+                twin.updated_at = datetime.utcnow()
+            else:
+                db.add(Equipo(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    tipo_equipo_id=eq.tipo_equipo_id, nombre=eq.nombre,
+                    codigo=eq.codigo, modelo=eq.modelo, marca=eq.marca,
+                    numero_serie=None,  # serial no se duplica al repartir
+                    marca_id=eq.marca_id, modelo_id=eq.modelo_id,
+                    almacen_id=destino_id, clase=eq.clase, tipo=eq.tipo,
+                    cantidad=cant, estado=eq.estado,
+                    estado_operativo=eq.estado_operativo,
+                    requiere_mantenimiento=eq.requiere_mantenimiento,
+                    frecuencia_mantenimiento=eq.frecuencia_mantenimiento,
+                    created_at=datetime.utcnow(),
+                ))
+
+    db.commit()
+    return {"ok": True, "items": len(plan), "referencia": ref_id}
 
 
 # ══════════════════════════════════════════════════════════════════════════

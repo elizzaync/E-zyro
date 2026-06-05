@@ -187,6 +187,7 @@ class CatalogoIn(BaseModel):
 
 class AlmacenOut(CatalogoItem):
     ubicacion: Optional[str] = None
+    predeterminado: bool = False
 
 
 class AlmacenIn(BaseModel):

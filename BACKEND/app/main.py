@@ -644,6 +644,25 @@ def _run_migrations():
         conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS motivo VARCHAR(300)"))
         conn.commit()
 
+        # ── Almacén predeterminado (Oficina): destino por defecto de altas/compras
+        conn.execute(text("ALTER TABLE almacen ADD COLUMN IF NOT EXISTS predeterminado BOOLEAN NOT NULL DEFAULT FALSE"))
+        # Por cada empresa SIN almacén predeterminado, marcar la 'Oficina' (o el
+        # primero por nombre). Idempotente: no toca empresas que ya tienen uno.
+        conn.execute(text("""
+            UPDATE almacen a SET predeterminado = TRUE
+            WHERE a.id = (
+                SELECT b.id FROM almacen b
+                WHERE b.empresa_id = a.empresa_id AND b.activo
+                ORDER BY (CASE WHEN b.nombre ILIKE '%oficina%' THEN 0 ELSE 1 END), b.nombre
+                LIMIT 1
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM almacen c
+                WHERE c.empresa_id = a.empresa_id AND c.predeterminado IS TRUE
+            )
+        """))
+        conn.commit()
+
         # ── Ledger de seguridad de firmas (firma_evento) ─────────────────────
         # FKs uuid a empresa/empleado/usuario → se crea aquí (no por create_all,
         # que las haría VARCHAR(36) y chocaría con las PK uuid). entidad_id NO es

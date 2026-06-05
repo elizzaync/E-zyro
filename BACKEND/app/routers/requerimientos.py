@@ -365,7 +365,8 @@ def get_almacenes(
         .order_by(Almacen.nombre)
         .all()
     )
-    return [AlmacenOut(id=str(r.id), nombre=r.nombre, ubicacion=r.ubicacion) for r in rows]
+    return [AlmacenOut(id=str(r.id), nombre=r.nombre, ubicacion=r.ubicacion,
+                       predeterminado=bool(r.predeterminado)) for r in rows]
 
 
 # ── GET /requerimientos/inventario/resumen ────────────────────────────────────
