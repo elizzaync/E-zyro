@@ -43,6 +43,7 @@ from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.material import Material, Stock
 from ..models.equipo import Equipo
+from ..models.prestamo import Prestamo, PrestamoItem
 from ..models.tipo_equipo import TipoEquipo
 from ..models.orden_mantenimiento import OrdenMantenimiento
 from ..models.evidencia_mantenimiento import EvidenciaMantenimiento
@@ -4108,4 +4109,153 @@ def actualizar_equipo_intervenido(
         "modelo":               ei.modelo or None,
         "numero_serie":         ei.numero_serie or None,
         "observaciones":        ei.observaciones or None,
+    }
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# INFORME GENERAL — datos para el modal "Generar Informe"
+# ════════════════════════════════════════════════════════════════════════════
+# Los DEFAULTS por tipo de equipo (EPP / materiales / herramientas) viven en el
+# frontend (diccionarios migrados del PHP). El backend solo aporta lo REAL del
+# servicio: materiales solicitados, herramientas retiradas y el personal del
+# proyecto. El frontend hace el MERGE (defaults + servicio, sin duplicados).
+
+@router.get("/servicio/{servicio_id}/informe/precarga")
+def precarga_informe_general(
+    servicio_id: str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    proyecto = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+
+    # ── Materiales SOLICITADOS para el servicio (requerimiento + detalle) ──
+    mat_rows = (
+        db.query(RequerimientoDetalle, Material)
+        .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
+        .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
+        .filter(
+            Requerimiento.proyecto_servicio_id == servicio_id,
+            Requerimiento.empresa_id           == empresa_id,
+        )
+        .all()
+    )
+    materiales, vistos_mat = [], set()
+    for det, mat in mat_rows:
+        nombre = ((mat.nombre if mat else det.nombre_libre) or "").strip()
+        if not nombre or nombre.upper() in vistos_mat:
+            continue
+        vistos_mat.add(nombre.upper())
+        materiales.append({
+            "nombre":          nombre,
+            "unidad":          (mat.unidad if mat else det.unidad_libre) or "UND.",
+            "caracteristicas": det.especificacion or (mat.descripcion if mat else None) or "-",
+        })
+
+    # ── Herramientas RETIRADAS/prestadas para el servicio (prestamo + item) ──
+    herr_rows = (
+        db.query(PrestamoItem, Equipo)
+        .join(Prestamo, Prestamo.id == PrestamoItem.prestamo_id)
+        .join(Equipo,   Equipo.id   == PrestamoItem.equipo_id)
+        .filter(
+            Prestamo.proyecto_servicio_id == servicio_id,
+            Prestamo.empresa_id           == empresa_id,
+        )
+        .all()
+    )
+    herramientas, vistos_herr = [], set()
+    for _item, eq in herr_rows:
+        nombre = (eq.nombre or "").strip()
+        if not nombre or nombre.upper() in vistos_herr:
+            continue
+        vistos_herr.add(nombre.upper())
+        herramientas.append({
+            "serie":  eq.numero_serie or "-",
+            "nombre": nombre,
+            "marca":  eq.marca or "-",
+        })
+
+    # ── Personal del PROYECTO del servicio (equipo de trabajo mapeado) ──
+    pers_rows = (
+        db.query(
+            Empleado.id.label("empleado_id"),
+            Usuario.nombre, Usuario.apellido,
+            Empleado.cargo, ProyectoMiembro.rol_proyecto,
+        )
+        .join(Usuario,         Usuario.id == Empleado.usuario_id)
+        .join(ProyectoMiembro, ProyectoMiembro.empleado_id == Empleado.id)
+        .filter(
+            ProyectoMiembro.proyecto_id == ps.proyecto_id,
+            ProyectoMiembro.activo      == True,
+        )
+        .all()
+    )
+    personal, vistos_pers = [], set()
+    for r in pers_rows:
+        if r.empleado_id in vistos_pers:
+            continue
+        vistos_pers.add(r.empleado_id)
+        nom = f"{r.nombre or ''} {r.apellido or ''}".strip() or "Sin nombre"
+        personal.append({
+            "id":           str(r.empleado_id),
+            "nombre":       nom,
+            "cargo":        r.cargo or "",
+            "rol_sugerido": r.rol_proyecto or "Técnico",
+        })
+
+    return {
+        "servicio": {
+            "id":              str(ps.id),
+            "nombre":          ps.nombre or "",
+            "proyecto_id":     str(ps.proyecto_id),
+            "proyecto_nombre": (proyecto.nombre_proyecto if proyecto else None),
+        },
+        "materiales_solicitados":  materiales,
+        "herramientas_solicitadas": herramientas,
+        "personal":                personal,
+    }
+
+
+@router.post("/servicio/{servicio_id}/informe/generar")
+def generar_informe_general(
+    servicio_id: str,
+    body:        dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Recibe el payload confirmado del modal (equipos, EPP, materiales,
+    herramientas y personal). De momento NO genera el documento Word: valida el
+    servicio y devuelve un resumen.
+
+    TODO (futura integración): a partir de este payload generar el Word del
+    informe general (plantilla por tipo de equipo) y devolver su URL/archivo.
+    """
+    empresa_id = payload["empresa_id"]
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    body = body or {}
+    return {
+        "ok":          True,
+        "mensaje":     "Payload recibido. La generación del Word se implementará después.",
+        "servicio_id": servicio_id,
+        "resumen": {
+            "equipos":      len(body.get("equipos", []) or []),
+            "epps":         len(body.get("epps", []) or []),
+            "materiales":   len(body.get("materiales", []) or []),
+            "herramientas": len(body.get("herramientas", []) or []),
+            "personal":     len(body.get("personal", []) or []),
+        },
     }
