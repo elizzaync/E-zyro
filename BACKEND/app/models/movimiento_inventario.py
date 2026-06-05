@@ -18,5 +18,6 @@ class MovimientoInventario(Base):
     referencia_id    = Column(String(36), nullable=True)
     referencia_tipo  = Column(String(50), nullable=True)
     responsable_id   = Column(String(36), ForeignKey("empleado.id"), nullable=True)
+    motivo           = Column(String(300), nullable=True)   # sustento libre: "Despacho al servicio X", "Recepción OC", etc.
     fecha            = Column(DateTime, nullable=False)
     created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)

@@ -640,6 +640,8 @@ def _run_migrations():
         conn.execute(text("ALTER TABLE equipo ADD COLUMN IF NOT EXISTS estado_operativo VARCHAR(20) DEFAULT 'operativo'"))
         conn.execute(text("ALTER TABLE equipo DROP CONSTRAINT IF EXISTS chk_equipo_estado_op"))
         conn.execute(text("ALTER TABLE equipo ADD CONSTRAINT chk_equipo_estado_op CHECK (estado_operativo IN ('operativo','parcial','inoperativo'))"))
+        # Sustento libre del movimiento de inventario (despacho, recepción OC, retorno, baja…)
+        conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS motivo VARCHAR(300)"))
         conn.commit()
 
         conn.execute(text(

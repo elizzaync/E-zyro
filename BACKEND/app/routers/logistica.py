@@ -3120,7 +3120,7 @@ def listar_movimientos(
             "unidad": mats.get(r.material_id, ("", "und"))[1] or "und",
             "tipo": r.tipo or "",
             "cantidad": int(r.cantidad or 0),
-            "motivo": None,  # MovimientoInventario no guarda motivo libre hoy
+            "motivo": r.motivo or None,
             "almacen_nombre": alms.get(r.almacen_id) if r.almacen_id else None,
             "responsable_nombre": resps.get(r.responsable_id) if r.responsable_id else None,
             "fecha": r.fecha.strftime("%Y-%m-%d %H:%M") if r.fecha else "",
