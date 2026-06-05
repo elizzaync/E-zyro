@@ -58,12 +58,33 @@ export class EquiposIntervenidosComponent implements OnInit {
   equipos: EquipoIntervenido[] = [];
   filtro = '';
 
-  // Modal nuevo equipo
+  // Ubicación / Zona heredadas de la sede del servicio (para el form, bloqueadas)
+  sedeUbicacion = '';
+  sedeZona      = '';
+
+  // ── Selección (checkboxes) para acciones masivas ──────────────────────────
+  seleccionados = new Set<string>();
+
+  // ── Modales de acciones masivas (maquetados / en construcción) ────────────
+  showModalInforme  = false;
+  showModalGarantia = false;
+
+  // ── Edición inline de "Referencia" (vista del técnico) ────────────────────
+  editandoRefId: string | null = null;
+  refDraft      = '';
+  guardandoRef  = false;
+
+  // ── Modal "Agregar equipo" — formulario completo ──────────────────────────
   showFormNuevo  = false;
   guardandoNuevo = false;
-  nuevoNombre    = '';
-  nuevoTipo      = '';
-  nuevoDesc      = '';
+  form = this.formVacio();
+
+  estadosDisp = [
+    { value: 'operativo',    label: 'Operativo' },
+    { value: 'inoperativo',  label: 'Inoperativo' },
+    { value: 'mantenimiento',label: 'En mantenimiento' },
+    { value: 'en_revision',  label: 'En revisión' },
+  ];
 
   // Tipos de equipo disponibles para el form
   tiposDisp: { id: string; nombre: string }[] = [];
@@ -73,9 +94,24 @@ export class EquiposIntervenidosComponent implements OnInit {
     this.cargar();
   }
 
+  private formVacio() {
+    return {
+      nombre: '',
+      tipo_equipo_id: '',
+      marca: '',
+      modelo: '',
+      numero_serie: '',
+      ubicacion_referencia: '',
+      estado: 'operativo',
+      proximo_mantenimiento: '',
+      descripcion: '',
+    };
+  }
+
   cargar(): void {
     this.cargando = true;
     this.error    = false;
+    this.seleccionados.clear();
     this.svc.getEquiposIntervenidos(this.servicioId).subscribe({
       next: (data: any[]) => {
         this.equipos = data.map(r => ({
@@ -96,6 +132,10 @@ export class EquiposIntervenidosComponent implements OnInit {
           estado:              r.estado ?? 'operativo',
         }));
         this.cargando = false;
+
+        // Ubicación / Zona heredadas de la sede (primer registro que las tenga)
+        this.sedeUbicacion = this.equipos.find(e => e.ubicacion)?.ubicacion ?? '';
+        this.sedeZona      = this.equipos.find(e => e.zona)?.zona ?? '';
 
         // Extraer tipos únicos para el formulario
         const vistos = new Set<string>();
@@ -121,8 +161,105 @@ export class EquiposIntervenidosComponent implements OnInit {
       (e.tipoNombre ?? '').toLowerCase().includes(q) ||
       (e.ubicacion  ?? '').toLowerCase().includes(q) ||
       (e.zona       ?? '').toLowerCase().includes(q) ||
+      (e.ubicacionReferencia ?? '').toLowerCase().includes(q) ||
       (e.codigo     ?? '').toLowerCase().includes(q)
     );
+  }
+
+  // ── Selección ───────────────────────────────────────────────────────────
+  isSel(id: string): boolean { return this.seleccionados.has(id); }
+
+  toggleSel(id: string): void {
+    if (this.seleccionados.has(id)) this.seleccionados.delete(id);
+    else this.seleccionados.add(id);
+  }
+
+  get haySeleccion(): boolean { return this.seleccionados.size > 0; }
+  get nSeleccionados(): number { return this.seleccionados.size; }
+
+  get todosSeleccionados(): boolean {
+    const vis = this.equiposFiltrados;
+    return vis.length > 0 && vis.every(e => this.seleccionados.has(e.id));
+  }
+
+  toggleTodos(): void {
+    const vis = this.equiposFiltrados;
+    if (this.todosSeleccionados) {
+      vis.forEach(e => this.seleccionados.delete(e.id));
+    } else {
+      vis.forEach(e => this.seleccionados.add(e.id));
+    }
+  }
+
+  get equiposSeleccionados(): EquipoIntervenido[] {
+    return this.equipos.filter(e => this.seleccionados.has(e.id));
+  }
+
+  // ── Acción: Generar Informe General ──────────────────────────────────────
+  // Regla estricta: solo se puede agrupar el MISMO tipo de equipo.
+  generarInforme(): void {
+    const sel = this.equiposSeleccionados;
+    if (sel.length === 0) {
+      this.toast.mostrar('Selecciona al menos un equipo para generar el informe.', 'info');
+      return;
+    }
+    // Agrupamos por tipo de equipo (id si existe, si no por nombre de tipo).
+    const tipos = new Set(sel.map(e => e.tipoEquipoId ?? e.tipoNombre ?? '∅'));
+    if (tipos.size > 1) {
+      // Tipos mezclados → se bloquea la acción.
+      this.toast.mostrar(
+        'El informe general solo permite agrupar equipos del mismo tipo.',
+        'error'
+      );
+      return;
+    }
+    // Mismo tipo → abre el modal (en construcción).
+    this.showModalInforme = true;
+  }
+  cerrarModalInforme(): void { this.showModalInforme = false; }
+
+  // ── Acción: Carta de Garantía ────────────────────────────────────────────
+  // La garantía es individual, pero se permite procesar por lote SIN restricción
+  // de tipo (se pueden seleccionar equipos de tipos distintos).
+  cartaGarantia(): void {
+    const sel = this.equiposSeleccionados;
+    if (sel.length === 0) {
+      this.toast.mostrar('Selecciona al menos un equipo para emitir la garantía.', 'info');
+      return;
+    }
+    // Sin validación de tipo: cualquier combinación es válida.
+    this.showModalGarantia = true;
+    // TODO (al completar el modal): iterar `this.equiposSeleccionados` y generar
+    // / devolver una Carta de Garantía POR CADA equipo seleccionado de forma
+    // individual (una garantía por equipo, no una sola agrupada).
+  }
+  cerrarModalGarantia(): void { this.showModalGarantia = false; }
+
+  // ── Edición de "Referencia" (técnico) ────────────────────────────────────
+  iniciarEdicionRef(eq: EquipoIntervenido): void {
+    this.editandoRefId = eq.id;
+    this.refDraft = eq.ubicacionReferencia ?? '';
+  }
+  cancelarEdicionRef(): void {
+    this.editandoRefId = null;
+    this.refDraft = '';
+  }
+  guardarRef(eq: EquipoIntervenido): void {
+    const valor = this.refDraft.trim();
+    if (valor === (eq.ubicacionReferencia ?? '')) { this.cancelarEdicionRef(); return; }
+    this.guardandoRef = true;
+    this.svc.actualizarReferenciaEI(this.servicioId, eq.id, valor).subscribe({
+      next: (res: any) => {
+        eq.ubicacionReferencia = res?.ubicacion_referencia ?? (valor || null);
+        this.guardandoRef = false;
+        this.editandoRefId = null;
+        this.toast.mostrar('Referencia actualizada.', 'success');
+      },
+      error: (err: any) => {
+        this.guardandoRef = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo guardar la referencia.', 'error');
+      }
+    });
   }
 
   // ── Inspeccionar ──────────────────────────────────────────────────────────
@@ -135,25 +272,30 @@ export class EquiposIntervenidosComponent implements OnInit {
 
   // ── Crear nuevo equipo en catálogo ────────────────────────────────────────
   abrirFormNuevo(): void {
+    this.form = this.formVacio();
     this.showFormNuevo = true;
-    this.nuevoNombre   = '';
-    this.nuevoTipo     = '';
-    this.nuevoDesc     = '';
   }
   cerrarFormNuevo(): void { this.showFormNuevo = false; }
 
   guardarNuevo(): void {
-    if (!this.nuevoNombre.trim()) {
+    if (!this.form.nombre.trim()) {
       this.toast.mostrar('Ingresa el nombre del equipo.', 'error');
       return;
     }
     this.guardandoNuevo = true;
+    // Ubicación y Zona NO se envían: el backend las hereda de la sede del servicio.
     this.svc.crearEquipoCatalogo(this.servicioId, {
-      nombre:        this.nuevoNombre.trim(),
-      tipo_equipo_id: this.nuevoTipo || null,
-      descripcion:   this.nuevoDesc.trim() || null,
+      nombre:               this.form.nombre.trim(),
+      tipo_equipo_id:       this.form.tipo_equipo_id || null,
+      marca:                this.form.marca.trim() || null,
+      modelo:               this.form.modelo.trim() || null,
+      numero_serie:         this.form.numero_serie.trim() || null,
+      ubicacion_referencia: this.form.ubicacion_referencia.trim() || null,
+      estado:               this.form.estado || 'operativo',
+      proximo_mantenimiento: this.form.proximo_mantenimiento || null,
+      descripcion:          this.form.descripcion.trim() || null,
     }).subscribe({
-      next: (nuevo: any) => {
+      next: () => {
         this.guardandoNuevo = false;
         this.showFormNuevo  = false;
         this.toast.mostrar('Equipo agregado al catálogo.', 'success');

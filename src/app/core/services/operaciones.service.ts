@@ -331,4 +331,13 @@ export class OperacionesService {
       payload
     );
   }
+
+  /** Edita la "Referencia" (indicaciones físicas) de un equipo intervenido.
+   *  Disponible para el técnico desde la tabla. */
+  actualizarReferenciaEI(servicioId: string, eiId: string, ubicacion_referencia: string): Observable<any> {
+    return this.http.patch(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}`,
+      { ubicacion_referencia }
+    );
+  }
 }

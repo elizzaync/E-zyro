@@ -11,19 +11,24 @@
       </button>
       <div>
         <h2 class="ei-title">Equipos Intervenidos</h2>
-        <p class="ei-subtitle">{{ equipos.length }} activos registrados</p>
+        <p class="ei-subtitle">
+          {{ equipos.length }} activos registrados
+          @if (haySeleccion) { · <strong>{{ nSeleccionados }} seleccionado(s)</strong> }
+        </p>
       </div>
     </div>
 
     <div class="ei-header-actions">
-      <button class="btn-accion btn-informe" disabled title="Próximamente">
+      <button class="btn-accion btn-informe" (click)="generarInforme()" [disabled]="!haySeleccion"
+              title="Genera un informe general (solo equipos del mismo tipo)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
         Generar Informe
       </button>
-      <button class="btn-accion btn-garantia" disabled title="Próximamente">
+      <button class="btn-accion btn-garantia" (click)="cartaGarantia()" [disabled]="!haySeleccion"
+              title="Emite una carta de garantía por cada equipo seleccionado">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
@@ -67,7 +72,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
-      <input type="text" class="ei-search" placeholder="Buscar por nombre, tipo, ubicación, zona…"
+      <input type="text" class="ei-search" placeholder="Buscar por nombre, tipo, ubicación, zona, referencia…"
              [(ngModel)]="filtro">
       @if (filtro) {
         <button class="ei-search-clear" (click)="filtro=''">
@@ -101,9 +106,17 @@
         <table class="ei-table">
           <thead>
             <tr>
+              <th class="col-check">
+                <input type="checkbox" class="ei-check"
+                       [checked]="todosSeleccionados"
+                       (change)="toggleTodos()"
+                       title="Seleccionar todos">
+              </th>
               <th>Equipo</th>
               <th>Tipo</th>
-              <th>Referencia (ubicación / zona)</th>
+              <th>Ubicación</th>
+              <th>Zona</th>
+              <th>Referencia</th>
               <th>Próximo Mtto</th>
               <th>Estado Inspección</th>
               <th class="col-actions">Acción</th>
@@ -111,15 +124,47 @@
           </thead>
           <tbody>
             @for (eq of equiposFiltrados; track eq.id) {
-              <tr [class.fila-completada]="eq.estadoIntervencion === 'completado'">
+              <tr [class.fila-completada]="eq.estadoIntervencion === 'completado'"
+                  [class.fila-sel]="isSel(eq.id)">
+                <td class="col-check">
+                  <input type="checkbox" class="ei-check"
+                         [checked]="isSel(eq.id)"
+                         (change)="toggleSel(eq.id)">
+                </td>
                 <td>
                   <span class="eq-nombre">{{ eq.nombre }}</span>
                   @if (eq.codigo) { <span class="eq-codigo">{{ eq.codigo }}</span> }
                 </td>
                 <td class="td-muted">{{ eq.tipoNombre ?? '—' }}</td>
-                <td class="td-muted">
-                  {{ eq.ubicacionReferencia ?? ((eq.ubicacion ?? '—') + (eq.zona ? ' / ' + eq.zona : '')) }}
+                <td class="td-muted">{{ eq.ubicacion ?? '—' }}</td>
+                <td class="td-muted">{{ eq.zona ?? '—' }}</td>
+
+                <!-- Referencia: SOLO indicaciones físicas. Editable por el técnico. -->
+                <td class="td-ref">
+                  @if (editandoRefId === eq.id) {
+                    <div class="ref-edit">
+                      <input type="text" class="ref-input" [(ngModel)]="refDraft"
+                             placeholder="Indicaciones físicas…"
+                             (keyup.enter)="guardarRef(eq)"
+                             (keyup.escape)="cancelarEdicionRef()">
+                      <button class="ref-btn ref-ok" (click)="guardarRef(eq)" [disabled]="guardandoRef" title="Guardar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      </button>
+                      <button class="ref-btn ref-cancel" (click)="cancelarEdicionRef()" title="Cancelar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  } @else {
+                    <button class="ref-view" (click)="iniciarEdicionRef(eq)" title="Editar referencia">
+                      <span [class.ref-empty]="!eq.ubicacionReferencia">{{ eq.ubicacionReferencia || 'Agregar referencia' }}</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                        <path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/>
+                      </svg>
+                    </button>
+                  }
                 </td>
+
                 <td class="td-muted">{{ eq.proximoMantenimiento ? (eq.proximoMantenimiento | date:'dd/MM/yyyy') : '—' }}</td>
                 <td>
                   <span class="badge" [ngClass]="estadoClass(eq.estadoIntervencion)">
@@ -148,12 +193,12 @@
 <!-- ══ MODAL: AGREGAR NUEVO EQUIPO ════════════════════════════════════════ -->
 @if (showFormNuevo) {
 <div class="modal-backdrop" (click)="cerrarFormNuevo()">
-  <div class="modal-panel" (click)="$event.stopPropagation()">
+  <div class="modal-panel modal-panel--wide" (click)="$event.stopPropagation()">
 
     <div class="modal-header">
       <div>
         <h3 class="modal-title">Agregar Equipo al Catálogo</h3>
-        <p class="modal-sub">El equipo quedará registrado y disponible para futuras inspecciones</p>
+        <p class="modal-sub">Registra todos los datos del activo. El código se genera automáticamente.</p>
       </div>
       <button class="modal-close" (click)="cerrarFormNuevo()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -163,48 +208,156 @@
     </div>
 
     <div class="modal-body">
-      <!-- Nombre -->
-      <div class="field-group">
-        <label class="field-label">Nombre del equipo *</label>
-        <input type="text" class="field-input"
-               [(ngModel)]="nuevoNombre"
-               placeholder="Ej: Pozo a tierra N1, Tablero TG-OMA…">
+      <div class="form-grid">
+
+        <!-- Nombre -->
+        <div class="field-group field-col-2">
+          <label class="field-label">Nombre del equipo *</label>
+          <input type="text" class="field-input" [(ngModel)]="form.nombre"
+                 placeholder="Ej: Pozo a tierra N1, Tablero TG-OMA…">
+        </div>
+
+        <!-- Tipo de equipo -->
+        <div class="field-group">
+          <label class="field-label">Tipo de equipo</label>
+          <select class="field-input" [(ngModel)]="form.tipo_equipo_id">
+            <option value="">— Selecciona un tipo —</option>
+            @for (t of tiposDisp; track t.id) {
+              <option [value]="t.id">{{ t.nombre }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Estado -->
+        <div class="field-group">
+          <label class="field-label">Estado del equipo</label>
+          <select class="field-input" [(ngModel)]="form.estado">
+            @for (s of estadosDisp; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- Ubicación (heredada → bloqueada) -->
+        <div class="field-group">
+          <label class="field-label">Ubicación <span class="field-lock">heredada de la sede</span></label>
+          <input type="text" class="field-input field-input--locked"
+                 [value]="sedeUbicacion || '— heredada de la sede —'" disabled readonly>
+        </div>
+
+        <!-- Zona (heredada → bloqueada) -->
+        <div class="field-group">
+          <label class="field-label">Zona <span class="field-lock">heredada de la sede</span></label>
+          <input type="text" class="field-input field-input--locked"
+                 [value]="sedeZona || '— heredada de la sede —'" disabled readonly>
+        </div>
+
+        <!-- Referencia (escritura libre) -->
+        <div class="field-group field-col-2">
+          <label class="field-label">Referencia <span class="field-opt">(indicaciones físicas)</span></label>
+          <input type="text" class="field-input" [(ngModel)]="form.ubicacion_referencia"
+                 placeholder="Ej: Detrás del tablero principal, pasillo 2, sótano…">
+        </div>
+
+        <!-- Marca -->
+        <div class="field-group">
+          <label class="field-label">Marca <span class="field-opt">(opcional)</span></label>
+          <input type="text" class="field-input" [(ngModel)]="form.marca" placeholder="Ej: Schneider">
+        </div>
+
+        <!-- Modelo -->
+        <div class="field-group">
+          <label class="field-label">Modelo <span class="field-opt">(opcional)</span></label>
+          <input type="text" class="field-input" [(ngModel)]="form.modelo" placeholder="Ej: NSX100F">
+        </div>
+
+        <!-- Número de serie -->
+        <div class="field-group">
+          <label class="field-label">N° de serie <span class="field-opt">(opcional)</span></label>
+          <input type="text" class="field-input" [(ngModel)]="form.numero_serie" placeholder="Ej: SN-002934">
+        </div>
+
+        <!-- Próximo mantenimiento -->
+        <div class="field-group">
+          <label class="field-label">Próximo mantenimiento <span class="field-opt">(opcional)</span></label>
+          <input type="date" class="field-input" [(ngModel)]="form.proximo_mantenimiento">
+        </div>
+
+        <!-- Descripción -->
+        <div class="field-group field-col-2">
+          <label class="field-label">Descripción <span class="field-opt">(opcional)</span></label>
+          <input type="text" class="field-input" [(ngModel)]="form.descripcion"
+                 placeholder="Ej: 220v 3ø 60Hz, pozo vertical…">
+        </div>
+
       </div>
 
-      <!-- Tipo de equipo -->
-      <div class="field-group">
-        <label class="field-label">Tipo de equipo</label>
-        <select class="field-input" [(ngModel)]="nuevoTipo">
-          <option value="">— Selecciona un tipo —</option>
-          @for (t of tiposDisp; track t.id) {
-            <option [value]="t.id">{{ t.nombre }}</option>
-          }
-        </select>
-      </div>
-
-      <!-- Descripción -->
-      <div class="field-group">
-        <label class="field-label">Descripción <span class="field-opt">(opcional)</span></label>
-        <input type="text" class="field-input"
-               [(ngModel)]="nuevoDesc"
-               placeholder="Ej: 220v 3ø 60Hz, Pozo vertical…">
+      <!-- Aviso de verificación (tema oscuro slate/navy adaptado) -->
+      <div class="form-aviso">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span>Por favor, verifique bien todos los datos ingresados antes de guardar.</span>
       </div>
     </div>
 
     <div class="modal-footer">
       <button class="btn-cancel-modal" (click)="cerrarFormNuevo()">Cancelar</button>
-      <button class="btn-save-modal" (click)="guardarNuevo()" [disabled]="guardandoNuevo || !nuevoNombre.trim()">
+      <button class="btn-save-modal" (click)="guardarNuevo()" [disabled]="guardandoNuevo || !form.nombre.trim()">
         @if (guardandoNuevo) {
           <app-spinner></app-spinner> Guardando…
         } @else {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          Agregar
+          Guardar Equipo
         }
       </button>
     </div>
 
+  </div>
+</div>
+}
+
+<!-- ══ MODAL: INFORME GENERAL (en construcción) ═══════════════════════════ -->
+@if (showModalInforme) {
+<div class="modal-backdrop" (click)="cerrarModalInforme()">
+  <div class="modal-panel" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Informe General</h3>
+        <p class="modal-sub">{{ nSeleccionados }} equipo(s) del mismo tipo seleccionados</p>
+      </div>
+      <button class="modal-close" (click)="cerrarModalInforme()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <!-- Componente maquetado: contenido pendiente -->
+    <div class="modal-construccion">[EN CONSTRUCCIÓN]</div>
+  </div>
+</div>
+}
+
+<!-- ══ MODAL: CARTA DE GARANTÍA (en construcción) ═════════════════════════ -->
+@if (showModalGarantia) {
+<div class="modal-backdrop" (click)="cerrarModalGarantia()">
+  <div class="modal-panel" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Carta de Garantía</h3>
+        <p class="modal-sub">{{ nSeleccionados }} equipo(s) seleccionados · se emite una por cada uno</p>
+      </div>
+      <button class="modal-close" (click)="cerrarModalGarantia()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <!-- Componente maquetado: al completarse, iterará y devolverá la garantía por CADA equipo -->
+    <div class="modal-construccion">[EN CONSTRUCCIÓN]</div>
   </div>
 </div>
 }

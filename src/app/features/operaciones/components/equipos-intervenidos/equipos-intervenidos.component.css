@@ -389,3 +389,103 @@
 }
 .ei-filtro-aviso svg { width: 16px; height: 16px; flex-shrink: 0; }
 .ei-filtro-aviso strong { font-weight: 600; }
+
+:host-context([data-theme="dark"]) .ei-filtro-aviso {
+  background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.25); color: #6ee7b7;
+}
+
+/* ── Checkboxes de selección ──────────────────────────────────────── */
+.col-check { width: 40px; text-align: center; }
+.ei-check {
+  width: 16px; height: 16px; cursor: pointer;
+  accent-color: var(--brand-green, #91d337);
+}
+.fila-sel td { background: rgba(145,211,55,.07); }
+:host-context([data-theme="dark"]) .fila-sel td { background: rgba(145,211,55,.10); }
+
+/* ── Celda Referencia (editable) ──────────────────────────────────── */
+.td-ref { min-width: 180px; }
+.ref-view {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 100%; padding: 4px 8px; border-radius: 7px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--text-main, #0f1a14); font-size: 13px;
+  font-family: 'Inter', sans-serif; text-align: left;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.ref-view svg { width: 13px; height: 13px; opacity: 0; flex-shrink: 0; transition: opacity .15s; color: var(--text-muted, #94a3b8); }
+.ref-view:hover { border-color: var(--border-color, #e2e8f0); background: var(--page-bg, #f8fafc); }
+.ref-view:hover svg { opacity: 1; }
+.ref-empty { color: var(--text-muted, #94a3b8); font-style: italic; }
+
+.ref-edit { display: inline-flex; align-items: center; gap: 5px; }
+.ref-input {
+  padding: 6px 9px; border-radius: 7px;
+  border: 1px solid var(--brand-green, #91d337);
+  background: var(--page-bg, #f8fafc); color: var(--text-main, #0f1a14);
+  font-size: 13px; font-family: 'Inter', sans-serif; outline: none; min-width: 150px;
+}
+.ref-btn {
+  width: 26px; height: 26px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 7px; border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--card-bg, #fff); cursor: pointer; transition: background .15s, border-color .15s;
+}
+.ref-btn svg { width: 13px; height: 13px; }
+.ref-ok { color: #16a34a; }
+.ref-ok:hover:not(:disabled) { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.4); }
+.ref-cancel { color: #ef4444; }
+.ref-cancel:hover { background: rgba(239,68,68,.12); border-color: rgba(239,68,68,.4); }
+.ref-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+:host-context([data-theme="dark"]) .ref-view { color: var(--text-main, #e2e8f0); }
+:host-context([data-theme="dark"]) .ref-view:hover { border-color: var(--border-color, #1e3050); background: rgba(255,255,255,.03); }
+:host-context([data-theme="dark"]) .ref-input { background: var(--card-bg, #1a2840); color: var(--text-main, #e2e8f0); }
+:host-context([data-theme="dark"]) .ref-btn { background: var(--card-bg, #131f35); border-color: var(--border-color, #1e3050); }
+
+/* ── Formulario completo (grid) ───────────────────────────────────── */
+.form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.field-col-2 { grid-column: 1 / -1; }
+.field-lock {
+  font-weight: 400; text-transform: none; letter-spacing: 0;
+  color: var(--text-muted, #94a3b8); font-size: 11px;
+}
+.field-input--locked {
+  opacity: .7; cursor: not-allowed;
+  background: var(--border-color, #eef2f7) !important;
+}
+:host-context([data-theme="dark"]) .field-input--locked {
+  background: rgba(255,255,255,.04) !important;
+}
+
+/* ── Aviso "verifique los datos" ──────────────────────────────────── */
+.form-aviso {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 18px; padding: 11px 14px;
+  background: rgba(245,158,11,.10);
+  border: 1px solid rgba(245,158,11,.32);
+  border-radius: 10px;
+  color: #b45309; font-size: 13px; font-weight: 600;
+}
+.form-aviso svg { width: 18px; height: 18px; flex-shrink: 0; }
+:host-context([data-theme="dark"]) .form-aviso {
+  background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.30); color: #fbbf24;
+}
+
+/* ── Modal ancho (formulario) ─────────────────────────────────────── */
+.modal-panel--wide { max-width: 680px; }
+
+/* ── Placeholder "[EN CONSTRUCCIÓN]" ──────────────────────────────── */
+.modal-construccion {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 220px; padding: 40px 24px;
+  font-size: 15px; font-weight: 800; letter-spacing: .08em;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+}
+
+@media (max-width: 560px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
