@@ -245,7 +245,12 @@
   z-index: 1000;
   display: flex; align-items: center; justify-content: center;
   padding: 24px; animation: eiFade .2s ease;
+  /* El modal vive fuera de .ei-layout: fijamos aquí la fuente del app para que
+     TODO el texto del modal (título, labels, avisos) use el mismo stack y no
+     caiga al serif por defecto del navegador (body global no define font-family). */
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
 }
+.modal-backdrop * { font-family: inherit; }
 
 .modal-panel {
   background: var(--card-bg, #fff);

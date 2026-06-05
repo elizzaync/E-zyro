@@ -1,5 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule, Location } from '@angular/common';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { CommonModule, Location, DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
@@ -44,12 +44,13 @@ export interface EquipoIntervenido {
   templateUrl: './equipos-intervenidos.component.html',
   styleUrls: ['./equipos-intervenidos.component.css'],
 })
-export class EquiposIntervenidosComponent implements OnInit {
+export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   private route    = inject(ActivatedRoute);
   private router   = inject(Router);
   private location = inject(Location);
   private svc      = inject(OperacionesService);
   private toast    = inject(ToastService);
+  private doc      = inject(DOCUMENT);
 
   servicioId = '';
   cargando   = true;
@@ -93,6 +94,17 @@ export class EquiposIntervenidosComponent implements OnInit {
     this.servicioId = this.route.snapshot.paramMap.get('id') ?? '';
     this.cargar();
     this.cargarTipos();
+  }
+
+  ngOnDestroy(): void {
+    // Asegura que el scroll quede liberado si el componente se destruye con un modal abierto
+    this.doc.body.style.overflow = '';
+  }
+
+  /** Bloquea el scroll del fondo cuando hay algún modal abierto. */
+  private syncScrollLock(): void {
+    const abierto = this.showFormNuevo || this.showModalInforme || this.showModalGarantia;
+    this.doc.body.style.overflow = abierto ? 'hidden' : '';
   }
 
   private formVacio() {
@@ -213,8 +225,9 @@ export class EquiposIntervenidosComponent implements OnInit {
     }
     // Mismo tipo → abre el modal (en construcción).
     this.showModalInforme = true;
+    this.syncScrollLock();
   }
-  cerrarModalInforme(): void { this.showModalInforme = false; }
+  cerrarModalInforme(): void { this.showModalInforme = false; this.syncScrollLock(); }
 
   // ── Acción: Carta de Garantía ────────────────────────────────────────────
   // La garantía es individual, pero se permite procesar por lote SIN restricción
@@ -227,11 +240,12 @@ export class EquiposIntervenidosComponent implements OnInit {
     }
     // Sin validación de tipo: cualquier combinación es válida.
     this.showModalGarantia = true;
+    this.syncScrollLock();
     // TODO (al completar el modal): iterar `this.equiposSeleccionados` y generar
     // / devolver una Carta de Garantía POR CADA equipo seleccionado de forma
     // individual (una garantía por equipo, no una sola agrupada).
   }
-  cerrarModalGarantia(): void { this.showModalGarantia = false; }
+  cerrarModalGarantia(): void { this.showModalGarantia = false; this.syncScrollLock(); }
 
   // ── Edición de "Referencia" (técnico) ────────────────────────────────────
   iniciarEdicionRef(eq: EquipoIntervenido): void {
@@ -272,8 +286,9 @@ export class EquiposIntervenidosComponent implements OnInit {
   abrirFormNuevo(): void {
     this.form = this.formVacio();
     this.showFormNuevo = true;
+    this.syncScrollLock();
   }
-  cerrarFormNuevo(): void { this.showFormNuevo = false; }
+  cerrarFormNuevo(): void { this.showFormNuevo = false; this.syncScrollLock(); }
 
   guardarNuevo(): void {
     if (!this.form.nombre.trim()) {
@@ -292,6 +307,7 @@ export class EquiposIntervenidosComponent implements OnInit {
       next: () => {
         this.guardandoNuevo = false;
         this.showFormNuevo  = false;
+        this.syncScrollLock();
         this.toast.mostrar('Equipo agregado al catálogo.', 'success');
         this.cargar();
       },
