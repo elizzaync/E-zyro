@@ -351,10 +351,20 @@
       <div class="inf-section">
         <h4 class="inf-title">EPPs usados</h4>
         <div class="inf-add">
-          <input type="text" class="field-input" [(ngModel)]="nuevoEpp"
-                 placeholder="Agregar EPP…" (keyup.enter)="agregarEpp()">
-          <button class="inf-add-btn" type="button" (click)="agregarEpp()">Agregar</button>
+          <input type="text" class="field-input inf-filter-input" [(ngModel)]="filtroEpp"
+                 placeholder="Filtrar EPP…">
+          <select class="field-input" [(ngModel)]="eppSelNombre">
+            <option value="">— Selecciona un EPP —</option>
+            @for (e of catalogoEppsFiltrados; track e.id) {
+              <option [value]="e.nombre">{{ e.nombre }}</option>
+            }
+          </select>
+          <button class="inf-add-btn" type="button" (click)="agregarEpp()"
+                  [disabled]="!eppSelNombre">Agregar</button>
         </div>
+        @if (!informeCargando && catalogoEpps.length === 0) {
+          <p class="inf-hint">Sin catálogo de EPPs en BD. Agrega EPPs desde el módulo de Logística.</p>
+        }
         <div class="inf-chips">
           @for (epp of informeEpps; track epp; let i = $index) {
             <span class="inf-chip">
@@ -372,10 +382,20 @@
       <div class="inf-section">
         <h4 class="inf-title">Herramientas usadas</h4>
         <div class="inf-add">
-          <input type="text" class="field-input" [(ngModel)]="nuevaHerramienta"
-                 placeholder="Agregar herramienta…" (keyup.enter)="agregarHerramienta()">
-          <button class="inf-add-btn" type="button" (click)="agregarHerramienta()">Agregar</button>
+          <input type="text" class="field-input inf-filter-input" [(ngModel)]="filtroHerramienta"
+                 placeholder="Filtrar herramienta…">
+          <select class="field-input" [(ngModel)]="herramientaSelNombre">
+            <option value="">— Selecciona una herramienta —</option>
+            @for (h of catalogoHerramientasFiltradas; track h.id) {
+              <option [value]="h.nombre">{{ h.nombre }}</option>
+            }
+          </select>
+          <button class="inf-add-btn" type="button" (click)="agregarHerramienta()"
+                  [disabled]="!herramientaSelNombre">Agregar</button>
         </div>
+        @if (!informeCargando && catalogoHerramientas.length === 0) {
+          <p class="inf-hint">Sin catálogo de herramientas en BD. Agrega desde el módulo de Logística.</p>
+        }
         <div class="inf-table-scroll">
           <table class="inf-table">
             <thead><tr><th>Serie</th><th>Herramienta</th><th>Marca</th><th class="col-actions">Acción</th></tr></thead>
@@ -402,10 +422,20 @@
       <div class="inf-section">
         <h4 class="inf-title">Materiales usados</h4>
         <div class="inf-add">
-          <input type="text" class="field-input" [(ngModel)]="nuevoMaterial"
-                 placeholder="Agregar material…" (keyup.enter)="agregarMaterial()">
-          <button class="inf-add-btn" type="button" (click)="agregarMaterial()">Agregar</button>
+          <input type="text" class="field-input inf-filter-input" [(ngModel)]="filtroMaterial"
+                 placeholder="Filtrar material…">
+          <select class="field-input" [(ngModel)]="materialSelNombre">
+            <option value="">— Selecciona un material —</option>
+            @for (m of catalogoMaterialesFiltrados; track m.id) {
+              <option [value]="m.nombre">{{ m.nombre }}</option>
+            }
+          </select>
+          <button class="inf-add-btn" type="button" (click)="agregarMaterial()"
+                  [disabled]="!materialSelNombre">Agregar</button>
         </div>
+        @if (!informeCargando && catalogoMateriales.length === 0) {
+          <p class="inf-hint">Sin catálogo de materiales en BD. Agrega desde el módulo de Logística.</p>
+        }
         <div class="inf-table-scroll">
           <table class="inf-table">
             <thead><tr><th>Material</th><th>Unidad</th><th>Características</th><th class="col-actions">Acción</th></tr></thead>

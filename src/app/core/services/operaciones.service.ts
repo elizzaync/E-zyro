@@ -356,4 +356,11 @@ export class OperacionesService {
   generarInformeGeneral(servicioId: string, payload: object): Observable<any> {
     return this.http.post(`${this.api}/operaciones/servicio/${servicioId}/informe/generar`, payload);
   }
+
+  /** Catálogo de EPPs activos de la empresa (tabla epp). */
+  getEppCatalogo(q?: string): Observable<{ id: string; nombre: string }[]> {
+    let params = new HttpParams();
+    if (q) params = params.set('q', q);
+    return this.http.get<{ id: string; nombre: string }[]>(`${this.api}/epp`, { params });
+  }
 }

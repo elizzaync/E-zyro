@@ -2,7 +2,10 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule, Location, DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { LogisticaService } from '../../../../core/services/logistica.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ToastService } from '../../../../core/services/toast.service';
 import {
@@ -49,12 +52,13 @@ export interface EquipoIntervenido {
   styleUrls: ['./equipos-intervenidos.component.css'],
 })
 export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
-  private route    = inject(ActivatedRoute);
-  private router   = inject(Router);
-  private location = inject(Location);
-  private svc      = inject(OperacionesService);
-  private toast    = inject(ToastService);
-  private doc      = inject(DOCUMENT);
+  private route         = inject(ActivatedRoute);
+  private router        = inject(Router);
+  private location      = inject(Location);
+  private svc           = inject(OperacionesService);
+  private logisticaSvc  = inject(LogisticaService);
+  private toast         = inject(ToastService);
+  private doc           = inject(DOCUMENT);
 
   servicioId = '';
   cargando   = true;
@@ -85,9 +89,21 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   informeHerramientas: HerramientaItem[] = [];
   informePersonalDisp: { id: string; nombre: string; cargo: string; rol_sugerido: string }[] = [];
   informePersonalAsignado: { id: string; nombre: string; rol: string }[] = [];
-  nuevoEpp = '';
-  nuevoMaterial = '';
-  nuevaHerramienta = '';
+
+  // Catálogos cargados desde BD
+  catalogoEpps: { id: string; nombre: string }[] = [];
+  catalogoMateriales: { id: string; nombre: string; unidad: string }[] = [];
+  catalogoHerramientas: { id: string; nombre: string; marca: string }[] = [];
+
+  // Filtros de búsqueda dentro de los selectores
+  filtroEpp = '';
+  filtroMaterial = '';
+  filtroHerramienta = '';
+
+  // Ítems seleccionados en los dropdowns
+  eppSelNombre = '';
+  materialSelNombre = '';
+  herramientaSelNombre = '';
   personalSel = '';
 
   // ── Edición inline de "Referencia" (vista del técnico) ────────────────────
@@ -250,28 +266,38 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   }
   cerrarModalInforme(): void { this.showModalInforme = false; this.syncScrollLock(); }
 
-  /** Precarga del modal: defaults por tipo + merge con lo solicitado del servicio. */
+  /** Precarga del modal: defaults por tipo + merge con servicio + catálogos de BD. */
   private prepararInforme(sel: EquipoIntervenido[]): void {
     this.informeEquipos     = [...sel];
     this.informeTipoBase    = determinarTipoBase(sel.map(e => e.tipoNombre));
-    // Copias de los defaults para no mutar las constantes
     this.informeEpps         = [...EPPS_CONFIG[this.informeTipoBase]];
     this.informeMateriales   = MATERIALES_CONFIG[this.informeTipoBase].map(m => ({ ...m }));
     this.informeHerramientas = HERRAMIENTAS_CONFIG[this.informeTipoBase].map(h => ({ ...h }));
     this.informePersonalAsignado = [];
     this.informePersonalDisp     = [];
     this.informeServicioNombre   = '';
-    this.nuevoEpp = this.nuevoMaterial = this.nuevaHerramienta = '';
+    this.catalogoEpps            = [];
+    this.catalogoMateriales      = [];
+    this.catalogoHerramientas    = [];
+    this.filtroEpp = this.filtroMaterial = this.filtroHerramienta = '';
+    this.eppSelNombre = this.materialSelNombre = this.herramientaSelNombre = '';
     this.personalSel = '';
 
     this.informeCargando = true;
-    this.svc.getPrecargaInforme(this.servicioId).subscribe({
-      next: (res: any) => {
+    forkJoin({
+      precarga:      this.svc.getPrecargaInforme(this.servicioId).pipe(catchError(() => of(null))),
+      epps:          this.svc.getEppCatalogo().pipe(catchError(() => of([]))),
+      materiales:    this.logisticaSvc.getMateriales({ pageSize: 500 }).pipe(catchError(() => of([]))),
+      herramientas:  this.logisticaSvc.getEquipos({ pageSize: 500 }).pipe(catchError(() => of([]))),
+    }).subscribe({
+      next: ({ precarga, epps, materiales, herramientas }) => {
+        // ── Precarga del servicio ────────────────────────────────────────
+        const res = precarga as any;
         const srv = res?.servicio;
         this.informeServicioNombre = srv?.nombre
           ? `${srv.nombre}${srv.proyecto_nombre ? ' — ' + srv.proyecto_nombre : ''}`
           : '(servicio actual)';
-        // MERGE (defaults + solicitado del servicio), sin duplicados por nombre
+
         this.informeMateriales = this.mergePorNombre(
           this.informeMateriales,
           (res?.materiales_solicitados ?? []).map((m: any) => ({
@@ -286,11 +312,36 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
           })),
           (x: HerramientaItem) => x.nombre,
         );
-        this.informePersonalDisp = res?.personal ?? [];
+
+        // ── Personal: auto-poblar todos los del proyecto ─────────────────
+        const personal: { id: string; nombre: string; cargo: string; rol_sugerido: string }[] =
+          res?.personal ?? [];
+        this.informePersonalDisp = personal;
+        this.informePersonalAsignado = personal.map(p => ({
+          id:     p.id,
+          nombre: p.nombre,
+          rol:    /supervis|jefe|lider|líder/i.test(p.rol_sugerido ?? '') ? 'Supervisor' : 'Técnico',
+        }));
+
+        // ── Catálogos desde BD ───────────────────────────────────────────
+        this.catalogoEpps = (epps as any[]).map(e => ({
+          id:     e.id,
+          nombre: (e.nombre as string).toUpperCase(),
+        }));
+        this.catalogoMateriales = (materiales as any[]).map(m => ({
+          id:     m.id,
+          nombre: m.nombre.toUpperCase(),
+          unidad: m.unidad || 'UND.',
+        }));
+        this.catalogoHerramientas = (herramientas as any[]).map(h => ({
+          id:     h.id,
+          nombre: h.nombre.toUpperCase(),
+          marca:  h.marca || '-',
+        }));
+
         this.informeCargando = false;
       },
       error: () => {
-        // Sin backend disponible: se mantiene solo con los defaults del tipo
         this.informeServicioNombre = '(servicio actual)';
         this.informeCargando = false;
       }
@@ -310,39 +361,67 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
     return out;
   }
 
-  // EPPs (solo nominal, sin stock; no se repiten nombres)
+  // ── Getters: catálogos filtrados (excluyen ya agregados) ─────────────────
+  get catalogoEppsFiltrados() {
+    const q    = this.filtroEpp.toLowerCase().trim();
+    const usados = new Set(this.informeEpps.map(e => e.toUpperCase()));
+    return this.catalogoEpps
+      .filter(e => !usados.has(e.nombre))
+      .filter(e => !q || e.nombre.toLowerCase().includes(q));
+  }
+  get catalogoMaterialesFiltrados() {
+    const q    = this.filtroMaterial.toLowerCase().trim();
+    const usados = new Set(this.informeMateriales.map(m => m.nombre.toUpperCase()));
+    return this.catalogoMateriales
+      .filter(m => !usados.has(m.nombre))
+      .filter(m => !q || m.nombre.toLowerCase().includes(q));
+  }
+  get catalogoHerramientasFiltradas() {
+    const q    = this.filtroHerramienta.toLowerCase().trim();
+    const usados = new Set(this.informeHerramientas.map(h => h.nombre.toUpperCase()));
+    return this.catalogoHerramientas
+      .filter(h => !usados.has(h.nombre))
+      .filter(h => !q || h.nombre.toLowerCase().includes(q));
+  }
+
+  // EPPs: selección desde catálogo BD
   agregarEpp(): void {
-    const v = this.nuevoEpp.trim().toUpperCase();
-    if (!v) return;
+    const v = this.eppSelNombre.trim().toUpperCase();
+    if (!v) { this.toast.mostrar('Selecciona un EPP del catálogo.', 'info'); return; }
     if (this.informeEpps.some(e => e.toUpperCase() === v)) {
       this.toast.mostrar(`${v} ya fue agregado.`, 'error'); return;
     }
     this.informeEpps.push(v);
-    this.nuevoEpp = '';
+    this.eppSelNombre = '';
+    this.filtroEpp = '';
   }
   quitarEpp(i: number): void { this.informeEpps.splice(i, 1); }
 
-  // Materiales (texto libre, sin validación de stock)
+  // Materiales: selección desde catálogo BD
   agregarMaterial(): void {
-    const v = this.nuevoMaterial.trim().toUpperCase();
-    if (!v) return;
+    const v = this.materialSelNombre.trim().toUpperCase();
+    if (!v) { this.toast.mostrar('Selecciona un material del catálogo.', 'info'); return; }
     if (this.informeMateriales.some(m => m.nombre.toUpperCase() === v)) {
       this.toast.mostrar(`${v} ya fue agregado.`, 'error'); return;
     }
-    this.informeMateriales.push({ nombre: v, unidad: 'UND.', caracteristicas: '-' });
-    this.nuevoMaterial = '';
+    const cat = this.catalogoMateriales.find(m => m.nombre === v);
+    this.informeMateriales.push({ nombre: v, unidad: cat?.unidad || 'UND.', caracteristicas: '-' });
+    this.materialSelNombre = '';
+    this.filtroMaterial = '';
   }
   quitarMaterial(i: number): void { this.informeMateriales.splice(i, 1); }
 
-  // Herramientas (texto libre, sin validación de stock)
+  // Herramientas: selección desde catálogo BD
   agregarHerramienta(): void {
-    const v = this.nuevaHerramienta.trim().toUpperCase();
-    if (!v) return;
+    const v = this.herramientaSelNombre.trim().toUpperCase();
+    if (!v) { this.toast.mostrar('Selecciona una herramienta del catálogo.', 'info'); return; }
     if (this.informeHerramientas.some(h => h.nombre.toUpperCase() === v)) {
       this.toast.mostrar(`${v} ya fue agregada.`, 'error'); return;
     }
-    this.informeHerramientas.push({ serie: '-', nombre: v, marca: '-' });
-    this.nuevaHerramienta = '';
+    const cat = this.catalogoHerramientas.find(h => h.nombre === v);
+    this.informeHerramientas.push({ serie: '-', nombre: v, marca: cat?.marca || '-' });
+    this.herramientaSelNombre = '';
+    this.filtroHerramienta = '';
   }
   quitarHerramienta(i: number): void { this.informeHerramientas.splice(i, 1); }
 
