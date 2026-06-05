@@ -3499,6 +3499,22 @@ def crear_equipo_catalogo(
     zona_id  = (body or {}).get("zona_id")
     desc     = (body or {}).get("descripcion") or None
     cliente_id = (body or {}).get("cliente_id") or None
+    # Campos libres del formulario (independientes de ubicacion/zona)
+    marca        = (body or {}).get("marca") or None
+    modelo       = (body or {}).get("modelo") or None
+    numero_serie = (body or {}).get("numero_serie") or None
+    estado_in    = (body or {}).get("estado") or "operativo"
+    # "Referencia" = SOLO indicaciones fisicas de donde esta el equipo.
+    # Ya no se arma con "ubicacion / zona": esos viven en sus propias columnas.
+    referencia   = ((body or {}).get("ubicacion_referencia") or "").strip() or None
+    # Proximo mantenimiento (ISO YYYY-MM-DD) opcional
+    prox_mtto = None
+    _prox_raw = (body or {}).get("proximo_mantenimiento")
+    if _prox_raw:
+        try:
+            prox_mtto = date.fromisoformat(str(_prox_raw)[:10])
+        except ValueError:
+            prox_mtto = None
 
     # Heredar ubicacion/zona/cliente del servicio si no vienen en el body.
     # Asi el equipo nuevo queda ligado a la misma ubicacion+zona del servicio.
@@ -3532,18 +3548,14 @@ def crear_equipo_catalogo(
 
     tipo = db.query(TipoEquipo).filter(TipoEquipo.id == tipo_id).first() if tipo_id else None
 
-    # Codigo unico {PROV}-{TIPO}-{NNN}
+    # Codigo unico {PROV}-{TIPO}-{NNN}. El prefijo PROV se deriva de la ubicacion,
+    # pero NO se mezcla con "Referencia": la ubicacion y la zona viven en sus
+    # propias FKs (ubicacion_id / zona_id) y se muestran en columnas separadas.
     prov3 = "GEN"
-    ubic_ref = None
     if ubic_id:
         u = db.query(Ubicacion).filter(Ubicacion.id == ubic_id).first()
         if u and u.nombre:
             prov3 = "".join(ch for ch in u.nombre.upper() if ch.isalnum())[:3] or "GEN"
-            zname = None
-            if zona_id:
-                z = db.query(Zona).filter(Zona.id == zona_id).first()
-                zname = z.nombre if z else None
-            ubic_ref = f"{u.nombre} / {zname}" if zname else u.nombre
     _PREF = {"POZOS": "POZ", "POZO A TIERRA": "POZ", "TABLEROS": "TAB", "TABLERO ELECTRICO": "TAB",
              "UPS": "UPS", "TRANS. AISLAMIENTO": "TRA", "PARARRAYOS": "PAR",
              "LUMINARIAS": "LUM", "TOMACORRIENTES": "TOM"}
@@ -3567,12 +3579,16 @@ def crear_equipo_catalogo(
         cliente_id     = cliente_id,
         nombre         = nombre,
         codigo         = codigo,
-        ubicacion_referencia = ubic_ref,
+        ubicacion_referencia = referencia,   # solo indicaciones fisicas
         tipo_equipo_id = tipo_id or None,
         ubicacion_id   = ubic_id or None,
         zona_id        = zona_id or None,
+        marca          = marca,
+        modelo         = modelo,
+        numero_serie   = numero_serie,
+        proximo_mantenimiento = prox_mtto,
         observaciones  = desc,
-        estado         = "operativo",
+        estado         = estado_in,
         activo         = True,
     )
     db.add(ei)
@@ -3582,7 +3598,7 @@ def crear_equipo_catalogo(
         "id":           nid,
         "nombre":       nombre,
         "codigo":       codigo,
-        "ubicacion_referencia": ubic_ref,
+        "ubicacion_referencia": referencia,
         "tipo_nombre":  tipo.nombre if tipo else None,
         "estado_intervencion": "sin_inspeccion",
     }
@@ -4032,3 +4048,64 @@ def completar_intervencion_legacy(
     ei.updated_at          = datetime.utcnow()
     db.commit()
     return {"ok": True, "estado_intervencion": "completado"}
+
+
+# ── PATCH /servicio/{sid}/equipos-intervenidos/{eiId} ─────────────────────────
+# Actualiza campos editables de un equipo intervenido. Lo usa:
+#   - el motor de inspeccion (estado_intervencion / observaciones), y
+#   - la vista del tecnico para EDITAR la "Referencia" (ubicacion_referencia),
+#     que son solo las indicaciones fisicas de donde se encuentra el equipo.
+# Nota: ubicacion_id / zona_id NO se tocan aqui; son datos heredados de la sede.
+
+@router.patch("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}")
+def actualizar_equipo_intervenido(
+    servicio_id: str,
+    ei_id:       str,
+    body:        dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+
+    body = body or {}
+
+    # Referencia: el tecnico puede modificar las indicaciones o dejarlas igual.
+    # Se permite vaciarla (cadena vacia -> None).
+    if "ubicacion_referencia" in body:
+        ref = (body.get("ubicacion_referencia") or "").strip()
+        ei.ubicacion_referencia = ref or None
+
+    if "estado_intervencion" in body and body.get("estado_intervencion"):
+        ei.estado_intervencion = body["estado_intervencion"]
+
+    if "observaciones" in body:
+        ei.observaciones = (body.get("observaciones") or "").strip() or None
+
+    # Campos libres opcionales
+    for campo in ("marca", "modelo", "numero_serie"):
+        if campo in body:
+            setattr(ei, campo, (body.get(campo) or "").strip() or None)
+
+    if "estado" in body and body.get("estado"):
+        ei.estado = body["estado"]
+
+    ei.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "ok":                   True,
+        "id":                   str(ei.id),
+        "ubicacion_referencia": ei.ubicacion_referencia or None,
+        "estado_intervencion":  ei.estado_intervencion or "sin_inspeccion",
+        "estado":               ei.estado or "operativo",
+        "marca":                ei.marca or None,
+        "modelo":               ei.modelo or None,
+        "numero_serie":         ei.numero_serie or None,
+        "observaciones":        ei.observaciones or None,
+    }
