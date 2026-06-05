@@ -644,6 +644,39 @@ def _run_migrations():
         conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS motivo VARCHAR(300)"))
         conn.commit()
 
+        # ── Ledger de seguridad de firmas (firma_evento) ─────────────────────
+        # FKs uuid a empresa/empleado/usuario → se crea aquí (no por create_all,
+        # que las haría VARCHAR(36) y chocaría con las PK uuid). entidad_id NO es
+        # FK (apunta a entidades heterogéneas) → se queda VARCHAR(36).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS firma_evento (
+                id                  uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                empresa_id          uuid NOT NULL REFERENCES empresa(id),
+                firmante_id         uuid REFERENCES empleado(id),
+                firmante_usuario_id uuid REFERENCES usuario(id),
+                entidad_tipo        VARCHAR(50) NOT NULL,
+                entidad_id          VARCHAR(36) NOT NULL,
+                rol_firma           VARCHAR(30),
+                metodo              VARCHAR(20) NOT NULL DEFAULT 'desconocido',
+                sha256              VARCHAR(64),
+                phash               VARCHAR(32),
+                firma_ref           TEXT,
+                ip                  VARCHAR(45),
+                user_agent          VARCHAR(500),
+                sello_hmac          VARCHAR(64),
+                sospechoso          BOOLEAN NOT NULL DEFAULT FALSE,
+                motivo_sospecha     TEXT,
+                created_at          TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_firma_evento_empresa  ON firma_evento (empresa_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_firma_evento_firmante ON firma_evento (firmante_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_firma_evento_entidad  ON firma_evento (entidad_tipo, entidad_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_firma_evento_sha256   ON firma_evento (sha256)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_firma_evento_phash    ON firma_evento (phash)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_firma_evento_susp     ON firma_evento (sospechoso)"))
+        conn.commit()
+
         conn.execute(text(
             "ALTER TABLE solicitud_laboral "
             "ADD COLUMN IF NOT EXISTS url_pdf VARCHAR(500)"
