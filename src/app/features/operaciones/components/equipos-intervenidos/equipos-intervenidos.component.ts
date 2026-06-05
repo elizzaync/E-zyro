@@ -5,6 +5,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ToastService } from '../../../../core/services/toast.service';
+import {
+  EPPS_CONFIG, MATERIALES_CONFIG, HERRAMIENTAS_CONFIG, determinarTipoBase,
+  MaterialItem, HerramientaItem, TipoBase,
+} from './informe-general.config';
 
 // Interfaces legacy requeridas por sub-componentes heredados
 export interface ProcedimientoEI {
@@ -66,9 +70,25 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   // ── Selección (checkboxes) para acciones masivas ──────────────────────────
   seleccionados = new Set<string>();
 
-  // ── Modales de acciones masivas (maquetados / en construcción) ────────────
+  // ── Modales de acciones masivas ───────────────────────────────────────────
   showModalInforme  = false;
   showModalGarantia = false;
+
+  // ── Modal "Generar Informe" — estado ──────────────────────────────────────
+  informeCargando = false;
+  informeEnviando = false;
+  informeTipoBase: TipoBase = 'OTRO';
+  informeServicioNombre = '';                 // bloqueado en el modal
+  informeEquipos: EquipoIntervenido[] = [];
+  informeEpps: string[] = [];
+  informeMateriales: MaterialItem[] = [];
+  informeHerramientas: HerramientaItem[] = [];
+  informePersonalDisp: { id: string; nombre: string; cargo: string; rol_sugerido: string }[] = [];
+  informePersonalAsignado: { id: string; nombre: string; rol: string }[] = [];
+  nuevoEpp = '';
+  nuevoMaterial = '';
+  nuevaHerramienta = '';
+  personalSel = '';
 
   // ── Edición inline de "Referencia" (vista del técnico) ────────────────────
   editandoRefId: string | null = null;
@@ -223,11 +243,157 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
       );
       return;
     }
-    // Mismo tipo → abre el modal (en construcción).
+    // Mismo tipo → abre el modal y precarga sus datos.
     this.showModalInforme = true;
     this.syncScrollLock();
+    this.prepararInforme(sel);
   }
   cerrarModalInforme(): void { this.showModalInforme = false; this.syncScrollLock(); }
+
+  /** Precarga del modal: defaults por tipo + merge con lo solicitado del servicio. */
+  private prepararInforme(sel: EquipoIntervenido[]): void {
+    this.informeEquipos     = [...sel];
+    this.informeTipoBase    = determinarTipoBase(sel.map(e => e.tipoNombre));
+    // Copias de los defaults para no mutar las constantes
+    this.informeEpps         = [...EPPS_CONFIG[this.informeTipoBase]];
+    this.informeMateriales   = MATERIALES_CONFIG[this.informeTipoBase].map(m => ({ ...m }));
+    this.informeHerramientas = HERRAMIENTAS_CONFIG[this.informeTipoBase].map(h => ({ ...h }));
+    this.informePersonalAsignado = [];
+    this.informePersonalDisp     = [];
+    this.informeServicioNombre   = '';
+    this.nuevoEpp = this.nuevoMaterial = this.nuevaHerramienta = '';
+    this.personalSel = '';
+
+    this.informeCargando = true;
+    this.svc.getPrecargaInforme(this.servicioId).subscribe({
+      next: (res: any) => {
+        const srv = res?.servicio;
+        this.informeServicioNombre = srv?.nombre
+          ? `${srv.nombre}${srv.proyecto_nombre ? ' — ' + srv.proyecto_nombre : ''}`
+          : '(servicio actual)';
+        // MERGE (defaults + solicitado del servicio), sin duplicados por nombre
+        this.informeMateriales = this.mergePorNombre(
+          this.informeMateriales,
+          (res?.materiales_solicitados ?? []).map((m: any) => ({
+            nombre: m.nombre, unidad: m.unidad || 'UND.', caracteristicas: m.caracteristicas || '-',
+          })),
+          (x: MaterialItem) => x.nombre,
+        );
+        this.informeHerramientas = this.mergePorNombre(
+          this.informeHerramientas,
+          (res?.herramientas_solicitadas ?? []).map((h: any) => ({
+            serie: h.serie || '-', nombre: h.nombre, marca: h.marca || '-',
+          })),
+          (x: HerramientaItem) => x.nombre,
+        );
+        this.informePersonalDisp = res?.personal ?? [];
+        this.informeCargando = false;
+      },
+      error: () => {
+        // Sin backend disponible: se mantiene solo con los defaults del tipo
+        this.informeServicioNombre = '(servicio actual)';
+        this.informeCargando = false;
+      }
+    });
+  }
+
+  /** Une base + extra omitiendo duplicados exactos por nombre (case-insensitive). */
+  private mergePorNombre<T>(base: T[], extra: T[], key: (x: T) => string): T[] {
+    const vistos = new Set(base.map(x => key(x).trim().toUpperCase()));
+    const out = [...base];
+    for (const e of extra) {
+      const k = key(e).trim().toUpperCase();
+      if (!k || vistos.has(k)) continue;   // duplicado → se omite
+      vistos.add(k);
+      out.push(e);
+    }
+    return out;
+  }
+
+  // EPPs (solo nominal, sin stock; no se repiten nombres)
+  agregarEpp(): void {
+    const v = this.nuevoEpp.trim().toUpperCase();
+    if (!v) return;
+    if (this.informeEpps.some(e => e.toUpperCase() === v)) {
+      this.toast.mostrar(`${v} ya fue agregado.`, 'error'); return;
+    }
+    this.informeEpps.push(v);
+    this.nuevoEpp = '';
+  }
+  quitarEpp(i: number): void { this.informeEpps.splice(i, 1); }
+
+  // Materiales (texto libre, sin validación de stock)
+  agregarMaterial(): void {
+    const v = this.nuevoMaterial.trim().toUpperCase();
+    if (!v) return;
+    if (this.informeMateriales.some(m => m.nombre.toUpperCase() === v)) {
+      this.toast.mostrar(`${v} ya fue agregado.`, 'error'); return;
+    }
+    this.informeMateriales.push({ nombre: v, unidad: 'UND.', caracteristicas: '-' });
+    this.nuevoMaterial = '';
+  }
+  quitarMaterial(i: number): void { this.informeMateriales.splice(i, 1); }
+
+  // Herramientas (texto libre, sin validación de stock)
+  agregarHerramienta(): void {
+    const v = this.nuevaHerramienta.trim().toUpperCase();
+    if (!v) return;
+    if (this.informeHerramientas.some(h => h.nombre.toUpperCase() === v)) {
+      this.toast.mostrar(`${v} ya fue agregada.`, 'error'); return;
+    }
+    this.informeHerramientas.push({ serie: '-', nombre: v, marca: '-' });
+    this.nuevaHerramienta = '';
+  }
+  quitarHerramienta(i: number): void { this.informeHerramientas.splice(i, 1); }
+
+  // Personal (solo del proyecto del servicio)
+  get personalNoAsignado() {
+    const ids = new Set(this.informePersonalAsignado.map(p => p.id));
+    return this.informePersonalDisp.filter(p => !ids.has(p.id));
+  }
+  agregarPersonal(): void {
+    if (!this.personalSel) { this.toast.mostrar('Selecciona un empleado.', 'info'); return; }
+    const emp = this.informePersonalDisp.find(p => p.id === this.personalSel);
+    if (!emp) return;
+    if (this.informePersonalAsignado.some(p => p.id === emp.id)) {
+      this.toast.mostrar('El personal ya fue agregado.', 'error'); return;
+    }
+    const rol = /supervis|jefe|lider|líder/i.test(emp.rol_sugerido) ? 'Supervisor' : 'Técnico';
+    this.informePersonalAsignado.push({ id: emp.id, nombre: emp.nombre, rol });
+    this.personalSel = '';
+  }
+  quitarPersonal(i: number): void { this.informePersonalAsignado.splice(i, 1); }
+
+  /** Construye el payload y lo envía (el Word es integración futura). */
+  onSubmitInforme(): void {
+    const payload = {
+      servicio_id: this.servicioId,
+      tipo_base:   this.informeTipoBase,
+      equipos: this.informeEquipos.map(e => ({
+        id: e.id, tipo: e.tipoNombre, nombre: e.nombre,
+        provincia: e.ubicacion, zona: e.zona,
+      })),
+      epps:         this.informeEpps,
+      materiales:   this.informeMateriales,
+      herramientas: this.informeHerramientas,
+      personal:     this.informePersonalAsignado,
+    };
+    // TODO (futura integración): este payload alimentará la generación del Word.
+    console.log('[Generar Informe] payload listo para el backend/Word:', payload);
+
+    this.informeEnviando = true;
+    this.svc.generarInformeGeneral(this.servicioId, payload).subscribe({
+      next: () => {
+        this.informeEnviando = false;
+        this.toast.mostrar('Datos del informe enviados. (Generación del Word pendiente)', 'success');
+        this.cerrarModalInforme();
+      },
+      error: (err: any) => {
+        this.informeEnviando = false;
+        this.toast.mostrar(err?.error?.detail ?? 'Error al enviar el informe.', 'error');
+      }
+    });
+  }
 
   // ── Acción: Carta de Garantía ────────────────────────────────────────────
   // La garantía es individual, pero se permite procesar por lote SIN restricción

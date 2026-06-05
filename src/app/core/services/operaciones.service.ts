@@ -345,4 +345,15 @@ export class OperacionesService {
   getTiposEquipo(): Observable<{ id: string; nombre: string }[]> {
     return this.http.get<{ id: string; nombre: string }[]>(`${this.api}/logistica/tipos-equipo`);
   }
+
+  /** Precarga del modal "Generar Informe": servicio, materiales solicitados,
+   *  herramientas retiradas y personal del proyecto del servicio. */
+  getPrecargaInforme(servicioId: string): Observable<any> {
+    return this.http.get(`${this.api}/operaciones/servicio/${servicioId}/informe/precarga`);
+  }
+
+  /** Envía el payload confirmado del informe general (stub backend; el Word es futuro). */
+  generarInformeGeneral(servicioId: string, payload: object): Observable<any> {
+    return this.http.post(`${this.api}/operaciones/servicio/${servicioId}/informe/generar`, payload);
+  }
 }

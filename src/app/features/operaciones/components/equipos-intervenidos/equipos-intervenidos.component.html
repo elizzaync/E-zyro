@@ -296,14 +296,17 @@
 </div>
 }
 
-<!-- ══ MODAL: INFORME GENERAL (en construcción) ═══════════════════════════ -->
+<!-- ══ MODAL: INFORME GENERAL ═════════════════════════════════════════════ -->
 @if (showModalInforme) {
 <div class="modal-backdrop" (click)="cerrarModalInforme()">
-  <div class="modal-panel" (click)="$event.stopPropagation()">
+  <div class="modal-panel modal-panel--informe" (click)="$event.stopPropagation()">
+
     <div class="modal-header">
       <div>
-        <h3 class="modal-title">Informe General</h3>
-        <p class="modal-sub">{{ nSeleccionados }} equipo(s) del mismo tipo seleccionados</p>
+        <h3 class="modal-title">Generar Informe General</h3>
+        <p class="modal-sub">
+          {{ informeEquipos.length }} equipo(s) · tipo base <strong>{{ informeTipoBase }}</strong>
+        </p>
       </div>
       <button class="modal-close" (click)="cerrarModalInforme()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -311,8 +314,177 @@
         </svg>
       </button>
     </div>
-    <!-- Componente maquetado: contenido pendiente -->
-    <div class="modal-construccion">[EN CONSTRUCCIÓN]</div>
+
+    <div class="modal-body">
+
+      <!-- 1) Equipos seleccionados -->
+      <div class="inf-section">
+        <h4 class="inf-title">Equipos seleccionados</h4>
+        <div class="inf-table-scroll">
+          <table class="inf-table">
+            <thead>
+              <tr><th>ID</th><th>Tipo</th><th>Nombre</th><th>Provincia</th><th>Zona</th></tr>
+            </thead>
+            <tbody>
+              @for (eq of informeEquipos; track eq.id) {
+                <tr>
+                  <td class="td-mono">{{ eq.codigo || (eq.id | slice:0:8) }}</td>
+                  <td>{{ eq.tipoNombre ?? '—' }}</td>
+                  <td>{{ eq.nombre }}</td>
+                  <td>{{ eq.ubicacion ?? '—' }}</td>
+                  <td>{{ eq.zona ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 2) Servicio asociado (bloqueado) -->
+      <div class="field-group">
+        <label class="field-label">Servicio asociado <span class="field-lock">automático</span></label>
+        <input type="text" class="field-input field-input--locked" disabled readonly
+               [value]="informeCargando ? 'Cargando…' : (informeServicioNombre || '(servicio actual)')">
+      </div>
+
+      <!-- 3) EPPs usados -->
+      <div class="inf-section">
+        <h4 class="inf-title">EPPs usados</h4>
+        <div class="inf-add">
+          <input type="text" class="field-input" [(ngModel)]="nuevoEpp"
+                 placeholder="Agregar EPP…" (keyup.enter)="agregarEpp()">
+          <button class="inf-add-btn" type="button" (click)="agregarEpp()">Agregar</button>
+        </div>
+        <div class="inf-chips">
+          @for (epp of informeEpps; track epp; let i = $index) {
+            <span class="inf-chip">
+              {{ epp }}
+              <button type="button" class="inf-chip-x" (click)="quitarEpp(i)" title="Quitar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </span>
+          }
+          @if (informeEpps.length === 0) { <span class="inf-empty">Sin EPPs.</span> }
+        </div>
+      </div>
+
+      <!-- 4) Herramientas usadas -->
+      <div class="inf-section">
+        <h4 class="inf-title">Herramientas usadas</h4>
+        <div class="inf-add">
+          <input type="text" class="field-input" [(ngModel)]="nuevaHerramienta"
+                 placeholder="Agregar herramienta…" (keyup.enter)="agregarHerramienta()">
+          <button class="inf-add-btn" type="button" (click)="agregarHerramienta()">Agregar</button>
+        </div>
+        <div class="inf-table-scroll">
+          <table class="inf-table">
+            <thead><tr><th>Serie</th><th>Herramienta</th><th>Marca</th><th class="col-actions">Acción</th></tr></thead>
+            <tbody>
+              @for (h of informeHerramientas; track $index; let i = $index) {
+                <tr>
+                  <td class="td-mono">{{ h.serie }}</td>
+                  <td>{{ h.nombre }}</td>
+                  <td><input type="text" class="inf-cell-input" [(ngModel)]="h.marca"></td>
+                  <td class="col-actions">
+                    <button type="button" class="inf-del" (click)="quitarHerramienta(i)">Eliminar</button>
+                  </td>
+                </tr>
+              }
+              @if (informeHerramientas.length === 0) {
+                <tr><td colspan="4" class="inf-empty">Sin herramientas.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 5) Materiales usados -->
+      <div class="inf-section">
+        <h4 class="inf-title">Materiales usados</h4>
+        <div class="inf-add">
+          <input type="text" class="field-input" [(ngModel)]="nuevoMaterial"
+                 placeholder="Agregar material…" (keyup.enter)="agregarMaterial()">
+          <button class="inf-add-btn" type="button" (click)="agregarMaterial()">Agregar</button>
+        </div>
+        <div class="inf-table-scroll">
+          <table class="inf-table">
+            <thead><tr><th>Material</th><th>Unidad</th><th>Características</th><th class="col-actions">Acción</th></tr></thead>
+            <tbody>
+              @for (m of informeMateriales; track $index; let i = $index) {
+                <tr>
+                  <td>{{ m.nombre }}</td>
+                  <td><input type="text" class="inf-cell-input inf-cell-sm" [(ngModel)]="m.unidad"></td>
+                  <td><input type="text" class="inf-cell-input" [(ngModel)]="m.caracteristicas"></td>
+                  <td class="col-actions">
+                    <button type="button" class="inf-del" (click)="quitarMaterial(i)">Eliminar</button>
+                  </td>
+                </tr>
+              }
+              @if (informeMateriales.length === 0) {
+                <tr><td colspan="4" class="inf-empty">Sin materiales.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 6) Personal asignado (solo del proyecto del servicio) -->
+      <div class="inf-section">
+        <h4 class="inf-title">Personal asignado <span class="field-lock">del proyecto</span></h4>
+        <div class="inf-add">
+          <select class="field-input" [(ngModel)]="personalSel">
+            <option value="">— Selecciona un empleado —</option>
+            @for (p of personalNoAsignado; track p.id) {
+              <option [value]="p.id">{{ p.nombre }}@if (p.cargo) { · {{ p.cargo }} }</option>
+            }
+          </select>
+          <button class="inf-add-btn" type="button" (click)="agregarPersonal()">Agregar</button>
+        </div>
+        @if (!informeCargando && informePersonalDisp.length === 0) {
+          <p class="inf-empty">Este servicio no tiene personal mapeado en su proyecto.</p>
+        }
+        <div class="inf-table-scroll">
+          <table class="inf-table">
+            <thead><tr><th>Personal</th><th>Rol</th><th class="col-actions">Acción</th></tr></thead>
+            <tbody>
+              @for (p of informePersonalAsignado; track p.id; let i = $index) {
+                <tr>
+                  <td>{{ p.nombre }}</td>
+                  <td>
+                    <select class="inf-cell-input inf-cell-sm" [(ngModel)]="p.rol">
+                      <option value="Supervisor">Supervisor</option>
+                      <option value="Técnico">Técnico</option>
+                    </select>
+                  </td>
+                  <td class="col-actions">
+                    <button type="button" class="inf-del" (click)="quitarPersonal(i)">Eliminar</button>
+                  </td>
+                </tr>
+              }
+              @if (informePersonalAsignado.length === 0) {
+                <tr><td colspan="3" class="inf-empty">Aún no has asignado personal.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel-modal" (click)="cerrarModalInforme()">Cancelar</button>
+      <button class="btn-save-modal" (click)="onSubmitInforme()" [disabled]="informeEnviando">
+        @if (informeEnviando) {
+          <app-spinner></app-spinner> Enviando…
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          </svg>
+          Generar Informe
+        }
+      </button>
+    </div>
+
   </div>
 </div>
 }
