@@ -340,4 +340,9 @@ export class OperacionesService {
       { ubicacion_referencia }
     );
   }
+
+  /** Catálogo completo de tipos de equipo de la empresa (tabla tipo_equipo). */
+  getTiposEquipo(): Observable<{ id: string; nombre: string }[]> {
+    return this.http.get<{ id: string; nombre: string }[]>(`${this.api}/logistica/tipos-equipo`);
+  }
 }

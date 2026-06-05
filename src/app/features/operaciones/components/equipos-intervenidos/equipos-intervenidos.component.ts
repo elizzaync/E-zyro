@@ -92,20 +92,29 @@ export class EquiposIntervenidosComponent implements OnInit {
   ngOnInit(): void {
     this.servicioId = this.route.snapshot.paramMap.get('id') ?? '';
     this.cargar();
+    this.cargarTipos();
   }
 
   private formVacio() {
     return {
       nombre: '',
       tipo_equipo_id: '',
-      marca: '',
-      modelo: '',
-      numero_serie: '',
       ubicacion_referencia: '',
       estado: 'operativo',
-      proximo_mantenimiento: '',
       descripcion: '',
     };
+  }
+
+  /** Tipos de equipo del catálogo (tabla tipo_equipo), no derivados de la lista. */
+  cargarTipos(): void {
+    this.svc.getTiposEquipo().subscribe({
+      next: (tipos) => {
+        this.tiposDisp = (tipos ?? [])
+          .filter(t => t.id && t.nombre)
+          .sort((a, b) => a.nombre.localeCompare(b.nombre));
+      },
+      error: () => { /* el form sigue usable; queda sin opciones de tipo */ }
+    });
   }
 
   cargar(): void {
@@ -136,17 +145,6 @@ export class EquiposIntervenidosComponent implements OnInit {
         // Ubicación / Zona heredadas de la sede (primer registro que las tenga)
         this.sedeUbicacion = this.equipos.find(e => e.ubicacion)?.ubicacion ?? '';
         this.sedeZona      = this.equipos.find(e => e.zona)?.zona ?? '';
-
-        // Extraer tipos únicos para el formulario
-        const vistos = new Set<string>();
-        this.tiposDisp = [];
-        data.forEach((r: any) => {
-          if (r.tipo_equipo_id && r.tipo_nombre && !vistos.has(r.tipo_equipo_id)) {
-            vistos.add(r.tipo_equipo_id);
-            this.tiposDisp.push({ id: r.tipo_equipo_id, nombre: r.tipo_nombre });
-          }
-        });
-        this.tiposDisp.sort((a, b) => a.nombre.localeCompare(b.nombre));
       },
       error: () => { this.cargando = false; this.error = true; }
     });
@@ -287,12 +285,8 @@ export class EquiposIntervenidosComponent implements OnInit {
     this.svc.crearEquipoCatalogo(this.servicioId, {
       nombre:               this.form.nombre.trim(),
       tipo_equipo_id:       this.form.tipo_equipo_id || null,
-      marca:                this.form.marca.trim() || null,
-      modelo:               this.form.modelo.trim() || null,
-      numero_serie:         this.form.numero_serie.trim() || null,
       ubicacion_referencia: this.form.ubicacion_referencia.trim() || null,
       estado:               this.form.estado || 'operativo',
-      proximo_mantenimiento: this.form.proximo_mantenimiento || null,
       descripcion:          this.form.descripcion.trim() || null,
     }).subscribe({
       next: () => {
