@@ -14,11 +14,13 @@ from app.models.documento_firmado import DocumentoFirmado
 from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.auditoria import Auditoria
 from app.core.security import verificar_token
+from app.core.audit_context import get_audit_context
 from app.services.cloudinary_service import (
     subir_imagen_cloudinary,
     subir_pdf_bytes_cloudinary,
 )
 from app.services.cloudinary_paths import carpeta_firma
+from app.services.firma_seguridad import registrar_firma
 
 router = APIRouter(prefix="/permisos", tags=["Permisos"])
 
@@ -134,6 +136,19 @@ async def guardar_firma(
                 public_id_cloudinary = firma_public_id,
                 primera_vez          = True,
             ))
+
+        # Trazabilidad: procedencia + huellas + sello de la firma guardada.
+        # Punto crítico: aquí se detecta si alguien intenta guardar como suya
+        # la firma (recortada) de otra persona.
+        _emp = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
+        _ctx = get_audit_context()
+        registrar_firma(
+            db, empresa_id=empresa_id,
+            firmante_id=(_emp.id if _emp else None), firmante_usuario_id=usuario_id,
+            entidad_tipo="firma_guardada", entidad_id=str(usuario_id),
+            rol_firma="propietario", firma=firma_base64,
+            ip=_ctx.get("ip"), user_agent=_ctx.get("user_agent"),
+        )
 
         db.commit()
         return {"status": "success", "data": {"url_firma": firma_url}}
@@ -269,13 +284,25 @@ async def enviar_solicitud(
         db.flush()
 
         # ── 6. Registrar DocumentoFirmado ─────────────────────────────────
+        _ctx = get_audit_context()
         if firma_existente and firma_existente.id:
             db.add(DocumentoFirmado(
                 firma_id        = firma_existente.id,
                 empresa_id      = empresa_id,
                 documento_id    = str(solicitud.id),
                 tabla_documento = "solicitud_laboral",
+                ip_firma        = _ctx.get("ip"),
             ))
+
+        # ── 6b. Trazabilidad de seguridad del trámite firmado ─────────────
+        registrar_firma(
+            db, empresa_id=empresa_id,
+            firmante_id=empleado.id, firmante_usuario_id=usuario_id,
+            entidad_tipo="solicitud_laboral", entidad_id=str(solicitud.id),
+            rol_firma="solicitante",
+            firma=(firma_existente.url_cloudinary if firma_existente else None),
+            ip=_ctx.get("ip"), user_agent=_ctx.get("user_agent"),
+        )
 
         # ── 7. Registrar en Auditoría ─────────────────────────────────────
         datos_nuevos = {

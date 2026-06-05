@@ -20,6 +20,8 @@ from ..models.usuario_rol import UsuarioRol
 from ..models.rol import Rol
 from ..models.rol_permiso import RolPermiso
 from ..models.permiso import Permiso
+from ..models.firma_evento import FirmaEvento
+from ..services.firma_seguridad import verificar_evento
 
 
 router = APIRouter(prefix="/seguridad", tags=["seguridad"])
@@ -219,3 +221,91 @@ def sesiones_de_usuario(
     )
     # No se conoce el token actual del otro usuario → es_actual siempre false
     return [_sesion_dict(s, None) for s in rows]
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Trazabilidad de firmas (ledger firma_evento) — genérico para cualquier
+# entidad: requerimientos, solicitudes laborales (trámites), firma guardada.
+# ──────────────────────────────────────────────────────────────────────────
+
+def _firma_evento_dict(ev: FirmaEvento) -> dict:
+    return {
+        "id":                  str(ev.id),
+        "entidad_tipo":        ev.entidad_tipo,
+        "entidad_id":          str(ev.entidad_id),
+        "rol_firma":           ev.rol_firma,
+        "firmante_id":         ev.firmante_id,
+        "firmante_usuario_id": ev.firmante_usuario_id,
+        "metodo":              ev.metodo,
+        "sha256":              ev.sha256,
+        "phash":               ev.phash,
+        "ip":                  ev.ip,
+        "user_agent":          ev.user_agent,
+        "sospechoso":          bool(ev.sospechoso),
+        "motivo_sospecha":     ev.motivo_sospecha,
+        "fecha":               ev.created_at.strftime("%Y-%m-%d %H:%M:%S") if ev.created_at else "",
+        "integridad_ok":       verificar_evento(ev),
+    }
+
+
+@router.get("/firmas")
+def listar_firmas(
+    entidad_tipo: str = Query(..., description="requerimiento | solicitud_laboral | firma_guardada …"),
+    entidad_id:   str = Query(..., description="id de la entidad firmada"),
+    payload:      dict    = Depends(verificar_token),
+    db:           Session = Depends(get_db),
+):
+    """Ledger de firmas de una entidad concreta (misma empresa): procedencia,
+    huellas, flags de reutilización y verificación del sello por evento."""
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(FirmaEvento)
+        .filter(
+            FirmaEvento.empresa_id == empresa_id,
+            FirmaEvento.entidad_tipo == entidad_tipo,
+            FirmaEvento.entidad_id == entidad_id,
+        )
+        .order_by(FirmaEvento.created_at.asc())
+        .all()
+    )
+    return [_firma_evento_dict(ev) for ev in rows]
+
+
+@router.get("/firmas/sospechosas")
+def listar_firmas_sospechosas(
+    limit:   int = Query(100, ge=1, le=500),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Tablero de seguridad: firmas marcadas como reutilización sospechosa en la
+    empresa. Requiere permiso de gestión de personal (o admin)."""
+    if not _tiene_permiso_personal(db, payload["id"], payload):
+        raise HTTPException(status_code=403, detail="Sin permiso para auditar firmas")
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(FirmaEvento)
+        .filter(
+            FirmaEvento.empresa_id == empresa_id,
+            FirmaEvento.sospechoso.is_(True),
+        )
+        .order_by(FirmaEvento.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [_firma_evento_dict(ev) for ev in rows]
+
+
+@router.get("/firmas/{evento_id}/verificar")
+def verificar_firma(
+    evento_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """Verifica el sello HMAC de un evento de firma puntual (tamper-evidence)."""
+    empresa_id = payload["empresa_id"]
+    ev = db.query(FirmaEvento).filter(
+        FirmaEvento.id == evento_id, FirmaEvento.empresa_id == empresa_id
+    ).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evento de firma no encontrado")
+    return _firma_evento_dict(ev)

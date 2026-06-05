@@ -53,7 +53,7 @@ from app.models import (  # noqa: F401
     empleado, contrato, documento_laboral, solicitud_laboral,
     turno, grupo_trabajo,
     categoria_habilidad, habilidad, empleado_habilidad,
-    firma_digital, historial_firma, documento_firmado,
+    firma_digital, historial_firma, documento_firmado, firma_evento,
     foto_biometrica, dispositivo_push, notificacion,
     # Proyectos
     proyecto, proyecto_detalle, proyecto_miembro, proyecto_servicio,

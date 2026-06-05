@@ -19,7 +19,10 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
+from ..core.audit_context import get_audit_context
 from ..db.database import get_db
+from ..services.firma_seguridad import registrar_firma, verificar_evento
+from ..models.firma_evento import FirmaEvento
 
 from ..models.material import Material, Stock
 from ..models.categoria_material import CategoriaMaterial
@@ -1413,6 +1416,15 @@ async def firmar_requerimiento(
     req.firmando_por_id       = None
     req.firmando_desde        = None
     req.updated_at            = datetime.utcnow()
+
+    # Trazabilidad de seguridad: procedencia + huellas + sello del acto de firma
+    _ctx = get_audit_context()
+    registrar_firma(
+        db, empresa_id=empresa_id,
+        firmante_id=receptor.id, firmante_usuario_id=usuario_id,
+        entidad_tipo="requerimiento", entidad_id=req.id, rol_firma="receptor",
+        firma=body.firmaUrl, ip=_ctx.get("ip"), user_agent=_ctx.get("user_agent"),
+    )
     db.commit()
 
     # Notificar SOLO a los miembros del proyecto (no a toda la empresa): quien no
@@ -1602,6 +1614,17 @@ async def entregar_requerimiento(
     # Los ítems que pasaron por ticket_compra necesitan su salida aquí.
     await _registrar_salidas_entrega(db, req, empresa_id, emp_log)
 
+    # Trazabilidad de seguridad: procedencia + huellas + sello de la firma del
+    # entregador (la firma del receptor ya quedó registrada al firmar el técnico).
+    _ctx = get_audit_context()
+    registrar_firma(
+        db, empresa_id=empresa_id,
+        firmante_id=emp_log.id, firmante_usuario_id=usuario_id,
+        entidad_tipo="requerimiento", entidad_id=req.id, rol_firma="entregador",
+        firma=body.firmaEntregadorUrl, ip=_ctx.get("ip"),
+        user_agent=_ctx.get("user_agent"),
+    )
+
     db.commit()
 
     _notificar_solicitante(
@@ -1613,6 +1636,70 @@ async def entregar_requerimiento(
     await _notificar_servicio_ws(req.proyecto_servicio_id)
     db.refresh(req)
     return _req_out(db, req, empresa_id)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Trazabilidad de firmas — consulta y verificación de integridad (capas 1-3)
+# ──────────────────────────────────────────────────────────────────────────
+
+def _firma_evento_out(ev: FirmaEvento) -> dict:
+    """Serializa un evento de firma e incluye la verificación del sello HMAC."""
+    return {
+        "id": ev.id,
+        "entidad_tipo": ev.entidad_tipo,
+        "entidad_id": ev.entidad_id,
+        "rol_firma": ev.rol_firma,
+        "firmante_id": ev.firmante_id,
+        "firmante_usuario_id": ev.firmante_usuario_id,
+        "metodo": ev.metodo,
+        "sha256": ev.sha256,
+        "phash": ev.phash,
+        "ip": ev.ip,
+        "user_agent": ev.user_agent,
+        "sospechoso": ev.sospechoso,
+        "motivo_sospecha": ev.motivo_sospecha,
+        "fecha": ev.created_at.strftime("%Y-%m-%d %H:%M:%S") if ev.created_at else "",
+        # Integridad recomputada en el momento de la consulta:
+        "integridad_ok": verificar_evento(ev),
+    }
+
+
+@router.get("/requerimientos/{req_id}/firmas")
+def listar_firmas_requerimiento(
+    req_id:  str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Ledger de firmas de un requerimiento: procedencia, huellas, flags de
+    reutilización y verificación del sello de integridad por cada evento."""
+    empresa_id = payload["empresa_id"]
+    eventos = (
+        db.query(FirmaEvento)
+        .filter(
+            FirmaEvento.empresa_id == empresa_id,
+            FirmaEvento.entidad_tipo == "requerimiento",
+            FirmaEvento.entidad_id == req_id,
+        )
+        .order_by(FirmaEvento.created_at.asc())
+        .all()
+    )
+    return [_firma_evento_out(ev) for ev in eventos]
+
+
+@router.get("/firmas/{evento_id}/verificar")
+def verificar_firma_evento(
+    evento_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """Verifica el sello HMAC de un evento de firma puntual (tamper-evidence)."""
+    empresa_id = payload["empresa_id"]
+    ev = db.query(FirmaEvento).filter(
+        FirmaEvento.id == evento_id, FirmaEvento.empresa_id == empresa_id
+    ).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evento de firma no encontrado")
+    return _firma_evento_out(ev)
 
 
 

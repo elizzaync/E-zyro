@@ -21,6 +21,7 @@ _ALGO:   str = "HS256"
 _ctx_usuario_id: ContextVar[str | None] = ContextVar("audit_usuario_id", default=None)
 _ctx_empresa_id: ContextVar[str | None] = ContextVar("audit_empresa_id", default=None)
 _ctx_ip:         ContextVar[str | None] = ContextVar("audit_ip",         default=None)
+_ctx_user_agent: ContextVar[str | None] = ContextVar("audit_user_agent", default=None)
 
 
 def get_audit_context() -> dict[str, str | None]:
@@ -29,6 +30,7 @@ def get_audit_context() -> dict[str, str | None]:
         "usuario_id": _ctx_usuario_id.get(),
         "empresa_id": _ctx_empresa_id.get(),
         "ip":         _ctx_ip.get(),
+        "user_agent": _ctx_user_agent.get(),
     }
 
 
@@ -64,11 +66,17 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
         if not claims:
             claims = _claims_from_token(request.query_params.get("token", ""))
 
-        ip = request.client.host if request.client else None
+        # IP real del cliente: detrás del proxy de Railway, request.client es el
+        # proxy; el primer salto de X-Forwarded-For es el cliente original.
+        fwd = request.headers.get("X-Forwarded-For", "")
+        ip = (fwd.split(",")[0].strip() if fwd
+              else (request.client.host if request.client else None))
+        user_agent = request.headers.get("User-Agent")
 
         tok_u = _ctx_usuario_id.set(claims.get("id"))
         tok_e = _ctx_empresa_id.set(claims.get("empresa_id"))
         tok_i = _ctx_ip.set(ip)
+        tok_ua = _ctx_user_agent.set(user_agent)
 
         try:
             return await call_next(request)
@@ -76,3 +84,4 @@ class AuditContextMiddleware(BaseHTTPMiddleware):
             _ctx_usuario_id.reset(tok_u)
             _ctx_empresa_id.reset(tok_e)
             _ctx_ip.reset(tok_i)
+            _ctx_user_agent.reset(tok_ua)
