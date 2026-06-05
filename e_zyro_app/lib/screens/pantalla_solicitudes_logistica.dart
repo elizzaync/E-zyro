@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/requerimiento_models.dart';
 import '../services/requerimiento_service.dart';
 import '../utils/api_provider.dart';
+import '../widgets/firma_sheet.dart';
 import '../widgets/topo_background.dart';
 
 const _kGreen = Color(0xFF8FD11B);
@@ -117,8 +118,18 @@ class _PantallaSolicitudesLogisticaState
         ],
       ),
     );
-    if (confirmar != true) return;
-    final ok = await _service!.entregarSolicitud(s.id);
+    if (confirmar != true || !mounted) return;
+
+    // Modelo híbrido de doble firma: logística aporta la firma del entregador.
+    final firma = await FirmaSheet.mostrar(
+      context,
+      titulo: 'Firma de entrega',
+      subtitulo: 'Firma del encargado de logística que entrega los materiales.',
+      textoBoton: 'Confirmar entrega',
+    );
+    if (firma == null || firma.isEmpty) return;
+
+    final ok = await _service!.entregarSolicitud(s.id, firma);
     _feedback(ok, 'Materiales entregados', 'No se pudo entregar');
     if (ok) await _load();
   }

@@ -180,14 +180,19 @@ class RequerimientoService {
     }
   }
 
-  // Marcar una solicitud como entregada (descuenta stock).
-  // Migrado a /logistica/requerimientos/{id}/entregar. Sin firma virtual: el
-  // backend usa al solicitante como receptor por defecto (fallback móvil).
-  Future<bool> entregarSolicitud(String reqId) async {
+  // Marcar una solicitud como entregada (estado 'aprobado' → 'entregado').
+  // Modelo híbrido de doble firma: el técnico ya firmó la recepción (receptor)
+  // y aquí logística aporta la firma del entregador. El backend exige
+  // `firmaEntregadorUrl` (data-url base64 o URL guardada), si no, responde 422.
+  Future<bool> entregarSolicitud(String reqId, String firmaEntregadorUrl,
+      {String? notas}) async {
     try {
       final r = await _client.post(
         '/logistica/requerimientos/$reqId/entregar',
-        <String, dynamic>{},
+        <String, dynamic>{
+          'firmaEntregadorUrl': firmaEntregadorUrl,
+          if (notas != null && notas.isNotEmpty) 'notas': notas,
+        },
       );
       return r.statusCode == 200 || r.statusCode == 201;
     } catch (_) {
