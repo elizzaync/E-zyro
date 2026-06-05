@@ -4,15 +4,14 @@ import '../models/requerimiento_models.dart';
 import '../services/requerimiento_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/paper.dart';
-import 'pantalla_solicitudes_logistica.dart';
 import 'pantalla_movimientos_logistica.dart';
 import 'pantalla_materiales_logistica.dart';
 import 'pantalla_compras_logistica.dart';
 import 'pantalla_proveedores_logistica.dart';
-import 'pantalla_transferencias_logistica.dart';
-import 'pantalla_prestamos_logistica.dart';
 import 'pantalla_equipos_logistica.dart';
 import 'pantalla_epp.dart';
+import 'logistica/almacen/pantalla_requerimientos_logistica.dart';
+import 'logistica/almacen/pantalla_transferencias_almacen.dart';
 
 /// Panel del encargado de logística — dashboard de inventario + accesos a la
 /// gestión. Usa el estilo "Paper Dots" (bitácora) de forma permanente.
@@ -87,7 +86,7 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
                       const SizedBox(height: 16),
                       _buildKpis(),
                       const SizedBox(height: 22),
-                      const PaperSectionHeader(title: 'Gestión', trailing: '07 áreas'),
+                      const PaperSectionHeader(title: 'Gestión', trailing: '08 áreas'),
                       const SizedBox(height: 12),
                       _buildGestion(),
                       const SizedBox(height: 22),
@@ -191,10 +190,10 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
       _AccesoData(
         icon: Icons.inbox_outlined,
         color: kPaperLime,
-        label: 'Solicitudes',
-        subtitle: 'Aprobar / entregar',
+        label: 'Requerimientos',
+        subtitle: 'Materiales y equipos',
         onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const PantallaSolicitudesLogistica())),
+            MaterialPageRoute(builder: (_) => const PantallaRequerimientosLogistica())),
       ),
       _AccesoData(
         icon: Icons.swap_vert_rounded,
@@ -213,36 +212,12 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
             MaterialPageRoute(builder: (_) => const PantallaComprasLogistica())),
       ),
       _AccesoData(
-        icon: Icons.local_shipping_outlined,
-        color: kPaperWarm,
-        label: 'Proveedores',
-        subtitle: 'Directorio',
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const PantallaProveedoresLogistica())),
-      ),
-      _AccesoData(
-        icon: Icons.compare_arrows_rounded,
-        color: kPaperLime,
-        label: 'Transferencias',
-        subtitle: 'Entre almacenes',
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const PantallaTransferenciasLogistica())),
-      ),
-      _AccesoData(
         icon: Icons.category_outlined,
         color: kPaperRose,
         label: 'Materiales',
         subtitle: 'Editar / categorías',
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const PantallaMaterialesLogistica())),
-      ),
-      _AccesoData(
-        icon: Icons.handyman_outlined,
-        color: kPaperSky,
-        label: 'Préstamos',
-        subtitle: 'Equipos / herram.',
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const PantallaPrestamosLogistica())),
       ),
       _AccesoData(
         icon: Icons.precision_manufacturing_outlined,
@@ -259,6 +234,22 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
         subtitle: 'Protección personal',
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const PantallaEpp())),
+      ),
+      _AccesoData(
+        icon: Icons.local_shipping_outlined,
+        color: kPaperWarm,
+        label: 'Proveedores',
+        subtitle: 'Directorio',
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaProveedoresLogistica())),
+      ),
+      _AccesoData(
+        icon: Icons.compare_arrows_rounded,
+        color: kPaperLime,
+        label: 'Transferencias',
+        subtitle: 'Entre almacenes',
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaTransferenciasAlmacen())),
       ),
     ];
 

@@ -6,6 +6,7 @@ import '../models/requerimiento_models.dart' show AlmacenItem;
 import '../services/compras_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
+import 'logistica/almacen/pantalla_resumen_compra.dart';
 
 const _kGreen = Color(0xFF8FD11B);
 const _kRed = Color(0xFFEF4444);
@@ -120,6 +121,16 @@ class _PantallaComprasLogisticaState extends State<PantallaComprasLogistica>
     await _loadResumen();
     await _load();
     if (cambio.completado && cambio.ticket != null) {
+      // Carta de costo total: mostrar el resumen del pedido recién registrado.
+      if (mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PantallaResumenCompra(ticket: cambio.ticket!),
+          ),
+        );
+      }
+      if (!mounted) return;
       // Tras completar: registrar ingreso / vincular ítems nuevos.
       await _flujoIngreso(cambio.ticket!);
     }

@@ -402,6 +402,49 @@ class RequerimientoService {
     return [];
   }
 
+  /// Contenido de un almacén: materiales con stock + equipos con cantidad.
+  Future<List<ContenidoAlmacen>> getContenidoAlmacen(String almacenId) async {
+    try {
+      final r = await _client.get('/logistica/almacenes/$almacenId/contenido');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return list
+            .map((e) => ContenidoAlmacen.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Transferencia en lote (1 o varios ítems, material y/o equipo).
+  /// [items] = [{ fuente, id, cantidad }].
+  Future<({bool ok, String? error})> transferirLote({
+    required String almacenOrigenId,
+    required String almacenDestinoId,
+    required List<Map<String, dynamic>> items,
+    String? motivo,
+  }) async {
+    try {
+      final r = await _client.post('/logistica/inventario/transferencia-lote', {
+        'almacen_origen_id': almacenOrigenId,
+        'almacen_destino_id': almacenDestinoId,
+        'items': items,
+        if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
+      });
+      if (r.statusCode == 200 || r.statusCode == 201) {
+        return (ok: true, error: null);
+      }
+      try {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return (ok: false, error: body['detail'] as String?);
+      } catch (_) {
+        return (ok: false, error: null);
+      }
+    } catch (_) {
+      return (ok: false, error: null);
+    }
+  }
+
   Future<bool> crearMaterial({
     required String nombre,
     String? codigo,

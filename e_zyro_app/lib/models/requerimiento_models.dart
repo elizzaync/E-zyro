@@ -10,11 +10,47 @@ class AlmacenItem {
   final String id;
   final String nombre;
   final String? ubicacion;
-  const AlmacenItem({required this.id, required this.nombre, this.ubicacion});
+  final bool predeterminado;
+  const AlmacenItem({
+    required this.id,
+    required this.nombre,
+    this.ubicacion,
+    this.predeterminado = false,
+  });
   factory AlmacenItem.fromJson(Map<String, dynamic> j) => AlmacenItem(
       id: j['id'] as String,
       nombre: j['nombre'] as String,
-      ubicacion: j['ubicacion'] as String?);
+      ubicacion: j['ubicacion'] as String?,
+      predeterminado: j['predeterminado'] as bool? ?? false);
+}
+
+/// Un ítem disponible en un almacén (material o equipo) para transferir.
+class ContenidoAlmacen {
+  final String fuente; // 'stock' (material) | 'equipo'
+  final String id;
+  final String nombre;
+  final String? codigo;
+  final String unidad;
+  final String tipo; // material | herramienta | equipo
+  final int disponible;
+  const ContenidoAlmacen({
+    required this.fuente,
+    required this.id,
+    required this.nombre,
+    this.codigo,
+    required this.unidad,
+    required this.tipo,
+    required this.disponible,
+  });
+  factory ContenidoAlmacen.fromJson(Map<String, dynamic> j) => ContenidoAlmacen(
+        fuente: j['fuente'] as String? ?? 'stock',
+        id: j['id'] as String,
+        nombre: j['nombre'] as String? ?? '',
+        codigo: j['codigo'] as String?,
+        unidad: j['unidad'] as String? ?? 'und',
+        tipo: j['tipo'] as String? ?? 'material',
+        disponible: (j['disponible'] as num?)?.toInt() ?? 0,
+      );
 }
 
 class CatalogoItem {
