@@ -5,7 +5,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
-import { LogisticaService } from '../../../../core/services/logistica.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ToastService } from '../../../../core/services/toast.service';
 import {
@@ -52,13 +51,12 @@ export interface EquipoIntervenido {
   styleUrls: ['./equipos-intervenidos.component.css'],
 })
 export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
-  private route         = inject(ActivatedRoute);
-  private router        = inject(Router);
-  private location      = inject(Location);
-  private svc           = inject(OperacionesService);
-  private logisticaSvc  = inject(LogisticaService);
-  private toast         = inject(ToastService);
-  private doc           = inject(DOCUMENT);
+  private route    = inject(ActivatedRoute);
+  private router   = inject(Router);
+  private location = inject(Location);
+  private svc      = inject(OperacionesService);
+  private toast    = inject(ToastService);
+  private doc      = inject(DOCUMENT);
 
   servicioId = '';
   cargando   = true;
@@ -90,21 +88,13 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   informePersonalDisp: { id: string; nombre: string; cargo: string; rol_sugerido: string }[] = [];
   informePersonalAsignado: { id: string; nombre: string; rol: string }[] = [];
 
-  // Catálogos cargados desde BD
+  // Catálogo de EPPs cargado desde BD
   catalogoEpps: { id: string; nombre: string }[] = [];
-  catalogoMateriales: { id: string; nombre: string; unidad: string }[] = [];
-  catalogoHerramientas: { id: string; nombre: string; marca: string }[] = [];
 
-  // Filtros de búsqueda dentro de los selectores
-  filtroEpp = '';
-  filtroMaterial = '';
-  filtroHerramienta = '';
-
-  // Ítems seleccionados en los dropdowns
+  // Filtro y selección para el selector de EPP
+  filtroEpp    = '';
   eppSelNombre = '';
-  materialSelNombre = '';
-  herramientaSelNombre = '';
-  personalSel = '';
+  personalSel  = '';
 
   // ── Edición inline de "Referencia" (vista del técnico) ────────────────────
   editandoRefId: string | null = null;
@@ -266,7 +256,13 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   }
   cerrarModalInforme(): void { this.showModalInforme = false; this.syncScrollLock(); }
 
-  /** Precarga del modal: defaults por tipo + merge con servicio + catálogos de BD. */
+  /**
+   * Precarga del modal:
+   *  - EPPs: defaults por tipo + catálogo BD
+   *  - Materiales: defaults por tipo + requerimientos del servicio (auto)
+   *  - Herramientas: defaults por tipo + préstamos del servicio (auto)
+   *  - Personal: todos los miembros del proyecto (auto)
+   */
   private prepararInforme(sel: EquipoIntervenido[]): void {
     this.informeEquipos     = [...sel];
     this.informeTipoBase    = determinarTipoBase(sel.map(e => e.tipoNombre));
@@ -277,20 +273,16 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
     this.informePersonalDisp     = [];
     this.informeServicioNombre   = '';
     this.catalogoEpps            = [];
-    this.catalogoMateriales      = [];
-    this.catalogoHerramientas    = [];
-    this.filtroEpp = this.filtroMaterial = this.filtroHerramienta = '';
-    this.eppSelNombre = this.materialSelNombre = this.herramientaSelNombre = '';
-    this.personalSel = '';
+    this.filtroEpp               = '';
+    this.eppSelNombre            = '';
+    this.personalSel             = '';
 
     this.informeCargando = true;
     forkJoin({
-      precarga:      this.svc.getPrecargaInforme(this.servicioId).pipe(catchError(() => of(null))),
-      epps:          this.svc.getEppCatalogo().pipe(catchError(() => of([]))),
-      materiales:    this.logisticaSvc.getMateriales({ pageSize: 500 }).pipe(catchError(() => of([]))),
-      herramientas:  this.logisticaSvc.getEquipos({ pageSize: 500 }).pipe(catchError(() => of([]))),
+      precarga: this.svc.getPrecargaInforme(this.servicioId).pipe(catchError(() => of(null))),
+      epps:     this.svc.getEppCatalogo().pipe(catchError(() => of([]))),
     }).subscribe({
-      next: ({ precarga, epps, materiales, herramientas }) => {
+      next: ({ precarga, epps }) => {
         // ── Precarga del servicio ────────────────────────────────────────
         const res = precarga as any;
         const srv = res?.servicio;
@@ -298,6 +290,7 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
           ? `${srv.nombre}${srv.proyecto_nombre ? ' — ' + srv.proyecto_nombre : ''}`
           : '(servicio actual)';
 
+        // Materiales: defaults + lo solicitado en requerimientos del servicio
         this.informeMateriales = this.mergePorNombre(
           this.informeMateriales,
           (res?.materiales_solicitados ?? []).map((m: any) => ({
@@ -305,6 +298,8 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
           })),
           (x: MaterialItem) => x.nombre,
         );
+
+        // Herramientas: defaults + lo prestado/retirado para el servicio
         this.informeHerramientas = this.mergePorNombre(
           this.informeHerramientas,
           (res?.herramientas_solicitadas ?? []).map((h: any) => ({
@@ -313,30 +308,20 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
           (x: HerramientaItem) => x.nombre,
         );
 
-        // ── Personal: auto-poblar todos los del proyecto ─────────────────
+        // Personal: auto-poblar todos los miembros del proyecto
         const personal: { id: string; nombre: string; cargo: string; rol_sugerido: string }[] =
           res?.personal ?? [];
-        this.informePersonalDisp = personal;
+        this.informePersonalDisp     = personal;
         this.informePersonalAsignado = personal.map(p => ({
           id:     p.id,
           nombre: p.nombre,
           rol:    /supervis|jefe|lider|líder/i.test(p.rol_sugerido ?? '') ? 'Supervisor' : 'Técnico',
         }));
 
-        // ── Catálogos desde BD ───────────────────────────────────────────
-        this.catalogoEpps = (epps as any[]).map(e => ({
+        // Catálogo EPP desde BD
+        this.catalogoEpps = (epps as any[]).map((e: any) => ({
           id:     e.id,
           nombre: (e.nombre as string).toUpperCase(),
-        }));
-        this.catalogoMateriales = (materiales as any[]).map(m => ({
-          id:     m.id,
-          nombre: m.nombre.toUpperCase(),
-          unidad: m.unidad || 'UND.',
-        }));
-        this.catalogoHerramientas = (herramientas as any[]).map(h => ({
-          id:     h.id,
-          nombre: h.nombre.toUpperCase(),
-          marca:  h.marca || '-',
         }));
 
         this.informeCargando = false;
@@ -361,27 +346,13 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
     return out;
   }
 
-  // ── Getters: catálogos filtrados (excluyen ya agregados) ─────────────────
+  // Getter: EPPs del catálogo BD filtrados (excluye los ya agregados)
   get catalogoEppsFiltrados() {
-    const q    = this.filtroEpp.toLowerCase().trim();
+    const q      = this.filtroEpp.toLowerCase().trim();
     const usados = new Set(this.informeEpps.map(e => e.toUpperCase()));
     return this.catalogoEpps
       .filter(e => !usados.has(e.nombre))
       .filter(e => !q || e.nombre.toLowerCase().includes(q));
-  }
-  get catalogoMaterialesFiltrados() {
-    const q    = this.filtroMaterial.toLowerCase().trim();
-    const usados = new Set(this.informeMateriales.map(m => m.nombre.toUpperCase()));
-    return this.catalogoMateriales
-      .filter(m => !usados.has(m.nombre))
-      .filter(m => !q || m.nombre.toLowerCase().includes(q));
-  }
-  get catalogoHerramientasFiltradas() {
-    const q    = this.filtroHerramienta.toLowerCase().trim();
-    const usados = new Set(this.informeHerramientas.map(h => h.nombre.toUpperCase()));
-    return this.catalogoHerramientas
-      .filter(h => !usados.has(h.nombre))
-      .filter(h => !q || h.nombre.toLowerCase().includes(q));
   }
 
   // EPPs: selección desde catálogo BD
@@ -397,32 +368,8 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   }
   quitarEpp(i: number): void { this.informeEpps.splice(i, 1); }
 
-  // Materiales: selección desde catálogo BD
-  agregarMaterial(): void {
-    const v = this.materialSelNombre.trim().toUpperCase();
-    if (!v) { this.toast.mostrar('Selecciona un material del catálogo.', 'info'); return; }
-    if (this.informeMateriales.some(m => m.nombre.toUpperCase() === v)) {
-      this.toast.mostrar(`${v} ya fue agregado.`, 'error'); return;
-    }
-    const cat = this.catalogoMateriales.find(m => m.nombre === v);
-    this.informeMateriales.push({ nombre: v, unidad: cat?.unidad || 'UND.', caracteristicas: '-' });
-    this.materialSelNombre = '';
-    this.filtroMaterial = '';
-  }
+  // Materiales y herramientas: solo se eliminan (son auto-poblados)
   quitarMaterial(i: number): void { this.informeMateriales.splice(i, 1); }
-
-  // Herramientas: selección desde catálogo BD
-  agregarHerramienta(): void {
-    const v = this.herramientaSelNombre.trim().toUpperCase();
-    if (!v) { this.toast.mostrar('Selecciona una herramienta del catálogo.', 'info'); return; }
-    if (this.informeHerramientas.some(h => h.nombre.toUpperCase() === v)) {
-      this.toast.mostrar(`${v} ya fue agregada.`, 'error'); return;
-    }
-    const cat = this.catalogoHerramientas.find(h => h.nombre === v);
-    this.informeHerramientas.push({ serie: '-', nombre: v, marca: cat?.marca || '-' });
-    this.herramientaSelNombre = '';
-    this.filtroHerramienta = '';
-  }
   quitarHerramienta(i: number): void { this.informeHerramientas.splice(i, 1); }
 
   // Personal (solo del proyecto del servicio)
