@@ -573,7 +573,7 @@ def _sec_marco_normativo(doc: Document) -> None:
 
 
 def _sec_objetivos(doc: Document) -> None:
-    bullets = [
+    for b in [
         "Descartar valores elevados (fueras de rango).",
         "Disminuir el riesgo de descargas eléctricas hacia el personal.",
         "Verificar la calidad de la tierra y el estado de los conectores CU.",
@@ -582,9 +582,8 @@ def _sec_objetivos(doc: Document) -> None:
         "Cumplir con los estándares de seguridad y salud en el trabajo a fin de garantizar "
         "la ejecución responsable de las actividades.",
         "Mantener un área despejada finalizando el mantenimiento.",
-    ]
-    for b in bullets:
-        _para_body(doc, b)
+    ]:
+        doc.add_paragraph(b, style="List Bullet")
 
 
 def _sec_epp_intro(doc: Document) -> None:
@@ -605,9 +604,7 @@ def _sec_loto(doc: Document) -> None:
         "Aplicación del dispositivo de bloqueo de fuentes de energía.",
         "Eliminar la energía almacenada a través de la línea tierra.",
     ]:
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Cm(0.5)
-        _run(p, b, size_pt=11)
+        doc.add_paragraph(b, style="List Bullet")
 
 
 def _sec_personal_intro(doc: Document) -> None:
@@ -618,20 +615,19 @@ def _sec_personal_intro(doc: Document) -> None:
 
 
 def _sec_preparativos(doc: Document) -> None:
-    bullets = [
+    for b in [
         "Verificar los permisos y autorizaciones.",
         "Elaboración de ATS.",
         "Verificar la zona de trabajo.",
         "Delimitar la zona de trabajo. Previa coordinación.",
         "Realizar un check list de la zona de trabajo.",
         "Revisar y elaborar el check list respectivo de las herramientas y equipos a utilizar en la tarea.",
-    ]
-    for b in bullets:
-        _para_body(doc, b)
+    ]:
+        doc.add_paragraph(b, style="List Bullet")
 
 
 def _sec_ejecucion(doc: Document) -> None:
-    bullets = [
+    for b in [
         "Identificación del área del trabajo.",
         "Delimitar y señalizar lugar de trabajo.",
         "Realizar la limpieza de los mismos verificando que la caja de registro se encuentre en óptimas condiciones.",
@@ -645,13 +641,12 @@ def _sec_ejecucion(doc: Document) -> None:
         "Cambiar a una señalética fotoluminiscente del sistema de puesta a tierra.",
         "Anotar las mediciones y observaciones para la realización posterior del Informe Técnico.",
         "Orden y limpieza en la zona de trabajo.",
-    ]
-    for b in bullets:
-        _para_body(doc, b)
+    ]:
+        doc.add_paragraph(b, style="List Bullet")
 
 
 def _sec_conclusiones(doc: Document) -> None:
-    bullets = [
+    for b in [
         "Se ejecutó el mantenimiento preventivo según lo indicado en el presente informe.",
         "Se efectúa la limpieza y lijado del electrodo y los cables para asegurar su buen desempeño.",
         "Se reemplazó al conector para así lograr tener un mejor agarre entre el cable y la varilla "
@@ -659,9 +654,8 @@ def _sec_conclusiones(doc: Document) -> None:
         "Se optimizó la conexión entre la varilla y los cables para asegurar su buen desempeño.",
         "Se evaluó el estado de las instalaciones y condicionantes de trabajo previamente a cualquier "
         "intervención realizado por E-SYSTEM TIC determinando que permita dichas actividades.",
-    ]
-    for b in bullets:
-        _para_body(doc, b)
+    ]:
+        doc.add_paragraph(b, style="List Bullet")
 
 
 def _sec_observaciones(doc: Document) -> None:
