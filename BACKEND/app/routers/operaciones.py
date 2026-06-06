@@ -16,6 +16,7 @@ from datetime import date, datetime
 logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi.responses import StreamingResponse
 from typing import List
 
 from sqlalchemy import func, or_
@@ -4231,13 +4232,10 @@ def generar_informe_general(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Recibe el payload confirmado del modal (equipos, EPP, materiales,
-    herramientas y personal). De momento NO genera el documento Word: valida el
-    servicio y devuelve un resumen.
+    """Genera el Informe General de Pozos a Tierra (.docx) y lo devuelve
+    como blob descargable. Convierte imágenes WebP de evidencias a JPEG."""
+    from ..services.word_informe_pozos import generar_word_pozos
 
-    TODO (futura integración): a partir de este payload generar el Word del
-    informe general (plantilla por tipo de equipo) y devolver su URL/archivo.
-    """
     empresa_id = payload["empresa_id"]
     ps = db.query(ProyectoServicio).filter(
         ProyectoServicio.id         == servicio_id,
@@ -4247,15 +4245,85 @@ def generar_informe_general(
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
     body = body or {}
-    return {
-        "ok":          True,
-        "mensaje":     "Payload recibido. La generación del Word se implementará después.",
-        "servicio_id": servicio_id,
-        "resumen": {
-            "equipos":      len(body.get("equipos", []) or []),
-            "epps":         len(body.get("epps", []) or []),
-            "materiales":   len(body.get("materiales", []) or []),
-            "herramientas": len(body.get("herramientas", []) or []),
-            "personal":     len(body.get("personal", []) or []),
-        },
-    }
+
+    # ── Validar y extraer payload ──────────────────────────────────────────────
+    equipos_payload     = body.get("equipos", []) or []
+    epps_payload        = body.get("epps", []) or []
+    herramientas_payload= body.get("herramientas", []) or []
+    materiales_payload  = body.get("materiales", []) or []
+    personal_payload    = body.get("personal", []) or []
+    oc                  = str(body.get("oc", "") or "")
+
+    # ── Ubicación: provincias únicas de los equipos ────────────────────────────
+    provincias = []
+    vistas: set[str] = set()
+    for eq in equipos_payload:
+        prov = (eq.get("provincia") or eq.get("ubicacion") or "").strip()
+        if prov and prov.upper() not in vistas:
+            vistas.add(prov.upper())
+            provincias.append(prov)
+    ubicacion_str = ", ".join(provincias) if provincias else (ps.zona_ejecucion or "")
+
+    # ── Evidencias fotográficas agrupadas por equipo intervenido ──────────────
+    ei_ids = [eq["id"] for eq in equipos_payload if eq.get("id")]
+
+    evidencias_por_equipo: list[dict] = []
+
+    if ei_ids:
+        # Cargar todos los HistorialInspeccion de los equipos solicitados
+        historials = (
+            db.query(HistorialInspeccion)
+            .filter(
+                HistorialInspeccion.equipo_intervenido_id.in_(ei_ids),
+                HistorialInspeccion.empresa_id == empresa_id,
+            )
+            .order_by(HistorialInspeccion.fecha_inicio)
+            .all()
+        )
+
+        # Agrupar fotos por equipo_intervenido_id (tomar la sesión más reciente completada, o cualquiera)
+        fotos_map: dict[str, list[dict]] = {}
+        for hi in historials:
+            eid = str(hi.equipo_intervenido_id)
+            resultado = hi.resultado or []
+            for paso in resultado:
+                foto_url = paso.get("foto_url") or paso.get("url")
+                if not foto_url:
+                    continue
+                obs = paso.get("nombre") or paso.get("descripcion") or ""
+                if eid not in fotos_map:
+                    fotos_map[eid] = []
+                fotos_map[eid].append({"url": foto_url, "obs": obs})
+
+        # Construir lista en el orden de los equipos del payload
+        nombre_map = {eq["id"]: eq.get("nombre", "") for eq in equipos_payload}
+        for eid in ei_ids:
+            evidencias_por_equipo.append({
+                "nombre": nombre_map.get(eid, eid),
+                "fotos":  fotos_map.get(eid, []),
+            })
+
+    # ── Generar documento Word ─────────────────────────────────────────────────
+    try:
+        docx_bytes = generar_word_pozos(
+            oc=oc,
+            ubicacion=ubicacion_str,
+            equipos=equipos_payload,
+            epps=epps_payload,
+            herramientas=herramientas_payload,
+            materiales=materiales_payload,
+            personal=personal_payload,
+            evidencias_por_equipo=evidencias_por_equipo,
+        )
+    except Exception as exc:
+        logger.exception("[informe-pozos] Error generando Word: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando el informe: {exc}")
+
+    oc_safe = re.sub(r"[^A-Za-z0-9_\-]", "_", oc) if oc else "SIN_OC"
+    filename = f"INFORME_MTTO_POZOS_OC_{oc_safe}.docx"
+
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
