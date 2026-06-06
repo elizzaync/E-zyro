@@ -22,10 +22,10 @@ from PIL import Image as PILImage
 logger = logging.getLogger(__name__)
 
 # Ruta absoluta resuelta en tiempo de importación, relativa a este mismo archivo.
-# Árbol:  BACKEND/app/services/word_informe_pozos.py
-#         BACKEND/assets/headerLogo.png   (2 niveles arriba)
-_ASSETS_DIR  = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
-_LOGO_HEADER = os.path.join(_ASSETS_DIR, "headerLogo.png")
+# assets/ vive en BACKEND/assets/ — dos niveles arriba de este archivo
+_LOGO_HEADER = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "assets", "headerLogo.png")
+)
 
 _MESES_ES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -270,11 +270,9 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
         p.clear()
     p_logo = logo_cell.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    try:
-        p_logo.add_run().add_picture(_LOGO_HEADER, width=_LOGO_W)
-    except Exception as exc:
-        logger.warning("[header] logo no cargado: %s", exc)
-        _run(p_logo, "E-ZYRO", bold=True, size_pt=10)
+    if not os.path.exists(_LOGO_HEADER):
+        raise FileNotFoundError(f"CRÍTICO: Python no encuentra el logo en el disco duro: {_LOGO_HEADER}")
+    p_logo.add_run().add_picture(_LOGO_HEADER, width=_LOGO_W)
 
     # ── ROW 1: UBICACIÓN | Elaborado por | Oficina ───────────────────────────
     c10 = tbl.cell(1, 0)
