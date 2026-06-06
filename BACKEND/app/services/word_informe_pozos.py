@@ -795,11 +795,11 @@ def _table_herramientas(doc: Document, herramientas: list[dict]) -> None:
 
 def _evidence_grid(doc: Document, evidencias_por_equipo: list[dict]) -> None:
     """
-    For each equipment group: title + pairs of photos in 2-column tables.
-    Single remaining photo goes in a 1-column table.
+    For each equipment group: title + 2-column tables (image row / caption row).
+    Odd photo at the end fills left column; right column stays blank.
+    Each image is capped at Cm(7.5) so the table never overflows A4 width.
     """
-    W_TWO = 8.8   # cm — width of each photo column (2-col grid)
-    W_ONE = _BW   # cm — width for single-photo rows
+    W_COL = 7.5   # cm — each of the two columns (total 15 cm, within 17.6 cm body)
 
     for grupo in evidencias_por_equipo:
         nombre = grupo.get("nombre", "Equipo")
@@ -820,56 +820,38 @@ def _evidence_grid(doc: Document, evidencias_por_equipo: list[dict]) -> None:
             foto_izq = fotos[i]
             foto_der = fotos[i + 1] if i + 1 < len(fotos) else None
 
-            if foto_der is None:
-                tbl = doc.add_table(rows=2, cols=1)
-                _single_borders(tbl, color="CCCCCC", sz=4)
-                _set_table_width(tbl, W_ONE)
-                _set_tbl_grid(tbl, [W_ONE])
+            # Always a 2-column / 2-row table: row 0 = images, row 1 = captions
+            tbl = doc.add_table(rows=2, cols=2)
+            tbl.style = "Table Grid"
+            _set_table_width(tbl, W_COL * 2)
+            _set_tbl_grid(tbl, [W_COL, W_COL])
+            for ri in range(2):
+                for ci in range(2):
+                    _set_col_width(tbl.cell(ri, ci), W_COL)
 
-                _set_col_width(tbl.cell(0, 0), W_ONE)
-                _set_col_width(tbl.cell(1, 0), W_ONE)
-
-                c_img = tbl.cell(0, 0)
+            # ── Row 0: images ──────────────────────────────────────────────
+            for ci, foto in enumerate([foto_izq, foto_der]):
+                c_img = tbl.cell(0, ci)
                 c_img.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 p_img = c_img.paragraphs[0]
                 p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                buf = _url_to_jpeg(foto_izq["url"])
+                if foto is None:
+                    continue   # leave right cell blank when photo count is odd
+                buf = _url_to_jpeg(foto["url"])
                 if buf:
-                    p_img.add_run().add_picture(buf, width=Cm(16.0))
+                    p_img.add_run().add_picture(buf, width=Cm(W_COL))
                 else:
                     _run(p_img, "[imagen no disponible]", size_pt=9)
 
-                c_obs = tbl.cell(1, 0)
+            # ── Row 1: captions ────────────────────────────────────────────
+            for ci, foto in enumerate([foto_izq, foto_der]):
+                c_obs = tbl.cell(1, ci)
                 p_obs = c_obs.paragraphs[0]
-                p_obs.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                obs = foto_izq.get("obs", "")
-                _run(p_obs, obs, size_pt=9)
-            else:
-                tbl = doc.add_table(rows=2, cols=2)
-                _single_borders(tbl, color="CCCCCC", sz=4)
-                _set_table_width(tbl, _BW)
-                _set_tbl_grid(tbl, [W_TWO, W_TWO])
-
-                for ri in range(2):
-                    for ci in range(2):
-                        _set_col_width(tbl.cell(ri, ci), W_TWO)
-
-                for ci, foto in enumerate([foto_izq, foto_der]):
-                    c_img = tbl.cell(0, ci)
-                    c_img.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                    p_img = c_img.paragraphs[0]
-                    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    buf = _url_to_jpeg(foto["url"])
-                    if buf:
-                        p_img.add_run().add_picture(buf, width=Cm(8.0))
-                    else:
-                        _run(p_img, "[imagen no disponible]", size_pt=9)
-
-                    c_obs = tbl.cell(1, ci)
-                    p_obs = c_obs.paragraphs[0]
-                    p_obs.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    obs = foto.get("obs", "")
-                    _run(p_obs, obs, size_pt=9)
+                p_obs.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                p_obs.paragraph_format.space_before = Pt(2)
+                if foto is None:
+                    continue
+                _run(p_obs, foto.get("obs", ""), size_pt=9)
 
             doc.add_paragraph()
             i += 2
