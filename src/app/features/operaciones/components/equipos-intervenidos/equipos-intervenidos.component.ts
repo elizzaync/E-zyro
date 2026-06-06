@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule, Location, DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -93,6 +93,7 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
 
   // Campo OC del informe
   informeOC = '';
+  @ViewChild('ocInput') ocInputRef?: ElementRef<HTMLInputElement>;
 
   // Filtro y selección para el selector de EPP
   filtroEpp    = '';
@@ -396,12 +397,14 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
 
   /** Construye el payload, solicita el Word al backend y fuerza la descarga. */
   onSubmitInforme(): void {
-    if (!this.informeOC.trim()) {
+    // Lee el valor directamente del DOM para evitar cualquier problema de binding
+    const ocDom = this.ocInputRef?.nativeElement?.value ?? '';
+    const oc = (ocDom || this.informeOC || '').trim();
+
+    if (!oc) {
       this.toast.mostrar('Ingresa el número de OC antes de generar el informe.', 'error');
       return;
     }
-
-    const oc = this.informeOC.trim();
     const payload = {
       oc,
       servicio_id: this.servicioId,

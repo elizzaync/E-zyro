@@ -352,7 +352,9 @@
         <label class="field-label">
           N° Orden de Compra (OC) <span style="color:#ef4444;">*</span>
         </label>
-        <input type="text" class="field-input" [(ngModel)]="informeOC"
+        <input #ocInput type="text" class="field-input"
+               [value]="informeOC"
+               (input)="informeOC = $any($event.target).value"
                placeholder="Ej: OC-2024-0123"
                maxlength="50">
       </div>
