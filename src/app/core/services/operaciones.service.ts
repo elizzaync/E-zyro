@@ -352,9 +352,13 @@ export class OperacionesService {
     return this.http.get(`${this.api}/operaciones/servicio/${servicioId}/informe/precarga`);
   }
 
-  /** Envía el payload confirmado del informe general (stub backend; el Word es futuro). */
-  generarInformeGeneral(servicioId: string, payload: object): Observable<any> {
-    return this.http.post(`${this.api}/operaciones/servicio/${servicioId}/informe/generar`, payload);
+  /** Genera el informe general de pozos a tierra (.docx) y devuelve un Blob. */
+  generarInformeGeneral(servicioId: string, payload: object): Observable<Blob> {
+    return this.http.post(
+      `${this.api}/operaciones/servicio/${servicioId}/informe/generar`,
+      payload,
+      { responseType: 'blob' },
+    );
   }
 
   /** Catálogo de EPPs activos de la empresa (tabla epp). */

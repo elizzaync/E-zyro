@@ -347,6 +347,16 @@
                [value]="informeCargando ? 'Cargando…' : (informeServicioNombre || '(servicio actual)')">
       </div>
 
+      <!-- 2b) Número de OC — requerido para el nombre del archivo y encabezado -->
+      <div class="field-group">
+        <label class="field-label">
+          N° Orden de Compra (OC) <span style="color:#ef4444;">*</span>
+        </label>
+        <input type="text" class="field-input" [(ngModel)]="informeOC"
+               placeholder="Ej: OC-2024-0123"
+               maxlength="50">
+      </div>
+
       <!-- 3) EPPs usados -->
       <div class="inf-section">
         <h4 class="inf-title">EPPs usados</h4>
@@ -479,14 +489,15 @@
 
     <div class="modal-footer">
       <button class="btn-cancel-modal" (click)="cerrarModalInforme()">Cancelar</button>
-      <button class="btn-save-modal" (click)="onSubmitInforme()" [disabled]="informeEnviando">
+      <button class="btn-save-modal" (click)="onSubmitInforme()"
+              [disabled]="informeEnviando || informeCargando">
         @if (informeEnviando) {
-          <app-spinner></app-spinner> Enviando…
+          <app-spinner></app-spinner> Generando Word…
         } @else {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
           </svg>
-          Generar Informe
+          Generar Informe (.docx)
         }
       </button>
     </div>

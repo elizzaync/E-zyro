@@ -91,6 +91,9 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   // Catálogo de EPPs cargado desde BD
   catalogoEpps: { id: string; nombre: string }[] = [];
 
+  // Campo OC del informe
+  informeOC = '';
+
   // Filtro y selección para el selector de EPP
   filtroEpp    = '';
   eppSelNombre = '';
@@ -276,6 +279,7 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
     this.filtroEpp               = '';
     this.eppSelNombre            = '';
     this.personalSel             = '';
+    this.informeOC               = '';
 
     this.informeCargando = true;
     forkJoin({
@@ -390,9 +394,16 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   }
   quitarPersonal(i: number): void { this.informePersonalAsignado.splice(i, 1); }
 
-  /** Construye el payload y lo envía (el Word es integración futura). */
+  /** Construye el payload, solicita el Word al backend y fuerza la descarga. */
   onSubmitInforme(): void {
+    if (!this.informeOC.trim()) {
+      this.toast.mostrar('Ingresa el número de OC antes de generar el informe.', 'error');
+      return;
+    }
+
+    const oc = this.informeOC.trim();
     const payload = {
+      oc,
       servicio_id: this.servicioId,
       tipo_base:   this.informeTipoBase,
       equipos: this.informeEquipos.map(e => ({
@@ -404,19 +415,33 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
       herramientas: this.informeHerramientas,
       personal:     this.informePersonalAsignado,
     };
-    // TODO (futura integración): este payload alimentará la generación del Word.
-    console.log('[Generar Informe] payload listo para el backend/Word:', payload);
 
     this.informeEnviando = true;
     this.svc.generarInformeGeneral(this.servicioId, payload).subscribe({
-      next: () => {
+      next: (blob: Blob) => {
         this.informeEnviando = false;
-        this.toast.mostrar('Datos del informe enviados. (Generación del Word pendiente)', 'success');
+        const ocSafe = oc.replace(/[^A-Za-z0-9_\-]/g, '_');
+        const url  = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href     = url;
+        link.download = `INFORME_MTTO_POZOS_OC_${ocSafe}.docx`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        this.toast.mostrar('Informe generado y descargado correctamente.', 'success');
         this.cerrarModalInforme();
       },
       error: (err: any) => {
         this.informeEnviando = false;
-        this.toast.mostrar(err?.error?.detail ?? 'Error al enviar el informe.', 'error');
+        // El error puede venir como blob si el servidor responde con JSON de error
+        if (err?.error instanceof Blob) {
+          err.error.text().then((txt: string) => {
+            let detail = 'Error al generar el informe.';
+            try { detail = JSON.parse(txt)?.detail ?? detail; } catch {}
+            this.toast.mostrar(detail, 'error');
+          });
+        } else {
+          this.toast.mostrar(err?.error?.detail ?? 'Error al generar el informe.', 'error');
+        }
       }
     });
   }
