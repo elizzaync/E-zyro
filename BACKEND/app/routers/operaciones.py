@@ -4218,6 +4218,8 @@ def precarga_informe_general(
             "nombre":          ps.nombre or "",
             "proyecto_id":     str(ps.proyecto_id),
             "proyecto_nombre": (proyecto.nombre_proyecto if proyecto else None),
+            "tipo_documento":  ps.tipo_documento_cliente or "",
+            "nro_documento":   ps.nro_documento or "",
         },
         "materiales_solicitados":  materiales,
         "herramientas_solicitadas": herramientas,
