@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, catchError, of, BehaviorSubject } from 'rxjs'; // 👈 Añadido BehaviorSubject
+import { Observable, tap, catchError, of, BehaviorSubject } from 'rxjs'; 
 import { environment } from '../../../environments/environment';
 
 @Injectable({
