@@ -15,26 +15,28 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt, RGBColor, Cm, Emu
+from docx.shared import Pt, RGBColor, Cm
 from PIL import Image as PILImage
 
 logger = logging.getLogger(__name__)
 
 _LOGO_HEADER = "/home/harold/E-zyro-frontend/public/assets/img/headerLogo.png"
-_LOGO_TALMA  = "/home/harold/E-zyro-frontend/public/assets/img/talma.png"
 
 _MESES_ES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ]
 
-# Measured from the legacy document (EMU values)
-_COL0_W = Emu(3492500)   # 9.7 cm — text column
-_COL1_W = Emu(1079500)   # 3.0 cm — logo / firma col 1
-_COL2_W = Emu(1143000)   # 3.2 cm — logo / firma col 2
+# Header column widths (cm) — 55 % / 20 % / 25 % of 17.6 cm
+_H_COL0 = 9.68    # ~55 %
+_H_COL1 = 3.52    # ~20 %
+_H_COL2 = 4.40    # ~25 %
 
-# Body table full width = 17.6 cm
-_TW = Cm(17.6)
+# Logo image width — fits inside merged cell (cols 1+2 = 7.92 cm)
+_LOGO_W = Cm(4.0)   # headerLogo.png 445×274 → height ≈ 2.46 cm at this width
+
+# Body table full width (cm)
+_BW = 17.6
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -51,13 +53,38 @@ def _set_cell_bg(cell, hex_color: str) -> None:
     tcPr.append(shd)
 
 
-def _set_col_width(cell, width: Emu) -> None:
+def _cm_to_twips(cm: float) -> int:
+    """1 cm = 567 twips (1440 twips/in ÷ 2.54 cm/in)."""
+    return int(cm * 567)
+
+
+def _set_col_width(cell, width_cm: float) -> None:
+    """Set exact cell width in cm, removing any pre-existing <w:tcW>."""
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
+    for old in tcPr.findall(qn("w:tcW")):   # remove duplicates Word would ignore
+        tcPr.remove(old)
     tcW = OxmlElement("w:tcW")
-    tcW.set(qn("w:w"), str(int(width.twips)))
+    tcW.set(qn("w:w"), str(_cm_to_twips(width_cm)))
     tcW.set(qn("w:type"), "dxa")
     tcPr.append(tcW)
+
+
+def _set_tbl_grid(table, col_widths_cm: list[float]) -> None:
+    """Inject a proper <w:tblGrid> so Word knows the column layout."""
+    tbl = table._tbl
+    for old in tbl.findall(qn("w:tblGrid")):
+        tbl.remove(old)
+    tblGrid = OxmlElement("w:tblGrid")
+    for w in col_widths_cm:
+        gc = OxmlElement("w:gridCol")
+        gc.set(qn("w:w"), str(_cm_to_twips(w)))
+        tblGrid.append(gc)
+    tblPr = tbl.find(qn("w:tblPr"))
+    if tblPr is not None:
+        tblPr.addnext(tblGrid)
+    else:
+        tbl.insert(0, tblGrid)
 
 
 def _no_borders(table) -> None:
@@ -95,14 +122,16 @@ def _single_borders(table, color="000000", sz=6) -> None:
     tblPr.append(tblBorders)
 
 
-def _set_table_width(table, width: Emu) -> None:
+def _set_table_width(table, width_cm: float) -> None:
     tbl = table._tbl
     tblPr = tbl.tblPr
     if tblPr is None:
         tblPr = OxmlElement("w:tblPr")
         tbl.insert(0, tblPr)
+    for old in tblPr.findall(qn("w:tblW")):
+        tblPr.remove(old)
     tblW = OxmlElement("w:tblW")
-    tblW.set(qn("w:w"), str(int(width.twips)))
+    tblW.set(qn("w:w"), str(_cm_to_twips(width_cm)))
     tblW.set(qn("w:type"), "dxa")
     tblPr.append(tblW)
 
@@ -187,9 +216,14 @@ def _add_logo(para, path: str, width_cm: float) -> None:
 
 def _build_header(doc: Document, oc: str, provincia: str) -> None:
     """
-    5-row x 3-col table in the page header.
-    Col 0 (wide): title / ubicación / especialidad
-    Col 1-2: logos (rows 0-1) then elaborado/revisado/aprobado (rows 2-4)
+    Header table: 4 rows × 3 cols, repeats on every page.
+
+    Col widths: 55 % / 20 % / 25 %  (≈ 9.68 / 3.52 / 4.40 cm = 17.6 cm total)
+
+    Row 0: [Title text]          | [logo merged → cols 1+2]
+    Row 1: [UBICACIÓN]           | "Elaborado por:" | "Oficina de proyectos"
+    Row 2: [ESPECIALIDAD]        | "Revisado por:"  | "Oficina de proyectos"
+    Row 3: [merged ↑ with row2] | "Aprobado por:"  | "Oficina de proyectos"
     """
     sec = doc.sections[0]
     sec.header_distance = Cm(0.5)
@@ -198,69 +232,81 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
     for p in header.paragraphs:
         p.clear()
 
-    from docx.shared import Inches
-    tbl = header.add_table(rows=5, cols=3, width=Inches(6.25))
+    # ── Create 4×3 table ────────────────────────────────────────────────────
+    tbl = header.add_table(rows=4, cols=3, width=Cm(_H_COL0 + _H_COL1 + _H_COL2))
     _no_borders(tbl)
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    # Column widths
-    for ri in range(5):
-        _set_col_width(tbl.cell(ri, 0), _COL0_W)
-        _set_col_width(tbl.cell(ri, 1), _COL1_W)
-        _set_col_width(tbl.cell(ri, 2), _COL2_W)
+    _set_tbl_grid(tbl, [_H_COL0, _H_COL1, _H_COL2])
 
-    oc_label = oc or "SIN-OC"
+    for ri in range(4):
+        _set_col_width(tbl.cell(ri, 0), _H_COL0)
+        _set_col_width(tbl.cell(ri, 1), _H_COL1)
+        _set_col_width(tbl.cell(ri, 2), _H_COL2)
+
+    oc_label   = oc or "SIN-OC"
     prov_label = (provincia or "").upper()
 
-    # Row 0 col 0: full title
+    # ── ROW 0: Title | Logo (merged cols 1+2) ───────────────────────────────
+    tbl.cell(0, 1).merge(tbl.cell(0, 2))   # cols 1+2 → 7.92 cm combined
+
     c00 = tbl.cell(0, 0)
     c00.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     p00 = c00.paragraphs[0]
-    _run(p00, f"INFORME OC - {oc_label} MANTENIMIENTO PREVENTIVO POZO A TIERRA {prov_label}",
+    p00.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _run(p00,
+         f"INFORME OC - {oc_label} MANTENIMIENTO PREVENTIVO POZO A TIERRA {prov_label}",
          bold=True, size_pt=8)
 
-    # Row 0 col 1: E-ZYRO logo
-    c01 = tbl.cell(0, 1)
-    c01.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    p01 = c01.paragraphs[0]
-    p01.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_logo(p01, _LOGO_HEADER, width_cm=2.6)
+    logo_cell = tbl.cell(0, 1)
+    logo_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    # Clear any empty paragraph python-docx may have left after the merge
+    for p in logo_cell.paragraphs:
+        p.clear()
+    p_logo = logo_cell.paragraphs[0]
+    p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    try:
+        p_logo.add_run().add_picture(_LOGO_HEADER, width=_LOGO_W)
+    except Exception as exc:
+        logger.warning("[header] logo no cargado: %s", exc)
+        _run(p_logo, "E-ZYRO", bold=True, size_pt=10)
 
-    # Row 0 col 2: TALMA logo
-    c02 = tbl.cell(0, 2)
-    c02.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    p02 = c02.paragraphs[0]
-    p02.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_logo(p02, _LOGO_TALMA, width_cm=2.8)
-
-    # Row 1 col 0: UBICACIÓN
+    # ── ROW 1: UBICACIÓN | Elaborado por | Oficina ───────────────────────────
     c10 = tbl.cell(1, 0)
     c10.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    p10 = c10.paragraphs[0]
-    _run(p10, f"UBICACIÓN: TALMA - {prov_label}", bold=True, size_pt=7.5)
+    _run(c10.paragraphs[0], f"UBICACIÓN: TALMA - {prov_label}", bold=True, size_pt=8)
 
-    # Rows 2-4 col 0: ESPECIALIDAD
-    especialidad = "ESPECIALIDAD: INSTALACIONES ELÉCTRICAS"
-    for ri in range(2, 5):
-        cell = tbl.cell(ri, 0)
-        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        p = cell.paragraphs[0]
-        _run(p, especialidad, bold=True, size_pt=7.5)
+    c11 = tbl.cell(1, 1)
+    c11.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _run(c11.paragraphs[0], "Elaborado por:", size_pt=8)
 
-    # Rows 2-4 cols 1-2: firma fields
-    firmas = [
-        ("Elaborado por:", "Oficina de proyectos"),
-        ("Revisado por:",  "Oficina de proyectos"),
-        ("Aprobado por:",  "Oficina de proyectos"),
-    ]
-    for ri, (lbl, val) in enumerate(firmas, start=2):
-        c1 = tbl.cell(ri, 1)
-        c1.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        _run(c1.paragraphs[0], lbl, size_pt=7)
+    c12 = tbl.cell(1, 2)
+    c12.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _run(c12.paragraphs[0], "Oficina de proyectos", size_pt=8)
 
-        c2 = tbl.cell(ri, 2)
-        c2.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        _run(c2.paragraphs[0], val, size_pt=7)
+    # ── ROW 2: ESPECIALIDAD | Revisado por | Oficina ─────────────────────────
+    c20 = tbl.cell(2, 0)
+    c20.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _run(c20.paragraphs[0], "ESPECIALIDAD: INSTALACIONES ELÉCTRICAS", bold=True, size_pt=8)
+
+    c21 = tbl.cell(2, 1)
+    c21.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _run(c21.paragraphs[0], "Revisado por:", size_pt=8)
+
+    c22 = tbl.cell(2, 2)
+    c22.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _run(c22.paragraphs[0], "Oficina de proyectos", size_pt=8)
+
+    # ── ROW 3: col 0 merged with row 2 | Aprobado por | Oficina ─────────────
+    tbl.cell(2, 0).merge(tbl.cell(3, 0))   # vertical merge col 0 rows 2+3
+
+    c31 = tbl.cell(3, 1)
+    c31.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _run(c31.paragraphs[0], "Aprobado por:", size_pt=8)
+
+    c32 = tbl.cell(3, 2)
+    c32.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _run(c32.paragraphs[0], "Oficina de proyectos", size_pt=8)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -299,14 +345,14 @@ def _build_portada(doc: Document, oc: str, provincia: str, fecha_str: str) -> No
     # Execution table
     tbl = doc.add_table(rows=2, cols=3)
     _single_borders(tbl)
-    _set_table_width(tbl, _TW)
+    _set_table_width(tbl, _BW)
+    _set_tbl_grid(tbl, [1.8, 8.8, 7.0])
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    # Set col widths: N°=1.8, DESCRIPCIÓN=8.8, FECHA=7.0
     for ri in range(2):
-        _set_col_width(tbl.cell(ri, 0), Emu(int(Cm(1.8).emu)))
-        _set_col_width(tbl.cell(ri, 1), Emu(int(Cm(8.8).emu)))
-        _set_col_width(tbl.cell(ri, 2), Emu(int(Cm(7.0).emu)))
+        _set_col_width(tbl.cell(ri, 0), 1.8)
+        _set_col_width(tbl.cell(ri, 1), 8.8)
+        _set_col_width(tbl.cell(ri, 2), 7.0)
 
     _gray_header_row(tbl.rows[0], ["N°", "DESCRIPCIÓN", "FECHA"])
     row1 = tbl.rows[1]
@@ -576,13 +622,13 @@ def _table_epp(doc: Document, epps: list[str]) -> None:
     """2 cols: EPP | ES NECESARIO — 8.8+8.8 cm."""
     tbl = doc.add_table(rows=1 + len(epps), cols=2)
     _single_borders(tbl)
-    _set_table_width(tbl, _TW)
+    _set_table_width(tbl, _BW)
+    _set_tbl_grid(tbl, [8.8, 8.8])
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    w_half = Emu(int(Cm(8.8).emu))
     for ri in range(1 + len(epps)):
-        _set_col_width(tbl.cell(ri, 0), w_half)
-        _set_col_width(tbl.cell(ri, 1), w_half)
+        _set_col_width(tbl.cell(ri, 0), 8.8)
+        _set_col_width(tbl.cell(ri, 1), 8.8)
 
     _gray_header_row(tbl.rows[0], ["EPP", "ES NECESARIO"])
 
@@ -604,13 +650,13 @@ def _table_personal(doc: Document, personal: list[dict]) -> None:
     """4 cols: APELLIDOS | NOMBRE | CARGO | RESPONSABILIDADES — 4.4cm each."""
     tbl = doc.add_table(rows=1 + len(personal), cols=4)
     _single_borders(tbl)
-    _set_table_width(tbl, _TW)
+    _set_table_width(tbl, _BW)
+    _set_tbl_grid(tbl, [4.4, 4.4, 4.4, 4.4])
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    w_col = Emu(int(Cm(4.4).emu))
     for ri in range(1 + len(personal)):
         for ci in range(4):
-            _set_col_width(tbl.cell(ri, ci), w_col)
+            _set_col_width(tbl.cell(ri, ci), 4.4)
 
     _gray_header_row(tbl.rows[0], ["APELLIDOS", "NOMBRE", "CARGO", "RESPONSABILIDADES"])
 
@@ -630,12 +676,12 @@ def _table_materiales(doc: Document, materiales: list[dict]) -> None:
     """3 cols: MATERIALES | UNIDAD | CARACTERÍSTICAS — 7.1+3.5+7.0 cm."""
     tbl = doc.add_table(rows=1 + len(materiales), cols=3)
     _single_borders(tbl)
-    _set_table_width(tbl, _TW)
+    _set_table_width(tbl, _BW)
+    _set_tbl_grid(tbl, [7.1, 3.5, 7.0])
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    widths = [Emu(int(Cm(7.1).emu)), Emu(int(Cm(3.5).emu)), Emu(int(Cm(7.0).emu))]
     for ri in range(1 + len(materiales)):
-        for ci, w in enumerate(widths):
+        for ci, w in enumerate([7.1, 3.5, 7.0]):
             _set_col_width(tbl.cell(ri, ci), w)
 
     _gray_header_row(tbl.rows[0], ["MATERIALES", "UNIDAD", "CARACTERÍSTICAS"])
@@ -655,12 +701,12 @@ def _table_herramientas(doc: Document, herramientas: list[dict]) -> None:
     """3 cols: HERRAMIENTAS Y EQUIPOS | UNIDAD | CARACTERÍSTICAS — 7.1+3.5+7.0 cm."""
     tbl = doc.add_table(rows=1 + len(herramientas), cols=3)
     _single_borders(tbl)
-    _set_table_width(tbl, _TW)
+    _set_table_width(tbl, _BW)
+    _set_tbl_grid(tbl, [7.1, 3.5, 7.0])
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    widths = [Emu(int(Cm(7.1).emu)), Emu(int(Cm(3.5).emu)), Emu(int(Cm(7.0).emu))]
     for ri in range(1 + len(herramientas)):
-        for ci, w in enumerate(widths):
+        for ci, w in enumerate([7.1, 3.5, 7.0]):
             _set_col_width(tbl.cell(ri, ci), w)
 
     _gray_header_row(tbl.rows[0], ["HERRAMIENTAS Y EQUIPOS", "UNIDAD", "CARACTERÍSTICAS"])
@@ -684,8 +730,8 @@ def _evidence_grid(doc: Document, evidencias_por_equipo: list[dict]) -> None:
     For each equipment group: title + pairs of photos in 2-column tables.
     Single remaining photo goes in a 1-column table.
     """
-    W_TWO = Cm(8.8)
-    W_ONE = Cm(17.6)
+    W_TWO = 8.8   # cm — width of each photo column (2-col grid)
+    W_ONE = _BW   # cm — width for single-photo rows
 
     for grupo in evidencias_por_equipo:
         nombre = grupo.get("nombre", "Equipo")
@@ -709,10 +755,11 @@ def _evidence_grid(doc: Document, evidencias_por_equipo: list[dict]) -> None:
             if foto_der is None:
                 tbl = doc.add_table(rows=2, cols=1)
                 _single_borders(tbl, color="CCCCCC", sz=4)
-                _set_table_width(tbl, Emu(int(W_ONE.emu)))
+                _set_table_width(tbl, W_ONE)
+                _set_tbl_grid(tbl, [W_ONE])
 
-                _set_col_width(tbl.cell(0, 0), Emu(int(W_ONE.emu)))
-                _set_col_width(tbl.cell(1, 0), Emu(int(W_ONE.emu)))
+                _set_col_width(tbl.cell(0, 0), W_ONE)
+                _set_col_width(tbl.cell(1, 0), W_ONE)
 
                 c_img = tbl.cell(0, 0)
                 c_img.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
@@ -732,11 +779,12 @@ def _evidence_grid(doc: Document, evidencias_por_equipo: list[dict]) -> None:
             else:
                 tbl = doc.add_table(rows=2, cols=2)
                 _single_borders(tbl, color="CCCCCC", sz=4)
-                _set_table_width(tbl, Emu(int(_TW.emu)))
+                _set_table_width(tbl, _BW)
+                _set_tbl_grid(tbl, [W_TWO, W_TWO])
 
                 for ri in range(2):
                     for ci in range(2):
-                        _set_col_width(tbl.cell(ri, ci), Emu(int(W_TWO.emu)))
+                        _set_col_width(tbl.cell(ri, ci), W_TWO)
 
                 for ci, foto in enumerate([foto_izq, foto_der]):
                     c_img = tbl.cell(0, ci)
