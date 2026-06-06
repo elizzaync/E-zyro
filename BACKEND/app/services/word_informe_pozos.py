@@ -1,14 +1,13 @@
 """
 Generación del Informe General de Pozos a Tierra en formato Word (.docx).
-Utiliza python-docx para la estructura y Pillow para convertir imágenes WebP → JPEG.
+Réplica exacta del sistema heredado.
 """
 from __future__ import annotations
 
 import io
 import logging
-import re
 from datetime import date
-from typing import Any, Optional
+from typing import Optional
 
 import requests
 from docx import Document
@@ -16,33 +15,33 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor, Cm
+from docx.shared import Pt, RGBColor, Cm, Emu
 from PIL import Image as PILImage
 
 logger = logging.getLogger(__name__)
 
-# ── Rutas absolutas de logos ──────────────────────────────────────────────────
 _LOGO_HEADER = "/home/harold/E-zyro-frontend/public/assets/img/headerLogo.png"
 _LOGO_TALMA  = "/home/harold/E-zyro-frontend/public/assets/img/talma.png"
 
 _MESES_ES = [
-    "", "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
-    "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
+    "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ]
 
+# Measured from the legacy document (EMU values)
+_COL0_W = Emu(3492500)   # 9.7 cm — text column
+_COL1_W = Emu(1079500)   # 3.0 cm — logo / firma col 1
+_COL2_W = Emu(1143000)   # 3.2 cm — logo / firma col 2
+
+# Body table full width = 17.6 cm
+_TW = Cm(17.6)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers XML
+# Low-level XML helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _set_font(run, name="Arial", size_pt=11, bold=False, color: Optional[RGBColor] = None):
-    run.font.name = name
-    run.font.size = Pt(size_pt)
-    run.font.bold = bold
-    if color:
-        run.font.color.rgb = color
-
-
-def _set_cell_bg(cell, hex_color: str):
+def _set_cell_bg(cell, hex_color: str) -> None:
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     shd = OxmlElement("w:shd")
@@ -52,16 +51,34 @@ def _set_cell_bg(cell, hex_color: str):
     tcPr.append(shd)
 
 
-def _set_col_width(cell, width_cm: float):
+def _set_col_width(cell, width: Emu) -> None:
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
     tcW = OxmlElement("w:tcW")
-    tcW.set(qn("w:w"), str(int(width_cm * 567)))  # 1 cm ≈ 567 twips
+    tcW.set(qn("w:w"), str(int(width.twips)))
     tcW.set(qn("w:type"), "dxa")
     tcPr.append(tcW)
 
 
-def _set_table_borders(table, color="000000", size=4):
+def _no_borders(table) -> None:
+    """Remove all visible borders from a table."""
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    if tblPr is None:
+        tblPr = OxmlElement("w:tblPr")
+        tbl.insert(0, tblPr)
+    tblBorders = OxmlElement("w:tblBorders")
+    for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        bd = OxmlElement(f"w:{side}")
+        bd.set(qn("w:val"), "none")
+        bd.set(qn("w:sz"), "0")
+        bd.set(qn("w:space"), "0")
+        bd.set(qn("w:color"), "auto")
+        tblBorders.append(bd)
+    tblPr.append(tblBorders)
+
+
+def _single_borders(table, color="000000", sz=6) -> None:
     tbl = table._tbl
     tblPr = tbl.tblPr
     if tblPr is None:
@@ -71,62 +88,71 @@ def _set_table_borders(table, color="000000", size=4):
     for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
         bd = OxmlElement(f"w:{side}")
         bd.set(qn("w:val"), "single")
-        bd.set(qn("w:sz"), str(size))
+        bd.set(qn("w:sz"), str(sz))
         bd.set(qn("w:space"), "0")
         bd.set(qn("w:color"), color)
         tblBorders.append(bd)
     tblPr.append(tblBorders)
 
 
-def _para_text(para, text: str, bold=False, size_pt=11, align=None, color: Optional[RGBColor] = None):
-    run = para.add_run(text)
-    _set_font(run, size_pt=size_pt, bold=bold, color=color)
-    if align:
-        para.alignment = align
-    return run
+def _set_table_width(table, width: Emu) -> None:
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    if tblPr is None:
+        tblPr = OxmlElement("w:tblPr")
+        tbl.insert(0, tblPr)
+    tblW = OxmlElement("w:tblW")
+    tblW.set(qn("w:w"), str(int(width.twips)))
+    tblW.set(qn("w:type"), "dxa")
+    tblPr.append(tblW)
 
 
-def _add_bookmark(para, bk_id: int, bk_name: str):
-    p = para._p
-    bm_start = OxmlElement("w:bookmarkStart")
-    bm_start.set(qn("w:id"), str(bk_id))
-    bm_start.set(qn("w:name"), bk_name)
-    p.append(bm_start)
-    bm_end = OxmlElement("w:bookmarkEnd")
-    bm_end.set(qn("w:id"), str(bk_id))
-    p.append(bm_end)
+def _run(para, text: str, bold=False, size_pt: float = 11,
+         color: Optional[RGBColor] = None, italic=False):
+    r = para.add_run(text)
+    r.bold = bold
+    r.italic = italic
+    r.font.size = Pt(size_pt)
+    if color:
+        r.font.color.rgb = color
+    return r
 
 
-def _add_anchor_hyperlink(para, anchor: str, text: str, size_pt=11):
-    """Agrega un hipervínculo interno al párrafo dado (apunta a un bookmark)."""
-    hl = OxmlElement("w:hyperlink")
-    hl.set(qn("w:anchor"), anchor)
-    run_el = OxmlElement("w:r")
-    rPr = OxmlElement("w:rPr")
-    style_el = OxmlElement("w:rStyle")
-    style_el.set(qn("w:val"), "Hyperlink")
-    rPr.append(style_el)
-    sz_el = OxmlElement("w:sz")
-    sz_el.set(qn("w:val"), str(int(size_pt * 2)))
-    rPr.append(sz_el)
-    szCs_el = OxmlElement("w:szCs")
-    szCs_el.set(qn("w:val"), str(int(size_pt * 2)))
-    rPr.append(szCs_el)
-    run_el.append(rPr)
-    t_el = OxmlElement("w:t")
-    t_el.text = text
-    t_el.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-    run_el.append(t_el)
-    hl.append(run_el)
-    para._p.append(hl)
+def _para_heading(doc: Document, text: str, size_pt: float, bold=True) -> None:
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _run(p, text, bold=bold, size_pt=size_pt)
+
+
+def _para_body(doc: Document, text: str, justify=True) -> None:
+    p = doc.add_paragraph()
+    if justify:
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    _run(p, text, size_pt=11)
+
+
+def _para_bullet(doc: Document, text: str) -> None:
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p.paragraph_format.left_indent = Cm(0.5)
+    _run(p, "• " + text, size_pt=11)
+
+
+def _gray_header_row(row, texts: list[str], size_pt=11) -> None:
+    """Fill a table row with gray background and bold text."""
+    for cell, txt in zip(row.cells, texts):
+        _set_cell_bg(cell, "F2F2F2")
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p, txt, bold=True, size_pt=size_pt)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Imágenes
+# Image helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _url_to_jpeg_buffer(url: str, timeout: int = 15) -> Optional[io.BytesIO]:
-    """Descarga una imagen desde URL y la convierte a JPEG (maneja WebP)."""
+def _url_to_jpeg(url: str, timeout=15) -> Optional[io.BytesIO]:
     try:
         resp = requests.get(url, timeout=timeout)
         if resp.status_code != 200 or not resp.content:
@@ -144,449 +170,590 @@ def _url_to_jpeg_buffer(url: str, timeout: int = 15) -> Optional[io.BytesIO]:
         buf.seek(0)
         return buf
     except Exception as exc:
-        logger.warning("[word_pozos] imagen no descargada %s: %s", url, exc)
+        logger.warning("[word_pozos] imagen URL no descargada %s: %s", url, exc)
         return None
 
 
+def _add_logo(para, path: str, width_cm: float) -> None:
+    try:
+        para.add_run().add_picture(path, width=Cm(width_cm))
+    except Exception:
+        para.add_run(path.split("/")[-1])
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Documento principal
+# 1. HEADER (replicated in every page)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _configurar_estilos_globales(doc: Document):
-    """Fuente global Arial 11 en el estilo Normal."""
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "Arial"
-    font.size = Pt(11)
+def _build_header(doc: Document, oc: str, provincia: str) -> None:
+    """
+    5-row x 3-col table in the page header.
+    Col 0 (wide): title / ubicación / especialidad
+    Col 1-2: logos (rows 0-1) then elaborado/revisado/aprobado (rows 2-4)
+    """
+    sec = doc.sections[0]
+    sec.header_distance = Cm(0.5)
+    header = sec.header
 
-
-def _construir_header(doc: Document, oc: str, ubicacion: str, fecha_str: str):
-    """Encabezado con logos, OC, título y campos de firmas."""
-    section = doc.sections[0]
-    section.header_distance = Cm(0.5)
-    header = section.header
-
-    # Limpiar párrafo por defecto
     for p in header.paragraphs:
         p.clear()
 
-    table = header.add_table(rows=3, cols=3, width=Inches(9))
-    table.style = "Table Grid"
-    _set_table_borders(table, color="003366", size=4)
+    from docx.shared import Inches
+    tbl = header.add_table(rows=5, cols=3, width=Inches(6.25))
+    _no_borders(tbl)
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    # Fila 0: logos + datos del informe
-    row0 = table.rows[0]
-    row0.height = Cm(1.8)
+    # Column widths
+    for ri in range(5):
+        _set_col_width(tbl.cell(ri, 0), _COL0_W)
+        _set_col_width(tbl.cell(ri, 1), _COL1_W)
+        _set_col_width(tbl.cell(ri, 2), _COL2_W)
 
-    # Celda 0,0: Logo E-zyro/empresa
-    c00 = row0.cells[0]
+    oc_label = oc or "SIN-OC"
+    prov_label = (provincia or "").upper()
+
+    # Row 0 col 0: full title
+    c00 = tbl.cell(0, 0)
     c00.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _set_col_width(c00, 3.2)
     p00 = c00.paragraphs[0]
-    p00.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    try:
-        run_logo = p00.add_run()
-        run_logo.add_picture(_LOGO_HEADER, width=Cm(2.8))
-    except Exception:
-        p00.add_run("E-ZYRO")
+    _run(p00, f"INFORME OC - {oc_label} MANTENIMIENTO PREVENTIVO POZO A TIERRA {prov_label}",
+         bold=True, size_pt=8)
 
-    # Celda 0,1: Título
-    c01 = row0.cells[1]
+    # Row 0 col 1: E-ZYRO logo
+    c01 = tbl.cell(0, 1)
     c01.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _set_cell_bg(c01, "003366")
     p01 = c01.paragraphs[0]
     p01.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r01 = p01.add_run("INFORME DE MANTENIMIENTO PREVENTIVO\nPOZO A TIERRA")
-    _set_font(r01, size_pt=10, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
+    _add_logo(p01, _LOGO_HEADER, width_cm=2.6)
 
-    # Celda 0,2: Logo Talma
-    c02 = row0.cells[2]
+    # Row 0 col 2: TALMA logo
+    c02 = tbl.cell(0, 2)
     c02.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _set_col_width(c02, 3.2)
     p02 = c02.paragraphs[0]
     p02.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    try:
-        run_talma = p02.add_run()
-        run_talma.add_picture(_LOGO_TALMA, width=Cm(2.8))
-    except Exception:
-        p02.add_run("TALMA")
+    _add_logo(p02, _LOGO_TALMA, width_cm=2.8)
 
-    # Fila 1: OC, ubicación, fecha
-    row1 = table.rows[1]
-    data_row = [
-        ("N° OC:", oc or "—"),
-        ("UBICACIÓN:", ubicacion or "—"),
-        ("FECHA:", fecha_str),
-    ]
-    for idx, (lbl, val) in enumerate(data_row):
-        cell = row1.cells[idx]
+    # Row 1 col 0: UBICACIÓN
+    c10 = tbl.cell(1, 0)
+    c10.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    p10 = c10.paragraphs[0]
+    _run(p10, f"UBICACIÓN: TALMA - {prov_label}", bold=True, size_pt=7.5)
+
+    # Rows 2-4 col 0: ESPECIALIDAD
+    especialidad = "ESPECIALIDAD: INSTALACIONES ELÉCTRICAS"
+    for ri in range(2, 5):
+        cell = tbl.cell(ri, 0)
         cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         p = cell.paragraphs[0]
-        r_lbl = p.add_run(lbl + " ")
-        _set_font(r_lbl, size_pt=8, bold=True)
-        r_val = p.add_run(val)
-        _set_font(r_val, size_pt=8)
+        _run(p, especialidad, bold=True, size_pt=7.5)
 
-    # Fila 2: campos de firma
-    row2 = table.rows[2]
-    firmas = ["ELABORADO POR: _______________", "REVISADO POR: _______________", "APROBADO POR: _______________"]
-    for idx, firma in enumerate(firmas):
-        cell = row2.cells[idx]
-        p = cell.paragraphs[0]
-        r = p.add_run(firma)
-        _set_font(r, size_pt=7)
+    # Rows 2-4 cols 1-2: firma fields
+    firmas = [
+        ("Elaborado por:", "Oficina de proyectos"),
+        ("Revisado por:",  "Oficina de proyectos"),
+        ("Aprobado por:",  "Oficina de proyectos"),
+    ]
+    for ri, (lbl, val) in enumerate(firmas, start=2):
+        c1 = tbl.cell(ri, 1)
+        c1.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        _run(c1.paragraphs[0], lbl, size_pt=7)
+
+        c2 = tbl.cell(ri, 2)
+        c2.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        _run(c2.paragraphs[0], val, size_pt=7)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. PORTADA
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_portada(doc: Document, oc: str, provincia: str, fecha_str: str) -> None:
+    oc_label = oc or "SIN-OC"
+    prov_label = (provincia or "").upper()
+
+    doc.add_paragraph()
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    for text, size in [
+        (f"INFORME OC - {oc_label}", 18),
+        ("MANTENIMIENTO PREVENTIVO POZO A TIERRA", 16),
+        (f"TALMA - {prov_label}", 16),
+    ]:
+        p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p, text, bold=True, size_pt=size)
 
-
-def _portada(doc: Document, ubicacion: str, fecha_str: str):
-    """Primera página: título grande, fecha dinámica y tabla de ejecución."""
     doc.add_paragraph()
     doc.add_paragraph()
 
-    p_titulo = doc.add_paragraph()
-    p_titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p_titulo.add_run("INFORME DE MANTENIMIENTO PREVENTIVO\nPOZO A TIERRA")
-    _set_font(r, size_pt=24, bold=True, color=RGBColor(0x00, 0x33, 0x66))
-
-    doc.add_paragraph()
-
-    p_ubic = doc.add_paragraph()
-    p_ubic.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r2 = p_ubic.add_run(ubicacion.upper() if ubicacion else "")
-    _set_font(r2, size_pt=14, bold=True)
-
-    doc.add_paragraph()
-
+    today = date.today()
     p_fecha = doc.add_paragraph()
     p_fecha.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    today = date.today()
-    r3 = p_fecha.add_run(f"{_MESES_ES[today.month]} – {today.year}")
-    _set_font(r3, size_pt=16, bold=True)
+    _run(p_fecha, f"{_MESES_ES[today.month]} – {today.year}", bold=True, size_pt=14)
 
     doc.add_paragraph()
     doc.add_paragraph()
+    doc.add_paragraph()
 
-    # Tabla "Fecha de Ejecución"
-    tbl = doc.add_table(rows=2, cols=2)
-    _set_table_borders(tbl)
+    # Execution table
+    tbl = doc.add_table(rows=2, cols=3)
+    _single_borders(tbl)
+    _set_table_width(tbl, _TW)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    hdr = tbl.rows[0]
-    hdr.cells[0].text = "FECHA DE EJECUCIÓN"
-    hdr.cells[1].text = "RESPONSABLE"
-    for cell in hdr.cells:
-        _set_cell_bg(cell, "003366")
-        for par in cell.paragraphs:
-            for run in par.runs:
-                _set_font(run, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
+    # Set col widths: N°=1.8, DESCRIPCIÓN=8.8, FECHA=7.0
+    for ri in range(2):
+        _set_col_width(tbl.cell(ri, 0), Emu(int(Cm(1.8).emu)))
+        _set_col_width(tbl.cell(ri, 1), Emu(int(Cm(8.8).emu)))
+        _set_col_width(tbl.cell(ri, 2), Emu(int(Cm(7.0).emu)))
 
-    row = tbl.rows[1]
-    row.cells[0].text = fecha_str
-    row.cells[1].text = ""
+    _gray_header_row(tbl.rows[0], ["N°", "DESCRIPCIÓN", "FECHA"])
+    row1 = tbl.rows[1]
+    for cell, txt in zip(row1.cells, ["01", "Fecha de ejecución de trabajo", "          /          /          "]):
+        cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p, txt, size_pt=11)
 
     doc.add_page_break()
 
 
-def _indice(doc: Document, secciones: list[tuple[str, str]]):
-    """
-    TOC manual con hipervínculos internos a bookmarks.
-    secciones: [(titulo, anchor_name), ...]
-    """
-    p_toc = doc.add_paragraph()
-    r = p_toc.add_run("ÍNDICE")
-    _set_font(r, size_pt=14, bold=True)
-    _add_bookmark(p_toc, 0, "toc_inicio")
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. ÍNDICE
+# ─────────────────────────────────────────────────────────────────────────────
 
-    doc.add_paragraph()
+_INDICE_ITEMS = [
+    (0, "01. GENERALIDADES"),
+    (0, "02. ALCANCE"),
+    (0, "03. MARCO NORMATIVO"),
+    (1, "03.1. NORMATIVA NACIONAL"),
+    (2, "03.1.1. NORMA TÉCNICA DE CALIDAD DE LOS SERVICIOS ELÉCTRICOS"),
+    (2, "03.1.2. CÓDIGO NACIONAL DE ELECTRICIDAD – UTILIZACIÓN 2006"),
+    (2, "03.1.3. REGLAMENTO DE SEGURIDAD Y SALUD EN EL TRABAJO CON ELECTRICIDAD 2013"),
+    (2, "03.1.4. NTP 370.052:1999 MATERIALES QUE CONSTITUYEN EL POZO DE PUESTA A TIERRA"),
+    (1, "03.2. NORMATIVA INTERNACIONAL"),
+    (2, "03.2.1. NORMA PARA LA SEGURIDAD ELÉCTRICA EN LUGARES DE TRABAJO (NFPA 70E)"),
+    (2, "03.2.2. PRACTICAS RECOMENDADAS DE MANTENIMIENTO ELÉCTRICO (NFPA 70B)"),
+    (2, "03.2.3. ANSI/NETA 2021: Standard for Acceptance Testing Specifications"),
+    (2, "03.2.4. IEEE Std 81 - 2012: Guide for Measuring Earth Resistivity"),
+    (0, "04. OBJETIVOS"),
+    (0, "05. PROCEDIMIENTO SST IMPLÍCITOS"),
+    (1, "05.1. USO DEL EPP DE ACUERDO AL TIPO DE TRABAJO"),
+    (1, "05.2. PROCEDIMIENTO DE BLOQUEO Y ETIQUETADO LOTO"),
+    (0, "06. PERSONAL COMPROMETIDO"),
+    (0, "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS"),
+    (0, "08. PROCEDIMIENTOS DE EJECUCIÓN"),
+    (1, "08.1. PREPARATIVOS PREVIOS A LA EJECUCIÓN"),
+    (1, "08.2. EJECUCIÓN DE TRABAJO"),
+    (0, "09. EVIDENCIA FOTOGRÁFICA"),
+    (0, "10. CONCLUSIONES"),
+    (0, "11. OBSERVACIONES"),
+    (0, "12. RECOMENDACIONES"),
+]
 
-    for titulo, anchor in secciones:
+_INDENT_MAP = {0: Cm(0), 1: Cm(0.5), 2: Cm(1.0)}
+
+
+def _build_indice(doc: Document) -> None:
+    p_title = doc.add_paragraph()
+    _run(p_title, "Contenido", bold=True, size_pt=14)
+
+    for level, text in _INDICE_ITEMS:
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = _INDENT_MAP[level]
+        _run(p, text, size_pt=11)
+
+    doc.add_page_break()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Static section texts
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _sec_generalidades(doc: Document, provincia: str) -> None:
+    prov = (provincia or "").upper()
+    _para_body(doc,
+        "Los sistemas de puesta a tierra son una parte importante de un sistema eléctrico, "
+        "la importancia de este trabajo es ayudar a proporcionar una mayor seguridad a los "
+        "usuarios del local al direccionar cualquier contacto indirecto de energía eléctrica "
+        "a la puesta a tierra más cercana."
+    )
+    _para_body(doc,
+        "Este mantenimiento comprende al conjunto de actividades técnicas programadas "
+        "destinadas a verificar, conservar y optimizar las condiciones operativas del "
+        "sistema de puesta a tierra, garantizando que su resistencia eléctrica se mantenga "
+        "dentro de los parámetros establecidos por la normativa vigente y por los "
+        "requerimientos de seguridad de la instalación."
+    )
+    _para_body(doc,
+        "Este procedimiento tiene como finalidad asegurar la correcta disipación de "
+        "corrientes de falla y descargas."
+    )
+    _para_body(doc,
+        f"El siguiente informe redacta de manera detallada los procedimientos empleados en "
+        f"el mantenimiento preventivo de pozo a tierra en TALMA - {prov}. Los criterios de "
+        f"ejecución, el personal comprometido, entre otros detalles considerados relevantes "
+        f"para el conocimiento del cliente."
+    )
+
+
+def _sec_alcance(doc: Document, provincia: str) -> None:
+    prov = (provincia or "").upper()
+    _para_body(doc,
+        f"El mantenimiento preventivo de pozo a tierra en TALMA - {prov} abarca la ejecución "
+        f"de actividades que garanticen el correcto funcionamiento del sistema, así mismo, el "
+        f"presente informe pretende explicar los procedimientos, materiales y equipos, así como "
+        f"la normativa aplicada para el desarrollo satisfactorio del trabajo realizado."
+    )
+
+
+def _sec_marco_normativo(doc: Document) -> None:
+    _para_heading(doc, "03.1. NORMATIVA NACIONAL", 12)
+    norms_nacional = [
+        ("03.1.1. NORMA TÉCNICA DE CALIDAD DE LOS SERVICIOS ELÉCTRICOS",
+         "Con el fin de asegurar un nivel satisfactorio en la prestación de servicios eléctricos "
+         "y garantizar a los usuarios un suministro eléctrico continuo, adecuado, confiable y "
+         "oportuno, se aprobó la Norma Técnica de Calidad de los Servicios Eléctricos mediante "
+         "Decreto Supremo N° 020-97-EM."),
+        ("03.1.2. CÓDIGO NACIONAL DE ELECTRICIDAD – UTILIZACIÓN 2006",
+         "El código bajo comentario contiene reglas preventivas frente a los peligros derivados "
+         "del uso de la electricidad a fin de salvaguardar las condiciones de seguridad de las "
+         "personas, flora, fauna, propiedad, ambiente y patrimonio cultural de la Nación."),
+        ("03.1.3. REGLAMENTO DE SEGURIDAD Y SALUD EN EL TRABAJO CON ELECTRICIDAD 2013",
+         "El presente reglamento es de aplicación obligatoria a todas las personas que participan "
+         "en el desarrollo de las actividades relacionadas con el uso de la electricidad y/o con "
+         "las instalaciones eléctricas."),
+        ("03.1.4. NTP 370.052:1999 MATERIALES QUE CONSTITUYEN EL POZO DE PUESTA A TIERRA",
+         "Establece las condiciones que deben cumplir los materiales a ser utilizados en los pozos "
+         "a tierra de protección que emplean electrodos de cobre. Comprende material circundante, "
+         "elementos químicos para reducir la resistencia y recomendaciones para medición."),
+    ]
+    for heading, body in norms_nacional:
+        _para_heading(doc, heading, 11)
+        _para_body(doc, body)
+
+    _para_heading(doc, "03.2. NORMATIVA INTERNACIONAL", 12)
+    norms_inter = [
+        ("03.2.1. NORMA PARA LA SEGURIDAD ELÉCTRICA EN LUGARES DE TRABAJO (NFPA 70E)",
+         "Norma sobre las prácticas de trabajo relacionadas con la seguridad eléctrica, "
+         "requerimientos de mantenimiento relacionados con la seguridad y otros controles "
+         "administrativos en los lugares de trabajo a fin de prevenir riesgos de la energía "
+         "eléctrica."),
+        ("03.2.2. PRACTICAS RECOMENDADAS DE MANTENIMIENTO ELÉCTRICO (NFPA 70B)",
+         "Tienen como propósito reducir peligros a la vida y propiedad que resulten de la falla "
+         "o malfuncionamiento del sistema y equipo eléctrico."),
+        ("03.2.3. ANSI/NETA 2021: Standard for Acceptance Testing Specifications",
+         "El propósito de estas especificaciones es asegurar que todo equipo eléctrico probado "
+         "este operativo dentro de las tolerancias de la industria y del fabricante e instaladas "
+         "de acuerdo con las especificaciones de diseño."),
+        ("03.2.4. IEEE Std 81 - 2012: Guide for Measuring Earth Resistivity...",
+         "Mediante esta guía se pretende obtener e interpretar datos precisos y confiables para "
+         "las mediciones de campo relacionados a los sistemas de puesta a tierra."),
+    ]
+    for heading, body in norms_inter:
+        _para_heading(doc, heading, 11)
+        _para_body(doc, body)
+
+
+def _sec_objetivos(doc: Document) -> None:
+    bullets = [
+        "Descartar valores elevados (fueras de rango).",
+        "Disminuir el riesgo de descargas eléctricas hacia el personal.",
+        "Verificar la calidad de la tierra y el estado de los conectores CU.",
+        "Verificar el Ohmiaje obtenido responda a la normativa del código nacional de "
+        "electricidad de acuerdo a la función del local (MAX 15 OHM).",
+        "Cumplir con los estándares de seguridad y salud en el trabajo a fin de garantizar "
+        "la ejecución responsable de las actividades.",
+        "Mantener un área despejada finalizando el mantenimiento.",
+    ]
+    for b in bullets:
+        _para_body(doc, b)
+
+
+def _sec_epp_intro(doc: Document) -> None:
+    _para_body(doc,
+        "Cada trabajador cuenta con el EPP correspondiente a la tarea encargada de acuerdo "
+        "al cuadro de puestos y funciones. Así mismo, se hace entrega de los EPPs indicados "
+        "en la plataforma SST, los cuales son los indicados según el tipo de trabajo a realizar."
+    )
+
+
+def _sec_loto(doc: Document) -> None:
+    _para_body(doc,
+        "ESTE PASO DEBE REALIZARSE DE CARÁCTER OBLIGATORIO PARA CUALQUIER TRABAJO QUE IMPLIQUE "
+        "RIESGO ELECTRICO."
+    )
+    for b in [
+        "Aislar los circuitos a trabajar.",
+        "Aplicación del dispositivo de bloqueo de fuentes de energía.",
+        "Eliminar la energía almacenada a través de la línea tierra.",
+    ]:
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = Cm(0.5)
-        _add_anchor_hyperlink(p, anchor, titulo, size_pt=11)
-
-    doc.add_page_break()
+        _run(p, b, size_pt=11)
 
 
-def _seccion_heading(doc: Document, titulo: str, bk_id: int, bk_name: str) -> None:
-    """Agrega un encabezado de sección con bookmark."""
-    p = doc.add_paragraph()
-    r = p.add_run(titulo)
-    _set_font(r, size_pt=12, bold=True, color=RGBColor(0x00, 0x33, 0x66))
-    _add_bookmark(p, bk_id, bk_name)
-    doc.add_paragraph()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Secciones de contenido
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _seccion_antecedentes(doc: Document):
-    texto = (
-        "El presente informe describe las actividades de mantenimiento preventivo realizadas "
-        "en los pozos a tierra de las instalaciones del cliente, conforme al programa de "
-        "mantenimiento vigente y en cumplimiento de las normas técnicas peruanas aplicables "
-        "(NTP 370.050 – Sistemas de Puesta a Tierra). El mantenimiento preventivo de los "
-        "pozos a tierra garantiza la continuidad del sistema de protección eléctrica y la "
-        "seguridad del personal y los equipos."
+def _sec_personal_intro(doc: Document) -> None:
+    _para_body(doc,
+        "Se detalla el personal empleado para la ejecución del servicio, cargo y funciones "
+        "acorde a las tareas que desarrollará."
     )
-    p = doc.add_paragraph()
-    r = p.add_run(texto)
-    _set_font(r, size_pt=11)
-    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
-def _seccion_objetivo(doc: Document):
-    texto = (
-        "Realizar el mantenimiento preventivo de los sistemas de puesta a tierra, verificando "
-        "la resistencia de cada pozo a tierra según los estándares establecidos, aplicando "
-        "tratamiento de activación con gel conductor (THOR GEL) y asegurando que los valores "
-        "de resistencia se encuentren por debajo de los límites permitidos por la normativa "
-        "vigente (≤ 5 Ω para sistemas de protección de personas)."
-    )
-    p = doc.add_paragraph()
-    r = p.add_run(texto)
-    _set_font(r, size_pt=11)
-    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-
-
-def _seccion_alcance(doc: Document, equipos: list[dict]):
-    texto = (
-        "El alcance del servicio comprende el mantenimiento preventivo de los siguientes "
-        "pozos a tierra:"
-    )
-    p = doc.add_paragraph()
-    r = p.add_run(texto)
-    _set_font(r, size_pt=11)
-    p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-
-    for eq in equipos:
-        p_item = doc.add_paragraph(style="List Bullet")
-        r_item = p_item.add_run(eq.get("nombre", ""))
-        _set_font(r_item, size_pt=11)
-
-
-def _seccion_docs_referencia(doc: Document):
-    docs = [
-        ("NTP 370.050", "Instalaciones Eléctricas en Edificios – Puesta a Tierra"),
-        ("CNE – Utilización", "Código Nacional de Electricidad – Reglas de Utilización"),
-        ("NTP-IEC 60364-5-54", "Instalaciones eléctricas en edificios – Selección e instalación de los materiales eléctricos – Puesta a tierra y conductores de protección"),
-        ("Ley 29783", "Ley de Seguridad y Salud en el Trabajo"),
-        ("DS 005-2012-TR", "Reglamento de la Ley de Seguridad y Salud en el Trabajo"),
+def _sec_preparativos(doc: Document) -> None:
+    bullets = [
+        "Verificar los permisos y autorizaciones.",
+        "Elaboración de ATS.",
+        "Verificar la zona de trabajo.",
+        "Delimitar la zona de trabajo. Previa coordinación.",
+        "Realizar un check list de la zona de trabajo.",
+        "Revisar y elaborar el check list respectivo de las herramientas y equipos a utilizar en la tarea.",
     ]
-    tbl = doc.add_table(rows=1, cols=2)
-    _set_table_borders(tbl)
-    hdr = tbl.rows[0].cells
-    hdr[0].text = "CÓDIGO / NORMA"
-    hdr[1].text = "DESCRIPCIÓN"
-    for cell in hdr:
-        _set_cell_bg(cell, "003366")
-        for par in cell.paragraphs:
-            for run in par.runs:
-                _set_font(run, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
-
-    for codigo, descripcion in docs:
-        row = tbl.add_row()
-        row.cells[0].text = codigo
-        row.cells[1].text = descripcion
-        for cell in row.cells:
-            for par in cell.paragraphs:
-                for run in par.runs:
-                    _set_font(run, size_pt=10)
+    for b in bullets:
+        _para_body(doc, b)
 
 
-def _seccion_epp(doc: Document, epps: list[str]):
-    """Tabla de EPPs con regla condicional ES_NECESARIO."""
+def _sec_ejecucion(doc: Document) -> None:
+    bullets = [
+        "Identificación del área del trabajo.",
+        "Delimitar y señalizar lugar de trabajo.",
+        "Realizar la limpieza de los mismos verificando que la caja de registro se encuentre en óptimas condiciones.",
+        "Revisión de cables y verificación de estado de conductores.",
+        "Realizar las mediciones correspondientes para obtener el valor inicial con el que se encontraron los pozos.",
+        "De ser el caso, se procede a realizar el cambio del conector de Cu 3/4\".",
+        "Preparación de solución química THORGEL.",
+        "Aplicar dosis química de THORGEL, esperar que la tierra absorba la primera dosis y luego aplicar la segunda dosis.",
+        "Medir el valor final del pozo a tierra y anotarlo para plasmarlo en los protocolos correspondientes.",
+        "Limpieza y pintado de la tapa de registro dejando señalizado con el código de cada puesta a tierra.",
+        "Cambiar a una señalética fotoluminiscente del sistema de puesta a tierra.",
+        "Anotar las mediciones y observaciones para la realización posterior del Informe Técnico.",
+        "Orden y limpieza en la zona de trabajo.",
+    ]
+    for b in bullets:
+        _para_body(doc, b)
 
-    def _es_necesario(nombre: str) -> str:
-        n = nombre.upper()
-        if "CARETA" in n or "ARNES" in n or "ARNÉS" in n:
-            return "NO"
-        if "PROTECTORES DE OIDO" in n or "PROTECTOR DE OIDO" in n or "GUANTE" in n:
-            return "SI"
-        return "SI – Plataforma SST"
 
-    tbl = doc.add_table(rows=1, cols=3)
-    _set_table_borders(tbl)
-    hdr = tbl.rows[0].cells
-    for idx, col in enumerate(["N°", "EQUIPOS DE PROTECCIÓN PERSONAL", "ES NECESARIO"]):
-        hdr[idx].text = col
-        _set_cell_bg(hdr[idx], "003366")
-        for par in hdr[idx].paragraphs:
-            for run in par.runs:
-                _set_font(run, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
+def _sec_conclusiones(doc: Document) -> None:
+    bullets = [
+        "Se ejecutó el mantenimiento preventivo según lo indicado en el presente informe.",
+        "Se efectúa la limpieza y lijado del electrodo y los cables para asegurar su buen desempeño.",
+        "Se reemplazó al conector para así lograr tener un mejor agarre entre el cable y la varilla "
+        "que se encuentra en el pozo a tierra.",
+        "Se optimizó la conexión entre la varilla y los cables para asegurar su buen desempeño.",
+        "Se evaluó el estado de las instalaciones y condicionantes de trabajo previamente a cualquier "
+        "intervención realizado por E-SYSTEM TIC determinando que permita dichas actividades.",
+    ]
+    for b in bullets:
+        _para_body(doc, b)
+
+
+def _sec_observaciones(doc: Document) -> None:
+    _para_body(doc,
+        "No se encontraron observaciones operativas que impidan el funcionamiento habitual del sistema."
+    )
+
+
+def _sec_recomendaciones(doc: Document) -> None:
+    _para_body(doc,
+        "Se recomienda realizar el mantenimiento preventivo de manera anual para asegurar "
+        "la operatividad y conductividad ideal del sistema de puesta a tierra."
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Dynamic tables
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _epp_es_necesario(nombre: str) -> str:
+    n = nombre.upper()
+    if "CARETA" in n or "ARNES" in n or "ARNÉS" in n:
+        return "NO"
+    return "SI – Plataforma SST"
+
+
+def _table_epp(doc: Document, epps: list[str]) -> None:
+    """2 cols: EPP | ES NECESARIO — 8.8+8.8 cm."""
+    tbl = doc.add_table(rows=1 + len(epps), cols=2)
+    _single_borders(tbl)
+    _set_table_width(tbl, _TW)
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    w_half = Emu(int(Cm(8.8).emu))
+    for ri in range(1 + len(epps)):
+        _set_col_width(tbl.cell(ri, 0), w_half)
+        _set_col_width(tbl.cell(ri, 1), w_half)
+
+    _gray_header_row(tbl.rows[0], ["EPP", "ES NECESARIO"])
 
     for i, epp in enumerate(epps, start=1):
-        row = tbl.add_row()
-        row.cells[0].text = str(i)
-        row.cells[1].text = epp
-        row.cells[2].text = _es_necesario(epp)
-        for cell in row.cells:
-            for par in cell.paragraphs:
-                for run in par.runs:
-                    _set_font(run, size_pt=10)
+        row = tbl.rows[i]
+        row.cells[0].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        row.cells[1].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+        _run(row.cells[0].paragraphs[0], epp, size_pt=11)
+        _run(row.cells[1].paragraphs[0], _epp_es_necesario(epp), size_pt=11)
 
 
-def _seccion_personal(doc: Document, personal: list[dict]):
-    """Tabla de personal con cargo y responsabilidad por rol."""
+def _cargo_resp(rol: str) -> tuple[str, str]:
+    if any(k in rol.lower() for k in ("supervis", "jefe", "lider", "líder")):
+        return "Coordinador / Supervisor", "Supervisión de trabajos"
+    return "Técnico ejecutor", "Ejecución de trabajos"
 
-    def _cargo_resp(rol: str) -> tuple[str, str]:
-        if "supervis" in rol.lower() or "jefe" in rol.lower() or "lider" in rol.lower() or "líder" in rol.lower():
-            return "Coordinador / Supervisor", "Supervisión de trabajos"
-        return "Técnico ejecutor", "Ejecución de trabajos"
 
-    tbl = doc.add_table(rows=1, cols=4)
-    _set_table_borders(tbl)
-    hdr = tbl.rows[0].cells
-    for idx, col in enumerate(["N°", "NOMBRES Y APELLIDOS", "CARGO", "RESPONSABILIDAD"]):
-        hdr[idx].text = col
-        _set_cell_bg(hdr[idx], "003366")
-        for par in hdr[idx].paragraphs:
-            for run in par.runs:
-                _set_font(run, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
+def _table_personal(doc: Document, personal: list[dict]) -> None:
+    """4 cols: APELLIDOS | NOMBRE | CARGO | RESPONSABILIDADES — 4.4cm each."""
+    tbl = doc.add_table(rows=1 + len(personal), cols=4)
+    _single_borders(tbl)
+    _set_table_width(tbl, _TW)
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    w_col = Emu(int(Cm(4.4).emu))
+    for ri in range(1 + len(personal)):
+        for ci in range(4):
+            _set_col_width(tbl.cell(ri, ci), w_col)
+
+    _gray_header_row(tbl.rows[0], ["APELLIDOS", "NOMBRE", "CARGO", "RESPONSABILIDADES"])
 
     for i, pers in enumerate(personal, start=1):
+        nombre_full = pers.get("nombre", "").strip()
+        parts = nombre_full.split(" ", 1)
+        nombre   = parts[0].upper() if parts else ""
+        apellido = (parts[1].upper() + ",") if len(parts) == 2 else ""
         cargo, resp = _cargo_resp(pers.get("rol", "Técnico"))
-        row = tbl.add_row()
-        row.cells[0].text = str(i)
-        row.cells[1].text = pers.get("nombre", "")
-        row.cells[2].text = cargo
-        row.cells[3].text = resp
-        for cell in row.cells:
-            for par in cell.paragraphs:
-                for run in par.runs:
-                    _set_font(run, size_pt=10)
+        row = tbl.rows[i]
+        for ci, txt in enumerate([apellido, nombre, cargo, resp]):
+            row.cells[ci].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            _run(row.cells[ci].paragraphs[0], txt, size_pt=11)
 
 
-def _seccion_herramientas(doc: Document, herramientas: list[dict]):
-    tbl = doc.add_table(rows=1, cols=4)
-    _set_table_borders(tbl)
-    hdr = tbl.rows[0].cells
-    for idx, col in enumerate(["N°", "SERIE", "HERRAMIENTA / INSTRUMENTO", "MARCA"]):
-        hdr[idx].text = col
-        _set_cell_bg(hdr[idx], "003366")
-        for par in hdr[idx].paragraphs:
-            for run in par.runs:
-                _set_font(run, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
+def _table_materiales(doc: Document, materiales: list[dict]) -> None:
+    """3 cols: MATERIALES | UNIDAD | CARACTERÍSTICAS — 7.1+3.5+7.0 cm."""
+    tbl = doc.add_table(rows=1 + len(materiales), cols=3)
+    _single_borders(tbl)
+    _set_table_width(tbl, _TW)
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
 
-    for i, h in enumerate(herramientas, start=1):
-        row = tbl.add_row()
-        row.cells[0].text = str(i)
-        row.cells[1].text = h.get("serie", "-")
-        row.cells[2].text = h.get("nombre", "")
-        row.cells[3].text = h.get("marca", "-")
-        for cell in row.cells:
-            for par in cell.paragraphs:
-                for run in par.runs:
-                    _set_font(run, size_pt=10)
+    widths = [Emu(int(Cm(7.1).emu)), Emu(int(Cm(3.5).emu)), Emu(int(Cm(7.0).emu))]
+    for ri in range(1 + len(materiales)):
+        for ci, w in enumerate(widths):
+            _set_col_width(tbl.cell(ri, ci), w)
 
-
-def _seccion_materiales(doc: Document, materiales: list[dict]):
-    tbl = doc.add_table(rows=1, cols=4)
-    _set_table_borders(tbl)
-    hdr = tbl.rows[0].cells
-    for idx, col in enumerate(["N°", "MATERIAL / INSUMO", "UNIDAD", "CARACTERÍSTICAS"]):
-        hdr[idx].text = col
-        _set_cell_bg(hdr[idx], "003366")
-        for par in hdr[idx].paragraphs:
-            for run in par.runs:
-                _set_font(run, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
+    _gray_header_row(tbl.rows[0], ["MATERIALES", "UNIDAD", "CARACTERÍSTICAS"])
 
     for i, m in enumerate(materiales, start=1):
-        row = tbl.add_row()
-        row.cells[0].text = str(i)
-        row.cells[1].text = m.get("nombre", "")
-        row.cells[2].text = m.get("unidad", "Ud.")
-        row.cells[3].text = m.get("caracteristicas", "-")
-        for cell in row.cells:
-            for par in cell.paragraphs:
-                for run in par.runs:
-                    _set_font(run, size_pt=10)
+        row = tbl.rows[i]
+        for ci, txt in enumerate([
+            m.get("nombre", ""),
+            m.get("unidad", "Und."),
+            m.get("caracteristicas", "-"),
+        ]):
+            row.cells[ci].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            _run(row.cells[ci].paragraphs[0], txt, size_pt=11)
 
 
-_OBS_CLEAN_RE = re.compile(r"OBS\s*:", re.IGNORECASE)
+def _table_herramientas(doc: Document, herramientas: list[dict]) -> None:
+    """3 cols: HERRAMIENTAS Y EQUIPOS | UNIDAD | CARACTERÍSTICAS — 7.1+3.5+7.0 cm."""
+    tbl = doc.add_table(rows=1 + len(herramientas), cols=3)
+    _single_borders(tbl)
+    _set_table_width(tbl, _TW)
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    widths = [Emu(int(Cm(7.1).emu)), Emu(int(Cm(3.5).emu)), Emu(int(Cm(7.0).emu))]
+    for ri in range(1 + len(herramientas)):
+        for ci, w in enumerate(widths):
+            _set_col_width(tbl.cell(ri, ci), w)
+
+    _gray_header_row(tbl.rows[0], ["HERRAMIENTAS Y EQUIPOS", "UNIDAD", "CARACTERÍSTICAS"])
+
+    for i, h in enumerate(herramientas, start=1):
+        row = tbl.rows[i]
+        nombre = h.get("nombre", "")
+        if h.get("serie") and h["serie"] != "-":
+            nombre = f"{nombre} {h['serie']}".strip()
+        for ci, txt in enumerate([nombre, "1 Ud.", h.get("marca", "-")]):
+            row.cells[ci].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            _run(row.cells[ci].paragraphs[0], txt, size_pt=11)
 
 
-def _limpiar_obs(texto: str) -> str:
-    return _OBS_CLEAN_RE.sub("", texto or "").strip()
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 09: Evidence photos — 2x2 grid
+# ─────────────────────────────────────────────────────────────────────────────
 
-
-def _seccion_evidencia(doc: Document, evidencias_por_equipo: list[dict]):
+def _evidence_grid(doc: Document, evidencias_por_equipo: list[dict]) -> None:
     """
-    evidencias_por_equipo: [
-        {
-          "nombre": str,
-          "fotos": [{"url": str, "obs": str}, ...]
-        }
-    ]
-    Cuadrícula 2x2: fila imágenes + fila observaciones. Si es impar → celda fusionada.
+    For each equipment group: title + pairs of photos in 2-column tables.
+    Single remaining photo goes in a 1-column table.
     """
-    W_IMG_INCHES = 3.0  # ancho de imagen en pulgadas por celda
+    W_TWO = Cm(8.8)
+    W_ONE = Cm(17.6)
 
     for grupo in evidencias_por_equipo:
-        nombre_eq = grupo.get("nombre", "Equipo")
-        fotos = grupo.get("fotos", [])
+        nombre = grupo.get("nombre", "Equipo")
+        fotos  = grupo.get("fotos", [])
 
-        p_titulo = doc.add_paragraph()
-        r_t = p_titulo.add_run(f"EJECUCIÓN DE MANTENIMIENTO PREVENTIVO – {nombre_eq.upper()}")
-        _set_font(r_t, size_pt=11, bold=True, color=RGBColor(0x00, 0x33, 0x66))
+        p_t = doc.add_paragraph()
+        p_t.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p_t, f"EJECUCIÓN DE MANTENIMIENTO PREVENTIVO – {nombre.upper()}",
+             bold=True, size_pt=11)
 
         if not fotos:
-            p_vacio = doc.add_paragraph()
-            r_v = p_vacio.add_run("(Sin evidencias fotográficas registradas)")
-            _set_font(r_v, size_pt=10)
+            _para_body(doc, "(Sin evidencias fotográficas registradas)", justify=False)
             doc.add_paragraph()
             continue
 
-        # Iterar en pares
         i = 0
         while i < len(fotos):
             foto_izq = fotos[i]
             foto_der = fotos[i + 1] if i + 1 < len(fotos) else None
-            impar = foto_der is None
 
-            if impar:
-                # Una sola foto: tabla 1 col
+            if foto_der is None:
                 tbl = doc.add_table(rows=2, cols=1)
-                _set_table_borders(tbl, color="CCCCCC")
+                _single_borders(tbl, color="CCCCCC", sz=4)
+                _set_table_width(tbl, Emu(int(W_ONE.emu)))
 
-                cell_img = tbl.rows[0].cells[0]
-                cell_img.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                p_img = cell_img.paragraphs[0]
+                _set_col_width(tbl.cell(0, 0), Emu(int(W_ONE.emu)))
+                _set_col_width(tbl.cell(1, 0), Emu(int(W_ONE.emu)))
+
+                c_img = tbl.cell(0, 0)
+                c_img.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                p_img = c_img.paragraphs[0]
                 p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                buf = _url_to_jpeg_buffer(foto_izq["url"])
+                buf = _url_to_jpeg(foto_izq["url"])
                 if buf:
-                    run_img = p_img.add_run()
-                    run_img.add_picture(buf, width=Inches(W_IMG_INCHES * 2))
+                    p_img.add_run().add_picture(buf, width=Cm(16.0))
                 else:
-                    p_img.add_run("[imagen no disponible]")
+                    _run(p_img, "[imagen no disponible]", size_pt=9)
 
-                cell_obs = tbl.rows[1].cells[0]
-                p_obs = cell_obs.paragraphs[0]
+                c_obs = tbl.cell(1, 0)
+                p_obs = c_obs.paragraphs[0]
                 p_obs.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                r_obs = p_obs.add_run(_limpiar_obs(foto_izq.get("obs", "")))
-                _set_font(r_obs, size_pt=9)
+                obs = foto_izq.get("obs", "")
+                _run(p_obs, obs, size_pt=9)
             else:
-                # Dos fotos: tabla 2 cols
                 tbl = doc.add_table(rows=2, cols=2)
-                _set_table_borders(tbl, color="CCCCCC")
+                _single_borders(tbl, color="CCCCCC", sz=4)
+                _set_table_width(tbl, Emu(int(_TW.emu)))
 
-                for col_idx, foto in enumerate([foto_izq, foto_der]):
-                    cell_img = tbl.rows[0].cells[col_idx]
-                    cell_img.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-                    p_img = cell_img.paragraphs[0]
+                for ri in range(2):
+                    for ci in range(2):
+                        _set_col_width(tbl.cell(ri, ci), Emu(int(W_TWO.emu)))
+
+                for ci, foto in enumerate([foto_izq, foto_der]):
+                    c_img = tbl.cell(0, ci)
+                    c_img.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+                    p_img = c_img.paragraphs[0]
                     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    buf = _url_to_jpeg_buffer(foto["url"])
+                    buf = _url_to_jpeg(foto["url"])
                     if buf:
-                        run_img = p_img.add_run()
-                        run_img.add_picture(buf, width=Inches(W_IMG_INCHES))
+                        p_img.add_run().add_picture(buf, width=Cm(8.0))
                     else:
-                        p_img.add_run("[imagen no disponible]")
+                        _run(p_img, "[imagen no disponible]", size_pt=9)
 
-                    cell_obs = tbl.rows[1].cells[col_idx]
-                    p_obs = cell_obs.paragraphs[0]
+                    c_obs = tbl.cell(1, ci)
+                    p_obs = c_obs.paragraphs[0]
                     p_obs.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    r_obs = p_obs.add_run(_limpiar_obs(foto.get("obs", "")))
-                    _set_font(r_obs, size_pt=9)
+                    obs = foto.get("obs", "")
+                    _run(p_obs, obs, size_pt=9)
 
             doc.add_paragraph()
             i += 2
@@ -595,7 +762,7 @@ def _seccion_evidencia(doc: Document, evidencias_por_equipo: list[dict]):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Entrada pública
+# Public entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generar_word_pozos(
@@ -613,7 +780,7 @@ def generar_word_pozos(
 
     Args:
         oc: Número de Orden de Compra.
-        ubicacion: Texto de ubicación concatenado (provincias únicas).
+        ubicacion: Texto de ubicación / provincia.
         equipos: Lista de dicts con nombre del equipo intervenido.
         epps: Lista de nombres de EPP.
         herramientas: Lista de dicts {serie, nombre, marca}.
@@ -622,68 +789,104 @@ def generar_word_pozos(
         evidencias_por_equipo: Lista de dicts {nombre, fotos:[{url, obs}]}.
     """
     doc = Document()
-    _configurar_estilos_globales(doc)
+
+    # Page margins to match legacy (usable width ≈ 17.6 cm)
+    sec = doc.sections[0]
+    sec.left_margin  = Cm(1.7)
+    sec.right_margin = Cm(1.7)
+    sec.top_margin   = Cm(2.5)
+    sec.bottom_margin = Cm(2.5)
+
+    # Global font style
+    style = doc.styles["Normal"]
+    style.font.name = "Arial"
+    style.font.size = Pt(11)
 
     today = date.today()
     fecha_str = f"{today.day:02d}/{today.month:02d}/{today.year}"
 
-    # Encabezado de página
-    _construir_header(doc, oc, ubicacion, f"{_MESES_ES[today.month]} {today.year}")
+    # ── 1. Header ──────────────────────────────────────────────────────────────
+    _build_header(doc, oc, ubicacion)
 
-    # Portada
-    _portada(doc, ubicacion, fecha_str)
+    # ── 2. Portada ─────────────────────────────────────────────────────────────
+    _build_portada(doc, oc, ubicacion, fecha_str)
 
-    # Índice con secciones
-    secciones: list[tuple[str, str]] = [
-        ("01. ANTECEDENTES",              "sec_antecedentes"),
-        ("02. OBJETIVO",                   "sec_objetivo"),
-        ("03. ALCANCE",                    "sec_alcance"),
-        ("04. DOCUMENTOS DE REFERENCIA",   "sec_docs"),
-        ("05. EQUIPOS DE PROTECCIÓN PERSONAL", "sec_epp"),
-        ("06. PERSONAL",                   "sec_personal"),
-        ("07. HERRAMIENTAS E INSTRUMENTOS","sec_herramientas"),
-        ("08. MATERIALES E INSUMOS",       "sec_materiales"),
-        ("09. EVIDENCIA FOTOGRÁFICA",      "sec_evidencia"),
-    ]
-    _indice(doc, secciones)
+    # ── 3. Índice ──────────────────────────────────────────────────────────────
+    _build_indice(doc)
 
-    # ── Secciones de contenido ────────────────────────────────────────────────
-    bk_id = 1
+    # ── 4-12. Secciones de contenido ──────────────────────────────────────────
 
-    _seccion_heading(doc, "01. ANTECEDENTES", bk_id, "sec_antecedentes"); bk_id += 1
-    _seccion_antecedentes(doc)
+    # 01. GENERALIDADES
+    _para_heading(doc, "01. GENERALIDADES", 14)
+    _sec_generalidades(doc, ubicacion)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "02. OBJETIVO", bk_id, "sec_objetivo"); bk_id += 1
-    _seccion_objetivo(doc)
+    # 02. ALCANCE
+    _para_heading(doc, "02. ALCANCE", 14)
+    _sec_alcance(doc, ubicacion)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "03. ALCANCE", bk_id, "sec_alcance"); bk_id += 1
-    _seccion_alcance(doc, equipos)
+    # 03. MARCO NORMATIVO
+    _para_heading(doc, "03. MARCO NORMATIVO", 14)
+    _sec_marco_normativo(doc)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "04. DOCUMENTOS DE REFERENCIA", bk_id, "sec_docs"); bk_id += 1
-    _seccion_docs_referencia(doc)
+    # 04. OBJETIVOS
+    _para_heading(doc, "04. OBJETIVOS", 14)
+    _sec_objetivos(doc)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "05. EQUIPOS DE PROTECCIÓN PERSONAL (EPPs)", bk_id, "sec_epp"); bk_id += 1
-    _seccion_epp(doc, epps)
+    # 05. PROCEDIMIENTO SST
+    _para_heading(doc, "05. PROCEDIMIENTO SST IMPLÍCITOS", 14)
+    _para_heading(doc, "05.1. USO DEL EPP DE ACUERDO AL TIPO DE TRABAJO", 12)
+    _sec_epp_intro(doc)
+    _table_epp(doc, epps)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "06. PERSONAL", bk_id, "sec_personal"); bk_id += 1
-    _seccion_personal(doc, personal)
+    _para_heading(doc, "05.2. PROCEDIMIENTO DE BLOQUEO Y ETIQUETADO LOTO", 12)
+    _sec_loto(doc)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "07. HERRAMIENTAS E INSTRUMENTOS", bk_id, "sec_herramientas"); bk_id += 1
-    _seccion_herramientas(doc, herramientas)
+    # 06. PERSONAL COMPROMETIDO
+    _para_heading(doc, "06. PERSONAL COMPROMETIDO", 14)
+    _sec_personal_intro(doc)
+    _table_personal(doc, personal)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "08. MATERIALES E INSUMOS", bk_id, "sec_materiales"); bk_id += 1
-    _seccion_materiales(doc, materiales)
+    # 07. MATERIALES, HERRAMIENTAS Y EQUIPOS
+    _para_heading(doc, "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS", 14)
+    _table_materiales(doc, materiales)
+    doc.add_paragraph()
+    _table_herramientas(doc, herramientas)
     doc.add_paragraph()
 
-    _seccion_heading(doc, "09. EVIDENCIA FOTOGRÁFICA", bk_id, "sec_evidencia"); bk_id += 1
-    _seccion_evidencia(doc, evidencias_por_equipo)
+    # 08. PROCEDIMIENTOS DE EJECUCIÓN
+    _para_heading(doc, "08. PROCEDIMIENTOS DE EJECUCIÓN", 14)
+    _para_heading(doc, "08.1. PREPARATIVOS PREVIOS A LA EJECUCIÓN", 12)
+    _sec_preparativos(doc)
+    doc.add_paragraph()
+
+    _para_heading(doc, "08.2. EJECUCIÓN DE TRABAJO", 12)
+    _sec_ejecucion(doc)
+    doc.add_paragraph()
+
+    # 09. EVIDENCIA FOTOGRÁFICA
+    _para_heading(doc, "09. EVIDENCIA FOTOGRÁFICA", 14)
+    _evidence_grid(doc, evidencias_por_equipo)
+
+    # 10. CONCLUSIONES
+    _para_heading(doc, "10. CONCLUSIONES", 14)
+    _sec_conclusiones(doc)
+    doc.add_paragraph()
+
+    # 11. OBSERVACIONES
+    _para_heading(doc, "11. OBSERVACIONES", 14)
+    _sec_observaciones(doc)
+    doc.add_paragraph()
+
+    # 12. RECOMENDACIONES
+    _para_heading(doc, "12. RECOMENDACIONES", 14)
+    _sec_recomendaciones(doc)
 
     buf = io.BytesIO()
     doc.save(buf)
