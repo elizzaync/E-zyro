@@ -36,7 +36,7 @@ _H_COL1 = 3.52    # ~20 %
 _H_COL2 = 4.40    # ~25 %
 
 # Logo image width — fits inside merged cell (cols 1+2 = 7.92 cm)
-_LOGO_W = Cm(4.0)   # headerLogo.png 445×274 → height ≈ 2.46 cm at this width
+_LOGO_W = Cm(2.5)   # headerLogo.png 445×274 → compact, non-invasive
 
 # Body table full width (cm)
 _BW = 17.6
@@ -150,10 +150,12 @@ def _run(para, text: str, bold=False, size_pt: float = 11,
     return r
 
 
-def _para_heading(doc: Document, text: str, size_pt: float, bold=True) -> None:
+def _para_heading(doc: Document, text: str, size_pt: float, bold=True, bookmark: str = None) -> None:
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
     _run(p, text, bold=bold, size_pt=size_pt)
+    if bookmark:
+        _add_bookmark(p, bookmark)
 
 
 def _para_body(doc: Document, text: str, justify=True) -> None:
@@ -178,6 +180,47 @@ def _gray_header_row(row, texts: list[str], size_pt=11) -> None:
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _run(p, txt, bold=True, size_pt=size_pt)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bookmark / hyperlink helpers (índice interactivo)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_bm_id_counter = [0]  # mutable so it resets per document call
+
+
+def _next_bm_id() -> int:
+    bid = _bm_id_counter[0]
+    _bm_id_counter[0] += 1
+    return bid
+
+
+def _add_bookmark(paragraph, bookmark_name: str) -> None:
+    bid = str(_next_bm_id())
+    p = paragraph._p
+    bm_start = OxmlElement("w:bookmarkStart")
+    bm_start.set(qn("w:id"), bid)
+    bm_start.set(qn("w:name"), bookmark_name)
+    p.insert(0, bm_start)
+    bm_end = OxmlElement("w:bookmarkEnd")
+    bm_end.set(qn("w:id"), bid)
+    p.append(bm_end)
+
+
+def _add_hyperlink(paragraph, text: str, anchor: str) -> None:
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("w:anchor"), anchor)
+    r = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "000000")
+    rPr.append(color)
+    r.append(rPr)
+    t = OxmlElement("w:t")
+    t.text = text
+    r.append(t)
+    hyperlink.append(r)
+    paragraph._p.append(hyperlink)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -402,6 +445,22 @@ _INDICE_ITEMS = [
 
 _INDENT_MAP = {0: Cm(0), 1: Cm(0.5), 2: Cm(1.0)}
 
+# Bookmark names for each top-level section (must match heading text in generar_word_pozos)
+_LEVEL0_BOOKMARKS = {
+    "01. GENERALIDADES":                                        "sec_01",
+    "02. ALCANCE":                                              "sec_02",
+    "03. MARCO NORMATIVO":                                      "sec_03",
+    "04. OBJETIVOS":                                            "sec_04",
+    "05. PROCEDIMIENTO SST IMPLÍCITOS":                         "sec_05",
+    "06. PERSONAL COMPROMETIDO":                                "sec_06",
+    "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS":"sec_07",
+    "08. PROCEDIMIENTOS DE EJECUCIÓN":                          "sec_08",
+    "09. EVIDENCIA FOTOGRÁFICA":                                "sec_09",
+    "10. CONCLUSIONES":                                         "sec_10",
+    "11. OBSERVACIONES":                                        "sec_11",
+    "12. RECOMENDACIONES":                                      "sec_12",
+}
+
 
 def _build_indice(doc: Document) -> None:
     p_title = doc.add_paragraph()
@@ -410,7 +469,11 @@ def _build_indice(doc: Document) -> None:
     for level, text in _INDICE_ITEMS:
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = _INDENT_MAP[level]
-        _run(p, text, size_pt=11)
+        bm = _LEVEL0_BOOKMARKS.get(text) if level == 0 else None
+        if bm:
+            _add_hyperlink(p, text, bm)
+        else:
+            _run(p, text, size_pt=11)
 
     doc.add_page_break()
 
@@ -623,6 +686,7 @@ def _epp_es_necesario(nombre: str) -> str:
 def _table_epp(doc: Document, epps: list[str]) -> None:
     """2 cols: EPP | ES NECESARIO — 8.8+8.8 cm."""
     tbl = doc.add_table(rows=1 + len(epps), cols=2)
+    tbl.style = "Table Grid"
     _single_borders(tbl)
     _set_table_width(tbl, _BW)
     _set_tbl_grid(tbl, [8.8, 8.8])
@@ -651,6 +715,7 @@ def _cargo_resp(rol: str) -> tuple[str, str]:
 def _table_personal(doc: Document, personal: list[dict]) -> None:
     """4 cols: APELLIDOS | NOMBRE | CARGO | RESPONSABILIDADES — 4.4cm each."""
     tbl = doc.add_table(rows=1 + len(personal), cols=4)
+    tbl.style = "Table Grid"
     _single_borders(tbl)
     _set_table_width(tbl, _BW)
     _set_tbl_grid(tbl, [4.4, 4.4, 4.4, 4.4])
@@ -677,6 +742,7 @@ def _table_personal(doc: Document, personal: list[dict]) -> None:
 def _table_materiales(doc: Document, materiales: list[dict]) -> None:
     """3 cols: MATERIALES | UNIDAD | CARACTERÍSTICAS — 7.1+3.5+7.0 cm."""
     tbl = doc.add_table(rows=1 + len(materiales), cols=3)
+    tbl.style = "Table Grid"
     _single_borders(tbl)
     _set_table_width(tbl, _BW)
     _set_tbl_grid(tbl, [7.1, 3.5, 7.0])
@@ -702,6 +768,7 @@ def _table_materiales(doc: Document, materiales: list[dict]) -> None:
 def _table_herramientas(doc: Document, herramientas: list[dict]) -> None:
     """3 cols: HERRAMIENTAS Y EQUIPOS | UNIDAD | CARACTERÍSTICAS — 7.1+3.5+7.0 cm."""
     tbl = doc.add_table(rows=1 + len(herramientas), cols=3)
+    tbl.style = "Table Grid"
     _single_borders(tbl)
     _set_table_width(tbl, _BW)
     _set_tbl_grid(tbl, [7.1, 3.5, 7.0])
@@ -855,6 +922,9 @@ def generar_word_pozos(
     today = date.today()
     fecha_str = f"{today.day:02d}/{today.month:02d}/{today.year}"
 
+    # Reset bookmark ID counter for this document
+    _bm_id_counter[0] = 0
+
     # ── 1. Header ──────────────────────────────────────────────────────────────
     _build_header(doc, oc, ubicacion)
 
@@ -867,27 +937,27 @@ def generar_word_pozos(
     # ── 4-12. Secciones de contenido ──────────────────────────────────────────
 
     # 01. GENERALIDADES
-    _para_heading(doc, "01. GENERALIDADES", 14)
+    _para_heading(doc, "01. GENERALIDADES", 14, bookmark="sec_01")
     _sec_generalidades(doc, ubicacion)
     doc.add_paragraph()
 
     # 02. ALCANCE
-    _para_heading(doc, "02. ALCANCE", 14)
+    _para_heading(doc, "02. ALCANCE", 14, bookmark="sec_02")
     _sec_alcance(doc, ubicacion)
     doc.add_paragraph()
 
     # 03. MARCO NORMATIVO
-    _para_heading(doc, "03. MARCO NORMATIVO", 14)
+    _para_heading(doc, "03. MARCO NORMATIVO", 14, bookmark="sec_03")
     _sec_marco_normativo(doc)
     doc.add_paragraph()
 
     # 04. OBJETIVOS
-    _para_heading(doc, "04. OBJETIVOS", 14)
+    _para_heading(doc, "04. OBJETIVOS", 14, bookmark="sec_04")
     _sec_objetivos(doc)
     doc.add_paragraph()
 
     # 05. PROCEDIMIENTO SST
-    _para_heading(doc, "05. PROCEDIMIENTO SST IMPLÍCITOS", 14)
+    _para_heading(doc, "05. PROCEDIMIENTO SST IMPLÍCITOS", 14, bookmark="sec_05")
     _para_heading(doc, "05.1. USO DEL EPP DE ACUERDO AL TIPO DE TRABAJO", 12)
     _sec_epp_intro(doc)
     _table_epp(doc, epps)
@@ -898,20 +968,20 @@ def generar_word_pozos(
     doc.add_paragraph()
 
     # 06. PERSONAL COMPROMETIDO
-    _para_heading(doc, "06. PERSONAL COMPROMETIDO", 14)
+    _para_heading(doc, "06. PERSONAL COMPROMETIDO", 14, bookmark="sec_06")
     _sec_personal_intro(doc)
     _table_personal(doc, personal)
     doc.add_paragraph()
 
     # 07. MATERIALES, HERRAMIENTAS Y EQUIPOS
-    _para_heading(doc, "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS", 14)
+    _para_heading(doc, "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS", 14, bookmark="sec_07")
     _table_materiales(doc, materiales)
     doc.add_paragraph()
     _table_herramientas(doc, herramientas)
     doc.add_paragraph()
 
     # 08. PROCEDIMIENTOS DE EJECUCIÓN
-    _para_heading(doc, "08. PROCEDIMIENTOS DE EJECUCIÓN", 14)
+    _para_heading(doc, "08. PROCEDIMIENTOS DE EJECUCIÓN", 14, bookmark="sec_08")
     _para_heading(doc, "08.1. PREPARATIVOS PREVIOS A LA EJECUCIÓN", 12)
     _sec_preparativos(doc)
     doc.add_paragraph()
@@ -921,21 +991,21 @@ def generar_word_pozos(
     doc.add_paragraph()
 
     # 09. EVIDENCIA FOTOGRÁFICA
-    _para_heading(doc, "09. EVIDENCIA FOTOGRÁFICA", 14)
+    _para_heading(doc, "09. EVIDENCIA FOTOGRÁFICA", 14, bookmark="sec_09")
     _evidence_grid(doc, evidencias_por_equipo)
 
     # 10. CONCLUSIONES
-    _para_heading(doc, "10. CONCLUSIONES", 14)
+    _para_heading(doc, "10. CONCLUSIONES", 14, bookmark="sec_10")
     _sec_conclusiones(doc)
     doc.add_paragraph()
 
     # 11. OBSERVACIONES
-    _para_heading(doc, "11. OBSERVACIONES", 14)
+    _para_heading(doc, "11. OBSERVACIONES", 14, bookmark="sec_11")
     _sec_observaciones(doc)
     doc.add_paragraph()
 
     # 12. RECOMENDACIONES
-    _para_heading(doc, "12. RECOMENDACIONES", 14)
+    _para_heading(doc, "12. RECOMENDACIONES", 14, bookmark="sec_12")
     _sec_recomendaciones(doc)
 
     buf = io.BytesIO()
