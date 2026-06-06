@@ -464,16 +464,21 @@ _LEVEL0_BOOKMARKS = {
 
 def _build_indice(doc: Document) -> None:
     p_title = doc.add_paragraph()
-    _run(p_title, "Contenido", bold=True, size_pt=14)
+    p_title.paragraph_format.space_before = Pt(0)
+    p_title.paragraph_format.space_after = Pt(4)
+    _run(p_title, "Contenido", bold=True, size_pt=13)
 
     for level, text in _INDICE_ITEMS:
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = _INDENT_MAP[level]
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.line_spacing = Pt(13)
         bm = _LEVEL0_BOOKMARKS.get(text) if level == 0 else None
         if bm:
             _add_hyperlink(p, text, bm)
         else:
-            _run(p, text, size_pt=11)
+            _run(p, text, size_pt=10)
 
     doc.add_page_break()
 
