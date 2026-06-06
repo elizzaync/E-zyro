@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 from datetime import date
 from typing import Optional
 
@@ -20,7 +21,11 @@ from PIL import Image as PILImage
 
 logger = logging.getLogger(__name__)
 
-_LOGO_HEADER = "/home/harold/E-zyro-frontend/public/assets/img/headerLogo.png"
+# Ruta absoluta resuelta en tiempo de importación, relativa a este mismo archivo.
+# Árbol:  BACKEND/app/services/word_informe_pozos.py
+#         BACKEND/assets/headerLogo.png   (2 niveles arriba)
+_ASSETS_DIR  = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "assets"))
+_LOGO_HEADER = os.path.join(_ASSETS_DIR, "headerLogo.png")
 
 _MESES_ES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
