@@ -21,11 +21,9 @@ from PIL import Image as PILImage
 
 logger = logging.getLogger(__name__)
 
-# Ruta absoluta resuelta en tiempo de importación, relativa a este mismo archivo.
-# assets/ vive en BACKEND/assets/ — dos niveles arriba de este archivo
-_LOGO_HEADER = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "assets", "headerLogo.png")
-)
+# Resuelve desde el CWD del proceso — en Docker el entrypoint se ejecuta desde /app/
+# por lo que assets/headerLogo.png → /app/assets/headerLogo.png
+_LOGO_HEADER = os.path.abspath(os.path.join("assets", "headerLogo.png"))
 
 _MESES_ES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -271,8 +269,9 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
     p_logo = logo_cell.paragraphs[0]
     p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
     if not os.path.exists(_LOGO_HEADER):
-        raise FileNotFoundError(f"CRÍTICO: Python no encuentra el logo en el disco duro: {_LOGO_HEADER}")
-    p_logo.add_run().add_picture(_LOGO_HEADER, width=_LOGO_W)
+        raise FileNotFoundError(f"CRÍTICO: No se encuentra el logo en la ruta resuelta: {_LOGO_HEADER}")
+    run_logo = p_logo.add_run()
+    run_logo.add_picture(_LOGO_HEADER, width=_LOGO_W)
 
     # ── ROW 1: UBICACIÓN | Elaborado por | Oficina ───────────────────────────
     c10 = tbl.cell(1, 0)
