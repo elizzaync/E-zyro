@@ -4482,3 +4482,132 @@ def generar_carta_garantia(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/certificado/pozo ──────────
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/certificado/pozo")
+def generar_certificado_pozo(
+    servicio_id: str,
+    ei_id:       str,
+    body:        dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Genera el Protocolo de Medición de Resistencia del Pozo a Tierra en PDF.
+    Inyecta textos y las fotos de los procedimientos 1, 4 y 7 sobre la plantilla.
+    Requiere que la inspección esté finalizada (estado_intervencion = 'completado').
+    """
+    from ..services.pdf_certificados import generar_protocolo_pozo
+
+    empresa_id = payload["empresa_id"]
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+    if ei.estado_intervencion != "completado":
+        raise HTTPException(
+            status_code=400,
+            detail="El certificado solo puede generarse cuando la inspección está completada al 100%.",
+        )
+
+    body = body or {}
+    ubicacion   = str(body.get("ubicacion",  ei.ubicacion_referencia or "") or "")
+    nro_pozo    = str(body.get("nro_pozo",   "") or "")
+    fecha_hora  = str(body.get("fecha_hora", "") or "")
+    resultado   = str(body.get("resultado",  "") or "")
+    hora_inicio = str(body.get("hora_inicio","") or "")
+    hora_fin    = str(body.get("hora_fin",   "") or "")
+    tecnico     = str(body.get("tecnico",    "") or "")
+    foto1       = body.get("foto1") or None
+    foto2       = body.get("foto2") or None
+    foto3       = body.get("foto3") or None
+
+    try:
+        pdf_bytes = generar_protocolo_pozo(
+            ubicacion=ubicacion, nro_pozo=nro_pozo,
+            fecha_hora=fecha_hora, resultado=resultado,
+            hora_inicio=hora_inicio, hora_fin=hora_fin,
+            tecnico=tecnico, foto1=foto1, foto2=foto2, foto3=foto3,
+        )
+    except Exception as exc:
+        logger.exception("[cert-pozo] Error generando PDF: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
+
+    filename = f"PROTOCOLO_POZO_{re.sub(r'[^A-Za-z0-9]', '_', nro_pozo or 'XX')}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/certificado/operatividad ──
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/certificado/operatividad")
+def generar_certificado_operatividad(
+    servicio_id: str,
+    ei_id:       str,
+    body:        dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """
+    Genera el Certificado de Operatividad de Tablero Eléctrico en PDF.
+    Inyecta textos y firmas sobre la plantilla.
+    Requiere que la inspección esté finalizada (estado_intervencion = 'completado').
+    """
+    from ..services.pdf_certificados import generar_certificado_operatividad as _gen_cert
+
+    empresa_id = payload["empresa_id"]
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+    if ei.estado_intervencion != "completado":
+        raise HTTPException(
+            status_code=400,
+            detail="El certificado solo puede generarse cuando la inspección está completada al 100%.",
+        )
+
+    body = body or {}
+    nombre_tablero   = str(body.get("nombre_tablero",   ei.nombre or "") or "")
+    fecha            = str(body.get("fecha",             "") or "")
+    razon_social     = str(body.get("razon_social",      "") or "")
+    ubicacion        = str(body.get("ubicacion",         "") or "")
+    personal_tecnico = str(body.get("personal_tecnico",  "") or "")
+    firma_verificador = body.get("firma_verificador") or None
+    firma_gerente     = body.get("firma_gerente")     or None
+
+    # Auto-completar razón social desde BD si no viene en el payload
+    if not razon_social and ei.cliente_id:
+        cli = db.query(Cliente).filter(Cliente.id == ei.cliente_id).first()
+        if cli and cli.razon_social:
+            razon_social = cli.razon_social
+
+    try:
+        pdf_bytes = _gen_cert(
+            nombre_tablero=nombre_tablero, fecha=fecha,
+            razon_social=razon_social, ubicacion=ubicacion,
+            personal_tecnico=personal_tecnico,
+            firma_verificador=firma_verificador,
+            firma_gerente=firma_gerente,
+        )
+    except Exception as exc:
+        logger.exception("[cert-operatividad] Error generando PDF: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
+
+    safe = re.sub(r"[^A-Za-z0-9]", "_", nombre_tablero or "TABLERO")
+    filename = f"CERT_OPERATIVIDAD_{safe}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
