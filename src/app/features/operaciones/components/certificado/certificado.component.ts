@@ -42,23 +42,27 @@ export class CertificadoComponent implements OnInit {
   fotoProc4: string | null = null;
   fotoProc7: string | null = null;
 
-  // ── Firmas (solo Operatividad) ─────────────────────────────────────
-  firmaVerB64: string | null = null;
-  firmaGerB64: string | null = null;
+  // ── Firmas ────────────────────────────────────────────────────────
+  firmaTecB64: string | null = null;   // pozo: firma técnico
+  firmaVerB64: string | null = null;   // operatividad: verificador
+  firmaGerB64: string | null = null;   // operatividad: gerente
 
   // ── Campos del formulario ─────────────────────────────────────────
   form = {
-    ubicacion:        '',
-    fecha:            '',
-    nro_pozo:         '',
-    fecha_hora:       '',
-    resultado:        '',
-    hora_inicio:      '',
-    hora_fin:         '',
-    tecnico:          '',
-    nombre_tablero:   '',
-    razon_social:     '',
-    personal_tecnico: '',
+    ubicacion:          '',
+    // Pozo
+    numero_pozo:        '',
+    fecha_ejecucion:    '',
+    fecha_hora_medicion:'',
+    resultado_medicion: '',
+    hora_inicio:        '',
+    hora_termino:       '',
+    nombre_tecnico:     '',
+    // Operatividad
+    nombre_tablero:     '',
+    fecha:              '',
+    razon_social:       '',
+    personal_tecnico:   '',
   };
 
   get esPozo(): boolean         { return this.tipo === 'pozo'; }
@@ -113,12 +117,13 @@ export class CertificadoComponent implements OnInit {
   }
 
   // ── Firma desde archivo ───────────────────────────────────────────
-  async onFirmaFile(event: Event, tipo: 'verificador' | 'gerente'): Promise<void> {
+  async onFirmaFile(event: Event, tipo: 'tecnico' | 'verificador' | 'gerente'): Promise<void> {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     const b64 = await this._fileToB64(file);
-    if (tipo === 'verificador') this.firmaVerB64 = b64;
-    else                        this.firmaGerB64 = b64;
+    if      (tipo === 'tecnico')      this.firmaTecB64 = b64;
+    else if (tipo === 'verificador')  this.firmaVerB64 = b64;
+    else                              this.firmaGerB64 = b64;
   }
 
   private _fileToB64(file: File): Promise<string> {
@@ -177,22 +182,23 @@ export class CertificadoComponent implements OnInit {
     // Extraemos la URL cruda del SafeResourceUrl para forzar descarga
     const raw = (this.pdfUrl as any).changingThisBreaksApplicationSecurity as string;
     a.href     = raw;
-    a.download = `${this.esPozo ? 'PROTOCOLO_POZO' : 'CERT_OPERATIVIDAD'}_${this.form.nro_pozo || this.form.nombre_tablero || 'doc'}.pdf`;
+    a.download = `${this.esPozo ? 'PROTOCOLO_POZO' : 'CERT_OPERATIVIDAD'}_${this.form.numero_pozo || this.form.nombre_tablero || 'doc'}.pdf`;
     a.click();
   }
 
   private _payloadPozo(): object {
     return {
-      ubicacion:   this.form.ubicacion,
-      nro_pozo:    this.form.nro_pozo,
-      fecha_hora:  this.form.fecha_hora,
-      resultado:   this.form.resultado,
-      hora_inicio: this.form.hora_inicio,
-      hora_fin:    this.form.hora_fin,
-      tecnico:     this.form.tecnico,
-      foto1:       this.fotoProc1,
-      foto2:       this.fotoProc4,
-      foto3:       this.fotoProc7,
+      ubicacion:            this.form.ubicacion,
+      numero_pozo:          this.form.numero_pozo,
+      // fecha_actualizacion se auto-genera en backend (fecha de hoy)
+      fecha_ejecucion:      this.form.fecha_ejecucion,
+      fecha_hora_medicion:  this.form.fecha_hora_medicion,
+      resultado_medicion:   this.form.resultado_medicion,
+      hora_inicio:          this.form.hora_inicio,
+      hora_termino:         this.form.hora_termino,
+      nombre_tecnico:       this.form.nombre_tecnico,
+      firma_tecnico:        this.firmaTecB64,
+      fotos_procedimientos: [this.fotoProc1, this.fotoProc4, this.fotoProc7],
     };
   }
 

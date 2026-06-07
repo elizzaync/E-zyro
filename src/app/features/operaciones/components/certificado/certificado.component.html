@@ -41,48 +41,66 @@
       <!-- ─── Campos según tipo ─── -->
       @if (esPozo) {
         <section class="form-section">
-          <h3 class="form-section-title">Datos de Medición</h3>
+          <h3 class="form-section-title">Datos del Protocolo</h3>
 
           <div class="field-group">
-            <label class="field-label">Ubicación en documento</label>
+            <label class="field-label">Ubicación <span class="badge badge--auto">auto</span></label>
             <input class="field-input" [(ngModel)]="form.ubicacion" placeholder="TALMA - JULIACA">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">N° de Pozo / Tablero <span class="req">*</span></label>
-            <input class="field-input" [(ngModel)]="form.nro_pozo" placeholder="01">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">Fecha y hora de medición <span class="req">*</span></label>
-            <input class="field-input" [(ngModel)]="form.fecha_hora"
-                   placeholder="2026-06-07  08:30:00">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">Resultado de la medición <span class="req">*</span></label>
-            <input class="field-input" [(ngModel)]="form.resultado" placeholder="4.76 Ω">
           </div>
 
           <div class="form-row">
             <div class="field-group">
-              <label class="field-label">Hora de inicio</label>
-              <input class="field-input" [(ngModel)]="form.hora_inicio" placeholder="07:00:00">
+              <label class="field-label">N° de Pozo <span class="req">*</span></label>
+              <input class="field-input" [(ngModel)]="form.numero_pozo" placeholder="PT-01">
             </div>
             <div class="field-group">
-              <label class="field-label">Hora de fin</label>
-              <input class="field-input" [(ngModel)]="form.hora_fin" placeholder="07:30:00">
+              <label class="field-label">Fecha de ejecución <span class="req">*</span></label>
+              <input class="field-input" [(ngModel)]="form.fecha_ejecucion" placeholder="07/06/2026">
             </div>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Técnico Ejecutor</label>
-            <select class="field-input" [(ngModel)]="form.tecnico">
+            <label class="field-label">Fecha y hora de medición <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.fecha_hora_medicion"
+                   placeholder="07/06/2026  08:30">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Resultado de medición <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.resultado_medicion" placeholder="4.76 Ω">
+          </div>
+
+          <div class="form-row">
+            <div class="field-group">
+              <label class="field-label">Hora inicio</label>
+              <input class="field-input" [(ngModel)]="form.hora_inicio" placeholder="07:00">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Hora término</label>
+              <input class="field-input" [(ngModel)]="form.hora_termino" placeholder="07:30">
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Técnico Ejecutor <span class="req">*</span></label>
+            <select class="field-input" [(ngModel)]="form.nombre_tecnico">
               <option value="">— Selecciona un técnico —</option>
               @for (p of personal; track p.id) {
-                <option [value]="p.nombre">{{ p.nombre }} <small>{{ p.cargo }}</small></option>
+                <option [value]="p.nombre">{{ p.nombre }}</option>
               }
             </select>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3 class="form-section-title">Firma del Técnico</h3>
+          <div class="field-group">
+            <label class="field-label">Firma (imagen)</label>
+            <input type="file" class="field-input" accept="image/*"
+                   (change)="onFirmaFile($event, 'tecnico')">
+            @if (firmaTecB64) {
+              <p class="hint hint--ok">✓ Firma cargada</p>
+            }
           </div>
         </section>
 
