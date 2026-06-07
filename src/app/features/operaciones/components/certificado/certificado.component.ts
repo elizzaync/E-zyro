@@ -135,9 +135,12 @@ export class CertificadoComponent implements OnInit {
     if (this.generando) return;
     this.generando = true;
 
+    const payload = this.esPozo ? this._payloadPozo() : this._payloadOperatividad();
+    console.log('[Certificado] Payload enviado:', payload);
+
     const obs = this.esPozo
-      ? this.svc.generarCertificadoPozo(this.servicioId, this.eiId, this._payloadPozo())
-      : this.svc.generarCertificadoOperatividad(this.servicioId, this.eiId, this._payloadOperatividad());
+      ? this.svc.generarCertificadoPozo(this.servicioId, this.eiId, payload)
+      : this.svc.generarCertificadoOperatividad(this.servicioId, this.eiId, payload);
 
     obs.subscribe({
       next: (blob: Blob) => {
@@ -147,10 +150,23 @@ export class CertificadoComponent implements OnInit {
       },
       error: (err: any) => {
         this.generando = false;
-        const detail = err?.error instanceof Blob
-          ? 'Error al generar el certificado.'
-          : (err?.error?.detail ?? 'Error al generar el certificado.');
-        this.toast.mostrar(detail, 'error');
+        // Cuando responseType='blob', los errores también llegan como Blob.
+        // Hay que leerlo como texto para obtener el detail del backend.
+        if (err?.error instanceof Blob) {
+          err.error.text().then((text: string) => {
+            let detail = 'Error al generar el certificado.';
+            try {
+              const json = JSON.parse(text);
+              detail = json?.detail ?? text;
+            } catch { detail = text || detail; }
+            console.error('[Certificado] Error del backend:', detail);
+            this.toast.mostrar(detail, 'error');
+          });
+        } else {
+          const detail = err?.error?.detail ?? 'Error al generar el certificado.';
+          console.error('[Certificado] Error:', detail);
+          this.toast.mostrar(detail, 'error');
+        }
       },
     });
   }
