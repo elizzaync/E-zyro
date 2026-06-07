@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 # Resuelve desde el CWD del proceso — en Docker el entrypoint se ejecuta desde /app/
 # por lo que assets/headerLogo.png → /app/assets/headerLogo.png
-_LOGO_HEADER = os.path.abspath(os.path.join("assets", "headerLogo.png"))
+_LOGO_HEADER   = os.path.abspath(os.path.join("assets", "headerLogo.png"))
+_DESIGN_HEADER = os.path.abspath(os.path.join("assets", "headerDesign.png"))
 
 _MESES_ES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -262,8 +263,8 @@ def _add_logo(para, path: str, width_cm: float) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_header(doc: Document, oc: str, provincia: str) -> None:
-    """Header sin tabla: 4 párrafos con tab stops.
-    Para 1: título (izq) | logo (der, RIGHT tab).
+    """Header de 4 párrafos.
+    Para 1: logo 2.5cm (izq) | tab RIGHT con sangría negativa | banner tocando el borde absoluto.
     Para 2-4: tres columnas de texto (UBICACIÓN / Elaborado-Revisado-Aprobado)."""
     sec = doc.sections[0]
     sec.header_distance = Cm(0.5)
@@ -294,16 +295,28 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
             align = WD_TAB_ALIGNMENT.RIGHT if (right_last and is_last) else WD_TAB_ALIGNMENT.LEFT
             fmt.tab_stops.add_tab_stop(Cm(cm), align)
 
-    # ── Para 1: título (izq) │ tab RIGHT │ logo (der) ─────────────────────────
+    # ── Para 1: logo (izq, 2.5cm) │ tab RIGHT │ banner tocando el borde absoluto ──
+    # Sangría derecha negativa (-1.7cm) cancela el margen derecho del documento,
+    # permitiendo que headerDesign.png llegue exactamente al borde físico de la hoja.
+    # Tab stop en Cm(19.3) = A4 21cm - margen izq 1.7cm → borde derecho absoluto.
     p1 = header.paragraphs[0]
-    _hfmt(p1, [_H_COL0 + _H_COL1 + _H_COL2], right_last=True)
-    _hrun(p1,
-          f"INFORME OC - {oc_label} MANTENIMIENTO PREVENTIVO POZO A TIERRA {prov_label}",
-          bold=True, size_pt=8)
-    _htab(p1)
+    p1_fmt = p1.paragraph_format
+    p1_fmt.space_before  = Pt(0)
+    p1_fmt.space_after   = Pt(0)
+    p1_fmt.right_indent  = Cm(-1.7)
+    p1_fmt.left_indent   = Cm(0)
+    p1_fmt.tab_stops.clear_all()
+    p1_fmt.tab_stops.add_tab_stop(Cm(19.3), WD_TAB_ALIGNMENT.RIGHT)
+
     if not os.path.exists(_LOGO_HEADER):
         raise FileNotFoundError(f"CRÍTICO: No se encuentra el logo en la ruta resuelta: {_LOGO_HEADER}")
-    p1.add_run().add_picture(_LOGO_HEADER, width=_LOGO_W)
+    if not os.path.exists(_DESIGN_HEADER):
+        raise FileNotFoundError(f"CRÍTICO: No se encuentra el banner en la ruta resuelta: {_DESIGN_HEADER}")
+
+    run_p1 = p1.add_run()
+    run_p1.add_picture(_LOGO_HEADER, width=Cm(2.5))
+    run_p1.add_text("\t")
+    run_p1.add_picture(_DESIGN_HEADER, width=Cm(11))
 
     # ── Para 2: UBICACIÓN │ tab │ Elaborado por: │ tab │ Oficina ─────────────
     p2 = header.add_paragraph()
