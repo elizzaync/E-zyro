@@ -19,6 +19,7 @@ import { OperacionesServiciosListaComponent } from './features/operaciones/compo
 import { OperacionesCronogramaComponent } from './features/operaciones/components/operaciones-cronograma/operaciones-cronograma.component';
 import { EquiposIntervenidosComponent } from './features/operaciones/components/equipos-intervenidos/equipos-intervenidos.component';
 import { IntervencionEquipoComponent } from './features/operaciones/components/intervencion-equipo/intervencion-equipo.component';
+import { CertificadoComponent } from './features/operaciones/components/certificado/certificado.component';
 export const routes: Routes = [
   {
     path: '',
@@ -126,6 +127,12 @@ export const routes: Routes = [
     path: 'operaciones/servicio/:id/equipos-intervenidos/:eiId',
     component: IntervencionEquipoComponent,
     title: 'Intervención de Equipo | E-System Tic',
+    canActivate: [authGuard]
+},
+{
+    path: 'operaciones/servicio/:id/equipos-intervenidos/:eiId/certificado/:tipo',
+    component: CertificadoComponent,
+    title: 'Certificado | E-System Tic',
     canActivate: [authGuard]
 },
   {

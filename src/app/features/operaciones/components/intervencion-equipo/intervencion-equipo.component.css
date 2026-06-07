@@ -457,6 +457,17 @@
 .iv-banner-ok strong { font-size: 14px; font-weight: 700; display: block; margin-bottom: 4px; }
 .iv-banner-ok p { margin: 0; font-size: 13px; opacity: .8; }
 
+.iv-btn-cert {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 10px 16px;
+  border: none; border-radius: 10px;
+  background: #6366f1; color: #fff;
+  font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  transition: background .15s;
+}
+.iv-btn-cert:hover { background: #4f46e5; }
+.iv-btn-cert svg { width: 16px; height: 16px; }
+
 /* ── Dark mode ───────────────────────────────────────────────── */
 :host-context([data-theme="dark"]) .iv-page          { background: var(--page-bg, #0b1120); color: var(--text-main, #e2e8f0); }
 :host-context([data-theme="dark"]) .iv-card          { background: var(--card-bg, #131f35); border-color: var(--border-color, #1e3050); }

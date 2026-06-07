@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
@@ -40,6 +40,7 @@ interface EquipoInfo {
 export class IntervencionEquipoComponent implements OnInit {
   private route    = inject(ActivatedRoute);
   private location = inject(Location);
+  private router   = inject(Router);
   private svc      = inject(OperacionesService);
   private toast    = inject(ToastService);
 
@@ -218,6 +219,18 @@ export class IntervencionEquipoComponent implements OnInit {
   get todosCompletados(): boolean { return this.total > 0 && this.completados === this.total; }
   get estaFinalizado(): boolean  { return this.equipo?.estadoIntervencion === 'completado'; }
   get hayAlgoSubiendo(): boolean { return this.procs.some(p => p.subiendoFoto); }
+  get tipoCertificado(): 'pozo' | 'operatividad' {
+    const t = (this.equipo?.tipoNombre ?? '').toUpperCase();
+    return t.includes('POZO') ? 'pozo' : 'operatividad';
+  }
+
+  irACertificado(): void {
+    this.router.navigate([
+      'operaciones/servicio', this.servicioId,
+      'equipos-intervenidos', this.eiId,
+      'certificado', this.tipoCertificado,
+    ]);
+  }
 
   volver(): void { this.location.back(); }
 }

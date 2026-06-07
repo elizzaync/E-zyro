@@ -361,6 +361,33 @@ export class OperacionesService {
     );
   }
 
+  /** Genera la Carta de Garantía de Tableros Eléctricos (.docx) y devuelve un Blob. */
+  generarCartaGarantia(servicioId: string, payload: object): Observable<Blob> {
+    return this.http.post(
+      `${this.api}/operaciones/servicio/${servicioId}/carta-garantia/generar`,
+      payload,
+      { responseType: 'blob' },
+    );
+  }
+
+  /** Genera el Protocolo de Pozo a Tierra (PDF) para un equipo intervenido. */
+  generarCertificadoPozo(servicioId: string, eiId: string, payload: object): Observable<Blob> {
+    return this.http.post(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/certificado/pozo`,
+      payload,
+      { responseType: 'blob' },
+    );
+  }
+
+  /** Genera el Certificado de Operatividad (PDF) para un tablero intervenido. */
+  generarCertificadoOperatividad(servicioId: string, eiId: string, payload: object): Observable<Blob> {
+    return this.http.post(
+      `${this.api}/operaciones/servicio/${servicioId}/equipos-intervenidos/${eiId}/certificado/operatividad`,
+      payload,
+      { responseType: 'blob' },
+    );
+  }
+
   /** Catálogo de EPPs activos de la empresa (tabla epp). */
   getEppCatalogo(q?: string): Observable<{ id: string; nombre: string }[]> {
     let params = new HttpParams();

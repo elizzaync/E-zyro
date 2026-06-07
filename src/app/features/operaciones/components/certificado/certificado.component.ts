@@ -1,0 +1,196 @@
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule, Location } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { ToastService } from '../../../../core/services/toast.service';
+import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+
+type TipoCert = 'pozo' | 'operatividad';
+
+@Component({
+  selector: 'app-certificado',
+  standalone: true,
+  imports: [CommonModule, FormsModule, SpinnerComponent],
+  templateUrl: './certificado.component.html',
+  styleUrls: ['./certificado.component.css'],
+})
+export class CertificadoComponent implements OnInit {
+  private route     = inject(ActivatedRoute);
+  private location  = inject(Location);
+  private svc       = inject(OperacionesService);
+  private toast     = inject(ToastService);
+  private sanitizer = inject(DomSanitizer);
+
+  servicioId = '';
+  eiId       = '';
+  tipo: TipoCert = 'pozo';
+
+  generando    = false;
+  pdfUrl: SafeResourceUrl | null = null;
+
+  // ── Datos del equipo (auto-completados) ───────────────────────────
+  ubicacionReferencia = '';
+  fechaHoy            = '';
+
+  // ── Personal disponible para el dropdown ──────────────────────────
+  personal: { id: string; nombre: string; cargo: string }[] = [];
+
+  // ── Fotos de procedimientos 1, 4 y 7 (solo Pozo) ──────────────────
+  fotoProc1: string | null = null;
+  fotoProc4: string | null = null;
+  fotoProc7: string | null = null;
+
+  // ── Firmas (solo Operatividad) ─────────────────────────────────────
+  firmaVerB64: string | null = null;
+  firmaGerB64: string | null = null;
+
+  // ── Campos del formulario ─────────────────────────────────────────
+  form = {
+    ubicacion:        '',
+    fecha:            '',
+    nro_pozo:         '',
+    fecha_hora:       '',
+    resultado:        '',
+    hora_inicio:      '',
+    hora_fin:         '',
+    tecnico:          '',
+    nombre_tablero:   '',
+    razon_social:     '',
+    personal_tecnico: '',
+  };
+
+  get esPozo(): boolean         { return this.tipo === 'pozo'; }
+  get esOperatividad(): boolean { return this.tipo === 'operatividad'; }
+  get titulo(): string {
+    return this.esPozo ? 'Protocolo de Pozo a Tierra' : 'Certificado de Operatividad';
+  }
+
+  ngOnInit(): void {
+    this.servicioId = this.route.snapshot.paramMap.get('id')    ?? '';
+    this.eiId       = this.route.snapshot.paramMap.get('eiId')  ?? '';
+    this.tipo       = (this.route.snapshot.paramMap.get('tipo') ?? 'pozo') as TipoCert;
+
+    const hoy = new Date();
+    this.fechaHoy = hoy.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    this.form.fecha = `${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+
+    this.cargarDatos();
+  }
+
+  private cargarDatos(): void {
+    // Carga datos del equipo + personal del servicio
+    this.svc.getInspeccionActiva(this.servicioId, this.eiId).subscribe({
+      next: (data: any) => {
+        const eq = data?.equipo;
+        if (eq) {
+          this.ubicacionReferencia = eq.ubicacion_referencia ?? '';
+          this.form.ubicacion = this.ubicacionReferencia;
+          this.form.nombre_tablero = eq.nombre ?? '';
+        }
+        // Fotos de los procedimientos (si ya fueron subidas)
+        const procs: any[] = data?.resultado ?? [];
+        this.fotoProc1 = procs.find((p: any) => p.orden === 1)?.foto_url ?? null;
+        this.fotoProc4 = procs.find((p: any) => p.orden === 4)?.foto_url ?? null;
+        this.fotoProc7 = procs.find((p: any) => p.orden === 7)?.foto_url ?? null;
+      },
+      error: () => { /* continúa sin precarga */ }
+    });
+
+    this.svc.getPrecargaInforme(this.servicioId).subscribe({
+      next: (res: any) => {
+        this.personal = (res?.personal ?? []).map((p: any) => ({
+          id:     p.id,
+          nombre: p.nombre,
+          cargo:  p.cargo ?? '',
+        }));
+        const cliente = res?.servicio?.cliente_nombre;
+        if (cliente) this.form.razon_social = cliente;
+      },
+      error: () => {}
+    });
+  }
+
+  // ── Firma desde archivo ───────────────────────────────────────────
+  async onFirmaFile(event: Event, tipo: 'verificador' | 'gerente'): Promise<void> {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const b64 = await this._fileToB64(file);
+    if (tipo === 'verificador') this.firmaVerB64 = b64;
+    else                        this.firmaGerB64 = b64;
+  }
+
+  private _fileToB64(file: File): Promise<string> {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result as string);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // ── Generar / Actualizar vista previa ─────────────────────────────
+  generar(): void {
+    if (this.generando) return;
+    this.generando = true;
+
+    const obs = this.esPozo
+      ? this.svc.generarCertificadoPozo(this.servicioId, this.eiId, this._payloadPozo())
+      : this.svc.generarCertificadoOperatividad(this.servicioId, this.eiId, this._payloadOperatividad());
+
+    obs.subscribe({
+      next: (blob: Blob) => {
+        this.generando = false;
+        const objUrl = URL.createObjectURL(blob);
+        this.pdfUrl  = this.sanitizer.bypassSecurityTrustResourceUrl(objUrl);
+      },
+      error: (err: any) => {
+        this.generando = false;
+        const detail = err?.error instanceof Blob
+          ? 'Error al generar el certificado.'
+          : (err?.error?.detail ?? 'Error al generar el certificado.');
+        this.toast.mostrar(detail, 'error');
+      },
+    });
+  }
+
+  descargar(): void {
+    if (!this.pdfUrl) { this.toast.mostrar('Primero genera la vista previa.', 'info'); return; }
+    const a = document.createElement('a');
+    // Extraemos la URL cruda del SafeResourceUrl para forzar descarga
+    const raw = (this.pdfUrl as any).changingThisBreaksApplicationSecurity as string;
+    a.href     = raw;
+    a.download = `${this.esPozo ? 'PROTOCOLO_POZO' : 'CERT_OPERATIVIDAD'}_${this.form.nro_pozo || this.form.nombre_tablero || 'doc'}.pdf`;
+    a.click();
+  }
+
+  private _payloadPozo(): object {
+    return {
+      ubicacion:   this.form.ubicacion,
+      nro_pozo:    this.form.nro_pozo,
+      fecha_hora:  this.form.fecha_hora,
+      resultado:   this.form.resultado,
+      hora_inicio: this.form.hora_inicio,
+      hora_fin:    this.form.hora_fin,
+      tecnico:     this.form.tecnico,
+      foto1:       this.fotoProc1,
+      foto2:       this.fotoProc4,
+      foto3:       this.fotoProc7,
+    };
+  }
+
+  private _payloadOperatividad(): object {
+    return {
+      nombre_tablero:   this.form.nombre_tablero,
+      fecha:            this.form.fecha,
+      razon_social:     this.form.razon_social,
+      ubicacion:        this.form.ubicacion,
+      personal_tecnico: this.form.personal_tecnico || this.form.tecnico,
+      firma_verificador: this.firmaVerB64,
+      firma_gerente:     this.firmaGerB64,
+    };
+  }
+
+  volver(): void { this.location.back(); }
+}

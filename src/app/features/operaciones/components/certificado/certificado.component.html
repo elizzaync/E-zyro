@@ -1,0 +1,226 @@
+<div class="cert-layout fade-in">
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+  <header class="cert-header">
+    <button class="btn-volver" (click)="volver()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Volver a la Inspección
+    </button>
+    <div class="cert-header-info">
+      <h2 class="cert-title">{{ titulo }}</h2>
+      <div class="cert-tipo-badges">
+        <span class="badge" [class.badge--active]="esPozo">Pozo a Tierra</span>
+        <span class="badge" [class.badge--active]="esOperatividad">Tablero Eléctrico</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ SPLIT SCREEN ════════════════════════════════════════════════ -->
+  <div class="cert-split">
+
+    <!-- ══ PANEL IZQUIERDO: FORMULARIO ═════════════════════════════ -->
+    <aside class="cert-form-panel">
+
+      <!-- ─── Campos auto-completados (solo lectura) ─── -->
+      <section class="form-section">
+        <h3 class="form-section-title">Datos del Equipo</h3>
+
+        <div class="field-group">
+          <label class="field-label">Área / Ubicación <span class="badge badge--auto">auto</span></label>
+          <input class="field-input field-readonly" [value]="ubicacionReferencia || '—'" readonly>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Fecha <span class="badge badge--auto">auto</span></label>
+          <input class="field-input field-readonly" [value]="fechaHoy" readonly>
+        </div>
+      </section>
+
+      <!-- ─── Campos según tipo ─── -->
+      @if (esPozo) {
+        <section class="form-section">
+          <h3 class="form-section-title">Datos de Medición</h3>
+
+          <div class="field-group">
+            <label class="field-label">Ubicación en documento</label>
+            <input class="field-input" [(ngModel)]="form.ubicacion" placeholder="TALMA - JULIACA">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">N° de Pozo / Tablero <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.nro_pozo" placeholder="01">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Fecha y hora de medición <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.fecha_hora"
+                   placeholder="2026-06-07  08:30:00">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Resultado de la medición <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.resultado" placeholder="4.76 Ω">
+          </div>
+
+          <div class="form-row">
+            <div class="field-group">
+              <label class="field-label">Hora de inicio</label>
+              <input class="field-input" [(ngModel)]="form.hora_inicio" placeholder="07:00:00">
+            </div>
+            <div class="field-group">
+              <label class="field-label">Hora de fin</label>
+              <input class="field-input" [(ngModel)]="form.hora_fin" placeholder="07:30:00">
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Técnico Ejecutor</label>
+            <select class="field-input" [(ngModel)]="form.tecnico">
+              <option value="">— Selecciona un técnico —</option>
+              @for (p of personal; track p.id) {
+                <option [value]="p.nombre">{{ p.nombre }} <small>{{ p.cargo }}</small></option>
+              }
+            </select>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3 class="form-section-title">
+            Evidencia Fotográfica
+            <span class="badge badge--auto">auto desde inspección</span>
+          </h3>
+          <div class="fotos-grid">
+            <div class="foto-slot">
+              <span class="foto-label">Proc. 1</span>
+              @if (fotoProc1) {
+                <img [src]="fotoProc1" class="foto-thumb" alt="Proc 1">
+              } @else {
+                <div class="foto-empty">Sin foto</div>
+              }
+            </div>
+            <div class="foto-slot">
+              <span class="foto-label">Proc. 4</span>
+              @if (fotoProc4) {
+                <img [src]="fotoProc4" class="foto-thumb" alt="Proc 4">
+              } @else {
+                <div class="foto-empty">Sin foto</div>
+              }
+            </div>
+            <div class="foto-slot">
+              <span class="foto-label">Proc. 7</span>
+              @if (fotoProc7) {
+                <img [src]="fotoProc7" class="foto-thumb" alt="Proc 7">
+              } @else {
+                <div class="foto-empty">Sin foto</div>
+              }
+            </div>
+          </div>
+        </section>
+      }
+
+      @if (esOperatividad) {
+        <section class="form-section">
+          <h3 class="form-section-title">Datos del Certificado</h3>
+
+          <div class="field-group">
+            <label class="field-label">Nombre del Tablero <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.nombre_tablero" placeholder="TD - RAMPA">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Fecha <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.fecha" placeholder="07/06/2026">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Razón Social</label>
+            <input class="field-input" [(ngModel)]="form.razon_social"
+                   placeholder="TALMA SERVICIOS AEROPORTUARIOS S.A.">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Ubicación</label>
+            <input class="field-input" [(ngModel)]="form.ubicacion"
+                   placeholder="Aeropuerto Internacional...">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Personal Técnico</label>
+            <select class="field-input" [(ngModel)]="form.personal_tecnico">
+              <option value="">— Selecciona técnico —</option>
+              @for (p of personal; track p.id) {
+                <option [value]="p.nombre">{{ p.nombre }}</option>
+              }
+            </select>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h3 class="form-section-title">Firmas</h3>
+          <div class="form-row">
+            <div class="field-group">
+              <label class="field-label">Firma Verificador</label>
+              <input type="file" class="field-input" accept="image/*"
+                     (change)="onFirmaFile($event, 'verificador')">
+              @if (firmaVerB64) {
+                <p class="hint hint--ok">✓ Firma cargada</p>
+              }
+            </div>
+            <div class="field-group">
+              <label class="field-label">Firma Gerente</label>
+              <input type="file" class="field-input" accept="image/*"
+                     (change)="onFirmaFile($event, 'gerente')">
+              @if (firmaGerB64) {
+                <p class="hint hint--ok">✓ Firma cargada</p>
+              }
+            </div>
+          </div>
+        </section>
+      }
+
+      <!-- ─── Botones de acción ─── -->
+      <div class="cert-actions">
+        <button class="btn-preview" (click)="generar()" [disabled]="generando">
+          @if (generando) {
+            <app-spinner></app-spinner> Generando…
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            Actualizar Vista Previa
+          }
+        </button>
+
+        <button class="btn-download" (click)="descargar()" [disabled]="!pdfUrl">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Descargar PDF
+        </button>
+      </div>
+    </aside>
+
+    <!-- ══ PANEL DERECHO: PREVIEW DEL PDF ══════════════════════════ -->
+    <div class="cert-preview-panel">
+      @if (pdfUrl) {
+        <iframe class="cert-iframe" [src]="pdfUrl" title="Vista previa del certificado"></iframe>
+      } @else {
+        <div class="cert-preview-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <p>Completa el formulario y pulsa<br><strong>Actualizar Vista Previa</strong></p>
+        </div>
+      }
+    </div>
+
+  </div><!-- /cert-split -->
+</div>
