@@ -12,7 +12,7 @@ from typing import Optional
 
 import requests
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -107,48 +107,6 @@ def _no_borders(table) -> None:
         tblBorders.append(bd)
     tblPr.append(tblBorders)
 
-
-def _make_table_flush(table) -> None:
-    """Elimina bordes, padding de celdas (tcMar) e indentación (tblInd).
-    Usar en tablas de header/footer para diseño edge-to-edge sin márgenes blancos."""
-    tbl = table._tbl
-    tblPr = tbl.tblPr
-    if tblPr is None:
-        tblPr = OxmlElement("w:tblPr")
-        tbl.insert(0, tblPr)
-
-    # Bordes a none
-    tblBorders = OxmlElement("w:tblBorders")
-    for border_name in ("top", "left", "bottom", "right", "insideH", "insideV"):
-        bd = OxmlElement(f"w:{border_name}")
-        bd.set(qn("w:val"), "none")
-        bd.set(qn("w:sz"), "0")
-        bd.set(qn("w:space"), "0")
-        bd.set(qn("w:color"), "auto")
-        tblBorders.append(bd)
-    tblPr.append(tblBorders)
-
-    # tblInd = 0 (sin desplazamiento izquierdo)
-    for old in tblPr.findall(qn("w:tblInd")):
-        tblPr.remove(old)
-    tblInd = OxmlElement("w:tblInd")
-    tblInd.set(qn("w:w"), "0")
-    tblInd.set(qn("w:type"), "dxa")
-    tblPr.append(tblInd)
-
-    # tcMar = 0 en cada celda individualmente
-    for row in table.rows:
-        for cell in row.cells:
-            tcPr = cell._tc.get_or_add_tcPr()
-            for old in tcPr.findall(qn("w:tcMar")):
-                tcPr.remove(old)
-            tcMar = OxmlElement("w:tcMar")
-            for margin in ("top", "left", "bottom", "right"):
-                node = OxmlElement(f"w:{margin}")
-                node.set(qn("w:w"), "0")
-                node.set(qn("w:type"), "dxa")
-                tcMar.append(node)
-            tcPr.append(tcMar)
 
 
 def _single_borders(table, color="000000", sz=6) -> None:
@@ -304,16 +262,9 @@ def _add_logo(para, path: str, width_cm: float) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_header(doc: Document, oc: str, provincia: str) -> None:
-    """
-    Header table: 4 rows × 3 cols, repeats on every page.
-
-    Col widths: 55 % / 20 % / 25 %  (≈ 9.68 / 3.52 / 4.40 cm = 17.6 cm total)
-
-    Row 0: [Title text]          | [logo merged → cols 1+2]
-    Row 1: [UBICACIÓN]           | "Elaborado por:" | "Oficina de proyectos"
-    Row 2: [ESPECIALIDAD]        | "Revisado por:"  | "Oficina de proyectos"
-    Row 3: [merged ↑ with row2] | "Aprobado por:"  | "Oficina de proyectos"
-    """
+    """Header sin tabla: 4 párrafos con tab stops.
+    Para 1: título (izq) | logo (der, RIGHT tab).
+    Para 2-4: tres columnas de texto (UBICACIÓN / Elaborado-Revisado-Aprobado)."""
     sec = doc.sections[0]
     sec.header_distance = Cm(0.5)
     header = sec.header
@@ -321,80 +272,64 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
     for p in header.paragraphs:
         p.clear()
 
-    # ── Create 4×3 table ────────────────────────────────────────────────────
-    tbl = header.add_table(rows=4, cols=3, width=Cm(_H_COL0 + _H_COL1 + _H_COL2))
-    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
-    _make_table_flush(tbl)   # ← sin bordes, sin padding, sin tblInd
-
-    _set_tbl_grid(tbl, [_H_COL0, _H_COL1, _H_COL2])
-
-    for ri in range(4):
-        _set_col_width(tbl.cell(ri, 0), _H_COL0)
-        _set_col_width(tbl.cell(ri, 1), _H_COL1)
-        _set_col_width(tbl.cell(ri, 2), _H_COL2)
-
     oc_label   = oc or "SIN-OC"
     prov_label = (provincia or "").upper()
 
-    # ── ROW 0: Title | Logo (merged cols 1+2) ───────────────────────────────
-    tbl.cell(0, 1).merge(tbl.cell(0, 2))   # cols 1+2 → 7.92 cm combined
+    def _hrun(para, text="", bold=False, size_pt=8):
+        r = para.add_run(text)
+        r.bold = bold
+        r.font.size = Pt(size_pt)
+        return r
 
-    c00 = tbl.cell(0, 0)
-    c00.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    p00 = c00.paragraphs[0]
-    p00.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _run(p00,
-         f"INFORME OC - {oc_label} MANTENIMIENTO PREVENTIVO POZO A TIERRA {prov_label}",
-         bold=True, size_pt=8)
+    def _htab(para):
+        r = para.add_run()
+        r._r.append(OxmlElement("w:tab"))
 
-    logo_cell = tbl.cell(0, 1)
-    logo_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    # Clear any empty paragraph python-docx may have left after the merge
-    for p in logo_cell.paragraphs:
-        p.clear()
-    p_logo = logo_cell.paragraphs[0]
-    p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    def _hfmt(para, tab_positions_cm, right_last=False):
+        fmt = para.paragraph_format
+        fmt.space_before = Pt(0)
+        fmt.space_after  = Pt(0)
+        for i, cm in enumerate(tab_positions_cm):
+            is_last = (i == len(tab_positions_cm) - 1)
+            align = WD_TAB_ALIGNMENT.RIGHT if (right_last and is_last) else WD_TAB_ALIGNMENT.LEFT
+            fmt.tab_stops.add_tab_stop(Cm(cm), align)
+
+    # ── Para 1: título (izq) │ tab RIGHT │ logo (der) ─────────────────────────
+    p1 = header.paragraphs[0]
+    _hfmt(p1, [_H_COL0 + _H_COL1 + _H_COL2], right_last=True)
+    _hrun(p1,
+          f"INFORME OC - {oc_label} MANTENIMIENTO PREVENTIVO POZO A TIERRA {prov_label}",
+          bold=True, size_pt=8)
+    _htab(p1)
     if not os.path.exists(_LOGO_HEADER):
         raise FileNotFoundError(f"CRÍTICO: No se encuentra el logo en la ruta resuelta: {_LOGO_HEADER}")
-    run_logo = p_logo.add_run()
-    run_logo.add_picture(_LOGO_HEADER, width=_LOGO_W)
+    p1.add_run().add_picture(_LOGO_HEADER, width=_LOGO_W)
 
-    # ── ROW 1: UBICACIÓN | Elaborado por | Oficina ───────────────────────────
-    c10 = tbl.cell(1, 0)
-    c10.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c10.paragraphs[0], f"UBICACIÓN: TALMA - {prov_label}", bold=True, size_pt=8)
+    # ── Para 2: UBICACIÓN │ tab │ Elaborado por: │ tab │ Oficina ─────────────
+    p2 = header.add_paragraph()
+    _hfmt(p2, [_H_COL0, _H_COL0 + _H_COL1])
+    _hrun(p2, f"UBICACIÓN: TALMA - {prov_label}", bold=True, size_pt=8)
+    _htab(p2)
+    _hrun(p2, "Elaborado por:", size_pt=8)
+    _htab(p2)
+    _hrun(p2, "Oficina de proyectos", size_pt=8)
 
-    c11 = tbl.cell(1, 1)
-    c11.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c11.paragraphs[0], "Elaborado por:", size_pt=8)
+    # ── Para 3: ESPECIALIDAD │ tab │ Revisado por: │ tab │ Oficina ────────────
+    p3 = header.add_paragraph()
+    _hfmt(p3, [_H_COL0, _H_COL0 + _H_COL1])
+    _hrun(p3, "ESPECIALIDAD: INSTALACIONES ELÉCTRICAS", bold=True, size_pt=8)
+    _htab(p3)
+    _hrun(p3, "Revisado por:", size_pt=8)
+    _htab(p3)
+    _hrun(p3, "Oficina de proyectos", size_pt=8)
 
-    c12 = tbl.cell(1, 2)
-    c12.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c12.paragraphs[0], "Oficina de proyectos", size_pt=8)
-
-    # ── ROW 2: ESPECIALIDAD | Revisado por | Oficina ─────────────────────────
-    c20 = tbl.cell(2, 0)
-    c20.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c20.paragraphs[0], "ESPECIALIDAD: INSTALACIONES ELÉCTRICAS", bold=True, size_pt=8)
-
-    c21 = tbl.cell(2, 1)
-    c21.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c21.paragraphs[0], "Revisado por:", size_pt=8)
-
-    c22 = tbl.cell(2, 2)
-    c22.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c22.paragraphs[0], "Oficina de proyectos", size_pt=8)
-
-    # ── ROW 3: col 0 merged with row 2 | Aprobado por | Oficina ─────────────
-    tbl.cell(2, 0).merge(tbl.cell(3, 0))   # vertical merge col 0 rows 2+3
-
-    c31 = tbl.cell(3, 1)
-    c31.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c31.paragraphs[0], "Aprobado por:", size_pt=8)
-
-    c32 = tbl.cell(3, 2)
-    c32.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-    _run(c32.paragraphs[0], "Oficina de proyectos", size_pt=8)
+    # ── Para 4: (vacío) │ tab │ Aprobado por: │ tab │ Oficina ─────────────────
+    p4 = header.add_paragraph()
+    _hfmt(p4, [_H_COL0, _H_COL0 + _H_COL1])
+    _htab(p4)
+    _hrun(p4, "Aprobado por:", size_pt=8)
+    _htab(p4)
+    _hrun(p4, "Oficina de proyectos", size_pt=8)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
