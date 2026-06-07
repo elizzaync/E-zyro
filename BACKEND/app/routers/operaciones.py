@@ -4237,6 +4237,7 @@ def generar_informe_general(
     """Genera el Informe General de Pozos a Tierra (.docx) y lo devuelve
     como blob descargable. Convierte imágenes WebP de evidencias a JPEG."""
     from ..services.word_informe_pozos import generar_word_pozos
+    from ..services.report_templates import get_config
 
     empresa_id = payload["empresa_id"]
     ps = db.query(ProyectoServicio).filter(
@@ -4305,9 +4306,14 @@ def generar_informe_general(
                 "fotos":  fotos_map.get(eid, []),
             })
 
+    # ── Seleccionar config según tipo de equipo ───────────────────────────────
+    tipo_base = str(body.get("tipo_base", "") or "")
+    cfg = get_config(equipos_payload, tipo_base)
+
     # ── Generar documento Word ─────────────────────────────────────────────────
     try:
         docx_bytes = generar_word_pozos(
+            cfg=cfg,
             oc=oc,
             ubicacion=ubicacion_str,
             equipos=equipos_payload,

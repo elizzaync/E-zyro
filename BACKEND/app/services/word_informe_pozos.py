@@ -358,7 +358,7 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
 # 2. PORTADA
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _build_portada(doc: Document, oc: str, provincia: str, fecha_str: str) -> None:
+def _build_portada(doc: Document, cfg: dict, oc: str, provincia: str, fecha_str: str) -> None:
     oc_label = oc or "SIN-OC"
     prov_label = (provincia or "").upper()
 
@@ -368,7 +368,7 @@ def _build_portada(doc: Document, oc: str, provincia: str, fecha_str: str) -> No
 
     for text, size in [
         (f"INFORME OC - {oc_label}", 18),
-        ("MANTENIMIENTO PREVENTIVO POZO A TIERRA", 16),
+        (cfg.get("titulo_documento", "MANTENIMIENTO PREVENTIVO"), 16),
         (f"TALMA - {prov_label}", 16),
     ]:
         p = doc.add_paragraph()
@@ -414,67 +414,67 @@ def _build_portada(doc: Document, oc: str, provincia: str, fecha_str: str) -> No
 # 3. ÍNDICE
 # ─────────────────────────────────────────────────────────────────────────────
 
-_INDICE_ITEMS = [
-    (0, "01. GENERALIDADES"),
-    (0, "02. ALCANCE"),
-    (0, "03. MARCO NORMATIVO"),
-    (1, "03.1. NORMATIVA NACIONAL"),
-    (2, "03.1.1. NORMA TÉCNICA DE CALIDAD DE LOS SERVICIOS ELÉCTRICOS"),
-    (2, "03.1.2. CÓDIGO NACIONAL DE ELECTRICIDAD – UTILIZACIÓN 2006"),
-    (2, "03.1.3. REGLAMENTO DE SEGURIDAD Y SALUD EN EL TRABAJO CON ELECTRICIDAD 2013"),
-    (2, "03.1.4. NTP 370.052:1999 MATERIALES QUE CONSTITUYEN EL POZO DE PUESTA A TIERRA"),
-    (1, "03.2. NORMATIVA INTERNACIONAL"),
-    (2, "03.2.1. NORMA PARA LA SEGURIDAD ELÉCTRICA EN LUGARES DE TRABAJO (NFPA 70E)"),
-    (2, "03.2.2. PRACTICAS RECOMENDADAS DE MANTENIMIENTO ELÉCTRICO (NFPA 70B)"),
-    (2, "03.2.3. ANSI/NETA 2021: Standard for Acceptance Testing Specifications"),
-    (2, "03.2.4. IEEE Std 81 - 2012: Guide for Measuring Earth Resistivity"),
-    (0, "04. OBJETIVOS"),
-    (0, "05. PROCEDIMIENTO SST IMPLÍCITOS"),
-    (1, "05.1. USO DEL EPP DE ACUERDO AL TIPO DE TRABAJO"),
-    (1, "05.2. PROCEDIMIENTO DE BLOQUEO Y ETIQUETADO LOTO"),
-    (0, "06. PERSONAL COMPROMETIDO"),
-    (0, "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS"),
-    (0, "08. PROCEDIMIENTOS DE EJECUCIÓN"),
-    (1, "08.1. PREPARATIVOS PREVIOS A LA EJECUCIÓN"),
-    (1, "08.2. EJECUCIÓN DE TRABAJO"),
-    (0, "09. EVIDENCIA FOTOGRÁFICA"),
-    (0, "10. CONCLUSIONES"),
-    (0, "11. OBSERVACIONES"),
-    (0, "12. RECOMENDACIONES"),
-]
-
 _INDENT_MAP = {0: Cm(0), 1: Cm(0.5), 2: Cm(1.0)}
 
-# Bookmark names for each top-level section (must match heading text in generar_word_pozos)
-_LEVEL0_BOOKMARKS = {
-    "01. GENERALIDADES":                                        "sec_01",
-    "02. ALCANCE":                                              "sec_02",
-    "03. MARCO NORMATIVO":                                      "sec_03",
-    "04. OBJETIVOS":                                            "sec_04",
-    "05. PROCEDIMIENTO SST IMPLÍCITOS":                         "sec_05",
-    "06. PERSONAL COMPROMETIDO":                                "sec_06",
-    "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS":"sec_07",
-    "08. PROCEDIMIENTOS DE EJECUCIÓN":                          "sec_08",
-    "09. EVIDENCIA FOTOGRÁFICA":                                "sec_09",
-    "10. CONCLUSIONES":                                         "sec_10",
-    "11. OBSERVACIONES":                                        "sec_11",
-    "12. RECOMENDACIONES":                                      "sec_12",
+_LEVEL0_BOOKMARKS_BASE = {
+    "01. GENERALIDADES":                                         "sec_01",
+    "02. ALCANCE":                                               "sec_02",
+    "03. MARCO NORMATIVO":                                       "sec_03",
+    "04. OBJETIVOS":                                             "sec_04",
+    "05. PROCEDIMIENTO SST IMPLÍCITOS":                          "sec_05",
+    "06. PERSONAL COMPROMETIDO":                                 "sec_06",
+    "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS": "sec_07",
+    "08. PROCEDIMIENTOS DE EJECUCIÓN":                           "sec_08",
+    "09. EVIDENCIA FOTOGRÁFICA":                                 "sec_09",
+    "10. CONCLUSIONES":                                          "sec_10",
+    "11. OBSERVACIONES":                                         "sec_11",
+    "12. RECOMENDACIONES":                                       "sec_12",
+    "13. ANEXOS":                                                "sec_13",
 }
 
 
-def _build_indice(doc: Document) -> None:
+def _indice_items(cfg: dict) -> list[tuple[int, str]]:
+    norms = cfg.get("normativas", {})
+    items = [
+        (0, "01. GENERALIDADES"),
+        (0, "02. ALCANCE"),
+        (0, "03. MARCO NORMATIVO"),
+        (1, "03.1. NORMATIVA NACIONAL"),
+        *[(2, n["titulo"]) for n in norms.get("nacional", [])],
+        (1, "03.2. NORMATIVA INTERNACIONAL"),
+        *[(2, n["titulo"]) for n in norms.get("internacional", [])],
+        (0, "04. OBJETIVOS"),
+        (0, "05. PROCEDIMIENTO SST IMPLÍCITOS"),
+        (1, "05.1. USO DEL EPP DE ACUERDO AL TIPO DE TRABAJO"),
+        (1, "05.2. PROCEDIMIENTO DE BLOQUEO Y ETIQUETADO LOTO"),
+        (0, "06. PERSONAL COMPROMETIDO"),
+        (0, "07. LISTA DE MATERIALES, HERRAMIENTAS Y EQUIPOS EMPLEADOS"),
+        (0, "08. PROCEDIMIENTOS DE EJECUCIÓN"),
+        (1, "08.1. PREPARATIVOS PREVIOS A LA EJECUCIÓN"),
+        (1, "08.2. EJECUCIÓN DE TRABAJO"),
+        (0, "09. EVIDENCIA FOTOGRÁFICA"),
+        (0, "10. CONCLUSIONES"),
+        (0, "11. OBSERVACIONES"),
+        (0, "12. RECOMENDACIONES"),
+    ]
+    if cfg.get("tiene_anexos"):
+        items.append((0, "13. ANEXOS"))
+    return items
+
+
+def _build_indice(doc: Document, cfg: dict) -> None:
     p_title = doc.add_paragraph()
     p_title.paragraph_format.space_before = Pt(0)
     p_title.paragraph_format.space_after = Pt(4)
     _run(p_title, "Contenido", bold=True, size_pt=13)
 
-    for level, text in _INDICE_ITEMS:
+    for level, text in _indice_items(cfg):
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = _INDENT_MAP[level]
         p.paragraph_format.space_before = Pt(0)
         p.paragraph_format.space_after = Pt(0)
         p.paragraph_format.line_spacing = Pt(13)
-        bm = _LEVEL0_BOOKMARKS.get(text) if level == 0 else None
+        bm = _LEVEL0_BOOKMARKS_BASE.get(text) if level == 0 else None
         if bm:
             _add_hyperlink(p, text, bm)
         else:
@@ -487,188 +487,78 @@ def _build_indice(doc: Document) -> None:
 # Static section texts
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _sec_generalidades(doc: Document, provincia: str) -> None:
+def _sec_generalidades(doc: Document, cfg: dict, provincia: str) -> None:
     prov = (provincia or "").upper()
-    _para_body(doc,
-        "Los sistemas de puesta a tierra son una parte importante de un sistema eléctrico, "
-        "la importancia de este trabajo es ayudar a proporcionar una mayor seguridad a los "
-        "usuarios del local al direccionar cualquier contacto indirecto de energía eléctrica "
-        "a la puesta a tierra más cercana."
-    )
-    _para_body(doc,
-        "Este mantenimiento comprende al conjunto de actividades técnicas programadas "
-        "destinadas a verificar, conservar y optimizar las condiciones operativas del "
-        "sistema de puesta a tierra, garantizando que su resistencia eléctrica se mantenga "
-        "dentro de los parámetros establecidos por la normativa vigente y por los "
-        "requerimientos de seguridad de la instalación."
-    )
-    _para_body(doc,
-        "Este procedimiento tiene como finalidad asegurar la correcta disipación de "
-        "corrientes de falla y descargas."
-    )
-    _para_body(doc,
-        f"El siguiente informe redacta de manera detallada los procedimientos empleados en "
-        f"el mantenimiento preventivo de pozo a tierra en TALMA - {prov}. Los criterios de "
-        f"ejecución, el personal comprometido, entre otros detalles considerados relevantes "
-        f"para el conocimiento del cliente."
-    )
+    for para in cfg.get("generalidades", []):
+        _para_body(doc, para.format(prov=prov))
 
 
-def _sec_alcance(doc: Document, provincia: str) -> None:
+def _sec_alcance(doc: Document, cfg: dict, provincia: str) -> None:
     prov = (provincia or "").upper()
-    _para_body(doc,
-        f"El mantenimiento preventivo de pozo a tierra en TALMA - {prov} abarca la ejecución "
-        f"de actividades que garanticen el correcto funcionamiento del sistema, así mismo, el "
-        f"presente informe pretende explicar los procedimientos, materiales y equipos, así como "
-        f"la normativa aplicada para el desarrollo satisfactorio del trabajo realizado."
-    )
+    for para in cfg.get("alcance", []):
+        _para_body(doc, para.format(prov=prov))
 
 
-def _sec_marco_normativo(doc: Document) -> None:
+def _sec_marco_normativo(doc: Document, cfg: dict) -> None:
+    norms = cfg.get("normativas", {})
     _para_heading(doc, "03.1. NORMATIVA NACIONAL", 12)
-    norms_nacional = [
-        ("03.1.1. NORMA TÉCNICA DE CALIDAD DE LOS SERVICIOS ELÉCTRICOS",
-         "Con el fin de asegurar un nivel satisfactorio en la prestación de servicios eléctricos "
-         "y garantizar a los usuarios un suministro eléctrico continuo, adecuado, confiable y "
-         "oportuno, se aprobó la Norma Técnica de Calidad de los Servicios Eléctricos mediante "
-         "Decreto Supremo N° 020-97-EM."),
-        ("03.1.2. CÓDIGO NACIONAL DE ELECTRICIDAD – UTILIZACIÓN 2006",
-         "El código bajo comentario contiene reglas preventivas frente a los peligros derivados "
-         "del uso de la electricidad a fin de salvaguardar las condiciones de seguridad de las "
-         "personas, flora, fauna, propiedad, ambiente y patrimonio cultural de la Nación."),
-        ("03.1.3. REGLAMENTO DE SEGURIDAD Y SALUD EN EL TRABAJO CON ELECTRICIDAD 2013",
-         "El presente reglamento es de aplicación obligatoria a todas las personas que participan "
-         "en el desarrollo de las actividades relacionadas con el uso de la electricidad y/o con "
-         "las instalaciones eléctricas."),
-        ("03.1.4. NTP 370.052:1999 MATERIALES QUE CONSTITUYEN EL POZO DE PUESTA A TIERRA",
-         "Establece las condiciones que deben cumplir los materiales a ser utilizados en los pozos "
-         "a tierra de protección que emplean electrodos de cobre. Comprende material circundante, "
-         "elementos químicos para reducir la resistencia y recomendaciones para medición."),
-    ]
-    for heading, body in norms_nacional:
-        _para_heading(doc, heading, 11)
-        _para_body(doc, body)
-
+    for norm in norms.get("nacional", []):
+        _para_heading(doc, norm["titulo"], 11)
+        for para in norm["cuerpo"]:
+            _para_body(doc, para)
     _para_heading(doc, "03.2. NORMATIVA INTERNACIONAL", 12)
-    norms_inter = [
-        ("03.2.1. NORMA PARA LA SEGURIDAD ELÉCTRICA EN LUGARES DE TRABAJO (NFPA 70E)",
-         "Norma sobre las prácticas de trabajo relacionadas con la seguridad eléctrica, "
-         "requerimientos de mantenimiento relacionados con la seguridad y otros controles "
-         "administrativos en los lugares de trabajo a fin de prevenir riesgos de la energía "
-         "eléctrica."),
-        ("03.2.2. PRACTICAS RECOMENDADAS DE MANTENIMIENTO ELÉCTRICO (NFPA 70B)",
-         "Tienen como propósito reducir peligros a la vida y propiedad que resulten de la falla "
-         "o malfuncionamiento del sistema y equipo eléctrico."),
-        ("03.2.3. ANSI/NETA 2021: Standard for Acceptance Testing Specifications",
-         "El propósito de estas especificaciones es asegurar que todo equipo eléctrico probado "
-         "este operativo dentro de las tolerancias de la industria y del fabricante e instaladas "
-         "de acuerdo con las especificaciones de diseño."),
-        ("03.2.4. IEEE Std 81 - 2012: Guide for Measuring Earth Resistivity...",
-         "Mediante esta guía se pretende obtener e interpretar datos precisos y confiables para "
-         "las mediciones de campo relacionados a los sistemas de puesta a tierra."),
-    ]
-    for heading, body in norms_inter:
-        _para_heading(doc, heading, 11)
-        _para_body(doc, body)
+    for norm in norms.get("internacional", []):
+        _para_heading(doc, norm["titulo"], 11)
+        for para in norm["cuerpo"]:
+            _para_body(doc, para)
 
 
-def _sec_objetivos(doc: Document) -> None:
-    for b in [
-        "Descartar valores elevados (fueras de rango).",
-        "Disminuir el riesgo de descargas eléctricas hacia el personal.",
-        "Verificar la calidad de la tierra y el estado de los conectores CU.",
-        "Verificar el Ohmiaje obtenido responda a la normativa del código nacional de "
-        "electricidad de acuerdo a la función del local (MAX 15 OHM).",
-        "Cumplir con los estándares de seguridad y salud en el trabajo a fin de garantizar "
-        "la ejecución responsable de las actividades.",
-        "Mantener un área despejada finalizando el mantenimiento.",
-    ]:
+def _sec_objetivos(doc: Document, cfg: dict) -> None:
+    for b in cfg.get("objetivos", []):
         doc.add_paragraph(b, style="List Bullet")
 
 
-def _sec_epp_intro(doc: Document) -> None:
-    _para_body(doc,
-        "Cada trabajador cuenta con el EPP correspondiente a la tarea encargada de acuerdo "
-        "al cuadro de puestos y funciones. Así mismo, se hace entrega de los EPPs indicados "
-        "en la plataforma SST, los cuales son los indicados según el tipo de trabajo a realizar."
-    )
+def _sec_epp_intro(doc: Document, cfg: dict) -> None:
+    _para_body(doc, cfg.get("epp_intro", ""))
 
 
-def _sec_loto(doc: Document) -> None:
-    _para_body(doc,
-        "ESTE PASO DEBE REALIZARSE DE CARÁCTER OBLIGATORIO PARA CUALQUIER TRABAJO QUE IMPLIQUE "
-        "RIESGO ELECTRICO."
-    )
-    for b in [
-        "Aislar los circuitos a trabajar.",
-        "Aplicación del dispositivo de bloqueo de fuentes de energía.",
-        "Eliminar la energía almacenada a través de la línea tierra.",
-    ]:
+def _sec_loto(doc: Document, cfg: dict) -> None:
+    _para_body(doc, cfg.get("loto_intro", ""))
+    for b in cfg.get("loto_bullets", []):
         doc.add_paragraph(b, style="List Bullet")
 
 
-def _sec_personal_intro(doc: Document) -> None:
-    _para_body(doc,
-        "Se detalla el personal empleado para la ejecución del servicio, cargo y funciones "
-        "acorde a las tareas que desarrollará."
-    )
+def _sec_personal_intro(doc: Document, cfg: dict) -> None:
+    for para in cfg.get("personal_intro", []):
+        _para_body(doc, para)
 
 
-def _sec_preparativos(doc: Document) -> None:
-    for b in [
-        "Verificar los permisos y autorizaciones.",
-        "Elaboración de ATS.",
-        "Verificar la zona de trabajo.",
-        "Delimitar la zona de trabajo. Previa coordinación.",
-        "Realizar un check list de la zona de trabajo.",
-        "Revisar y elaborar el check list respectivo de las herramientas y equipos a utilizar en la tarea.",
-    ]:
+def _sec_preparativos(doc: Document, cfg: dict) -> None:
+    for b in cfg.get("preparativos", []):
         doc.add_paragraph(b, style="List Bullet")
 
 
-def _sec_ejecucion(doc: Document) -> None:
-    for b in [
-        "Identificación del área del trabajo.",
-        "Delimitar y señalizar lugar de trabajo.",
-        "Realizar la limpieza de los mismos verificando que la caja de registro se encuentre en óptimas condiciones.",
-        "Revisión de cables y verificación de estado de conductores.",
-        "Realizar las mediciones correspondientes para obtener el valor inicial con el que se encontraron los pozos.",
-        "De ser el caso, se procede a realizar el cambio del conector de Cu 3/4\".",
-        "Preparación de solución química THORGEL.",
-        "Aplicar dosis química de THORGEL, esperar que la tierra absorba la primera dosis y luego aplicar la segunda dosis.",
-        "Medir el valor final del pozo a tierra y anotarlo para plasmarlo en los protocolos correspondientes.",
-        "Limpieza y pintado de la tapa de registro dejando señalizado con el código de cada puesta a tierra.",
-        "Cambiar a una señalética fotoluminiscente del sistema de puesta a tierra.",
-        "Anotar las mediciones y observaciones para la realización posterior del Informe Técnico.",
-        "Orden y limpieza en la zona de trabajo.",
-    ]:
+def _sec_ejecucion(doc: Document, cfg: dict) -> None:
+    for b in cfg.get("ejecucion", []):
         doc.add_paragraph(b, style="List Bullet")
 
 
-def _sec_conclusiones(doc: Document) -> None:
-    for b in [
-        "Se ejecutó el mantenimiento preventivo según lo indicado en el presente informe.",
-        "Se efectúa la limpieza y lijado del electrodo y los cables para asegurar su buen desempeño.",
-        "Se reemplazó al conector para así lograr tener un mejor agarre entre el cable y la varilla "
-        "que se encuentra en el pozo a tierra.",
-        "Se optimizó la conexión entre la varilla y los cables para asegurar su buen desempeño.",
-        "Se evaluó el estado de las instalaciones y condicionantes de trabajo previamente a cualquier "
-        "intervención realizado por E-SYSTEM TIC determinando que permita dichas actividades.",
-    ]:
+def _sec_conclusiones(doc: Document, cfg: dict) -> None:
+    for b in cfg.get("conclusiones", []):
         doc.add_paragraph(b, style="List Bullet")
 
 
-def _sec_observaciones(doc: Document) -> None:
-    _para_body(doc,
-        "No se encontraron observaciones operativas que impidan el funcionamiento habitual del sistema."
-    )
+def _sec_observaciones(doc: Document, cfg: dict) -> None:
+    _para_body(doc, cfg.get("observaciones", ""))
 
 
-def _sec_recomendaciones(doc: Document) -> None:
-    _para_body(doc,
-        "Se recomienda realizar el mantenimiento preventivo de manera anual para asegurar "
-        "la operatividad y conductividad ideal del sistema de puesta a tierra."
-    )
+def _sec_recomendaciones(doc: Document, cfg: dict) -> None:
+    _para_body(doc, cfg.get("recomendaciones", ""))
+
+
+def _sec_anexos(doc: Document, cfg: dict) -> None:
+    for item in cfg.get("anexos", []):
+        _para_body(doc, item)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -864,6 +754,7 @@ def _evidence_grid(doc: Document, evidencias_por_equipo: list[dict]) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generar_word_pozos(
+    cfg: dict,
     oc: str,
     ubicacion: str,
     equipos: list[dict],
@@ -874,17 +765,8 @@ def generar_word_pozos(
     evidencias_por_equipo: list[dict],
 ) -> bytes:
     """
-    Genera el Word del Informe General de Pozos a Tierra y devuelve los bytes.
-
-    Args:
-        oc: Número de Orden de Compra.
-        ubicacion: Texto de ubicación / provincia.
-        equipos: Lista de dicts con nombre del equipo intervenido.
-        epps: Lista de nombres de EPP.
-        herramientas: Lista de dicts {serie, nombre, marca}.
-        materiales: Lista de dicts {nombre, unidad, caracteristicas}.
-        personal: Lista de dicts {nombre, rol}.
-        evidencias_por_equipo: Lista de dicts {nombre, fotos:[{url, obs}]}.
+    Genera el Word del Informe General y devuelve los bytes.
+    cfg: diccionario de contenido del equipo (de report_templates.CONFIGS).
     """
     doc = Document()
 
@@ -910,47 +792,47 @@ def generar_word_pozos(
     _build_header(doc, oc, ubicacion)
 
     # ── 2. Portada ─────────────────────────────────────────────────────────────
-    _build_portada(doc, oc, ubicacion, fecha_str)
+    _build_portada(doc, cfg, oc, ubicacion, fecha_str)
 
     # ── 3. Índice ──────────────────────────────────────────────────────────────
-    _build_indice(doc)
+    _build_indice(doc, cfg)
 
     # ── 4-12. Secciones de contenido ──────────────────────────────────────────
 
     # 01. GENERALIDADES
     _para_heading(doc, "01. GENERALIDADES", 14, bookmark="sec_01")
-    _sec_generalidades(doc, ubicacion)
+    _sec_generalidades(doc, cfg, ubicacion)
     doc.add_paragraph()
 
     # 02. ALCANCE
     _para_heading(doc, "02. ALCANCE", 14, bookmark="sec_02")
-    _sec_alcance(doc, ubicacion)
+    _sec_alcance(doc, cfg, ubicacion)
     doc.add_paragraph()
 
     # 03. MARCO NORMATIVO
     _para_heading(doc, "03. MARCO NORMATIVO", 14, bookmark="sec_03")
-    _sec_marco_normativo(doc)
+    _sec_marco_normativo(doc, cfg)
     doc.add_paragraph()
 
     # 04. OBJETIVOS
     _para_heading(doc, "04. OBJETIVOS", 14, bookmark="sec_04")
-    _sec_objetivos(doc)
+    _sec_objetivos(doc, cfg)
     doc.add_paragraph()
 
     # 05. PROCEDIMIENTO SST
     _para_heading(doc, "05. PROCEDIMIENTO SST IMPLÍCITOS", 14, bookmark="sec_05")
     _para_heading(doc, "05.1. USO DEL EPP DE ACUERDO AL TIPO DE TRABAJO", 12)
-    _sec_epp_intro(doc)
+    _sec_epp_intro(doc, cfg)
     _table_epp(doc, epps)
     doc.add_paragraph()
 
     _para_heading(doc, "05.2. PROCEDIMIENTO DE BLOQUEO Y ETIQUETADO LOTO", 12)
-    _sec_loto(doc)
+    _sec_loto(doc, cfg)
     doc.add_paragraph()
 
     # 06. PERSONAL COMPROMETIDO
     _para_heading(doc, "06. PERSONAL COMPROMETIDO", 14, bookmark="sec_06")
-    _sec_personal_intro(doc)
+    _sec_personal_intro(doc, cfg)
     _table_personal(doc, personal)
     doc.add_paragraph()
 
@@ -964,11 +846,11 @@ def generar_word_pozos(
     # 08. PROCEDIMIENTOS DE EJECUCIÓN
     _para_heading(doc, "08. PROCEDIMIENTOS DE EJECUCIÓN", 14, bookmark="sec_08")
     _para_heading(doc, "08.1. PREPARATIVOS PREVIOS A LA EJECUCIÓN", 12)
-    _sec_preparativos(doc)
+    _sec_preparativos(doc, cfg)
     doc.add_paragraph()
 
     _para_heading(doc, "08.2. EJECUCIÓN DE TRABAJO", 12)
-    _sec_ejecucion(doc)
+    _sec_ejecucion(doc, cfg)
     doc.add_paragraph()
 
     # 09. EVIDENCIA FOTOGRÁFICA
@@ -977,17 +859,23 @@ def generar_word_pozos(
 
     # 10. CONCLUSIONES
     _para_heading(doc, "10. CONCLUSIONES", 14, bookmark="sec_10")
-    _sec_conclusiones(doc)
+    _sec_conclusiones(doc, cfg)
     doc.add_paragraph()
 
     # 11. OBSERVACIONES
     _para_heading(doc, "11. OBSERVACIONES", 14, bookmark="sec_11")
-    _sec_observaciones(doc)
+    _sec_observaciones(doc, cfg)
     doc.add_paragraph()
 
     # 12. RECOMENDACIONES
     _para_heading(doc, "12. RECOMENDACIONES", 14, bookmark="sec_12")
-    _sec_recomendaciones(doc)
+    _sec_recomendaciones(doc, cfg)
+
+    # 13. ANEXOS (solo si el tipo lo requiere)
+    if cfg.get("tiene_anexos"):
+        doc.add_paragraph()
+        _para_heading(doc, "13. ANEXOS", 14, bookmark="sec_13")
+        _sec_anexos(doc, cfg)
 
     buf = io.BytesIO()
     doc.save(buf)
