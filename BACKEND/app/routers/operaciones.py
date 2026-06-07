@@ -3733,6 +3733,25 @@ def get_inspeccion_activa(
 
     plantilla = _get_plantilla_jsonb(tipo)
 
+    # ── Si el equipo ya está completado, devolver la última inspección sin
+    #    crear una nueva sesión (evita resetear estado_intervencion a "en_proceso")
+    if ei.estado_intervencion == "completado":
+        hi = (
+            db.query(HistorialInspeccion)
+            .filter(HistorialInspeccion.equipo_intervenido_id == ei_id)
+            .order_by(HistorialInspeccion.created_at.desc())
+            .first()
+        )
+        resultado = sorted(hi.resultado or [], key=lambda x: x["orden"]) if hi else []
+        return {
+            "inspeccion_id": str(hi.id) if hi else "",
+            "estado":        "completado",
+            "resultado":     resultado,
+            "observaciones": hi.observaciones or None if hi else None,
+            "proxima_fecha": hi.proxima_fecha_mantenimiento.isoformat() if hi and hi.proxima_fecha_mantenimiento else None,
+            "equipo":        _equipo_info_dict(db, ei, tipo),
+        }
+
     # Buscar sesión activa (en_proceso)
     hi = (
         db.query(HistorialInspeccion)
@@ -3986,13 +4005,16 @@ def finalizar_inspeccion(
     hi.proxima_fecha_mantenimiento  = proxima_fecha
     hi.fecha_fin                    = datetime.utcnow()
 
-    # Actualizar estado del activo
+    # Actualizar estado y plan de mantenimiento del activo
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id == hi.equipo_intervenido_id
     ).first()
     if ei:
-        ei.estado_intervencion = "completado"
-        ei.updated_at          = datetime.utcnow()
+        ei.estado_intervencion  = "completado"
+        ei.ultimo_mantenimiento = _date.today()
+        if proxima_fecha:
+            ei.proximo_mantenimiento = proxima_fecha
+        ei.updated_at = datetime.utcnow()
 
     db.commit()
 
