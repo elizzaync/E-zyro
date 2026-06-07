@@ -4405,6 +4405,34 @@ def generar_carta_garantia(
     firma_verificador_b64 = _strip_prefix(firma_verificador_b64)
     firma_gerente_b64     = _strip_prefix(firma_gerente_b64)
 
+    # ── Subir firmas a Cloudinary y obtener URLs seguras ──────────────────────
+    from ..services.cloudinary_service import subir_imagen_cloudinary
+    import uuid as _uuid_mod
+
+    firma_verificador_url: str | None = None
+    firma_gerente_url:     str | None = None
+    _uid = str(_uuid_mod.uuid4())[:8]
+
+    if firma_verificador_b64:
+        try:
+            firma_verificador_url = subir_imagen_cloudinary(
+                base64_data=firma_verificador_b64,
+                folder="e-zyro/firmas/garantia",
+                public_id=f"firma_verificador_{servicio_id}_{_uid}",
+            )
+        except Exception as exc_cl:
+            logger.warning("[carta-garantia] No se pudo subir firma verificador a Cloudinary: %s", exc_cl)
+
+    if firma_gerente_b64:
+        try:
+            firma_gerente_url = subir_imagen_cloudinary(
+                base64_data=firma_gerente_b64,
+                folder="e-zyro/firmas/garantia",
+                public_id=f"firma_gerente_{servicio_id}_{_uid}",
+            )
+        except Exception as exc_cl:
+            logger.warning("[carta-garantia] No se pudo subir firma gerente a Cloudinary: %s", exc_cl)
+
     # ── Persistir registro en carta_garantia ANTES de generar ─────────────────
     try:
         from datetime import date as _date
@@ -4414,14 +4442,16 @@ def generar_carta_garantia(
 
         equipo_ids_list = [e.get("id") for e in equipos if e.get("id")]
         registro = CartaGarantia(
-            empresa_id         = empresa_id,
-            servicio_id        = servicio_id,
-            equipo_ids         = equipo_ids_list,
-            razon_social       = razon_social,
-            lugar              = lugar or None,
-            direccion          = direccion or None,
-            fecha_operatividad = _parse_date(fecha_operatividad),
-            vigencia_garantia  = _parse_date(vigencia_garantia),
+            empresa_id            = empresa_id,
+            servicio_id           = servicio_id,
+            equipo_ids            = equipo_ids_list,
+            razon_social          = razon_social,
+            lugar                 = lugar or None,
+            direccion             = direccion or None,
+            fecha_operatividad    = _parse_date(fecha_operatividad),
+            vigencia_garantia     = _parse_date(vigencia_garantia),
+            firma_verificador_url = firma_verificador_url,
+            firma_gerente_url     = firma_gerente_url,
         )
         db.add(registro)
         db.commit()
