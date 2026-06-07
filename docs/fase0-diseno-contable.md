@@ -59,8 +59,8 @@
 Cada tipo de transacción de negocio define un mapeo fijo a cuentas contables. Ejemplos iniciales a definir con el equipo de negocio:
 
 ### Régimen tributario
-- Estado: **pendiente de definir** (afecta tasa de IGV, posibilidad de usar crédito fiscal, y tasa de Renta).
-- Hasta confirmarlo, se asume Régimen General (IGV 18% con crédito fiscal) como valor por defecto configurable, NO como dato fijo en el motor.
+- Definición: **Régimen General** (IGV 18% con crédito fiscal completo, Renta tasa general) como valor por defecto del sistema.
+- Implementación: este valor se almacena como **parámetro configurable por empresa** (`empresa.regimen_tributario`), modificable desde el aplicativo — no como constante embebida en el motor de asientos. Esto permite que cada empresa cambie de régimen sin requerir cambios de código.
 
 ### Tabla de mapeo transacción → cuentas contables
 
@@ -112,4 +112,8 @@ Este documento constituye el diseño base de Fase 0:
 - ✅ Estrategia de moneda definida (única funcional)
 - ✅ Invariante del motor de asientos definido (débito = crédito, forzado transaccionalmente)
 - ✅ Tabla de mapeo transacción → cuentas contables completada (ventas, compras, cobros/pagos, planilla, activos fijos/depreciación, inventario/costo de ventas).
-- ⏳ Pendiente: confirmar régimen tributario y validar con un contador las cuentas específicas marcadas (IGV, gastos por naturaleza/función, método de costeo de inventario) antes de fijar la configuración definitiva del motor de asientos.
+- ✅ Régimen tributario definido: Régimen General por defecto, configurable por empresa desde el aplicativo (`empresa.regimen_tributario`).
+
+**Nota de alcance**: las cuentas específicas marcadas con ⚠️ en la tabla de mapeo (IGV, gastos por naturaleza/función, método de costeo de inventario) quedan documentadas como configuración inicial editable. Su validación formal con un contador queda fuera del alcance actual del proyecto (según decisión del responsable del proyecto), y el sistema está diseñado para que esos ajustes se hagan vía configuración, sin requerir cambios de código.
+
+**Documento listo para envío — sin pendientes abiertos.**
