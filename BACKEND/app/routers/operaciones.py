@@ -4212,6 +4212,11 @@ def precarga_informe_general(
             "rol_sugerido": r.rol_proyecto or "Técnico",
         })
 
+    cliente_nombre = None
+    if proyecto and proyecto.cliente_id:
+        cli = db.query(Cliente).filter(Cliente.id == proyecto.cliente_id).first()
+        cliente_nombre = cli.razon_social if cli else None
+
     return {
         "servicio": {
             "id":              str(ps.id),
@@ -4220,6 +4225,7 @@ def precarga_informe_general(
             "proyecto_nombre": (proyecto.nombre_proyecto if proyecto else None),
             "tipo_documento":  ps.tipo_documento_cliente or "",
             "nro_documento":   ps.nro_documento or "",
+            "cliente_nombre":  cliente_nombre,
         },
         "materiales_solicitados":  materiales,
         "herramientas_solicitadas": herramientas,
@@ -4330,6 +4336,70 @@ def generar_informe_general(
     oc_safe = re.sub(r"[^A-Za-z0-9_\-]", "_", oc) if oc else "SIN_OC"
     tipo_label = cfg.get("tipo_label", tipo_base.upper() if tipo_base else "POZOS")
     filename = f"INFORME_MTTO_{tipo_label}_OC_{oc_safe}.docx"
+
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── POST /servicio/{id}/carta-garantia/generar ────────────────────────────────
+
+@router.post("/servicio/{servicio_id}/carta-garantia/generar")
+def generar_carta_garantia(
+    servicio_id: str,
+    body:        dict,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Genera la Carta de Garantía de Tableros Eléctricos (.docx) y la devuelve como blob."""
+    from ..services.word_carta_garantia import generar_carta_garantia as _gen_carta
+
+    empresa_id = payload["empresa_id"]
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    body = body or {}
+    equipos               = body.get("equipos", []) or []
+    razon_social          = str(body.get("razonSocial", "") or "")
+    fecha_operatividad    = str(body.get("fechaOperatividad", "") or "")
+    vigencia_garantia     = str(body.get("vigenciaGarantia", "") or "")
+    lugar                 = str(body.get("lugar", "") or "")
+    direccion             = str(body.get("direccion", "") or "")
+    firma_verificador_b64 = str(body.get("firmaVerificadorBase64", "") or "")
+    firma_gerente_b64     = str(body.get("firmaGerenteBase64", "") or "")
+
+    # Strip data-URI prefix if the client sent it (data:image/png;base64,...)
+    def _strip_prefix(s: str) -> str:
+        if "," in s:
+            return s.split(",", 1)[1]
+        return s
+
+    firma_verificador_b64 = _strip_prefix(firma_verificador_b64)
+    firma_gerente_b64     = _strip_prefix(firma_gerente_b64)
+
+    try:
+        docx_bytes = _gen_carta(
+            equipos=equipos,
+            razon_social=razon_social,
+            fecha_operatividad=fecha_operatividad,
+            vigencia_garantia=vigencia_garantia,
+            lugar=lugar,
+            direccion=direccion,
+            firma_verificador_b64=firma_verificador_b64,
+            firma_gerente_b64=firma_gerente_b64,
+        )
+    except Exception as exc:
+        logger.exception("[carta-garantia] Error generando Word: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando la carta de garantía: {exc}")
+
+    lugar_safe = re.sub(r"[^A-Za-z0-9_\-]", "_", lugar.upper()) if lugar else "LUGAR"
+    filename   = f"CARTA_GARANTIA_{lugar_safe}.docx"
 
     return StreamingResponse(
         io.BytesIO(docx_bytes),
