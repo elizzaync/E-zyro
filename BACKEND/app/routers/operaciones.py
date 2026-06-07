@@ -4328,7 +4328,8 @@ def generar_informe_general(
         raise HTTPException(status_code=500, detail=f"Error generando el informe: {exc}")
 
     oc_safe = re.sub(r"[^A-Za-z0-9_\-]", "_", oc) if oc else "SIN_OC"
-    filename = f"INFORME_MTTO_POZOS_OC_{oc_safe}.docx"
+    tipo_label = cfg.get("tipo_label", tipo_base.upper() if tipo_base else "POZOS")
+    filename = f"INFORME_MTTO_{tipo_label}_OC_{oc_safe}.docx"
 
     return StreamingResponse(
         io.BytesIO(docx_bytes),

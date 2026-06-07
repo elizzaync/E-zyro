@@ -260,6 +260,7 @@ CONFIGS: dict[str, dict] = {
     # ── POZOS A TIERRA ──────────────────────────────────────────────────────
     "pozos": {
         "titulo_documento": "MANTENIMIENTO PREVENTIVO POZO A TIERRA",
+        "tipo_label": "POZOS",
         "generalidades": [
             "Los sistemas de puesta a tierra son una parte importante de un sistema eléctrico, "
             "la importancia de este trabajo es ayudar a proporcionar una mayor seguridad a los "
@@ -403,6 +404,7 @@ CONFIGS: dict[str, dict] = {
     # ── LUMINARIAS ──────────────────────────────────────────────────────────
     "luminarias": {
         "titulo_documento": "MANTENIMIENTO PREVENTIVO LUMINARIAS",
+        "tipo_label": "LUMINARIAS",
         "generalidades": [
             "El mantenimiento de luminarias es el conjunto de actividades técnicas planificadas "
             "y sistemáticas destinadas a garantizar el correcto funcionamiento, eficiencia "
@@ -477,6 +479,7 @@ CONFIGS: dict[str, dict] = {
     # ── PARARRAYOS ──────────────────────────────────────────────────────────
     "pararrayos": {
         "titulo_documento": "MANTENIMIENTO PREVENTIVO PARARRAYOS",
+        "tipo_label": "PARARRAYOS",
         "generalidades": [
             "El mantenimiento de pararrayos es el conjunto de actividades técnicas orientadas a "
             "verificar, conservar y garantizar el correcto funcionamiento del sistema de protección "
@@ -557,6 +560,7 @@ CONFIGS: dict[str, dict] = {
     # ── TABLEROS ELÉCTRICOS ─────────────────────────────────────────────────
     "tableros": {
         "titulo_documento": "MANTENIMIENTO PREVENTIVO TABLEROS ELÉCTRICOS",
+        "tipo_label": "TABLEROS",
         "generalidades": [
             "El mantenimiento de tableros eléctricos es el conjunto de actividades técnicas "
             "planificadas y sistemáticas destinadas a garantizar el correcto funcionamiento, "
@@ -638,6 +642,7 @@ CONFIGS: dict[str, dict] = {
     # ── UPS ─────────────────────────────────────────────────────────────────
     "ups": {
         "titulo_documento": "MANTENIMIENTO PREVENTIVO UPS",
+        "tipo_label": "UPS",
         "generalidades": [
             "Una UPS (Uninterruptible Power Supply) es un sistema de alimentación ininterrumpida "
             "que garantiza energía eléctrica continua y de calidad a cargas críticas (centros de "
@@ -723,6 +728,7 @@ CONFIGS: dict[str, dict] = {
     # ── TRANSFORMADOR DE AISLAMIENTO ────────────────────────────────────────
     "transformador": {
         "titulo_documento": "MANTENIMIENTO PREVENTIVO TRANSFORMADOR DE AISLAMIENTO",
+        "tipo_label": "TRANSFORMADOR",
         "generalidades": [
             "Por su parte, un Transformador de Aislamiento es un equipo indispensable para aislar "
             "galvánicamente la carga de la red eléctrica, atenuando ruidos de línea, eliminando "
@@ -802,6 +808,7 @@ CONFIGS: dict[str, dict] = {
     # ── UPS + TRANSFORMADOR DE AISLAMIENTO (combinado) ──────────────────────
     "ups_trans": {
         "titulo_documento": "MANTENIMIENTO PREVENTIVO UPS Y TRANS. DE AISLAMIENTO",
+        "tipo_label": "UPS_TRANSFORMADOR",
         "generalidades": [
             "Una UPS (Uninterruptible Power Supply) es un sistema de alimentación ininterrumpida "
             "que garantiza energía eléctrica continua y de calidad a cargas críticas (centros de "
