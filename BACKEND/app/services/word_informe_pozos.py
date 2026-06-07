@@ -14,7 +14,7 @@ import requests
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml import OxmlElement
+from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor, Cm
 from PIL import Image as PILImage
@@ -41,6 +41,56 @@ _LOGO_W = Cm(2.5)   # headerLogo.png 445×274 → compact, non-invasive
 
 # Body table full width (cm)
 _BW = 17.6
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Floating image helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+_WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
+_A_NS  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+_W_NS  = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+
+
+def _add_floating_picture(paragraph, image_path, width, pos_x, pos_y) -> None:
+    """Inserta imagen flotante (detrás del texto) anclada en coordenadas absolutas de página.
+    pos_x / pos_y se expresan en EMUs (usar Cm() de python-docx)."""
+    run = paragraph.add_run()
+    run.add_picture(image_path, width=width)
+
+    drawing = run._r.find(f'.//{{{_W_NS}}}drawing')
+    inline  = drawing.find(f'{{{_WP_NS}}}inline')
+
+    extent  = inline.find(f'{{{_WP_NS}}}extent')
+    eff_ext = inline.find(f'{{{_WP_NS}}}effectExtent')
+    doc_pr  = inline.find(f'{{{_WP_NS}}}docPr')
+    cnv_pr  = inline.find(f'{{{_WP_NS}}}cNvGraphicFramePr')
+    graphic = inline.find(f'{{{_A_NS}}}graphic')
+
+    anchor_xml = (
+        f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"'
+        f' relativeHeight="251658240" behindDoc="1" locked="0"'
+        f' layoutInCell="1" allowOverlap="1"'
+        f' xmlns:wp="{_WP_NS}">'
+        f'<wp:simplePos x="0" y="0"/>'
+        f'<wp:positionH relativeFrom="page"><wp:posOffset>{int(pos_x)}</wp:posOffset></wp:positionH>'
+        f'<wp:positionV relativeFrom="page"><wp:posOffset>{int(pos_y)}</wp:posOffset></wp:positionV>'
+        f'<wp:wrapNone/>'
+        f'</wp:anchor>'
+    )
+    anchor = parse_xml(anchor_xml)
+
+    # Insertar extent y effectExtent ANTES de wrapNone (orden correcto según OOXML)
+    wrap_pos = list(anchor).index(anchor.find(f'{{{_WP_NS}}}wrapNone'))
+    for elem in [e for e in (extent, eff_ext) if e is not None]:
+        anchor.insert(wrap_pos, elem)
+        wrap_pos += 1
+
+    # Agregar docPr, cNvGraphicFramePr y graphic DESPUÉS de wrapNone
+    for elem in [e for e in (doc_pr, cnv_pr, graphic) if e is not None]:
+        anchor.append(elem)
+
+    drawing.replace(inline, anchor)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -295,28 +345,20 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
             align = WD_TAB_ALIGNMENT.RIGHT if (right_last and is_last) else WD_TAB_ALIGNMENT.LEFT
             fmt.tab_stops.add_tab_stop(Cm(cm), align)
 
-    # ── Para 1: logo (izq, 2.5cm) │ tab RIGHT │ banner tocando el borde absoluto ──
-    # Sangría derecha negativa (-1.7cm) cancela el margen derecho del documento,
-    # permitiendo que headerDesign.png llegue exactamente al borde físico de la hoja.
-    # Tab stop en Cm(19.3) = A4 21cm - margen izq 1.7cm → borde derecho absoluto.
+    # ── Para 1: imágenes flotantes ancladas en coordenadas absolutas de página ──
+    # Logo: X=1.27cm, Y=0.5cm. Banner: X=10cm, Y=0cm (toca el borde superior).
+    # behindDoc=1 → LibreOffice respeta el posicionamiento independientemente de márgenes.
     p1 = header.paragraphs[0]
-    p1_fmt = p1.paragraph_format
-    p1_fmt.space_before  = Pt(0)
-    p1_fmt.space_after   = Pt(0)
-    p1_fmt.right_indent  = Cm(-1.7)
-    p1_fmt.left_indent   = Cm(0)
-    p1_fmt.tab_stops.clear_all()
-    p1_fmt.tab_stops.add_tab_stop(Cm(19.3), WD_TAB_ALIGNMENT.RIGHT)
+    p1.paragraph_format.space_before = Pt(0)
+    p1.paragraph_format.space_after  = Pt(0)
 
     if not os.path.exists(_LOGO_HEADER):
         raise FileNotFoundError(f"CRÍTICO: No se encuentra el logo en la ruta resuelta: {_LOGO_HEADER}")
     if not os.path.exists(_DESIGN_HEADER):
         raise FileNotFoundError(f"CRÍTICO: No se encuentra el banner en la ruta resuelta: {_DESIGN_HEADER}")
 
-    run_p1 = p1.add_run()
-    run_p1.add_picture(_LOGO_HEADER, width=Cm(2.5))
-    run_p1.add_text("\t")
-    run_p1.add_picture(_DESIGN_HEADER, width=Cm(11))
+    _add_floating_picture(p1, _LOGO_HEADER,   width=Cm(3),  pos_x=Cm(1.27), pos_y=Cm(0.5))
+    _add_floating_picture(p1, _DESIGN_HEADER, width=Cm(11), pos_x=Cm(10),   pos_y=Cm(0))
 
     # ── Para 2: UBICACIÓN │ tab │ Elaborado por: │ tab │ Oficina ─────────────
     p2 = header.add_paragraph()
