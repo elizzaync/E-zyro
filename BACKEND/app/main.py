@@ -107,6 +107,8 @@ from app.models import (  # noqa: F401
     historial_inspeccion,
     # Tickets de soporte interno (equipo de TI)
     ticket_soporte, ticket_actividad,
+    # Documentos generados: Carta de Garantía
+    carta_garantia,
 )
 
 

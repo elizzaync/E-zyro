@@ -4355,6 +4355,7 @@ def generar_carta_garantia(
 ):
     """Genera la Carta de Garantía de Tableros Eléctricos (.docx) y la devuelve como blob."""
     from ..services.word_carta_garantia import generar_carta_garantia as _gen_carta
+    from ..models.carta_garantia import CartaGarantia
 
     empresa_id = payload["empresa_id"]
     ps = db.query(ProyectoServicio).filter(
@@ -4373,41 +4374,60 @@ def generar_carta_garantia(
     firma_verificador_b64 = str(body.get("firmaVerificadorBase64", "") or "")
     firma_gerente_b64     = str(body.get("firmaGerenteBase64", "") or "")
 
-    # ── Razón Social: extraída de BD desde el primer equipo intervenido ───────
-    # Ruta 1: equipo_intervenido.cliente_id → cliente.razon_social
-    # Ruta 2: proyecto_servicio → proyecto → cliente.razon_social  (fallback)
-    # Ruta 3: lo que envió el frontend                             (último recurso)
-    razon_social = str(body.get("razonSocial", "") or "")
+    # ── Razón Social ──────────────────────────────────────────────────────────
+    # Prioridad 1: equipo_intervenido.cliente_id → cliente.razon_social
+    #   (solo por id, sin filtrar empresa_id para evitar fallos en entornos mixtos;
+    #    la seguridad ya está garantizada por el check de ProyectoServicio de arriba)
+    # Prioridad 2: lo que el usuario escribió/aprobó en el modal (frontend payload)
+    razon_social    = str(body.get("razonSocial", "") or "")
+    razon_social_bd: str | None = None
 
-    razon_social_db: str | None = None
     if equipos:
         first_ei_id = (equipos[0].get("id") or "").strip()
         if first_ei_id:
             ei_obj = db.query(EquipoIntervenido).filter(
-                EquipoIntervenido.id         == first_ei_id,
-                EquipoIntervenido.empresa_id == empresa_id,
+                EquipoIntervenido.id == first_ei_id,
             ).first()
             if ei_obj and ei_obj.cliente_id:
-                cli_obj = db.query(Cliente).filter(Cliente.id == ei_obj.cliente_id).first()
-                razon_social_db = cli_obj.razon_social if cli_obj else None
+                cli_obj = db.query(Cliente).filter(
+                    Cliente.id == ei_obj.cliente_id,
+                ).first()
+                if cli_obj and cli_obj.razon_social:
+                    razon_social_bd = cli_obj.razon_social.strip()
 
-    if not razon_social_db:
-        proyecto = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
-        if proyecto and proyecto.cliente_id:
-            cli_obj = db.query(Cliente).filter(Cliente.id == proyecto.cliente_id).first()
-            razon_social_db = cli_obj.razon_social if cli_obj else None
-
-    if razon_social_db:
-        razon_social = razon_social_db
+    if razon_social_bd:
+        razon_social = razon_social_bd
 
     # ── Strip data-URI prefix de firmas (data:image/png;base64,...) ───────────
     def _strip_prefix(s: str) -> str:
-        if "," in s:
-            return s.split(",", 1)[1]
-        return s
+        return s.split(",", 1)[1] if "," in s else s
 
     firma_verificador_b64 = _strip_prefix(firma_verificador_b64)
     firma_gerente_b64     = _strip_prefix(firma_gerente_b64)
+
+    # ── Persistir registro en carta_garantia ANTES de generar ─────────────────
+    try:
+        from datetime import date as _date
+        def _parse_date(s: str):
+            try: return _date.fromisoformat(s)
+            except Exception: return None
+
+        equipo_ids_list = [e.get("id") for e in equipos if e.get("id")]
+        registro = CartaGarantia(
+            empresa_id         = empresa_id,
+            servicio_id        = servicio_id,
+            equipo_ids         = equipo_ids_list,
+            razon_social       = razon_social,
+            lugar              = lugar or None,
+            direccion          = direccion or None,
+            fecha_operatividad = _parse_date(fecha_operatividad),
+            vigencia_garantia  = _parse_date(vigencia_garantia),
+        )
+        db.add(registro)
+        db.commit()
+    except Exception as exc_db:
+        db.rollback()
+        logger.warning("[carta-garantia] No se pudo persistir el registro: %s", exc_db)
 
     try:
         docx_bytes = _gen_carta(

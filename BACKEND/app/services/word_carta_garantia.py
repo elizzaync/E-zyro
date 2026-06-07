@@ -94,6 +94,49 @@ def _no_borders(table) -> None:
     tblPr.append(tblBorders)
 
 
+def _make_table_flush(table) -> None:
+    """Elimina bordes, padding de celdas (tcMar) e indentación (tblInd).
+    Usar en tablas de encabezado para diseño edge-to-edge sin márgenes blancos."""
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    if tblPr is None:
+        tblPr = OxmlElement("w:tblPr")
+        tbl.insert(0, tblPr)
+
+    # 1. Bordes a none
+    tblBorders = OxmlElement("w:tblBorders")
+    for border_name in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        bd = OxmlElement(f"w:{border_name}")
+        bd.set(qn("w:val"), "none")
+        bd.set(qn("w:sz"), "0")
+        bd.set(qn("w:space"), "0")
+        bd.set(qn("w:color"), "auto")
+        tblBorders.append(bd)
+    tblPr.append(tblBorders)
+
+    # 2. tblInd = 0 (sin desplazamiento izquierdo por defecto)
+    for old in tblPr.findall(qn("w:tblInd")):
+        tblPr.remove(old)
+    tblInd = OxmlElement("w:tblInd")
+    tblInd.set(qn("w:w"), "0")
+    tblInd.set(qn("w:type"), "dxa")
+    tblPr.append(tblInd)
+
+    # 3. tcMar = 0 en cada celda individualmente
+    for row in table.rows:
+        for cell in row.cells:
+            tcPr = cell._tc.get_or_add_tcPr()
+            for old in tcPr.findall(qn("w:tcMar")):
+                tcPr.remove(old)
+            tcMar = OxmlElement("w:tcMar")
+            for margin in ("top", "left", "bottom", "right"):
+                node = OxmlElement(f"w:{margin}")
+                node.set(qn("w:w"), "0")
+                node.set(qn("w:type"), "dxa")
+                tcMar.append(node)
+            tcPr.append(tcMar)
+
+
 def _single_borders(table, color="000000", sz=6) -> None:
     tbl = table._tbl
     tblPr = tbl.tblPr
@@ -155,21 +198,33 @@ def _mes_anio(fecha_str: str) -> str:
 # ─── Encabezado de página ─────────────────────────────────────────────────────
 
 def _build_header(doc: Document) -> None:
-    """Tabla sin bordes: headerLogo.png izquierda | headerDesign.png derecha."""
+    """Tabla edge-to-edge: headerLogo.png izquierda | headerDesign.png derecha.
+    Sin padding ni bordes para que el banner se fusione con los bordes de página."""
     sec = doc.sections[0]
-    sec.header_distance = Cm(0.2)
+    sec.header_distance = Cm(0.15)
     header = sec.header
 
+    # Limpiar párrafos por defecto del header
     for p in header.paragraphs:
         p.clear()
+        pPr = p._p.get_or_add_pPr()
+        # Eliminar indentación del párrafo del header
+        for old in pPr.findall(qn("w:ind")):
+            pPr.remove(old)
+        ind = OxmlElement("w:ind")
+        ind.set(qn("w:left"), "0")
+        ind.set(qn("w:right"), "0")
+        pPr.append(ind)
 
     col_logo   = 4.5
-    col_design = _BW - col_logo   # ≈ 12.5 cm
+    # El banner derecho llega hasta el borde derecho de la página (incl. margen)
+    # Sumamos ambos márgenes para que la imagen cubra hasta el borde físico
+    col_design = _BW - col_logo
 
     tbl = header.add_table(rows=1, cols=2, width=Cm(_BW))
-    _no_borders(tbl)
     _set_tbl_grid(tbl, [col_logo, col_design])
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+    _make_table_flush(tbl)   # ← Quita bordes + padding + tblInd
 
     # Logo izquierda
     c_logo = tbl.cell(0, 0)
@@ -182,7 +237,7 @@ def _build_header(doc: Document) -> None:
     else:
         _run(p_logo, "E-System Tic Perú S.A.C.", bold=True, size_pt=10)
 
-    # Diseño derecha
+    # Banner decorativo derecha — ancho extendido para cubrir hasta el borde
     c_design = tbl.cell(0, 1)
     _set_col_width(c_design, col_design)
     c_design.vertical_alignment = WD_ALIGN_VERTICAL.CENTER

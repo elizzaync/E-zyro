@@ -108,6 +108,49 @@ def _no_borders(table) -> None:
     tblPr.append(tblBorders)
 
 
+def _make_table_flush(table) -> None:
+    """Elimina bordes, padding de celdas (tcMar) e indentación (tblInd).
+    Usar en tablas de header/footer para diseño edge-to-edge sin márgenes blancos."""
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    if tblPr is None:
+        tblPr = OxmlElement("w:tblPr")
+        tbl.insert(0, tblPr)
+
+    # Bordes a none
+    tblBorders = OxmlElement("w:tblBorders")
+    for border_name in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        bd = OxmlElement(f"w:{border_name}")
+        bd.set(qn("w:val"), "none")
+        bd.set(qn("w:sz"), "0")
+        bd.set(qn("w:space"), "0")
+        bd.set(qn("w:color"), "auto")
+        tblBorders.append(bd)
+    tblPr.append(tblBorders)
+
+    # tblInd = 0 (sin desplazamiento izquierdo)
+    for old in tblPr.findall(qn("w:tblInd")):
+        tblPr.remove(old)
+    tblInd = OxmlElement("w:tblInd")
+    tblInd.set(qn("w:w"), "0")
+    tblInd.set(qn("w:type"), "dxa")
+    tblPr.append(tblInd)
+
+    # tcMar = 0 en cada celda individualmente
+    for row in table.rows:
+        for cell in row.cells:
+            tcPr = cell._tc.get_or_add_tcPr()
+            for old in tcPr.findall(qn("w:tcMar")):
+                tcPr.remove(old)
+            tcMar = OxmlElement("w:tcMar")
+            for margin in ("top", "left", "bottom", "right"):
+                node = OxmlElement(f"w:{margin}")
+                node.set(qn("w:w"), "0")
+                node.set(qn("w:type"), "dxa")
+                tcMar.append(node)
+            tcPr.append(tcMar)
+
+
 def _single_borders(table, color="000000", sz=6) -> None:
     tbl = table._tbl
     tblPr = tbl.tblPr
@@ -280,8 +323,8 @@ def _build_header(doc: Document, oc: str, provincia: str) -> None:
 
     # ── Create 4×3 table ────────────────────────────────────────────────────
     tbl = header.add_table(rows=4, cols=3, width=Cm(_H_COL0 + _H_COL1 + _H_COL2))
-    _no_borders(tbl)
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+    _make_table_flush(tbl)   # ← sin bordes, sin padding, sin tblInd
 
     _set_tbl_grid(tbl, [_H_COL0, _H_COL1, _H_COL2])
 
