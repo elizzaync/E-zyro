@@ -4541,33 +4541,45 @@ def generar_certificado_pozo(
             ),
         )
 
+    from datetime import date as _date_today
     body = body or {}
-    ubicacion   = str(body.get("ubicacion",  ei.ubicacion_referencia or "") or "")
-    nro_pozo    = str(body.get("nro_pozo",   "") or "")
-    fecha_hora  = str(body.get("fecha_hora", "") or "")
-    resultado   = str(body.get("resultado",  "") or "")
-    hora_inicio = str(body.get("hora_inicio","") or "")
-    hora_fin    = str(body.get("hora_fin",   "") or "")
-    tecnico     = str(body.get("tecnico",    "") or "")
-    foto1       = body.get("foto1") or None
-    foto2       = body.get("foto2") or None
-    foto3       = body.get("foto3") or None
 
-    logger.info("[cert-pozo] ubicacion=%r nro_pozo=%r tecnico=%r foto1_ok=%s foto2_ok=%s foto3_ok=%s",
-                ubicacion, nro_pozo, tecnico, bool(foto1), bool(foto2), bool(foto3))
+    ubicacion            = str(body.get("ubicacion",            ei.ubicacion_referencia or "") or "")
+    numero_pozo          = str(body.get("numero_pozo",          "") or "")
+    fecha_actualizacion  = str(body.get("fecha_actualizacion",  _date_today.today().strftime("%d/%m/%Y")) or "")
+    fecha_ejecucion      = str(body.get("fecha_ejecucion",      "") or "")
+    fecha_hora_medicion  = str(body.get("fecha_hora_medicion",  "") or "")
+    resultado_medicion   = str(body.get("resultado_medicion",   "") or "")
+    hora_inicio          = str(body.get("hora_inicio",          "") or "")
+    hora_termino         = str(body.get("hora_termino",         "") or "")
+    nombre_tecnico       = str(body.get("nombre_tecnico",       "") or "")
+    firma_tecnico        = body.get("firma_tecnico")  or None
+    fotos                = body.get("fotos_procedimientos") or []
+
+    logger.info(
+        "[cert-pozo] numero_pozo=%r tecnico=%r firma_ok=%s fotos=%d",
+        numero_pozo, nombre_tecnico, bool(firma_tecnico), len(fotos),
+    )
 
     try:
         pdf_bytes = generar_protocolo_pozo(
-            ubicacion=ubicacion, nro_pozo=nro_pozo,
-            fecha_hora=fecha_hora, resultado=resultado,
-            hora_inicio=hora_inicio, hora_fin=hora_fin,
-            tecnico=tecnico, foto1=foto1, foto2=foto2, foto3=foto3,
+            ubicacion=ubicacion,
+            numero_pozo=numero_pozo,
+            fecha_actualizacion=fecha_actualizacion,
+            fecha_ejecucion=fecha_ejecucion,
+            fecha_hora_medicion=fecha_hora_medicion,
+            resultado_medicion=resultado_medicion,
+            hora_inicio=hora_inicio,
+            hora_termino=hora_termino,
+            nombre_tecnico=nombre_tecnico,
+            firma_tecnico=firma_tecnico,
+            fotos_procedimientos=fotos,
         )
     except Exception as exc:
         logger.exception("[cert-pozo] Error generando PDF: %s", exc)
         raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
 
-    filename = f"PROTOCOLO_POZO_{re.sub(r'[^A-Za-z0-9]', '_', nro_pozo or 'XX')}.pdf"
+    filename = f"PROTOCOLO_POZO_{re.sub(r'[^A-Za-z0-9]', '_', numero_pozo or 'XX')}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",

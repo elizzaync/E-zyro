@@ -62,86 +62,104 @@ def _insert(page: fitz.Page, x: float, y: float, text: str, size: float = 7.5) -
 
 
 # ────────────────────────────────────────────────────────────────────
-# PROTOCOLO POZO A TIERRA
+# PROTOCOLO POZO A TIERRA  (plantilla limpia — sin contenido previo)
 # ────────────────────────────────────────────────────────────────────
-# Slots detectados (coordenadas en pt, origen = esquina sup-izq):
-#
-# Encabezado:
-#   Área/Ubicación value  : x=102, y≈115  (row y0=111)
-#
-# Tabla VALORES DE MEDICIÓN (fila de datos y≈315):
-#   UBICACIÓN             : x≈82,  baseline≈319
-#   N° DE POZO            : x≈198, baseline≈319
-#   FECHA Y HORA          : x≈263, baseline≈319
-#   RESULTADO             : x≈432, baseline≈319
-#
-# Verificación:
-#   Hora inicio           : x≈142, baseline≈509
-#   Hora fin              : x≈142, baseline≈523
-#
-# EVIDENCIA GRÁFICA (3 slots):
-#   rect1 : Rect(31,  349, 207, 468)
-#   rect2 : Rect(213, 349, 388, 468)
-#   rect3 : Rect(394, 349, 570, 468)
-#
-# Técnico ejecutor name:
-#   y≈605, x≈71
+# Coordenadas (pt, A4 = 595×842, origen = esquina sup-izq).
+# Ajustar con las constantes _PZ_* si la plantilla cambia de layout.
+
+_PZ_FONT      = "helv"   # Helvetica regular
+_PZ_FONT_B    = "hebo"   # Helvetica Bold
+_PZ_SZ        = 9        # tamaño base
+_PZ_COLOR     = (0, 0, 0)
+
+# Cabecera
+_PZ_UBICACION_X,       _PZ_UBICACION_Y       = 150, 155
+_PZ_FECHA_ACT_X,       _PZ_FECHA_ACT_Y       = 450, 140
+_PZ_FECHA_EJEC_X,      _PZ_FECHA_EJEC_Y      = 450, 168
+
+# Fila de medición (tabla central)
+_PZ_NRO_X,             _PZ_NRO_Y             = 130, 360
+_PZ_FECHA_MED_X,       _PZ_FECHA_MED_Y       = 280, 360
+_PZ_RESULTADO_X,       _PZ_RESULTADO_Y       = 450, 360
+
+# Horas de trabajo
+_PZ_H_INICIO_X,        _PZ_H_INICIO_Y        = 130, 620
+_PZ_H_TERMINO_X,       _PZ_H_TERMINO_Y       = 130, 635
+
+# Técnico ejecutor
+_PZ_TECNICO_X,         _PZ_TECNICO_Y         = 100, 750
+
+# Firma del técnico (rectángulo sobre el nombre)
+_PZ_FIRMA_RECT = fitz.Rect(90, 700, 200, 740)
+
+# Evidencia fotográfica — 3 imágenes en fila
+_PZ_IMG_Y0, _PZ_IMG_Y1 = 400, 520
+_PZ_IMG_RECTS = [
+    fitz.Rect( 50, _PZ_IMG_Y0, 200, _PZ_IMG_Y1),   # proc 1
+    fitz.Rect(220, _PZ_IMG_Y0, 370, _PZ_IMG_Y1),   # proc 4
+    fitz.Rect(390, _PZ_IMG_Y0, 540, _PZ_IMG_Y1),   # proc 7
+]
+
 
 def generar_protocolo_pozo(
-    ubicacion:    str,
-    nro_pozo:     str,
-    fecha_hora:   str,   # "2026-06-07  08:30:00"
-    resultado:    str,   # "3.45 Ω"
-    hora_inicio:  str,
-    hora_fin:     str,
-    tecnico:      str,
-    foto1:        str | None = None,
-    foto2:        str | None = None,
-    foto3:        str | None = None,
+    ubicacion:           str,
+    numero_pozo:         str,
+    fecha_actualizacion: str,       # hoy (auto)
+    fecha_ejecucion:     str,       # cuándo se realizó el trabajo
+    fecha_hora_medicion: str,       # "07/06/2026  08:30"
+    resultado_medicion:  str,       # "3.45 Ω"
+    hora_inicio:         str,
+    hora_termino:        str,
+    nombre_tecnico:      str,
+    firma_tecnico:       str | None = None,
+    fotos_procedimientos: list | None = None,
 ) -> bytes:
     """
-    Inyecta campos en Protocolo_Pozo_444.pdf y devuelve bytes del PDF final.
-    foto1/2/3: URL de Cloudinary o string base64 correspondientes a los
-               procedimientos 1, 4 y 7 de la inspección.
+    Inyecta campos en la plantilla limpia Protocolo_Pozo_444.pdf.
+    fotos_procedimientos: lista con 3 elementos (URL Cloudinary o base64)
+    correspondientes a los procedimientos 1, 4 y 7 de la inspección.
     """
-    doc = fitz.open(_POZO_TPL)
+    doc  = fitz.open(_POZO_TPL)
     page = doc[0]
 
-    # ── Área/Ubicación en el encabezado ──────────────────────────────
-    _white_rect(page, fitz.Rect(100, 105, 380, 118))
-    _insert(page, 102, 115, f": {ubicacion.upper()}")
+    fa = {"fontname": _PZ_FONT, "fontsize": _PZ_SZ, "color": _PZ_COLOR}
 
-    # ── Tabla VALORES DE MEDICIÓN: fila de datos ──────────────────────
-    _white_rect(page, fitz.Rect(78, 306, 575, 325))
-    _insert(page, 82,  319, ubicacion.upper())
-    _insert(page, 198, 319, nro_pozo)
-    _insert(page, 263, 319, fecha_hora)
-    _insert(page, 432, 319, resultado, size=9)  # resultado en 9pt igual que plantilla
+    # ── Cabecera ──────────────────────────────────────────────────────
+    page.insert_text(fitz.Point(_PZ_UBICACION_X,  _PZ_UBICACION_Y),  ubicacion.upper(),           **fa)
+    page.insert_text(fitz.Point(_PZ_FECHA_ACT_X,  _PZ_FECHA_ACT_Y),  fecha_actualizacion,         **fa)
+    page.insert_text(fitz.Point(_PZ_FECHA_EJEC_X, _PZ_FECHA_EJEC_Y), fecha_ejecucion,             **fa)
 
-    # ── Verificación: horas ──────────────────────────────────────────
-    _white_rect(page, fitz.Rect(138, 499, 250, 512))
-    _insert(page, 142, 509, hora_inicio)
-    _white_rect(page, fitz.Rect(138, 513, 250, 526))
-    _insert(page, 142, 523, hora_fin)
+    # ── Fila de medición ──────────────────────────────────────────────
+    page.insert_text(fitz.Point(_PZ_NRO_X,        _PZ_NRO_Y),        numero_pozo,                 **fa)
+    page.insert_text(fitz.Point(_PZ_FECHA_MED_X,  _PZ_FECHA_MED_Y),  fecha_hora_medicion,         **fa)
+    page.insert_text(fitz.Point(_PZ_RESULTADO_X,  _PZ_RESULTADO_Y),  resultado_medicion,
+                     fontname=_PZ_FONT_B, fontsize=_PZ_SZ + 1, color=_PZ_COLOR)
 
-    # ── Técnico ejecutor ─────────────────────────────────────────────
-    _white_rect(page, fitz.Rect(68, 598, 237, 610))
-    _insert(page, 71, 607, f"({tecnico.upper()})", size=6)
+    # ── Horas ─────────────────────────────────────────────────────────
+    page.insert_text(fitz.Point(_PZ_H_INICIO_X,   _PZ_H_INICIO_Y),   hora_inicio,                 **fa)
+    page.insert_text(fitz.Point(_PZ_H_TERMINO_X,  _PZ_H_TERMINO_Y),  hora_termino,                **fa)
 
-    # ── EVIDENCIA GRÁFICA: 3 slots ────────────────────────────────────
-    slots = [
-        (fitz.Rect(31,  349, 207, 468), foto1),
-        (fitz.Rect(213, 349, 388, 468), foto2),
-        (fitz.Rect(394, 349, 570, 468), foto3),
-    ]
-    for rect, src in slots:
-        raw = _img_bytes(src)
+    # ── Técnico ejecutor ──────────────────────────────────────────────
+    page.insert_text(fitz.Point(_PZ_TECNICO_X,    _PZ_TECNICO_Y),    nombre_tecnico.upper(),
+                     fontname=_PZ_FONT_B, fontsize=8, color=_PZ_COLOR)
+
+    # ── Firma del técnico ─────────────────────────────────────────────
+    raw_firma = _img_bytes(firma_tecnico)
+    if raw_firma:
+        try:
+            page.insert_image(_PZ_FIRMA_RECT, stream=raw_firma, keep_proportion=True)
+        except Exception as e:
+            logger.warning("[pozo] No se pudo insertar firma técnico: %s", e)
+
+    # ── Evidencia fotográfica (3 fotos en fila) ───────────────────────
+    fotos = list(fotos_procedimientos or [])
+    for i, rect in enumerate(_PZ_IMG_RECTS):
+        raw = _img_bytes(fotos[i]) if i < len(fotos) else None
         if raw:
-            _white_rect(page, rect)
             try:
                 page.insert_image(rect, stream=raw, keep_proportion=True)
             except Exception as e:
-                logger.warning("No se pudo insertar imagen en slot %s: %s", rect, e)
+                logger.warning("[pozo] No se pudo insertar foto %d: %s", i + 1, e)
 
     buf = io.BytesIO()
     doc.save(buf, garbage=4, deflate=True)
