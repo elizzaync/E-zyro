@@ -4366,7 +4366,6 @@ def generar_carta_garantia(
 
     body = body or {}
     equipos               = body.get("equipos", []) or []
-    razon_social          = str(body.get("razonSocial", "") or "")
     fecha_operatividad    = str(body.get("fechaOperatividad", "") or "")
     vigencia_garantia     = str(body.get("vigenciaGarantia", "") or "")
     lugar                 = str(body.get("lugar", "") or "")
@@ -4374,7 +4373,34 @@ def generar_carta_garantia(
     firma_verificador_b64 = str(body.get("firmaVerificadorBase64", "") or "")
     firma_gerente_b64     = str(body.get("firmaGerenteBase64", "") or "")
 
-    # Strip data-URI prefix if the client sent it (data:image/png;base64,...)
+    # ── Razón Social: extraída de BD desde el primer equipo intervenido ───────
+    # Ruta 1: equipo_intervenido.cliente_id → cliente.razon_social
+    # Ruta 2: proyecto_servicio → proyecto → cliente.razon_social  (fallback)
+    # Ruta 3: lo que envió el frontend                             (último recurso)
+    razon_social = str(body.get("razonSocial", "") or "")
+
+    razon_social_db: str | None = None
+    if equipos:
+        first_ei_id = (equipos[0].get("id") or "").strip()
+        if first_ei_id:
+            ei_obj = db.query(EquipoIntervenido).filter(
+                EquipoIntervenido.id         == first_ei_id,
+                EquipoIntervenido.empresa_id == empresa_id,
+            ).first()
+            if ei_obj and ei_obj.cliente_id:
+                cli_obj = db.query(Cliente).filter(Cliente.id == ei_obj.cliente_id).first()
+                razon_social_db = cli_obj.razon_social if cli_obj else None
+
+    if not razon_social_db:
+        proyecto = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+        if proyecto and proyecto.cliente_id:
+            cli_obj = db.query(Cliente).filter(Cliente.id == proyecto.cliente_id).first()
+            razon_social_db = cli_obj.razon_social if cli_obj else None
+
+    if razon_social_db:
+        razon_social = razon_social_db
+
+    # ── Strip data-URI prefix de firmas (data:image/png;base64,...) ───────────
     def _strip_prefix(s: str) -> str:
         if "," in s:
             return s.split(",", 1)[1]
