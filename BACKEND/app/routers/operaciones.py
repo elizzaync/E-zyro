@@ -15,7 +15,7 @@ from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.responses import StreamingResponse
 from typing import List
 
@@ -4490,9 +4490,9 @@ def generar_carta_garantia(
 def generar_certificado_pozo(
     servicio_id: str,
     ei_id:       str,
-    body:        dict,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
+    body:        dict            = Body(default={}),
+    payload:     dict            = Depends(verificar_token),
+    db:          Session         = Depends(get_db),
 ):
     """
     Genera el Protocolo de Medición de Resistencia del Pozo a Tierra en PDF.
@@ -4502,17 +4502,21 @@ def generar_certificado_pozo(
     from ..services.pdf_certificados import generar_protocolo_pozo
 
     empresa_id = payload["empresa_id"]
+    logger.info("[cert-pozo] ei_id=%s empresa_id=%s body_keys=%s", ei_id, empresa_id, list((body or {}).keys()))
 
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id         == ei_id,
         EquipoIntervenido.empresa_id == empresa_id,
     ).first()
     if not ei:
-        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+        raise HTTPException(status_code=404, detail=f"Equipo intervenido no encontrado (ei_id={ei_id})")
     if ei.estado_intervencion != "completado":
         raise HTTPException(
             status_code=400,
-            detail="El certificado solo puede generarse cuando la inspección está completada al 100%.",
+            detail=(
+                f"El certificado solo puede generarse cuando la inspección esté completada al 100%. "
+                f"Estado actual: '{ei.estado_intervencion}'."
+            ),
         )
 
     body = body or {}
@@ -4526,6 +4530,9 @@ def generar_certificado_pozo(
     foto1       = body.get("foto1") or None
     foto2       = body.get("foto2") or None
     foto3       = body.get("foto3") or None
+
+    logger.info("[cert-pozo] ubicacion=%r nro_pozo=%r tecnico=%r foto1_ok=%s foto2_ok=%s foto3_ok=%s",
+                ubicacion, nro_pozo, tecnico, bool(foto1), bool(foto2), bool(foto3))
 
     try:
         pdf_bytes = generar_protocolo_pozo(
@@ -4552,9 +4559,9 @@ def generar_certificado_pozo(
 def generar_certificado_operatividad(
     servicio_id: str,
     ei_id:       str,
-    body:        dict,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
+    body:        dict            = Body(default={}),
+    payload:     dict            = Depends(verificar_token),
+    db:          Session         = Depends(get_db),
 ):
     """
     Genera el Certificado de Operatividad de Tablero Eléctrico en PDF.
@@ -4564,20 +4571,28 @@ def generar_certificado_operatividad(
     from ..services.pdf_certificados import generar_certificado_operatividad as _gen_cert
 
     empresa_id = payload["empresa_id"]
+    body = body or {}
+    logger.info(
+        "[cert-ope] ei_id=%s empresa_id=%s body_keys=%s firma_ver_ok=%s firma_ger_ok=%s",
+        ei_id, empresa_id, list(body.keys()),
+        bool(body.get("firma_verificador")), bool(body.get("firma_gerente")),
+    )
 
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id         == ei_id,
         EquipoIntervenido.empresa_id == empresa_id,
     ).first()
     if not ei:
-        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+        raise HTTPException(status_code=404, detail=f"Equipo intervenido no encontrado (ei_id={ei_id})")
     if ei.estado_intervencion != "completado":
         raise HTTPException(
             status_code=400,
-            detail="El certificado solo puede generarse cuando la inspección está completada al 100%.",
+            detail=(
+                f"El certificado solo puede generarse cuando la inspección esté completada al 100%. "
+                f"Estado actual: '{ei.estado_intervencion}'."
+            ),
         )
 
-    body = body or {}
     nombre_tablero   = str(body.get("nombre_tablero",   ei.nombre or "") or "")
     fecha            = str(body.get("fecha",             "") or "")
     razon_social     = str(body.get("razon_social",      "") or "")
@@ -4591,6 +4606,11 @@ def generar_certificado_operatividad(
         cli = db.query(Cliente).filter(Cliente.id == ei.cliente_id).first()
         if cli and cli.razon_social:
             razon_social = cli.razon_social
+
+    logger.info(
+        "[cert-ope] nombre_tablero=%r fecha=%r razon_social=%r ubicacion=%r personal=%r",
+        nombre_tablero, fecha, razon_social, ubicacion, personal_tecnico,
+    )
 
     try:
         pdf_bytes = _gen_cert(
