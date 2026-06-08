@@ -34,6 +34,7 @@ from app.routers import informes_servicio as informes_servicio_router
 from app.routers import equipos_intervenidos as equipos_intervenidos_router
 from app.routers import activo_cliente    as activo_cliente_router
 from app.routers import soporte           as soporte_router
+from app.routers import portal_cliente    as portal_cliente_router
 from app.routers import analitica         as analitica_router
 from app.routers import planos            as planos_router
 # ── Módulo de Finanzas / ERP contable ──
@@ -121,6 +122,8 @@ from app.models import (  # noqa: F401
     ticket_soporte, ticket_actividad,
     # Documentos generados: Carta de Garantía
     carta_garantia,
+    # Portal Cliente externo (HU-22)
+    portal_acceso,
     # ── Módulo de Finanzas / ERP contable ───────────────────────────────
     # Fase 1 — Libro Mayor (núcleo contable); Fase 2 — Centros de costo
     contabilidad,
@@ -1490,6 +1493,7 @@ app.include_router(activo_cliente_router.router)
 app.include_router(analitica_router.router)
 app.include_router(planos_router.router)
 app.include_router(soporte_router.router)
+app.include_router(portal_cliente_router.router)
 # ── Módulo de Finanzas / ERP contable ──
 app.include_router(contabilidad_router.router)
 app.include_router(controlling_router.router)

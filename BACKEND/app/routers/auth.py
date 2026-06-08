@@ -25,6 +25,7 @@ from app.models.permiso import Permiso
 from app.models.auditoria import Auditoria
 from app.models.recuperacion_password import RecuperacionPassword
 from app.models.sesion_usuario import SesionUsuario
+from app.models.portal_acceso import PortalAcceso
 from app.db.database import get_db
 from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 from app.core.email import enviar_correo_otp
@@ -126,8 +127,17 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         "sub": usuario_db.username,
         "id": str(usuario_db.id),
         "empresa_id": str(usuario_db.empresa_id),
-        "rol": nombre_rol_real
+        "rol": nombre_rol_real,
     }
+    # Para usuarios del portal cliente, embebbe el cliente_id en el token
+    if (nombre_rol_real or "").lower().replace(" ", "") == "clienteexterno":
+        acc = db.query(PortalAcceso).filter(
+            PortalAcceso.usuario_id == str(usuario_db.id)
+        ).first()
+        if acc:
+            datos_para_token["cliente_id"] = str(acc.cliente_id)
+            datos_para_token["tipo_usuario"] = "cliente"
+
     token_real = crear_token_acceso(datos_para_token)
 
     # Registrar / actualizar sesión en sesion_usuario
