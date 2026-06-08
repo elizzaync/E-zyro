@@ -819,6 +819,8 @@ def actualizar_estado_procedimiento(
     if not proc:
         raise HTTPException(status_code=404, detail="Procedimiento no encontrado")
 
+    _assert_servicio_abierto(proc.proyecto_servicio_id, db, payload["empresa_id"])
+
     proc.estado     = body.estado
     proc.updated_at = datetime.utcnow()
     db.commit()
@@ -846,6 +848,8 @@ def actualizar_estado_tarea(
     ).first()
     if not tarea:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
+
+    _assert_servicio_abierto(tarea.proyecto_servicio_id, db, payload["empresa_id"])
 
     tarea.estado     = body.estado
     tarea.updated_at = datetime.utcnow()
@@ -982,9 +986,7 @@ async def subir_evidencia(
 
     empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
 
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id == proc.proyecto_servicio_id
-    ).first()
+    ps = _assert_servicio_abierto(proc.proyecto_servicio_id, db, empresa_id)
 
     folder = f"evidencias/{empresa_id}/{ps.proyecto_id}"
     url    = await subir_archivo_cloudinary(archivo, folder)
@@ -1023,12 +1025,7 @@ def solicitar_material(
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    ps = _assert_servicio_abierto(servicio_id, db, empresa_id)
 
     empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
 
@@ -1193,12 +1190,7 @@ async def agregar_item_borrador(
     rol        = (payload.get("rol") or "").strip().lower()
     is_admin   = rol in {"administrador", "admin", "superadmin"}
 
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    ps = _assert_servicio_abierto(servicio_id, db, empresa_id)
 
     # ── Lookup de empleado ────────────────────────────────────────────────────
     # Los administradores pueden no tener fila en 'empleado'.
@@ -1381,6 +1373,8 @@ async def enviar_borrador(
     db:      Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
+
+    _assert_servicio_abierto(servicio_id, db, empresa_id)
 
     borrador = db.query(Requerimiento).filter(
         Requerimiento.proyecto_servicio_id == servicio_id,
@@ -2202,6 +2196,26 @@ def _norm_rol(nombre: str | None) -> str:
     """Normaliza un nombre de rol: minúsculas, sin acentos, sin separadores."""
     base = unicodedata.normalize("NFKD", nombre or "").encode("ascii", "ignore").decode()
     return re.sub(r"[\s_\-]+", " ", base).strip().lower()
+
+
+def _assert_servicio_abierto(ps_id: str, db: Session, empresa_id: str) -> "ProyectoServicio":
+    """Verifica que el servicio exista y esté en un estado editable.
+    Lanza HTTP 409 si ya está Completado o Cancelado.
+    Devuelve el objeto ProyectoServicio para reuso en el endpoint.
+    """
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id         == ps_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if ps.estado in ("Completado", "Cancelado"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"El servicio está {ps.estado.lower()} y no acepta modificaciones. "
+                   "Solo el Jefe de Operaciones puede reabrirlo.",
+        )
+    return ps
 
 
 def _rol_es_lider(nombre_rol: str | None) -> bool:
@@ -3158,12 +3172,7 @@ def agregar_nota_servicio(
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    ps = _assert_servicio_abierto(servicio_id, db, empresa_id)
 
     registrador = _get_jefe_empleado(db, usuario_id, empresa_id)
     if not registrador:
@@ -3521,14 +3530,10 @@ def crear_equipo_catalogo(
 
     # Heredar ubicacion/zona/cliente del servicio si no vienen en el body.
     # Asi el equipo nuevo queda ligado a la misma ubicacion+zona del servicio.
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if ps:
-        ubic_id    = ubic_id    or (str(ps.ubicacion_id) if ps.ubicacion_id else None)
-        zona_id    = zona_id    or (str(ps.zona_id)      if ps.zona_id      else None)
-        cliente_id = cliente_id or (str(ps.cliente_id)   if getattr(ps, "cliente_id", None) else None)
+    ps = _assert_servicio_abierto(servicio_id, db, empresa_id)
+    ubic_id    = ubic_id    or (str(ps.ubicacion_id) if ps.ubicacion_id else None)
+    zona_id    = zona_id    or (str(ps.zona_id)      if ps.zona_id      else None)
+    cliente_id = cliente_id or (str(ps.cliente_id)   if getattr(ps, "cliente_id", None) else None)
 
     # Anti-duplicado: no recrear un equipo ya existente en la misma ubicacion+zona+tipo.
     dup = (
@@ -4097,6 +4102,8 @@ def actualizar_equipo_intervenido(
     ).first()
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
+
+    _assert_servicio_abierto(servicio_id, db, empresa_id)
 
     body = body or {}
 

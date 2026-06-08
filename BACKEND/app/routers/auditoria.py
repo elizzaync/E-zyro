@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid as _uuid_mod
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -43,6 +43,8 @@ class AuditoriaOut(BaseModel):
     descripcion: Optional[str]
     ip: Optional[str]
     fecha: str
+    datos_anteriores: Optional[Dict[str, Any]] = None
+    datos_nuevos: Optional[Dict[str, Any]] = None
 
 
 # ── Helper: verificar permiso ver-auditorias ───────────────────────────────────
@@ -59,7 +61,7 @@ def _verificar_permiso_auditoria(payload: dict, db: Session) -> None:
         .filter(
             UsuarioRol.usuario_id == usuario_id,
             Permiso.modulo == "AUDITORIA",
-        Permiso.accion == "VER",
+            Permiso.accion == "VER",
         )
         .first()
     )
@@ -71,15 +73,17 @@ def _verificar_permiso_auditoria(payload: dict, db: Session) -> None:
 
 @router.get("", response_model=List[AuditoriaOut])
 def listar_auditoria(
-    modulo: Optional[str]      = Query(None),
-    accion: Optional[str]      = Query(None),
-    fecha_desde: Optional[str] = Query(None),
-    fecha_hasta: Optional[str] = Query(None),
-    usuario_id: Optional[str]  = Query(None),
-    page: int                  = Query(1, ge=1),
-    page_size: int             = Query(50, ge=1, le=100),
-    payload: dict              = Depends(verificar_token),
-    db: Session                = Depends(get_db),
+    modulo: Optional[str]          = Query(None),
+    accion: Optional[str]          = Query(None),
+    tabla_afectada: Optional[str]  = Query(None, description="Filtrar por tabla afectada (ej: proyecto_servicio)"),
+    q: Optional[str]               = Query(None, description="Búsqueda en descripción"),
+    fecha_desde: Optional[str]     = Query(None),
+    fecha_hasta: Optional[str]     = Query(None),
+    usuario_id: Optional[str]      = Query(None),
+    page: int                      = Query(1, ge=1),
+    page_size: int                 = Query(50, ge=1, le=100),
+    payload: dict                  = Depends(verificar_token),
+    db: Session                    = Depends(get_db),
 ):
     _verificar_permiso_auditoria(payload, db)
     empresa_id = payload.get("empresa_id")
@@ -96,6 +100,10 @@ def listar_auditoria(
         query = query.filter(Auditoria.modulo.ilike(f"%{modulo}%"))
     if accion:
         query = query.filter(Auditoria.accion.ilike(f"%{accion}%"))
+    if tabla_afectada:
+        query = query.filter(Auditoria.tabla_afectada.ilike(f"%{tabla_afectada}%"))
+    if q:
+        query = query.filter(Auditoria.descripcion.ilike(f"%{q}%"))
     if usuario_id:
         uid = _to_uuid(usuario_id)
         if uid:
@@ -141,6 +149,8 @@ def listar_auditoria(
             descripcion=str(a.descripcion) if a.descripcion else None,
             ip=str(a.ip) if a.ip else None,
             fecha=fmt_lima(a.fecha, "%d/%m/%Y %H:%M:%S"),
+            datos_anteriores=a.datos_anteriores,
+            datos_nuevos=a.datos_nuevos,
         )
         for a in auditorias
     ]
