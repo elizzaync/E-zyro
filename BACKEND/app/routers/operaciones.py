@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, aliased
 
 from ..core.security import verificar_token, es_superadmin
 from ..core.permisos import exigir_permiso
+from ..core.tz import fmt_lima
 from ..db.database import get_db
 import requests as _requests
 from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary
@@ -581,7 +582,7 @@ def get_detalle_servicio(
                 url_cloudinary=ev.url_cloudinary or "",
                 descripcion=ev.descripcion or "",
                 etapa=ev.etapa,
-                fecha_captura=ev.fecha_captura.strftime("%I:%M %p") if ev.fecha_captura else "",
+                fecha_captura=fmt_lima(ev.fecha_captura, "%I:%M %p"),
             )
         )
 
@@ -1625,7 +1626,7 @@ def _generar_pdf_mantenimiento(
     c.setFont("Helvetica", 11)
     c.drawString(50, h - 90,  f"Equipo:   {equipo_nombre}")
     c.drawString(50, h - 110, f"Técnico:  {tecnico_nombre}")
-    c.drawString(50, h - 130, f"Fecha:    {fecha.strftime('%d/%m/%Y %H:%M')}")
+    c.drawString(50, h - 130, f"Fecha:    {fmt_lima(fecha, '%d/%m/%Y %H:%M')}")
     c.drawString(50, h - 150, f"Orden ID: {orden_id[:8]}...")
 
     c.setFont("Helvetica-Bold", 12)
@@ -1635,7 +1636,7 @@ def _generar_pdf_mantenimiento(
     c.setFont("Helvetica", 10)
     for ev in evidencias:
         etapa    = ev.etapa.upper() if ev.etapa else ""
-        fecha_ev = ev.fecha_captura.strftime("%d/%m/%Y %H:%M") if ev.fecha_captura else ""
+        fecha_ev = fmt_lima(ev.fecha_captura, "%d/%m/%Y %H:%M")
         c.drawString(60, y, f"• [{etapa}] {fecha_ev} — {ev.url_cloudinary[:60]}...")
         y -= 16
         if y < 80:
@@ -1728,7 +1729,7 @@ def get_historial_equipo(
             FotoEvidenciaOut(
                 url=ev.url_cloudinary,
                 tipo=ev.etapa or "antes",
-                fecha=ev.fecha_captura.strftime("%d/%m/%Y %H:%M") if ev.fecha_captura else None,
+                fecha=fmt_lima(ev.fecha_captura, "%d/%m/%Y %H:%M") or None,
             )
             for ev in evidencias_by_orden.get(orden.id, [])
         ]
@@ -3261,7 +3262,7 @@ def listar_notas_servicio(
     for n in notas:
         autor, autor_id = _nota_autor_nombre(db, n.registrado_por)
         try:
-            fecha_str = n.created_at.strftime("%d/%m/%Y %H:%M") if n.created_at else "—"
+            fecha_str = fmt_lima(n.created_at) or "—"
         except Exception:
             fecha_str = "—"
         salida.append(NotaOut(

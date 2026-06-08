@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
 from app.core.security import verificar_token
+from app.core.tz import fmt_lima_iso
 from app.db.database import get_db
 from app.models.dispositivo_push import DispositivoPush
 from app.models.notificacion import Notificacion
@@ -157,7 +158,7 @@ def listar_notificaciones(
             enviado=bool(n.enviado),
             referencia_tabla=str(n.referencia_tabla) if n.referencia_tabla else None,
             referencia_id=str(n.referencia_id) if n.referencia_id else None,
-            created_at=n.created_at.isoformat() if n.created_at else "",
+            created_at=fmt_lima_iso(n.created_at) or "",
         )
         for n in notificaciones
     ]

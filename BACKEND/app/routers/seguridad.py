@@ -22,6 +22,7 @@ from ..models.rol_permiso import RolPermiso
 from ..models.permiso import Permiso
 from ..models.firma_evento import FirmaEvento
 from ..services.firma_seguridad import verificar_evento
+from ..core.tz import fmt_lima
 
 
 router = APIRouter(prefix="/seguridad", tags=["seguridad"])
@@ -64,9 +65,9 @@ def _sesion_dict(s: SesionUsuario, token_hash_actual: Optional[str]) -> dict:
         "activa":            bool(s.activa),
         "es_actual":         (token_hash_actual is not None
                               and s.token_hash == token_hash_actual),
-        "fecha_inicio":      s.created_at.strftime("%Y-%m-%d %H:%M") if s.created_at else "",
-        "fecha_expiracion":  s.fecha_expiracion.strftime("%Y-%m-%d %H:%M") if s.fecha_expiracion else "",
-        "fecha_cierre":      s.fecha_cierre.strftime("%Y-%m-%d %H:%M") if s.fecha_cierre else None,
+        "fecha_inicio":      fmt_lima(s.created_at),
+        "fecha_expiracion":  fmt_lima(s.fecha_expiracion),
+        "fecha_cierre":      fmt_lima(s.fecha_cierre) or None,
     }
 
 
@@ -243,7 +244,7 @@ def _firma_evento_dict(ev: FirmaEvento) -> dict:
         "user_agent":          ev.user_agent,
         "sospechoso":          bool(ev.sospechoso),
         "motivo_sospecha":     ev.motivo_sospecha,
-        "fecha":               ev.created_at.strftime("%Y-%m-%d %H:%M:%S") if ev.created_at else "",
+        "fecha":               fmt_lima(ev.created_at, "%Y-%m-%d %H:%M:%S"),
         "integridad_ok":       verificar_evento(ev),
     }
 

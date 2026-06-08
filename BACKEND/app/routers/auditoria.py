@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token, es_superadmin
+from ..core.tz import fmt_lima
 from ..db.database import get_db
 from ..models.auditoria import Auditoria
 from ..models.usuario import Usuario
@@ -139,7 +140,7 @@ def listar_auditoria(
             modulo=str(a.modulo) if a.modulo else None,
             descripcion=str(a.descripcion) if a.descripcion else None,
             ip=str(a.ip) if a.ip else None,
-            fecha=a.fecha.strftime("%d/%m/%Y %H:%M:%S") if a.fecha else "",
+            fecha=fmt_lima(a.fecha, "%d/%m/%Y %H:%M:%S"),
         )
         for a in auditorias
     ]
