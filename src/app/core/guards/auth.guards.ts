@@ -7,10 +7,16 @@ export const authGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
   const router = inject(Router);
 
-  if (authService.isAuthenticated()) {
-    return true; // ✅ El token 'ezyro_token' existe, ¡pasa!
+  if (!authService.isAuthenticated()) {
+    router.navigate(['/']);
+    return false;
   }
 
-  router.navigate(['/']);
-  return false;
+  // Usuarios del portal cliente no pueden acceder a rutas internas
+  if (authService.isClienteExterno()) {
+    router.navigate(['/portal-cliente/dashboard']);
+    return false;
+  }
+
+  return true;
 };

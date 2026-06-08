@@ -1,0 +1,188 @@
+/* ─── Portal Cliente — Layout Header ───────────────────────────────────────── */
+.cp-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-bottom: 1px solid #334155;
+  box-shadow: 0 2px 12px rgba(0,0,0,.3);
+}
+
+.cp-header-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* Brand */
+.cp-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.cp-brand-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--brand-green, #8dc63f);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cp-brand-icon svg { width: 18px; height: 18px; color: #fff; }
+.cp-brand-name { color: #f1f5f9; font-size: 15px; font-weight: 600; }
+.cp-brand-name strong { color: var(--brand-green, #8dc63f); }
+.cp-brand-sep { color: #475569; margin: 0 0.25rem; }
+.cp-brand-portal { color: #94a3b8; font-size: 13px; font-weight: 400; }
+
+/* Nav links */
+.cp-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}
+.cp-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.cp-nav-link svg { width: 16px; height: 16px; flex-shrink: 0; }
+.cp-nav-link:hover { background: #334155; color: #f1f5f9; }
+.cp-nav-link.active { background: rgba(141,198,63,.15); color: var(--brand-green, #8dc63f); }
+
+/* User area */
+.cp-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: auto;
+}
+.cp-user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand-green, #8dc63f);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cp-user-name { color: #e2e8f0; font-size: 13px; font-weight: 500; }
+.cp-btn-logout {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.cp-btn-logout svg { width: 15px; height: 15px; }
+.cp-btn-logout:hover { background: #ef4444; border-color: #ef4444; color: #fff; }
+
+/* Hamburger */
+.cp-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  margin-left: auto;
+}
+.cp-hamburger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: #94a3b8;
+  border-radius: 2px;
+}
+
+/* Mobile nav */
+.cp-mobile-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1.5rem 1rem;
+  border-top: 1px solid #334155;
+  gap: 0.25rem;
+}
+.cp-btn-logout-mob {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* Main content */
+.cp-main {
+  min-height: calc(100vh - 60px);
+  background: var(--bg-color, #f3f4f6);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .cp-nav, .cp-user { display: none; }
+  .cp-hamburger { display: flex; }
+}
+
+/* Fade-in-up animation */
+.fade-in-up {
+  animation: fadeInUp .25s ease-out forwards;
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translate(-50%, -45%); }
+  to   { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+/* Buttons reutilizables del sistema */
+.btn-cancel-pro {
+  background: none;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.5rem 1.2rem;
+  color: var(--text-muted, #6b7280);
+  font-size: 14px;
+  cursor: pointer;
+}
+.btn-save-main {
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1.2rem;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.modal-footer-pro {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border-color, #e5e7eb);
+}

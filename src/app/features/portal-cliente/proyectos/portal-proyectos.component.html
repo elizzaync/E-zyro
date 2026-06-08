@@ -1,0 +1,55 @@
+<div class="pp-page">
+  <div class="pp-header">
+    <h1 class="pp-title">Proyectos y Servicios</h1>
+    <p class="pp-subtitle">Seguimiento en tiempo real de todos sus proyectos</p>
+  </div>
+
+  @if (cargando) {
+  <div class="pp-loading"><div class="spinner-ring"></div><span>Cargando proyectos...</span></div>
+  }
+  @if (!cargando && error) {
+  <div class="pp-error">{{ error }}</div>
+  }
+
+  @if (!cargando && !error && proyectos.length === 0) {
+  <div class="pp-empty">
+    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="6" width="32" height="36" rx="3"/><path stroke-linecap="round" d="M16 14h16M16 21h16M16 28h10"/></svg>
+    <p>No hay proyectos registrados aún.</p>
+  </div>
+  }
+
+  <div class="pp-grid">
+    @for (p of proyectos; track p.id) {
+    <div class="pp-card">
+      <div class="pp-card-head">
+        <span class="pp-badge" [class]="estadoBadge(p.estado)">{{ estadoLabel(p.estado) }}</span>
+        <span class="pp-pct-label">{{ p.avance_pct }}%</span>
+      </div>
+
+      <h3 class="pp-card-title">{{ p.nombre_proyecto }}</h3>
+
+      <div class="pp-progress-track">
+        <div class="pp-progress-bar" [style.width.%]="p.avance_pct"
+             [class.pp-bar-done]="p.avance_pct === 100"></div>
+      </div>
+
+      <div class="pp-card-meta">
+        <span>
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 100 14A7 7 0 008 1zm.75 9.5h-1.5v-5h1.5v5zm0-6.5h-1.5V2.5h1.5V4z"/></svg>
+          {{ p.servicios_completados }}/{{ p.total_servicios }} servicios
+        </span>
+        @if (p.fecha_inicio) {
+        <span>Inicio: {{ p.fecha_inicio | date:'dd/MM/yyyy' }}</span>
+        }
+        @if (p.fecha_fin_estimada) {
+        <span>Est.: {{ p.fecha_fin_estimada | date:'dd/MM/yyyy' }}</span>
+        }
+      </div>
+
+      <a [routerLink]="['/portal-cliente/proyecto', p.id]" class="pp-btn-detail">
+        Ver detalle →
+      </a>
+    </div>
+    }
+  </div>
+</div>

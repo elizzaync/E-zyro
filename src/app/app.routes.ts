@@ -20,6 +20,12 @@ import { OperacionesCronogramaComponent } from './features/operaciones/component
 import { EquiposIntervenidosComponent } from './features/operaciones/components/equipos-intervenidos/equipos-intervenidos.component';
 import { IntervencionEquipoComponent } from './features/operaciones/components/intervencion-equipo/intervencion-equipo.component';
 import { CertificadoComponent } from './features/operaciones/components/certificado/certificado.component';
+import { clientPortalGuard } from './core/guards/client-portal.guard';
+import { ClientLayoutComponent } from './features/portal-cliente/client-layout/client-layout.component';
+import { PortalDashboardComponent } from './features/portal-cliente/dashboard/portal-dashboard.component';
+import { PortalProyectosComponent } from './features/portal-cliente/proyectos/portal-proyectos.component';
+import { PortalProyectoDetalleComponent } from './features/portal-cliente/proyecto-detalle/portal-proyecto-detalle.component';
+import { PortalDocumentosComponent } from './features/portal-cliente/documentos/portal-documentos.component';
 export const routes: Routes = [
   {
     path: '',
@@ -135,6 +141,19 @@ export const routes: Routes = [
     title: 'Certificado | E-System Tic',
     canActivate: [authGuard]
 },
+  // ── Portal Cliente (HU-22) ──────────────────────────────────────────
+  {
+    path: 'portal-cliente',
+    component: ClientLayoutComponent,
+    canActivate: [clientPortalGuard],
+    children: [
+      { path: '',          redirectTo: 'dashboard', pathMatch: 'full' },
+      { path: 'dashboard', component: PortalDashboardComponent,        title: 'Dashboard | Portal Cliente' },
+      { path: 'proyectos', component: PortalProyectosComponent,        title: 'Proyectos | Portal Cliente' },
+      { path: 'proyecto/:id', component: PortalProyectoDetalleComponent, title: 'Detalle Proyecto | Portal Cliente' },
+      { path: 'documentos',   component: PortalDocumentosComponent,    title: 'Documentos | Portal Cliente' },
+    ],
+  },
   {
     path: '**',
     redirectTo: ''

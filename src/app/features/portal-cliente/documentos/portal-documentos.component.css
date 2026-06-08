@@ -1,0 +1,78 @@
+.pdoc-page { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+.pdoc-header { margin-bottom: 1.75rem; }
+.pdoc-title   { margin: 0; font-size: 24px; font-weight: 700; color: var(--text-main); }
+.pdoc-subtitle{ margin: 4px 0 0; color: var(--text-muted); font-size: 13px; }
+
+.pdoc-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; justify-content: center; color: var(--text-muted); }
+.spinner-ring { width: 28px; height: 28px; border: 3px solid var(--border-color,#e5e7eb); border-top-color: var(--brand-green,#8dc63f); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pdoc-error { background: #fef2f2; border: 1px solid #fca5a5; border-radius: var(--radius-md,10px); color: #dc2626; padding: 1rem; margin-bottom: 1.5rem; }
+
+/* Filters */
+.pdoc-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+.pdoc-filter-btn {
+  padding: 0.4rem 1rem; border-radius: 99px;
+  border: 1px solid var(--border-color,#e5e7eb);
+  background: var(--card-bg,#fff); color: var(--text-muted);
+  font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.pdoc-filter-btn:hover, .pdoc-filter-btn.active {
+  background: var(--brand-green,#8dc63f); color: #fff; border-color: var(--brand-green,#8dc63f);
+}
+
+/* Empty */
+.pdoc-empty { display: flex; flex-direction: column; align-items: center; padding: 4rem 2rem; gap: 0.75rem; color: var(--text-muted); text-align: center; }
+.pdoc-empty svg { width: 56px; height: 56px; opacity: .35; }
+.pdoc-empty p { margin: 0; font-size: 15px; font-weight: 500; color: var(--text-main); }
+.pdoc-empty span { font-size: 13px; max-width: 360px; }
+
+/* Grid */
+.pdoc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 1.25rem; }
+
+.pdoc-card {
+  background: var(--card-bg,#fff);
+  border-radius: var(--radius-lg,16px);
+  box-shadow: var(--shadow-panel);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  border-top: 3px solid var(--brand-green,#8dc63f);
+  transition: transform .2s, box-shadow .2s;
+}
+.pdoc-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,.1); }
+.icon-garantia { border-top-color: #3b82f6; }
+.icon-informe  { border-top-color: var(--brand-green,#8dc63f); }
+.icon-doc      { border-top-color: #8b5cf6; }
+
+.pdoc-card-icon {
+  width: 44px; height: 44px;
+  background: var(--bg-color,#f3f4f6);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+}
+.pdoc-card-icon svg { width: 24px; height: 24px; color: var(--brand-green,#8dc63f); }
+
+.pdoc-card-body { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.pdoc-tipo-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: var(--bg-color,#f3f4f6); color: var(--text-muted); width: fit-content; }
+.pdoc-card-titulo   { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: var(--text-main); line-height: 1.4; }
+.pdoc-card-servicio { margin: 3px 0 0; font-size: 12px; color: var(--text-muted); }
+.pdoc-card-meta     { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); }
+.pdoc-card-fecha    { margin: 4px 0 0; font-size: 11px; color: var(--text-muted); }
+
+.pdoc-card-actions { display: flex; gap: 0.5rem; }
+.pdoc-btn-ver, .pdoc-btn-dl {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center; gap: 0.35rem;
+  padding: 0.45rem;
+  border-radius: var(--radius-sm,6px);
+  font-size: 13px; font-weight: 500;
+  cursor: pointer; text-decoration: none;
+  transition: all .15s;
+}
+.pdoc-btn-ver { background: var(--bg-color,#f3f4f6); color: var(--text-main); border: 1px solid var(--border-color,#e5e7eb); }
+.pdoc-btn-ver:hover { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+.pdoc-btn-dl  { background: var(--brand-green,#8dc63f); color: #fff; border: none; }
+.pdoc-btn-dl:hover { background: var(--brand-green-hover,#7ab530); }
+.pdoc-btn-ver svg, .pdoc-btn-dl svg { width: 14px; height: 14px; }
+.pdoc-no-link { font-size: 12px; color: var(--text-muted); font-style: italic; }

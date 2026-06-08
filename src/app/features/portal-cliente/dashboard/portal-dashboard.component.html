@@ -1,0 +1,109 @@
+<div class="pd-page">
+
+  <!-- Page header -->
+  <div class="pd-page-header">
+    <div>
+      <h1 class="pd-title">Dashboard</h1>
+      <p class="pd-subtitle">{{ hoy }}</p>
+    </div>
+    <p class="pd-saludo">{{ saludo }}</p>
+  </div>
+
+  <!-- Loading -->
+  @if (cargando) {
+  <div class="pd-loading">
+    <div class="spinner-ring"></div>
+    <span>Cargando datos...</span>
+  </div>
+  }
+
+  <!-- Error -->
+  @if (!cargando && error) {
+  <div class="pd-error-banner">{{ error }}</div>
+  }
+
+  <!-- KPI Cards -->
+  @if (!cargando && kpis) {
+  <div class="pd-kpis">
+    <div class="pd-kpi-card pd-kpi-blue">
+      <div class="pd-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </div>
+      <div class="pd-kpi-body">
+        <span class="pd-kpi-val">{{ kpis.proyectos_activos }}</span>
+        <span class="pd-kpi-label">Proyectos Activos</span>
+      </div>
+    </div>
+
+    <div class="pd-kpi-card pd-kpi-green">
+      <div class="pd-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="pd-kpi-body">
+        <span class="pd-kpi-val">{{ kpis.completados_este_mes }}</span>
+        <span class="pd-kpi-label">Mantenimientos Completados (este mes)</span>
+      </div>
+    </div>
+
+    <div class="pd-kpi-card pd-kpi-amber">
+      <div class="pd-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="pd-kpi-body">
+        <span class="pd-kpi-val">{{ proximos.length }}</span>
+        <span class="pd-kpi-label">Próximos (30 días)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Próximos mantenimientos -->
+  <div class="pd-section">
+    <div class="pd-section-header">
+      <h2 class="pd-section-title">Próximos Mantenimientos</h2>
+      <a routerLink="/portal-cliente/proyectos" class="pd-link-all">Ver todos los proyectos →</a>
+    </div>
+
+    @if (proximos.length === 0) {
+    <div class="pd-empty">
+      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="24" cy="24" r="20"/><path stroke-linecap="round" d="M24 16v8l5 3"/>
+      </svg>
+      <p>No hay mantenimientos programados en los próximos 30 días.</p>
+    </div>
+    }
+
+    @if (proximos.length > 0) {
+    <div class="pd-table-wrap">
+      <table class="pd-table">
+        <thead>
+          <tr>
+            <th>Servicio</th>
+            <th>Proyecto</th>
+            <th>Fecha Programada</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of proximos; track item.id) {
+          <tr>
+            <td class="pd-td-name">{{ item.nombre }}</td>
+            <td class="pd-td-muted">{{ item.proyecto }}</td>
+            <td>{{ item.fecha_programada | date:'dd/MM/yyyy':'':'es-PE' }}</td>
+            <td><span class="pd-badge" [class]="estadoBadge(item.estado)">{{ item.estado }}</span></td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+  </div>
+  }
+
+</div>

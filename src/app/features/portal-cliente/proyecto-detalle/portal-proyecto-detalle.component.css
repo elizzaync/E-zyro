@@ -1,0 +1,68 @@
+.pdet-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+.pdet-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; justify-content: center; color: var(--text-muted); }
+.spinner-ring { width: 28px; height: 28px; border: 3px solid var(--border-color,#e5e7eb); border-top-color: var(--brand-green,#8dc63f); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pdet-error { background: #fef2f2; border: 1px solid #fca5a5; border-radius: var(--radius-md,10px); color: #dc2626; padding: 1rem; }
+
+.pdet-back { display: inline-block; color: var(--brand-green,#8dc63f); font-size: 14px; font-weight: 500; text-decoration: none; margin-bottom: 1.25rem; }
+.pdet-back:hover { text-decoration: underline; }
+
+.pdet-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.pdet-title { margin: 0; font-size: 22px; font-weight: 700; color: var(--text-main); }
+.pdet-meta  { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 6px; font-size: 13px; color: var(--text-muted); }
+
+/* Card base */
+.pdet-card { background: var(--card-bg,#fff); border-radius: var(--radius-lg,16px); box-shadow: var(--shadow-panel); padding: 1.5rem; margin-bottom: 1.25rem; }
+.pdet-section-title { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 1.25rem 0; font-size: 16px; font-weight: 700; color: var(--text-main); }
+.pdet-section-title svg { width: 18px; height: 18px; color: var(--brand-green,#8dc63f); }
+
+/* Avance */
+.pdet-avance-card { border-left: 4px solid var(--brand-green,#8dc63f); }
+.pdet-avance-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+.pdet-avance-pct { font-size: 36px; font-weight: 800; color: var(--brand-green,#8dc63f); line-height: 1; }
+.pdet-progress-track { height: 10px; background: var(--border-color,#e5e7eb); border-radius: 99px; overflow: hidden; margin-bottom: 0.5rem; }
+.pdet-progress-bar   { height: 100%; background: var(--brand-green,#8dc63f); border-radius: 99px; transition: width .6s ease; min-width: 4px; }
+.pdet-bar-done       { background: #10b981; }
+.pdet-avance-sub { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+/* Two-col grid */
+.pdet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
+@media (max-width: 700px) { .pdet-grid { grid-template-columns: 1fr; } }
+
+/* Services */
+.pdet-service-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.pdet-service-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; border-radius: var(--radius-sm,6px); background: var(--bg-color,#f3f4f6); }
+.pdet-service-info { display: flex; flex-direction: column; flex: 1; }
+.pdet-service-name { font-size: 13px; font-weight: 500; color: var(--text-main); }
+.pdet-service-date { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+.pdet-check { width: 18px; height: 18px; color: #10b981; flex-shrink: 0; }
+
+/* Personal */
+.pdet-personal-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.pdet-personal-item { display: flex; align-items: center; gap: 0.875rem; }
+.pdet-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand-green,#8dc63f) 0%, #7ab530 100%);
+  color: #fff; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.pdet-personal-nombre { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-main); }
+.pdet-personal-cargo  { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
+.pdet-empty-sm { color: var(--text-muted); font-size: 14px; margin: 0; }
+
+/* Equipos */
+.pdet-equipos-card {}
+.pdet-equipo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 0.875rem; }
+.pdet-equipo-item { padding: 0.875rem; border: 1px solid var(--border-color,#e5e7eb); border-radius: var(--radius-md,10px); }
+.pdet-equipo-nombre { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--text-main); }
+.pdet-equipo-code   { margin: 3px 0 0; font-size: 11px; color: var(--text-muted); }
+.pdet-equipo-model  { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); }
+
+/* Badges */
+.pdet-badge { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.pdet-badge-sm { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
+.badge-pend { background: #fef3c7; color: #92400e; }
+.badge-prog { background: #dbeafe; color: #1d4ed8; }
+.badge-ok   { background: #d1fae5; color: #065f46; }
+.badge-err  { background: #fee2e2; color: #991b1b; }

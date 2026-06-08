@@ -132,4 +132,18 @@ export class AuthService {
   getToken(): string | null {
     return localStorage.getItem('ezyro_token');
   }
+
+  getUsuario(): { id: string; nombre_completo: string; rol: string; foto_url: string } | null {
+    try {
+      const raw = localStorage.getItem('ezyro_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  isClienteExterno(): boolean {
+    const u = this.getUsuario();
+    return (u?.rol || '').toLowerCase().replace(' ', '') === 'clienteexterno';
+  }
 }

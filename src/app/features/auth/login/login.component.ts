@@ -64,8 +64,10 @@ export class LoginComponent {
 
         setTimeout(() => {
           this.isPreparingEnv.set(true);
-          // Redirección final al panel principal (asegúrate de tener esta ruta creada)
-          setTimeout(() => this.router.navigate(['/home']), 1500);
+          const destino = response.data.rol?.toLowerCase().replace(' ', '') === 'clienteexterno'
+            ? '/portal-cliente/dashboard'
+            : '/home';
+          setTimeout(() => this.router.navigate([destino]), 1500);
         }, 1500);
       },
       error: (err) => {
