@@ -331,7 +331,17 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
     }
   }
   cerrarRevision(): void { this.reqActivo = null; this.decisiones = {}; }
-  setDecision(id: string, d: 'aprobar' | 'compra' | 'rechazar'): void { this.decisiones[id] = d; }
+  setDecision(id: string, d: 'aprobar' | 'compra' | 'rechazar'): void {
+    if (d === 'aprobar') {
+      const item = this.reqActivo?.items.find(it => it.id === id);
+      if (item && !item.enStock && !item.esCompraExterna) {
+        this.toast.mostrar('Sin stock disponible. Ítem redirigido a compra.', 'warning');
+        this.decisiones[id] = 'compra';
+        return;
+      }
+    }
+    this.decisiones[id] = d;
+  }
 
   confirmarAprobacion(): void {
     if (!this.reqActivo) return;

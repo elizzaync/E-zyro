@@ -84,8 +84,16 @@ export class RetornosTablaComponent implements OnInit {
     this.itemsForm.forEach(f => f.cantidadConfirmada = f.cantidadRetornada);
   }
 
+  get inspeccionInvalida(): boolean {
+    return this.itemsForm.some(f => f.cantidadConfirmada > f.cantidadEntregada);
+  }
+
   guardarInspeccion(): void {
     if (!this.retornoActivo) return;
+    if (this.inspeccionInvalida) {
+      this.toast.mostrar('Cantidad confirmada no puede superar la cantidad entregada.', 'error');
+      return;
+    }
     this.procesando = true;
     this.svc.inspeccionarRetorno(this.retornoActivo.id, {
       items: this.itemsForm.map(f => ({ detalleId: f.detalleId, cantidadConfirmada: f.cantidadConfirmada })),
