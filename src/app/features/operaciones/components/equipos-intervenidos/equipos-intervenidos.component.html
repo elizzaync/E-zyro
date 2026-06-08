@@ -508,14 +508,17 @@
 </div>
 }
 
-<!-- ══ MODAL: CARTA DE GARANTÍA (en construcción) ═════════════════════════ -->
+<!-- ══ MODAL: CARTA DE GARANTÍA ═══════════════════════════════════════════ -->
 @if (showModalGarantia) {
 <div class="modal-backdrop" (click)="cerrarModalGarantia()">
-  <div class="modal-panel" (click)="$event.stopPropagation()">
+  <div class="modal-panel modal-panel--informe" (click)="$event.stopPropagation()">
+
     <div class="modal-header">
       <div>
         <h3 class="modal-title">Carta de Garantía</h3>
-        <p class="modal-sub">{{ nSeleccionados }} equipo(s) seleccionados · se emite una por cada uno</p>
+        <p class="modal-sub">
+          {{ garantiaEquipos.length }} tablero(s) seleccionado(s)
+        </p>
       </div>
       <button class="modal-close" (click)="cerrarModalGarantia()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -523,8 +526,113 @@
         </svg>
       </button>
     </div>
-    <!-- Componente maquetado: al completarse, iterará y devolverá la garantía por CADA equipo -->
-    <div class="modal-construccion">[EN CONSTRUCCIÓN]</div>
+
+    <div class="modal-body">
+
+      <!-- 1) Tableros seleccionados -->
+      <div class="inf-section">
+        <h4 class="inf-title">Tableros seleccionados</h4>
+        <div class="inf-table-scroll">
+          <table class="inf-table">
+            <thead>
+              <tr><th>Nombre</th><th>Provincia</th><th>Zona</th></tr>
+            </thead>
+            <tbody>
+              @for (eq of garantiaEquipos; track eq.id) {
+                <tr>
+                  <td>{{ eq.nombre }}</td>
+                  <td>{{ eq.ubicacion ?? '—' }}</td>
+                  <td>{{ eq.zona ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 2) Datos del documento -->
+      <div class="form-grid">
+
+        <!-- Razón Social -->
+        <div class="field-group field-col-2">
+          <label class="field-label">Razón Social <span style="color:#ef4444">*</span></label>
+          <input type="text" class="field-input" [(ngModel)]="garantiaRazonSocial"
+                 placeholder="Ej: CORPORACIÓN PERUANA DE AEROPUERTOS Y AVIACIÓN COMERCIAL S.A.">
+        </div>
+
+        <!-- Fecha de Operatividad -->
+        <div class="field-group">
+          <label class="field-label">Fecha de Operatividad <span style="color:#ef4444">*</span></label>
+          <input type="date" class="field-input" [(ngModel)]="garantiaFechaOp"
+                 (ngModelChange)="recalcularVigencia()">
+        </div>
+
+        <!-- Vigencia de Garantía -->
+        <div class="field-group">
+          <label class="field-label">
+            Vigencia de Garantía
+            <span class="inf-badge-auto">+1 año automático</span>
+          </label>
+          <input type="date" class="field-input" [(ngModel)]="garantiaVigencia">
+        </div>
+
+        <!-- Lugar -->
+        <div class="field-group">
+          <label class="field-label">Lugar</label>
+          <input type="text" class="field-input" [(ngModel)]="garantiaLugar"
+                 placeholder="Ej: AREQUIPA"
+                 (ngModelChange)="onLugarChange()">
+        </div>
+
+        <!-- Dirección (aeropuerto) -->
+        <div class="field-group">
+          <label class="field-label">
+            Dirección
+            <span class="inf-badge-auto">del aeropuerto</span>
+          </label>
+          <input type="text" class="field-input" [(ngModel)]="garantiaDireccion"
+                 placeholder="Se autocompleta según el Lugar, o escribe manualmente">
+        </div>
+
+        <!-- Firma Verificador -->
+        <div class="field-group">
+          <label class="field-label">Firma Verificador <span class="field-opt">(imagen)</span></label>
+          <input type="file" class="field-input" accept="image/*"
+                 (change)="onFirmaFile($event, 'verificador')">
+          @if (garantiaFirmaVerB64) {
+            <p class="inf-hint" style="color:#22c55e">✓ Imagen cargada</p>
+          }
+        </div>
+
+        <!-- Firma Gerente -->
+        <div class="field-group">
+          <label class="field-label">Firma Gerente <span class="field-opt">(imagen)</span></label>
+          <input type="file" class="field-input" accept="image/*"
+                 (change)="onFirmaFile($event, 'gerente')">
+          @if (garantiaFirmaGerB64) {
+            <p class="inf-hint" style="color:#22c55e">✓ Imagen cargada</p>
+          }
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel-modal" (click)="cerrarModalGarantia()">Cancelar</button>
+      <button class="btn-save-modal" (click)="onSubmitGarantia()"
+              [disabled]="garantiaEnviando">
+        @if (garantiaEnviando) {
+          <app-spinner></app-spinner> Generando Word…
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          Generar Carta de Garantía (.docx)
+        }
+      </button>
+    </div>
+
   </div>
 </div>
 }

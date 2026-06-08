@@ -76,6 +76,17 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   showModalInforme  = false;
   showModalGarantia = false;
 
+  // ── Modal "Carta de Garantía" — estado ───────────────────────────────────
+  garantiaEnviando      = false;
+  garantiaRazonSocial   = '';
+  garantiaFechaOp       = '';
+  garantiaVigencia      = '';
+  garantiaLugar         = '';
+  garantiaDireccion     = '';
+  garantiaEquipos:      EquipoIntervenido[] = [];
+  garantiaFirmaVerB64   = '';
+  garantiaFirmaGerB64   = '';
+
   // ── Modal "Generar Informe" — estado ──────────────────────────────────────
   informeCargando = false;
   informeEnviando = false;
@@ -295,6 +306,11 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
           ? `${srv.nombre}${srv.proyecto_nombre ? ' — ' + srv.proyecto_nombre : ''}`
           : '(servicio actual)';
 
+        // Auto-rellenar OC si el servicio tiene una Orden de Compra registrada
+        if (srv?.tipo_documento === 'OC' && srv?.nro_documento) {
+          this.informeOC = srv.nro_documento;
+        }
+
         // Materiales: defaults + lo solicitado en requerimientos del servicio
         this.informeMateriales = this.mergePorNombre(
           this.informeMateriales,
@@ -450,21 +466,151 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   }
 
   // ── Acción: Carta de Garantía ────────────────────────────────────────────
-  // La garantía es individual, pero se permite procesar por lote SIN restricción
-  // de tipo (se pueden seleccionar equipos de tipos distintos).
+  // Solo se permite generar para equipos estrictamente de tipo TABLERO.
+  private readonly AEROPUERTOS: Record<string, string> = {
+    'AREQUIPA':  'Aeropuerto Internacional Alfredo Rodríguez Ballón, Arequipa',
+    'AYACUCHO':  'Aeropuerto Coronel FAP Alfredo Mendívil Duarte',
+    'TRUJILLO':  'Aeropuerto Internacional Capitán FAP Carlos Martínez de Pinillos',
+    'LIMA':      'Aeropuerto Internacional Jorge Chávez, Lima',
+    'CUSCO':     'Aeropuerto Internacional Alejandro Velasco Astete, Cusco',
+    'PIURA':     'Aeropuerto Internacional Capitán FAP Guillermo Concha Ibérico, Piura',
+    'CHICLAYO':  'Aeropuerto Internacional Capitán FAP José A. Quiñones Gonzales, Chiclayo',
+    'IQU':       'Aeropuerto Internacional Coronel FAP Francisco Secada Vignetta, Iquitos',
+    'IQUITOS':   'Aeropuerto Internacional Coronel FAP Francisco Secada Vignetta, Iquitos',
+    'PUCALLPA':  'Aeropuerto Internacional Cap. FAP David Abensur Rengifo, Pucallpa',
+    'JULIACA':   'Aeropuerto Internacional Inca Manco Cápac, Juliaca',
+    'TACNA':     'Aeropuerto Internacional Coronel FAP Carlos Ciriani Santa Rosa, Tacna',
+    'TUMBES':    'Aeropuerto Internacional Pedro Canga Rodríguez, Tumbes',
+  };
+
   cartaGarantia(): void {
     const sel = this.equiposSeleccionados;
     if (sel.length === 0) {
       this.toast.mostrar('Selecciona al menos un equipo para emitir la garantía.', 'info');
       return;
     }
-    // Sin validación de tipo: cualquier combinación es válida.
+    // Validar que TODOS los equipos seleccionados sean de tipo TABLERO
+    const noTablero = sel.filter(e => !((e.tipoNombre ?? '').toUpperCase().includes('TABLERO')));
+    if (noTablero.length > 0) {
+      this.toast.mostrar('La carta de garantía solo puede generarse para Tableros Eléctricos.', 'error');
+      return;
+    }
+
+    this.garantiaEquipos = [...sel];
+    this._prepararGarantia(sel);
     this.showModalGarantia = true;
     this.syncScrollLock();
-    // TODO (al completar el modal): iterar `this.equiposSeleccionados` y generar
-    // / devolver una Carta de Garantía POR CADA equipo seleccionado de forma
-    // individual (una garantía por equipo, no una sola agrupada).
   }
+
+  private _prepararGarantia(sel: EquipoIntervenido[]): void {
+    // Fechas: hoy + 1 año
+    const hoy = new Date();
+    const vigencia = new Date(hoy);
+    vigencia.setFullYear(vigencia.getFullYear() + 1);
+    this.garantiaFechaOp  = hoy.toISOString().split('T')[0];
+    this.garantiaVigencia = vigencia.toISOString().split('T')[0];
+
+    // Lugar: primer equipo con ubicación
+    const lugar = (sel.find(e => e.ubicacion)?.ubicacion ?? '').toUpperCase();
+    this.garantiaLugar    = lugar;
+    this.garantiaDireccion = this.AEROPUERTOS[lugar] ?? '';
+
+    // Razón social: se carga desde precarga (cliente del proyecto)
+    this.garantiaRazonSocial = '';
+    this.garantiaFirmaVerB64 = '';
+    this.garantiaFirmaGerB64 = '';
+
+    this.svc.getPrecargaInforme(this.servicioId).subscribe({
+      next: (res: any) => {
+        const cliente = res?.servicio?.cliente_nombre;
+        if (cliente) this.garantiaRazonSocial = cliente;
+      },
+      error: () => { /* razon social queda vacía para escritura manual */ }
+    });
+  }
+
+  recalcularVigencia(): void {
+    if (!this.garantiaFechaOp) return;
+    try {
+      const d = new Date(this.garantiaFechaOp);
+      d.setFullYear(d.getFullYear() + 1);
+      this.garantiaVigencia = d.toISOString().split('T')[0];
+    } catch { /* noop */ }
+  }
+
+  onLugarChange(): void {
+    const key = this.garantiaLugar.toUpperCase().trim();
+    this.garantiaDireccion = this.AEROPUERTOS[key] ?? '';
+  }
+
+  async onFirmaFile(event: Event, tipo: 'verificador' | 'gerente'): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file  = input?.files?.[0];
+    if (!file) return;
+    const b64 = await this._fileToBase64(file);
+    if (tipo === 'verificador') this.garantiaFirmaVerB64 = b64;
+    else                        this.garantiaFirmaGerB64 = b64;
+  }
+
+  private _fileToBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  onSubmitGarantia(): void {
+    if (!this.garantiaRazonSocial.trim()) {
+      this.toast.mostrar('Ingresa la Razón Social antes de generar.', 'error'); return;
+    }
+    if (!this.garantiaFechaOp) {
+      this.toast.mostrar('La Fecha de Operatividad es requerida.', 'error'); return;
+    }
+
+    const payload = {
+      equipos:              this.garantiaEquipos.map(e => ({
+        id: e.id, nombre: e.nombre, tipo: e.tipoNombre, provincia: e.ubicacion, zona: e.zona,
+      })),
+      razonSocial:          this.garantiaRazonSocial.trim(),
+      fechaOperatividad:    this.garantiaFechaOp,
+      vigenciaGarantia:     this.garantiaVigencia,
+      lugar:                this.garantiaLugar.trim(),
+      direccion:            this.garantiaDireccion.trim(),
+      firmaVerificadorBase64: this.garantiaFirmaVerB64,
+      firmaGerenteBase64:     this.garantiaFirmaGerB64,
+    };
+
+    this.garantiaEnviando = true;
+    this.svc.generarCartaGarantia(this.servicioId, payload).subscribe({
+      next: (blob: Blob) => {
+        this.garantiaEnviando = false;
+        const lugarSafe = this.garantiaLugar.replace(/[^A-Za-z0-9_\-]/g, '_').toUpperCase() || 'LUGAR';
+        const url  = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href     = url;
+        link.download = `CARTA_GARANTIA_${lugarSafe}.docx`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+        this.toast.mostrar('Carta de Garantía generada y descargada correctamente.', 'success');
+        this.cerrarModalGarantia();
+      },
+      error: (err: any) => {
+        this.garantiaEnviando = false;
+        if (err?.error instanceof Blob) {
+          err.error.text().then((txt: string) => {
+            let detail = 'Error al generar la carta de garantía.';
+            try { detail = JSON.parse(txt)?.detail ?? detail; } catch {}
+            this.toast.mostrar(detail, 'error');
+          });
+        } else {
+          this.toast.mostrar(err?.error?.detail ?? 'Error al generar la carta de garantía.', 'error');
+        }
+      }
+    });
+  }
+
   cerrarModalGarantia(): void { this.showModalGarantia = false; this.syncScrollLock(); }
 
   // ── Edición de "Referencia" (técnico) ────────────────────────────────────

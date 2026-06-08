@@ -208,7 +208,7 @@ export class CertificadoComponent implements OnInit {
       fecha:            this.form.fecha,
       razon_social:     this.form.razon_social,
       ubicacion:        this.form.ubicacion,
-      personal_tecnico: this.form.personal_tecnico || this.form.tecnico,
+      personal_tecnico: this.form.personal_tecnico || this.form.nombre_tecnico,
       firma_verificador: this.firmaVerB64,
       firma_gerente:     this.firmaGerB64,
     };

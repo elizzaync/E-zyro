@@ -43,7 +43,7 @@
         }
 
         @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
-        <div class="reveal-on-scroll" style="transition-delay: 0.3s; margin-top: 24px;">
+        <div class="reveal-on-scroll delay-3 mt-widget">
           <app-monthly-summary-widget></app-monthly-summary-widget>
         </div>
         }
@@ -52,7 +52,7 @@
 
       <div class="right-panel">
         @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
-        <div class="reveal-on-scroll" style="transition-delay: 0.5s;">
+        <div class="reveal-on-scroll delay-5">
           <app-calendar-widget></app-calendar-widget>
         </div>
         }
@@ -64,10 +64,10 @@
     <hr class="section-divider">
 
     <header class="home-header reveal-on-scroll">
-      <h2 class="welcome-title" style="font-size: 24px;">Control de Asignaciones</h2>
+      <h2 class="welcome-title welcome-title--sm">Control de Asignaciones</h2>
     </header>
 
-    <div class="dashboard-grid reveal-on-scroll" style="transition-delay: 0.2s;">
+    <div class="dashboard-grid reveal-on-scroll delay-2">
 
       <div class="left-panel">
         @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
@@ -77,7 +77,7 @@
 
       <div class="right-panel">
         @if (permisosUsuario.includes('PERSONAL') || permisosUsuario.length === 0) {
-        <div class="reveal-on-scroll" style="transition-delay: 0.4s;">
+        <div class="reveal-on-scroll delay-4">
           <app-quick-actions-widget></app-quick-actions-widget>
         </div>
         }
