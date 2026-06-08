@@ -386,7 +386,7 @@ def portal_equipos_historial(
     ]
 
 
-# ── 7. Detalle de un equipo intervenido ──────────────────────────────────────
+# ── 7. Detalle completo de un equipo intervenido ─────────────────────────────
 
 @router.get("/mantenimiento/{ei_id}/detalles")
 def portal_mantenimiento_detalles(
@@ -396,20 +396,38 @@ def portal_mantenimiento_detalles(
 ) -> dict[str, Any]:
     empresa_id, cliente_id = _ctx(payload)
 
-    # Verificar pertenencia — datos de la intervención + servicio + proyecto
+    # ── Equipo + Servicio + Proyecto (árbol completo) ─────────────────────────
     row = db.execute(text("""
         SELECT
-            ei.id, ei.nombre, ei.codigo, ei.marca, ei.modelo,
-            ei.ubicacion_referencia, ei.estado, ei.estado_intervencion,
-            ei.ultimo_mantenimiento, ei.proximo_mantenimiento, ei.frecuencia_meses,
+            ei.id,
+            ei.nombre            AS ei_nombre,
+            ei.codigo,
+            ei.marca,
+            ei.modelo,
+            ei.ubicacion_referencia,
+            ei.estado,
+            ei.estado_intervencion,
+            ei.ultimo_mantenimiento,
+            ei.proximo_mantenimiento,
+            ei.frecuencia_meses,
             ei.observaciones,
-            ei.proyecto_id, ei.proyecto_servicio_id,
+            ei.proyecto_id,
+            ei.proyecto_servicio_id,
+            -- Proyecto
             p.nombre_proyecto,
-            ps.nombre        AS serv_nombre,
-            ps.estado        AS serv_estado,
+            p.orden_trabajo,
+            p.fecha_inicio           AS proj_inicio,
+            p.fecha_fin_estimada     AS proj_fin_est,
+            -- Servicio
+            ps.nombre                AS serv_nombre,
+            ps.estado                AS serv_estado,
             ps.fecha_programada,
-            ps.fecha_inicio  AS serv_inicio,
-            ps.fecha_fin     AS serv_fin
+            ps.fecha_inicio          AS serv_inicio,
+            ps.fecha_fin             AS serv_fin,
+            ps.zona_ejecucion,
+            ps.alcance,
+            ps.lider_id,
+            ps.responsable_id
         FROM equipo_intervenido ei
         LEFT JOIN proyecto          p  ON p.id  = ei.proyecto_id
         LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
@@ -423,62 +441,158 @@ def portal_mantenimiento_detalles(
     if not row:
         raise HTTPException(status_code=404, detail="Equipo no encontrado.")
 
-    (ei_id_db, nombre, codigo, marca, modelo, ubicacion, estado, estado_interv,
-     ult_mant, prox_mant, frec, obs,
-     proyecto_id, ps_id,
-     nombre_proyecto, serv_nombre, serv_estado, serv_fecha_prog,
-     serv_inicio, serv_fin) = row
+    (
+        ei_id_db, nombre, codigo, marca, modelo,
+        ubicacion, estado, estado_interv,
+        ult_mant, prox_mant, frec, obs,
+        proyecto_id, ps_id,
+        nombre_proyecto, orden_trabajo, proj_inicio, proj_fin_est,
+        serv_nombre, serv_estado, serv_fecha_prog, serv_inicio, serv_fin,
+        zona_ejecucion, alcance, lider_id, responsable_id,
+    ) = row
 
-    # Personal técnico del proyecto
+    # ── Personal técnico: líderes del servicio + miembros del proyecto ────────
     personal: list[dict] = []
+    seen_ids: set = set()
+
+    if ps_id:
+        # Líderes definidos directamente en el servicio
+        for sql, rol_label in [
+            ("SELECT e.id, u.nombre, u.apellido, e.cargo FROM proyecto_servicio ps "
+             "JOIN empleado e ON e.id = ps.lider_id "
+             "JOIN usuario  u ON u.id = e.usuario_id "
+             "WHERE ps.id = :psid AND ps.lider_id IS NOT NULL",
+             "Líder del Servicio"),
+            ("SELECT e.id, u.nombre, u.apellido, e.cargo FROM proyecto_servicio ps "
+             "JOIN empleado e ON e.id = ps.responsable_id "
+             "JOIN usuario  u ON u.id = e.usuario_id "
+             "WHERE ps.id = :psid AND ps.responsable_id IS NOT NULL",
+             "Técnico Responsable"),
+        ]:
+            r = db.execute(text(sql), {"psid": str(ps_id)}).fetchone()
+            if r and str(r[0]) not in seen_ids:
+                seen_ids.add(str(r[0]))
+                personal.append({
+                    "nombre": f"{r[1]} {r[2]}".strip(),
+                    "cargo":  r[3] or "—",
+                    "rol":    rol_label,
+                })
+
     if proyecto_id:
-        prows = db.execute(text("""
+        # Miembros activos del proyecto
+        mbr_rows = db.execute(text("""
             SELECT DISTINCT
+                e.id,
                 u.nombre || ' ' || u.apellido AS nombre_completo,
                 e.cargo,
-                pm.rol_proyecto
+                COALESCE(pm.rol_proyecto, 'Técnico') AS rol_proy
             FROM proyecto_miembro pm
             JOIN empleado e ON e.id = pm.empleado_id
             JOIN usuario  u ON u.id = e.usuario_id
             WHERE pm.proyecto_id = :pid AND pm.activo = true
             ORDER BY nombre_completo
         """), {"pid": str(proyecto_id)}).fetchall()
-        personal = [{"nombre": p[0], "cargo": p[1], "rol_proyecto": p[2]} for p in prows]
 
-    # Herramientas/equipos usados (préstamos del servicio)
+        for r in mbr_rows:
+            if str(r[0]) not in seen_ids:
+                seen_ids.add(str(r[0]))
+                personal.append({"nombre": r[1], "cargo": r[2] or "—", "rol": r[3]})
+
+    # ── Herramientas / Equipos utilizados (préstamos del servicio) ────────────
     herramientas: list[dict] = []
     if ps_id:
         hrows = db.execute(text("""
-            SELECT eq.nombre, eq.codigo, eq.clase, pi2.cantidad_entregada
+            SELECT
+                eq.id,
+                eq.nombre,
+                COALESCE(eq.codigo, '')          AS codigo,
+                COALESCE(eq.marca,  '')          AS marca,
+                COALESCE(eq.modelo, '')          AS modelo,
+                eq.clase,
+                COALESCE(pi2.cantidad_entregada,
+                         pi2.cantidad_solicitada, 1) AS cantidad,
+                cal.fecha_proxima                AS cal_fecha_prox,
+                cal.empresa_responsable          AS cal_empresa,
+                cal.observacion                  AS cal_obs
             FROM prestamo pr
-            JOIN prestamo_item pi2 ON pi2.prestamo_id = pr.id
-            JOIN equipo eq         ON eq.id = pi2.equipo_id
+            JOIN prestamo_item pi2 ON pi2.prestamo_id   = pr.id
+            JOIN equipo        eq  ON eq.id             = pi2.equipo_id
+            LEFT JOIN LATERAL (
+                SELECT fecha_proxima, empresa_responsable, observacion
+                FROM   calibracion
+                WHERE  equipo_id = eq.id
+                ORDER  BY created_at DESC
+                LIMIT  1
+            ) cal ON true
             WHERE pr.proyecto_servicio_id = :psid
-              AND pr.estado IN ('entregado','devuelto','confirmado')
+              AND pr.estado IN ('entregado', 'devuelto', 'confirmado')
             ORDER BY eq.clase, eq.nombre
         """), {"psid": str(ps_id)}).fetchall()
-        herramientas = [
-            {"nombre": h[0], "codigo": h[1], "tipo": h[2], "cantidad": h[3]}
-            for h in hrows
-        ]
 
-    # Documentos descargables
+        today = date.today()
+        for h in hrows:
+            cal_prox  = h[7]
+            cal_emp   = h[8] or ""
+            cal_obs   = h[9] or ""
+            especificacion = None
+
+            if cal_prox:
+                dias = (cal_prox - today).days
+                sufijo = f" — {cal_emp}" if cal_emp else ""
+                if dias < 0:
+                    especificacion = f"⚠ Calibración vencida ({cal_prox.strftime('%d/%m/%Y')}){sufijo}"
+                elif dias <= 30:
+                    especificacion = f"⏳ Próxima a vencer ({cal_prox.strftime('%d/%m/%Y')}){sufijo}"
+                else:
+                    especificacion = f"✓ Calibrado vigente hasta {cal_prox.strftime('%d/%m/%Y')}{sufijo}"
+            elif cal_obs:
+                especificacion = cal_obs
+
+            herramientas.append({
+                "nombre":         h[1],
+                "codigo":         h[2],
+                "marca":          h[3],
+                "modelo":         h[4],
+                "tipo":           h[5],
+                "cantidad":       int(h[6]) if h[6] else 1,
+                "especificacion": especificacion,
+            })
+
+    # ── Documentos: informes + cartas de garantía ─────────────────────────────
     documentos: list[dict] = []
     if ps_id:
-        drows = db.execute(text("""
-            SELECT tipo, titulo, url, fecha FROM informe_servicio
-            WHERE servicio_id = :psid AND empresa_id = :eid AND url IS NOT NULL
-            ORDER BY fecha DESC NULLS LAST
+        inf_rows = db.execute(text("""
+            SELECT tipo, titulo, url, fecha
+            FROM   informe_servicio
+            WHERE  servicio_id = :psid AND empresa_id = :eid
+              AND  url IS NOT NULL
+            ORDER BY fecha DESC NULLS LAST, created_at DESC
         """), {"psid": str(ps_id), "eid": empresa_id}).fetchall()
-        documentos = [
-            {
+
+        for d in inf_rows:
+            titulo = d[1] or ("Pre-Informe de Servicio" if d[0] == "pre" else "Informe Final de Servicio")
+            documentos.append({
                 "tipo":   d[0],
-                "titulo": d[1],
+                "titulo": titulo,
                 "url":    d[2],
                 "fecha":  d[3].isoformat() if d[3] else None,
-            }
-            for d in drows
-        ]
+            })
+
+        gar_rows = db.execute(text("""
+            SELECT documento_pdf_url, created_at::date AS fecha
+            FROM   carta_garantia
+            WHERE  servicio_id = :psid AND empresa_id = :eid
+              AND  documento_pdf_url IS NOT NULL
+            ORDER BY created_at DESC
+        """), {"psid": str(ps_id), "eid": empresa_id}).fetchall()
+
+        for g in gar_rows:
+            documentos.append({
+                "tipo":   "garantia",
+                "titulo": "Carta de Garantía",
+                "url":    g[0],
+                "fecha":  g[1].isoformat() if g[1] else None,
+            })
 
     return {
         "equipo": {
@@ -495,14 +609,21 @@ def portal_mantenimiento_detalles(
             "frecuencia_meses":      frec,
             "observaciones":         obs,
         },
+        "proyecto": {
+            "nombre":        nombre_proyecto,
+            "orden_trabajo": orden_trabajo,
+            "fecha_inicio":  proj_inicio.isoformat() if proj_inicio else None,
+            "fecha_fin_est": proj_fin_est.isoformat() if proj_fin_est else None,
+        },
         "servicio": {
             "nombre":           serv_nombre,
             "estado":           serv_estado,
             "fecha_programada": serv_fecha_prog.isoformat() if serv_fecha_prog else None,
             "fecha_inicio":     serv_inicio.isoformat() if serv_inicio else None,
             "fecha_fin":        serv_fin.isoformat() if serv_fin else None,
+            "zona_ejecucion":   zona_ejecucion,
+            "alcance":          alcance,
         },
-        "proyecto":     nombre_proyecto,
         "personal":     personal,
         "herramientas": herramientas,
         "documentos":   documentos,
