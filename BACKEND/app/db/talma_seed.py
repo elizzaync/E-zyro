@@ -89,6 +89,13 @@ def sembrar_talma(conn) -> None:
         })
 
     # ── 5. Asignación usuario → rol ───────────────────────────────────────────
+    # Purgar roles incorrectos (p.ej. Administrador inyectado por sembrar_roles_sistema).
+    # Este usuario debe tener SOLO el rol ClienteExterno.
+    conn.execute(text("""
+        DELETE FROM usuario_rol
+        WHERE usuario_id = :uid AND rol_id <> :rid
+    """), {"uid": usuario_id, "rid": rol_id})
+
     row = conn.execute(text("""
         SELECT id FROM usuario_rol
         WHERE usuario_id = :uid AND rol_id = :rid
