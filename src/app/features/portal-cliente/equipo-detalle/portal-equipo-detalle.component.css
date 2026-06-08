@@ -92,8 +92,32 @@
 .ped-meta-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 .ped-meta-val   { font-size: 14px; font-weight: 500; color: var(--text-main); }
 
-/* Empty text */
-.ped-empty-text { color: var(--text-muted); font-size: 13px; text-align: center; padding: 1.5rem 0; margin: 0; }
+/* Meta sub-label */
+.ped-meta-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+/* Empty state */
+.ped-empty-state {
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  padding: 1.75rem 1rem; color: var(--text-muted); text-align: center;
+}
+.ped-empty-state svg { opacity: .3; }
+.ped-empty-state p   { margin: 0; font-size: 13px; }
+.ped-empty-tag {
+  display: inline-block; padding: 2px 10px; border-radius: 99px;
+  font-size: 11px; font-weight: 600;
+  background: var(--bg-color, #f3f4f6); color: var(--text-muted);
+}
+
+/* Count badge on card title */
+.ped-count-badge {
+  margin-left: auto; min-width: 22px; height: 22px; border-radius: 99px;
+  background: rgba(141,198,63,.15); color: var(--brand-green, #8dc63f);
+  font-size: 12px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 6px;
+}
+
+/* Error banner flex */
+.ped-error-banner { display: flex; align-items: center; gap: 0.625rem; }
 
 /* Documents */
 .ped-docs-grid { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -115,32 +139,57 @@
 .ped-doc-card:hover .ped-doc-arrow { color: var(--brand-green, #8dc63f); }
 
 /* Personal */
-.ped-personal-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.ped-personal-item { display: flex; align-items: center; gap: 0.875rem; }
+.ped-personal-list { display: flex; flex-direction: column; gap: 0.875rem; }
+.ped-personal-item { display: flex; align-items: flex-start; gap: 0.875rem; }
 .ped-avatar {
-  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
   background: rgba(141,198,63,.15); color: var(--brand-green, #8dc63f);
   display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 700; text-transform: uppercase;
+  font-size: 14px; font-weight: 700; text-transform: uppercase;
 }
-.ped-personal-info { display: flex; flex-direction: column; gap: 2px; }
+.ped-personal-info { display: flex; flex-direction: column; gap: 3px; }
 .ped-personal-nombre { font-size: 14px; font-weight: 600; color: var(--text-main); }
 .ped-personal-cargo  { font-size: 12px; color: var(--text-muted); }
+.ped-rol-tag {
+  display: inline-block; padding: 1px 8px; border-radius: 99px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  background: rgba(141,198,63,.12); color: var(--brand-green, #8dc63f);
+  width: fit-content;
+}
 
 /* Herramientas */
 .ped-herr-list { display: flex; flex-direction: column; gap: 0.625rem; }
 .ped-herr-item {
-  display: flex; align-items: center; gap: 0.75rem;
-  padding: 0.625rem 0.875rem;
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
   background: var(--bg-color, #f3f4f6);
   border-radius: 8px;
 }
 .ped-herr-icon {
-  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; margin-top: 1px;
   background: var(--card-bg, #fff); display: flex; align-items: center; justify-content: center;
   color: var(--text-muted);
 }
-.ped-herr-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ped-herr-info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ped-herr-nombre { font-size: 13px; font-weight: 600; color: var(--text-main); }
-.ped-herr-codigo { font-size: 11px; color: var(--text-muted); }
-.ped-herr-qty    { font-size: 12px; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
+.ped-herr-sub    { font-size: 11px; color: var(--text-muted); }
+.ped-herr-codigo { font-size: 11px; color: var(--text-muted); font-family: monospace; }
+.ped-herr-qty    { font-size: 12px; font-weight: 700; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+/* Calibration badge */
+.ped-cal-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 6px;
+  font-size: 11px; font-weight: 600; width: fit-content;
+}
+.cal-ok     { background: #d1fae5; color: #065f46; }
+.cal-warn   { background: #fef3c7; color: #92400e; }
+.cal-danger { background: #fee2e2; color: #991b1b; }
+.cal-none   { background: var(--bg-color, #f3f4f6); color: var(--text-muted); }
+
+/* Download button in doc card */
+.ped-doc-dl {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  flex-shrink: 0; color: var(--text-muted); font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.ped-doc-card:hover .ped-doc-dl { color: var(--brand-green, #8dc63f); }
