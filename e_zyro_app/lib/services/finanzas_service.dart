@@ -48,6 +48,70 @@ class FinanzasService {
     return _getList('/contabilidad/plan-cuentas${qs.isEmpty ? '' : '?$qs'}', CuentaContable.fromJson);
   }
 
+  Future<ApiResult<List<PeriodoContable>>> periodos() =>
+      _getList('/contabilidad/periodos', PeriodoContable.fromJson);
+
+  Future<ApiResult<PeriodoContable>> abrirPeriodo(int anio, int mes) async {
+    try {
+      final r = await _client.post('/contabilidad/periodos', {'anio': anio, 'mes': mes});
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(PeriodoContable.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<PeriodoContable>> _accionPeriodo(String id, String accion) async {
+    try {
+      final r = await _client.post('/contabilidad/periodos/$id/$accion', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(PeriodoContable.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<PeriodoContable>> cerrarPeriodo(String id) => _accionPeriodo(id, 'cerrar');
+  Future<ApiResult<PeriodoContable>> reabrirPeriodo(String id) => _accionPeriodo(id, 'reabrir');
+
+  Future<ApiResult<List<AsientoContable>>> asientos({String? periodoId, String? origen}) {
+    final params = <String, String>{
+      'periodo_id': ?periodoId,
+      'origen': ?origen,
+    };
+    final qs = Uri(queryParameters: params).query;
+    return _getList('/contabilidad/asientos${qs.isEmpty ? '' : '?$qs'}', AsientoContable.fromJson);
+  }
+
+  Future<ApiResult<AsientoContable>> obtenerAsiento(String id) =>
+      _getObj('/contabilidad/asientos/$id', AsientoContable.fromJson);
+
+  Future<ApiResult<AsientoContable>> crearAsientoManual({
+    required String fecha,
+    required String descripcion,
+    required List<Map<String, dynamic>> lineas,
+    String? referenciaId,
+  }) async {
+    try {
+      final r = await _client.post('/contabilidad/asientos/manual', {
+        'fecha': fecha,
+        'descripcion': descripcion,
+        'lineas': lineas,
+        if (referenciaId != null) 'referencia_id': referenciaId,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(AsientoContable.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   // ── Cuentas por Pagar ──────────────────────────────────────────────────────
   Future<ApiResult<List<Factura>>> facturasProveedor({String? estado}) {
     final qs = estado != null ? '?estado=$estado' : '';
@@ -222,6 +286,42 @@ class FinanzasService {
   Future<ApiResult<EstadoResultados>> estadoResultados(String desde, String hasta) =>
       _getObj('/reportes-financieros/estado-resultados?desde=$desde&hasta=$hasta', EstadoResultados.fromJson);
 
+  Future<ApiResult<Map<String, dynamic>>> flujoEfectivo(String periodo) async {
+    try {
+      final r = await _client.get('/reportes-financieros/flujo-efectivo?periodo=$periodo');
+      if (r.statusCode == 200) {
+        return ApiResult.ok(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<List<dynamic>>> libroDiario(String periodo) async {
+    try {
+      final r = await _client.get('/reportes-financieros/libro-diario?periodo=$periodo');
+      if (r.statusCode == 200) {
+        return ApiResult.ok(jsonDecode(r.body) as List<dynamic>);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<List<dynamic>>> libroMayor(String cuentaId, String periodo) async {
+    try {
+      final r = await _client.get('/reportes-financieros/libro-mayor/$cuentaId?periodo=$periodo');
+      if (r.statusCode == 200) {
+        return ApiResult.ok(jsonDecode(r.body) as List<dynamic>);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   // ── Activos fijos ──────────────────────────────────────────────────────────
   Future<ApiResult<List<ActivoFijo>>> activosFijos({String? estado}) {
     final qs = estado != null ? '?estado=$estado' : '';
@@ -252,6 +352,42 @@ class FinanzasService {
     }
   }
 
+  Future<ApiResult<ActivoFijo>> actualizarActivoFijo({
+    required String id,
+    String? nombre,
+    double? valorResidual,
+    String? centroCostoId,
+  }) async {
+    try {
+      final r = await _client.put('/activos-fijos/$id', {
+        if (nombre != null) 'nombre': nombre,
+        if (valorResidual != null) 'valor_residual': valorResidual,
+        if (centroCostoId != null) 'centro_costo_id': centroCostoId,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(ActivoFijo.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<ActivoFijo>> darDeBajaActivo(String id) async {
+    try {
+      final r = await _client.post('/activos-fijos/$id/dar-de-baja', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(ActivoFijo.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<List<DepreciacionFila>>> historialDepreciacion(String activoId) =>
+      _getList('/activos-fijos/$activoId/depreciacion', DepreciacionFila.fromJson);
+
   Future<ApiResult<Map<String, dynamic>>> procesarDepreciacion(String periodo) async {
     try {
       final r = await _client.post('/activos-fijos/procesar-depreciacion?periodo=$periodo', {});
@@ -265,7 +401,50 @@ class FinanzasService {
   }
 
   // ── Planilla ───────────────────────────────────────────────────────────────
+  Future<ApiResult<List<ConceptoRemunerativo>>> conceptosPlanilla() =>
+      _getList('/planilla/conceptos', ConceptoRemunerativo.fromJson);
+
+  Future<ApiResult<ConceptoRemunerativo>> crearConceptoPlanilla({
+    required String codigo,
+    required String nombre,
+    required String tipo,
+    double? montoReferencial,
+  }) async {
+    try {
+      final r = await _client.post('/planilla/conceptos', {
+        'codigo': codigo,
+        'nombre': nombre,
+        'tipo': tipo,
+        if (montoReferencial != null) 'monto_referencial': montoReferencial,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(ConceptoRemunerativo.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<Planilla>>> planillas() => _getList('/planilla', Planilla.fromJson);
+
+  Future<ApiResult<Planilla>> obtenerPlanilla(String id) =>
+      _getObj('/planilla/$id', Planilla.fromJson);
+
+  Future<ApiResult<List<BoletaPago>>> listarBoletas(String planillaId) =>
+      _getList('/planilla/$planillaId/boletas', BoletaPago.fromJson);
+
+  Future<ApiResult<Planilla>> anularPlanilla(String id) async {
+    try {
+      final r = await _client.post('/planilla/$id/anular', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(Planilla.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
 
   Future<ApiResult<Planilla>> calcularPlanilla(String periodo) async {
     try {
@@ -295,6 +474,32 @@ class FinanzasService {
   Future<ApiResult<Planilla>> pagarPlanilla(String id) => _accionPlanilla(id, 'marcar-pagada');
 
   // ── Tributario ─────────────────────────────────────────────────────────────
+  Future<ApiResult<List<RegimenTributario>>> regimenesTributarios() =>
+      _getList('/tributario/regimenes', RegimenTributario.fromJson);
+
+  Future<ApiResult<ConfiguracionTributaria>> configuracionTributaria() =>
+      _getObj('/tributario/configuracion', ConfiguracionTributaria.fromJson);
+
+  Future<ApiResult<ConfiguracionTributaria>> actualizarConfiguracionTributaria({
+    String? regimenId,
+    String? cuentaIgvCreditoFiscalId,
+    String? cuentaIgvDebitoFiscalId,
+  }) async {
+    try {
+      final r = await _client.put('/tributario/configuracion', {
+        if (regimenId != null) 'regimen_id': regimenId,
+        if (cuentaIgvCreditoFiscalId != null) 'cuenta_igv_credito_fiscal_id': cuentaIgvCreditoFiscalId,
+        if (cuentaIgvDebitoFiscalId != null) 'cuenta_igv_debito_fiscal_id': cuentaIgvDebitoFiscalId,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(ConfiguracionTributaria.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<RegistroTributarioFila>>> registroCompras(String periodo) =>
       _getList('/tributario/registro-compras?periodo=$periodo', RegistroTributarioFila.fromJson);
 

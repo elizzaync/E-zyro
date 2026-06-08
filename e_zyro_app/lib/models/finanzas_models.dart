@@ -240,7 +240,173 @@ class ActivoFijo {
       );
 }
 
+// ── Activos fijos: historial de depreciación ─────────────────────────────────
+class DepreciacionFila {
+  final String periodoId;
+  final double montoDepreciado, valorEnLibrosResultante;
+  final String? asientoId;
+  DepreciacionFila({
+    required this.periodoId, required this.montoDepreciado,
+    required this.valorEnLibrosResultante, this.asientoId,
+  });
+  factory DepreciacionFila.fromJson(Map<String, dynamic> j) => DepreciacionFila(
+        periodoId: j['periodo_id']?.toString() ?? '',
+        montoDepreciado: _toD(j['monto_depreciado']),
+        valorEnLibrosResultante: _toD(j['valor_en_libros_resultante']),
+        asientoId: j['asiento_id']?.toString(),
+      );
+}
+
+// ── Contabilidad: periodos y asientos ────────────────────────────────────────
+class PeriodoContable {
+  final String id;
+  final int anio, mes;
+  final String estado;
+  final String? cerradoAt;
+  PeriodoContable({
+    required this.id, required this.anio, required this.mes,
+    required this.estado, this.cerradoAt,
+  });
+  factory PeriodoContable.fromJson(Map<String, dynamic> j) => PeriodoContable(
+        id: j['id'].toString(),
+        anio: _toI(j['anio']),
+        mes: _toI(j['mes']),
+        estado: j['estado']?.toString() ?? '',
+        cerradoAt: j['cerrado_at']?.toString(),
+      );
+  String get periodo => '$anio-${mes.toString().padLeft(2, '0')}';
+}
+
+class AsientoLinea {
+  final String id, cuentaId;
+  final String? cuentaCodigo, centroCostoId, glosa;
+  final double debito, credito;
+  AsientoLinea({
+    required this.id, required this.cuentaId, this.cuentaCodigo,
+    this.centroCostoId, this.glosa, required this.debito, required this.credito,
+  });
+  factory AsientoLinea.fromJson(Map<String, dynamic> j) => AsientoLinea(
+        id: j['id'].toString(),
+        cuentaId: j['cuenta_id'].toString(),
+        cuentaCodigo: j['cuenta_codigo']?.toString(),
+        centroCostoId: j['centro_costo_id']?.toString(),
+        glosa: j['glosa']?.toString(),
+        debito: _toD(j['debito']),
+        credito: _toD(j['credito']),
+      );
+}
+
+class AsientoContable {
+  final String id, numero, fecha, periodoId, descripcion, origen;
+  final String? referenciaId;
+  final List<AsientoLinea> lineas;
+  AsientoContable({
+    required this.id, required this.numero, required this.fecha,
+    required this.periodoId, required this.descripcion, required this.origen,
+    this.referenciaId, required this.lineas,
+  });
+  factory AsientoContable.fromJson(Map<String, dynamic> j) => AsientoContable(
+        id: j['id'].toString(),
+        numero: j['numero']?.toString() ?? '',
+        fecha: j['fecha']?.toString() ?? '',
+        periodoId: j['periodo_id']?.toString() ?? '',
+        descripcion: j['descripcion']?.toString() ?? '',
+        origen: j['origen']?.toString() ?? '',
+        referenciaId: j['referencia_id']?.toString(),
+        lineas: ((j['lineas'] ?? []) as List)
+            .map((e) => AsientoLinea.fromJson(e as Map<String, dynamic>)).toList(),
+      );
+  double get totalDebito => lineas.fold(0.0, (s, l) => s + l.debito);
+  double get totalCredito => lineas.fold(0.0, (s, l) => s + l.credito);
+}
+
+// ── Tributario: regímenes y configuración ────────────────────────────────────
+class RegimenTributario {
+  final String id, codigo, nombre;
+  final double tasaIgv;
+  final double? tasaRentaReferencial;
+  final bool activo;
+  RegimenTributario({
+    required this.id, required this.codigo, required this.nombre,
+    required this.tasaIgv, this.tasaRentaReferencial, required this.activo,
+  });
+  factory RegimenTributario.fromJson(Map<String, dynamic> j) => RegimenTributario(
+        id: j['id'].toString(),
+        codigo: j['codigo']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        tasaIgv: _toD(j['tasa_igv']),
+        tasaRentaReferencial: j['tasa_renta_referencial'] != null ? _toD(j['tasa_renta_referencial']) : null,
+        activo: j['activo'] == true,
+      );
+}
+
+class ConfiguracionTributaria {
+  final String regimenId, regimenCodigo;
+  final double tasaIgv;
+  final String? cuentaIgvCreditoFiscalId, cuentaIgvDebitoFiscalId;
+  ConfiguracionTributaria({
+    required this.regimenId, required this.regimenCodigo, required this.tasaIgv,
+    this.cuentaIgvCreditoFiscalId, this.cuentaIgvDebitoFiscalId,
+  });
+  factory ConfiguracionTributaria.fromJson(Map<String, dynamic> j) => ConfiguracionTributaria(
+        regimenId: j['regimen_id']?.toString() ?? '',
+        regimenCodigo: j['regimen_codigo']?.toString() ?? '',
+        tasaIgv: _toD(j['tasa_igv']),
+        cuentaIgvCreditoFiscalId: j['cuenta_igv_credito_fiscal_id']?.toString(),
+        cuentaIgvDebitoFiscalId: j['cuenta_igv_debito_fiscal_id']?.toString(),
+      );
+}
+
 // ── Planilla ─────────────────────────────────────────────────────────────────
+class ConceptoRemunerativo {
+  final String id, codigo, nombre, tipo;
+  final double? montoReferencial;
+  final bool activo;
+  ConceptoRemunerativo({
+    required this.id, required this.codigo, required this.nombre,
+    required this.tipo, this.montoReferencial, required this.activo,
+  });
+  factory ConceptoRemunerativo.fromJson(Map<String, dynamic> j) => ConceptoRemunerativo(
+        id: j['id'].toString(),
+        codigo: j['codigo']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        tipo: j['tipo']?.toString() ?? '',
+        montoReferencial: j['monto_referencial'] != null ? _toD(j['monto_referencial']) : null,
+        activo: j['activo'] == true,
+      );
+}
+
+class BoletaPagoDetalle {
+  final String conceptoId;
+  final double monto;
+  BoletaPagoDetalle({required this.conceptoId, required this.monto});
+  factory BoletaPagoDetalle.fromJson(Map<String, dynamic> j) => BoletaPagoDetalle(
+        conceptoId: j['concepto_id'].toString(),
+        monto: _toD(j['monto']),
+      );
+}
+
+class BoletaPago {
+  final String id, empleadoId;
+  final double totalIngresos, totalDescuentos, totalAportes, totalNeto;
+  final List<BoletaPagoDetalle> detalles;
+  BoletaPago({
+    required this.id, required this.empleadoId, required this.totalIngresos,
+    required this.totalDescuentos, required this.totalAportes, required this.totalNeto,
+    required this.detalles,
+  });
+  factory BoletaPago.fromJson(Map<String, dynamic> j) => BoletaPago(
+        id: j['id'].toString(),
+        empleadoId: j['empleado_id'].toString(),
+        totalIngresos: _toD(j['total_ingresos']),
+        totalDescuentos: _toD(j['total_descuentos']),
+        totalAportes: _toD(j['total_aportes']),
+        totalNeto: _toD(j['total_neto']),
+        detalles: ((j['detalles'] ?? []) as List)
+            .map((e) => BoletaPagoDetalle.fromJson(e as Map<String, dynamic>)).toList(),
+      );
+}
+
 class Planilla {
   final String id, periodoId, fechaProceso, estado;
   final double totalIngresos, totalDescuentos, totalAportes, totalNeto;
