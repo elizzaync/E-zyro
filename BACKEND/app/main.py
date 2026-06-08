@@ -49,6 +49,7 @@ from app.routers import activos_fijos        as activos_fijos_router
 from app.routers import planilla             as planilla_router
 from app.routers import reportes_financieros as reportes_financieros_router
 from app.routers import eventos_contables    as eventos_contables_router
+from app.routers import caja_chica           as caja_chica_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -757,6 +758,10 @@ def _run_migrations():
         # ── Finanzas · Fase 10 — Bus de eventos contables ────────────────────
         sembrar_permisos(conn, "eventos_contables", ["ver", "configurar_mapeos"],
                          descripcion_base="Eventos contables:")
+        # ── Finanzas · Caja Chica (Fase 5 del cierre) ────────────────────────
+        sembrar_permisos(conn, "caja_chica",
+                         ["ver", "gestionar", "registrar_movimiento"],
+                         descripcion_base="Caja chica:")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
@@ -1508,6 +1513,7 @@ app.include_router(activos_fijos_router.router)
 app.include_router(planilla_router.router)
 app.include_router(reportes_financieros_router.router)
 app.include_router(eventos_contables_router.router)
+app.include_router(caja_chica_router.router)
 
 
 @app.get("/")
