@@ -76,12 +76,12 @@ class BalanceComprobacion {
 class Factura {
   final String id, numeroDocumento, tipoDocumento, estado, fechaEmision, fechaVencimiento;
   final double subtotal, igv, total, saldoPendiente;
-  final String? asientoId;
+  final String? asientoId, terceroId;
   Factura({
     required this.id, required this.numeroDocumento, required this.tipoDocumento,
     required this.estado, required this.fechaEmision, required this.fechaVencimiento,
     required this.subtotal, required this.igv, required this.total,
-    required this.saldoPendiente, this.asientoId,
+    required this.saldoPendiente, this.asientoId, this.terceroId,
   });
   factory Factura.fromJson(Map<String, dynamic> j) => Factura(
         id: j['id'].toString(),
@@ -95,6 +95,7 @@ class Factura {
         total: _toD(j['total']),
         saldoPendiente: _toD(j['saldo_pendiente']),
         asientoId: j['asiento_id']?.toString(),
+        terceroId: (j['proveedor_id'] ?? j['cliente_id'])?.toString(),
       );
 }
 
@@ -261,6 +262,73 @@ class Planilla {
         totalNeto: _toD(j['total_neto']),
         asientoProvisionId: j['asiento_provision_id']?.toString(),
         asientoPagoId: j['asiento_pago_id']?.toString(),
+      );
+}
+
+// ── Pagos y Cobros ───────────────────────────────────────────────────────────
+class AplicacionPago {
+  final String facturaId;
+  final double montoAplicado;
+  AplicacionPago({required this.facturaId, required this.montoAplicado});
+  factory AplicacionPago.fromJson(Map<String, dynamic> j) => AplicacionPago(
+        facturaId: j['factura_id'].toString(),
+        montoAplicado: _toD(j['monto_aplicado']),
+      );
+}
+
+class PagoProveedor {
+  final String id, proveedorId, fechaPago, medioPago;
+  final double monto;
+  final String? referencia, asientoId;
+  final List<AplicacionPago> aplicaciones;
+  PagoProveedor({
+    required this.id, required this.proveedorId, required this.fechaPago,
+    required this.medioPago, required this.monto, this.referencia,
+    this.asientoId, required this.aplicaciones,
+  });
+  factory PagoProveedor.fromJson(Map<String, dynamic> j) => PagoProveedor(
+        id: j['id'].toString(),
+        proveedorId: j['proveedor_id'].toString(),
+        fechaPago: j['fecha_pago']?.toString() ?? '',
+        medioPago: j['medio_pago']?.toString() ?? '',
+        monto: _toD(j['monto']),
+        referencia: j['referencia']?.toString(),
+        asientoId: j['asiento_id']?.toString(),
+        aplicaciones: ((j['aplicaciones'] ?? []) as List)
+            .map((e) => AplicacionPago.fromJson(e as Map<String, dynamic>)).toList(),
+      );
+}
+
+class AplicacionCobro {
+  final String facturaId;
+  final double montoAplicado;
+  AplicacionCobro({required this.facturaId, required this.montoAplicado});
+  factory AplicacionCobro.fromJson(Map<String, dynamic> j) => AplicacionCobro(
+        facturaId: j['factura_id'].toString(),
+        montoAplicado: _toD(j['monto_aplicado']),
+      );
+}
+
+class CobroCliente {
+  final String id, clienteId, fechaCobro, medioPago;
+  final double monto;
+  final String? referencia, asientoId;
+  final List<AplicacionCobro> aplicaciones;
+  CobroCliente({
+    required this.id, required this.clienteId, required this.fechaCobro,
+    required this.medioPago, required this.monto, this.referencia,
+    this.asientoId, required this.aplicaciones,
+  });
+  factory CobroCliente.fromJson(Map<String, dynamic> j) => CobroCliente(
+        id: j['id'].toString(),
+        clienteId: j['cliente_id'].toString(),
+        fechaCobro: j['fecha_cobro']?.toString() ?? '',
+        medioPago: j['medio_pago']?.toString() ?? '',
+        monto: _toD(j['monto']),
+        referencia: j['referencia']?.toString(),
+        asientoId: j['asiento_id']?.toString(),
+        aplicaciones: ((j['aplicaciones'] ?? []) as List)
+            .map((e) => AplicacionCobro.fromJson(e as Map<String, dynamic>)).toList(),
       );
 }
 

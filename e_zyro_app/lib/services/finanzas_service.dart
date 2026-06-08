@@ -118,6 +118,11 @@ class FinanzasService {
     }
   }
 
+  Future<ApiResult<List<PagoProveedor>>> listarPagos({String? proveedorId}) {
+    final qs = proveedorId != null ? '?proveedor_id=$proveedorId' : '';
+    return _getList('/cuentas-por-pagar/pagos$qs', PagoProveedor.fromJson);
+  }
+
   Future<ApiResult<List<SaldoTercero>>> saldosProveedor() =>
       _getList('/cuentas-por-pagar/reporte-saldos', SaldoTercero.fromJson);
 
@@ -182,6 +187,23 @@ class FinanzasService {
     } catch (_) {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));
     }
+  }
+
+  Future<ApiResult<Factura>> anularComprobante(String id) async {
+    try {
+      final r = await _client.post('/cuentas-por-cobrar/facturas/$id/anular', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<List<CobroCliente>>> listarCobros({String? clienteId}) {
+    final qs = clienteId != null ? '?cliente_id=$clienteId' : '';
+    return _getList('/cuentas-por-cobrar/cobros$qs', CobroCliente.fromJson);
   }
 
   Future<ApiResult<List<SaldoTercero>>> saldosCliente() =>
