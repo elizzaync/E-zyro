@@ -590,6 +590,58 @@ def _pre_create_migrations():
             "ON ticket_actividad (ticket_id, created_at)"
         ))
 
+        # ── HU-21: Documentación — carpetas + planos + versiones ─────────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS carpeta_documental (
+                id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                empresa_id  uuid NOT NULL REFERENCES empresa(id),
+                proyecto_id uuid REFERENCES proyecto(id),
+                padre_id    uuid REFERENCES carpeta_documental(id),
+                nombre      VARCHAR(150) NOT NULL,
+                created_at  TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS plano (
+                id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                empresa_id  uuid NOT NULL REFERENCES empresa(id),
+                proyecto_id uuid REFERENCES proyecto(id),
+                carpeta_id  uuid REFERENCES carpeta_documental(id),
+                nombre      VARCHAR(200) NOT NULL,
+                disciplina  VARCHAR(50),
+                descripcion VARCHAR(255),
+                created_at  TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS version_plano (
+                id                   uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                plano_id             uuid NOT NULL REFERENCES plano(id),
+                empresa_id           uuid NOT NULL REFERENCES empresa(id),
+                version              VARCHAR(20) NOT NULL,
+                url_cloudinary       VARCHAR(500) NOT NULL,
+                public_id_cloudinary VARCHAR(255) NOT NULL,
+                subido_por           uuid REFERENCES usuario(id),
+                fecha                DATE NOT NULL,
+                es_version_activa    BOOLEAN NOT NULL DEFAULT true,
+                formato              VARCHAR(20),
+                bytes                BIGINT,
+                created_at           TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_carpeta_empresa_padre "
+            "ON carpeta_documental (empresa_id, padre_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_plano_empresa_carpeta "
+            "ON plano (empresa_id, carpeta_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_version_plano_activa "
+            "ON version_plano (plano_id, es_version_activa)"
+        ))
+
         conn.commit()
 
 
