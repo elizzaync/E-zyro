@@ -77,6 +77,28 @@ class AppSession {
   bool get canEditarEquipoIntervenido => hasPerm('equipo_intervenido:editar');
   bool get canEliminarEquipoIntervenido => hasPerm('equipo_intervenido:eliminar');
 
+  // ── Finanzas / ERP contable ───────────────────────────────────────────────
+  // Visibilidad del módulo: cualquier permiso de finanzas concede la entrada.
+  bool get canVerFinanzas =>
+      isAdmin || canVerContabilidad || canVerCxp || canVerCxc ||
+      canVerActivosFijos || canVerPlanilla || canVerTributario;
+  bool get canVerContabilidad   => hasPerm('contabilidad:ver');
+  bool get canCrearAsiento      => hasPerm('contabilidad:crear_asiento');
+  bool get canVerCxp            => hasPerm('cxp:ver');
+  bool get canRegistrarFacturaCxp => hasPerm('cxp:registrar_factura');
+  bool get canRegistrarPagoCxp  => hasPerm('cxp:registrar_pago');
+  bool get canAnularFacturaCxp  => hasPerm('cxp:anular_factura');
+  bool get canVerCxc            => hasPerm('cxc:ver');
+  bool get canEmitirComprobante => hasPerm('cxc:emitir_comprobante');
+  bool get canRegistrarCobro    => hasPerm('cxc:registrar_cobro');
+  bool get canVerActivosFijos   => hasPerm('activos_fijos:ver');
+  bool get canGestionarActivos  => hasPerm('activos_fijos:gestionar');
+  bool get canVerPlanilla       => hasPerm('planilla:ver');
+  bool get canCalcularPlanilla  => hasPerm('planilla:calcular');
+  bool get canAprobarPlanilla   => hasPerm('planilla:aprobar');
+  bool get canVerTributario     => hasPerm('tributario:ver');
+  bool get canVerInventarioValorizado => hasPerm('inventario_valorizado:ver');
+
   // ── Acciones (ocultar/mostrar botones) ────────────────────────────────────
   bool get canGestionarInventario => isAdmin || _esLogistica || hasPerm('inventario:gestionar');
   bool get canAprobarRequerimiento => hasPerm('requerimientos:aprobar');

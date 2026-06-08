@@ -23,6 +23,7 @@ import 'pantalla_plantillas_procedimiento.dart';
 import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
 import 'pantalla_planos.dart';
+import 'finanzas/pantalla_finanzas.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -47,6 +48,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _canCatalogos = false;
   bool _canGaleria = false;
   bool _canEquipoIntervenido = false;
+  bool _canFinanzas = false;
 
   @override
   void initState() {
@@ -73,6 +75,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _canCatalogos    = AppSession.i.canVerCatalogos;
         _canGaleria      = AppSession.i.canVerGaleria;
         _canEquipoIntervenido = AppSession.i.canVerEquipoIntervenido;
+        _canFinanzas = AppSession.i.canVerFinanzas;
       });
     }
   }
@@ -324,12 +327,20 @@ class _MoreScreenState extends State<MoreScreen> {
 
             // ── Módulos operativos (plan migración ERP) ────────────────
             // Cada módulo se muestra solo si el rol tiene su permiso :ver (admin: todos).
-            if (_canEpp || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canEquipoIntervenido) ...[
+            if (_canEpp || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canEquipoIntervenido || _canFinanzas) ...[
               _buildSectionTitle('Módulos'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
+                  if (_canFinanzas)
+                    _MenuItem(
+                      icon: Icons.account_balance_outlined,
+                      label: 'Finanzas',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(
+                            builder: (_) => const PantallaFinanzas())),
+                    ),
                   if (_canEquipoIntervenido)
                     _MenuItem(
                       icon: Icons.electrical_services_outlined,

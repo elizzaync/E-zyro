@@ -26,6 +26,12 @@ import '../services/equipo_service.dart';
 import '../services/analitica_service.dart';
 import '../services/planos_service.dart';
 import '../services/soporte_service.dart';
+import '../services/finanzas_service.dart';
+
+Future<FinanzasService> getFinanzasService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return FinanzasService(ApiClient(prefs));
+}
 
 Future<AuthService> getAuthService() async {
   final prefs = await SharedPreferences.getInstance();
