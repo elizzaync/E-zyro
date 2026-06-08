@@ -81,7 +81,8 @@ class AppSession {
   // Visibilidad del módulo: cualquier permiso de finanzas concede la entrada.
   bool get canVerFinanzas =>
       isAdmin || canVerContabilidad || canVerCxp || canVerCxc ||
-      canVerActivosFijos || canVerPlanilla || canVerTributario;
+      canVerActivosFijos || canVerPlanilla || canVerTributario ||
+      canVerControlling || canVerInventarioValorizado;
   bool get canVerContabilidad   => hasPerm('contabilidad:ver');
   bool get canCrearAsiento      => hasPerm('contabilidad:crear_asiento');
   bool get canVerCxp            => hasPerm('cxp:ver');
@@ -98,6 +99,9 @@ class AppSession {
   bool get canAprobarPlanilla   => hasPerm('planilla:aprobar');
   bool get canVerTributario     => hasPerm('tributario:ver');
   bool get canVerInventarioValorizado => hasPerm('inventario_valorizado:ver');
+  bool get canRegistrarMovimientoInventarioValorizado => hasPerm('inventario_valorizado:registrar_movimiento');
+  bool get canVerControlling   => hasPerm('controlling:ver');
+  bool get canGestionarCentrosCosto => hasPerm('controlling:gestionar_centros_costo');
 
   // ── Acciones (ocultar/mostrar botones) ────────────────────────────────────
   bool get canGestionarInventario => isAdmin || _esLogistica || hasPerm('inventario:gestionar');

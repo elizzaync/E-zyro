@@ -8,6 +8,8 @@ import 'pantalla_reportes_financieros.dart';
 import 'pantalla_activos_fijos.dart';
 import 'pantalla_planilla.dart';
 import 'pantalla_tributario.dart';
+import 'pantalla_centros_costo.dart';
+import 'pantalla_inventario_valorizado.dart';
 
 /// Hub del módulo de Finanzas / ERP contable. Agrupa los submódulos y muestra
 /// solo los que el rol del usuario tiene permiso de ver (admin ve todos).
@@ -39,6 +41,12 @@ class PantallaFinanzas extends StatelessWidget {
       if (s.canVerTributario)
         _ModuloFin('Tributario / IGV', 'Registro de compras y ventas',
             Icons.receipt_long_outlined, Colors.blueGrey, const PantallaTributario()),
+      if (s.canVerControlling)
+        _ModuloFin('Centros de costo', 'Controlling: presupuesto vs. costo real',
+            Icons.workspaces_outline, Colors.cyan.shade700, const PantallaCentrosCosto()),
+      if (s.canVerInventarioValorizado)
+        _ModuloFin('Inventario valorizado', 'Kardex, costo promedio y movimientos',
+            Icons.inventory_2_outlined, Colors.brown.shade400, const PantallaInventarioValorizado()),
     ];
 
     return Scaffold(

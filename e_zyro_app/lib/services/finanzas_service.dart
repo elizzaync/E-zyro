@@ -512,4 +512,143 @@ class FinanzasService {
 
   Future<ApiResult<List<Tercero>>> clientes() =>
       _getList('/operaciones/clientes', Tercero.fromJson);
+
+  // ── Controlling / centros de costo ─────────────────────────────────────────
+  Future<ApiResult<List<CentroCosto>>> centrosCosto({String? tipoReferencia, bool? activo}) {
+    final params = <String, String>{
+      'tipo_referencia': ?tipoReferencia,
+      'activo': ?activo?.toString(),
+    };
+    final qs = Uri(queryParameters: params).query;
+    return _getList('/controlling/centros-costo${qs.isEmpty ? '' : '?$qs'}', CentroCosto.fromJson);
+  }
+
+  Future<ApiResult<CentroCosto>> crearCentroCosto({
+    required String codigo,
+    required String nombre,
+    String tipoReferencia = 'libre',
+    String? referenciaId,
+    double? presupuestoReferencial,
+  }) async {
+    try {
+      final r = await _client.post('/controlling/centros-costo', {
+        'codigo': codigo,
+        'nombre': nombre,
+        'tipo_referencia': tipoReferencia,
+        if (referenciaId != null) 'referencia_id': referenciaId,
+        if (presupuestoReferencial != null) 'presupuesto_referencial': presupuestoReferencial,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(CentroCosto.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<CentroCosto>> actualizarCentroCosto({
+    required String id,
+    String? nombre,
+    String? tipoReferencia,
+    double? presupuestoReferencial,
+    bool? activo,
+  }) async {
+    try {
+      final r = await _client.put('/controlling/centros-costo/$id', {
+        if (nombre != null) 'nombre': nombre,
+        if (tipoReferencia != null) 'tipo_referencia': tipoReferencia,
+        if (presupuestoReferencial != null) 'presupuesto_referencial': presupuestoReferencial,
+        if (activo != null) 'activo': activo,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(CentroCosto.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<CentroCosto>> desactivarCentroCosto(String id) async {
+    try {
+      final r = await _client.delete('/controlling/centros-costo/$id');
+      if (r.statusCode == 200) {
+        return ApiResult.ok(CentroCosto.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<CostoRealCentro>> costoRealCentro(String centroId, {String? desde, String? hasta}) {
+    final params = <String, String>{'desde': ?desde, 'hasta': ?hasta};
+    final qs = Uri(queryParameters: params).query;
+    return _getObj('/controlling/centros-costo/$centroId/costo-real${qs.isEmpty ? '' : '?$qs'}',
+        CostoRealCentro.fromJson);
+  }
+
+  Future<ApiResult<ComparativoCentro>> comparativoCentro(String centroId, {String? desde, String? hasta}) {
+    final params = <String, String>{'desde': ?desde, 'hasta': ?hasta};
+    final qs = Uri(queryParameters: params).query;
+    return _getObj('/controlling/centros-costo/$centroId/comparativo${qs.isEmpty ? '' : '?$qs'}',
+        ComparativoCentro.fromJson);
+  }
+
+  // ── Inventario valorizado ───────────────────────────────────────────────────
+  Future<ApiResult<List<KardexFila>>> kardexValorizado({String? almacen, String? material}) {
+    final params = <String, String>{'almacen': ?almacen, 'material': ?material};
+    final qs = Uri(queryParameters: params).query;
+    return _getList('/logistica/inventario/valorizacion${qs.isEmpty ? '' : '?$qs'}', KardexFila.fromJson);
+  }
+
+  Future<ApiResult<CostoPromedio>> costoPromedio(String materialId, String almacenId) =>
+      _getObj('/logistica/inventario/costo-promedio/$materialId?almacen_id=$almacenId', CostoPromedio.fromJson);
+
+  Future<ApiResult<MovimientoValorizado>> registrarIngresoValorizado({
+    required String materialId,
+    required String almacenId,
+    required int cantidad,
+    required double costoUnitario,
+    String? motivo,
+  }) async {
+    try {
+      final r = await _client.post('/logistica/inventario/ingresos', {
+        'material_id': materialId,
+        'almacen_id': almacenId,
+        'cantidad': cantidad,
+        'costo_unitario': costoUnitario,
+        if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(MovimientoValorizado.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<MovimientoValorizado>> registrarSalidaValorizada({
+    required String materialId,
+    required String almacenId,
+    required int cantidad,
+    String? motivo,
+  }) async {
+    try {
+      final r = await _client.post('/logistica/inventario/salidas', {
+        'material_id': materialId,
+        'almacen_id': almacenId,
+        'cantidad': cantidad,
+        if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(MovimientoValorizado.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
 }

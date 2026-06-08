@@ -519,3 +519,109 @@ class RegistroTributarioFila {
         total: _toD(j['total']),
       );
 }
+
+// ── Controlling / centros de costo ───────────────────────────────────────────
+class CentroCosto {
+  final String id, codigo, nombre, tipoReferencia;
+  final String? referenciaId;
+  final double? presupuestoReferencial;
+  final bool activo;
+  CentroCosto({
+    required this.id, required this.codigo, required this.nombre,
+    required this.tipoReferencia, this.referenciaId, this.presupuestoReferencial,
+    required this.activo,
+  });
+  factory CentroCosto.fromJson(Map<String, dynamic> j) => CentroCosto(
+        id: j['id'].toString(),
+        codigo: j['codigo']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        tipoReferencia: j['tipo_referencia']?.toString() ?? 'libre',
+        referenciaId: j['referencia_id']?.toString(),
+        presupuestoReferencial: j['presupuesto_referencial'] == null ? null : _toD(j['presupuesto_referencial']),
+        activo: j['activo'] == true,
+      );
+}
+
+class CostoRealCentro {
+  final String centroCostoId;
+  final double totalDebito, totalCredito, costoReal;
+  CostoRealCentro({
+    required this.centroCostoId, required this.totalDebito,
+    required this.totalCredito, required this.costoReal,
+  });
+  factory CostoRealCentro.fromJson(Map<String, dynamic> j) => CostoRealCentro(
+        centroCostoId: j['centro_costo_id'].toString(),
+        totalDebito: _toD(j['total_debito']),
+        totalCredito: _toD(j['total_credito']),
+        costoReal: _toD(j['costo_real']),
+      );
+}
+
+class ComparativoCentro {
+  final String centroCostoId, codigo, nombre;
+  final double? presupuestoReferencial, desviacion, ejecucionPct;
+  final double costoReal;
+  ComparativoCentro({
+    required this.centroCostoId, required this.codigo, required this.nombre,
+    this.presupuestoReferencial, required this.costoReal, this.desviacion, this.ejecucionPct,
+  });
+  factory ComparativoCentro.fromJson(Map<String, dynamic> j) => ComparativoCentro(
+        centroCostoId: j['centro_costo_id'].toString(),
+        codigo: j['codigo']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        presupuestoReferencial: j['presupuesto_referencial'] == null ? null : _toD(j['presupuesto_referencial']),
+        costoReal: _toD(j['costo_real']),
+        desviacion: j['desviacion'] == null ? null : _toD(j['desviacion']),
+        ejecucionPct: j['ejecucion_pct'] == null ? null : _toD(j['ejecucion_pct']),
+      );
+}
+
+// ── Inventario valorizado ────────────────────────────────────────────────────
+class MovimientoValorizado {
+  final String id, materialId, tipo;
+  final String? almacenId, asientoId;
+  final int cantidad;
+  final double? costoUnitario, valorTotal;
+  MovimientoValorizado({
+    required this.id, required this.materialId, this.almacenId, required this.tipo,
+    required this.cantidad, this.costoUnitario, this.valorTotal, this.asientoId,
+  });
+  factory MovimientoValorizado.fromJson(Map<String, dynamic> j) => MovimientoValorizado(
+        id: j['id'].toString(),
+        materialId: j['material_id'].toString(),
+        almacenId: j['almacen_id']?.toString(),
+        tipo: j['tipo']?.toString() ?? '',
+        cantidad: (j['cantidad'] as num?)?.toInt() ?? 0,
+        costoUnitario: j['costo_unitario'] == null ? null : _toD(j['costo_unitario']),
+        valorTotal: j['valor_total'] == null ? null : _toD(j['valor_total']),
+        asientoId: j['asiento_id']?.toString(),
+      );
+}
+
+class CostoPromedio {
+  final String materialId, almacenId;
+  final double cantidadActual, costoPromedioActual, valorActual;
+  CostoPromedio({
+    required this.materialId, required this.almacenId, required this.cantidadActual,
+    required this.costoPromedioActual, required this.valorActual,
+  });
+  factory CostoPromedio.fromJson(Map<String, dynamic> j) => CostoPromedio(
+        materialId: j['material_id'].toString(),
+        almacenId: j['almacen_id'].toString(),
+        cantidadActual: _toD(j['cantidad_actual']),
+        costoPromedioActual: _toD(j['costo_promedio_actual']),
+        valorActual: _toD(j['valor_actual']),
+      );
+}
+
+class KardexFila {
+  final String materialId;
+  final String? almacenId;
+  final double saldoValorizado;
+  KardexFila({required this.materialId, this.almacenId, required this.saldoValorizado});
+  factory KardexFila.fromJson(Map<String, dynamic> j) => KardexFila(
+        materialId: j['material_id'].toString(),
+        almacenId: j['almacen_id']?.toString(),
+        saldoValorizado: _toD(j['saldo_valorizado']),
+      );
+}
