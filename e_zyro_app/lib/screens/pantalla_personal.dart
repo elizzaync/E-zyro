@@ -78,8 +78,6 @@ class _PantallaPersonalState extends State<PantallaPersonal> {
                   style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       body: TopoBackground(
         c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
@@ -341,8 +339,6 @@ class _PantallaSesionesUsuarioState extends State<_PantallaSesionesUsuario> {
                   style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       body: TopoBackground(
         c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),

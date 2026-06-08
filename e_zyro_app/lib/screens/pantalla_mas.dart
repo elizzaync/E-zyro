@@ -24,6 +24,7 @@ import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
 import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
+import 'finanzas/pantalla_manual_finanzas.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -107,6 +108,66 @@ class _MoreScreenState extends State<MoreScreen> {
     await prefs.remove('user_name');
     await prefs.remove('user_rol');
     if (mounted) Navigator.pushReplacementNamed(context, '/login');
+  }
+
+  void _abrirDocumentacion() {
+    if (!_canFinanzas) {
+      _showInfoDialog(
+        'Documentación',
+        'Por ahora no hay manuales disponibles para los módulos a los que tienes acceso. '
+            'Para soporte y guías generales, contáctanos en soporte@esystemtic.com.',
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Manuales disponibles',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.account_balance_outlined,
+                    color: Color(0xFF5A9A00)),
+                title: const Text('Manual de Usuario · Finanzas'),
+                subtitle: const Text(
+                    'Qué hacer en cada pantalla y cómo se forma el asiento contable PCGE'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaManualFinanzas()),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showInfoDialog(String title, String body) {
@@ -423,10 +484,7 @@ class _MoreScreenState extends State<MoreScreen> {
                 _MenuItem(
                   icon: Icons.description_outlined,
                   label: 'Documentación',
-                  onTap: () => _showInfoDialog(
-                    'Documentación',
-                    'Accede a manuales y guías de operación en el portal web de E-System TIC.',
-                  ),
+                  onTap: _abrirDocumentacion,
                 ),
                 _MenuItem(
                   icon: Icons.help_outline,

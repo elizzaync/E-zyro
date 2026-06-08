@@ -5,6 +5,7 @@ import '../models/comunicado_models.dart';
 import '../services/comunicado_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 // Paleta
@@ -143,7 +144,7 @@ class _ComunicadosScreenState extends State<ComunicadosScreen> {
                     onRefresh: _load,
                     color: _kRed,
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                      padding: bottomSafePadding(context, top: 12, extra: 24),
                       itemCount: _comunicados.length,
                       separatorBuilder: (_, _) =>
                           const SizedBox(height: 12),

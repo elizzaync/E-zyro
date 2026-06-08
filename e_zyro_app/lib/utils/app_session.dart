@@ -82,7 +82,7 @@ class AppSession {
   bool get canVerFinanzas =>
       isAdmin || canVerContabilidad || canVerCxp || canVerCxc ||
       canVerActivosFijos || canVerPlanilla || canVerTributario ||
-      canVerControlling || canVerInventarioValorizado;
+      canVerControlling || canVerInventarioValorizado || canVerCajaChica;
   bool get canVerContabilidad   => hasPerm('contabilidad:ver');
   bool get canCrearAsiento      => hasPerm('contabilidad:crear_asiento');
   bool get canVerCxp            => hasPerm('cxp:ver');
@@ -102,6 +102,9 @@ class AppSession {
   bool get canRegistrarMovimientoInventarioValorizado => hasPerm('inventario_valorizado:registrar_movimiento');
   bool get canVerControlling   => hasPerm('controlling:ver');
   bool get canGestionarCentrosCosto => hasPerm('controlling:gestionar_centros_costo');
+  bool get canVerCajaChica      => hasPerm('caja_chica:ver');
+  bool get canGestionarCajaChica => hasPerm('caja_chica:gestionar');
+  bool get canRegistrarMovimientoCaja => hasPerm('caja_chica:registrar_movimiento');
 
   // ── Acciones (ocultar/mostrar botones) ────────────────────────────────────
   bool get canGestionarInventario => isAdmin || _esLogistica || hasPerm('inventario:gestionar');

@@ -59,7 +59,7 @@ class _EquipoTabState extends State<_EquipoTab> {
                 icon: Icons.group_outlined,
                 label: 'Sin equipo asignado')
             : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                padding: bottomSafePadding(context, extra: 90),
                 itemCount: widget.equipo.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
                 itemBuilder: (_, i) => _MiembroCard(
@@ -69,7 +69,7 @@ class _EquipoTabState extends State<_EquipoTab> {
         // FAB de configuración solo para Jefe de Operaciones / Admin
         if (_puedeAsignar)
           Positioned(
-            bottom: 16,
+            bottom: bottomSafeInset(context),
             right: 16,
             child: FloatingActionButton.extended(
               heroTag: 'fab_equipo',

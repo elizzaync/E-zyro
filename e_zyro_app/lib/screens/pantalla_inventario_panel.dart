@@ -60,7 +60,7 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
             style: GoogleFonts.outfit(
                 fontWeight: FontWeight.w700, fontSize: 18, color: kPaperInk)),
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: kPaperPaper,
         foregroundColor: kPaperInk,
         actions: [
           IconButton(

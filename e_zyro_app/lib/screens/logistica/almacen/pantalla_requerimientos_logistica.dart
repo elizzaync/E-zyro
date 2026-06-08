@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../../services/requerimiento_service.dart';
 import '../../../services/prestamo_service.dart';
 import '../../../utils/api_provider.dart';
+import '../../../utils/ui_insets.dart';
 import 'es_tokens.dart';
 import 'es_widgets.dart';
 import 'req_unificado.dart';
@@ -128,7 +129,7 @@ class _PantallaRequerimientosLogisticaState
             color: ESC.brand,
             onRefresh: _load,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: bottomSafePadding(context),
               children: [
                 ESSegmented(
                   selected: _tipo,

@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 import '../../../models/compras_models.dart';
+import '../../../utils/ui_insets.dart';
 import 'es_tokens.dart';
 import 'es_widgets.dart';
 
@@ -41,7 +42,7 @@ class PantallaResumenCompra extends StatelessWidget {
           trailing: ESBarIcon(ESIcons.cart, onTap: () {}),
         ),
         Expanded(
-          child: ListView(padding: const EdgeInsets.all(16), children: [
+          child: ListView(padding: bottomSafePadding(context), children: [
             // ── Cabecera de la "carta" ──────────────────────────────────────
             ESCard(
               accent: ESC.compra,

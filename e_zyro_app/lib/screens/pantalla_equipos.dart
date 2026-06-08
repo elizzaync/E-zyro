@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/mantenimiento_models.dart';
 import '../services/mantenimiento_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../utils/app_session.dart';
 import 'pantalla_checklist.dart';
 import 'pantalla_historial_equipo.dart';
@@ -96,7 +97,7 @@ class _EquiposTabState extends State<EquiposTab>
       onRefresh: _load,
       color: _green,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: bottomSafePadding(context, left: 20, top: 12, right: 20, extra: 24),
         itemCount: _equipos.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) => _EquipoCard(

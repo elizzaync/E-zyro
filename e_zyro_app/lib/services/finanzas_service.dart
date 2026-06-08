@@ -651,4 +651,79 @@ class FinanzasService {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));
     }
   }
+
+  // ── Caja Chica ─────────────────────────────────────────────────────────────
+  Future<ApiResult<List<CajaChica>>> cajasChicas({String? estado}) {
+    final qs = (estado != null && estado.isNotEmpty) ? '?estado=$estado' : '';
+    return _getList('/caja-chica$qs', CajaChica.fromJson);
+  }
+
+  Future<ApiResult<CajaChica>> obtenerCajaChica(String id) =>
+      _getObj('/caja-chica/$id', CajaChica.fromJson);
+
+  Future<ApiResult<CajaChica>> crearCajaChica({
+    required String nombre,
+    String? descripcion,
+    double? montoAsignado,
+    String? proyectoId,
+    String? responsableId,
+  }) async {
+    try {
+      final r = await _client.post('/caja-chica', {
+        'nombre': nombre,
+        if (descripcion != null && descripcion.isNotEmpty) 'descripcion': descripcion,
+        if (montoAsignado != null) 'monto_asignado_referencial': montoAsignado,
+        if (proyectoId != null) 'proyecto_id': proyectoId,
+        if (responsableId != null) 'responsable_id': responsableId,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(CajaChica.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<CajaChica>> cerrarCajaChica(String id) async {
+    try {
+      final r = await _client.post('/caja-chica/$id/cerrar', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(CajaChica.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<List<MovimientoCaja>>> movimientosCaja(String cajaId) =>
+      _getList('/caja-chica/$cajaId/movimientos', MovimientoCaja.fromJson);
+
+  Future<ApiResult<MovimientoCaja>> registrarMovimientoCaja({
+    required String cajaId,
+    required String tipo,            // ingreso | egreso
+    required double monto,
+    required String descripcion,
+    String? concepto,
+    String? cuentaCodigo,
+    String? comprobanteUrl,
+  }) async {
+    try {
+      final r = await _client.post('/caja-chica/$cajaId/movimientos', {
+        'tipo': tipo,
+        'monto': monto,
+        'descripcion': descripcion,
+        if (concepto != null && concepto.isNotEmpty) 'concepto': concepto,
+        if (cuentaCodigo != null && cuentaCodigo.isNotEmpty) 'cuenta_codigo': cuentaCodigo,
+        if (comprobanteUrl != null && comprobanteUrl.isNotEmpty) 'comprobante_url': comprobanteUrl,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(MovimientoCaja.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
 }

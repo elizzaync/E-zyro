@@ -7,6 +7,7 @@ import '../services/prestamo_service.dart';
 import '../services/proyecto_service.dart';
 import '../services/chat_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 import '../widgets/firma_sheet.dart';
 
@@ -215,7 +216,7 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
                             onRefresh: _load,
                             color: _kGreen,
                             child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+                              padding: bottomSafePadding(context, extra: 96),
                               itemCount: _prestamos.length,
                               separatorBuilder: (_, _) => const SizedBox(height: 10),
                               itemBuilder: (_, i) => PrestamoCard(

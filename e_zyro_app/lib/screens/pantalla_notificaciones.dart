@@ -5,6 +5,7 @@ import '../models/dashboard_models.dart';
 import '../services/fcm_flutter_service.dart';
 import '../services/notificacion_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 
 class NotificacionesScreen extends StatefulWidget {
   final bool isSheet;
@@ -329,6 +330,7 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       child: ListView(
         controller: widget.scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: bottomSafePadding(context),
         children: [
           for (final entry in _grupos.entries) ...[
             _GroupHeader(label: entry.key),

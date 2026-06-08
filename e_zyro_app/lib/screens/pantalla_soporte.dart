@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/soporte_models.dart';
 import '../services/soporte_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 
@@ -165,7 +166,7 @@ class _PantallaSoporteState extends State<PantallaSoporte> {
                           onRefresh: _load,
                           color: _kIndigo,
                           child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                            padding: bottomSafePadding(context, extra: 90),
                             itemCount: _tickets.length,
                             separatorBuilder: (_, _) => const SizedBox(height: 10),
                             itemBuilder: (_, i) => _TicketCard(

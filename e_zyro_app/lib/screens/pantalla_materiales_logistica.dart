@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/requerimiento_models.dart';
 import '../services/requerimiento_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 const _kGreen = Color(0xFF8FD11B);
@@ -457,7 +458,7 @@ class _PantallaMaterialesLogisticaState
       color: _kGreen,
       child: ListView.separated(
         controller: _scrollCtrl,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: bottomSafePadding(context, top: 8, extra: 24),
         itemCount: items.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) {

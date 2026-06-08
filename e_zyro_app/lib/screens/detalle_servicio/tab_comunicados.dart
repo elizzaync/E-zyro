@@ -136,7 +136,7 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
           onRefresh: _load,
           color: _green,
           child: ListView.separated(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, _puedeEnviar ? 90 : 16),
+            padding: bottomSafePadding(context, extra: _puedeEnviar ? 90 : 16),
             itemCount: _comunicados.length,
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (_, i) => _ComunicadoCard(
@@ -148,7 +148,7 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
         if (_puedeEnviar)
           Positioned(
             right: 16,
-            bottom: 16,
+            bottom: bottomSafeInset(context),
             child: FloatingActionButton.extended(
               heroTag: 'fab_comunicado_${widget.proyectoId}',
               onPressed: _openNuevoComunicado,

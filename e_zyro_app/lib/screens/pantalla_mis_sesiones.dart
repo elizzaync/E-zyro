@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/seguridad_models.dart';
 import '../services/seguridad_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 const _kGreen = Color(0xFF8FD11B);
@@ -62,8 +63,6 @@ class _PantallaMisSesionesState extends State<PantallaMisSesiones> {
                   style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       body: TopoBackground(
         c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
@@ -78,7 +77,7 @@ class _PantallaMisSesionesState extends State<PantallaMisSesiones> {
                     onRefresh: _load,
                     color: _kGreen,
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+                      padding: bottomSafePadding(context, top: 10, extra: 24),
                       itemCount: _sesiones.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (_, i) => SesionCard(item: _sesiones[i]),

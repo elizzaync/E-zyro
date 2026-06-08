@@ -23,7 +23,7 @@ class _TareasTab extends StatelessWidget {
     }
     final nombrePorId = {for (final m in equipo) m.id: m.nombreCompleto};
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: bottomSafePadding(context),
       itemCount: tareas.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _TareaCard(

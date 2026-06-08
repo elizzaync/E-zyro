@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/proyecto_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 
 const _green = Color(0xFF8FD11B);
 const _danger = Color(0xFFE53935);
@@ -99,7 +100,7 @@ class _PantallaPlantillasProcedimientoState
               : RefreshIndicator(
                   onRefresh: _cargar,
                   child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: bottomSafePadding(context, extra: 90),
                     itemCount: _plantillas.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, i) => _card(_plantillas[i]),

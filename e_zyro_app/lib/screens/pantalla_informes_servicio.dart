@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/informe_servicio_models.dart';
 import '../services/informe_servicio_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../utils/abrir_enlace.dart';
 
 /// Informes de un servicio: pre-informe (estado actual) e informe final (al cerrar).
@@ -130,6 +131,7 @@ class _PantallaInformesServicioState extends State<PantallaInformesServicio> {
     return RefreshIndicator(
       onRefresh: _cargar,
       child: ListView.separated(
+        padding: bottomSafePadding(context, extra: 24),
         itemCount: _items.length,
         separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (_, i) {

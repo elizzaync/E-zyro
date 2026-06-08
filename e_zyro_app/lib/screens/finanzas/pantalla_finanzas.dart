@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../utils/app_session.dart';
+import '../../utils/ui_insets.dart';
 import 'pantalla_plan_cuentas.dart';
 import 'pantalla_cuentas_pagar.dart';
 import 'pantalla_cuentas_cobrar.dart';
@@ -10,6 +11,8 @@ import 'pantalla_planilla.dart';
 import 'pantalla_tributario.dart';
 import 'pantalla_centros_costo.dart';
 import 'pantalla_inventario_valorizado.dart';
+import 'pantalla_caja_chica.dart';
+import 'pantalla_manual_finanzas.dart';
 
 /// Hub del módulo de Finanzas / ERP contable. Agrupa los submódulos y muestra
 /// solo los que el rol del usuario tiene permiso de ver (admin ve todos).
@@ -47,11 +50,33 @@ class PantallaFinanzas extends StatelessWidget {
       if (s.canVerInventarioValorizado)
         _ModuloFin('Inventario valorizado', 'Kardex, costo promedio y movimientos',
             Icons.inventory_2_outlined, Colors.brown.shade400, const PantallaInventarioValorizado()),
+      if (s.canVerCajaChica)
+        _ModuloFin('Caja Chica', 'Efectivo para gastos menores (contabilizado)',
+            Icons.savings_outlined, Colors.green.shade600, const PantallaCajaChica()),
     ];
+
+    if (items.isNotEmpty) {
+      items.add(_ModuloFin(
+        'Manual de Usuario',
+        'Qué hacer en cada pantalla y qué asiento PCGE genera',
+        Icons.menu_book_outlined,
+        const Color(0xFF5A9A00),
+        const PantallaManualFinanzas(),
+      ));
+    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Finanzas', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          if (items.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.menu_book_outlined),
+              tooltip: 'Manual de Usuario',
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const PantallaManualFinanzas())),
+            ),
+        ],
       ),
       body: items.isEmpty
           ? const Center(child: Padding(
@@ -59,7 +84,7 @@ class PantallaFinanzas extends StatelessWidget {
               child: Text('No tienes permisos para ver módulos de finanzas.',
                   textAlign: TextAlign.center)))
           : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: bottomSafePadding(context),
               itemCount: items.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (_, i) => _tarjeta(context, items[i]),

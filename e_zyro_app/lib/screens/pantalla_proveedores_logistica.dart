@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/compras_models.dart';
 import '../services/compras_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 const _kGreen = Color(0xFF8FD11B);
@@ -140,7 +141,7 @@ class _PantallaProveedoresLogisticaState
                     onRefresh: _load,
                     color: _kGreen,
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                      padding: bottomSafePadding(context, extra: 90),
                       itemCount: _proveedores.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (_, i) => _ProveedorCard(

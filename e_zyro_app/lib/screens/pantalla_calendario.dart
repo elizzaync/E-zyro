@@ -8,6 +8,7 @@ import '../models/dashboard_models.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 
 // ── Tipos de evento ───────────────────────────────────────────────────────────
 enum _EventType { asistencia, proyecto, comunicado, nota }
@@ -512,7 +513,7 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+      padding: bottomSafePadding(context, left: 20, top: 14, right: 20, extra: 24),
       children: [
         // Nota del día
         if (nota.isNotEmpty) ...[

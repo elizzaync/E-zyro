@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/requerimiento_models.dart';
 import '../services/requerimiento_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 import '../pdf/pdf_service.dart';
 import '../pdf/pdf_preview_screen.dart';
@@ -114,7 +115,7 @@ class _PantallaMovimientosLogisticaState
                     onRefresh: _load,
                     color: _kGreen,
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                      padding: bottomSafePadding(context, extra: 90),
                       itemCount: _movimientos.length,
                       separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (_, i) =>

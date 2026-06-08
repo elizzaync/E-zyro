@@ -625,3 +625,61 @@ class KardexFila {
         saldoValorizado: _toD(j['saldo_valorizado']),
       );
 }
+
+// ── Caja Chica ───────────────────────────────────────────────────────────────
+class CajaChica {
+  final String id, nombre, estado, responsableId;
+  final String? descripcion, responsableNombre, proyectoId, fechaApertura, fechaCierre;
+  final double? montoAsignado;
+  final double totalIngresos, totalEgresos, saldoActual;
+  final int nMovimientos;
+  CajaChica({
+    required this.id, required this.nombre, required this.estado,
+    required this.responsableId, this.descripcion, this.responsableNombre,
+    this.proyectoId, this.fechaApertura, this.fechaCierre, this.montoAsignado,
+    required this.totalIngresos, required this.totalEgresos,
+    required this.saldoActual, required this.nMovimientos,
+  });
+  factory CajaChica.fromJson(Map<String, dynamic> j) => CajaChica(
+        id: j['id'].toString(),
+        nombre: j['nombre']?.toString() ?? '',
+        estado: j['estado']?.toString() ?? 'abierta',
+        responsableId: j['responsable_id']?.toString() ?? '',
+        descripcion: j['descripcion']?.toString(),
+        responsableNombre: j['responsable_nombre']?.toString(),
+        proyectoId: j['proyecto_id']?.toString(),
+        fechaApertura: j['fecha_apertura']?.toString(),
+        fechaCierre: j['fecha_cierre']?.toString(),
+        montoAsignado: j['monto_asignado_referencial'] == null
+            ? null : _toD(j['monto_asignado_referencial']),
+        totalIngresos: _toD(j['total_ingresos']),
+        totalEgresos: _toD(j['total_egresos']),
+        saldoActual: _toD(j['saldo_actual']),
+        nMovimientos: _toI(j['n_movimientos']),
+      );
+  bool get abierta => estado == 'abierta';
+}
+
+class MovimientoCaja {
+  final String id, cajaId, tipo, descripcion, fecha;
+  final double monto;
+  final String? concepto, comprobanteUrl, registradoPorNombre, asientoId;
+  MovimientoCaja({
+    required this.id, required this.cajaId, required this.tipo,
+    required this.descripcion, required this.fecha, required this.monto,
+    this.concepto, this.comprobanteUrl, this.registradoPorNombre, this.asientoId,
+  });
+  factory MovimientoCaja.fromJson(Map<String, dynamic> j) => MovimientoCaja(
+        id: j['id'].toString(),
+        cajaId: j['caja_id'].toString(),
+        tipo: j['tipo']?.toString() ?? '',
+        descripcion: j['descripcion']?.toString() ?? '',
+        fecha: j['fecha']?.toString() ?? '',
+        monto: _toD(j['monto']),
+        concepto: j['concepto']?.toString(),
+        comprobanteUrl: j['comprobante_url']?.toString(),
+        registradoPorNombre: j['registrado_por_nombre']?.toString(),
+        asientoId: j['asiento_id']?.toString(),
+      );
+  bool get esIngreso => tipo == 'ingreso';
+}

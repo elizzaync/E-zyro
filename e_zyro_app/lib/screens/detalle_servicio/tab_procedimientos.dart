@@ -25,7 +25,7 @@ class _ProcedimientosTab extends StatelessWidget {
       );
     }
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: bottomSafePadding(context),
       itemCount: procedimientos.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _ProcedimientoCard(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/itse_models.dart';
 import '../services/itse_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../utils/abrir_enlace.dart';
 import '../utils/app_session.dart';
 import 'pantalla_itse_detalle.dart';
@@ -126,6 +127,7 @@ class _PantallaItseState extends State<PantallaItse> {
                   : RefreshIndicator(
                       onRefresh: _cargar,
                       child: ListView.separated(
+                        padding: bottomSafePadding(context, extra: 90),
                         itemCount: _items.length,
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (_, i) {

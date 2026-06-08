@@ -4,6 +4,7 @@ import '../core/api_result.dart';
 import '../models/catalogo_models.dart';
 import '../services/catalogo_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 
 class PantallaCatalogos extends StatefulWidget {
   const PantallaCatalogos({super.key});
@@ -293,7 +294,7 @@ class _PantallaCatalogosState extends State<PantallaCatalogos>
     return RefreshIndicator(
       onRefresh: _cargar,
       child: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: bottomSafePadding(context, left: 0, top: 4, right: 0, extra: 90),
         children: [
           for (final u in _arbol) _ubicacionCard(u),
           const SizedBox(height: 80),
@@ -399,6 +400,7 @@ class _PantallaCatalogosState extends State<PantallaCatalogos>
     return RefreshIndicator(
       onRefresh: _cargar,
       child: ListView(
+        padding: bottomSafePadding(context, left: 0, top: 0, right: 0, extra: 90),
         children: _ubic
             .map((u) => ListTile(
                   leading: const Icon(Icons.location_on_outlined),
@@ -421,6 +423,7 @@ class _PantallaCatalogosState extends State<PantallaCatalogos>
     return RefreshIndicator(
       onRefresh: _cargar,
       child: ListView(
+        padding: bottomSafePadding(context, left: 0, top: 0, right: 0, extra: 90),
         children: _zonas
             .map((z) => ListTile(
                   leading: const Icon(Icons.crop_free),

@@ -82,8 +82,6 @@ class _PantallaDashboardsState extends State<PantallaDashboards>
         leading: const BackButton(),
         title: const Text('Dashboards',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
         actions: [
           IconButton(
               onPressed: _loading ? null : _cargar,

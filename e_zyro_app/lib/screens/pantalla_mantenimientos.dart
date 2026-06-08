@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/mantenimiento_models.dart';
 import '../services/mantenimiento_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../utils/app_notifiers.dart';
 import '../widgets/topo_background.dart';
 
@@ -104,8 +105,6 @@ class _PantallaMantenimientosState extends State<PantallaMantenimientos> {
               ),
           ],
         ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       body: TopoBackground(
         c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
@@ -164,8 +163,7 @@ class _PantallaMantenimientosState extends State<PantallaMantenimientos> {
                           onRefresh: _load,
                           color: _kGreen,
                           child: ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(
-                                16, 8, 16, 24),
+                            padding: bottomSafePadding(context, top: 8, extra: 24),
                             itemCount: _filtrados.length,
                             separatorBuilder: (_, _) =>
                                 const SizedBox(height: 10),

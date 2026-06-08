@@ -4,6 +4,7 @@ import '../models/correctivo_models.dart';
 import '../models/proyecto_models.dart';
 import '../services/correctivo_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../utils/abrir_enlace.dart';
 import '../utils/app_session.dart';
 
@@ -186,6 +187,7 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
                   : RefreshIndicator(
                       onRefresh: _cargar,
                       child: ListView.separated(
+                        padding: bottomSafePadding(context, extra: 90),
                         itemCount: _items.length,
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (_, i) {
