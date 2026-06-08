@@ -418,14 +418,14 @@ def recibir_orden(
         ))
 
         if recibida > 0:
-            # Sumar al stock
+            # Bloqueo a nivel de fila para evitar race condition en stock concurrente
             stock = db.query(Stock).filter(
                 Stock.material_id == d.material_id,
                 Stock.empresa_id  == empresa_id,
                 Stock.almacen_id  == almacen_id,
-            ).first()
+            ).with_for_update().first()
             if stock:
-                stock.cantidad = (stock.cantidad or 0) + recibida
+                stock.cantidad   = (stock.cantidad or 0) + recibida
                 stock.updated_at = datetime.utcnow()
             else:
                 db.add(Stock(
@@ -454,8 +454,12 @@ def recibir_orden(
     if hubo_diferencias:
         recepcion.estado = "con_diferencias"
 
-    orden.estado = "recibida"
+    orden.estado             = "recibida"
     orden.fecha_entrega_real = date.today()
-    orden.updated_at = datetime.utcnow()
-    db.commit()
+    orden.updated_at         = datetime.utcnow()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error al registrar la recepción. No se realizaron cambios.")
     return {"ok": True, "recepcion_id": recepcion.id, "estado": recepcion.estado}

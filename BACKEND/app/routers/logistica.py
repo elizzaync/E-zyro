@@ -1245,22 +1245,27 @@ async def aprobar_requerimiento(
             cant_aprob = dec.cantidadAprobada if dec.cantidadAprobada is not None else int(d.cantidad or 0)
 
         if decision == "aprobar" and d.material_id:
-            disponible = _stock_de_material(db, d.material_id, empresa_id)
-            if disponible < cant_aprob:
-                # Stock insuficiente para la cantidad completa solicitada.
-                # Regla: NO hacer deducción parcial — esperar la compra completa.
-                d.estado_item = "para_compra"
+            # Bloqueo a nivel de fila: consolida check+deducción (evita TOCTOU)
+            stocks = (
+                db.query(Stock)
+                .filter(
+                    Stock.material_id == d.material_id,
+                    Stock.empresa_id  == empresa_id,
+                    Stock.cantidad    >  0,
+                )
+                .order_by(Stock.cantidad.desc())
+                .with_for_update()
+                .all()
+            )
+            disponible_real = sum(int(s.cantidad) for s in stocks)
+            if disponible_real < cant_aprob:
+                # Stock insuficiente (verificado con lock) — redirigir a compra
+                d.estado_item       = "para_compra"
                 d.cantidad_aprobada = int(d.cantidad or 0)
                 continue
 
-            # Stock suficiente para todo → deducir del inventario
+            # Deducir del inventario (filas ya bloqueadas con FOR UPDATE)
             restante = cant_aprob
-            stocks = (
-                db.query(Stock)
-                .filter(Stock.material_id == d.material_id, Stock.empresa_id == empresa_id, Stock.cantidad > 0)
-                .order_by(Stock.cantidad.desc())
-                .all()
-            )
             for s in stocks:
                 if restante <= 0:
                     break
@@ -1300,14 +1305,21 @@ async def aprobar_requerimiento(
     if body.observacion:
         req.observacion_logistico = body.observacion
     req.aprobado_por = emp_log.id if emp_log else None
-    req.updated_at = datetime.utcnow()
+    req.updated_at   = datetime.utcnow()
 
     # Auto-crear TicketCompra para los ítems marcados para_compra
     detalles_compra = [d for d in detalles if d.estado_item == "para_compra"]
     if detalles_compra:
         _crear_ticket_compra(db, req, empresa_id, detalles_compra)
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Error al procesar el requerimiento. No se realizaron cambios.",
+        )
 
     # Notificar al solicitante
     if todos_rechazados:
@@ -2240,7 +2252,7 @@ async def _aplicar_ingreso_ticket(
                 Stock.material_id == it.material_id,
                 Stock.empresa_id  == empresa_id,
                 Stock.almacen_id  == alm_id,
-            ).first()
+            ).with_for_update().first()
             if stock_row:
                 stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
                 stock_row.updated_at = datetime.utcnow()
@@ -2296,9 +2308,13 @@ async def _aplicar_ingreso_ticket(
                 det.cantidad_aprobada = cant
 
     # Marcar ticket como ingresado (guard de idempotencia)
-    tc.ingreso_registrado = True
-    tc.updated_at         = datetime.utcnow()
-    db.commit()
+    try:
+        tc.ingreso_registrado = True
+        tc.updated_at         = datetime.utcnow()
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error al registrar el ingreso. No se realizaron cambios.")
 
     # ── Puente compra → préstamo (faltante de un préstamo) ─────────────────
     # Si la compra nació de un faltante de préstamo, las unidades compradas
@@ -3907,49 +3923,68 @@ def completar_retorno(
     almacen_id = str(alm.id) if alm else None
 
     detalles = db.query(RetornoDetalle).filter(RetornoDetalle.retorno_id == r.id).all()
-    for d in detalles:
-        cant = int(d.cantidad_confirmada or d.cantidad_retornada or 0)
-        if cant <= 0:
-            continue
-        if d.material_id:
-            stock_row = db.query(Stock).filter(
-                Stock.material_id == d.material_id,
-                Stock.empresa_id  == empresa_id,
-                Stock.almacen_id  == almacen_id,
-            ).first()
-            if stock_row:
-                stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
-                stock_row.updated_at = datetime.utcnow()
-            else:
-                # Stock: PK compuesta, sin columna 'id'.
-                db.add(Stock(
-                    empresa_id=empresa_id,
-                    material_id=d.material_id, almacen_id=almacen_id,
-                    cantidad=cant, cantidad_minima=0, updated_at=datetime.utcnow(),
-                ))
-            db.add(MovimientoInventario(
-                id=str(_uuid.uuid4()), empresa_id=empresa_id,
-                material_id=d.material_id, almacen_id=almacen_id,
-                # 'entrada' = stock que vuelve (chk_mov_tipo no admite 'retorno');
-                # referencia_tipo='retorno' marca la procedencia.
-                tipo="entrada", cantidad=cant,
-                referencia_id=str(r.id), referencia_tipo="retorno",
-                responsable_id=str(emp.id) if emp else None,
-                motivo=f"Retorno de campo – {r.proyecto_servicio_id or ''}",
-                fecha=datetime.utcnow(),
-            ))
-        elif d.equipo_id:
-            eq = db.query(Equipo).filter(Equipo.id == d.equipo_id, Equipo.empresa_id == empresa_id).first()
-            if eq:
-                eq.cantidad   = int(eq.cantidad or 0) + cant
-                eq.updated_at = datetime.utcnow()
-        if d.estado_item == "pendiente":
-            d.estado_item = "confirmado"
 
-    r.estado        = "completado"
-    r.completado_en = datetime.utcnow()
-    r.updated_at    = datetime.utcnow()
-    db.commit()
+    # Validación previa: ningún ítem puede confirmarse en mayor cantidad que la entregada
+    for d in detalles:
+        cant      = int(d.cantidad_confirmada or d.cantidad_retornada or 0)
+        max_cant  = int(d.cantidad_entregada or 0)
+        if cant > max_cant:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ítem {d.id}: no se puede confirmar {cant} unidades (se entregaron {max_cant}).",
+            )
+
+    try:
+        for d in detalles:
+            cant = int(d.cantidad_confirmada or d.cantidad_retornada or 0)
+            if cant <= 0:
+                continue
+            if d.material_id:
+                stock_row = db.query(Stock).filter(
+                    Stock.material_id == d.material_id,
+                    Stock.empresa_id  == empresa_id,
+                    Stock.almacen_id  == almacen_id,
+                ).with_for_update().first()
+                if stock_row:
+                    stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
+                    stock_row.updated_at = datetime.utcnow()
+                else:
+                    # Stock: PK compuesta, sin columna 'id'.
+                    db.add(Stock(
+                        empresa_id=empresa_id,
+                        material_id=d.material_id, almacen_id=almacen_id,
+                        cantidad=cant, cantidad_minima=0, updated_at=datetime.utcnow(),
+                    ))
+                db.add(MovimientoInventario(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    material_id=d.material_id, almacen_id=almacen_id,
+                    # 'entrada' = stock que vuelve (chk_mov_tipo no admite 'retorno');
+                    # referencia_tipo='retorno' marca la procedencia.
+                    tipo="entrada", cantidad=cant,
+                    referencia_id=str(r.id), referencia_tipo="retorno",
+                    responsable_id=str(emp.id) if emp else None,
+                    motivo=f"Retorno de campo – {r.proyecto_servicio_id or ''}",
+                    fecha=datetime.utcnow(),
+                ))
+            elif d.equipo_id:
+                eq = db.query(Equipo).filter(Equipo.id == d.equipo_id, Equipo.empresa_id == empresa_id).first()
+                if eq:
+                    eq.cantidad   = int(eq.cantidad or 0) + cant
+                    eq.updated_at = datetime.utcnow()
+            if d.estado_item == "pendiente":
+                d.estado_item = "confirmado"
+
+        r.estado        = "completado"
+        r.completado_en = datetime.utcnow()
+        r.updated_at    = datetime.utcnow()
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error al completar el retorno. No se realizaron cambios.")
+
     db.refresh(r)
     return _retorno_out(db, r)
 
