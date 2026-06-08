@@ -82,6 +82,14 @@ html, body {
   --shadow-modal:    0 20px 60px rgba(0,0,0,.5);
 }
 /* =======================================================
+   PORTAL CLIENTE — modo de visualización restringida
+   ======================================================= */
+main.portal-mode {
+  background: var(--bg-color);
+  min-height: calc(100vh - 72px); /* 72px = altura del top-navbar */
+}
+
+/* =======================================================
    MODAL GLOBAL DE CONFIRMACIÓN (CERRAR SESIÓN Y OTROS)
    ======================================================= */
 .modal-backdrop-pro {

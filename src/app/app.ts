@@ -40,16 +40,15 @@ export class App implements OnInit {
   }
 
   verificarRuta(url: string) {
-    if (
-      url.includes('/login') ||
-      url.includes('/reset-password') ||
-      url.startsWith('/portal-cliente') ||
-      url === '/'
-    ) {
+    if (url.includes('/login') || url.includes('/reset-password') || url === '/') {
       this.mostrarNavbar = false;
     } else {
       this.mostrarNavbar = true;
     }
+  }
+
+  get esPortalCliente(): boolean {
+    return window.location.pathname.startsWith('/portal-cliente');
   }
 
   cancelarSalir() {

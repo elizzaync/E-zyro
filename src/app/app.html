@@ -2,13 +2,13 @@
 <app-navbar></app-navbar>
 }
 
-<main>
+<main [class.portal-mode]="esPortalCliente">
     <router-outlet></router-outlet>
 </main>
 
 <app-toast></app-toast>
 
-@if (mostrarNavbar) {
+@if (mostrarNavbar && !esPortalCliente) {
 <app-chatbot></app-chatbot>
 }
 

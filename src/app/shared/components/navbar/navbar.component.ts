@@ -21,7 +21,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
    * Subtitulo del navbar: "Panel de Gestion" + rol del usuario.
    * Mientras carga ("..." / "Cargando...") muestra solo "Panel de Gestion".
    */
+  get isClienteExterno(): boolean {
+    return (this.usuarioActual.rol || '').toLowerCase().replace(' ', '') === 'clienteexterno';
+  }
+
   get panelSubtitulo(): string {
+    if (this.isClienteExterno) return 'Portal Cliente';
     const rol = (this.usuarioActual.rol || '').trim();
     if (!rol || rol === '...' || rol.toLowerCase().startsWith('cargando')) {
       return 'Panel de Gestión';

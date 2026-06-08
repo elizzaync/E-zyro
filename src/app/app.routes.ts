@@ -21,7 +21,6 @@ import { EquiposIntervenidosComponent } from './features/operaciones/components/
 import { IntervencionEquipoComponent } from './features/operaciones/components/intervencion-equipo/intervencion-equipo.component';
 import { CertificadoComponent } from './features/operaciones/components/certificado/certificado.component';
 import { clientPortalGuard } from './core/guards/client-portal.guard';
-import { ClientLayoutComponent } from './features/portal-cliente/client-layout/client-layout.component';
 import { PortalDashboardComponent } from './features/portal-cliente/dashboard/portal-dashboard.component';
 import { PortalProyectosComponent } from './features/portal-cliente/proyectos/portal-proyectos.component';
 import { PortalProyectoDetalleComponent } from './features/portal-cliente/proyecto-detalle/portal-proyecto-detalle.component';
@@ -141,18 +140,35 @@ export const routes: Routes = [
     title: 'Certificado | E-System Tic',
     canActivate: [authGuard]
 },
-  // ── Portal Cliente (HU-22) ──────────────────────────────────────────
+  // ── Portal Cliente (HU-22) — reutiliza el layout/navbar del ERP ────
   {
     path: 'portal-cliente',
-    component: ClientLayoutComponent,
+    redirectTo: 'portal-cliente/dashboard',
+    pathMatch: 'full',
+  },
+  {
+    path: 'portal-cliente/dashboard',
+    component: PortalDashboardComponent,
+    title: 'Dashboard | Portal Cliente',
     canActivate: [clientPortalGuard],
-    children: [
-      { path: '',          redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'dashboard', component: PortalDashboardComponent,        title: 'Dashboard | Portal Cliente' },
-      { path: 'proyectos', component: PortalProyectosComponent,        title: 'Proyectos | Portal Cliente' },
-      { path: 'proyecto/:id', component: PortalProyectoDetalleComponent, title: 'Detalle Proyecto | Portal Cliente' },
-      { path: 'documentos',   component: PortalDocumentosComponent,    title: 'Documentos | Portal Cliente' },
-    ],
+  },
+  {
+    path: 'portal-cliente/proyectos',
+    component: PortalProyectosComponent,
+    title: 'Proyectos | Portal Cliente',
+    canActivate: [clientPortalGuard],
+  },
+  {
+    path: 'portal-cliente/proyecto/:id',
+    component: PortalProyectoDetalleComponent,
+    title: 'Detalle Proyecto | Portal Cliente',
+    canActivate: [clientPortalGuard],
+  },
+  {
+    path: 'portal-cliente/documentos',
+    component: PortalDocumentosComponent,
+    title: 'Documentos | Portal Cliente',
+    canActivate: [clientPortalGuard],
   },
   {
     path: '**',
