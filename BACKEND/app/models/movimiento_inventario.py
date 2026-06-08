@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Numeric
 from app.db.database import Base
 
 def _uuid():
@@ -20,4 +20,9 @@ class MovimientoInventario(Base):
     responsable_id   = Column(String(36), ForeignKey("empleado.id"), nullable=True)
     motivo           = Column(String(300), nullable=True)   # sustento libre: "Despacho al servicio X", "Recepción OC", etc.
     fecha            = Column(DateTime, nullable=False)
+    # Valuación de inventario (Fase 5): se rellenan al procesar el movimiento
+    # con costeo. Existentes sin costear quedan en NULL (referencia histórica).
+    costo_unitario   = Column(Numeric(14, 4), nullable=True)
+    valor_total      = Column(Numeric(14, 2), nullable=True)
+    asiento_id       = Column(String(36), ForeignKey("asiento_contable.id"), nullable=True)
     created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)

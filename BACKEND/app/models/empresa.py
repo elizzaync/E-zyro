@@ -17,3 +17,6 @@ class Empresa(Base):
     estado = Column(String(20), nullable=False)
     fecha_registro = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # ── Finanzas (Fase 0): configuración contable por empresa ──
+    moneda_funcional = Column(String(3), nullable=False, default="PEN")
+    regimen_tributario = Column(String(30), nullable=False, default="general")

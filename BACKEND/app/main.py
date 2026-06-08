@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 from app.db.database import engine, Base
 from app.db.rbac_seed import sembrar_permisos, sembrar_rol_permiso, sembrar_roles_sistema
+from app.db.pcge_seed import sembrar_pcge
 from app.routers import auth, dashboard
 from app.routers import permisos        as permisos_router
 from app.routers import asistencia      as asistencia_router
@@ -35,6 +36,17 @@ from app.routers import activo_cliente    as activo_cliente_router
 from app.routers import soporte           as soporte_router
 from app.routers import analitica         as analitica_router
 from app.routers import planos            as planos_router
+# ── Módulo de Finanzas / ERP contable ──
+from app.routers import contabilidad      as contabilidad_router
+from app.routers import controlling        as controlling_router
+from app.routers import cuentas_por_pagar  as cuentas_por_pagar_router
+from app.routers import cuentas_por_cobrar as cuentas_por_cobrar_router
+from app.routers import inventario_valorizado as inventario_valorizado_router
+from app.routers import tributario          as tributario_router
+from app.routers import activos_fijos        as activos_fijos_router
+from app.routers import planilla             as planilla_router
+from app.routers import reportes_financieros as reportes_financieros_router
+from app.routers import eventos_contables    as eventos_contables_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -109,6 +121,23 @@ from app.models import (  # noqa: F401
     ticket_soporte, ticket_actividad,
     # Documentos generados: Carta de Garantía
     carta_garantia,
+    # ── Módulo de Finanzas / ERP contable ───────────────────────────────
+    # Fase 1 — Libro Mayor (núcleo contable); Fase 2 — Centros de costo
+    contabilidad,
+    # Fase 3 — Cuentas por Pagar (AP): factura/pago/aplicación
+    cuentas_por_pagar,
+    # Fase 4 — Cuentas por Cobrar (AR): comprobante/cobro/aplicación
+    cuentas_por_cobrar,
+    # Fase 5 — Costeo de inventario (promedio ponderado)
+    costeo_inventario,
+    # Fase 6 — Régimen tributario / IGV
+    tributario as tributario_model,
+    # Fase 7 — Activos fijos y depreciación
+    activos_fijos,
+    # Fase 8 — Nómina / Planilla
+    planilla as planilla_model,
+    # Fase 10 — Bus de eventos contables (mapeos + historial)
+    eventos_contables,
 )
 
 
@@ -642,6 +671,14 @@ def _pre_create_migrations():
             "ON version_plano (plano_id, es_version_activa)"
         ))
 
+        # ── Módulo de Finanzas / ERP contable ────────────────────────────────
+        # Tablas con PK/FK uuid. Igual que marca/prestamo/firma_evento: se crean
+        # aquí (ANTES de create_all) porque sus FK apuntan a empresa(id)/empleado(id)
+        # /etc. que son uuid en producción; si create_all las creara desde los
+        # modelos (String(36)→VARCHAR) Postgres rechazaría los FK por tipo.
+        from app.db.finanzas_schema import crear_tablas_finanzas
+        crear_tablas_finanzas(conn)
+
         conn.commit()
 
 
@@ -683,10 +720,105 @@ def _run_migrations():
         # ── Soporte interno de TI (tickets) ──────────────────────────────────
         sembrar_permisos(conn, "soporte", ["ver", "gestionar"],
                          descripcion_base="Soporte TI:")
+        # ── Finanzas · Fase 1 — Contabilidad / Libro Mayor ───────────────────
+        sembrar_permisos(conn, "contabilidad",
+                         ["ver", "crear_asiento", "gestionar_cuentas",
+                          "abrir_periodo", "cerrar_periodo", "reabrir_periodo"],
+                         descripcion_base="Contabilidad:")
+        # ── Finanzas · Fase 2 — Controlling / Centros de costo ───────────────
+        sembrar_permisos(conn, "controlling",
+                         ["ver", "gestionar_centros_costo"],
+                         descripcion_base="Controlling:")
+        # ── Finanzas · Fase 3 — Cuentas por Pagar (AP) ───────────────────────
+        sembrar_permisos(conn, "cxp",
+                         ["ver", "registrar_factura", "registrar_pago", "anular_factura"],
+                         descripcion_base="Cuentas por pagar:")
+        # ── Finanzas · Fase 4 — Cuentas por Cobrar (AR) ──────────────────────
+        sembrar_permisos(conn, "cxc",
+                         ["ver", "emitir_comprobante", "registrar_cobro", "anular_comprobante"],
+                         descripcion_base="Cuentas por cobrar:")
+        # ── Finanzas · Fase 5 — Valuación de inventario ──────────────────────
+        sembrar_permisos(conn, "inventario_valorizado",
+                         ["ver", "registrar_movimiento", "configurar_metodo"],
+                         descripcion_base="Inventario valorizado:")
+        # ── Finanzas · Fase 6 — Régimen tributario / IGV ─────────────────────
+        sembrar_permisos(conn, "tributario", ["ver", "configurar"],
+                         descripcion_base="Tributario:")
+        # ── Finanzas · Fase 7 — Activos fijos y depreciación ─────────────────
+        sembrar_permisos(conn, "activos_fijos", ["ver", "gestionar", "dar_de_baja"],
+                         descripcion_base="Activos fijos:")
+        # ── Finanzas · Fase 8 — Nómina / Planilla ────────────────────────────
+        sembrar_permisos(conn, "planilla", ["ver", "calcular", "aprobar", "anular"],
+                         descripcion_base="Planilla:")
+        # ── Finanzas · Fase 10 — Bus de eventos contables ────────────────────
+        sembrar_permisos(conn, "eventos_contables", ["ver", "configurar_mapeos"],
+                         descripcion_base="Eventos contables:")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
         sembrar_rol_permiso(conn)
+        # ── Finanzas · Fase 1 — catálogo PCGE por empresa (idempotente) ──────
+        sembrar_pcge(conn)
+        conn.commit()
+
+        # ── Finanzas · Fase 10 — Mapeos contables iniciales (idempotente) ────
+        # Traduce hechos económicos a asientos. uuid_generate_v4() (NO ::text):
+        # en prod las columnas id son uuid nativo.
+        import json as _json
+        _mapeos = {
+            "compra_registrada": ("Compra registrada (AP)", [
+                {"cuenta_codigo": "601", "tipo": "debito", "origen_monto": "subtotal"},
+                {"cuenta_codigo": "40111", "tipo": "debito", "origen_monto": "igv"},
+                {"cuenta_codigo": "421", "tipo": "credito", "origen_monto": "total"}]),
+            "venta_emitida": ("Venta emitida (AR)", [
+                {"cuenta_codigo": "121", "tipo": "debito", "origen_monto": "total"},
+                {"cuenta_codigo": "7011", "tipo": "credito", "origen_monto": "subtotal"},
+                {"cuenta_codigo": "40111", "tipo": "credito", "origen_monto": "igv"}]),
+            "movimiento_inventario_ingreso": ("Ingreso a almacén valorizado", [
+                {"cuenta_codigo": "201", "tipo": "debito", "origen_monto": "valor_total"},
+                {"cuenta_codigo": "611", "tipo": "credito", "origen_monto": "valor_total"}]),
+            "movimiento_inventario_salida": ("Salida de almacén al costo", [
+                {"cuenta_codigo": "691", "tipo": "debito", "origen_monto": "valor_total"},
+                {"cuenta_codigo": "201", "tipo": "credito", "origen_monto": "valor_total"}]),
+            "depreciacion_mensual_procesada": ("Depreciación mensual", [
+                {"cuenta_codigo": "6814", "tipo": "debito", "origen_monto": "monto"},
+                {"cuenta_codigo": "391", "tipo": "credito", "origen_monto": "monto"}]),
+        }
+        for tipo_evento, (descripcion, plantilla) in _mapeos.items():
+            conn.execute(text("""
+                INSERT INTO mapeo_transaccion_contable
+                    (id, empresa_id, tipo_evento, descripcion, plantilla_lineas, activo, created_at)
+                SELECT uuid_generate_v4(), e.id, :te, :desc, :pl, true, now()
+                FROM empresa e
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM mapeo_transaccion_contable m
+                    WHERE m.empresa_id = e.id AND m.tipo_evento = :te)
+            """), {"te": tipo_evento, "desc": descripcion, "pl": _json.dumps(plantilla)})
+        conn.commit()
+
+        # ── Finanzas · Fase 6 — Régimen tributario: catálogo + config/empresa ─
+        conn.execute(text("""
+            INSERT INTO regimen_tributario_catalogo (id, codigo, nombre, tasa_igv, tasa_renta_referencial, activo, created_at)
+            SELECT uuid_generate_v4(), 'general', 'Régimen General', 18.00, 29.50, true, now()
+            WHERE NOT EXISTS (SELECT 1 FROM regimen_tributario_catalogo WHERE codigo = 'general')
+        """))
+        conn.execute(text("""
+            INSERT INTO configuracion_tributaria_empresa
+                (id, empresa_id, regimen_id, cuenta_igv_credito_fiscal_id, cuenta_igv_debito_fiscal_id, updated_at)
+            SELECT uuid_generate_v4(), e.id,
+                   (SELECT id FROM regimen_tributario_catalogo WHERE codigo='general'),
+                   cc.id, cc.id, now()
+            FROM empresa e
+            LEFT JOIN cuenta_contable cc ON cc.empresa_id = e.id AND cc.codigo = '40111'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM configuracion_tributaria_empresa c WHERE c.empresa_id = e.id
+            )
+        """))
+        conn.commit()
+
+        # ── Finanzas Fase 0/3: configuración contable por empresa (idempotente) ─
+        conn.execute(text("ALTER TABLE empresa ADD COLUMN IF NOT EXISTS moneda_funcional VARCHAR(3) NOT NULL DEFAULT 'PEN'"))
+        conn.execute(text("ALTER TABLE empresa ADD COLUMN IF NOT EXISTS regimen_tributario VARCHAR(30) NOT NULL DEFAULT 'general'"))
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────
@@ -696,6 +828,11 @@ def _run_migrations():
         conn.execute(text("ALTER TABLE equipo ADD CONSTRAINT chk_equipo_estado_op CHECK (estado_operativo IN ('operativo','parcial','inoperativo'))"))
         # Sustento libre del movimiento de inventario (despacho, recepción OC, retorno, baja…)
         conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS motivo VARCHAR(300)"))
+        # Finanzas · Fase 5 — valuación de inventario: costo por movimiento + asiento.
+        # asiento_id es uuid (asiento_contable.id es uuid en prod).
+        conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(14,4)"))
+        conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS valor_total NUMERIC(14,2)"))
+        conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS asiento_id uuid REFERENCES asiento_contable(id)"))
         conn.commit()
 
         # ── Almacén predeterminado (Oficina): destino por defecto de altas/compras
@@ -1353,6 +1490,17 @@ app.include_router(activo_cliente_router.router)
 app.include_router(analitica_router.router)
 app.include_router(planos_router.router)
 app.include_router(soporte_router.router)
+# ── Módulo de Finanzas / ERP contable ──
+app.include_router(contabilidad_router.router)
+app.include_router(controlling_router.router)
+app.include_router(cuentas_por_pagar_router.router)
+app.include_router(cuentas_por_cobrar_router.router)
+app.include_router(inventario_valorizado_router.router)
+app.include_router(tributario_router.router)
+app.include_router(activos_fijos_router.router)
+app.include_router(planilla_router.router)
+app.include_router(reportes_financieros_router.router)
+app.include_router(eventos_contables_router.router)
 
 
 @app.get("/")
