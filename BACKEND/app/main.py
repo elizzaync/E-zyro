@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 from app.db.database import engine, Base
 from app.db.rbac_seed import sembrar_permisos, sembrar_rol_permiso, sembrar_roles_sistema
+from app.db.talma_seed import sembrar_talma
 from app.db.pcge_seed import sembrar_pcge
 from app.routers import auth, dashboard
 from app.routers import permisos        as permisos_router
@@ -763,6 +764,8 @@ def _run_migrations():
         # ── Finanzas · Fase 1 — catálogo PCGE por empresa (idempotente) ──────
         sembrar_pcge(conn)
         conn.commit()
+        # ── Portal Cliente: seed TALMA (idempotente) ──────────────────────────
+        sembrar_talma(conn)
 
         # ── Finanzas · Fase 10 — Mapeos contables iniciales (idempotente) ────
         # Traduce hechos económicos a asientos. uuid_generate_v4() (NO ::text):

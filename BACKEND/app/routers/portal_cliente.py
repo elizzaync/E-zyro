@@ -277,3 +277,217 @@ def portal_documentos(
         }
         for r in rows
     ]
+
+
+# ── 5. KPIs de equipos intervenidos ──────────────────────────────────────────
+
+@router.get("/dashboard/kpis")
+def portal_kpis(
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> dict[str, Any]:
+    empresa_id, cliente_id = _ctx(payload)
+
+    total = db.execute(text("""
+        SELECT COUNT(*) FROM equipo_intervenido
+        WHERE empresa_id = :eid AND cliente_id = :cid AND activo = true
+    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+
+    completados = db.execute(text("""
+        SELECT COUNT(*) FROM equipo_intervenido
+        WHERE empresa_id = :eid AND cliente_id = :cid
+          AND estado_intervencion = 'completado'
+    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+
+    en_proceso = db.execute(text("""
+        SELECT COUNT(*) FROM equipo_intervenido
+        WHERE empresa_id = :eid AND cliente_id = :cid
+          AND estado_intervencion = 'en_proceso'
+    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+
+    proximos = db.execute(text("""
+        SELECT COUNT(*) FROM equipo_intervenido
+        WHERE empresa_id = :eid AND cliente_id = :cid
+          AND proximo_mantenimiento BETWEEN CURRENT_DATE
+                                        AND CURRENT_DATE + INTERVAL '30 days'
+          AND activo = true
+    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+
+    return {
+        "total_equipos":              int(total),
+        "mantenimientos_completados": int(completados),
+        "en_proceso":                 int(en_proceso),
+        "proximos_30_dias":           int(proximos),
+    }
+
+
+# ── 6. Historial de equipos intervenidos (tabla detallada) ───────────────────
+
+@router.get("/equipos/historial")
+def portal_equipos_historial(
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> list[dict[str, Any]]:
+    empresa_id, cliente_id = _ctx(payload)
+
+    rows = db.execute(text("""
+        SELECT
+            ei.id,
+            ei.nombre,
+            ei.codigo,
+            ei.marca,
+            ei.modelo,
+            ei.ubicacion_referencia,
+            ei.estado,
+            ei.estado_intervencion,
+            ei.ultimo_mantenimiento,
+            ei.proximo_mantenimiento,
+            ei.frecuencia_meses,
+            p.nombre_proyecto,
+            ps.nombre  AS servicio_nombre,
+            ps.estado  AS servicio_estado
+        FROM equipo_intervenido ei
+        LEFT JOIN proyecto         p  ON p.id  = ei.proyecto_id
+        LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
+        WHERE ei.empresa_id = :eid AND ei.cliente_id = :cid
+        ORDER BY ei.created_at DESC
+    """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
+
+    return [
+        {
+            "id":                    str(r[0]),
+            "nombre":                r[1],
+            "codigo":                r[2],
+            "marca":                 r[3],
+            "modelo":                r[4],
+            "ubicacion":             r[5],
+            "estado":                r[6],
+            "estado_intervencion":   r[7],
+            "ultimo_mantenimiento":  r[8].isoformat() if r[8] else None,
+            "proximo_mantenimiento": r[9].isoformat() if r[9] else None,
+            "frecuencia_meses":      r[10],
+            "proyecto":              r[11],
+            "servicio":              r[12],
+            "servicio_estado":       r[13],
+        }
+        for r in rows
+    ]
+
+
+# ── 7. Detalle de un equipo intervenido ──────────────────────────────────────
+
+@router.get("/mantenimiento/{ei_id}/detalles")
+def portal_mantenimiento_detalles(
+    ei_id:   str,
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> dict[str, Any]:
+    empresa_id, cliente_id = _ctx(payload)
+
+    # Verificar pertenencia — datos de la intervención + servicio + proyecto
+    row = db.execute(text("""
+        SELECT
+            ei.id, ei.nombre, ei.codigo, ei.marca, ei.modelo,
+            ei.ubicacion_referencia, ei.estado, ei.estado_intervencion,
+            ei.ultimo_mantenimiento, ei.proximo_mantenimiento, ei.frecuencia_meses,
+            ei.observaciones,
+            ei.proyecto_id, ei.proyecto_servicio_id,
+            p.nombre_proyecto,
+            ps.nombre        AS serv_nombre,
+            ps.estado        AS serv_estado,
+            ps.fecha_programada,
+            ps.fecha_inicio  AS serv_inicio,
+            ps.fecha_fin     AS serv_fin
+        FROM equipo_intervenido ei
+        LEFT JOIN proyecto          p  ON p.id  = ei.proyecto_id
+        LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
+        WHERE ei.id = :eiid AND ei.empresa_id = :eid AND ei.cliente_id = :cid
+    """), {"eiid": ei_id, "eid": empresa_id, "cid": cliente_id}).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado.")
+
+    (ei_id_db, nombre, codigo, marca, modelo, ubicacion, estado, estado_interv,
+     ult_mant, prox_mant, frec, obs,
+     proyecto_id, ps_id,
+     nombre_proyecto, serv_nombre, serv_estado, serv_fecha_prog,
+     serv_inicio, serv_fin) = row
+
+    # Personal técnico del proyecto
+    personal: list[dict] = []
+    if proyecto_id:
+        prows = db.execute(text("""
+            SELECT DISTINCT
+                u.nombre || ' ' || u.apellido AS nombre_completo,
+                e.cargo,
+                pm.rol_proyecto
+            FROM proyecto_miembro pm
+            JOIN empleado e ON e.id = pm.empleado_id
+            JOIN usuario  u ON u.id = e.usuario_id
+            WHERE pm.proyecto_id = :pid AND pm.activo = true
+            ORDER BY nombre_completo
+        """), {"pid": str(proyecto_id)}).fetchall()
+        personal = [{"nombre": p[0], "cargo": p[1], "rol_proyecto": p[2]} for p in prows]
+
+    # Herramientas/equipos usados (préstamos del servicio)
+    herramientas: list[dict] = []
+    if ps_id:
+        hrows = db.execute(text("""
+            SELECT eq.nombre, eq.codigo, eq.clase, pi2.cantidad_entregada
+            FROM prestamo pr
+            JOIN prestamo_item pi2 ON pi2.prestamo_id = pr.id
+            JOIN equipo eq         ON eq.id = pi2.equipo_id
+            WHERE pr.proyecto_servicio_id = :psid
+              AND pr.estado IN ('entregado','devuelto','confirmado')
+            ORDER BY eq.clase, eq.nombre
+        """), {"psid": str(ps_id)}).fetchall()
+        herramientas = [
+            {"nombre": h[0], "codigo": h[1], "tipo": h[2], "cantidad": h[3]}
+            for h in hrows
+        ]
+
+    # Documentos descargables
+    documentos: list[dict] = []
+    if ps_id:
+        drows = db.execute(text("""
+            SELECT tipo, titulo, url, fecha FROM informe_servicio
+            WHERE servicio_id = :psid AND empresa_id = :eid AND url IS NOT NULL
+            ORDER BY fecha DESC NULLS LAST
+        """), {"psid": str(ps_id), "eid": empresa_id}).fetchall()
+        documentos = [
+            {
+                "tipo":   d[0],
+                "titulo": d[1],
+                "url":    d[2],
+                "fecha":  d[3].isoformat() if d[3] else None,
+            }
+            for d in drows
+        ]
+
+    return {
+        "equipo": {
+            "id":                    str(ei_id_db),
+            "nombre":                nombre,
+            "codigo":                codigo,
+            "marca":                 marca,
+            "modelo":                modelo,
+            "ubicacion":             ubicacion,
+            "estado":                estado,
+            "estado_intervencion":   estado_interv,
+            "ultimo_mantenimiento":  ult_mant.isoformat() if ult_mant else None,
+            "proximo_mantenimiento": prox_mant.isoformat() if prox_mant else None,
+            "frecuencia_meses":      frec,
+            "observaciones":         obs,
+        },
+        "servicio": {
+            "nombre":           serv_nombre,
+            "estado":           serv_estado,
+            "fecha_programada": serv_fecha_prog.isoformat() if serv_fecha_prog else None,
+            "fecha_inicio":     serv_inicio.isoformat() if serv_inicio else None,
+            "fecha_fin":        serv_fin.isoformat() if serv_fin else None,
+        },
+        "proyecto":     nombre_proyecto,
+        "personal":     personal,
+        "herramientas": herramientas,
+        "documentos":   documentos,
+    }
