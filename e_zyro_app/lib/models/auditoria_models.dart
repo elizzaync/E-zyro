@@ -9,6 +9,8 @@ class AuditoriaItem {
   final String? descripcion;
   final String? ip;
   final String fecha;
+  final Map<String, dynamic>? datosAnteriores;
+  final Map<String, dynamic>? datosNuevos;
 
   const AuditoriaItem({
     required this.id,
@@ -21,18 +23,26 @@ class AuditoriaItem {
     this.descripcion,
     this.ip,
     required this.fecha,
+    this.datosAnteriores,
+    this.datosNuevos,
   });
 
   factory AuditoriaItem.fromJson(Map<String, dynamic> j) => AuditoriaItem(
-        id:             j['id'] as String? ?? '',
-        usuarioId:      j['usuario_id'] as String?,
-        usuarioNombre:  j['usuario_nombre'] as String?,
-        tablaAfectada:  j['tabla_afectada'] as String? ?? '',
-        registroId:     j['registro_id'] as String?,
-        accion:         j['accion'] as String? ?? '',
-        modulo:         j['modulo'] as String?,
-        descripcion:    j['descripcion'] as String?,
-        ip:             j['ip'] as String?,
-        fecha:          j['fecha'] as String? ?? '',
+        id:               j['id'] as String? ?? '',
+        usuarioId:        j['usuario_id'] as String?,
+        usuarioNombre:    j['usuario_nombre'] as String?,
+        tablaAfectada:    j['tabla_afectada'] as String? ?? '',
+        registroId:       j['registro_id'] as String?,
+        accion:           j['accion'] as String? ?? '',
+        modulo:           j['modulo'] as String?,
+        descripcion:      j['descripcion'] as String?,
+        ip:               j['ip'] as String?,
+        fecha:            j['fecha'] as String? ?? '',
+        datosAnteriores:  j['datos_anteriores'] != null
+            ? Map<String, dynamic>.from(j['datos_anteriores'] as Map)
+            : null,
+        datosNuevos:      j['datos_nuevos'] != null
+            ? Map<String, dynamic>.from(j['datos_nuevos'] as Map)
+            : null,
       );
 }

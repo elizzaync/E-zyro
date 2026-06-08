@@ -16,6 +16,7 @@ import '../services/proyecto_service.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../utils/fase_servicio.dart';
+import '../utils/ui_insets.dart';
 import '../services/comunicado_service.dart';
 import '../services/chat_service.dart';
 import 'pantalla_informes_servicio.dart';
@@ -235,7 +236,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   Future<void> _toggleOptimista(ProcedimientoDetalle proc) async {
     final d = _detalle;
     if (d == null) return;
-    if (d.estado == 'Completado') {
+    if (d.estado == 'Completado' || d.estado == 'Cancelado') {
       _snack('El servicio está cerrado (solo lectura).', _amber);
       return;
     }
@@ -264,7 +265,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   Future<void> _toggleTareaOptimista(TareaDetalle tarea) async {
     final d = _detalle;
     if (d == null) return;
-    if (d.estado == 'Completado') {
+    if (d.estado == 'Completado' || d.estado == 'Cancelado') {
       _snack('El servicio está cerrado (solo lectura).', _amber);
       return;
     }
@@ -531,6 +532,10 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                     _Header(detalle: d),
                     const SizedBox(height: 10),
                     _FasesStepper(estado: d.estado, progreso: d.progreso),
+                    if (d.estado == 'Completado' || d.estado == 'Cancelado') ...[
+                      const SizedBox(height: 4),
+                      _ClosedBanner(estado: d.estado),
+                    ],
                     if (d.estado == 'Pendiente') ...[
                       const SizedBox(height: 8),
                       _ChecklistPreparacion(
@@ -619,11 +624,13 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             reqsRecepcion: _reqsRecepcion,
                             service: widget.service,
                             onChanged: _reloadMateriales,
+                            isClosed: d.estado == 'Completado' || d.estado == 'Cancelado',
                           ),
                           _NotasTab(
                             servicioId: d.id,
                             notasIniciales: d.notas,
                             service: widget.service,
+                            isClosed: d.estado == 'Completado' || d.estado == 'Cancelado',
                           ),
                           ChatTab(
                             room: 'servicio/${widget.servicioId}',

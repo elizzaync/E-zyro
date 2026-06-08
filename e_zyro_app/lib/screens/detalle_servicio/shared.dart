@@ -1,6 +1,41 @@
 // Widgets compartidos: estado vacio y vista de error.
 part of '../pantalla_detalle_servicio.dart';
 
+// ─── Banner: servicio cerrado (solo lectura) ──────────────────────────────────
+
+class _ClosedBanner extends StatelessWidget {
+  final String estado;
+  const _ClosedBanner({required this.estado});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCompletado = estado == 'Completado';
+    final color = isCompletado ? _green : _danger;
+    final icon = isCompletado ? Icons.task_alt : Icons.cancel_outlined;
+    final label = isCompletado
+        ? 'Servicio completado · Solo lectura'
+        : 'Servicio cancelado · Solo lectura';
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.40)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: color)),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Estado vacío genérico ────────────────────────────────────────────────────
 
 class _EmptyTab extends StatelessWidget {

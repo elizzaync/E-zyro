@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/auditoria_models.dart';
 import '../services/auditoria_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 class PantallaAuditoria extends StatefulWidget {
@@ -27,14 +28,18 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
   // Filtros
   String? _filtroModulo;
   String? _filtroAccion;
+  String? _filtroTablaAfectada;
+  String? _filtroQ;
   String? _filtroFechaDesde;
   String? _filtroFechaHasta;
 
   final _scrollCtrl = ScrollController();
 
   static const _modulos = [
-    'Todos', 'seguridad', 'comunicados', 'operaciones',
-    'requerimientos', 'asistencia', 'proyectos',
+    'Todos',
+    'SEGURIDAD', 'OPERACIONES', 'ASISTENCIA', 'REQUERIMIENTOS',
+    'INVENTARIO', 'COMPRAS', 'CLIENTES', 'FINANZAS', 'MANTENIMIENTO',
+    'COMUNICADOS', 'USUARIOS', 'EMPLEADOS', 'EMPRESA', 'RRHH',
   ];
   static const _acciones = [
     'Todas',
@@ -79,6 +84,8 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
       final data = await _service!.getAuditoria(
         modulo: (_filtroModulo == 'Todos' || _filtroModulo == null) ? null : _filtroModulo,
         accion: (_filtroAccion == 'Todas' || _filtroAccion == null) ? null : _filtroAccion,
+        tablaAfectada: _filtroTablaAfectada,
+        q: _filtroQ,
         fechaDesde: _filtroFechaDesde,
         fechaHasta: _filtroFechaHasta,
         page: 1,
@@ -112,6 +119,8 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
     final data = await _service!.getAuditoria(
       modulo: (_filtroModulo == 'Todos' || _filtroModulo == null) ? null : _filtroModulo,
       accion: (_filtroAccion == 'Todas' || _filtroAccion == null) ? null : _filtroAccion,
+      tablaAfectada: _filtroTablaAfectada,
+      q: _filtroQ,
       fechaDesde: _filtroFechaDesde,
       fechaHasta: _filtroFechaHasta,
       page: nextPage,
@@ -129,108 +138,145 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
   void _openFiltros() {
     String? modulo = _filtroModulo;
     String? accion = _filtroAccion;
+    final tablaCtrl = TextEditingController(text: _filtroTablaAfectada ?? '');
+    final qCtrl = TextEditingController(text: _filtroQ ?? '');
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
-        builder: (ctx, setModal) => Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: EdgeInsets.only(
-            left: 24, right: 24, top: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text('Filtrar Auditoría',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              const Text('Módulo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: modulo ?? 'Todos',
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                items: _modulos.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
-                onChanged: (v) => setModal(() => modulo = v),
-              ),
-              const SizedBox(height: 16),
-              const Text('Acción', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: accion ?? 'Todas',
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                items: _acciones.map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 13)))).toList(),
-                onChanged: (v) => setModal(() => accion = v),
-              ),
-              const SizedBox(height: 24),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        _filtroModulo = null;
-                        _filtroAccion = null;
-                        _filtroFechaDesde = null;
-                        _filtroFechaHasta = null;
-                      });
-                      Navigator.pop(context);
-                      _load(reset: true);
-                    },
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.grey),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        builder: (ctx, setModal) => SingleChildScrollView(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.only(
+              left: 24, right: 24, top: 16,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    child: const Text('Limpiar', style: TextStyle(color: Colors.grey)),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _filtroModulo = modulo;
-                        _filtroAccion = accion;
-                      });
-                      Navigator.pop(context);
-                      _load(reset: true);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _green,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                const SizedBox(height: 20),
+                const Text('Filtrar Auditoría',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
+                const Text('Buscar en descripción', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: qCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Texto libre…',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text('Módulo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: modulo ?? 'Todos',
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  items: _modulos.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 13)))).toList(),
+                  onChanged: (v) => setModal(() => modulo = v),
+                ),
+                const SizedBox(height: 16),
+                const Text('Acción', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: accion ?? 'Todas',
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                  items: _acciones.map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 13)))).toList(),
+                  onChanged: (v) => setModal(() => accion = v),
+                ),
+                const SizedBox(height: 16),
+                const Text('Tabla afectada', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: tablaCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'ej: proyecto_servicio, requerimiento…',
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _filtroModulo = null;
+                          _filtroAccion = null;
+                          _filtroTablaAfectada = null;
+                          _filtroQ = null;
+                          _filtroFechaDesde = null;
+                          _filtroFechaHasta = null;
+                        });
+                        Navigator.pop(context);
+                        _load(reset: true);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.grey),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Limpiar', style: TextStyle(color: Colors.grey)),
                     ),
-                    child: const Text('Aplicar', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
-                ),
-              ]),
-            ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _filtroModulo = modulo;
+                          _filtroAccion = accion;
+                          final t = tablaCtrl.text.trim();
+                          _filtroTablaAfectada = t.isEmpty ? null : t;
+                          final qq = qCtrl.text.trim();
+                          _filtroQ = qq.isEmpty ? null : qq;
+                        });
+                        Navigator.pop(context);
+                        _load(reset: true);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _green,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Aplicar', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
           ),
         ),
       ),
@@ -240,6 +286,8 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
   bool get _hayFiltros =>
       (_filtroModulo != null && _filtroModulo != 'Todos') ||
       (_filtroAccion != null && _filtroAccion != 'Todas') ||
+      (_filtroTablaAfectada != null && _filtroTablaAfectada!.isNotEmpty) ||
+      (_filtroQ != null && _filtroQ!.isNotEmpty) ||
       _filtroFechaDesde != null ||
       _filtroFechaHasta != null;
 
@@ -296,7 +344,7 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
                     color: _green,
                     child: ListView.separated(
                       controller: _scrollCtrl,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      padding: bottomSafePadding(context, top: 8, extra: 24),
                       itemCount: _items.length + (_loadingMore ? 1 : 0),
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (_, i) {
@@ -309,11 +357,23 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
                             ),
                           );
                         }
-                        return _AuditoriaCard(item: _items[i]);
+                        return _AuditoriaCard(
+                          item: _items[i],
+                          onTap: () => _mostrarDetalle(_items[i]),
+                        );
                       },
                     ),
                   ),
       ),
+    );
+  }
+
+  void _mostrarDetalle(AuditoriaItem item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AuditoriaDetalleSheet(item: item),
     );
   }
 
@@ -390,6 +450,8 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
                 setState(() {
                   _filtroModulo = null;
                   _filtroAccion = null;
+                  _filtroTablaAfectada = null;
+                  _filtroQ = null;
                   _filtroFechaDesde = null;
                   _filtroFechaHasta = null;
                 });
@@ -408,7 +470,8 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
 
 class _AuditoriaCard extends StatelessWidget {
   final AuditoriaItem item;
-  const _AuditoriaCard({required this.item});
+  final VoidCallback? onTap;
+  const _AuditoriaCard({required this.item, this.onTap});
 
   static const _green  = Color(0xFF8FD11B);  // crear / éxito
   static const _amber  = Color(0xFFF59E0B);  // modificar / password
@@ -497,8 +560,12 @@ class _AuditoriaCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
     final color = _accionColor;
+    final hasDiff = item.datosAnteriores != null || item.datosNuevos != null;
 
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: surface,
@@ -590,11 +657,16 @@ class _AuditoriaCard extends StatelessWidget {
                     Text(item.ip!,
                         style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
                   ],
+                  if (hasDiff) ...[
+                    const Spacer(),
+                    Icon(Icons.compare_arrows_rounded, size: 11, color: Colors.grey.shade400),
+                  ],
                 ]),
               ],
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -611,4 +683,197 @@ enum _AccionCat {
   movimiento,  // MOVIMIENTO, TRANSFERENCIA, AJUSTE, STOCK
   peligro,     // FAILED, BLOCK, DENIED, RECHAZAR, CANCEL
   otro,
+}
+
+// ── Bottom sheet: detalle completo + diff datos anteriores/nuevos ─────────────
+
+class _AuditoriaDetalleSheet extends StatelessWidget {
+  final AuditoriaItem item;
+  const _AuditoriaDetalleSheet({required this.item});
+
+  static const _green = Color(0xFF8FD11B);
+  static const _red   = Color(0xFFEF4444);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, ctrl) => Container(
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(item.accion,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                  Text(item.fecha,
+                      style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                ],
+              ),
+            ),
+            if (item.usuarioNombre != null) ...[
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 13, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(item.usuarioNombre!,
+                        style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.table_chart_outlined, size: 13, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(item.tablaAfectada,
+                        style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+            if (item.descripcion != null && item.descripcion!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(item.descripcion!,
+                    style: const TextStyle(fontSize: 12.5, color: Colors.grey, height: 1.4)),
+              ),
+            ],
+            const Divider(height: 24),
+            Expanded(
+              child: ListView(
+                controller: ctrl,
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                children: [
+                  if (item.datosAnteriores != null) ...[
+                    _DiffSection(
+                      titulo: 'Datos anteriores',
+                      datos: item.datosAnteriores!,
+                      color: _red,
+                      icon: Icons.remove_circle_outline,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (item.datosNuevos != null) ...[
+                    _DiffSection(
+                      titulo: 'Datos nuevos',
+                      datos: item.datosNuevos!,
+                      color: _green,
+                      icon: Icons.add_circle_outline,
+                      isDark: isDark,
+                    ),
+                  ],
+                  if (item.datosAnteriores == null && item.datosNuevos == null)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(32),
+                        child: Text('Sin datos de cambio registrados',
+                            style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DiffSection extends StatelessWidget {
+  final String titulo;
+  final Map<String, dynamic> datos;
+  final Color color;
+  final IconData icon;
+  final bool isDark;
+
+  const _DiffSection({
+    required this.titulo,
+    required this.datos,
+    required this.color,
+    required this.icon,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(titulo,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+        ]),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.20)),
+          ),
+          child: Column(
+            children: datos.entries.map((e) {
+              final isLast = e.key == datos.keys.last;
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 130,
+                          child: Text(e.key,
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.grey.shade300 : Colors.grey.shade700)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            e.value?.toString() ?? 'null',
+                            style: const TextStyle(fontSize: 11.5, color: Colors.grey),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!isLast)
+                    Divider(height: 1, color: color.withValues(alpha: 0.15)),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
 }

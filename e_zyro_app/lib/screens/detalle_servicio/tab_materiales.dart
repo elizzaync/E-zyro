@@ -11,6 +11,7 @@ class _MaterialesTab extends StatefulWidget {
   final List<ReqRecepcion> reqsRecepcion;
   final ProyectoService service;
   final Future<void> Function() onChanged;
+  final bool isClosed;
 
   const _MaterialesTab({
     required this.servicioId,
@@ -20,6 +21,7 @@ class _MaterialesTab extends StatefulWidget {
     required this.reqsRecepcion,
     required this.service,
     required this.onChanged,
+    this.isClosed = false,
   });
 
   @override
@@ -201,7 +203,7 @@ class _MaterialesTabState extends State<_MaterialesTab> {
   Widget build(BuildContext context) {
     final borrador = widget.borrador;
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      padding: bottomSafePadding(context, extra: 24),
       children: [
             // ── Equipos y herramientas (préstamos FASE 5) ─────────────────────
             _EquiposHerramientasCard(
@@ -219,8 +221,8 @@ class _MaterialesTabState extends State<_MaterialesTab> {
               const SizedBox(height: 20),
             ],
 
-            // ── Borrador en construcción ─────────────────────────────────────
-            if (borrador.items.isNotEmpty) ...[
+            // ── Borrador en construcción (oculto si el servicio está cerrado) ──
+            if (!widget.isClosed && borrador.items.isNotEmpty) ...[
               Row(
                 children: [
                   const _SectionTitle(

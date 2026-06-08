@@ -9,6 +9,8 @@ class AuditoriaService {
   Future<List<AuditoriaItem>> getAuditoria({
     String? modulo,
     String? accion,
+    String? tablaAfectada,
+    String? q,
     String? fechaDesde,
     String? fechaHasta,
     String? usuarioId,
@@ -20,6 +22,8 @@ class AuditoriaService {
     params.add('page_size=$pageSize');
     if (modulo != null && modulo.isNotEmpty) params.add('modulo=$modulo');
     if (accion != null && accion.isNotEmpty) params.add('accion=$accion');
+    if (tablaAfectada != null && tablaAfectada.isNotEmpty) params.add('tabla_afectada=$tablaAfectada');
+    if (q != null && q.isNotEmpty) params.add('q=${Uri.encodeComponent(q)}');
     if (fechaDesde != null) params.add('fecha_desde=$fechaDesde');
     if (fechaHasta != null) params.add('fecha_hasta=$fechaHasta');
     if (usuarioId != null) params.add('usuario_id=$usuarioId');
