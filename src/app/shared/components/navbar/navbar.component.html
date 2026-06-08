@@ -349,6 +349,18 @@
     </div>
 
     <div class="modal-body-pro">
+
+        <!-- Banner de solo lectura para clientes externos -->
+        @if (isClienteExterno) {
+        <div class="readonly-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            Cuenta administrada por E-System Tic — Solo lectura.
+        </div>
+        }
+
         <div class="profile-photo-section">
             <div class="photo-container">
                 @if (perfilData.fotoUrl) {
@@ -417,7 +429,9 @@
     </div>
 
     <div class="modal-footer-pro">
-        @if (!isEditingProfile) {
+        @if (isClienteExterno) {
+        <button class="btn-cancel-pro" (click)="cerrarModalPerfil()">Cerrar</button>
+        } @else if (!isEditingProfile) {
         <button class="btn-cancel-pro" (click)="cerrarModalPerfil()">Cerrar</button>
         <button class="btn-edit-main" (click)="iniciarEdicion()">Editar Información</button>
         } @else {

@@ -1,0 +1,226 @@
+<div class="ped-page">
+
+  <!-- Cargando -->
+  @if (cargando) {
+  <div class="ped-loading">
+    <div class="spinner-ring"></div>
+    <span>Cargando detalle...</span>
+  </div>
+  }
+
+  <!-- Error -->
+  @if (!cargando && error) {
+  <div class="ped-error-banner">{{ error }}</div>
+  }
+
+  @if (!cargando && equipo) {
+
+  <!-- Encabezado -->
+  <div class="ped-header">
+    <a routerLink="/portal-cliente/dashboard" class="ped-back">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/>
+      </svg>
+      Volver al Panel
+    </a>
+    <div class="ped-title-block">
+      <h1 class="ped-title">{{ equipo.nombre }}</h1>
+      <p class="ped-subtitle">
+        @if (equipo.marca) { {{ equipo.marca }} · }
+        @if (equipo.modelo) { {{ equipo.modelo }} · }
+        @if (equipo.codigo) { Código: {{ equipo.codigo }} }
+      </p>
+    </div>
+    <span class="pd-badge" [class]="badgeEstado(equipo.estado_intervencion)">
+      {{ estadoLabel(equipo.estado_intervencion) }}
+    </span>
+  </div>
+
+  <!-- Grid principal -->
+  <div class="ped-grid">
+
+    <!-- Col izquierda -->
+    <div class="ped-col">
+
+      <!-- Barra de progreso del mantenimiento -->
+      <div class="ped-card">
+        <h2 class="ped-card-title">Estado del Mantenimiento</h2>
+        <div class="ped-progress-track">
+          <div class="ped-progress-bar" [style.width.%]="estadoPct(equipo.estado_intervencion)"></div>
+        </div>
+        <div class="ped-progress-steps">
+          <div class="ped-step" [class.done]="estadoPct(equipo.estado_intervencion) >= 0">
+            <div class="ped-step-dot"></div>
+            <span>Programado</span>
+          </div>
+          <div class="ped-step" [class.done]="estadoPct(equipo.estado_intervencion) >= 50">
+            <div class="ped-step-dot"></div>
+            <span>En Proceso</span>
+          </div>
+          <div class="ped-step" [class.done]="estadoPct(equipo.estado_intervencion) >= 100">
+            <div class="ped-step-dot"></div>
+            <span>Completado</span>
+          </div>
+        </div>
+
+        <div class="ped-meta-row">
+          <div class="ped-meta-item">
+            <span class="ped-meta-label">Proyecto</span>
+            <span class="ped-meta-val">{{ proyecto }}</span>
+          </div>
+          <div class="ped-meta-item">
+            <span class="ped-meta-label">Servicio</span>
+            <span class="ped-meta-val">{{ servicio?.nombre || '—' }}</span>
+          </div>
+          <div class="ped-meta-item">
+            <span class="ped-meta-label">Fecha Programada</span>
+            <span class="ped-meta-val">{{ (servicio?.fecha_programada | date:'dd/MM/yyyy') || '—' }}</span>
+          </div>
+          <div class="ped-meta-item">
+            <span class="ped-meta-label">Último Mantenimiento</span>
+            <span class="ped-meta-val">{{ (equipo.ultimo_mantenimiento | date:'dd/MM/yyyy') || '—' }}</span>
+          </div>
+          <div class="ped-meta-item">
+            <span class="ped-meta-label">Próximo Mantenimiento</span>
+            <span class="ped-meta-val">{{ (equipo.proximo_mantenimiento | date:'dd/MM/yyyy') || '—' }}</span>
+          </div>
+          <div class="ped-meta-item">
+            <span class="ped-meta-label">Frecuencia</span>
+            <span class="ped-meta-val">
+              {{ equipo.frecuencia_meses ? 'Cada ' + equipo.frecuencia_meses + ' meses' : '—' }}
+            </span>
+          </div>
+          @if (equipo.ubicacion) {
+          <div class="ped-meta-item ped-meta-full">
+            <span class="ped-meta-label">Ubicación</span>
+            <span class="ped-meta-val">{{ equipo.ubicacion }}</span>
+          </div>
+          }
+          @if (equipo.observaciones) {
+          <div class="ped-meta-item ped-meta-full">
+            <span class="ped-meta-label">Observaciones</span>
+            <span class="ped-meta-val">{{ equipo.observaciones }}</span>
+          </div>
+          }
+        </div>
+      </div>
+
+      <!-- Documentos descargables -->
+      <div class="ped-card">
+        <h2 class="ped-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+          </svg>
+          Documentos
+        </h2>
+
+        @if (documentos.length === 0) {
+        <p class="ped-empty-text">No hay documentos disponibles para este mantenimiento.</p>
+        }
+
+        <div class="ped-docs-grid">
+          @for (doc of documentos; track doc.titulo) {
+          <a [href]="doc.url" target="_blank" class="ped-doc-card">
+            <div class="ped-doc-icon" [style.background]="tipoIconColor(doc.tipo) + '18'"
+                 [style.color]="tipoIconColor(doc.tipo)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <div class="ped-doc-body">
+              <span class="ped-doc-tipo">{{ tipoLabel(doc.tipo) }}</span>
+              <span class="ped-doc-nombre">{{ doc.titulo || 'Documento' }}</span>
+              @if (doc.fecha) {
+              <span class="ped-doc-fecha">{{ doc.fecha | date:'dd/MM/yyyy' }}</span>
+              }
+            </div>
+            <svg class="ped-doc-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+          </a>
+          }
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Col derecha -->
+    <div class="ped-col">
+
+      <!-- Personal técnico -->
+      <div class="ped-card">
+        <h2 class="ped-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Personal Técnico Responsable
+        </h2>
+
+        @if (personal.length === 0) {
+        <p class="ped-empty-text">No se registró personal para este servicio.</p>
+        }
+
+        <div class="ped-personal-list">
+          @for (p of personal; track p.nombre) {
+          <div class="ped-personal-item">
+            <div class="ped-avatar">{{ p.nombre.charAt(0) }}</div>
+            <div class="ped-personal-info">
+              <span class="ped-personal-nombre">{{ p.nombre }}</span>
+              <span class="ped-personal-cargo">{{ p.cargo || p.rol_proyecto || '—' }}</span>
+            </div>
+          </div>
+          }
+        </div>
+      </div>
+
+      <!-- Herramientas calibradas -->
+      <div class="ped-card">
+        <h2 class="ped-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Herramientas y Equipos Utilizados
+        </h2>
+
+        @if (herramientas.length === 0) {
+        <p class="ped-empty-text">No se registraron herramientas para este servicio.</p>
+        }
+
+        <div class="ped-herr-list">
+          @for (h of herramientas; track h.nombre) {
+          <div class="ped-herr-item">
+            <div class="ped-herr-icon">
+              @if (h.tipo === 'herramienta') {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+              </svg>
+              } @else {
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+              </svg>
+              }
+            </div>
+            <div class="ped-herr-info">
+              <span class="ped-herr-nombre">{{ h.nombre }}</span>
+              @if (h.codigo) { <span class="ped-herr-codigo">{{ h.codigo }}</span> }
+            </div>
+            @if (h.cantidad) {
+            <span class="ped-herr-qty">× {{ h.cantidad }}</span>
+            }
+          </div>
+          }
+        </div>
+      </div>
+
+    </div>
+  </div>
+  }
+
+</div>

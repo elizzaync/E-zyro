@@ -1,15 +1,15 @@
 <div class="pd-page">
 
-  <!-- Page header -->
+  <!-- Encabezado -->
   <div class="pd-page-header">
     <div>
-      <h1 class="pd-title">Dashboard</h1>
+      <h1 class="pd-title">Panel de Seguimiento</h1>
       <p class="pd-subtitle">{{ hoy }}</p>
     </div>
     <p class="pd-saludo">{{ saludo }}</p>
   </div>
 
-  <!-- Loading -->
+  <!-- Cargando -->
   @if (cargando) {
   <div class="pd-loading">
     <div class="spinner-ring"></div>
@@ -22,19 +22,35 @@
   <div class="pd-error-banner">{{ error }}</div>
   }
 
-  <!-- KPI Cards -->
   @if (!cargando && kpis) {
+
+  <!-- KPI Cards -->
   <div class="pd-kpis">
+
     <div class="pd-kpi-card pd-kpi-blue">
       <div class="pd-kpi-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
         </svg>
       </div>
       <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ kpis.proyectos_activos }}</span>
-        <span class="pd-kpi-label">Proyectos Activos</span>
+        <span class="pd-kpi-val">{{ kpis.total_equipos }}</span>
+        <span class="pd-kpi-label">Equipos Registrados</span>
+      </div>
+    </div>
+
+    <div class="pd-kpi-card pd-kpi-amber">
+      <div class="pd-kpi-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="pd-kpi-body">
+        <span class="pd-kpi-val">{{ kpis.en_proceso }}</span>
+        <span class="pd-kpi-label">En Proceso</span>
       </div>
     </div>
 
@@ -45,64 +61,98 @@
         </svg>
       </div>
       <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ kpis.completados_este_mes }}</span>
-        <span class="pd-kpi-label">Mantenimientos Completados (este mes)</span>
+        <span class="pd-kpi-val">{{ kpis.mantenimientos_completados }}</span>
+        <span class="pd-kpi-label">Completados</span>
       </div>
     </div>
 
-    <div class="pd-kpi-card pd-kpi-amber">
+    <div class="pd-kpi-card pd-kpi-purple">
       <div class="pd-kpi-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
         </svg>
       </div>
       <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ proximos.length }}</span>
+        <span class="pd-kpi-val">{{ kpis.proximos_30_dias }}</span>
         <span class="pd-kpi-label">Próximos (30 días)</span>
       </div>
     </div>
+
   </div>
 
-  <!-- Próximos mantenimientos -->
+  <!-- Historial de Equipos Intervenidos -->
   <div class="pd-section">
     <div class="pd-section-header">
-      <h2 class="pd-section-title">Próximos Mantenimientos</h2>
-      <a routerLink="/portal-cliente/proyectos" class="pd-link-all">Ver todos los proyectos →</a>
+      <h2 class="pd-section-title">Historial de Equipos Intervenidos</h2>
+      <input
+        class="pd-search"
+        type="text"
+        placeholder="Buscar equipo, ubicación o proyecto…"
+        [(ngModel)]="filtro"
+      />
     </div>
 
-    @if (proximos.length === 0) {
+    @if (historialFiltrado.length === 0) {
     <div class="pd-empty">
       <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="24" cy="24" r="20"/><path stroke-linecap="round" d="M24 16v8l5 3"/>
+        <circle cx="24" cy="24" r="20"/>
+        <path stroke-linecap="round" d="M24 16v8l5 3"/>
       </svg>
-      <p>No hay mantenimientos programados en los próximos 30 días.</p>
+      <p>No se encontraron equipos registrados para su empresa.</p>
     </div>
     }
 
-    @if (proximos.length > 0) {
+    @if (historialFiltrado.length > 0) {
     <div class="pd-table-wrap">
       <table class="pd-table">
         <thead>
           <tr>
-            <th>Servicio</th>
-            <th>Proyecto</th>
-            <th>Fecha Programada</th>
+            <th>Equipo</th>
+            <th>Ubicación</th>
+            <th>Último Mtto.</th>
+            <th>Próximo Mtto.</th>
             <th>Estado</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          @for (item of proximos; track item.id) {
+          @for (eq of historialFiltrado; track eq.id) {
           <tr>
-            <td class="pd-td-name">{{ item.nombre }}</td>
-            <td class="pd-td-muted">{{ item.proyecto }}</td>
-            <td>{{ item.fecha_programada | date:'dd/MM/yyyy':'':'es-PE' }}</td>
-            <td><span class="pd-badge" [class]="estadoBadge(item.estado)">{{ item.estado }}</span></td>
+            <td>
+              <div class="pd-eq-name">{{ eq.nombre }}</div>
+              @if (eq.marca || eq.modelo) {
+              <div class="pd-eq-sub">{{ eq.marca }} {{ eq.modelo }}</div>
+              }
+            </td>
+            <td class="pd-td-muted">{{ eq.ubicacion || '—' }}</td>
+            <td>{{ eq.ultimo_mantenimiento ? (eq.ultimo_mantenimiento | date:'dd/MM/yyyy') : '—' }}</td>
+            <td>
+              <span [class.pd-prox-alerta]="proximoAlerta(eq.proximo_mantenimiento)">
+                {{ eq.proximo_mantenimiento ? (eq.proximo_mantenimiento | date:'dd/MM/yyyy') : '—' }}
+              </span>
+            </td>
+            <td>
+              <span class="pd-badge" [class]="badgeIntervencion(eq.estado_intervencion)">
+                {{ labelIntervencion(eq.estado_intervencion) }}
+              </span>
+            </td>
+            <td>
+              <a class="pd-btn-detalle" [routerLink]="['/portal-cliente/mantenimiento', eq.id]">
+                Ver Detalles
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
+                </svg>
+              </a>
+            </td>
           </tr>
           }
         </tbody>
       </table>
     </div>
     }
+
   </div>
   }
 

@@ -25,6 +25,7 @@ import { PortalDashboardComponent } from './features/portal-cliente/dashboard/po
 import { PortalProyectosComponent } from './features/portal-cliente/proyectos/portal-proyectos.component';
 import { PortalProyectoDetalleComponent } from './features/portal-cliente/proyecto-detalle/portal-proyecto-detalle.component';
 import { PortalDocumentosComponent } from './features/portal-cliente/documentos/portal-documentos.component';
+import { PortalEquipoDetalleComponent } from './features/portal-cliente/equipo-detalle/portal-equipo-detalle.component';
 export const routes: Routes = [
   {
     path: '',
@@ -168,6 +169,12 @@ export const routes: Routes = [
     path: 'portal-cliente/documentos',
     component: PortalDocumentosComponent,
     title: 'Documentos | Portal Cliente',
+    canActivate: [clientPortalGuard],
+  },
+  {
+    path: 'portal-cliente/mantenimiento/:id',
+    component: PortalEquipoDetalleComponent,
+    title: 'Detalle Mantenimiento | Portal Cliente',
     canActivate: [clientPortalGuard],
   },
   {

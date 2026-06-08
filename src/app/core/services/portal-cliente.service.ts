@@ -5,11 +5,23 @@ import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PortalClienteService {
-  private http   = inject(HttpClient);
-  private base   = `${environment.apiUrl}/portal-cliente`;
+  private http = inject(HttpClient);
+  private base = `${environment.apiUrl}/portal-cliente`;
 
   getDashboard(): Observable<any> {
     return this.http.get(`${this.base}/dashboard`);
+  }
+
+  getKpis(): Observable<any> {
+    return this.http.get(`${this.base}/dashboard/kpis`);
+  }
+
+  getHistorial(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/equipos/historial`);
+  }
+
+  getMantenimientoDetalle(id: string): Observable<any> {
+    return this.http.get(`${this.base}/mantenimiento/${id}/detalles`);
   }
 
   getProyectos(): Observable<any[]> {

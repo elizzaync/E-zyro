@@ -1,0 +1,146 @@
+.ped-page { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+/* Loading / error */
+.ped-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; justify-content: center; color: var(--text-muted); }
+.spinner-ring {
+  width: 28px; height: 28px;
+  border: 3px solid var(--border-color, #e5e7eb);
+  border-top-color: var(--brand-green, #8dc63f);
+  border-radius: 50%; animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ped-error-banner {
+  background: #fef2f2; border: 1px solid #fca5a5;
+  border-radius: var(--radius-md, 10px);
+  color: #dc2626; padding: .875rem 1rem; margin-bottom: 1.5rem;
+}
+
+/* Header */
+.ped-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--text-muted); font-size: 13px; font-weight: 500;
+  text-decoration: none; margin-bottom: 1rem;
+  transition: color .15s;
+}
+.ped-back:hover { color: var(--brand-green, #8dc63f); }
+
+.ped-header {
+  display: flex; align-items: center; gap: 1.25rem;
+  flex-wrap: wrap; margin-bottom: 2rem;
+}
+.ped-title-block { flex: 1; min-width: 0; }
+.ped-title    { margin: 0; font-size: 22px; font-weight: 800; color: var(--text-main); }
+.ped-subtitle { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); }
+
+/* Badges */
+.pd-badge { display: inline-block; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.badge-pend { background: #fef3c7; color: #92400e; }
+.badge-prog { background: #dbeafe; color: #1d4ed8; }
+.badge-ok   { background: #d1fae5; color: #065f46; }
+.badge-err  { background: #fee2e2; color: #991b1b; }
+
+/* Grid layout */
+.ped-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 1.5rem;
+}
+@media (max-width: 900px) { .ped-grid { grid-template-columns: 1fr; } }
+
+.ped-col { display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* Card */
+.ped-card {
+  background: var(--card-bg, #fff);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: var(--shadow-panel);
+  padding: 1.5rem;
+}
+.ped-card-title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 1.25rem; font-size: 15px; font-weight: 700; color: var(--text-main);
+}
+
+/* Progress */
+.ped-progress-track {
+  height: 8px; border-radius: 99px;
+  background: var(--border-color, #e5e7eb);
+  margin-bottom: 0.75rem; overflow: hidden;
+}
+.ped-progress-bar {
+  height: 100%; border-radius: 99px;
+  background: var(--brand-green, #8dc63f);
+  transition: width .4s ease;
+}
+.ped-progress-steps {
+  display: flex; justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.ped-step { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); }
+.ped-step-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--border-color, #e5e7eb);
+  border: 2px solid var(--border-color, #e5e7eb);
+}
+.ped-step.done .ped-step-dot { background: var(--brand-green, #8dc63f); border-color: var(--brand-green, #8dc63f); }
+.ped-step.done { color: var(--text-main); font-weight: 600; }
+
+/* Meta grid */
+.ped-meta-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.ped-meta-item { display: flex; flex-direction: column; gap: 3px; }
+.ped-meta-full { grid-column: 1 / -1; }
+.ped-meta-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.ped-meta-val   { font-size: 14px; font-weight: 500; color: var(--text-main); }
+
+/* Empty text */
+.ped-empty-text { color: var(--text-muted); font-size: 13px; text-align: center; padding: 1.5rem 0; margin: 0; }
+
+/* Documents */
+.ped-docs-grid { display: flex; flex-direction: column; gap: 0.75rem; }
+.ped-doc-card {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: var(--radius-md, 10px);
+  text-decoration: none; color: var(--text-main);
+  transition: border-color .15s, background .15s;
+}
+.ped-doc-card:hover { border-color: var(--brand-green, #8dc63f); background: rgba(141,198,63,.04); }
+.ped-doc-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ped-doc-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ped-doc-tipo  { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.ped-doc-nombre { font-size: 14px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ped-doc-fecha { font-size: 12px; color: var(--text-muted); }
+.ped-doc-arrow { color: var(--text-muted); flex-shrink: 0; }
+.ped-doc-card:hover .ped-doc-arrow { color: var(--brand-green, #8dc63f); }
+
+/* Personal */
+.ped-personal-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.ped-personal-item { display: flex; align-items: center; gap: 0.875rem; }
+.ped-avatar {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(141,198,63,.15); color: var(--brand-green, #8dc63f);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700; text-transform: uppercase;
+}
+.ped-personal-info { display: flex; flex-direction: column; gap: 2px; }
+.ped-personal-nombre { font-size: 14px; font-weight: 600; color: var(--text-main); }
+.ped-personal-cargo  { font-size: 12px; color: var(--text-muted); }
+
+/* Herramientas */
+.ped-herr-list { display: flex; flex-direction: column; gap: 0.625rem; }
+.ped-herr-item {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--bg-color, #f3f4f6);
+  border-radius: 8px;
+}
+.ped-herr-icon {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  background: var(--card-bg, #fff); display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+}
+.ped-herr-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ped-herr-nombre { font-size: 13px; font-weight: 600; color: var(--text-main); }
+.ped-herr-codigo { font-size: 11px; color: var(--text-muted); }
+.ped-herr-qty    { font-size: 12px; font-weight: 700; color: var(--text-muted); white-space: nowrap; }
