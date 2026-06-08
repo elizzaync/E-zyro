@@ -34,6 +34,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return `Panel de Gestión · ${rol}`;
   }
 
+  /** Rol formateado para mostrar: "ClienteExterno" → "Cliente Externo" */
+  get rolDisplay(): string {
+    const r = (this.usuarioActual.rol || '').trim();
+    if (!r || r === '...') return r;
+    return r.replace(/([a-z])([A-Z])/g, '$1 $2');
+  }
+
   isMenuOpen = false;
   logisticaOpen = false;
   showProfileModal = false;
