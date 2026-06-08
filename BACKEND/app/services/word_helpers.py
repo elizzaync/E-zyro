@@ -213,7 +213,9 @@ def aplicar_encabezado_informe_general(document: Document, datos: dict) -> None:
         hdr_elem.remove(child)
 
     # ── Tabla 3 × 4 ──────────────────────────────────────────────────────────
-    table = header.add_table(rows=4, cols=3)
+    # python-docx 1.x requiere el parámetro `width` de forma obligatoria
+    _total_w = Cm(_H_COL0 + _H_COL1 + _H_COL2)
+    table = header.add_table(rows=4, cols=3, width=_total_w)
     _set_table_width(table, _H_COL0 + _H_COL1 + _H_COL2)
     _set_tbl_grid(table, [_H_COL0, _H_COL1, _H_COL2])
     _apply_table_borders(table, color="BFBFBF", sz=4)
