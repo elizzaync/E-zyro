@@ -310,11 +310,11 @@ class FinanzasService {
     }
   }
 
-  Future<ApiResult<List<dynamic>>> libroMayor(String cuentaId, String periodo) async {
+  Future<ApiResult<Map<String, dynamic>>> libroMayor(String cuentaId, String periodo) async {
     try {
       final r = await _client.get('/reportes-financieros/libro-mayor/$cuentaId?periodo=$periodo');
       if (r.statusCode == 200) {
-        return ApiResult.ok(jsonDecode(r.body) as List<dynamic>);
+        return ApiResult.ok(jsonDecode(r.body) as Map<String, dynamic>);
       }
       return ApiResult.fail(ApiError.fromResponse(r));
     } catch (_) {
