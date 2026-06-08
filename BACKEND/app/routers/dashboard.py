@@ -703,7 +703,7 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "correo":         usuario.email,
                     "telefono":       usuario.telefono or "",
                     "fotoUrl":        usuario.foto_url or "",
-                    "rol":            (empleado.cargo if empleado else "Administrador"),
+                    "rol":            (empleado.cargo if empleado else current_user.get("rol", "Sin Rol")),
                     "area":           (empleado.area if empleado else "") or "",
                     "fechaCreacion":  fecha_txt,
                     "permisos_modulo": modulos_permitidos
