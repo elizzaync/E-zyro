@@ -287,7 +287,10 @@ def reporte_saldos(db: Session, empresa_id: str) -> list[dict]:
         saldo = saldo_pendiente(db, f)
         if saldo <= CERO:
             continue
-        row = acc.setdefault(f.cliente_id, {"facturas_abiertas": 0, "saldo_total": CERO})
+        # cliente_id puede venir como uuid.UUID (columna UUID nativa); normalizar
+        # a str para que coincida con las claves de _nombres_cliente y con el schema.
+        cid = str(f.cliente_id)
+        row = acc.setdefault(cid, {"facturas_abiertas": 0, "saldo_total": CERO})
         row["facturas_abiertas"] += 1
         row["saldo_total"] += saldo
     nombres = _nombres_cliente(db, empresa_id, list(acc.keys()))
@@ -309,7 +312,8 @@ def reporte_antiguedad(db: Session, empresa_id: str, corte: date | None = None) 
         saldo = saldo_pendiente(db, f)
         if saldo <= CERO or f.fecha_vencimiento is None:
             continue
-        row = acc.setdefault(f.cliente_id, {
+        cid = str(f.cliente_id)
+        row = acc.setdefault(cid, {
             "por_vencer": CERO, "d_0_30": CERO, "d_31_60": CERO,
             "d_61_90": CERO, "d_mas_90": CERO, "total": CERO,
         })

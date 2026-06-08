@@ -70,10 +70,15 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
     if periodo is None:
         raise HTTPException(status_code=404, detail="Periodo no encontrado.")
 
+    # Una planilla ANULADA no bloquea: el usuario puede recalcular el periodo.
+    # Solo cuenta como duplicado una planilla vigente (calculada/aprobada/pagada).
     existe = db.query(Planilla).filter(
-        Planilla.empresa_id == empresa_id, Planilla.periodo_id == periodo_id).first()
+        Planilla.empresa_id == empresa_id,
+        Planilla.periodo_id == periodo_id,
+        Planilla.estado != "anulada",
+    ).first()
     if existe:
-        raise HTTPException(status_code=409, detail="Ya existe una planilla para ese periodo.")
+        raise HTTPException(status_code=409, detail="Ya existe una planilla vigente para ese periodo.")
 
     conceptos = (
         db.query(ConceptoRemunerativo)
