@@ -335,7 +335,7 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
     if (d === 'aprobar') {
       const item = this.reqActivo?.items.find(it => it.id === id);
       if (item && !item.enStock && !item.esCompraExterna) {
-        this.toast.mostrar('Sin stock disponible. Ítem redirigido a compra.', 'warning');
+        this.toast.mostrar('Sin stock disponible. Ítem redirigido a compra.', 'info');
         this.decisiones[id] = 'compra';
         return;
       }
