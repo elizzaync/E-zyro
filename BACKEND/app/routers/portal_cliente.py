@@ -289,28 +289,33 @@ def portal_kpis(
     empresa_id, cliente_id = _ctx(payload)
 
     total = db.execute(text("""
-        SELECT COUNT(*) FROM equipo_intervenido
-        WHERE empresa_id = :eid AND cliente_id = :cid AND activo = true
+        SELECT COUNT(*) FROM equipo_intervenido ei
+        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
+        WHERE ei.empresa_id = :eid AND ei.activo = true
+          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
     """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
 
     completados = db.execute(text("""
-        SELECT COUNT(*) FROM equipo_intervenido
-        WHERE empresa_id = :eid AND cliente_id = :cid
-          AND estado_intervencion = 'completado'
+        SELECT COUNT(*) FROM equipo_intervenido ei
+        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
+        WHERE ei.empresa_id = :eid AND ei.estado_intervencion = 'completado'
+          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
     """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
 
     en_proceso = db.execute(text("""
-        SELECT COUNT(*) FROM equipo_intervenido
-        WHERE empresa_id = :eid AND cliente_id = :cid
-          AND estado_intervencion = 'en_proceso'
+        SELECT COUNT(*) FROM equipo_intervenido ei
+        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
+        WHERE ei.empresa_id = :eid AND ei.estado_intervencion = 'en_proceso'
+          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
     """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
 
     proximos = db.execute(text("""
-        SELECT COUNT(*) FROM equipo_intervenido
-        WHERE empresa_id = :eid AND cliente_id = :cid
-          AND proximo_mantenimiento BETWEEN CURRENT_DATE
-                                        AND CURRENT_DATE + INTERVAL '30 days'
-          AND activo = true
+        SELECT COUNT(*) FROM equipo_intervenido ei
+        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
+        WHERE ei.empresa_id = :eid AND ei.activo = true
+          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
+          AND ei.proximo_mantenimiento BETWEEN CURRENT_DATE
+                                           AND CURRENT_DATE + INTERVAL '30 days'
     """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
 
     return {
@@ -330,6 +335,9 @@ def portal_equipos_historial(
 ) -> list[dict[str, Any]]:
     empresa_id, cliente_id = _ctx(payload)
 
+    # Doble filtro de aislamiento: por cliente_id directo en el equipo
+    # O por el cliente_id del proyecto al que está vinculado (cubre registros
+    # creados antes de que se asignara cliente_id al equipo_intervenido).
     rows = db.execute(text("""
         SELECT
             ei.id,
@@ -347,9 +355,13 @@ def portal_equipos_historial(
             ps.nombre  AS servicio_nombre,
             ps.estado  AS servicio_estado
         FROM equipo_intervenido ei
-        LEFT JOIN proyecto         p  ON p.id  = ei.proyecto_id
+        LEFT JOIN proyecto          p  ON p.id  = ei.proyecto_id
         LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
-        WHERE ei.empresa_id = :eid AND ei.cliente_id = :cid
+        WHERE ei.empresa_id = :eid
+          AND (
+            ei.cliente_id = :cid
+            OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid)
+          )
         ORDER BY ei.created_at DESC
     """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
 
@@ -401,7 +413,11 @@ def portal_mantenimiento_detalles(
         FROM equipo_intervenido ei
         LEFT JOIN proyecto          p  ON p.id  = ei.proyecto_id
         LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
-        WHERE ei.id = :eiid AND ei.empresa_id = :eid AND ei.cliente_id = :cid
+        WHERE ei.id = :eiid AND ei.empresa_id = :eid
+          AND (
+            ei.cliente_id = :cid
+            OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid)
+          )
     """), {"eiid": ei_id, "eid": empresa_id, "cid": cliente_id}).fetchone()
 
     if not row:
@@ -490,4 +506,52 @@ def portal_mantenimiento_detalles(
         "personal":     personal,
         "herramientas": herramientas,
         "documentos":   documentos,
+    }
+
+
+# ── 8. Perfil del usuario portal ─────────────────────────────────────────────
+
+@router.get("/perfil")
+def portal_perfil(
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> dict[str, Any]:
+    empresa_id, _cliente_id = _ctx(payload)
+    usuario_id = payload.get("id")
+
+    row = db.execute(text("""
+        SELECT
+            u.id, u.nombre, u.apellido, u.email,
+            COALESCE(u.telefono, '')    AS telefono,
+            COALESCE(u.foto_url, '')    AS foto_url,
+            u.created_at,
+            e.razon_social, e.ruc,
+            COALESCE(e.email_contacto, '') AS empresa_email
+        FROM usuario u
+        JOIN empresa e ON e.id = u.empresa_id
+        WHERE u.id = :uid AND u.empresa_id = :eid
+    """), {"uid": usuario_id, "eid": empresa_id}).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    meses = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    fecha_txt = ""
+    if row[6]:
+        dt = row[6]
+        fecha_txt = f"{dt.day} de {meses[dt.month]}, {dt.year}"
+
+    return {
+        "id":            str(row[0]),
+        "nombre":        row[1] or "",
+        "apellido":      row[2] or "",
+        "correo":        row[3] or "",
+        "telefono":      row[4],
+        "fotoUrl":       row[5],
+        "fechaCreacion": fecha_txt,
+        "empresa":       row[7] or "",
+        "ruc":           row[8] or "",
+        "rol":           payload.get("rol", "ClienteExterno"),
+        "empresaEmail":  row[9],
     }
