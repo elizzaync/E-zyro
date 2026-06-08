@@ -13,13 +13,12 @@ from typing import Optional
 
 from docx import Document
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
-from docx.oxml import OxmlElement, parse_xml
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
-_LOGO_HEADER   = os.path.abspath(os.path.join("assets", "headerLogo.png"))
-_DESIGN_HEADER = os.path.abspath(os.path.join("assets", "headerDesign.png"))
+from .word_helpers import aplicar_encabezado_garantia
 
 _MESES_ES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -28,52 +27,6 @@ _MESES_ES = [
 
 # Ancho del cuerpo disponible con márgenes left/right de 2 cm en A4
 _BW = 17.0   # 21 cm - 2*2 cm = 17 cm
-
-
-# ─── Floating image helper ────────────────────────────────────────────────────
-
-_WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
-_A_NS  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-_W_NS  = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-
-
-def _add_floating_picture(paragraph, image_path, width, pos_x, pos_y) -> None:
-    """Inserta imagen flotante (detrás del texto) anclada en coordenadas absolutas de página.
-    pos_x / pos_y se expresan en EMUs (usar Cm() de python-docx)."""
-    run = paragraph.add_run()
-    run.add_picture(image_path, width=width)
-
-    drawing = run._r.find(f'.//{{{_W_NS}}}drawing')
-    inline  = drawing.find(f'{{{_WP_NS}}}inline')
-
-    extent  = inline.find(f'{{{_WP_NS}}}extent')
-    eff_ext = inline.find(f'{{{_WP_NS}}}effectExtent')
-    doc_pr  = inline.find(f'{{{_WP_NS}}}docPr')
-    cnv_pr  = inline.find(f'{{{_WP_NS}}}cNvGraphicFramePr')
-    graphic = inline.find(f'{{{_A_NS}}}graphic')
-
-    anchor_xml = (
-        f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"'
-        f' relativeHeight="251658240" behindDoc="1" locked="0"'
-        f' layoutInCell="1" allowOverlap="1"'
-        f' xmlns:wp="{_WP_NS}">'
-        f'<wp:simplePos x="0" y="0"/>'
-        f'<wp:positionH relativeFrom="page"><wp:posOffset>{int(pos_x)}</wp:posOffset></wp:positionH>'
-        f'<wp:positionV relativeFrom="page"><wp:posOffset>{int(pos_y)}</wp:posOffset></wp:positionV>'
-        f'<wp:wrapNone/>'
-        f'</wp:anchor>'
-    )
-    anchor = parse_xml(anchor_xml)
-
-    wrap_pos = list(anchor).index(anchor.find(f'{{{_WP_NS}}}wrapNone'))
-    for elem in [e for e in (extent, eff_ext) if e is not None]:
-        anchor.insert(wrap_pos, elem)
-        wrap_pos += 1
-
-    for elem in [e for e in (doc_pr, cnv_pr, graphic) if e is not None]:
-        anchor.append(elem)
-
-    drawing.replace(inline, anchor)
 
 
 # ─── XML helpers ─────────────────────────────────────────────────────────────
@@ -199,29 +152,6 @@ def _mes_anio(fecha_str: str) -> str:
         return fecha_str
 
 
-# ─── Encabezado de página ─────────────────────────────────────────────────────
-
-def _build_header(doc: Document) -> None:
-    """Imágenes flotantes ancladas en coordenadas absolutas de página (detrás del texto).
-    Logo izquierdo: X=1.27cm, Y=0.5cm. Banner derecho: X=10cm, Y=0cm (borde superior)."""
-    sec = doc.sections[0]
-    sec.header_distance = Cm(0.5)
-    sec.top_margin = Cm(1.27)
-
-    header = sec.header
-    for p in header.paragraphs:
-        p.clear()
-
-    p = header.paragraphs[0]
-    p.paragraph_format.space_before = Pt(0)
-    p.paragraph_format.space_after  = Pt(0)
-
-    if os.path.exists(_LOGO_HEADER):
-        _add_floating_picture(p, _LOGO_HEADER, width=Cm(3), pos_x=Cm(1.27), pos_y=Cm(0.5))
-    if os.path.exists(_DESIGN_HEADER):
-        _add_floating_picture(p, _DESIGN_HEADER, width=Cm(11), pos_x=Cm(10), pos_y=Cm(0))
-
-
 # ─── Pie de página oficial ────────────────────────────────────────────────────
 
 def _build_footer(doc: Document) -> None:
@@ -286,7 +216,7 @@ def generar_carta_garantia(
     style.font.name = "Calibri"
     style.font.size = Pt(10)
 
-    _build_header(doc)
+    aplicar_encabezado_garantia(doc)
     _build_footer(doc)
 
     lugar_upper = (lugar or "").upper()

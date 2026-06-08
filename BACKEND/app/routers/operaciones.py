@@ -4335,7 +4335,8 @@ def generar_informe_general(
             })
 
     # ── Seleccionar config según tipo de equipo ───────────────────────────────
-    tipo_base = str(body.get("tipo_base", "") or "")
+    tipo_base    = str(body.get("tipo_base", "") or "")
+    razon_social = str(body.get("razon_social", "") or "")
     cfg = get_config(equipos_payload, tipo_base)
 
     # ── Generar documento Word ─────────────────────────────────────────────────
@@ -4350,6 +4351,7 @@ def generar_informe_general(
             materiales=materiales_payload,
             personal=personal_payload,
             evidencias_por_equipo=evidencias_por_equipo,
+            razon_social=razon_social,
         )
     except Exception as exc:
         logger.exception("[informe-pozos] Error generando Word: %s", exc)

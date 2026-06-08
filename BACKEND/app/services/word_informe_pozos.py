@@ -12,85 +12,24 @@ from typing import Optional
 
 import requests
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
-from docx.oxml import OxmlElement, parse_xml
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt, RGBColor, Cm
 from PIL import Image as PILImage
 
-logger = logging.getLogger(__name__)
+from .word_helpers import aplicar_encabezado_informe_general
 
-# Resuelve desde el CWD del proceso — en Docker el entrypoint se ejecuta desde /app/
-# por lo que assets/headerLogo.png → /app/assets/headerLogo.png
-_LOGO_HEADER   = os.path.abspath(os.path.join("assets", "headerLogo.png"))
-_DESIGN_HEADER = os.path.abspath(os.path.join("assets", "headerDesign.png"))
+logger = logging.getLogger(__name__)
 
 _MESES_ES = [
     "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ]
 
-# Header column widths (cm) — 55 % / 20 % / 25 % of 17.6 cm
-_H_COL0 = 9.68    # ~55 %
-_H_COL1 = 3.52    # ~20 %
-_H_COL2 = 4.40    # ~25 %
-
-# Logo image width — fits inside merged cell (cols 1+2 = 7.92 cm)
-_LOGO_W = Cm(2.5)   # headerLogo.png 445×274 → compact, non-invasive
-
 # Body table full width (cm)
 _BW = 17.6
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Floating image helper
-# ─────────────────────────────────────────────────────────────────────────────
-
-_WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'
-_A_NS  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-_W_NS  = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-
-
-def _add_floating_picture(paragraph, image_path, width, pos_x, pos_y) -> None:
-    """Inserta imagen flotante (detrás del texto) anclada en coordenadas absolutas de página.
-    pos_x / pos_y se expresan en EMUs (usar Cm() de python-docx)."""
-    run = paragraph.add_run()
-    run.add_picture(image_path, width=width)
-
-    drawing = run._r.find(f'.//{{{_W_NS}}}drawing')
-    inline  = drawing.find(f'{{{_WP_NS}}}inline')
-
-    extent  = inline.find(f'{{{_WP_NS}}}extent')
-    eff_ext = inline.find(f'{{{_WP_NS}}}effectExtent')
-    doc_pr  = inline.find(f'{{{_WP_NS}}}docPr')
-    cnv_pr  = inline.find(f'{{{_WP_NS}}}cNvGraphicFramePr')
-    graphic = inline.find(f'{{{_A_NS}}}graphic')
-
-    anchor_xml = (
-        f'<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0"'
-        f' relativeHeight="251658240" behindDoc="1" locked="0"'
-        f' layoutInCell="1" allowOverlap="1"'
-        f' xmlns:wp="{_WP_NS}">'
-        f'<wp:simplePos x="0" y="0"/>'
-        f'<wp:positionH relativeFrom="page"><wp:posOffset>{int(pos_x)}</wp:posOffset></wp:positionH>'
-        f'<wp:positionV relativeFrom="page"><wp:posOffset>{int(pos_y)}</wp:posOffset></wp:positionV>'
-        f'<wp:wrapNone/>'
-        f'</wp:anchor>'
-    )
-    anchor = parse_xml(anchor_xml)
-
-    # Insertar extent y effectExtent ANTES de wrapNone (orden correcto según OOXML)
-    wrap_pos = list(anchor).index(anchor.find(f'{{{_WP_NS}}}wrapNone'))
-    for elem in [e for e in (extent, eff_ext) if e is not None]:
-        anchor.insert(wrap_pos, elem)
-        wrap_pos += 1
-
-    # Agregar docPr, cNvGraphicFramePr y graphic DESPUÉS de wrapNone
-    for elem in [e for e in (doc_pr, cnv_pr, graphic) if e is not None]:
-        anchor.append(elem)
-
-    drawing.replace(inline, anchor)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -309,86 +248,7 @@ def _add_logo(para, path: str, width_cm: float) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. HEADER (replicated in every page)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _build_header(doc: Document, oc: str, provincia: str) -> None:
-    """Header de 4 párrafos.
-    Para 1: logo 2.5cm (izq) | tab RIGHT con sangría negativa | banner tocando el borde absoluto.
-    Para 2-4: tres columnas de texto (UBICACIÓN / Elaborado-Revisado-Aprobado)."""
-    sec = doc.sections[0]
-    sec.header_distance = Cm(0.5)
-    header = sec.header
-
-    for p in header.paragraphs:
-        p.clear()
-
-    oc_label   = oc or "SIN-OC"
-    prov_label = (provincia or "").upper()
-
-    def _hrun(para, text="", bold=False, size_pt=8):
-        r = para.add_run(text)
-        r.bold = bold
-        r.font.size = Pt(size_pt)
-        return r
-
-    def _htab(para):
-        r = para.add_run()
-        r._r.append(OxmlElement("w:tab"))
-
-    def _hfmt(para, tab_positions_cm, right_last=False):
-        fmt = para.paragraph_format
-        fmt.space_before = Pt(0)
-        fmt.space_after  = Pt(0)
-        for i, cm in enumerate(tab_positions_cm):
-            is_last = (i == len(tab_positions_cm) - 1)
-            align = WD_TAB_ALIGNMENT.RIGHT if (right_last and is_last) else WD_TAB_ALIGNMENT.LEFT
-            fmt.tab_stops.add_tab_stop(Cm(cm), align)
-
-    # ── Para 1: imágenes flotantes ancladas en coordenadas absolutas de página ──
-    # Logo: X=1.27cm, Y=0.5cm. Banner: X=10cm, Y=0cm (toca el borde superior).
-    # behindDoc=1 → LibreOffice respeta el posicionamiento independientemente de márgenes.
-    p1 = header.paragraphs[0]
-    p1.paragraph_format.space_before = Pt(0)
-    p1.paragraph_format.space_after  = Pt(0)
-
-    if not os.path.exists(_LOGO_HEADER):
-        raise FileNotFoundError(f"CRÍTICO: No se encuentra el logo en la ruta resuelta: {_LOGO_HEADER}")
-    if not os.path.exists(_DESIGN_HEADER):
-        raise FileNotFoundError(f"CRÍTICO: No se encuentra el banner en la ruta resuelta: {_DESIGN_HEADER}")
-
-    _add_floating_picture(p1, _LOGO_HEADER,   width=Cm(3),  pos_x=Cm(1.27), pos_y=Cm(0.5))
-    _add_floating_picture(p1, _DESIGN_HEADER, width=Cm(11), pos_x=Cm(10),   pos_y=Cm(0))
-
-    # ── Para 2: UBICACIÓN │ tab │ Elaborado por: │ tab │ Oficina ─────────────
-    p2 = header.add_paragraph()
-    _hfmt(p2, [_H_COL0, _H_COL0 + _H_COL1])
-    _hrun(p2, f"UBICACIÓN: TALMA - {prov_label}", bold=True, size_pt=8)
-    _htab(p2)
-    _hrun(p2, "Elaborado por:", size_pt=8)
-    _htab(p2)
-    _hrun(p2, "Oficina de proyectos", size_pt=8)
-
-    # ── Para 3: ESPECIALIDAD │ tab │ Revisado por: │ tab │ Oficina ────────────
-    p3 = header.add_paragraph()
-    _hfmt(p3, [_H_COL0, _H_COL0 + _H_COL1])
-    _hrun(p3, "ESPECIALIDAD: INSTALACIONES ELÉCTRICAS", bold=True, size_pt=8)
-    _htab(p3)
-    _hrun(p3, "Revisado por:", size_pt=8)
-    _htab(p3)
-    _hrun(p3, "Oficina de proyectos", size_pt=8)
-
-    # ── Para 4: (vacío) │ tab │ Aprobado por: │ tab │ Oficina ─────────────────
-    p4 = header.add_paragraph()
-    _hfmt(p4, [_H_COL0, _H_COL0 + _H_COL1])
-    _htab(p4)
-    _hrun(p4, "Aprobado por:", size_pt=8)
-    _htab(p4)
-    _hrun(p4, "Oficina de proyectos", size_pt=8)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. PORTADA
+# 1. PORTADA
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _build_portada(doc: Document, cfg: dict, oc: str, provincia: str, fecha_str: str) -> None:
@@ -796,6 +656,7 @@ def generar_word_pozos(
     materiales: list[dict],
     personal: list[dict],
     evidencias_por_equipo: list[dict],
+    razon_social: str = "",
 ) -> bytes:
     """
     Genera el Word del Informe General y devuelve los bytes.
@@ -822,7 +683,12 @@ def generar_word_pozos(
     _bm_id_counter[0] = 0
 
     # ── 1. Header ──────────────────────────────────────────────────────────────
-    _build_header(doc, oc, ubicacion)
+    aplicar_encabezado_informe_general(doc, {
+        "oc":           oc,
+        "tipo_equipo":  cfg.get("tipo_label", ""),
+        "lugar":        ubicacion,
+        "razon_social": razon_social,
+    })
 
     # ── 2. Portada ─────────────────────────────────────────────────────────────
     _build_portada(doc, cfg, oc, ubicacion, fecha_str)
