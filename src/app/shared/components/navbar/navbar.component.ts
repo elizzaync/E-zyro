@@ -152,6 +152,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.usuarioActual.iniciales = this.usuarioActual.nombre.substring(0, 2).toUpperCase();
     }
 
+    // El portal cliente no tiene perfil interno en el ERP; omitir la llamada
+    // evita que el endpoint /dashboard/perfil sobreescriba el rol correcto.
+    if (this.isClienteExterno) return;
+
     this.dashboardService.getPerfilUsuario().subscribe({
       next: (res: any) => {
         if (res.status === 'success') {
