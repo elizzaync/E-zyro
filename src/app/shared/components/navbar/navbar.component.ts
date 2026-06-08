@@ -6,6 +6,7 @@ import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import { DashboardService } from '../../../core/services/dashboard.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { PortalClienteService } from '../../../core/services/portal-cliente.service';
 
 @Component({
   selector: 'app-navbar',
@@ -82,7 +83,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ... resto de tu código (cargarDatosDeUsuario, etc.) ...
-  constructor(private authService: AuthService, private dashboardService: DashboardService, private toastService: ToastService, private router: Router) {}
+  constructor(
+    private authService: AuthService,
+    private dashboardService: DashboardService,
+    private toastService: ToastService,
+    private router: Router,
+    private portalService: PortalClienteService,
+  ) {}
 
   /** True cuando la ruta actual pertenece al módulo de Logística. */
   get enLogistica(): boolean {
@@ -152,9 +159,31 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.usuarioActual.iniciales = this.usuarioActual.nombre.substring(0, 2).toUpperCase();
     }
 
-    // El portal cliente no tiene perfil interno en el ERP; omitir la llamada
-    // evita que el endpoint /dashboard/perfil sobreescriba el rol correcto.
-    if (this.isClienteExterno) return;
+    // ClienteExterno: cargar datos de empresa/usuario desde el endpoint de portal
+    if (this.isClienteExterno) {
+      this.portalService.getPortalPerfil().subscribe({
+        next: (p: any) => {
+          this.usuarioActual.nombre    = `${p.nombre} ${p.apellido}`.trim() || this.usuarioActual.nombre;
+          this.usuarioActual.iniciales = this.generarIniciales(p.nombre, p.apellido);
+          this.usuarioActual.foto      = p.fotoUrl || '';
+          this.perfilData = {
+            nombre:        p.nombre,
+            apellido:      p.apellido,
+            correo:        p.correo,
+            telefono:      p.telefono,
+            rol:           p.rol,
+            empresa:       p.empresa,
+            empresaId:     this.usuarioActual.id,
+            ruc:           p.ruc,
+            ubicacion:     p.empresaEmail || '—',
+            fechaCreacion: p.fechaCreacion,
+            fotoUrl:       p.fotoUrl,
+          };
+        },
+        error: () => { /* sin toast — datos básicos ya están en localStorage */ }
+      });
+      return;
+    }
 
     this.dashboardService.getPerfilUsuario().subscribe({
       next: (res: any) => {

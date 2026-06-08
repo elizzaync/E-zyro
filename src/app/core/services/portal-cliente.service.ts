@@ -35,4 +35,8 @@ export class PortalClienteService {
   getDocumentos(): Observable<any[]> {
     return this.http.get<any[]>(`${this.base}/documentos`);
   }
+
+  getPortalPerfil(): Observable<any> {
+    return this.http.get(`${this.base}/perfil`);
+  }
 }
