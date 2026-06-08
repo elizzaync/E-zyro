@@ -21,7 +21,15 @@ export class PortalDashboardComponent implements OnInit {
   error     = '';
   kpis: any = null;
   historial: any[] = [];
-  filtro = '';
+
+  // Filtros
+  busqueda   = '';
+  filtroEstado    = 'todos';
+  filtroUbicacion = 'todas';
+
+  // Paginación
+  readonly PAGE_SIZE = 25;
+  paginaActual = 1;
 
   get saludo() {
     const n = this.auth.getUsuario()?.nombre_completo ?? '';
@@ -34,16 +42,93 @@ export class PortalDashboardComponent implements OnInit {
     });
   }
 
-  get historialFiltrado() {
-    if (!this.filtro.trim()) return this.historial;
-    const q = this.filtro.toLowerCase();
-    return this.historial.filter(e =>
-      (e.nombre     ?? '').toLowerCase().includes(q) ||
-      (e.ubicacion  ?? '').toLowerCase().includes(q) ||
-      (e.proyecto   ?? '').toLowerCase().includes(q)
-    );
+  // ── Listas únicas para los selects ──────────────────────────────────────
+  get ubicacionesDisponibles(): string[] {
+    const set = new Set<string>();
+    this.historial.forEach(e => { if (e.ubicacion) set.add(e.ubicacion); });
+    return ['todas', ...Array.from(set).sort()];
   }
 
+  get proyectosDisponibles(): string[] {
+    const set = new Set<string>();
+    this.historial.forEach(e => { if (e.proyecto) set.add(e.proyecto); });
+    return Array.from(set).sort();
+  }
+
+  // ── Historial aplicando todos los filtros ────────────────────────────────
+  get historialFiltrado(): any[] {
+    let result = this.historial;
+
+    if (this.busqueda.trim()) {
+      const q = this.busqueda.toLowerCase();
+      result = result.filter(e =>
+        (e.nombre    ?? '').toLowerCase().includes(q) ||
+        (e.ubicacion ?? '').toLowerCase().includes(q) ||
+        (e.proyecto  ?? '').toLowerCase().includes(q) ||
+        (e.codigo    ?? '').toLowerCase().includes(q) ||
+        (e.marca     ?? '').toLowerCase().includes(q)
+      );
+    }
+
+    if (this.filtroEstado !== 'todos') {
+      result = result.filter(e => e.estado_intervencion === this.filtroEstado);
+    }
+
+    if (this.filtroUbicacion !== 'todas') {
+      result = result.filter(e => e.ubicacion === this.filtroUbicacion);
+    }
+
+    return result;
+  }
+
+  // ── Paginación ──────────────────────────────────────────────────────────
+  get totalPaginas(): number {
+    return Math.max(1, Math.ceil(this.historialFiltrado.length / this.PAGE_SIZE));
+  }
+
+  get historialPaginado(): any[] {
+    const start = (this.paginaActual - 1) * this.PAGE_SIZE;
+    return this.historialFiltrado.slice(start, start + this.PAGE_SIZE);
+  }
+
+  get paginasVisibles(): number[] {
+    const total = this.totalPaginas;
+    const cur   = this.paginaActual;
+    const pages: number[] = [];
+    const delta = 2;
+    for (let i = Math.max(1, cur - delta); i <= Math.min(total, cur + delta); i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  irAPagina(p: number): void {
+    if (p < 1 || p > this.totalPaginas) return;
+    this.paginaActual = p;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  resetFiltros(): void {
+    this.busqueda        = '';
+    this.filtroEstado    = 'todos';
+    this.filtroUbicacion = 'todas';
+    this.paginaActual    = 1;
+  }
+
+  onFiltroChange(): void { this.paginaActual = 1; }
+
+  get hayFiltrosActivos(): boolean {
+    return this.busqueda.trim() !== '' ||
+           this.filtroEstado    !== 'todos' ||
+           this.filtroUbicacion !== 'todas';
+  }
+
+  // ── Contadores por estado (para los chips) ────────────────────────────────
+  countEstado(estado: string): number {
+    return this.historial.filter(e => e.estado_intervencion === estado).length;
+  }
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
   ngOnInit(): void {
     forkJoin({
       kpis:     this.svc.getKpis(),

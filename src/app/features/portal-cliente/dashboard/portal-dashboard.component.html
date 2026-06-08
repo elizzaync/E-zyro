@@ -24,7 +24,7 @@
 
   @if (!cargando && kpis) {
 
-  <!-- KPI Cards -->
+  <!-- ── KPI Cards ── -->
   <div class="pd-kpis">
 
     <div class="pd-kpi-card pd-kpi-blue">
@@ -37,15 +37,14 @@
       </div>
       <div class="pd-kpi-body">
         <span class="pd-kpi-val">{{ kpis.total_equipos }}</span>
-        <span class="pd-kpi-label">Equipos Registrados</span>
+        <span class="pd-kpi-label">Total Equipos</span>
       </div>
     </div>
 
     <div class="pd-kpi-card pd-kpi-amber">
       <div class="pd-kpi-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
+          <circle cx="12" cy="12" r="10"/><polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
         </svg>
       </div>
       <div class="pd-kpi-body">
@@ -82,34 +81,100 @@
 
   </div>
 
-  <!-- Historial de Equipos Intervenidos -->
+  <!-- ── Tabla de Equipos ── -->
   <div class="pd-section">
-    <div class="pd-section-header">
-      <h2 class="pd-section-title">Historial de Equipos Intervenidos</h2>
-      <input
-        class="pd-search"
-        type="text"
-        placeholder="Buscar equipo, ubicación o proyecto…"
-        [(ngModel)]="filtro"
-      />
+
+    <!-- Toolbar: título + buscador + selects -->
+    <div class="pd-toolbar">
+      <div class="pd-toolbar-left">
+        <h2 class="pd-section-title">Historial de Equipos Intervenidos</h2>
+        <span class="pd-count-chip">
+          {{ historialFiltrado.length }} de {{ historial.length }} equipos
+        </span>
+      </div>
+
+      <div class="pd-toolbar-right">
+        <div class="pd-search-wrap">
+          <svg class="pd-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input
+            class="pd-search"
+            type="text"
+            placeholder="Buscar equipo, código, ubicación…"
+            [(ngModel)]="busqueda"
+            (ngModelChange)="onFiltroChange()"
+          />
+          @if (busqueda) {
+          <button class="pd-search-clear" (click)="busqueda = ''; onFiltroChange()">×</button>
+          }
+        </div>
+
+        <select class="pd-select" [(ngModel)]="filtroUbicacion" (ngModelChange)="onFiltroChange()">
+          @for (u of ubicacionesDisponibles; track u) {
+          <option [value]="u">{{ u === 'todas' ? 'Todas las ubicaciones' : u }}</option>
+          }
+        </select>
+      </div>
     </div>
 
+    <!-- Chips de filtro rápido por estado -->
+    <div class="pd-chips">
+      <button class="pd-chip" [class.active]="filtroEstado === 'todos'"
+              (click)="filtroEstado = 'todos'; onFiltroChange()">
+        Todos
+        <span class="pd-chip-count">{{ historial.length }}</span>
+      </button>
+      <button class="pd-chip pd-chip-pend" [class.active]="filtroEstado === 'pendiente'"
+              (click)="filtroEstado = 'pendiente'; onFiltroChange()">
+        Pendiente
+        <span class="pd-chip-count">{{ countEstado('pendiente') }}</span>
+      </button>
+      <button class="pd-chip pd-chip-prog" [class.active]="filtroEstado === 'en_proceso'"
+              (click)="filtroEstado = 'en_proceso'; onFiltroChange()">
+        En Proceso
+        <span class="pd-chip-count">{{ countEstado('en_proceso') }}</span>
+      </button>
+      <button class="pd-chip pd-chip-ok" [class.active]="filtroEstado === 'completado'"
+              (click)="filtroEstado = 'completado'; onFiltroChange()">
+        Completado
+        <span class="pd-chip-count">{{ countEstado('completado') }}</span>
+      </button>
+      <button class="pd-chip pd-chip-err" [class.active]="filtroEstado === 'cancelado'"
+              (click)="filtroEstado = 'cancelado'; onFiltroChange()">
+        Cancelado
+        <span class="pd-chip-count">{{ countEstado('cancelado') }}</span>
+      </button>
+
+      @if (hayFiltrosActivos) {
+      <button class="pd-chip-reset" (click)="resetFiltros()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        Limpiar filtros
+      </button>
+      }
+    </div>
+
+    <!-- Tabla -->
     @if (historialFiltrado.length === 0) {
     <div class="pd-empty">
       <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="24" cy="24" r="20"/>
-        <path stroke-linecap="round" d="M24 16v8l5 3"/>
+        <circle cx="24" cy="24" r="20"/><path stroke-linecap="round" d="M24 16v8l5 3"/>
       </svg>
-      <p>No se encontraron equipos registrados para su empresa.</p>
+      <p>No se encontraron equipos con los filtros aplicados.</p>
+      <button class="pd-chip-reset" (click)="resetFiltros()">Limpiar filtros</button>
     </div>
     }
 
-    @if (historialFiltrado.length > 0) {
+    @if (historialPaginado.length > 0) {
     <div class="pd-table-wrap">
       <table class="pd-table">
         <thead>
           <tr>
+            <th>#</th>
             <th>Equipo</th>
+            <th>Proyecto</th>
             <th>Ubicación</th>
             <th>Último Mtto.</th>
             <th>Próximo Mtto.</th>
@@ -118,17 +183,24 @@
           </tr>
         </thead>
         <tbody>
-          @for (eq of historialFiltrado; track eq.id) {
+          @for (eq of historialPaginado; track eq.id; let i = $index) {
           <tr>
+            <td class="pd-td-num">{{ (paginaActual - 1) * 25 + i + 1 }}</td>
             <td>
               <div class="pd-eq-name">{{ eq.nombre }}</div>
-              @if (eq.marca || eq.modelo) {
-              <div class="pd-eq-sub">{{ eq.marca }} {{ eq.modelo }}</div>
+              @if (eq.marca || eq.modelo || eq.codigo) {
+              <div class="pd-eq-sub">
+                @if (eq.codigo) { <span class="pd-code-tag">{{ eq.codigo }}</span> }
+                {{ eq.marca }} {{ eq.modelo }}
+              </div>
               }
             </td>
+            <td class="pd-td-muted">{{ eq.proyecto || '—' }}</td>
             <td class="pd-td-muted">{{ eq.ubicacion || '—' }}</td>
-            <td>{{ eq.ultimo_mantenimiento ? (eq.ultimo_mantenimiento | date:'dd/MM/yyyy') : '—' }}</td>
-            <td>
+            <td class="pd-td-date">
+              {{ eq.ultimo_mantenimiento ? (eq.ultimo_mantenimiento | date:'dd/MM/yyyy') : '—' }}
+            </td>
+            <td class="pd-td-date">
               <span [class.pd-prox-alerta]="proximoAlerta(eq.proximo_mantenimiento)">
                 {{ eq.proximo_mantenimiento ? (eq.proximo_mantenimiento | date:'dd/MM/yyyy') : '—' }}
               </span>
@@ -140,8 +212,8 @@
             </td>
             <td>
               <a class="pd-btn-detalle" [routerLink]="['/portal-cliente/mantenimiento', eq.id]">
-                Ver Detalles
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                Ver
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
                 </svg>
               </a>
@@ -151,6 +223,46 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Paginación -->
+    @if (totalPaginas > 1) {
+    <div class="pd-pagination">
+      <div class="pd-pagination-info">
+        Mostrando {{ (paginaActual - 1) * PAGE_SIZE + 1 }}–{{ paginaActual * PAGE_SIZE < historialFiltrado.length ? paginaActual * PAGE_SIZE : historialFiltrado.length }}
+        de {{ historialFiltrado.length }} equipos
+      </div>
+
+      <div class="pd-pagination-controls">
+        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(1)" [disabled]="paginaActual === 1" title="Primera">
+          «
+        </button>
+        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(paginaActual - 1)" [disabled]="paginaActual === 1" title="Anterior">
+          ‹
+        </button>
+
+        @if (paginasVisibles[0] > 1) {
+        <span class="pd-page-ellipsis">…</span>
+        }
+
+        @for (p of paginasVisibles; track p) {
+        <button class="pd-page-btn" [class.active]="p === paginaActual" (click)="irAPagina(p)">
+          {{ p }}
+        </button>
+        }
+
+        @if (paginasVisibles[paginasVisibles.length - 1] < totalPaginas) {
+        <span class="pd-page-ellipsis">…</span>
+        }
+
+        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(paginaActual + 1)" [disabled]="paginaActual === totalPaginas" title="Siguiente">
+          ›
+        </button>
+        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(totalPaginas)" [disabled]="paginaActual === totalPaginas" title="Última">
+          »
+        </button>
+      </div>
+    </div>
+    }
     }
 
   </div>

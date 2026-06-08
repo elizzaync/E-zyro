@@ -22,7 +22,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
    * Mientras carga ("..." / "Cargando...") muestra solo "Panel de Gestion".
    */
   get isClienteExterno(): boolean {
-    return (this.usuarioActual.rol || '').toLowerCase().replace(' ', '') === 'clienteexterno';
+    return (this.usuarioActual.rol || '').toLowerCase().replace(/\s+/g, '') === 'clienteexterno';
   }
 
   get panelSubtitulo(): string {
@@ -135,10 +135,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   cargarDatosDeUsuario(): void {
+    // Cargar rol inmediatamente desde localStorage para que isClienteExterno
+    // sea correcto en el primer render, antes de que responda la API.
     const userDataString = localStorage.getItem('ezyro_user');
     if (userDataString) {
       const u = JSON.parse(userDataString);
-      this.usuarioActual.nombre = u.nombre_completo || 'Usuario';
+      this.usuarioActual.nombre    = u.nombre_completo || 'Usuario';
+      this.usuarioActual.rol       = u.rol             || '';
       this.usuarioActual.iniciales = this.usuarioActual.nombre.substring(0, 2).toUpperCase();
     }
 
@@ -175,8 +178,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
         }
       },
       error: (err) => {
-        console.error(err);
-        this.toastService.mostrar('Error al conectar con el servidor', 'error');
+        // El portal cliente no tiene acceso al perfil interno — suprimir el toast
+        if (!this.isClienteExterno) {
+          console.error(err);
+          this.toastService.mostrar('Error al conectar con el servidor', 'error');
+        }
       }
     });
   }
