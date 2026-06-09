@@ -82,4 +82,71 @@ export class PortalEquipoDetalleComponent implements OnInit {
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return (parts[0]?.[0] ?? '?').toUpperCase();
   }
+
+  // ── FASE 1: estado del equipo basado en fechas ────────────────────────────
+  equipoStatus(): { label: string; badge: string } {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const eq = this.equipo;
+
+    if (eq?.ultimo_mantenimiento) {
+      return { label: 'Se realizó mantenimiento', badge: 'badge-success' };
+    }
+    if (eq?.proximo_mantenimiento) {
+      const prox  = new Date(eq.proximo_mantenimiento);
+      const diffD = (prox.getTime() - today.getTime()) / 86_400_000;
+      if (diffD < 0) return { label: 'No se realizó mantenimiento', badge: 'badge-danger' };
+      if (diffD <= 30) return { label: 'Se aproxima próximo mantenimiento', badge: 'badge-warning' };
+    }
+    const fb: Record<string, { label: string; badge: string }> = {
+      completado: { label: 'Se realizó mantenimiento',     badge: 'badge-success' },
+      en_proceso: { label: 'En proceso',                    badge: 'badge-prog'    },
+    };
+    return fb[eq?.estado_intervencion] ?? { label: 'Pendiente', badge: 'badge-pend' };
+  }
+
+  // ── FASE 3: items para el Timeline ───────────────────────────────────────
+  get timelineItems(): Array<{
+    fecha: string | null;
+    titulo: string;
+    subtitulo: string;
+    observaciones: string | null;
+    tipo: 'completed' | 'upcoming' | 'overdue';
+  }> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const items: any[] = [];
+
+    // Mantenimientos completados del historial
+    for (const h of this.historial) {
+      items.push({
+        fecha:         h.fecha_fin ?? h.fecha_inicio,
+        titulo:        'Se realizó mantenimiento',
+        subtitulo:     [h.servicio, h.proyecto].filter(Boolean).join(' · '),
+        observaciones: h.observaciones ?? null,
+        tipo:          'completed',
+      });
+    }
+
+    // Próximo mantenimiento (del equipo)
+    const prox = this.equipo?.proximo_mantenimiento;
+    if (prox) {
+      const proxDate = new Date(prox);
+      const diffD    = (proxDate.getTime() - today.getTime()) / 86_400_000;
+      items.push({
+        fecha:         prox,
+        titulo:        diffD < 0 ? 'No se realizó mantenimiento' : 'Se aproxima próximo mantenimiento',
+        subtitulo:     diffD < 0 ? 'Fecha vencida — sin registro de ejecución' : 'Programado',
+        observaciones: null,
+        tipo:          diffD < 0 ? 'overdue' : 'upcoming',
+      });
+    }
+
+    // Ordenar descendente por fecha
+    return items.sort((a, b) => {
+      const da = a.fecha ? new Date(a.fecha).getTime() : 0;
+      const db = b.fecha ? new Date(b.fecha).getTime() : 0;
+      return db - da;
+    });
+  }
 }

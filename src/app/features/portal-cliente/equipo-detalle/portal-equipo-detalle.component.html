@@ -38,8 +38,8 @@
         @if (equipo.codigo) { Código: <strong>{{ equipo.codigo }}</strong> }
       </p>
     </div>
-    <span class="pd-badge" [class]="badgeEstado(equipo.estado_intervencion)">
-      {{ estadoLabel(equipo.estado_intervencion) }}
+    <span class="pd-badge" [ngClass]="equipoStatus().badge">
+      {{ equipoStatus().label }}
     </span>
   </div>
 
@@ -199,58 +199,58 @@
         </div>
       </div>
 
-      <!-- Historial de Mantenimientos -->
+      <!-- FASE 3: Ciclo de Vida del Equipo — Timeline -->
       <div class="ped-card">
         <h2 class="ped-card-title">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          Historial de Mantenimientos
-          @if (historial.length > 0) {
-          <span class="ped-count-badge">{{ historial.length }}</span>
+          Ciclo de Vida del Equipo
+          @if (timelineItems.length > 0) {
+          <span class="ped-count-badge">{{ timelineItems.length }}</span>
           }
         </h2>
 
-        @if (historial.length === 0) {
+        @if (timelineItems.length === 0) {
         <div class="ped-empty-state">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <p>Sin mantenimientos anteriores registrados</p>
-          <span class="ped-empty-tag">Sin historial</span>
+          <p>Sin historial de mantenimientos registrado</p>
+          <span class="ped-empty-tag">Sin datos</span>
         </div>
         }
 
-        <div class="ped-hist-list">
-          @for (h of historial; track h.id) {
-          <div class="ped-hist-item">
-            <div class="ped-hist-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <div class="ped-hist-body">
-              <span class="ped-hist-servicio">{{ h.servicio }}</span>
-              <span class="ped-hist-proyecto">{{ h.proyecto }}
-                @if (h.orden_trabajo) { · OT {{ h.orden_trabajo }} }
-              </span>
-              <div class="ped-hist-meta">
-                @if (h.fecha_fin) {
-                <span>{{ h.fecha_fin | date:'dd/MM/yyyy' }}</span>
-                }
-                @if (h.duracion_dias !== null && h.duracion_dias !== undefined) {
-                <span class="ped-hist-dur">{{ duracionLabel(h.duracion_dias) }}</span>
-                }
-              </div>
-              @if (h.observaciones) {
-              <span class="ped-hist-obs">{{ h.observaciones }}</span>
+        @if (timelineItems.length > 0) {
+        <div class="timeline-container">
+          @for (item of timelineItems; track item.fecha) {
+          <div class="timeline-item" [ngClass]="item.tipo">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <h4 class="timeline-title">
+                {{ item.fecha ? (item.fecha | date:'dd/MM/yyyy') : 'Fecha pendiente' }}
+                <span class="timeline-badge" [ngClass]="'tl-' + item.tipo">
+                  {{ item.titulo }}
+                </span>
+              </h4>
+              @if (item.subtitulo) {
+              <p class="timeline-sub">{{ item.subtitulo }}</p>
+              }
+              @if (item.observaciones) {
+              <p class="timeline-obs">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                {{ item.observaciones }}
+              </p>
               }
             </div>
           </div>
           }
         </div>
+        }
       </div>
 
     </div><!-- /col izquierda -->

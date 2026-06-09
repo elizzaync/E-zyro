@@ -313,3 +313,43 @@ main.portal-mode {
     background: #0f172a; border-color: #334155; color: #94a3b8;
   }
 }
+/* =======================================================
+   PORTAL CLIENTE — UPGRADE VISUAL ENTERPRISE (HU-22)
+   ======================================================= */
+
+/* Badges de estado global (FASE 1) */
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-danger  { background: #fee2e2; color: #991b1b; }
+
+/* Timeline global (FASE 3) — usado en portal-equipo-detalle */
+.timeline-container {
+  position: relative;
+  border-left: 2px solid var(--border-color, #e5e7eb);
+  margin-left: 20px;
+}
+.timeline-item {
+  position: relative;
+  padding-left: 30px;
+  margin-bottom: 20px;
+}
+.timeline-marker {
+  position: absolute;
+  left: -9px; top: 4px;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  border: 2px solid var(--card-bg, #fff);
+  background: var(--border-color, #cbd5e1);
+}
+.timeline-item.completed .timeline-marker { background: #16a34a; }
+.timeline-item.upcoming  .timeline-marker { background: #f59e0b; }
+.timeline-item.overdue   .timeline-marker { background: #dc2626; }
+
+/* KPI dashboard: tipografía corporativa (FASE 4) */
+.pd-kpi-val   { font-weight: 800; }
+.pd-kpi-label { font-weight: 600; letter-spacing: .05em; }
+
+/* Floating card shadow (FASE 4) */
+.portal-card-float {
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.07);
+}

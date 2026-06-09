@@ -231,3 +231,118 @@
   background: rgba(141,198,63,.15); color: var(--brand-green, #8dc63f);
   font-size: 11px; font-weight: 700; margin-left: 6px;
 }
+
+/* ── FASE 1: Badges por estado en detalle ── */
+.pd-badge { display: inline-block; padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-danger  { background: #fee2e2; color: #991b1b; }
+.badge-prog    { background: #dbeafe; color: #1d4ed8; }
+.badge-pend    { background: #f3f4f6; color: #374151; }
+.badge-ok      { background: #dcfce7; color: #166534; }
+.badge-err     { background: #fee2e2; color: #991b1b; }
+
+/* ── FASE 3: Timeline — Ciclo de Vida ── */
+.timeline-container {
+  position: relative;
+  border-left: 2px solid var(--border-color, #e5e7eb);
+  margin-left: 22px;
+  padding-left: 0;
+  margin-top: 1rem;
+}
+
+.timeline-item {
+  position: relative;
+  padding-left: 28px;
+  padding-bottom: 1.5rem;
+}
+.timeline-item:last-child { padding-bottom: 0; }
+
+/* Marcador circular sobre la línea */
+.timeline-marker {
+  position: absolute;
+  left: -9px;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--card-bg, #fff);
+  box-shadow: 0 0 0 2px var(--border-color, #e5e7eb);
+  background: var(--border-color, #cbd5e1);
+  transition: background .2s, box-shadow .2s;
+}
+
+/* Colores del marcador por tipo */
+.timeline-item.completed .timeline-marker {
+  background: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22,163,74,.25);
+}
+.timeline-item.upcoming .timeline-marker {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245,158,11,.25);
+}
+.timeline-item.overdue .timeline-marker {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220,38,38,.25);
+}
+
+/* Contenido */
+.timeline-content {
+  background: var(--bg-color, #f9fafb);
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--border-color, #e5e7eb);
+  padding: 0.75rem 1rem;
+  transition: box-shadow .15s;
+}
+.timeline-item.completed .timeline-content {
+  border-left: 3px solid #16a34a;
+}
+.timeline-item.upcoming .timeline-content {
+  border-left: 3px solid #f59e0b;
+}
+.timeline-item.overdue .timeline-content {
+  border-left: 3px solid #dc2626;
+}
+.timeline-content:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+
+.timeline-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  line-height: 1.3;
+}
+.timeline-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tl-completed { background: #dcfce7; color: #166534; }
+.tl-upcoming  { background: #fef3c7; color: #92400e; }
+.tl-overdue   { background: #fee2e2; color: #991b1b; }
+
+.timeline-sub {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.timeline-obs {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-style: italic;
+}
+.timeline-obs svg { flex-shrink: 0; margin-top: 1px; }
