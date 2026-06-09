@@ -458,7 +458,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                     const SizedBox(height: 10),
                     // Cliente dropdown
                     DropdownButtonFormField<String>(
-                      value: clienteId,
+                      initialValue: clienteId,
                       isExpanded: true,
                       decoration: deco('Cliente', Icons.business_outlined),
                       items: [
@@ -473,7 +473,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                     const SizedBox(height: 14),
                     // Ubicacion
                     DropdownButtonFormField<String>(
-                      value: ubicacionId,
+                      initialValue: ubicacionId,
                       isExpanded: true,
                       decoration: deco('Sede / Ciudad', Icons.location_city_outlined),
                       items: [
@@ -492,7 +492,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                     const SizedBox(height: 14),
                     // Zona
                     DropdownButtonFormField<String>(
-                      value: zonasFiltradas.any((z) => z.id == zonaId) ? zonaId : null,
+                      initialValue: zonasFiltradas.any((z) => z.id == zonaId) ? zonaId : null,
                       isExpanded: true,
                       decoration: deco('Zona / Almacén', Icons.warehouse_outlined),
                       items: [
@@ -513,7 +513,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: areasFiltradas.any((a) => a.id == areaId) ? areaId : null,
+                            initialValue: areasFiltradas.any((a) => a.id == areaId) ? areaId : null,
                             isExpanded: true,
                             decoration: deco('Área', Icons.domain_outlined),
                             hint: Text(zonaId == null ? 'Elige una zona primero' : 'Sin área'),
@@ -557,7 +557,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                     const SizedBox(height: 14),
                     // Estado
                     DropdownButtonFormField<String>(
-                      value: estado,
+                      initialValue: estado,
                       decoration: deco('Estado', Icons.circle_outlined),
                       items: const [
                         DropdownMenuItem(value: 'operativo',    child: Text('Operativo')),
@@ -640,14 +640,15 @@ class _State extends State<PantallaEquiposIntervenidos> {
       if (marca.isNotEmpty) 'marca': marca,
       if (modelo.isNotEmpty) 'modelo': modelo,
       if (serie.isNotEmpty) 'numero_serie': serie,
-      if (areaId != null) 'area_id': areaId,
+      'area_id': ?areaId,
       if (obs.isNotEmpty) 'observaciones': obs,
-      if (clienteId != null) 'cliente_id': clienteId,
-      if (ubicacionId != null) 'ubicacion_id': ubicacionId,
-      if (zonaId != null) 'zona_id': zonaId,
+      'cliente_id': ?clienteId,
+      'ubicacion_id': ?ubicacionId,
+      'zona_id': ?zonaId,
       'estado': estado,
     };
 
+    final nav = Navigator.of(ctx);
     final ApiResult<EquipoIntervenido> res;
     if (equipo == null) {
       res = await _svc!.crear(body);
@@ -657,7 +658,6 @@ class _State extends State<PantallaEquiposIntervenidos> {
 
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    final nav = Navigator.of(ctx);
     nav.pop();
     if (res.ok) {
       messenger.showSnackBar(SnackBar(

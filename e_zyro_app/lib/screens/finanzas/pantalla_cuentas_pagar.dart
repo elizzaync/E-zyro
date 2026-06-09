@@ -235,7 +235,7 @@ class _TabFacturas extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: facturas.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final f = facturas[i];
           return Card(
@@ -307,7 +307,7 @@ class _TabSaldos extends StatelessWidget {
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
               itemCount: saldos.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final s = saldos[i];
                 return Card(
@@ -358,7 +358,7 @@ class _TabPagos extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: pagos.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final p = pagos[i];
           return Card(
@@ -475,7 +475,7 @@ class _FormFacturaState extends State<_FormFactura> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _proveedorId,
+                initialValue: _proveedorId,
                 decoration: const InputDecoration(
                   labelText: 'Proveedor',
                   border: OutlineInputBorder(),
@@ -501,7 +501,7 @@ class _FormFacturaState extends State<_FormFactura> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _tipo,
+                initialValue: _tipo,
                 decoration: const InputDecoration(
                   labelText: 'Tipo documento',
                   border: OutlineInputBorder(),
@@ -614,7 +614,9 @@ class _FormPagoState extends State<_FormPago> {
 
   @override
   void dispose() {
-    for (final c in _montos.values) c.dispose();
+    for (final c in _montos.values) {
+      c.dispose();
+    }
     _refCtrl.dispose();
     super.dispose();
   }
@@ -629,7 +631,9 @@ class _FormPagoState extends State<_FormPago> {
     setState(() {
       _proveedorId = id;
       _seleccionadas.clear();
-      for (final c in _montos.values) c.dispose();
+      for (final c in _montos.values) {
+        c.dispose();
+      }
       _montos.clear();
       _facturasProveedor = id == null
           ? []
@@ -705,7 +709,7 @@ class _FormPagoState extends State<_FormPago> {
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _proveedorId,
+              initialValue: _proveedorId,
               decoration: const InputDecoration(
                 labelText: 'Proveedor',
                 border: OutlineInputBorder(),
@@ -724,7 +728,7 @@ class _FormPagoState extends State<_FormPago> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _medioPago,
+              initialValue: _medioPago,
               decoration: const InputDecoration(
                 labelText: 'Medio de pago',
                 border: OutlineInputBorder(),

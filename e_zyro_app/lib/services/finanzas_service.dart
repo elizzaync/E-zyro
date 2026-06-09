@@ -101,7 +101,7 @@ class FinanzasService {
         'fecha': fecha,
         'descripcion': descripcion,
         'lineas': lineas,
-        if (referenciaId != null) 'referencia_id': referenciaId,
+        'referencia_id': ?referenciaId,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(AsientoContable.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -360,9 +360,9 @@ class FinanzasService {
   }) async {
     try {
       final r = await _client.put('/activos-fijos/$id', {
-        if (nombre != null) 'nombre': nombre,
-        if (valorResidual != null) 'valor_residual': valorResidual,
-        if (centroCostoId != null) 'centro_costo_id': centroCostoId,
+        'nombre': ?nombre,
+        'valor_residual': ?valorResidual,
+        'centro_costo_id': ?centroCostoId,
       });
       if (r.statusCode == 200) {
         return ApiResult.ok(ActivoFijo.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -415,7 +415,7 @@ class FinanzasService {
         'codigo': codigo,
         'nombre': nombre,
         'tipo': tipo,
-        if (montoReferencial != null) 'monto_referencial': montoReferencial,
+        'monto_referencial': ?montoReferencial,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(ConceptoRemunerativo.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -487,9 +487,9 @@ class FinanzasService {
   }) async {
     try {
       final r = await _client.put('/tributario/configuracion', {
-        if (regimenId != null) 'regimen_id': regimenId,
-        if (cuentaIgvCreditoFiscalId != null) 'cuenta_igv_credito_fiscal_id': cuentaIgvCreditoFiscalId,
-        if (cuentaIgvDebitoFiscalId != null) 'cuenta_igv_debito_fiscal_id': cuentaIgvDebitoFiscalId,
+        'regimen_id': ?regimenId,
+        'cuenta_igv_credito_fiscal_id': ?cuentaIgvCreditoFiscalId,
+        'cuenta_igv_debito_fiscal_id': ?cuentaIgvDebitoFiscalId,
       });
       if (r.statusCode == 200) {
         return ApiResult.ok(ConfiguracionTributaria.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -535,8 +535,8 @@ class FinanzasService {
         'codigo': codigo,
         'nombre': nombre,
         'tipo_referencia': tipoReferencia,
-        if (referenciaId != null) 'referencia_id': referenciaId,
-        if (presupuestoReferencial != null) 'presupuesto_referencial': presupuestoReferencial,
+        'referencia_id': ?referenciaId,
+        'presupuesto_referencial': ?presupuestoReferencial,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(CentroCosto.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -556,10 +556,10 @@ class FinanzasService {
   }) async {
     try {
       final r = await _client.put('/controlling/centros-costo/$id', {
-        if (nombre != null) 'nombre': nombre,
-        if (tipoReferencia != null) 'tipo_referencia': tipoReferencia,
-        if (presupuestoReferencial != null) 'presupuesto_referencial': presupuestoReferencial,
-        if (activo != null) 'activo': activo,
+        'nombre': ?nombre,
+        'tipo_referencia': ?tipoReferencia,
+        'presupuesto_referencial': ?presupuestoReferencial,
+        'activo': ?activo,
       });
       if (r.statusCode == 200) {
         return ApiResult.ok(CentroCosto.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -672,9 +672,9 @@ class FinanzasService {
       final r = await _client.post('/caja-chica', {
         'nombre': nombre,
         if (descripcion != null && descripcion.isNotEmpty) 'descripcion': descripcion,
-        if (montoAsignado != null) 'monto_asignado_referencial': montoAsignado,
-        if (proyectoId != null) 'proyecto_id': proyectoId,
-        if (responsableId != null) 'responsable_id': responsableId,
+        'monto_asignado_referencial': ?montoAsignado,
+        'proyecto_id': ?proyectoId,
+        'responsable_id': ?responsableId,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(CajaChica.fromJson(jsonDecode(r.body) as Map<String, dynamic>));

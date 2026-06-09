@@ -410,7 +410,7 @@ class _State extends State<PantallaEquiposLogistica>
 
                   // Estado
                   DropdownButtonFormField<String>(
-                    value: estado,
+                    initialValue: estado,
                     decoration: deco('Estado', Icons.circle_outlined),
                     items: const [
                       DropdownMenuItem(value: 'operativo',         child: Text('Operativo')),
@@ -428,12 +428,12 @@ class _State extends State<PantallaEquiposLogistica>
                     onChanged: (v) => setLocal(() => reqMant = v),
                     title: const Text('Requiere mantenimiento',
                         style: TextStyle(fontSize: 14)),
-                    activeColor: _green,
+                    activeThumbColor: _green,
                     contentPadding: EdgeInsets.zero,
                   ),
                   if (reqMant) ...[
                     DropdownButtonFormField<String>(
-                      value: frecuencia == 'ninguno' ? 'mensual' : frecuencia,
+                      initialValue: frecuencia == 'ninguno' ? 'mensual' : frecuencia,
                       decoration: deco('Frecuencia', Icons.repeat_outlined),
                       items: const [
                         DropdownMenuItem(value: 'mensual',    child: Text('Mensual')),
@@ -549,13 +549,13 @@ class _State extends State<PantallaEquiposLogistica>
       'areaId': geo?.areaId ?? '',
     };
 
+    final nav = Navigator.of(ctx);
     final ApiResult res = item == null
         ? await _svc!.crear(body)
         : await _svc!.actualizar(item.id, body);
 
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
-    final nav = Navigator.of(ctx);
     nav.pop();
     if (res.ok) {
       messenger.showSnackBar(SnackBar(

@@ -235,7 +235,7 @@ class _TabComprobantes extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: comprobantes.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final f = comprobantes[i];
           return Card(
@@ -307,7 +307,7 @@ class _TabSaldos extends StatelessWidget {
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
               itemCount: saldos.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final s = saldos[i];
                 return Card(
@@ -358,7 +358,7 @@ class _TabCobros extends StatelessWidget {
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: cobros.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
         itemBuilder: (_, i) {
           final c = cobros[i];
           return Card(
@@ -479,7 +479,7 @@ class _FormComprobanteState extends State<_FormComprobante> {
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _clienteId,
+                initialValue: _clienteId,
                 decoration: const InputDecoration(
                   labelText: 'Cliente',
                   border: OutlineInputBorder(),
@@ -505,7 +505,7 @@ class _FormComprobanteState extends State<_FormComprobante> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _tipo,
+                initialValue: _tipo,
                 decoration: const InputDecoration(
                   labelText: 'Tipo documento',
                   border: OutlineInputBorder(),
@@ -631,7 +631,9 @@ class _FormCobroState extends State<_FormCobro> {
 
   @override
   void dispose() {
-    for (final c in _montos.values) c.dispose();
+    for (final c in _montos.values) {
+      c.dispose();
+    }
     _refCtrl.dispose();
     super.dispose();
   }
@@ -646,7 +648,9 @@ class _FormCobroState extends State<_FormCobro> {
     setState(() {
       _clienteId = id;
       _seleccionados.clear();
-      for (final c in _montos.values) c.dispose();
+      for (final c in _montos.values) {
+        c.dispose();
+      }
       _montos.clear();
       _comprobantesCliente = id == null
           ? []
@@ -722,7 +726,7 @@ class _FormCobroState extends State<_FormCobro> {
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _clienteId,
+              initialValue: _clienteId,
               decoration: const InputDecoration(
                 labelText: 'Cliente',
                 border: OutlineInputBorder(),
@@ -741,7 +745,7 @@ class _FormCobroState extends State<_FormCobro> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _medioPago,
+              initialValue: _medioPago,
               decoration: const InputDecoration(
                 labelText: 'Medio de pago',
                 border: OutlineInputBorder(),
