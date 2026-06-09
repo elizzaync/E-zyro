@@ -726,4 +726,128 @@ class FinanzasService {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));
     }
   }
+
+  // ── Conciliación bancaria ──────────────────────────────────────────────────
+  Future<ApiResult<List<CuentaBancaria>>> cuentasBancarias({bool soloActivas = false}) {
+    final qs = soloActivas ? '?solo_activas=true' : '';
+    return _getList('/conciliacion-bancaria/cuentas$qs', CuentaBancaria.fromJson);
+  }
+
+  Future<ApiResult<CuentaBancaria>> obtenerCuentaBancaria(String id) =>
+      _getObj('/conciliacion-bancaria/cuentas/$id', CuentaBancaria.fromJson);
+
+  Future<ApiResult<CuentaBancaria>> crearCuentaBancaria({
+    required String banco,
+    required String numeroCuenta,
+    required String cuentaContableId,
+    String moneda = 'PEN',
+    String? alias,
+  }) async {
+    try {
+      final r = await _client.post('/conciliacion-bancaria/cuentas', {
+        'banco': banco,
+        'numero_cuenta': numeroCuenta,
+        'cuenta_contable_id': cuentaContableId,
+        'moneda': moneda,
+        if (alias != null && alias.isNotEmpty) 'alias': alias,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(CuentaBancaria.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<ResumenConciliacion>> resumenConciliacion(String cuentaId) =>
+      _getObj('/conciliacion-bancaria/cuentas/$cuentaId/resumen', ResumenConciliacion.fromJson);
+
+  Future<ApiResult<List<MovimientoBancario>>> movimientosBancarios(
+      String cuentaId, {String? estado}) {
+    final qs = (estado != null && estado.isNotEmpty) ? '?estado=$estado' : '';
+    return _getList('/conciliacion-bancaria/cuentas/$cuentaId/movimientos$qs',
+        MovimientoBancario.fromJson);
+  }
+
+  Future<ApiResult<MovimientoBancario>> registrarMovimientoBancario({
+    required String cuentaId,
+    required String fecha,        // YYYY-MM-DD
+    required String descripcion,
+    required String tipo,         // cargo | abono
+    required double monto,
+    String? referencia,
+  }) async {
+    try {
+      final r = await _client.post('/conciliacion-bancaria/cuentas/$cuentaId/movimientos', {
+        'fecha': fecha,
+        'descripcion': descripcion,
+        'tipo': tipo,
+        'monto': monto,
+        if (referencia != null && referencia.isNotEmpty) 'referencia': referencia,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(MovimientoBancario.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Importa el extracto: el cliente ya parseó el CSV en filas
+  /// {fecha, descripcion, tipo, monto, referencia?}. Devuelve cuántos se crearon.
+  Future<ApiResult<int>> importarMovimientosBancarios(
+      String cuentaId, List<Map<String, dynamic>> movimientos) async {
+    try {
+      final r = await _client.post(
+          '/conciliacion-bancaria/cuentas/$cuentaId/movimientos/importar',
+          {'movimientos': movimientos});
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return ApiResult.ok(_toIntSvc(body['importados']));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<List<SugerenciaAsiento>>> sugerenciasConciliacion(String movimientoId) =>
+      _getList('/conciliacion-bancaria/movimientos/$movimientoId/sugerencias',
+          SugerenciaAsiento.fromJson);
+
+  Future<ApiResult<MovimientoBancario>> conciliarMovimiento(
+      String movimientoId, String asientoId) async {
+    try {
+      final r = await _client.post(
+          '/conciliacion-bancaria/movimientos/$movimientoId/conciliar',
+          {'asiento_id': asientoId});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(MovimientoBancario.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<MovimientoBancario>> desconciliarMovimiento(String movimientoId) async {
+    try {
+      final r = await _client.post(
+          '/conciliacion-bancaria/movimientos/$movimientoId/desconciliar', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(MovimientoBancario.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+}
+
+int _toIntSvc(dynamic v) {
+  if (v == null) return 0;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString()) ?? 0;
 }

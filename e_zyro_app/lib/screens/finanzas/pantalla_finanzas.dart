@@ -12,6 +12,7 @@ import 'pantalla_tributario.dart';
 import 'pantalla_centros_costo.dart';
 import 'pantalla_inventario_valorizado.dart';
 import 'pantalla_caja_chica.dart';
+import 'pantalla_conciliacion_bancaria.dart';
 import 'pantalla_manual_finanzas.dart';
 
 /// Hub del módulo de Finanzas / ERP contable. Agrupa los submódulos y muestra
@@ -53,6 +54,10 @@ class PantallaFinanzas extends StatelessWidget {
       if (s.canVerCajaChica)
         _ModuloFin('Caja Chica', 'Efectivo para gastos menores (contabilizado)',
             Icons.savings_outlined, Colors.green.shade600, const PantallaCajaChica()),
+      if (s.canVerConciliacionBancaria)
+        _ModuloFin('Conciliación bancaria', 'Extracto del banco vs. libros',
+            Icons.account_balance_outlined, Colors.blue.shade700,
+            const PantallaConciliacionBancaria()),
     ];
 
     if (items.isNotEmpty) {

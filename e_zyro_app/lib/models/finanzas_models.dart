@@ -683,3 +683,105 @@ class MovimientoCaja {
       );
   bool get esIngreso => tipo == 'ingreso';
 }
+
+// ── Conciliación bancaria ─────────────────────────────────────────────────────
+class CuentaBancaria {
+  final String id, banco, numeroCuenta, moneda, cuentaContableId;
+  final String? cuentaContableCodigo, cuentaContableNombre, alias;
+  final bool activo;
+  final double saldoBanco, saldoLibros, diferencia;
+  final int nPendientes;
+  CuentaBancaria({
+    required this.id, required this.banco, required this.numeroCuenta,
+    required this.moneda, required this.cuentaContableId, this.cuentaContableCodigo,
+    this.cuentaContableNombre, this.alias, required this.activo,
+    required this.saldoBanco, required this.saldoLibros, required this.diferencia,
+    required this.nPendientes,
+  });
+  factory CuentaBancaria.fromJson(Map<String, dynamic> j) => CuentaBancaria(
+        id: j['id'].toString(),
+        banco: j['banco']?.toString() ?? '',
+        numeroCuenta: j['numero_cuenta']?.toString() ?? '',
+        moneda: j['moneda']?.toString() ?? 'PEN',
+        cuentaContableId: j['cuenta_contable_id']?.toString() ?? '',
+        cuentaContableCodigo: j['cuenta_contable_codigo']?.toString(),
+        cuentaContableNombre: j['cuenta_contable_nombre']?.toString(),
+        alias: j['alias']?.toString(),
+        activo: j['activo'] == true,
+        saldoBanco: _toD(j['saldo_banco']),
+        saldoLibros: _toD(j['saldo_libros']),
+        diferencia: _toD(j['diferencia']),
+        nPendientes: _toI(j['n_pendientes']),
+      );
+  bool get cuadrada => diferencia.abs() < 0.005;
+}
+
+class MovimientoBancario {
+  final String id, cuentaBancariaId, fecha, descripcion, tipo, estado, origenCarga;
+  final double monto;
+  final String? referencia, asientoId, asientoNumero, conciliadoPorNombre, conciliadoAt;
+  MovimientoBancario({
+    required this.id, required this.cuentaBancariaId, required this.fecha,
+    required this.descripcion, required this.tipo, required this.estado,
+    required this.origenCarga, required this.monto, this.referencia,
+    this.asientoId, this.asientoNumero, this.conciliadoPorNombre, this.conciliadoAt,
+  });
+  factory MovimientoBancario.fromJson(Map<String, dynamic> j) => MovimientoBancario(
+        id: j['id'].toString(),
+        cuentaBancariaId: j['cuenta_bancaria_id'].toString(),
+        fecha: j['fecha']?.toString() ?? '',
+        descripcion: j['descripcion']?.toString() ?? '',
+        tipo: j['tipo']?.toString() ?? '',
+        estado: j['estado']?.toString() ?? 'pendiente',
+        origenCarga: j['origen_carga']?.toString() ?? 'manual',
+        monto: _toD(j['monto']),
+        referencia: j['referencia']?.toString(),
+        asientoId: j['asiento_id']?.toString(),
+        asientoNumero: j['asiento_numero']?.toString(),
+        conciliadoPorNombre: j['conciliado_por_nombre']?.toString(),
+        conciliadoAt: j['conciliado_at']?.toString(),
+      );
+  bool get esAbono => tipo == 'abono';
+  bool get conciliado => estado == 'conciliado';
+}
+
+class SugerenciaAsiento {
+  final String asientoId, numero, fecha, descripcion, origen;
+  final double monto;
+  final int diasDiferencia;
+  SugerenciaAsiento({
+    required this.asientoId, required this.numero, required this.fecha,
+    required this.descripcion, required this.origen, required this.monto,
+    required this.diasDiferencia,
+  });
+  factory SugerenciaAsiento.fromJson(Map<String, dynamic> j) => SugerenciaAsiento(
+        asientoId: j['asiento_id'].toString(),
+        numero: j['numero']?.toString() ?? '',
+        fecha: j['fecha']?.toString() ?? '',
+        descripcion: j['descripcion']?.toString() ?? '',
+        origen: j['origen']?.toString() ?? '',
+        monto: _toD(j['monto']),
+        diasDiferencia: _toI(j['dias_diferencia']),
+      );
+}
+
+class ResumenConciliacion {
+  final String cuentaBancariaId;
+  final double saldoBanco, saldoLibros, diferencia, importePendiente;
+  final int totalMovimientos, conciliados, pendientes;
+  ResumenConciliacion({
+    required this.cuentaBancariaId, required this.saldoBanco, required this.saldoLibros,
+    required this.diferencia, required this.importePendiente,
+    required this.totalMovimientos, required this.conciliados, required this.pendientes,
+  });
+  factory ResumenConciliacion.fromJson(Map<String, dynamic> j) => ResumenConciliacion(
+        cuentaBancariaId: j['cuenta_bancaria_id'].toString(),
+        saldoBanco: _toD(j['saldo_banco']),
+        saldoLibros: _toD(j['saldo_libros']),
+        diferencia: _toD(j['diferencia']),
+        importePendiente: _toD(j['importe_pendiente']),
+        totalMovimientos: _toI(j['total_movimientos']),
+        conciliados: _toI(j['conciliados']),
+        pendientes: _toI(j['pendientes']),
+      );
+}
