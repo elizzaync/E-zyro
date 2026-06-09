@@ -158,6 +158,24 @@ def listar(
     return [_eval_out(db, ev, con_detalles=False) for ev in rows]
 
 
+# ── Autoservicio del empleado: evaluaciones que le asignaron ─────────────────
+# (definido ANTES de /{eval_id} para que 'mias' no se interprete como id)
+@router.get("/mias", response_model=List[EvaluacionOut])
+def mias(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    emp = _empleado_actual(db, payload)
+    if not emp:
+        return []
+    rows = (
+        db.query(Evaluacion)
+        .filter(Evaluacion.empresa_id == payload["empresa_id"],
+                Evaluacion.empleado_id == str(emp.id),
+                Evaluacion.estado != "borrador")   # solo las ya enviadas/completadas
+        .order_by(Evaluacion.fecha.desc())
+        .limit(200).all()
+    )
+    return [_eval_out(db, ev, con_detalles=False) for ev in rows]
+
+
 @router.get("/{eval_id}", response_model=EvaluacionOut)
 def detalle(eval_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     ev = db.query(Evaluacion).filter(

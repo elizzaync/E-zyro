@@ -186,16 +186,18 @@ def listar_solicitudes(
 
 @router.post("/solicitudes", response_model=SolicitudOut, status_code=201)
 def crear_solicitud(body: SolicitudIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    exigir_permiso(db, payload, "vacaciones", "solicitar")
     empresa_id = payload["empresa_id"]
-    # empleado objetivo: el indicado (admin) o el propio del token
-    if body.empleado_id:
+    self_emp = _empleado_actual(db, payload)
+    # Auto-solicitud (propio): libre para cualquier empleado con ficha.
+    # Solicitar por OTRO empleado: requiere permiso vacaciones:solicitar.
+    if body.empleado_id and (not self_emp or body.empleado_id != str(self_emp.id)):
+        exigir_permiso(db, payload, "vacaciones", "solicitar")
         emp = db.query(Empleado).filter(
             Empleado.id == body.empleado_id, Empleado.empresa_id == empresa_id).first()
     else:
-        emp = _empleado_actual(db, payload)
+        emp = self_emp
     if not emp:
-        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+        raise HTTPException(status_code=404, detail="Tu usuario no tiene ficha de empleado")
     ini = _parse_date(body.fecha_inicio)
     fin = _parse_date(body.fecha_fin)
     if fin < ini:
@@ -209,6 +211,31 @@ def crear_solicitud(body: SolicitudIn, payload: dict = Depends(verificar_token),
     db.add(s)
     db.commit()
     return _sol_out(db, s)
+
+
+# ── Autoservicio del empleado (token) ────────────────────────────────────────
+@router.get("/mi-saldo", response_model=SaldoOut)
+def mi_saldo(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    emp = _empleado_actual(db, payload)
+    if not emp:
+        raise HTTPException(status_code=404, detail="Tu usuario no tiene ficha de empleado")
+    return _saldo(db, empresa_id, emp, _get_config(db, empresa_id))
+
+
+@router.get("/mis-solicitudes", response_model=List[SolicitudOut])
+def mis_solicitudes(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    emp = _empleado_actual(db, payload)
+    if not emp:
+        return []
+    rows = (
+        db.query(SolicitudVacaciones)
+        .filter(SolicitudVacaciones.empresa_id == payload["empresa_id"],
+                SolicitudVacaciones.empleado_id == str(emp.id))
+        .order_by(SolicitudVacaciones.created_at.desc())
+        .limit(200).all()
+    )
+    return [_sol_out(db, s) for s in rows]
 
 
 def _resolver(db: Session, payload: dict, sol_id: str, nuevo_estado: str) -> SolicitudOut:
