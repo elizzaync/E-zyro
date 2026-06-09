@@ -1,190 +1,263 @@
-<div class="pd-page">
+<div class="ex-dash">
 
-  <!-- Encabezado -->
-  <div class="pd-page-header">
-    <div>
-      <h1 class="pd-title">Panel Ejecutivo</h1>
-      <p class="pd-subtitle">{{ hoy }}</p>
+  <!-- ── Encabezado ejecutivo ── -->
+  <div class="ex-header">
+    <div class="ex-header-left">
+      <div class="ex-header-eyebrow">
+        <span class="ex-dot"></span>
+        <span>Panel en vivo</span>
+      </div>
+      <h1 class="ex-title">Dashboard Ejecutivo</h1>
+      <p class="ex-subtitle">{{ hoy }}</p>
     </div>
-    <p class="pd-saludo">{{ saludo }}</p>
+    <div class="ex-header-right">
+      <div class="ex-greeting-chip">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        {{ saludo }}
+      </div>
+      <a routerLink="/portal-cliente/mantenimientos" class="ex-btn-table">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        Historial completo
+      </a>
+    </div>
   </div>
 
   @if (cargando) {
-  <div class="pd-loading">
-    <div class="spinner-ring"></div>
-    <span>Cargando datos...</span>
+  <div class="ex-loading">
+    <div class="ex-spinner"></div>
+    <span>Cargando datos del parque...</span>
   </div>
   }
 
   @if (!cargando && error) {
-  <div class="pd-error-banner">{{ error }}</div>
+  <div class="ex-error">{{ error }}</div>
   }
 
-  @if (!cargando && kpis) {
+  @if (!cargando && !error) {
 
-  <!-- ── FILA 1: KPI Cards ── -->
-  <div class="pd-kpis">
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- MEGA GRID                                                       -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="mega-dashboard-grid">
 
-    <div class="pd-kpi-card pd-kpi-blue">
-      <div class="pd-kpi-bg-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-        </svg>
-      </div>
-      <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ historial.length }}</span>
-        <span class="pd-kpi-label">Total Equipos</span>
-      </div>
-    </div>
+    <!-- ╔═ FILA 1: KPI CARDS ═════════════════════════════════════════╗ -->
 
-    <div class="pd-kpi-card pd-kpi-green">
-      <div class="pd-kpi-bg-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-      </div>
-      <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ countVigentes }}</span>
-        <span class="pd-kpi-label">Vigentes</span>
-      </div>
-    </div>
-
-    <div class="pd-kpi-card pd-kpi-amber">
-      <div class="pd-kpi-bg-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10"/><polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
-        </svg>
-      </div>
-      <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ countProximos }}</span>
-        <span class="pd-kpi-label">Próximos a Vencer</span>
-      </div>
-    </div>
-
-    <div class="pd-kpi-card pd-kpi-red">
-      <div class="pd-kpi-bg-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-        </svg>
-      </div>
-      <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ countVencidos }}</span>
-        <span class="pd-kpi-label">Vencidos</span>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- ── FILA 2: Alertas Críticas + Donut ── -->
-  <div class="pd-row-2">
-
-    <!-- Panel de Alertas Críticas -->
-    <div class="pd-alerts-panel">
-      <div class="pd-alerts-header">
-        <div>
-          <h2 class="pd-alerts-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-            </svg>
-            Alertas Críticas
-          </h2>
-          <p class="pd-alerts-sub">Equipos que requieren atención inmediata</p>
-        </div>
-        <a routerLink="/portal-cliente/mantenimientos" class="pd-btn-ver-todos">
-          Ver todos los equipos
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
+    <!-- KPI: Total Equipos -->
+    <div class="widget col-span-3 kpi-widget">
+      <div class="kpi-top">
+        <span class="kpi-label">Total Equipos</span>
+        <div class="kpi-icon kpi-icon-blue">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
           </svg>
-        </a>
+        </div>
+      </div>
+      <div class="kpi-val">{{ historial.length }}</div>
+      <div class="kpi-trend" [ngClass]="kpiTrend(null).pct > 0 ? (kpiTrend(null).up ? 'trend-up' : 'trend-down') : 'trend-neutral'">
+        @if (kpiTrend(null).pct > 0) {
+          {{ kpiTrend(null).up ? '▲' : '▼' }} {{ kpiTrend(null).pct }}%
+        } @else {
+          — Sin variación
+        }
+        <span class="trend-label">vs mes anterior</span>
+      </div>
+      <div class="kpi-spark"><canvas #spkTotal></canvas></div>
+    </div>
+
+    <!-- KPI: Vigentes -->
+    <div class="widget col-span-3 kpi-widget">
+      <div class="kpi-top">
+        <span class="kpi-label">Vigentes / Operativos</span>
+        <div class="kpi-icon kpi-icon-green">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+      </div>
+      <div class="kpi-val kpi-val-green">{{ countVigentes }}</div>
+      <div class="kpi-trend" [ngClass]="kpiTrend('badge-success').pct > 0 ? (kpiTrend('badge-success').up ? 'trend-up' : 'trend-down') : 'trend-neutral'">
+        @if (kpiTrend('badge-success').pct > 0) {
+          {{ kpiTrend('badge-success').up ? '▲' : '▼' }} {{ kpiTrend('badge-success').pct }}%
+        } @else {
+          — Sin variación
+        }
+        <span class="trend-label">vs mes anterior</span>
+      </div>
+      <div class="kpi-spark"><canvas #spkVig></canvas></div>
+    </div>
+
+    <!-- KPI: Próximos a Vencer -->
+    <div class="widget col-span-3 kpi-widget">
+      <div class="kpi-top">
+        <span class="kpi-label">Próximos a Vencer</span>
+        <div class="kpi-icon kpi-icon-amber">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+      </div>
+      <div class="kpi-val kpi-val-amber">{{ countProximos }}</div>
+      <div class="kpi-trend" [ngClass]="kpiTrend('badge-warning').pct > 0 ? (kpiTrend('badge-warning').up ? 'trend-down' : 'trend-up') : 'trend-neutral'">
+        @if (kpiTrend('badge-warning').pct > 0) {
+          {{ kpiTrend('badge-warning').up ? '▲' : '▼' }} {{ kpiTrend('badge-warning').pct }}%
+        } @else {
+          — Sin variación
+        }
+        <span class="trend-label">vs mes anterior</span>
+      </div>
+      <div class="kpi-spark"><canvas #spkProx></canvas></div>
+    </div>
+
+    <!-- KPI: Vencidos -->
+    <div class="widget col-span-3 kpi-widget">
+      <div class="kpi-top">
+        <span class="kpi-label">Vencidos</span>
+        <div class="kpi-icon kpi-icon-red">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+      </div>
+      <div class="kpi-val kpi-val-red">{{ countVencidos }}</div>
+      <div class="kpi-trend" [ngClass]="kpiTrend('badge-danger').pct > 0 ? (kpiTrend('badge-danger').up ? 'trend-down' : 'trend-up') : 'trend-neutral'">
+        @if (kpiTrend('badge-danger').pct > 0) {
+          {{ kpiTrend('badge-danger').up ? '▲' : '▼' }} {{ kpiTrend('badge-danger').pct }}%
+        } @else {
+          — Sin variación
+        }
+        <span class="trend-label">vs mes anterior</span>
+      </div>
+      <div class="kpi-spark"><canvas #spkVenc></canvas></div>
+    </div>
+
+    <!-- ╔═ FILA 2: GRÁFICO MIXTO + DONUT STACK ══════════════════════╗ -->
+
+    <!-- Gráfico Mixto: Tendencia Analítica -->
+    <div class="widget col-span-8">
+      <div class="widget-header">
+        <div>
+          <h2 class="widget-title">Tendencia Analítica de Mantenimientos</h2>
+          <p class="widget-sub">Ejecutados (barras) vs. Programados (línea) — últimos 12 meses</p>
+        </div>
+        <div class="widget-tags">
+          <span class="wtag wtag-brand">Ejecutados</span>
+          <span class="wtag wtag-blue">Programados</span>
+        </div>
+      </div>
+      <div class="chart-wrap h-280">
+        <canvas #mixedChart></canvas>
+      </div>
+    </div>
+
+    <!-- Donut Stack: Cumplimiento + Por Proyecto -->
+    <div class="widget col-span-4 donuts-col">
+      <div class="donut-block">
+        <div class="donut-label-row">
+          <h3 class="donut-title">Cumplimiento Operativo</h3>
+          <span class="donut-pct">
+            {{ historial.length > 0 ? ((countVigentes + countProximos) / historial.length * 100 | number:'1.0-0') : 0 }}%
+          </span>
+        </div>
+        <div class="chart-wrap h-155">
+          <canvas #donut1></canvas>
+        </div>
+      </div>
+      <div class="donut-sep"></div>
+      <div class="donut-block">
+        <h3 class="donut-title">Distribución por Proyecto</h3>
+        <div class="chart-wrap h-155">
+          <canvas #donut2></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ╔═ FILA 3: BARRAS HORIZONTALES + CALENDARIO ════════════════╗ -->
+
+    <!-- Desglose por Ubicación -->
+    <div class="widget col-span-6">
+      <div class="widget-header">
+        <div>
+          <h2 class="widget-title">Desglose por Ubicación</h2>
+          <p class="widget-sub">Top 9 ubicaciones con mayor cantidad de equipos intervenidos</p>
+        </div>
+      </div>
+      <div class="chart-wrap h-320">
+        <canvas #horizBar></canvas>
+      </div>
+    </div>
+
+    <!-- Calendario: Próximos 7 días -->
+    <div class="widget col-span-6">
+      <div class="widget-header">
+        <div>
+          <h2 class="widget-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:6px">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Próximos 7 Días
+          </h2>
+          <p class="widget-sub">Mantenimientos programados próximamente</p>
+        </div>
+        <span class="ex-count-pill">{{ upcomingEvents.length }} eventos</span>
       </div>
 
-      @if (alertasEquipos.length === 0) {
-      <div class="pd-alerts-empty">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      @if (upcomingEvents.length === 0) {
+      <div class="events-empty">
+        <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        <p>Todos los equipos están operativos</p>
+        <p>Sin mantenimientos programados en los próximos 7 días</p>
       </div>
       }
 
-      <div class="pd-alerts-list">
-        @for (eq of alertasEquipos.slice(0, 8); track eq.id) {
-        <div class="pd-alert-item" [ngClass]="maintenanceStatus(eq).badge === 'badge-danger' ? 'alert-danger' : 'alert-warning'">
-          <div class="pd-alert-icon">
-            @if (maintenanceStatus(eq).badge === 'badge-danger') {
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      <div class="events-list">
+        @for (ev of upcomingEvents; track ev.id) {
+        <div class="event-item" [ngClass]="eventClass(ev.proximo_mantenimiento)">
+          <div class="event-icon">
+            @if (eventClass(ev.proximo_mantenimiento) === 'ev-danger') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
             } @else {
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/><polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
             </svg>
             }
           </div>
-          <div class="pd-alert-body">
-            <span class="pd-alert-nombre">{{ eq.nombre }}</span>
-            <span class="pd-alert-meta">
-              @if (eq.codigo) { <span class="pd-code-tag">{{ eq.codigo }}</span> }
-              @if (eq.proximo_mantenimiento) {
-                Prog.: {{ eq.proximo_mantenimiento | date:'dd/MM/yyyy' }}
-              }
+          <div class="event-body">
+            <span class="event-nombre">{{ ev.nombre }}</span>
+            <span class="event-meta">
+              @if (ev.codigo) { <span class="event-code">{{ ev.codigo }}</span> }
+              {{ ev.ubicacion || ev.proyecto || '' }}
             </span>
           </div>
-          <span class="pd-badge" [ngClass]="maintenanceStatus(eq).badge">
-            {{ maintenanceStatus(eq).label }}
-          </span>
-          <a class="pd-alert-btn" [routerLink]="['/portal-cliente/mantenimiento', eq.id]">
-            Ver
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
-            </svg>
-          </a>
+          <div class="event-right">
+            <span class="event-date">{{ ev.proximo_mantenimiento | date:'dd/MM' }}</span>
+            <span class="event-days" [ngClass]="eventClass(ev.proximo_mantenimiento)">
+              {{ daysUntil(ev.proximo_mantenimiento) === 0 ? 'Hoy' :
+                 daysUntil(ev.proximo_mantenimiento) === 1 ? 'Mañana' :
+                 daysUntil(ev.proximo_mantenimiento) + 'd' }}
+            </span>
+          </div>
         </div>
         }
       </div>
 
-      @if (alertasEquipos.length > 8) {
-      <div class="pd-alerts-more">
-        <a routerLink="/portal-cliente/mantenimientos" class="pd-alerts-more-link">
-          + {{ alertasEquipos.length - 8 }} equipos más requieren atención
+      @if (historial.length > 0 && upcomingEvents.length < 3) {
+      <div class="events-footer">
+        <a routerLink="/portal-cliente/mantenimientos" class="events-footer-link">
+          Ver historial completo →
         </a>
       </div>
       }
     </div>
 
-    <!-- Donut: Estado del Parque -->
-    <div class="pd-donut-card">
-      <div class="pd-donut-header">
-        <h2 class="pd-chart-title">Estado del Parque</h2>
-        <p class="pd-chart-subtitle">Distribución por estado operativo</p>
-      </div>
-      <div class="pd-donut-wrap">
-        <canvas #donutChart></canvas>
-      </div>
-      <div class="pd-donut-legend">
-        <div class="pd-donut-stat">
-          <span class="pd-donut-dot" style="background:#16a34a"></span>
-          <span class="pd-donut-lbl">Vigentes</span>
-          <strong class="pd-donut-num">{{ countVigentes }}</strong>
-        </div>
-        <div class="pd-donut-stat">
-          <span class="pd-donut-dot" style="background:#f59e0b"></span>
-          <span class="pd-donut-lbl">Próximos</span>
-          <strong class="pd-donut-num">{{ countProximos }}</strong>
-        </div>
-        <div class="pd-donut-stat">
-          <span class="pd-donut-dot" style="background:#dc2626"></span>
-          <span class="pd-donut-lbl">Vencidos</span>
-          <strong class="pd-donut-num">{{ countVencidos }}</strong>
-        </div>
-      </div>
-    </div>
-
-  </div>
-  }
+  </div><!-- /mega-dashboard-grid -->
+  }<!-- /!cargando -->
 
 </div>
