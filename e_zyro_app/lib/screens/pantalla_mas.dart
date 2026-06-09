@@ -16,7 +16,6 @@ import 'pantalla_personal.dart';
 import 'pantalla_personal_hub.dart';
 import 'pantalla_mi_espacio.dart';
 import 'pantalla_galeria.dart';
-import 'pantalla_epp.dart';
 import 'pantalla_calibraciones.dart';
 import 'pantalla_correctivos.dart';
 import 'pantalla_itse.dart';
@@ -44,7 +43,6 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _puedeVerPersonal = false;
   bool _puedeVerDashboards = false;
   // Visibilidad de módulos por permiso (admin ve todos).
-  bool _canEpp = false;
   bool _canCalibracion = false;
   bool _canCorrectivo = false;
   bool _canItse = false;
@@ -71,7 +69,6 @@ class _MoreScreenState extends State<MoreScreen> {
         _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
         _puedeVerDashboards  = AppSession.i.canVerDashboards;
-        _canEpp          = AppSession.i.canVerEpp;
         _canCalibracion  = AppSession.i.canVerCalibracion;
         _canCorrectivo   = AppSession.i.canVerCorrectivo;
         _canItse         = AppSession.i.canVerItse;
@@ -285,6 +282,14 @@ class _MoreScreenState extends State<MoreScreen> {
               surface: surface,
               items: [
                 _MenuItem(
+                  icon: Icons.account_circle_outlined,
+                  label: 'Mi espacio',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaMiEspacio()),
+                  ),
+                ),
+                _MenuItem(
                   icon: Icons.person_outline,
                   label: 'Mi Perfil',
                   onTap: () => Navigator.push(
@@ -364,14 +369,6 @@ class _MoreScreenState extends State<MoreScreen> {
                             builder: (_) => const PantallaMantenimientos()),
                       ),
                     ),
-                  _MenuItem(
-                    icon: Icons.account_circle_outlined,
-                    label: 'Mi espacio',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PantallaMiEspacio()),
-                    ),
-                  ),
                   if (_puedeVerPersonal)
                     _MenuItem(
                       icon: Icons.badge_outlined,
@@ -407,7 +404,7 @@ class _MoreScreenState extends State<MoreScreen> {
 
             // ── Módulos operativos (plan migración ERP) ────────────────
             // Cada módulo se muestra solo si el rol tiene su permiso :ver (admin: todos).
-            if (_canEpp || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canEquipoIntervenido || _canFinanzas) ...[
+            if (_canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canEquipoIntervenido || _canFinanzas) ...[
               _buildSectionTitle('Módulos'),
               const SizedBox(height: 10),
               _buildMenuGroup(
@@ -428,13 +425,6 @@ class _MoreScreenState extends State<MoreScreen> {
                       onTap: () => Navigator.push(
                         context, MaterialPageRoute(
                             builder: (_) => const PantallaEquiposIntervenidos())),
-                    ),
-                  if (_canEpp)
-                    _MenuItem(
-                      icon: Icons.health_and_safety_outlined,
-                      label: 'EPP',
-                      onTap: () => Navigator.push(
-                        context, MaterialPageRoute(builder: (_) => const PantallaEpp())),
                     ),
                   if (_canCalibracion)
                     _MenuItem(

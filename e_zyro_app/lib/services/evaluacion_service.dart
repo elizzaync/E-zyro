@@ -40,6 +40,16 @@ class EvaluacionService {
     }
   }
 
+  Future<ApiResult<void>> eliminarCriterio(String id) async {
+    try {
+      final r = await _client.delete('/evaluaciones/criterios/$id');
+      if (r.statusCode == 204 || r.statusCode == 200) return const ApiResult.ok(null);
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   // ── Evaluaciones ──────────────────────────────────────────────────────────
   Future<ApiResult<List<Evaluacion>>> listar({String? empleadoId, String? estado}) async {
     try {

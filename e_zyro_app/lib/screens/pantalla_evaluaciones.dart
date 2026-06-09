@@ -64,11 +64,24 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Evaluaciones', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Evaluaciones', style: TextStyle(fontWeight: FontWeight.bold)),
+          bottom: const TabBar(tabs: [Tab(text: 'Evaluaciones'), Tab(text: 'Criterios')]),
+          actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
+        ),
+        body: TabBarView(children: [
+          _evaluacionesTab(),
+          const CriteriosTab(),
+        ]),
       ),
+    );
+  }
+
+  Widget _evaluacionesTab() {
+    return Scaffold(
       floatingActionButton: AppSession.i.canCrearEvaluacion
           ? FloatingActionButton.extended(onPressed: _nueva, icon: const Icon(Icons.add), label: const Text('Nueva'))
           : null,
@@ -456,6 +469,152 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
         padding: const EdgeInsets.all(12),
         child: Row(children: botones),
       ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Gestión de criterios de evaluación (catálogo de la empresa)
+// ═══════════════════════════════════════════════════════════════════════════
+class CriteriosTab extends StatefulWidget {
+  const CriteriosTab({super.key});
+
+  @override
+  State<CriteriosTab> createState() => _CriteriosTabState();
+}
+
+class _CriteriosTabState extends State<CriteriosTab> {
+  List<CriterioEvaluacion> _items = [];
+  bool _cargando = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
+    final svc = await getEvaluacionService();
+    final r = await svc.listarCriterios();
+    if (!mounted) return;
+    setState(() {
+      _cargando = false;
+      if (r.ok) {
+        _items = r.data ?? [];
+      } else {
+        _error = r.errorMessage;
+      }
+    });
+  }
+
+  void _snack(String m, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(m), backgroundColor: error ? Colors.red.shade700 : null));
+  }
+
+  Future<void> _nuevo() async {
+    final nombre = TextEditingController();
+    final desc = TextEditingController();
+    final peso = TextEditingController(text: '1.0');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nuevo criterio'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: nombre, decoration: const InputDecoration(labelText: 'Nombre')),
+          TextField(controller: desc, decoration: const InputDecoration(labelText: 'Descripción (opcional)')),
+          TextField(
+            controller: peso,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Peso (ponderación)'),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (nombre.text.trim().isEmpty) {
+      _snack('El nombre es obligatorio', error: true);
+      return;
+    }
+    final svc = await getEvaluacionService();
+    final r = await svc.crearCriterio(
+      nombre: nombre.text.trim(),
+      descripcion: desc.text.trim().isEmpty ? null : desc.text.trim(),
+      peso: double.tryParse(peso.text.trim()) ?? 1.0,
+    );
+    if (!mounted) return;
+    r.ok ? _cargar() : _snack(r.errorMessage, error: true);
+  }
+
+  Future<void> _eliminar(CriterioEvaluacion c) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar criterio'),
+        content: Text('¿Eliminar "${c.nombre}"? Las evaluaciones pasadas lo conservan.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final svc = await getEvaluacionService();
+    final r = await svc.eliminarCriterio(c.id);
+    if (!mounted) return;
+    r.ok ? _cargar() : _snack(r.errorMessage, error: true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      floatingActionButton: AppSession.i.canCrearEvaluacion
+          ? FloatingActionButton.extended(onPressed: _nuevo, icon: const Icon(Icons.add), label: const Text('Criterio'))
+          : null,
+      body: _cargando
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(child: Text(_error!))
+              : _items.isEmpty
+                  ? const Center(child: Text('Sin criterios. Crea el primero con el botón +.'))
+                  : RefreshIndicator(
+                      onRefresh: _cargar,
+                      child: ListView.separated(
+                        itemCount: _items.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final c = _items[i];
+                          return ListTile(
+                            leading: const Icon(Icons.checklist_outlined),
+                            title: Text(c.nombre),
+                            subtitle: c.descripcion != null ? Text(c.descripcion!) : null,
+                            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                              Chip(
+                                label: Text('peso ${c.peso.toStringAsFixed(1)}', style: const TextStyle(fontSize: 11)),
+                                visualDensity: VisualDensity.compact,
+                                side: BorderSide.none,
+                              ),
+                              if (AppSession.i.canEliminarEvaluacion)
+                                IconButton(
+                                  icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 20),
+                                  onPressed: () => _eliminar(c)),
+                            ]),
+                          );
+                        },
+                      ),
+                    ),
     );
   }
 }
