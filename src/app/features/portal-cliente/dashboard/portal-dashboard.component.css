@@ -1,21 +1,23 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   DASHBOARD EJECUTIVO — Tema Deep Navy / Slate
+   DASHBOARD EJECUTIVO — Paleta adaptativa (Light / Dark)
+   Los --d-* son alias locales que apuntan a los tokens globales del sistema.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .ex-dash {
-  /* Paleta oscura propia */
-  --d-bg:      #0d1117;
-  --d-panel:   #161b22;
-  --d-panel2:  #1c2128;
-  --d-border:  rgba(255,255,255,.08);
-  --d-border2: #30363d;
-  --d-text:    #e6edf3;
-  --d-muted:   #7d8590;
-  --d-muted2:  #484f58;
-  --d-grid:    rgba(255,255,255,0.05);
-  --d-shadow:  0 4px 24px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  /* ── Alias locales → tokens globales (light por defecto) ── */
+  --d-bg:      transparent;       /* el fondo neuronal del wrapper es el fondo */
+  --d-panel:   var(--card-bg);
+  --d-panel2:  var(--input-bg, var(--hover-bg));
+  --d-border:  var(--border-color);
+  --d-border2: var(--border-color);
+  --d-text:    var(--text-main);
+  --d-muted:   var(--text-muted);
+  --d-muted2:  var(--text-muted);
+  --d-grid:    rgba(0,0,0,.06);
+  --d-shadow:  0 4px 20px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.08);
   --d-radius:  12px;
-  /* Colores de acento */
+
+  /* Acento invariante */
   --d-blue:    #3b82f6;
   --d-green:   #10b981;
   --d-amber:   #f59e0b;
@@ -23,11 +25,39 @@
   --d-brand:   #8dc63f;
   --d-purple:  #8b5cf6;
 
-  background: var(--d-bg);
-  min-height: calc(100vh - 60px);
-  color: var(--d-text);
-  padding: 1.75rem 2rem 3rem;
+  /* ── Glassmorphism tokens (light por defecto, como los tokens globales) ── */
+  --d-glass:        rgba(255, 255, 255, 0.6);
+  --d-glass-border: rgba(0, 0, 0, 0.06);
+  --d-glass-hover:  rgba(0, 0, 0, 0.02);
+
+  background:  var(--d-bg);
+  min-height:  calc(100vh - 60px);
+  color:       var(--d-text);
+  padding:     1.75rem 2rem 3rem;
   font-family: inherit;
+}
+
+/* ── Sobreescrituras para dark mode (manual y automático del SO) ──
+   OJO: en CSS de componente NO usar `:root[data-theme]` — la encapsulación
+   emulada le añade [_ngcontent] al :root y la regla nunca matchea.
+   `:host-context()` es la forma correcta de leer atributos de <html>. */
+:host-context(html[data-theme="dark"]) .ex-dash {
+  --d-panel2:       var(--hover-bg);
+  --d-grid:         rgba(255,255,255,.05);
+  --d-shadow:       0 8px 32px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
+  --d-glass:        rgba(30, 41, 59, 0.6);
+  --d-glass-border: rgba(255, 255, 255, 0.08);
+  --d-glass-hover:  rgba(255, 255, 255, 0.05);
+}
+@media (prefers-color-scheme: dark) {
+  :host-context(html:not([data-theme="light"])) .ex-dash {
+    --d-panel2:       var(--hover-bg);
+    --d-grid:         rgba(255,255,255,.05);
+    --d-shadow:       0 8px 32px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
+    --d-glass:        rgba(30, 41, 59, 0.6);
+    --d-glass-border: rgba(255, 255, 255, 0.08);
+    --d-glass-hover:  rgba(255, 255, 255, 0.05);
+  }
 }
 
 /* ── Header ── */
@@ -73,14 +103,14 @@
 .ex-loading { display: flex; align-items: center; gap: 1rem; padding: 4rem; justify-content: center; color: var(--d-muted); font-size: 14px; }
 .ex-spinner {
   width: 28px; height: 28px;
-  border: 3px solid var(--d-border2); border-top-color: var(--d-brand);
+  border: 3px solid var(--d-border); border-top-color: var(--d-brand);
   border-radius: 50%; animation: spin .7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.ex-error { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); border-radius: var(--d-radius); color: #f87171; padding: 0.875rem 1.25rem; margin-bottom: 1.5rem; font-size: 14px; }
+.ex-error { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); border-radius: var(--d-radius); color: var(--d-red); padding: 0.875rem 1.25rem; margin-bottom: 1.5rem; font-size: 14px; }
 
 /* ═══════════════════════════════════════════════════════════
-   FASE 1: MEGA GRID — CSS Grid 12 columnas
+   MEGA GRID — CSS Grid 12 columnas
    ═══════════════════════════════════════════════════════════ */
 .mega-dashboard-grid {
   display: grid;
@@ -88,26 +118,27 @@
   gap: 1.25rem;
 }
 
-/* Clases de expansión de columnas */
 .col-span-12 { grid-column: span 12; }
 .col-span-8  { grid-column: span 8;  }
 .col-span-6  { grid-column: span 6;  }
 .col-span-4  { grid-column: span 4;  }
 .col-span-3  { grid-column: span 3;  }
 
-/* Widget base */
+/* Widget base — Glassmorphism (FASE 4) */
 .widget {
-  background: var(--d-panel);
+  background: var(--d-glass);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   border-radius: var(--d-radius);
-  border: 1px solid var(--d-border);
+  border: 1px solid var(--d-glass-border);
   box-shadow: var(--d-shadow);
   padding: 1.25rem 1.5rem;
-  transition: border-color .2s;
+  transition: border-color .2s, background .3s;
 }
-.widget:hover { border-color: rgba(255,255,255,.12); }
+.widget:hover { border-color: rgba(141, 198, 63, 0.22); }
 
 /* ═══════════════════════════════════════════════════════════
-   FASE 2: KPI WIDGETS con sparklines
+   KPI WIDGETS con sparklines
    ═══════════════════════════════════════════════════════════ */
 .kpi-widget { padding: 1.25rem 1.5rem 1rem; }
 
@@ -146,7 +177,7 @@
 .kpi-spark canvas { width: 100% !important; height: 100% !important; }
 
 /* ═══════════════════════════════════════════════════════════
-   FASE 3: WIDGET HEADERS Y WRAPS
+   WIDGET HEADERS Y WRAPS
    ═══════════════════════════════════════════════════════════ */
 .widget-header {
   display: flex; align-items: flex-start; justify-content: space-between;
@@ -182,7 +213,7 @@
 .donut-pct   { font-size: 22px; font-weight: 800; color: var(--d-green); letter-spacing: -.5px; }
 
 /* ═══════════════════════════════════════════════════════════
-   FASE 4: CALENDARIO / EVENTS WIDGET
+   CALENDARIO / EVENTS WIDGET
    ═══════════════════════════════════════════════════════════ */
 .ex-count-pill {
   padding: 3px 11px; border-radius: 99px; font-size: 12px; font-weight: 600;
@@ -210,11 +241,11 @@
   display: flex; align-items: center; gap: 0.75rem;
   padding: 0.6rem 0.875rem;
   border-radius: 8px;
-  background: var(--d-panel2);
-  border-left: 3px solid var(--d-border2);
-  transition: background .12s;
+  background: var(--d-glass);
+  border-left: 3px solid var(--d-border);
+  transition: border-color .12s, background .12s;
 }
-.event-item:hover { background: rgba(255,255,255,.04); }
+.event-item:hover { background: var(--d-panel2); }
 .event-item.ev-danger  { border-left-color: var(--d-red);   }
 .event-item.ev-warning { border-left-color: var(--d-amber); }
 .event-item.ev-ok      { border-left-color: var(--d-green); }
@@ -237,7 +268,7 @@
   font-size: 11px; color: var(--d-muted); margin-top: 2px;
 }
 .event-code {
-  background: rgba(255,255,255,.06); padding: 1px 6px; border-radius: 4px;
+  background: var(--d-border); padding: 1px 6px; border-radius: 4px;
   font-size: 10px; font-family: monospace;
 }
 .event-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
@@ -257,7 +288,7 @@
 .events-footer-link:hover { text-decoration: underline; }
 
 /* ═══════════════════════════════════════════════════════════
-   FASE 5: RESPONSIVE
+   RESPONSIVE
    ═══════════════════════════════════════════════════════════ */
 @media (max-width: 1200px) {
   .col-span-8 { grid-column: span 12; }

@@ -3,6 +3,11 @@
 }
 
 <main [class.portal-mode]="esPortalCliente">
+    <!-- Fondo neuronal — solo en /portal-cliente/* (rutas protegidas por clientPortalGuard,
+         exclusivas del rol ClienteExterno); jamás se instancia para usuarios internos -->
+    @if (esPortalCliente) {
+    <app-neural-background></app-neural-background>
+    }
     <router-outlet></router-outlet>
 </main>
 

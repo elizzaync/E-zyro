@@ -7,6 +7,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { DashboardService } from '../../../core/services/dashboard.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
+import { ThemeService } from '../../../core/services/theme.service';
 
 @Component({
   selector: 'app-navbar',
@@ -89,6 +90,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private toastService: ToastService,
     private router: Router,
     private portalService: PortalClienteService,
+    private themeService: ThemeService,
   ) {}
 
   /** True cuando la ruta actual pertenece al módulo de Logística. */
@@ -299,16 +301,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return (inicialNombre + inicialApellido) || 'U';
   }
 
-  inicializarTema() {
-    const t = localStorage.getItem('ezyro_tema');
-    if (t) document.documentElement.setAttribute('data-theme', t);
-  }
+  inicializarTema() { this.themeService.init(); }
 
-  alternarTema() {
-    const html = document.documentElement;
-    const nuevo = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    html.setAttribute('data-theme', nuevo);
-    localStorage.setItem('ezyro_tema', nuevo);
-  }
+  alternarTema() { this.themeService.toggle(); }
 
 }

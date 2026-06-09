@@ -1,234 +1,552 @@
 <?php
-//inicio.php
-session_start();
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
-// Validación de sesión
-if (!isset($_SESSION['usuario'])) {
-    header("location:../index.php");
-    exit();
-}
+if ($_SERVER['REQUEST_METHOD'] == 'GET') {
 
-// Conexión a base de datos
-require_once __DIR__ . "/../../src/Database/Conexion.php";
-$c = new conectar();
-$conexion = $c->conexion();
-$idusuario = $_SESSION['iduser'];
+    require_once __DIR__ . "/../../../../src/Database/Conexion.php";
+    require_once __DIR__ . "/../../../../src/Models/EmpresasSolicitantes.php";
+    require_once __DIR__ . "/../../../../src/Models/Empleado.php";
+    require_once __DIR__ . "/../../../../src/Models/Articulos.php";
 
-// 1. Consulta para la tabla principal
-$sql_mantenimientos = "SELECT m.id_mantenimiento, m.estado, m.tipo_mantenimiento, m.fecha_programada,
-                              a.nombre AS equipo, a.serie
-                       FROM mantenimiento_equipos m
-                       INNER JOIN articulos a ON m.id_producto = a.id_producto
-                       ORDER BY m.fecha_programada DESC";
-$result_mantenimientos = mysqli_query($conexion, $sql_mantenimientos);
+    $c = new conectar();
+    $conexion = $c->conexion();
+    $claseEmpresa = new empresa();
+    $tableros = array_filter(array_map('intval', explode(',', $_GET['tableros'] ?? '')));
+    $ids = implode(',', $tableros);
 
-// 2. Consulta para Modal: Equipos operativos
-$sql_articulos = "SELECT id_producto, nombre, serie FROM articulos WHERE operativo = 1 ORDER BY nombre ASC";
-$result_articulos = mysqli_query($conexion, $sql_articulos);
+    $result          = mysqli_query($conexion, "SELECT id_equipo, nombre_equipo, descripcion, tipo_equipo, provincia, zona, id_empresa, usuario_registro, usuario_update, created_at, updated_at FROM equipos_mtto WHERE id_equipo IN ($ids)");
+    $resultEmpleados = mysqli_query($conexion, "SELECT id_empleado, nombrecom FROM empleado");
+    $resultServicios = mysqli_query($conexion, "
+    SELECT
+        s.id_servicios,
+        s.nombreservicios,
+        z.nombre,
+        CASE
+            WHEN s.tipo_documento_cliente IS NOT NULL
+            AND s.tipo_documento_cliente != ''
+            THEN s.tipo_documento_cliente
+            ELSE 'SIN DOC'
+        END AS tiene_oc
+    FROM servicios s
+    LEFT JOIN zonas z ON z.id = s.id_zona
+    WHERE z.id != 68
+    AND s.estado = 'Iniciado'
+    ORDER BY s.id_servicios DESC
+");
 
-// 3. NUEVO: Consulta para Modal: Empleados vigentes (Técnicos/Responsables)
-$sql_empleados = "SELECT id_empleado, nombrecom, cargo FROM empleado WHERE vigente = 1 ORDER BY nombrecom ASC";
-$result_empleados = mysqli_query($conexion, $sql_empleados);
+    if ($result):
+
+        // ── Pre-cargar materiales y herramientas por servicio ──
+        $mapaServicios = [];
+        $resTodosServicios = mysqli_query($conexion, "SELECT id_servicios FROM servicios");
+        while ($srv = mysqli_fetch_assoc($resTodosServicios)) {
+            $idSrv = intval($srv['id_servicios']);
+
+            // Buscar salidas vinculadas a este servicio via salida_destino
+            $resSalidas = mysqli_query($conexion, "
+        SELECT sd.id_salida
+        FROM salida_destino sd
+        WHERE sd.id_destino = $idSrv
+        AND sd.tipo_Destino = 'servicio'
+    ");
+            $idsSalida = [];
+            while ($sal = mysqli_fetch_assoc($resSalidas)) {
+                $idsSalida[] = intval($sal['id_salida']);
+            }
+            if (empty($idsSalida)) continue;
+            $idsStr = implode(',', $idsSalida);
+
+            $resMat = mysqli_query($conexion, "
+        SELECT m.nombre, m.descripcion, SUM(sm.cantidad) AS cantidad
+        FROM salida_material sm
+        INNER JOIN materiales m ON m.id_material = sm.id_material
+        WHERE sm.id_salida IN ($idsStr)
+        GROUP BY sm.id_material
+        ORDER BY m.nombre ASC
+    ");
+            $mats = [];
+            while ($mat = mysqli_fetch_assoc($resMat)) {
+                $mats[] = ['nombre' => $mat['nombre'], 'descripcion' => $mat['descripcion'] ?? '-'];
+            }
+
+            $resHerr = mysqli_query($conexion, "
+        SELECT a.nombre, a.descripcion, a.serie, SUM(se.cantidad) AS cantidad
+        FROM salida_equipo se
+        INNER JOIN articulos a ON a.id_producto = se.id_producto
+        WHERE se.id_salida IN ($idsStr)
+        GROUP BY se.id_producto
+        ORDER BY a.nombre ASC
+    ");
+            $herrs = [];
+            while ($herr = mysqli_fetch_assoc($resHerr)) {
+                $herrs[] = ['nombre' => $herr['nombre'], 'descripcion' => $herr['descripcion'] ?? '-', 'serie' => $herr['serie'] ?? '-'];
+            }
+
+            if (!empty($mats) || !empty($herrs)) {
+                $mapaServicios[$idSrv] = ['materiales' => $mats, 'herramientas' => $herrs];
+            }
+        }
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Mantenimiento - Sistema ERP</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="icon" type="image/ico" href="../assets/img/logo.ico" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600&family=Raleway:wght@200;400;600&family=Work+Sans:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="../assets/css/inicio.css">
-    <?php require_once "menu.php"; ?>
-</head>
-
-<body>
-    <script src="../assets/js/sidebar.js?v=<?php echo time(); ?>"></script>
-
-    <main class="main-content">
-        <div class="container-fluid p-4">
-
-            <div class="card shadow-sm border-0 mb-4" style="border-radius: 10px;">
-                <div class="card-body d-flex align-items-center">
-                    <div class="icon-circle bg-light text-success me-3 d-flex justify-content-center align-items-center" style="width: 60px; height: 60px; border-radius: 50%;">
-                        <i class="bi bi-tools fs-2" style="color: #a4ce3a;"></i>
-                    </div>
-                    <div>
-                        <h2 class="mb-1 fw-bold" style="color: #2c3e50;">Mantenimiento de Equipos</h2>
-                        <p class="text-muted mb-0">Gestione el mantenimiento preventivo y correctivo de sus activos</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="d-flex mb-4">
-                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#modalAgregarMantenimiento" style="background-color: #00a65a; border-color: #008d4c;">
-                    <i class="bi bi-plus-circle"></i> Agregar Mantenimiento
-                </button>
-                <button class="btn btn-danger" style="background-color: #dd4b39; border-color: #d73925;">
-                    <i class="bi bi-file-earmark-pdf"></i> Reporte PDF
-                </button>
-            </div>
-
-            <div class="card shadow-sm border-0" style="border-radius: 10px;">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped align-middle" id="tablaMantenimientos" style="width: 100%;">
-                            <thead class="bg-light text-muted" style="border-bottom: 2px solid #dee2e6;">
+        <div class="container-fluid">
+            <div class="mb-4">
+                <h5>Equipos Seleccionados</h5>
+                <div style="max-height: 200px; overflow-y: auto;">
+                    <table id="equiposTable" class="table table-bordered table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Tipo</th>
+                                <th>Nombre Equipo</th>
+                                <th>Provincia</th>
+                                <th>Zona</th>
+                                <th>Empresa</th>
+                                <th>Ult. Modificacion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php while ($row = mysqli_fetch_assoc($result)) {
+                                $fecha = $row['updated_at'] ?: $row['created_at']; ?>
                                 <tr>
-                                    <th class="fw-semibold">N° ORDEN</th>
-                                    <th class="fw-semibold">EQUIPO / HERRAMIENTA</th>
-                                    <th class="fw-semibold text-center">SERIE</th>
-                                    <th class="fw-semibold text-center">TIPO</th>
-                                    <th class="fw-semibold text-center">FECHA PROG.</th>
-                                    <th class="fw-semibold text-center">ESTADO</th>
+                                    <td><?= $row['id_equipo'] ?></td>
+                                    <td><?= $row['tipo_equipo'] ?></td>
+                                    <td><?= $row['nombre_equipo'] ?></td>
+                                    <td><?= $row['provincia'] ?></td>
+                                    <td><?= $row['zona'] ?></td>
+                                    <td><?= $claseEmpresa->obtenNombreEmpresa($row['id_empresa']) ?></td>
+                                    <td><?= date('d-m-Y H:i:s', strtotime($fecha)) ?></td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php while ($row = mysqli_fetch_assoc($result_mantenimientos)) {
-                                    $badgeClass = 'bg-secondary';
-                                    if ($row['estado'] == 'Programado') $badgeClass = 'bg-warning text-dark';
-                                    if ($row['estado'] == 'En Proceso') $badgeClass = 'bg-primary';
-                                    if ($row['estado'] == 'Finalizado') $badgeClass = 'bg-success';
-                                    if ($row['estado'] == 'Cancelado') $badgeClass = 'bg-danger';
-                                ?>
-                                    <tr>
-                                        <td class="text-muted fw-bold">MT-<?php echo str_pad($row['id_mantenimiento'], 4, "0", STR_PAD_LEFT); ?></td>
-                                        <td><?php echo $row['equipo']; ?></td>
-                                        <td class="text-center text-muted"><?php echo $row['serie']; ?></td>
-                                        <td class="text-center"><?php echo $row['tipo_mantenimiento']; ?></td>
-                                        <td class="text-center"><?php echo date("d/m/Y", strtotime($row['fecha_programada'])); ?></td>
-                                        <td class="text-center">
-                                            <span class="badge <?php echo $badgeClass; ?>"><?php echo $row['estado']; ?></span>
-                                        </td>
-                                    </tr>
-                                <?php } ?>
-                            </tbody>
-                        </table>
-                    </div>
+                            <?php } ?>
+                            <?php
+                            // Recolectar tipos de los equipos seleccionados
+                            $tipos = [];
+                            mysqli_data_seek($result, 0); // Resetear cursor
+                            // Mejor: hacer una segunda query directa
+                            $resTipos = mysqli_query(
+                                $conexion,
+                                "SELECT DISTINCT TRIM(tipo_equipo) AS tipo_equipo FROM equipos_mtto WHERE id_equipo IN ($ids)"
+                            );
+                            while ($t = mysqli_fetch_assoc($resTipos)) {
+                                $tipos[] = strtoupper(trim($t['tipo_equipo']));
+                            }
+
+                            // ── Determinar tipo base para precargar listas ──
+                            $tipoBase = 'OTRO';
+                            foreach ($tipos as $t) {
+                                if (str_contains($t, 'TABLERO')) {
+                                    $tipoBase = 'TABLEROS';
+                                    break;
+                                }
+                                if (str_contains($t, 'POZO')) {
+                                    $tipoBase = 'POZOS';
+                                    break;
+                                }
+                                if (str_contains($t, 'UPS') || str_contains($t, 'TRANS. AISLAMIENTO')) {
+                                    $tipoBase = 'UPS';
+                                    break;
+                                }
+                            }
+
+                            // ── Datos por tipo ──
+                            $eppsConfig = [
+                                'TABLEROS' => ['CASCO DE SEGURIDAD', 'LENTES DE SEGURIDAD', 'BOTAS DE SEGURIDAD', 'PROTECTORES DE OIDO', 'CHALECOS DE SEGURIDAD'],
+                                'POZOS'    => ['CASCO DE SEGURIDAD', 'LENTES DE SEGURIDAD', 'BOTAS DE SEGURIDAD', 'PROTECTORES DE OIDO', 'CHALECOS DE SEGURIDAD'],
+                                'UPS'      => ['CASCO DE SEGURIDAD', 'LENTES DE SEGURIDAD', 'BOTAS DE SEGURIDAD', 'PROTECTORES DE OIDO', 'CHALECOS DE SEGURIDAD'],
+                                'OTRO'     => ['CASCO DE SEGURIDAD', 'CARETA DIELÉCTRICA', 'LENTES DE SEGURIDAD', 'BOTAS DE SEGURIDAD', 'CHALECOS DE SEGURIDAD', 'GUANTES DIELÉCTRICOS'],
+                            ];
+
+                            $materialesConfig = [
+                                'TABLEROS' => [
+                                    ['nombre' => 'SOLVENTE DIELÉCTRICO', 'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'CREMA LIMPIADORA',     'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'TRAPO INDUSTRIAL',     'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'SEÑALÉTICAS',          'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'BROCHA',               'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'TERMINALES',           'unidad' => 'Ud.', 'caract' => '-'],
+                                ],
+                                'POZOS' => [
+                                    ['nombre' => 'PINTURA TRÁFICO AMARILLA', 'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'SPRAY NEGRO',              'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'LIJA',                     'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'THOR GEL',                 'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'TRAPO INDUSTRIAL',         'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'SEÑALÉTICA',               'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'THINNER',                  'unidad' => 'Ud.', 'caract' => '-'],
+                                ],
+                                'UPS' => [
+                                    ['nombre' => 'SOLVENTE DIELÉCTRICO', 'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'CREMA LIMPIADORA',    'unidad' => 'Ud.', 'caract' => '-'],
+                                    ['nombre' => 'TRAPO INDUSTRIAL',    'unidad' => 'Ud.', 'caract' => '-'],
+                                ],
+                                'OTRO' => [
+                                    ['nombre' => 'SOLVENTE DIELÉCTRICO',    'unidad' => 'GLN.', 'caract' => '-'],
+                                    ['nombre' => 'CREMA LIMPIADORA',         'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'TAPAS DE RESERVA',         'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'CINTILLOS',                'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'BROCHA',                   'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'TERMINALES',               'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'SEÑALÉTICA',               'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'PINTURA TRÁFICO AMARILLA', 'unidad' => 'GLN.', 'caract' => '-'],
+                                    ['nombre' => 'SPRITE NEGRO',             'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'LIJAS',                    'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'THOR GEL',                 'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'CONECTOR TIERRA CABLE',    'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'TRAPOS INDUSTRIALES',      'unidad' => 'UND.', 'caract' => '-'],
+                                    ['nombre' => 'THINER',                   'unidad' => 'GLN.', 'caract' => '-'],
+                                ],
+                            ];
+
+                            $herramientasConfig = [
+                                'TABLEROS' => [
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE ALICATES',        'marca' => 'Dieléctrico'],
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE DESARMADORES',     'marca' => 'Dieléctrico'],
+                                    ['serie' => '-', 'nombre' => 'BOLSA PORTAHERRAMIENTAS',   'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'MEGOHMETRO',                'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'PINZA AMPERIMÉTRICA',       'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'CÁMARA TERMOGRÁFICA',       'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'SOPLADOR DE AIRE',          'marca' => '-'],
+                                ],
+                                'POZOS' => [
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE ALICATES',      'marca' => 'Dieléctrico'],
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE DESARMADORES',   'marca' => 'Dieléctrico'],
+                                    ['serie' => '-', 'nombre' => 'BROCHA',                  'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'LLAVES BOCA CORONA',      'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'CINCEL PLANO',            'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'LLAVE FRANCESA',          'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'BALDE',                   'marca' => '-'],
+                                ],
+                                'UPS' => [
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE ALICATES',     'marca' => 'Dieléctrico'],
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE DESARMADORES',  'marca' => 'Dieléctrico'],
+                                    ['serie' => '-', 'nombre' => 'BROCHA',                 'marca' => '-'],
+                                ],
+                                'OTRO' => [
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE DESARMADORES DIELÉCTRICOS', 'marca' => 'Marca Stanley, 6 piezas'],
+                                    ['serie' => '-', 'nombre' => 'BOLSA PORTAHERRAMIENTAS',            'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'JUEGO DE ALICATES DIELÉCTRICOS',     'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'PINZA AMPERIMÉTRICA',                'marca' => 'Marca FLUKE'],
+                                    ['serie' => '-', 'nombre' => 'CÁMARA TERMOGRÁFICA',                'marca' => 'Marca FLUKE'],
+                                    ['serie' => '-', 'nombre' => 'SOPLADOR INALÁMBRICO',               'marca' => 'Marca BOSCH'],
+                                    ['serie' => '-', 'nombre' => 'MEGÓHMETRO DIGITAL',                 'marca' => 'Marca SANWA'],
+                                    ['serie' => '-', 'nombre' => 'TELURÓMETRO',                        'marca' => 'Marca Kyoritsu'],
+                                    ['serie' => '-', 'nombre' => 'BROCHA',                             'marca' => 'Generico'],
+                                    ['serie' => '-', 'nombre' => 'LLAVES BOCA CORONA',                 'marca' => 'Marca Stanley'],
+                                    ['serie' => '-', 'nombre' => 'CINCEL PLANO',                       'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'LLAVE FRANCESA',                     'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'PATA DE CABRA',                      'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'COMBA',                              'marca' => '-'],
+                                    ['serie' => '-', 'nombre' => 'BALDE',                              'marca' => '-'],
+                                ],
+                            ];
+
+                            $epps         = $eppsConfig[$tipoBase];
+                            $materiales   = $materialesConfig[$tipoBase];
+                            $herramientas = $herramientasConfig[$tipoBase];
+                            ?>
+                            <input type="hidden" id="tipoEquipoModal" value="<?= htmlspecialchars(implode(',', $tipos)) ?>">
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-        </div>
-    </main>
+            <div class="mb-3">
+                <label for="servicioInforme" class="form-label">Servicio Asociado</label>
+                <select class="form-select" id="servicioInforme" name="servicioInforme">
+                    <option value="">Seleccione un Servicio</option>
+                    <?php while ($serv = mysqli_fetch_assoc($resultServicios)): ?>
+                        <option value="<?= $serv['id_servicios'] ?>">
+                            <?= $serv['nombreservicios'] . ' - (' . $serv['nombre'] . ') | OC: ' . $serv['tiene_oc'] ?>
+                        </option>
+                    <?php endwhile; ?>
+                </select>
+            </div>
 
-    <div class="modal fade" id="modalAgregarMantenimiento" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header" style="background-color: #f8f9fa;">
-                    <h5 class="modal-title fw-bold" id="modalLabel"><i class="bi bi-wrench"></i> Programar Mantenimiento</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <div class="mb-3">
+                <label for="eppsUsados" class="form-label">EPPs Usadas</label>
+                <div class="input-group">
+                    <input type="text" id="eppsUsados" class="form-control" placeholder="Agregar EPP...">
+                    <button class="btn btn-outline-primary" type="button" id="agregarEppBtn">Agregar</button>
                 </div>
+                <div class="mt-2" style="max-height: 180px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm" id="eppsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>EPP</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($epps as $epp): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($epp) ?></td>
+                                    <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                <form action="../../src/Controllers/Inventario/procesar_mantenimiento.php" method="POST">
-                    <div class="modal-body">
+            <div class="mb-3">
+                <label for="herramientasUsadas" class="form-label">Herramientas Usadas</label>
+                <div class="input-group">
+                    <input type="text" id="herramientasUsadas" class="form-control" placeholder="Agregar herramienta...">
+                    <button class="btn btn-outline-secondary" type="button" id="agregarHerramientaTextoBtn"><i class="fas fa-plus"></i></button>
+                    <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#modalHerramientasCalibracion">Agregar desde catálogo</button>
+                </div>
+                <div class="mt-2" style="max-height: 160px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm" id="herramientasTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Serie</th>
+                                <th>Herramienta</th>
+                                <th>Marca</th>
+                                <th>PDF</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($herramientas as $h): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($h['serie']) ?></td>
+                                    <td><?= htmlspecialchars($h['nombre']) ?></td>
+                                    <td><input type="text" class="form-control" value="<?= htmlspecialchars($h['marca']) ?>"></td>
+                                    <td>-</td>
+                                    <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Seleccionar Herramienta / Equipo</label>
-                            <select class="form-select" name="id_producto" id="selectEquipo" style="width: 100%;" required>
-                                <option value="" disabled selected></option>
-                                <?php while ($art = mysqli_fetch_assoc($result_articulos)) { ?>
-                                    <option value="<?php echo $art['id_producto']; ?>">
-                                        <?php echo $art['nombre'] . " (Serie: " . ($art['serie'] != '' ? $art['serie'] : 'S/N') . ")"; ?>
-                                    </option>
-                                <?php } ?>
-                            </select>
-                            <small class="text-muted mt-1 d-block">Puede buscar por nombre de herramienta o serie.</small>
-                        </div>
+            <div class="mb-3">
+                <label for="materialesUsados" class="form-label">Materiales Usados</label>
+                <div class="input-group">
+                    <input type="text" id="materialesUsados" class="form-control" placeholder="Agregar material...">
+                    <button class="btn btn-outline-primary" type="button" id="agregarMaterialBtn">Agregar</button>
+                </div>
+                <div class="mt-2" style="max-height: 160px; overflow-y: auto;">
+                    <table class="table table-bordered table-sm" id="materialesTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Material</th>
+                                <th>Unidad</th>
+                                <th>Características</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($materiales as $m): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($m['nombre']) ?></td>
+                                    <td><input type="text" class="form-control" value="<?= htmlspecialchars($m['unidad']) ?>"></td>
+                                    <td><input type="text" class="form-control" value="<?= htmlspecialchars($m['caract']) ?>"></td>
+                                    <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label fw-bold">Tipo de Mantenimiento</label>
-                                <select class="form-select" name="tipo_mantenimiento" required>
-                                    <option value="Preventivo">Preventivo</option>
-                                    <option value="Correctivo">Correctivo</option>
-                                    <option value="Predictivo">Predictivo</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label fw-bold">Fecha Programada</label>
-                                <input type="date" class="form-control" name="fecha_programada" required>
-                            </div>
-                        </div>
+            <div class="mb-3">
+                <label for="empleadoInforme" class="form-label">Personal Asignado</label>
+                <select class="form-select" name="empleadoInforme" id="empleadoInforme" style="width: 100%;">
+                    <option value="">Seleccione un empleado</option>
+                    <?php while ($emp = mysqli_fetch_assoc($resultEmpleados)) { ?>
+                        <option value="<?= $emp['id_empleado'] ?>"><?= $emp['nombrecom'] ?></option>
+                    <?php } ?>
+                </select>
+                <button type="button" id="agregarPersonalBtn" class="btn btn-primary mt-2">Agregar Personal</button>
+            </div>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label fw-bold">Próximo Mantenimiento (En meses)</label>
-                                <input type="number" class="form-control" name="proximo_mantenimiento_meses" placeholder="Ej: 3, 6, 12..." required>
-                                <small class="text-muted mt-1 d-block">Indique cada cuántos meses se repite.</small>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label fw-bold">Técnico Responsable</label>
-                                <select class="form-select" name="id_tecnico" id="selectTecnico" style="width: 100%;" required>
-                                    <option value="" disabled selected></option>
-                                    <?php while ($emp = mysqli_fetch_assoc($result_empleados)) { ?>
-                                        <option value="<?php echo $emp['id_empleado']; ?>">
-                                            <?php echo $emp['nombrecom'] . " - " . $emp['cargo']; ?>
-                                        </option>
-                                    <?php } ?>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">Descripción del Problema / Motivo</label>
-                            <textarea class="form-control" name="descripcion_problema" rows="3" placeholder="Detalle por qué el equipo ingresa a mantenimiento..."></textarea>
-                        </div>
-
-                        <input type="hidden" name="id_usuario_registro" value="<?php echo $idusuario; ?>">
-
-                    </div>
-                    <div class="modal-footer" style="background-color: #f8f9fa;">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                        <button type="submit" class="btn btn-success" style="background-color: #00a65a; border-color: #008d4c;">Guardar Registro</button>
-                    </div>
-                </form>
+            <div class="mt-2" style="max-height: 160px; overflow-y: auto;">
+                <table class="table table-bordered table-sm" id="personalTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Personal</th>
+                            <th>Rol</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
         </div>
+
+<?php else:
+        echo '<p>No se encontraron equipos seleccionados.</p>';
+    endif;
+} else {
+    echo '<p>Solicitud inválida.</p>';
+} ?>
+
+<div id="loadingModalInforme" class="loading-modal" style="display: none;">
+    <div class="loading-content">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="mt-2">Cargando...</p>
     </div>
+</div>
 
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    (function() {
 
-    <script>
+        const mapaServicios = <?= json_encode($mapaServicios ?? []) ?>;
+
         $(document).ready(function() {
-            // Inicializar buscador de equipos
-            $('#selectEquipo').select2({
-                dropdownParent: $('#modalAgregarMantenimiento'),
-                placeholder: "Buscar herramienta o serie...",
-                allowClear: true,
-                language: {
-                    noResults: () => "No se encontraron equipos"
+
+            function agregarElemento(inputId, tablaId, columnas, validacionDuplicado = true) {
+                const valor = $(`#${inputId}`).val().trim().toUpperCase();
+                if (!valor) return;
+                if (validacionDuplicado && $(`#${tablaId} tbody tr`).filter(function() {
+                        return $(this).find('td:first').text() === valor;
+                    }).length > 0) {
+                    alertify.error(`${valor} ya ha sido agregado.`);
+                    return;
+                }
+                const fila = `<tr>${columnas(valor)}</tr>`;
+                $(`#${tablaId} tbody`).append(fila);
+                $(`#${inputId}`).val('');
+            }
+
+            $('#agregarEppBtn').click(() => agregarElemento('eppsUsados', 'eppsTable', (val) => `
+            <td>${val}</td>
+            <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>`));
+
+            $('#eppsUsados').on('keypress', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#agregarEppBtn').click();
                 }
             });
 
-            // Inicializar buscador de personal
-            $('#selectTecnico').select2({
-                dropdownParent: $('#modalAgregarMantenimiento'),
-                placeholder: "Buscar técnico asignado...",
-                allowClear: true,
-                language: {
-                    noResults: () => "No se encontró el empleado"
+            $('#agregarMaterialBtn').click(() => agregarElemento('materialesUsados', 'materialesTable', (val) => `
+            <td>${val}</td>
+            <td><input type="text" class="form-control" value="UND"></td>
+            <td><input type="text" class="form-control" value="-"></td>
+            <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>`));
+
+            $('#materialesUsados').on('keypress', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#agregarMaterialBtn').click();
                 }
             });
 
-            $('#modalAgregarMantenimiento').on('shown.bs.modal', function() {
-                $('#selectEquipo').select2('close');
-                $('#selectTecnico').select2('close');
+            $('#agregarHerramientaTextoBtn').click(() => agregarElemento('herramientasUsadas', 'herramientasTable', (val) => `
+            <td>-</td>
+            <td>${val}</td>
+            <td><input type="text" class="form-control" value="-"></td>
+            <td>-</td>
+            <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>`));
+
+            $('#herramientasUsadas').on('keypress', function(e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    $('#agregarHerramientaTextoBtn').click();
+                }
             });
+
+            $(document).on('click', '.remove-btn', function() {
+                $(this).closest('tr').remove();
+            });
+
+            $('#agregarPersonalBtn').click(function() {
+                const empleadoId = $('#empleadoInforme').val();
+                const empleadoNombre = $('#empleadoInforme option:selected').text();
+                if (!empleadoId) {
+                    alertify.error('Seleccione un empleado válido');
+                    return;
+                }
+
+                const yaExiste = $('#personalTable tbody tr').filter(function() {
+                    return $(this).find('td:nth-child(2)').text() === empleadoNombre;
+                }).length > 0;
+
+                if (yaExiste) {
+                    alertify.error('El personal ya ha sido agregado.');
+                    return;
+                }
+
+                $('#personalTable tbody').append(`
+                <tr>
+                    <td>${empleadoId}</td>
+                    <td>${empleadoNombre}</td>
+                    <td>
+                        <select class="form-select rol-select">
+                            <option value="Supervisor">Supervisor</option>
+                            <option value="Técnico">Técnico</option>
+                        </select>
+                    </td>
+                    <td><button type="button" class="btn btn-danger btn-sm remove-person-btn">Eliminar</button></td>
+                </tr>`);
+
+                $('#empleadoInforme option[value="' + empleadoId + '"]').prop('disabled', true);
+                $('#empleadoInforme').val(null).trigger('change');
+            });
+
+            $('#personalTable').on('click', '.remove-person-btn', function() {
+                const empleadoId = $(this).closest('tr').find('td:first').text();
+                $('#empleadoInforme option[value="' + empleadoId + '"]').prop('disabled', false);
+                $(this).closest('tr').remove();
+            });
+
+            $('#empleadoInforme').select2({
+                dropdownParent: $('#empleadoInforme').closest('.modal').length ?
+                    $('#empleadoInforme').closest('.modal') : $(document.body),
+                placeholder: "Seleccione un empleado",
+                allowClear: true,
+                width: '100%'
+            });
+
+            $('#servicioInforme').select2({
+                dropdownParent: $('#servicioInforme').closest('.modal').length ?
+                    $('#servicioInforme').closest('.modal') : $(document.body),
+                placeholder: "Seleccione un servicio",
+                allowClear: true,
+                width: '100%'
+            });
+
+            $('#servicioInforme').on('change', function() {
+                const idServicio = $(this).val();
+                if (!idServicio) return;
+                const datos = mapaServicios[idServicio];
+                if (!datos || (datos.materiales.length === 0 && datos.herramientas.length === 0)) {
+                    alertify.warning('No se encontraron salidas registradas para este servicio.');
+                    return;
+                }
+                if (datos.materiales.length > 0) {
+                    $('#materialesTable tbody').empty();
+                    datos.materiales.forEach(function(mat) {
+                        $('#materialesTable tbody').append(`
+                        <tr>
+                            <td>${mat.nombre}</td>
+                            <td><input type="text" class="form-control" value="UND."></td>
+                            <td><input type="text" class="form-control" value="${mat.descripcion}"></td>
+                            <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>
+                        </tr>`);
+                    });
+                }
+                if (datos.herramientas.length > 0) {
+                    $('#herramientasTable tbody').empty();
+                    datos.herramientas.forEach(function(herr) {
+                        $('#herramientasTable tbody').append(`
+                        <tr>
+                            <td>${herr.serie}</td>
+                            <td>${herr.nombre}</td>
+                            <td><input type="text" class="form-control" value="${herr.descripcion}"></td>
+                            <td>-</td>
+                            <td><button type="button" class="btn btn-danger btn-sm remove-btn">Eliminar</button></td>
+                        </tr>`);
+                    });
+                }
+                alertify.success('Materiales y herramientas cargados del servicio.');
+            });
+
         });
-    </script>
-</body>
 
-</html>
+    })();
+</script>

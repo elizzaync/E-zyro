@@ -6,12 +6,13 @@ import { ToastComponent } from './shared/components/toast/toast.component';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { AuthService } from './core/services/auth.service';
 import { ChatbotComponent } from './shared/components/chatbot/chatbot.component';
+import { NeuralBackgroundComponent } from './shared/components/neural-background/neural-background.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
   // 👇 Lo agregamos a los imports
-  imports: [RouterOutlet, ToastComponent, NavbarComponent, ChatbotComponent, CommonModule],
+  imports: [RouterOutlet, ToastComponent, NavbarComponent, ChatbotComponent, CommonModule, NeuralBackgroundComponent],
   templateUrl: './app.html',
 })
 export class App implements OnInit {
