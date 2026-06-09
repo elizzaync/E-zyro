@@ -3,7 +3,7 @@
   <!-- Encabezado -->
   <div class="pd-page-header">
     <div>
-      <h1 class="pd-title">Panel de Seguimiento</h1>
+      <h1 class="pd-title">Panel Ejecutivo</h1>
       <p class="pd-subtitle">{{ hoy }}</p>
     </div>
     <p class="pd-saludo">{{ saludo }}</p>
@@ -22,7 +22,7 @@
 
   @if (!cargando && kpis) {
 
-  <!-- ── FILA 1: KPI Cards con ícono translúcido de fondo ── -->
+  <!-- ── FILA 1: KPI Cards ── -->
   <div class="pd-kpis">
 
     <div class="pd-kpi-card pd-kpi-blue">
@@ -34,20 +34,8 @@
         </svg>
       </div>
       <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ kpis.total_equipos }}</span>
+        <span class="pd-kpi-val">{{ historial.length }}</span>
         <span class="pd-kpi-label">Total Equipos</span>
-      </div>
-    </div>
-
-    <div class="pd-kpi-card pd-kpi-amber">
-      <div class="pd-kpi-bg-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10"/><polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
-        </svg>
-      </div>
-      <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ kpis.en_proceso }}</span>
-        <span class="pd-kpi-label">En Proceso</span>
       </div>
     </div>
 
@@ -58,186 +46,143 @@
         </svg>
       </div>
       <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ kpis.mantenimientos_completados }}</span>
-        <span class="pd-kpi-label">Completados</span>
+        <span class="pd-kpi-val">{{ countVigentes }}</span>
+        <span class="pd-kpi-label">Vigentes</span>
       </div>
     </div>
 
-    <div class="pd-kpi-card pd-kpi-purple">
+    <div class="pd-kpi-card pd-kpi-amber">
       <div class="pd-kpi-bg-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
+          <circle cx="12" cy="12" r="10"/><polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
         </svg>
       </div>
       <div class="pd-kpi-body">
-        <span class="pd-kpi-val">{{ kpis.proximos_30_dias }}</span>
-        <span class="pd-kpi-label">Próximos 30 días</span>
+        <span class="pd-kpi-val">{{ countProximos }}</span>
+        <span class="pd-kpi-label">Próximos a Vencer</span>
       </div>
     </div>
 
-  </div>
-
-  <!-- ── FILA 2: Chart de Tendencias ── -->
-  <div class="pd-chart-card">
-    <div class="pd-chart-header">
-      <div>
-        <h2 class="pd-chart-title">Tendencia de Mantenimientos</h2>
-        <p class="pd-chart-subtitle">Distribución mensual — últimos 12 meses</p>
-      </div>
-    </div>
-    <div class="pd-chart-wrap">
-      <canvas #tendenciaChart></canvas>
-    </div>
-  </div>
-
-  <!-- ── FILA 3: Tabla de Equipos Intervenidos ── -->
-  <div class="pd-section">
-
-    <div class="pd-toolbar">
-      <div class="pd-toolbar-left">
-        <h2 class="pd-section-title">Historial de Equipos Intervenidos</h2>
-        <span class="pd-count-chip">{{ historialFiltrado.length }} de {{ historial.length }} equipos</span>
-      </div>
-      <div class="pd-toolbar-right">
-        <div class="pd-search-wrap">
-          <svg class="pd-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/>
-          </svg>
-          <input class="pd-search" type="text" placeholder="Buscar equipo, código, ubicación…"
-            [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" />
-          @if (busqueda) {
-          <button class="pd-search-clear" (click)="busqueda = ''; onFiltroChange()">×</button>
-          }
-        </div>
-        <select class="pd-select" [(ngModel)]="filtroUbicacion" (ngModelChange)="onFiltroChange()">
-          @for (u of ubicacionesDisponibles; track u) {
-          <option [value]="u">{{ u === 'todas' ? 'Todas las ubicaciones' : u }}</option>
-          }
-        </select>
-      </div>
-    </div>
-
-    <!-- Chips FASE 1: estado basado en fechas -->
-    <div class="pd-chips">
-      <button class="pd-chip" [class.active]="filtroEstado === 'todos'"
-              (click)="filtroEstado = 'todos'; onFiltroChange()">
-        Todos <span class="pd-chip-count">{{ historial.length }}</span>
-      </button>
-      <button class="pd-chip pd-chip-success" [class.active]="filtroEstado === 'badge-success'"
-              (click)="filtroEstado = 'badge-success'; onFiltroChange()">
-        Se realizó <span class="pd-chip-count">{{ countPorBadge('badge-success') }}</span>
-      </button>
-      <button class="pd-chip pd-chip-warn" [class.active]="filtroEstado === 'badge-warning'"
-              (click)="filtroEstado = 'badge-warning'; onFiltroChange()">
-        Se aproxima <span class="pd-chip-count">{{ countPorBadge('badge-warning') }}</span>
-      </button>
-      <button class="pd-chip pd-chip-danger" [class.active]="filtroEstado === 'badge-danger'"
-              (click)="filtroEstado = 'badge-danger'; onFiltroChange()">
-        No se realizó <span class="pd-chip-count">{{ countPorBadge('badge-danger') }}</span>
-      </button>
-      <button class="pd-chip pd-chip-prog" [class.active]="filtroEstado === 'en_proceso'"
-              (click)="filtroEstado = 'en_proceso'; onFiltroChange()">
-        En Proceso <span class="pd-chip-count">{{ historial.filter(e => e.estado_intervencion === 'en_proceso').length }}</span>
-      </button>
-      @if (hayFiltrosActivos) {
-      <button class="pd-chip-reset" (click)="resetFiltros()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
+    <div class="pd-kpi-card pd-kpi-red">
+      <div class="pd-kpi-bg-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
         </svg>
-        Limpiar
-      </button>
+      </div>
+      <div class="pd-kpi-body">
+        <span class="pd-kpi-val">{{ countVencidos }}</span>
+        <span class="pd-kpi-label">Vencidos</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── FILA 2: Alertas Críticas + Donut ── -->
+  <div class="pd-row-2">
+
+    <!-- Panel de Alertas Críticas -->
+    <div class="pd-alerts-panel">
+      <div class="pd-alerts-header">
+        <div>
+          <h2 class="pd-alerts-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            Alertas Críticas
+          </h2>
+          <p class="pd-alerts-sub">Equipos que requieren atención inmediata</p>
+        </div>
+        <a routerLink="/portal-cliente/mantenimientos" class="pd-btn-ver-todos">
+          Ver todos los equipos
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
+          </svg>
+        </a>
+      </div>
+
+      @if (alertasEquipos.length === 0) {
+      <div class="pd-alerts-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p>Todos los equipos están operativos</p>
+      </div>
+      }
+
+      <div class="pd-alerts-list">
+        @for (eq of alertasEquipos.slice(0, 8); track eq.id) {
+        <div class="pd-alert-item" [ngClass]="maintenanceStatus(eq).badge === 'badge-danger' ? 'alert-danger' : 'alert-warning'">
+          <div class="pd-alert-icon">
+            @if (maintenanceStatus(eq).badge === 'badge-danger') {
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            } @else {
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><polyline stroke-linecap="round" points="12 6 12 12 16 14"/>
+            </svg>
+            }
+          </div>
+          <div class="pd-alert-body">
+            <span class="pd-alert-nombre">{{ eq.nombre }}</span>
+            <span class="pd-alert-meta">
+              @if (eq.codigo) { <span class="pd-code-tag">{{ eq.codigo }}</span> }
+              @if (eq.proximo_mantenimiento) {
+                Prog.: {{ eq.proximo_mantenimiento | date:'dd/MM/yyyy' }}
+              }
+            </span>
+          </div>
+          <span class="pd-badge" [ngClass]="maintenanceStatus(eq).badge">
+            {{ maintenanceStatus(eq).label }}
+          </span>
+          <a class="pd-alert-btn" [routerLink]="['/portal-cliente/mantenimiento', eq.id]">
+            Ver
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
+            </svg>
+          </a>
+        </div>
+        }
+      </div>
+
+      @if (alertasEquipos.length > 8) {
+      <div class="pd-alerts-more">
+        <a routerLink="/portal-cliente/mantenimientos" class="pd-alerts-more-link">
+          + {{ alertasEquipos.length - 8 }} equipos más requieren atención
+        </a>
+      </div>
       }
     </div>
 
-    @if (historialFiltrado.length === 0) {
-    <div class="pd-empty">
-      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="24" cy="24" r="20"/><path stroke-linecap="round" d="M24 16v8l5 3"/>
-      </svg>
-      <p>No se encontraron equipos con los filtros aplicados.</p>
-      <button class="pd-chip-reset" (click)="resetFiltros()">Limpiar filtros</button>
-    </div>
-    }
-
-    @if (historialPaginado.length > 0) {
-    <div class="pd-table-wrap">
-      <table class="pd-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Equipo</th>
-            <th>Proyecto</th>
-            <th>Ubicación</th>
-            <th>Último Mtto.</th>
-            <th>Próximo Mtto.</th>
-            <th>Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (eq of historialPaginado; track eq.id; let i = $index) {
-          <tr>
-            <td class="pd-td-num">{{ (paginaActual - 1) * 25 + i + 1 }}</td>
-            <td>
-              <div class="pd-eq-name">{{ eq.nombre }}</div>
-              @if (eq.marca || eq.modelo || eq.codigo) {
-              <div class="pd-eq-sub">
-                @if (eq.codigo) { <span class="pd-code-tag">{{ eq.codigo }}</span> }
-                {{ eq.marca }} {{ eq.modelo }}
-              </div>
-              }
-            </td>
-            <td class="pd-td-muted">{{ eq.proyecto || '—' }}</td>
-            <td class="pd-td-muted">{{ eq.ubicacion || '—' }}</td>
-            <td class="pd-td-date">
-              {{ eq.ultimo_mantenimiento ? (eq.ultimo_mantenimiento | date:'dd/MM/yyyy') : '—' }}
-            </td>
-            <td class="pd-td-date">
-              <span [class.pd-prox-alerta]="proximoAlerta(eq.proximo_mantenimiento)">
-                {{ eq.proximo_mantenimiento ? (eq.proximo_mantenimiento | date:'dd/MM/yyyy') : '—' }}
-              </span>
-            </td>
-            <td>
-              <span class="pd-badge" [ngClass]="maintenanceStatus(eq).badge">
-                {{ maintenanceStatus(eq).label }}
-              </span>
-            </td>
-            <td>
-              <a class="pd-btn-detalle" [routerLink]="['/portal-cliente/mantenimiento', eq.id]">
-                Ver
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
-                </svg>
-              </a>
-            </td>
-          </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    @if (totalPaginas > 1) {
-    <div class="pd-pagination">
-      <div class="pd-pagination-info">
-        Mostrando {{ (paginaActual - 1) * PAGE_SIZE + 1 }}–{{ paginaActual * PAGE_SIZE < historialFiltrado.length ? paginaActual * PAGE_SIZE : historialFiltrado.length }}
-        de {{ historialFiltrado.length }} equipos
+    <!-- Donut: Estado del Parque -->
+    <div class="pd-donut-card">
+      <div class="pd-donut-header">
+        <h2 class="pd-chart-title">Estado del Parque</h2>
+        <p class="pd-chart-subtitle">Distribución por estado operativo</p>
       </div>
-      <div class="pd-pagination-controls">
-        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(1)" [disabled]="paginaActual === 1">«</button>
-        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(paginaActual - 1)" [disabled]="paginaActual === 1">‹</button>
-        @if (paginasVisibles[0] > 1) { <span class="pd-page-ellipsis">…</span> }
-        @for (p of paginasVisibles; track p) {
-        <button class="pd-page-btn" [class.active]="p === paginaActual" (click)="irAPagina(p)">{{ p }}</button>
-        }
-        @if (paginasVisibles[paginasVisibles.length - 1] < totalPaginas) { <span class="pd-page-ellipsis">…</span> }
-        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(paginaActual + 1)" [disabled]="paginaActual === totalPaginas">›</button>
-        <button class="pd-page-btn pd-page-nav" (click)="irAPagina(totalPaginas)" [disabled]="paginaActual === totalPaginas">»</button>
+      <div class="pd-donut-wrap">
+        <canvas #donutChart></canvas>
+      </div>
+      <div class="pd-donut-legend">
+        <div class="pd-donut-stat">
+          <span class="pd-donut-dot" style="background:#16a34a"></span>
+          <span class="pd-donut-lbl">Vigentes</span>
+          <strong class="pd-donut-num">{{ countVigentes }}</strong>
+        </div>
+        <div class="pd-donut-stat">
+          <span class="pd-donut-dot" style="background:#f59e0b"></span>
+          <span class="pd-donut-lbl">Próximos</span>
+          <strong class="pd-donut-num">{{ countProximos }}</strong>
+        </div>
+        <div class="pd-donut-stat">
+          <span class="pd-donut-dot" style="background:#dc2626"></span>
+          <span class="pd-donut-lbl">Vencidos</span>
+          <strong class="pd-donut-num">{{ countVencidos }}</strong>
+        </div>
       </div>
     </div>
-    }
-    }
 
   </div>
   }

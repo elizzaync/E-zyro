@@ -84,65 +84,70 @@ export class PortalEquipoDetalleComponent implements OnInit {
   }
 
   // ── FASE 1: estado del equipo basado en fechas ────────────────────────────
+  // ── FASE 1: lógica temporal unificada ────────────────────────────────────
   equipoStatus(): { label: string; badge: string } {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const eq = this.equipo;
 
-    if (eq?.ultimo_mantenimiento) {
-      return { label: 'Se realizó mantenimiento', badge: 'badge-success' };
-    }
     if (eq?.proximo_mantenimiento) {
       const prox  = new Date(eq.proximo_mantenimiento);
       const diffD = (prox.getTime() - today.getTime()) / 86_400_000;
-      if (diffD < 0) return { label: 'No se realizó mantenimiento', badge: 'badge-danger' };
-      if (diffD <= 30) return { label: 'Se aproxima próximo mantenimiento', badge: 'badge-warning' };
+      if (diffD < 0)   return { label: 'Vencido',          badge: 'badge-danger'  };
+      if (diffD <= 30) return { label: 'Próximo a Vencer', badge: 'badge-warning' };
+    }
+    if (eq?.ultimo_mantenimiento || eq?.proximo_mantenimiento) {
+      return { label: 'Vigente / Operativo', badge: 'badge-success' };
     }
     const fb: Record<string, { label: string; badge: string }> = {
-      completado: { label: 'Se realizó mantenimiento',     badge: 'badge-success' },
-      en_proceso: { label: 'En proceso',                    badge: 'badge-prog'    },
+      completado: { label: 'Vigente / Operativo', badge: 'badge-success' },
+      en_proceso: { label: 'En Proceso',           badge: 'badge-prog'    },
     };
-    return fb[eq?.estado_intervencion] ?? { label: 'Pendiente', badge: 'badge-pend' };
+    return fb[eq?.estado_intervencion] ?? { label: 'Vencido', badge: 'badge-danger' };
   }
 
   // ── FASE 3: items para el Timeline ───────────────────────────────────────
+  // ── FASE 5: timeline con lógica temporal FASE 1 ──────────────────────────
   get timelineItems(): Array<{
     fecha: string | null;
     titulo: string;
     subtitulo: string;
     observaciones: string | null;
-    tipo: 'completed' | 'upcoming' | 'overdue';
+    tipo: 'completed' | 'vigente' | 'upcoming' | 'overdue';
   }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const items: any[] = [];
 
-    // Mantenimientos completados del historial
     for (const h of this.historial) {
       items.push({
         fecha:         h.fecha_fin ?? h.fecha_inicio,
-        titulo:        'Se realizó mantenimiento',
+        titulo:        'Mantenimiento Realizado',
         subtitulo:     [h.servicio, h.proyecto].filter(Boolean).join(' · '),
         observaciones: h.observaciones ?? null,
         tipo:          'completed',
       });
     }
 
-    // Próximo mantenimiento (del equipo)
     const prox = this.equipo?.proximo_mantenimiento;
     if (prox) {
       const proxDate = new Date(prox);
       const diffD    = (proxDate.getTime() - today.getTime()) / 86_400_000;
-      items.push({
-        fecha:         prox,
-        titulo:        diffD < 0 ? 'No se realizó mantenimiento' : 'Se aproxima próximo mantenimiento',
-        subtitulo:     diffD < 0 ? 'Fecha vencida — sin registro de ejecución' : 'Programado',
-        observaciones: null,
-        tipo:          diffD < 0 ? 'overdue' : 'upcoming',
-      });
+      let tipo: 'vigente' | 'upcoming' | 'overdue';
+      let titulo: string;
+      let subtitulo: string;
+
+      if (diffD < 0) {
+        tipo = 'overdue'; titulo = 'Vencido'; subtitulo = 'Fecha vencida — sin registro de ejecución';
+      } else if (diffD <= 30) {
+        tipo = 'upcoming'; titulo = 'Próximo a Vencer'; subtitulo = 'Mantenimiento programado próximamente';
+      } else {
+        tipo = 'vigente'; titulo = 'Vigente / Operativo'; subtitulo = 'Próximo mantenimiento programado';
+      }
+
+      items.push({ fecha: prox, titulo, subtitulo, observaciones: null, tipo });
     }
 
-    // Ordenar descendente por fecha
     return items.sort((a, b) => {
       const da = a.fecha ? new Date(a.fecha).getTime() : 0;
       const db = b.fecha ? new Date(b.fecha).getTime() : 0;
