@@ -87,6 +87,16 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "dashboard:ver",
         "soporte:ver", "soporte:gestionar",
     ],
+    # Rol contable: conciliación bancaria (Fase 5). El resto de finanzas sigue
+    # siendo solo del Administrador. Si la empresa crea un rol con este nombre,
+    # el seed le vincula estos permisos automáticamente (idempotente).
+    "Contador": [
+        "dashboard:ver",
+        "contabilidad:ver",
+        "conciliacion_bancaria:ver",
+        "conciliacion_bancaria:gestionar",
+        "conciliacion_bancaria:conciliar",
+    ],
 }
 
 # Roles "de sistema" que deben existir en TODA empresa, creados por el seed si

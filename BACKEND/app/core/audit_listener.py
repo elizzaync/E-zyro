@@ -58,6 +58,8 @@ _MODULO: dict[str, str] = {
     "recepcion_compra":      "COMPRAS",
     "cliente":               "CLIENTES",
     "caja_chica":            "FINANZAS",
+    "cuenta_bancaria":       "FINANZAS",
+    "movimiento_bancario":   "FINANZAS",
     "equipo":                "MANTENIMIENTO",
     "orden_mantenimiento":   "MANTENIMIENTO",
     "comunicado":            "COMUNICADOS",

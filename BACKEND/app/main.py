@@ -50,6 +50,7 @@ from app.routers import planilla             as planilla_router
 from app.routers import reportes_financieros as reportes_financieros_router
 from app.routers import eventos_contables    as eventos_contables_router
 from app.routers import caja_chica           as caja_chica_router
+from app.routers import conciliacion_bancaria as conciliacion_bancaria_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -108,6 +109,8 @@ from app.models import (  # noqa: F401
     prestamo,
     # Caja chica
     caja_chica,
+    # Conciliación bancaria (Fase 5 — cierre de finanzas)
+    conciliacion_bancaria,
     # Evaluación (contiene CriterioEvaluacion, Evaluacion, DetalleEvaluacion, CalificacionCliente)
     evaluacion,
     # Documentación
@@ -813,6 +816,10 @@ def _run_migrations():
         sembrar_permisos(conn, "caja_chica",
                          ["ver", "gestionar", "registrar_movimiento"],
                          descripcion_base="Caja chica:")
+        # ── Finanzas · Conciliación bancaria (Fase 5 del cierre) ─────────────
+        sembrar_permisos(conn, "conciliacion_bancaria",
+                         ["ver", "gestionar", "conciliar"],
+                         descripcion_base="Conciliación bancaria:")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
@@ -1565,6 +1572,7 @@ app.include_router(planilla_router.router)
 app.include_router(reportes_financieros_router.router)
 app.include_router(eventos_contables_router.router)
 app.include_router(caja_chica_router.router)
+app.include_router(conciliacion_bancaria_router.router)
 
 
 @app.get("/")
