@@ -13,10 +13,7 @@ import 'pantalla_soporte.dart';
 import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
 import 'pantalla_personal.dart';
-import 'pantalla_personal_rrhh.dart';
-import 'pantalla_evaluaciones.dart';
-import 'pantalla_vacaciones.dart';
-import 'pantalla_indicadores.dart';
+import 'pantalla_personal_hub.dart';
 import 'pantalla_galeria.dart';
 import 'pantalla_epp.dart';
 import 'pantalla_calibraciones.dart';
@@ -368,47 +365,20 @@ class _MoreScreenState extends State<MoreScreen> {
                     ),
                   if (_puedeVerPersonal)
                     _MenuItem(
-                      icon: Icons.groups_2_outlined,
-                      label: 'Personal',
+                      icon: Icons.badge_outlined,
+                      label: 'Personal / RR.HH.',
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const PantallaPersonal()),
+                        MaterialPageRoute(builder: (_) => const PantallaPersonalHub()),
                       ),
                     ),
                   if (_puedeVerPersonal)
                     _MenuItem(
-                      icon: Icons.badge_outlined,
-                      label: 'Historial de personal',
+                      icon: Icons.devices_other_outlined,
+                      label: 'Sesiones de personal',
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const PantallaPersonalRRHH()),
-                      ),
-                    ),
-                  if (AppSession.i.canVerEvaluacion)
-                    _MenuItem(
-                      icon: Icons.assessment_outlined,
-                      label: 'Evaluaciones',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PantallaEvaluaciones()),
-                      ),
-                    ),
-                  if (AppSession.i.canVerVacaciones)
-                    _MenuItem(
-                      icon: Icons.beach_access_outlined,
-                      label: 'Vacaciones',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PantallaVacaciones()),
-                      ),
-                    ),
-                  if (AppSession.i.canVerIndicadores)
-                    _MenuItem(
-                      icon: Icons.insights_outlined,
-                      label: 'Indicadores de desempeño',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PantallaIndicadores()),
+                        MaterialPageRoute(builder: (_) => const PantallaPersonal()),
                       ),
                     ),
                   if (_puedeVerAuditoria)
