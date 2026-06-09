@@ -1081,6 +1081,9 @@ def actualizar_requerimiento_detalle(
     if not req:
         raise HTTPException(status_code=403, detail="Acceso denegado")
 
+    if req.proyecto_servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(req.proyecto_servicio_id))
+
     changed = False
     if body.cantidad is not None:
         rd.cantidad = body.cantidad
@@ -1351,6 +1354,8 @@ async def remover_item_borrador(
     ).first()
 
     servicio_id = req.proyecto_servicio_id
+    if servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(servicio_id))
     db.delete(rd)
     db.commit()
 
@@ -2199,24 +2204,38 @@ def _norm_rol(nombre: str | None) -> str:
     return re.sub(r"[\s_\-]+", " ", base).strip().lower()
 
 
-def _assert_servicio_abierto(ps_id: str, db: Session, empresa_id: str) -> "ProyectoServicio":
+# Estados terminales del servicio (comparación case-insensitive).
+_ESTADOS_SERVICIO_TERMINADO = {"completado", "finalizado", "terminado"}
+
+
+def _exigir_servicio_abierto(db: Session, empresa_id: str, servicio_id: str) -> "ProyectoServicio":
     """Verifica que el servicio exista y esté en un estado editable.
-    Lanza HTTP 409 si ya está Completado o Cancelado.
+    Lanza HTTP 409 si ya está Completado/finalizado/terminado (o Cancelado).
     Devuelve el objeto ProyectoServicio para reuso en el endpoint.
     """
     ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == ps_id,
+        ProyectoServicio.id         == servicio_id,
         ProyectoServicio.empresa_id == empresa_id,
     ).first()
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
-    if ps.estado in ("Completado", "Cancelado"):
+    estado = (ps.estado or "").strip().lower()
+    if estado in _ESTADOS_SERVICIO_TERMINADO:
         raise HTTPException(
             status_code=409,
-            detail=f"El servicio está {ps.estado.lower()} y no acepta modificaciones. "
-                   "Solo el Jefe de Operaciones puede reabrirlo.",
+            detail="El servicio está terminado: solo lectura",
+        )
+    if estado == "cancelado":
+        raise HTTPException(
+            status_code=409,
+            detail="El servicio está cancelado y no acepta modificaciones.",
         )
     return ps
+
+
+def _assert_servicio_abierto(ps_id: str, db: Session, empresa_id: str) -> "ProyectoServicio":
+    """Alias legado de _exigir_servicio_abierto (firma antigua)."""
+    return _exigir_servicio_abierto(db, empresa_id, ps_id)
 
 
 def _rol_es_lider(nombre_rol: str | None) -> bool:
@@ -3017,6 +3036,11 @@ def actualizar_servicio(
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
+    # Servicio terminado: solo se permite si el body cambia el estado (reapertura);
+    # cualquier edición de metadatos sin cambio de estado queda bloqueada.
+    if (ps.estado or "").strip().lower() in _ESTADOS_SERVICIO_TERMINADO and body.estado is None:
+        raise HTTPException(status_code=409, detail="El servicio está terminado: solo lectura")
+
     # Verificar catálogo si cambió
     if body.catalogo_servicio_id and body.catalogo_servicio_id != str(ps.catalogo_servicio_id):
         catalogo = db.query(CatalogoServicio).filter(
@@ -3122,12 +3146,7 @@ def configurar_servicio(
     """
     empresa_id = payload["empresa_id"]
 
-    ps = db.query(ProyectoServicio).filter(
-        ProyectoServicio.id         == servicio_id,
-        ProyectoServicio.empresa_id == empresa_id,
-    ).first()
-    if not ps:
-        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    ps = _exigir_servicio_abierto(db, empresa_id, servicio_id)
 
     proyecto_id = ps.proyecto_id
 
@@ -3402,6 +3421,9 @@ def actualizar_nota(
     if not _puede_gestionar_nota(db, nota, payload):
         raise HTTPException(status_code=403, detail="No puedes editar esta nota")
 
+    if nota.proyecto_servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(nota.proyecto_servicio_id))
+
     texto = (body.descripcion or "").strip()
     if not texto:
         raise HTTPException(status_code=422, detail="La nota no puede estar vacía")
@@ -3429,6 +3451,9 @@ def eliminar_nota(
         raise HTTPException(status_code=404, detail="Nota no encontrada")
     if not _puede_gestionar_nota(db, nota, payload):
         raise HTTPException(status_code=403, detail="No puedes eliminar esta nota")
+
+    if nota.proyecto_servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(nota.proyecto_servicio_id))
 
     db.delete(nota)
     db.commit()
@@ -3877,7 +3902,9 @@ def get_inspeccion_activa(
     )
 
     if not hi:
-        # Primera vez o nueva sesión — crear con resultado vacío
+        # Primera vez o nueva sesión — no se puede iniciar sobre un servicio terminado
+        _exigir_servicio_abierto(db, empresa_id, servicio_id)
+        # crear con resultado vacío
         hi = HistorialInspeccion(
             id                    = str(_uuid.uuid4()),
             equipo_intervenido_id = ei_id,
@@ -3950,6 +3977,9 @@ async def subir_foto_inspeccion(
     if not hi:
         raise HTTPException(status_code=404, detail="Sesión de inspección no encontrada o ya finalizada")
 
+    if hi.proyecto_servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(hi.proyecto_servicio_id))
+
     resultado = list(hi.resultado or [])
     paso = next((r for r in resultado if r["orden"] == orden), None)
     if paso is None:
@@ -4018,6 +4048,9 @@ def quitar_foto_inspeccion(
     if not hi:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o ya finalizada")
 
+    if hi.proyecto_servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(hi.proyecto_servicio_id))
+
     resultado = list(hi.resultado or [])
     paso = next((r for r in resultado if r["orden"] == orden), None)
     if paso is None:
@@ -4061,6 +4094,9 @@ def guardar_inspeccion(
     if not hi:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o ya finalizada")
 
+    if hi.proyecto_servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(hi.proyecto_servicio_id))
+
     resultado     = list(hi.resultado or [])
     nuevo_estado  = {r["orden"]: r for r in body.get("resultado", [])}
     observaciones = body.get("observaciones") or None
@@ -4103,6 +4139,9 @@ def finalizar_inspeccion(
     ).first()
     if not hi:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o ya finalizada")
+
+    if hi.proyecto_servicio_id:
+        _exigir_servicio_abierto(db, empresa_id, str(hi.proyecto_servicio_id))
 
     # Guardar resultado final
     resultado     = list(hi.resultado or [])
@@ -4207,6 +4246,7 @@ def completar_intervencion_legacy(
 ):
     """Compatibilidad con el frontend anterior."""
     empresa_id = payload["empresa_id"]
+    _exigir_servicio_abierto(db, empresa_id, servicio_id)
     ei = db.query(EquipoIntervenido).filter(
         EquipoIntervenido.id                   == ei_id,
         EquipoIntervenido.proyecto_servicio_id == servicio_id,

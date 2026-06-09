@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exception_handlers import http_exception_handler as fastapi_http_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from sqlalchemy import text
 import logging
@@ -66,7 +68,7 @@ from app.models import (  # noqa: F401
     empresa, plan_suscripcion, suscripcion,
     # Usuarios y roles
     usuario, rol, permiso, rol_permiso, usuario_rol, usuario_permiso,
-    recuperacion_password, sesion_usuario, auditoria,
+    recuperacion_password, sesion_usuario, auditoria, log_sistema,
     # Clientes
     cliente, contrato_comercial, usuario_cliente,
     # Empleados
@@ -395,6 +397,23 @@ def _pre_create_migrations():
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_calibracion_evento_eq ON calibracion_evento (empresa_id, equipo_id, fecha_realizada)"))
+
+        # ── Historial de mantenimientos de equipos intervenidos. FK uuid → aquí ──
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS equipo_intervenido_mantenimiento (
+                id                    uuid PRIMARY KEY,
+                empresa_id            uuid NOT NULL REFERENCES empresa(id),
+                equipo_intervenido_id uuid NOT NULL REFERENCES equipo_intervenido(id) ON DELETE CASCADE,
+                fecha                 DATE NOT NULL,
+                tipo                  VARCHAR(20) NOT NULL DEFAULT 'preventivo',
+                descripcion           TEXT,
+                realizado_por         VARCHAR(200),
+                proximo_calculado     DATE,
+                registrado_por_id     uuid,
+                created_at            TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ei_mant_eq ON equipo_intervenido_mantenimiento (empresa_id, equipo_intervenido_id, fecha)"))
 
         # ── RR.HH. · Vacaciones por ley (Punto 3.3). FKs uuid → aquí ─────────
         conn.execute(text("""
@@ -794,6 +813,27 @@ def _pre_create_migrations():
               )
             ON CONFLICT (equipo_id, servicio_id) DO NOTHING
         """))
+
+        # ── Auditoría General (SuperAdmin): log de errores/eventos del sistema ─
+        # PK/FK uuid → se crea aquí (ANTES de create_all), patrón calibracion_evento.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS log_sistema (
+                id          uuid PRIMARY KEY,
+                empresa_id  uuid REFERENCES empresa(id),
+                usuario_id  uuid,
+                nivel       VARCHAR(10) NOT NULL DEFAULT 'error',
+                origen      VARCHAR(300),
+                mensaje     VARCHAR(1000) NOT NULL,
+                detalle     TEXT,
+                metodo      VARCHAR(10),
+                status_code INTEGER,
+                fecha       TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_log_sistema_nivel_fecha "
+            "ON log_sistema (nivel, fecha)"
+        ))
 
         conn.commit()
 
@@ -1589,13 +1629,78 @@ app.add_middleware(
 app.add_middleware(AuditContextMiddleware)
 
 
+def _registrar_log_sistema(request: Request, *, nivel: str, mensaje: str,
+                           detalle: str | None = None,
+                           status_code: int | None = None) -> None:
+    """Inserta best-effort un evento en log_sistema (sesión propia, nunca
+    rompe la respuesta al cliente). Usuario/empresa se extraen del JWT si existe."""
+    try:
+        import uuid as _uuid
+        from app.db.database import SessionLocal
+        from app.models.log_sistema import LogSistema
+
+        empresa_id = None
+        usuario_id = None
+        try:
+            from jose import jwt as _jwt
+            from app.core.security import SECRET_KEY, ALGORITHM
+            auth = request.headers.get("authorization") or ""
+            if auth.lower().startswith("bearer "):
+                _p = _jwt.decode(auth[7:], SECRET_KEY, algorithms=[ALGORITHM])
+                empresa_id = _p.get("empresa_id")
+                usuario_id = _p.get("id")
+        except Exception:
+            pass
+
+        db = SessionLocal()
+        try:
+            db.add(LogSistema(
+                id=str(_uuid.uuid4()),
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                nivel=nivel,
+                origen=str(request.url.path)[:300],
+                mensaje=(mensaje or "")[:1000],
+                detalle=detalle,
+                metodo=request.method,
+                status_code=status_code,
+            ))
+            db.commit()
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("No se pudo registrar en log_sistema")
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    import traceback as _tb
+    stack = "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-8000:]
+    _registrar_log_sistema(
+        request,
+        nivel="error",
+        mensaje=f"{type(exc).__name__}: {exc}",
+        detalle=stack,
+        status_code=500,
+    )
     return JSONResponse(
         status_code=500,
         content={"detail": f"{type(exc).__name__}: {exc}"},
     )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_logger(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Mantiene la respuesta HTTP normal, pero registra en log_sistema los 5xx."""
+    if exc.status_code >= 500:
+        _registrar_log_sistema(
+            request,
+            nivel="error",
+            mensaje=f"HTTP {exc.status_code}: {exc.detail}",
+            status_code=exc.status_code,
+        )
+    return await fastapi_http_exception_handler(request, exc)
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)

@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import uuid as _uuid
 from datetime import date
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
@@ -17,6 +17,7 @@ from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.informe_servicio import InformeServicio
 from ..models.proyecto_servicio import ProyectoServicio
+from ..models.proyecto import Proyecto
 from ..models.procedimiento import Procedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.empresa import Empresa
@@ -106,6 +107,45 @@ def _out(i: InformeServicio) -> dict:
         "id": str(i.id), "servicio_id": str(i.servicio_id), "tipo": i.tipo,
         "titulo": i.titulo, "url": i.url, "fecha": str(i.fecha) if i.fecha else None,
     }
+
+
+@router.get("/informes-todos", response_model=List[dict])
+def listar_informes_empresa(
+    proyecto_id: Optional[str] = None,
+    servicio_id: Optional[str] = None,
+    tipo: Optional[str] = Query(None, description="pre | final"),
+    limit: int = Query(200, ge=1, le=200),
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Listado global (empresa) de informes generados, con servicio y proyecto."""
+    q = (
+        db.query(
+            InformeServicio,
+            ProyectoServicio.nombre,
+            ProyectoServicio.proyecto_id,
+            Proyecto.nombre_proyecto,
+        )
+        .join(ProyectoServicio, ProyectoServicio.id == InformeServicio.servicio_id)
+        .outerjoin(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
+        .filter(InformeServicio.empresa_id == payload["empresa_id"])
+    )
+    if proyecto_id:
+        q = q.filter(ProyectoServicio.proyecto_id == proyecto_id)
+    if servicio_id:
+        q = q.filter(InformeServicio.servicio_id == servicio_id)
+    if tipo in ("pre", "final"):
+        q = q.filter(InformeServicio.tipo == tipo)
+    rows = q.order_by(InformeServicio.created_at.desc()).limit(limit).all()
+    return [
+        {
+            **_out(inf),
+            "servicio_nombre": serv_nombre,
+            "proyecto_id": str(pid) if pid else None,
+            "proyecto_nombre": proy_nombre,
+        }
+        for inf, serv_nombre, pid, proy_nombre in rows
+    ]
 
 
 @router.post("/{servicio_id}/pre-informe")

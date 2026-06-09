@@ -6,8 +6,9 @@ Escrituras: permiso 'equipo_intervenido:crear' / 'editar' / 'eliminar'.
 """
 from __future__ import annotations
 
+import calendar
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,18 +18,34 @@ from sqlalchemy.orm import Session
 from ..core.security import verificar_token
 from ..core.permisos import exigir_permiso
 from ..db.database import get_db
-from ..models.equipo_intervenido import EquipoIntervenido
+from ..models.equipo_intervenido import EquipoIntervenido, EquipoIntervenidoMantenimiento
 from ..models.proyecto import Proyecto
 from ..models.cliente import Cliente
 from ..models.ubicacion import Ubicacion
+from ..models.usuario import Usuario
 from ..models.zona import Zona
 from ..models.area import Area
 from ..models.tipo_equipo import TipoEquipo
-from ..schemas.equipo_intervenido import EquipoIntervenidoIn, EquipoIntervenidoOut
+from ..schemas.equipo_intervenido import (
+    EquipoIntervenidoIn,
+    EquipoIntervenidoOut,
+    MantenimientoEquipoIn,
+    MantenimientoEquipoOut,
+)
 
 router = APIRouter(prefix="/equipos-intervenidos", tags=["equipos-intervenidos"])
 
 ESTADOS_VALIDOS = {"operativo", "inoperativo", "mantenimiento", "en_revision"}
+TIPOS_MANTENIMIENTO = {"preventivo", "correctivo", "inspeccion", "otro"}
+
+
+def _sumar_meses(d: date, meses: int) -> date:
+    """Suma N meses respetando fin de mes (31 ene + 1 mes = 28/29 feb)."""
+    mes0 = d.month - 1 + meses
+    anio = d.year + mes0 // 12
+    mes = mes0 % 12 + 1
+    dia = min(d.day, calendar.monthrange(anio, mes)[1])
+    return date(anio, mes, dia)
 
 # Prefijo de 3 letras por tipo de equipo, para el codigo unico {PROV}-{TIPO}-{NNN}
 TIPO_PREFIJO = {
@@ -199,6 +216,109 @@ def detalle(
     ).first()
     if not e:
         raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+    return _to_out(e, db)
+
+
+# ── GET /equipos-intervenidos/{id}/mantenimientos ────────────────────────────
+@router.get("/{equipo_id}/mantenimientos", response_model=List[MantenimientoEquipoOut])
+def listar_mantenimientos(
+    equipo_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    """Historial de mantenimientos del equipo, mas reciente primero."""
+    empresa_id = payload["empresa_id"]
+    e = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id == equipo_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+    rows = (
+        db.query(EquipoIntervenidoMantenimiento)
+        .filter(EquipoIntervenidoMantenimiento.empresa_id == empresa_id,
+                EquipoIntervenidoMantenimiento.equipo_intervenido_id == equipo_id)
+        .order_by(EquipoIntervenidoMantenimiento.fecha.desc(),
+                  EquipoIntervenidoMantenimiento.created_at.desc())
+        .all()
+    )
+    return [
+        MantenimientoEquipoOut(
+            id=str(m.id),
+            equipo_intervenido_id=str(m.equipo_intervenido_id),
+            fecha=m.fecha, tipo=m.tipo, descripcion=m.descripcion,
+            realizado_por=m.realizado_por, proximo_calculado=m.proximo_calculado,
+            created_at=m.created_at,
+        )
+        for m in rows
+    ]
+
+
+# ── POST /equipos-intervenidos/{id}/mantenimiento ────────────────────────────
+@router.post("/{equipo_id}/mantenimiento", response_model=EquipoIntervenidoOut, status_code=201)
+def registrar_mantenimiento(
+    equipo_id: str,
+    body: MantenimientoEquipoIn,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    """Registra un mantenimiento ejecutado: guarda el evento en el historial y
+    actualiza el snapshot del equipo (ultimo_mantenimiento = fecha,
+    proximo_mantenimiento = fecha + frecuencia_meses)."""
+    exigir_permiso(db, payload, "equipo_intervenido", "editar")
+    empresa_id = payload["empresa_id"]
+    e = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id == equipo_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    tipo = (body.tipo or "preventivo").strip().lower()
+    if tipo not in TIPOS_MANTENIMIENTO:
+        raise HTTPException(status_code=422,
+                            detail=f"Tipo invalido. Usar: {TIPOS_MANTENIMIENTO}")
+
+    fecha = body.fecha or date.today()
+    if fecha > date.today():
+        raise HTTPException(status_code=422,
+                            detail="La fecha del mantenimiento no puede ser futura")
+
+    # Frecuencia: override opcional del body, si no la del equipo, si no 6 meses
+    if body.frecuencia_meses is not None:
+        if body.frecuencia_meses <= 0:
+            raise HTTPException(status_code=422, detail="frecuencia_meses debe ser > 0")
+        e.frecuencia_meses = body.frecuencia_meses
+    frecuencia = e.frecuencia_meses or 6
+
+    # Snapshot del plan en el equipo
+    e.ultimo_mantenimiento  = fecha
+    e.proximo_mantenimiento = _sumar_meses(fecha, frecuencia)
+    if e.estado == "mantenimiento":
+        e.estado = "operativo"
+    e.updated_at = datetime.utcnow()
+
+    # Quien lo realizo: texto libre o el usuario autenticado
+    realizado_por = (body.realizado_por or "").strip() or None
+    if not realizado_por:
+        u = db.query(Usuario).filter(Usuario.id == payload.get("id")).first()
+        if u:
+            realizado_por = f"{u.nombre} {u.apellido}".strip()
+
+    ev = EquipoIntervenidoMantenimiento(
+        id=str(uuid.uuid4()),
+        empresa_id=empresa_id,
+        equipo_intervenido_id=str(e.id),
+        fecha=fecha,
+        tipo=tipo,
+        descripcion=(body.descripcion or "").strip() or None,
+        realizado_por=realizado_por,
+        proximo_calculado=e.proximo_mantenimiento,
+        registrado_por_id=payload.get("id"),
+    )
+    db.add(ev)
+    db.commit()
+    db.refresh(e)
     return _to_out(e, db)
 
 

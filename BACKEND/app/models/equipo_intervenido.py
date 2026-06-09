@@ -43,3 +43,28 @@ class EquipoIntervenido(Base):
     frecuencia_meses      = Column(Integer,      nullable=True, default=6)
     created_at           = Column(DateTime,      nullable=False, default=datetime.utcnow)
     updated_at           = Column(DateTime,      nullable=True)
+
+
+class EquipoIntervenidoMantenimiento(Base):
+    """Historial de mantenimientos realizados sobre un equipo intervenido.
+
+    Una fila por mantenimiento ejecutado. Al registrar uno se actualiza el
+    snapshot del equipo (ultimo_mantenimiento / proximo_mantenimiento).
+    NOTA: la tabla se crea con SQL crudo en _run_migrations de main.py
+    (PK/FK uuid en produccion); NO confiar en create_all.
+    """
+
+    __tablename__ = "equipo_intervenido_mantenimiento"
+
+    id                    = Column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
+    empresa_id            = Column(UUID(as_uuid=False), ForeignKey("empresa.id"), nullable=False)
+    equipo_intervenido_id = Column(UUID(as_uuid=False),
+                                   ForeignKey("equipo_intervenido.id", ondelete="CASCADE"),
+                                   nullable=False)
+    fecha                 = Column(Date,        nullable=False, default=date.today)
+    tipo                  = Column(String(20),  nullable=False, default="preventivo")  # preventivo|correctivo|inspeccion|otro
+    descripcion           = Column(Text,        nullable=True)
+    realizado_por         = Column(String(200), nullable=True)
+    proximo_calculado     = Column(Date,        nullable=True)   # proximo mantenimiento que quedo programado
+    registrado_por_id     = Column(UUID(as_uuid=False), nullable=True)
+    created_at            = Column(DateTime,    nullable=False, default=datetime.utcnow)

@@ -65,3 +65,28 @@ class EquipoIntervenidoOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── Historial de mantenimientos del equipo intervenido ───────────────────────
+
+class MantenimientoEquipoIn(BaseModel):
+    """Registro de un mantenimiento ejecutado sobre el equipo."""
+    fecha:            Optional[date] = None     # default: hoy
+    tipo:             Optional[str]  = "preventivo"   # preventivo|correctivo|inspeccion|otro
+    descripcion:      Optional[str]  = None
+    realizado_por:    Optional[str]  = None     # default: usuario autenticado
+    frecuencia_meses: Optional[int]  = None     # override de la frecuencia del equipo
+
+
+class MantenimientoEquipoOut(BaseModel):
+    id:                    str
+    equipo_intervenido_id: str
+    fecha:                 date
+    tipo:                  str
+    descripcion:           Optional[str] = None
+    realizado_por:         Optional[str] = None
+    proximo_calculado:     Optional[date] = None
+    created_at:            datetime
+
+    class Config:
+        from_attributes = True
