@@ -51,6 +51,33 @@ class VacacionesService {
     }
   }
 
+  /// Saldo de vacaciones del empleado del token (autoservicio).
+  Future<ApiResult<SaldoVacaciones>> miSaldo() async {
+    try {
+      final r = await _client.get('/vacaciones/mi-saldo');
+      if (r.statusCode == 200) {
+        return ApiResult.ok(SaldoVacaciones.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Solicitudes propias del empleado del token (autoservicio).
+  Future<ApiResult<List<SolicitudVacaciones>>> misSolicitudes() async {
+    try {
+      final r = await _client.get('/vacaciones/mis-solicitudes');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return ApiResult.ok(list.map((e) => SolicitudVacaciones.fromJson(e as Map<String, dynamic>)).toList());
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<SolicitudVacaciones>>> listarSolicitudes({String? empleadoId, String? estado}) async {
     try {
       final params = <String>[];

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/personal_models.dart';
 import '../models/vacaciones_models.dart';
 import '../services/vacaciones_service.dart';
 import '../utils/api_provider.dart';
@@ -128,91 +127,6 @@ class _PantallaVacacionesState extends State<PantallaVacaciones> {
     }
   }
 
-  // ── Nueva solicitud ──────────────────────────────────────────────────────
-  Future<void> _nuevaSolicitud() async {
-    final esAdmin = AppSession.i.canAprobarVacaciones;
-    List<Empleado> empleados = [];
-    Empleado? sel;
-    if (esAdmin) {
-      final ps = await getPersonalService();
-      final r = await ps.listar();
-      if (r.ok) empleados = r.data ?? [];
-      sel = empleados.isNotEmpty ? empleados.first : null;
-    }
-    DateTime? ini;
-    DateTime? fin;
-    final motivo = TextEditingController();
-    if (!mounted) return;
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) {
-          String fmt(DateTime? d) => d == null
-              ? 'Seleccionar'
-              : '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-          Future<void> pick(bool inicio) async {
-            final now = DateTime.now();
-            final d = await showDatePicker(
-              context: ctx, initialDate: now,
-              firstDate: DateTime(now.year - 1), lastDate: DateTime(now.year + 2));
-            if (d != null) setLocal(() => inicio ? ini = d : fin = d);
-          }
-          return AlertDialog(
-            title: const Text('Solicitar vacaciones'),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              if (esAdmin)
-                DropdownButtonFormField<Empleado>(
-                  initialValue: sel,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Empleado'),
-                  items: empleados
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e.nombre ?? e.id, overflow: TextOverflow.ellipsis)))
-                      .toList(),
-                  onChanged: (v) => setLocal(() => sel = v),
-                ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Desde'),
-                trailing: Text(fmt(ini)),
-                onTap: () => pick(true),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Hasta'),
-                trailing: Text(fmt(fin)),
-                onTap: () => pick(false),
-              ),
-              TextField(controller: motivo, decoration: const InputDecoration(labelText: 'Motivo (opcional)')),
-            ]),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-              FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Solicitar')),
-            ],
-          );
-        },
-      ),
-    );
-    if (ok != true) return;
-    if (ini == null || fin == null) {
-      _snack('Selecciona las fechas', error: true);
-      return;
-    }
-    String iso(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-    final res = await _svc!.crearSolicitud(
-      empleadoId: esAdmin ? sel?.id : null,
-      fechaInicio: iso(ini!),
-      fechaFin: iso(fin!),
-      motivo: motivo.text.trim().isEmpty ? null : motivo.text.trim(),
-    );
-    if (!mounted) return;
-    if (res.ok) {
-      _snack('Solicitud creada');
-      _cargar();
-    } else {
-      _snack(res.errorMessage, error: true);
-    }
-  }
 
   Future<void> _resolver(SolicitudVacaciones s, bool aprobar) async {
     final res = await _svc!.resolver(s.id, aprobar: aprobar);
@@ -234,10 +148,6 @@ class _PantallaVacacionesState extends State<PantallaVacaciones> {
             IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh)),
           ],
         ),
-        floatingActionButton: AppSession.i.canSolicitarVacaciones
-            ? FloatingActionButton.extended(
-                onPressed: _nuevaSolicitud, icon: const Icon(Icons.add), label: const Text('Solicitar'))
-            : null,
         body: _cargando
             ? const Center(child: CircularProgressIndicator())
             : _error != null

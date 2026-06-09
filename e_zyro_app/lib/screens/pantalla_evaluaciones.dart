@@ -116,7 +116,9 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
 
 // ─── Crear evaluación ─────────────────────────────────────────────────────────
 class CrearEvaluacionScreen extends StatefulWidget {
-  const CrearEvaluacionScreen({super.key});
+  /// Si se indica, la evaluación se crea para este empleado (preseleccionado).
+  final Empleado? empleadoPre;
+  const CrearEvaluacionScreen({super.key, this.empleadoPre});
 
   @override
   State<CrearEvaluacionScreen> createState() => _CrearEvaluacionScreenState();
@@ -159,7 +161,13 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
           _puntajes[c.id] = 7;
         }
       }
-      _sel = _empleados.isNotEmpty ? _empleados.first : null;
+      final pre = widget.empleadoPre;
+      if (pre != null) {
+        _sel = _empleados.where((e) => e.id == pre.id).firstOrNull ?? pre;
+        if (_empleados.where((e) => e.id == pre.id).isEmpty) _empleados = [pre, ..._empleados];
+      } else {
+        _sel = _empleados.isNotEmpty ? _empleados.first : null;
+      }
       if (!emp.ok) _error = emp.errorMessage;
     });
   }

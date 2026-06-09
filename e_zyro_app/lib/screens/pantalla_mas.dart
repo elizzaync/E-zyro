@@ -14,6 +14,7 @@ import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
 import 'pantalla_personal.dart';
 import 'pantalla_personal_hub.dart';
+import 'pantalla_mi_espacio.dart';
 import 'pantalla_galeria.dart';
 import 'pantalla_epp.dart';
 import 'pantalla_calibraciones.dart';
@@ -363,6 +364,14 @@ class _MoreScreenState extends State<MoreScreen> {
                             builder: (_) => const PantallaMantenimientos()),
                       ),
                     ),
+                  _MenuItem(
+                    icon: Icons.account_circle_outlined,
+                    label: 'Mi espacio',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PantallaMiEspacio()),
+                    ),
+                  ),
                   if (_puedeVerPersonal)
                     _MenuItem(
                       icon: Icons.badge_outlined,

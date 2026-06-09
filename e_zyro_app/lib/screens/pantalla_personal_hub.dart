@@ -408,7 +408,7 @@ class _EvaluacionesTabState extends State<_EvaluacionesTab> with AutomaticKeepAl
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final creada = await Navigator.push<bool>(
-                    context, MaterialPageRoute(builder: (_) => const CrearEvaluacionScreen()));
+                    context, MaterialPageRoute(builder: (_) => CrearEvaluacionScreen(empleadoPre: widget.empleado)));
                 if (creada == true) _cargar();
               },
               icon: const Icon(Icons.add),
@@ -522,58 +522,12 @@ class _VacacionesTabState extends State<_VacacionesTab> with AutomaticKeepAliveC
     r.ok ? _cargar() : _snack(r.errorMessage, error: true);
   }
 
-  Future<void> _solicitar() async {
-    DateTime? ini;
-    DateTime? fin;
-    final motivo = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
-        String fmt(DateTime? d) => d == null
-            ? 'Seleccionar'
-            : '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-        Future<void> pick(bool inicio) async {
-          final now = DateTime.now();
-          final d = await showDatePicker(
-              context: ctx, initialDate: now, firstDate: DateTime(now.year - 1), lastDate: DateTime(now.year + 2));
-          if (d != null) setLocal(() => inicio ? ini = d : fin = d);
-        }
-        return AlertDialog(
-          title: Text('Solicitar para ${widget.empleado.nombre ?? ''}'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            ListTile(contentPadding: EdgeInsets.zero, title: const Text('Desde'), trailing: Text(fmt(ini)), onTap: () => pick(true)),
-            ListTile(contentPadding: EdgeInsets.zero, title: const Text('Hasta'), trailing: Text(fmt(fin)), onTap: () => pick(false)),
-            TextField(controller: motivo, decoration: const InputDecoration(labelText: 'Motivo (opcional)')),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Solicitar')),
-          ],
-        );
-      }),
-    );
-    if (ok != true) return;
-    if (ini == null || fin == null) {
-      _snack('Selecciona las fechas', error: true);
-      return;
-    }
-    String iso(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-    final r = await _svc!.crearSolicitud(
-        empleadoId: widget.empleado.id, fechaInicio: iso(ini!), fechaFin: iso(fin!),
-        motivo: motivo.text.trim().isEmpty ? null : motivo.text.trim());
-    if (!mounted) return;
-    r.ok ? _cargar() : _snack(r.errorMessage, error: true);
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
     if (_cargando) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
     return Scaffold(
-      floatingActionButton: AppSession.i.canSolicitarVacaciones || AppSession.i.canAprobarVacaciones
-          ? FloatingActionButton.extended(onPressed: _solicitar, icon: const Icon(Icons.add), label: const Text('Solicitar'))
-          : null,
       body: RefreshIndicator(
         onRefresh: _cargar,
         child: ListView(

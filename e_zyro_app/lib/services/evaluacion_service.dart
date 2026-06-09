@@ -58,6 +58,20 @@ class EvaluacionService {
     }
   }
 
+  /// Evaluaciones asignadas al empleado del token (autoservicio, no borrador).
+  Future<ApiResult<List<Evaluacion>>> mias() async {
+    try {
+      final r = await _client.get('/evaluaciones/mias');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return ApiResult.ok(list.map((e) => Evaluacion.fromJson(e as Map<String, dynamic>)).toList());
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<Evaluacion>> detalle(String id) async {
     try {
       final r = await _client.get('/evaluaciones/$id');
