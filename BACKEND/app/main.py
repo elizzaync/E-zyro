@@ -375,6 +375,57 @@ def _pre_create_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_calibracion_empresa_eq ON calibracion (empresa_id, equipo_id, fecha_proxima)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_equipo_estado_mov_eq ON equipo_estado_mov (empresa_id, equipo_id)"))
 
+        # ── Historial de calibraciones por equipo (Punto 2). FK uuid → aquí ──
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS calibracion_evento (
+                id                  uuid PRIMARY KEY,
+                empresa_id          uuid NOT NULL REFERENCES empresa(id),
+                equipo_id           uuid NOT NULL REFERENCES equipo(id),
+                fecha_realizada     DATE NOT NULL,
+                periodicidad_meses  INTEGER,
+                fecha_proxima       DATE,
+                realizada_por       VARCHAR(200),
+                empresa_responsable VARCHAR(200),
+                numero_certificado  VARCHAR(120),
+                resultado           VARCHAR(20),
+                certificado_url     TEXT,
+                observacion         VARCHAR(500),
+                registrado_por_id   uuid,
+                created_at          TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_calibracion_evento_eq ON calibracion_evento (empresa_id, equipo_id, fecha_realizada)"))
+
+        # ── RR.HH. · Vacaciones por ley (Punto 3.3). FKs uuid → aquí ─────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS config_vacaciones (
+                id               uuid PRIMARY KEY,
+                empresa_id       uuid NOT NULL UNIQUE REFERENCES empresa(id),
+                regimen          VARCHAR(40) NOT NULL DEFAULT 'general',
+                dias_por_anio    INTEGER NOT NULL DEFAULT 30,
+                tope_acumulacion INTEGER NOT NULL DEFAULT 30,
+                created_at       TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at       TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS solicitud_vacaciones (
+                id                uuid PRIMARY KEY,
+                empresa_id        uuid NOT NULL REFERENCES empresa(id),
+                empleado_id       uuid NOT NULL REFERENCES empleado(id),
+                fecha_inicio      DATE NOT NULL,
+                fecha_fin         DATE NOT NULL,
+                dias              INTEGER NOT NULL,
+                estado            VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                motivo            VARCHAR(500),
+                solicitado_por_id uuid,
+                resuelto_por_id   uuid,
+                fecha_resolucion  TIMESTAMP,
+                created_at        TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_solicitud_vacaciones_emp ON solicitud_vacaciones (empresa_id, empleado_id, estado)"))
+
         # ── Correctivos + observaciones (Fase 4). FK uuid a proyecto_servicio ─
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS servicio_correctivo (
