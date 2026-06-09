@@ -17,6 +17,10 @@ import '../services/prestamo_service.dart';
 import '../services/galeria_service.dart';
 import '../services/epp_service.dart';
 import '../services/calibracion_service.dart';
+import '../services/personal_service.dart';
+import '../services/evaluacion_service.dart';
+import '../services/vacaciones_service.dart';
+import '../services/indicadores_service.dart';
 import '../services/correctivo_service.dart';
 import '../services/itse_service.dart';
 import '../services/informe_servicio_service.dart';
@@ -116,6 +120,26 @@ Future<EppService> getEppService() async {
 Future<CalibracionService> getCalibracionService() async {
   final prefs = await SharedPreferences.getInstance();
   return CalibracionService(ApiClient(prefs));
+}
+
+Future<PersonalService> getPersonalService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return PersonalService(ApiClient(prefs));
+}
+
+Future<EvaluacionService> getEvaluacionService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return EvaluacionService(ApiClient(prefs));
+}
+
+Future<VacacionesService> getVacacionesService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return VacacionesService(ApiClient(prefs));
+}
+
+Future<IndicadoresService> getIndicadoresService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return IndicadoresService(ApiClient(prefs));
 }
 
 Future<CorrectivoService> getCorrectivoService() async {

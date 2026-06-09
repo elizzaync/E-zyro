@@ -124,8 +124,24 @@ class AppSession {
   bool get canFinalizarItse   => hasPerm('itse:finalizar');
   bool get canEliminarItse    => hasPerm('itse:eliminar');
   // Calibración
-  bool get canCrearCalibracion  => hasPerm('calibracion:crear');
-  bool get canEditarCalibracion => hasPerm('calibracion:editar');
+  bool get canCrearCalibracion    => hasPerm('calibracion:crear');
+  bool get canEditarCalibracion   => hasPerm('calibracion:editar');
+  bool get canEliminarCalibracion => hasPerm('calibracion:eliminar');
+  // Evaluación de desempeño (Punto 3.2)
+  bool get canVerEvaluacion       => hasPerm('evaluacion:ver');
+  bool get canCrearEvaluacion     => hasPerm('evaluacion:crear');
+  bool get canEditarEvaluacion    => hasPerm('evaluacion:editar');
+  bool get canEnviarEvaluacion    => hasPerm('evaluacion:enviar');
+  bool get canCompletarEvaluacion => hasPerm('evaluacion:completar');
+  bool get canEliminarEvaluacion  => hasPerm('evaluacion:eliminar');
+  // Indicadores de desempeño (Punto 3.4) — alineado con el gate dashboard:ver del backend
+  bool get canVerIndicadores       => isAdmin || hasPerm('dashboard:ver');
+  // Vacaciones por ley (Punto 3.3)
+  bool get canVerVacaciones        => hasPerm('vacaciones:ver');
+  bool get canConfigurarVacaciones => hasPerm('vacaciones:configurar');
+  bool get canSolicitarVacaciones  => hasPerm('vacaciones:solicitar');
+  bool get canAprobarVacaciones    => hasPerm('vacaciones:aprobar');
+  bool get canRechazarVacaciones   => hasPerm('vacaciones:rechazar');
   // Correctivo
   bool get canCrearCorrectivo     => hasPerm('correctivo:crear');
   bool get canAprobarCorrectivo   => hasPerm('correctivo:aprobar');

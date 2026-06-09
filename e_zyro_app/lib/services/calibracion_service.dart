@@ -45,6 +45,86 @@ class CalibracionService {
     }
   }
 
+  // ── Historial de calibraciones (eventos) ──────────────────────────────────
+
+  /// Lista el historial de calibraciones de un equipo (más reciente primero).
+  Future<ApiResult<List<CalibracionEvento>>> listarEventos(String equipoId) async {
+    try {
+      final r = await _client.get('/calibraciones/eventos?equipo_id=$equipoId');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return ApiResult.ok(list.map((e) => CalibracionEvento.fromJson(e as Map<String, dynamic>)).toList());
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Registra una calibración realizada. Si se envía [periodicidadMeses] el
+  /// backend calcula la próxima fecha y actualiza el snapshot del equipo.
+  Future<ApiResult<CalibracionEvento>> crearEvento({
+    required String equipoId,
+    required String fechaRealizada,
+    int? periodicidadMeses,
+    String? fechaProxima,
+    String? realizadaPor,
+    String? empresaResponsable,
+    String? numeroCertificado,
+    String? resultado,
+    String? observacion,
+  }) async {
+    try {
+      final r = await _client.post('/calibraciones/eventos', {
+        'equipo_id': equipoId,
+        'fecha_realizada': fechaRealizada,
+        'periodicidad_meses': ?periodicidadMeses,
+        'fecha_proxima': ?fechaProxima,
+        'realizada_por': ?realizadaPor,
+        'empresa_responsable': ?empresaResponsable,
+        'numero_certificado': ?numeroCertificado,
+        'resultado': ?resultado,
+        'observacion': ?observacion,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(CalibracionEvento.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Adjunta el certificado (PDF o imagen) a un evento. [extension] = pdf|jpg|png…
+  Future<ApiResult<String>> subirCertificadoEvento(
+      String eventoId, String archivoBase64, {String extension = 'pdf'}) async {
+    try {
+      final r = await _client.post('/calibraciones/eventos/$eventoId/certificado',
+          {'archivo_base64': archivoBase64, 'extension': extension},
+          timeout: const Duration(seconds: 60));
+      if (r.statusCode == 200) {
+        final url = (jsonDecode(r.body) as Map)['certificado_url']?.toString() ?? '';
+        return ApiResult.ok(url);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Elimina un evento del historial (recalcula el snapshot del equipo).
+  Future<ApiResult<void>> eliminarEvento(String eventoId) async {
+    try {
+      final r = await _client.delete('/calibraciones/eventos/$eventoId');
+      if (r.statusCode == 204 || r.statusCode == 200) {
+        return const ApiResult.ok(null);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   /// Sube el certificado (imagen base64) de una calibración; devuelve la URL.
   Future<ApiResult<String>> subirCertificado(String calId, String archivoBase64) async {
     try {

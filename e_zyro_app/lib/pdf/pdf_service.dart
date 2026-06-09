@@ -4,11 +4,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/proyecto_models.dart';
 import '../models/asistencia_models.dart';
 import '../models/requerimiento_models.dart';
+import '../models/calibracion_models.dart';
+import '../models/personal_models.dart';
 import 'builders/permiso_builder.dart';
 import 'builders/informe_servicio_builder.dart';
 import 'builders/asistencia_builder.dart';
 import 'builders/salidas_builder.dart';
 import 'builders/gantt_builder.dart';
+import 'builders/calibracion_builder.dart';
+import 'builders/historial_personal_builder.dart';
 
 /// ╔══════════════════════════════════════════════════════════════════════════╗
 /// ║  PdfService — FACHADA ÚNICA de creación de PDFs de la app.                 ║
@@ -30,6 +34,8 @@ import 'builders/gantt_builder.dart';
 /// ║   - preInformeServicio()   Pre-informe (mismo formato, antes de cerrar)    ║
 /// ║   - salidasLogistica()     [P3] Reporte de salidas de equipos              ║
 /// ║   - asistenciaUsuario()    [P3] Reporte de asistencia por usuario          ║
+/// ║   - historialPersonal()    Ficha/historial laboral de un empleado          ║
+/// ║   - historialCalibracion() Historial de calibraciones de un equipo         ║
 /// ║   - gantt()                [P3] Cronograma Gantt del proyecto              ║
 /// ╚══════════════════════════════════════════════════════════════════════════╝
 class PdfService {
@@ -75,6 +81,18 @@ class PdfService {
     final nombre = usuario ?? await _nombreUsuario();
     return AsistenciaBuilder.build(usuario: nombre, registros: registros);
   }
+
+  /// Ficha/historial consolidado de un empleado (datos, contratos, asistencia,
+  /// solicitudes, EPP y evaluaciones).
+  static Future<Uint8List> historialPersonal(HistorialPersonal historial) =>
+      HistorialPersonalBuilder.build(h: historial);
+
+  // ── Equipos / Calibraciones ──────────────────────────────────────────────
+
+  /// Historial de calibraciones de un equipo (una fila por calibración).
+  static Future<Uint8List> historialCalibracion(
+          String equipoNombre, List<CalibracionEvento> eventos) =>
+      CalibracionBuilder.build(equipoNombre: equipoNombre, eventos: eventos);
 
   // ── Proyectos ──────────────────────────────────────────────────────────────
 
