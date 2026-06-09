@@ -120,6 +120,8 @@ from app.models import (  # noqa: F401
     activo_cliente,
     # Historial de inspecciones por activo intervenido
     historial_inspeccion,
+    # Historial de mantenimientos por servicio (portal cliente)
+    historial_mantenimiento,
     # Tickets de soporte interno (equipo de TI)
     ticket_soporte, ticket_actividad,
     # Documentos generados: Carta de Garantía
@@ -683,6 +685,55 @@ def _pre_create_migrations():
         # modelos (String(36)→VARCHAR) Postgres rechazaría los FK por tipo.
         from app.db.finanzas_schema import crear_tablas_finanzas
         crear_tablas_finanzas(conn)
+
+        # ── Portal Cliente HU-22: pivot historial de mantenimientos ──────────
+        # Una fila por (equipo_intervenido, proyecto_servicio). Preserva el
+        # contexto proyecto/personal/herramientas aunque el equipo sea re-asignado
+        # a un nuevo servicio (evita la sobrescritura de proyecto_servicio_id).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS historial_mantenimiento (
+                id                uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+                empresa_id        uuid NOT NULL REFERENCES empresa(id),
+                equipo_id         uuid NOT NULL REFERENCES equipo_intervenido(id) ON DELETE CASCADE,
+                servicio_id       uuid NOT NULL REFERENCES proyecto_servicio(id)  ON DELETE CASCADE,
+                estado            VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                fecha_asignacion  TIMESTAMP   NOT NULL DEFAULT now(),
+                fecha_ejecucion   TIMESTAMP,
+                observaciones     TEXT,
+                created_at        TIMESTAMP   NOT NULL DEFAULT now(),
+                CONSTRAINT uq_historial_mant_equipo_servicio UNIQUE (equipo_id, servicio_id)
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_historial_mant_empresa "
+            "ON historial_mantenimiento (empresa_id)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_historial_mant_equipo "
+            "ON historial_mantenimiento (equipo_id)"
+        ))
+        # Backfill idempotente: un registro por cada vínculo existente.
+        # El EXISTS filtra huérfanos (servicio eliminado sin CASCADE) que
+        # causarían FK violation en el INSERT.
+        conn.execute(text("""
+            INSERT INTO historial_mantenimiento
+                (id, empresa_id, equipo_id, servicio_id, estado, fecha_asignacion, created_at)
+            SELECT
+                uuid_generate_v4(),
+                ei.empresa_id,
+                ei.id,
+                ei.proyecto_servicio_id,
+                COALESCE(ei.estado_intervencion, 'pendiente'),
+                COALESCE(ei.updated_at, ei.created_at, now()),
+                now()
+            FROM equipo_intervenido ei
+            WHERE ei.proyecto_servicio_id IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM proyecto_servicio ps
+                WHERE ps.id = ei.proyecto_servicio_id
+              )
+            ON CONFLICT (equipo_id, servicio_id) DO NOTHING
+        """))
 
         conn.commit()
 

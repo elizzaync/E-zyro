@@ -1,7 +1,7 @@
 """
 Portal Cliente — endpoints de solo lectura para empresas externas (HU-22).
 Aislamiento de datos: todos los queries filtran por empresa_id Y cliente_id
-del token JWT, que se inyecta en el login si el rol es ClienteExterno.
+leídos EN VIVO desde la BD (no del JWT) para resistir JWTs obsoletos.
 """
 from __future__ import annotations
 
@@ -20,13 +20,43 @@ router = APIRouter(prefix="/portal-cliente", tags=["Portal Cliente"])
 
 # ── Dependencia de seguridad ──────────────────────────────────────────────────
 
-def _requires_client(payload: dict = Depends(verificar_token)) -> dict:
-    """Bloquea todo acceso que no provenga de un usuario ClienteExterno."""
+def _requires_client(
+    payload: dict  = Depends(verificar_token),
+    db:     Session = Depends(get_db),
+) -> dict:
+    """
+    Valida que el token pertenezca a un ClienteExterno activo y re-lee
+    empresa_id / cliente_id desde la BD para neutralizar JWTs obsoletos
+    (p.ej. generados antes de que el seed migrara al usuario de empresa).
+    """
     rol = (payload.get("rol") or "").lower().replace(" ", "")
     if rol != "clienteexterno":
         raise HTTPException(status_code=403, detail="Acceso exclusivo del portal cliente.")
-    if not payload.get("cliente_id"):
-        raise HTTPException(status_code=403, detail="Token sin cliente_id — contacte soporte.")
+
+    usuario_id = payload.get("id")
+    if not usuario_id:
+        raise HTTPException(status_code=403, detail="Token malformado — sin usuario_id.")
+
+    row = db.execute(text("""
+        SELECT u.empresa_id::text AS empresa_id,
+               pa.cliente_id::text AS cliente_id
+        FROM   usuario       u
+        JOIN   portal_acceso pa ON pa.usuario_id = u.id
+        WHERE  u.id::text = :uid
+          AND  u.activo   = true
+    """), {"uid": str(usuario_id)}).fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=403,
+            detail="Acceso denegado: usuario inactivo o sin portal_acceso configurado.",
+        )
+
+    # Sobrescribir los claims del JWT con los valores ACTUALES de la BD
+    payload["empresa_id"] = row[0]
+    payload["cliente_id"] = row[1]
+
+    print(f"[portal] uid={usuario_id} empresa_id={row[0]} cliente_id={row[1]}")
     return payload
 
 
@@ -281,42 +311,68 @@ def portal_documentos(
 
 # ── 5. KPIs de equipos intervenidos ──────────────────────────────────────────
 
+# Estado efectivo: si el equipo sigue ligado a este servicio, usa el valor
+# en vivo de equipo_intervenido; si fue re-asignado, usa el estado congelado
+# en historial_mantenimiento.
+_ESTADO_EFECTIVO = """
+    CASE
+        WHEN ei.proyecto_servicio_id = hm.servicio_id
+        THEN COALESCE(ei.estado_intervencion, hm.estado)
+        ELSE hm.estado
+    END
+"""
+
+_HM_BASE_FROM = """
+    FROM historial_mantenimiento hm
+    JOIN equipo_intervenido ei ON ei.id = hm.equipo_id
+    LEFT JOIN proyecto_servicio ps ON ps.id = hm.servicio_id
+    LEFT JOIN proyecto          p  ON p.id  = ps.proyecto_id
+    WHERE hm.empresa_id::text = :eid
+      AND (
+        ei.cliente_id::text = :cid
+        OR (p.id IS NOT NULL AND p.cliente_id::text = :cid)
+      )
+"""
+
+
 @router.get("/dashboard/kpis")
 def portal_kpis(
     payload: dict = Depends(_requires_client),
     db: Session   = Depends(get_db),
 ) -> dict[str, Any]:
     empresa_id, cliente_id = _ctx(payload)
+    print(f"[portal_kpis] empresa_id={empresa_id} cliente_id={cliente_id}")
 
-    total = db.execute(text("""
-        SELECT COUNT(*) FROM equipo_intervenido ei
-        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
-        WHERE ei.empresa_id = :eid AND ei.activo = true
-          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
-    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+    params = {"eid": empresa_id, "cid": cliente_id}
 
-    completados = db.execute(text("""
-        SELECT COUNT(*) FROM equipo_intervenido ei
-        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
-        WHERE ei.empresa_id = :eid AND ei.estado_intervencion = 'completado'
-          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
-    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+    total = db.execute(text(f"""
+        SELECT COUNT(DISTINCT hm.equipo_id)
+        {_HM_BASE_FROM}
+    """), params).scalar() or 0
 
-    en_proceso = db.execute(text("""
-        SELECT COUNT(*) FROM equipo_intervenido ei
-        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
-        WHERE ei.empresa_id = :eid AND ei.estado_intervencion = 'en_proceso'
-          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
-    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+    completados = db.execute(text(f"""
+        SELECT COUNT(*)
+        {_HM_BASE_FROM}
+          AND ({_ESTADO_EFECTIVO}) = 'completado'
+    """), params).scalar() or 0
+
+    en_proceso = db.execute(text(f"""
+        SELECT COUNT(*)
+        {_HM_BASE_FROM}
+          AND ({_ESTADO_EFECTIVO}) = 'en_proceso'
+    """), params).scalar() or 0
 
     proximos = db.execute(text("""
         SELECT COUNT(*) FROM equipo_intervenido ei
         LEFT JOIN proyecto p ON p.id = ei.proyecto_id
-        WHERE ei.empresa_id = :eid AND ei.activo = true
-          AND (ei.cliente_id = :cid OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid))
+        WHERE ei.empresa_id::text = :eid AND ei.activo = true
+          AND (
+            ei.cliente_id::text = :cid
+            OR (ei.proyecto_id IS NOT NULL AND p.cliente_id::text = :cid)
+          )
           AND ei.proximo_mantenimiento BETWEEN CURRENT_DATE
                                            AND CURRENT_DATE + INTERVAL '30 days'
-    """), {"eid": empresa_id, "cid": cliente_id}).scalar() or 0
+    """), params).scalar() or 0
 
     return {
         "total_equipos":              int(total),
@@ -326,7 +382,10 @@ def portal_kpis(
     }
 
 
-# ── 6. Historial de equipos intervenidos (tabla detallada) ───────────────────
+# ── 6. Historial de mantenimientos (tabla detallada) ─────────────────────────
+# Cada fila = un evento (equipo × servicio). La clave `id` es
+# historial_mantenimiento.id, no equipo_intervenido.id, para que
+# el Portal pueda acceder al contexto histórico exacto vía /mantenimiento/{id}.
 
 @router.get("/equipos/historial")
 def portal_equipos_historial(
@@ -335,34 +394,24 @@ def portal_equipos_historial(
 ) -> list[dict[str, Any]]:
     empresa_id, cliente_id = _ctx(payload)
 
-    # Doble filtro de aislamiento: por cliente_id directo en el equipo
-    # O por el cliente_id del proyecto al que está vinculado (cubre registros
-    # creados antes de que se asignara cliente_id al equipo_intervenido).
-    rows = db.execute(text("""
+    rows = db.execute(text(f"""
         SELECT
-            ei.id,
+            hm.id,
             ei.nombre,
             ei.codigo,
             ei.marca,
             ei.modelo,
             ei.ubicacion_referencia,
             ei.estado,
-            ei.estado_intervencion,
+            {_ESTADO_EFECTIVO}  AS estado_intervencion,
             ei.ultimo_mantenimiento,
             ei.proximo_mantenimiento,
             ei.frecuencia_meses,
             p.nombre_proyecto,
-            ps.nombre  AS servicio_nombre,
-            ps.estado  AS servicio_estado
-        FROM equipo_intervenido ei
-        LEFT JOIN proyecto          p  ON p.id  = ei.proyecto_id
-        LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
-        WHERE ei.empresa_id = :eid
-          AND (
-            ei.cliente_id = :cid
-            OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid)
-          )
-        ORDER BY ei.created_at DESC
+            ps.nombre           AS servicio_nombre,
+            ps.estado           AS servicio_estado
+        {_HM_BASE_FROM}
+        ORDER BY hm.created_at DESC
     """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
 
     return [
@@ -386,33 +435,64 @@ def portal_equipos_historial(
     ]
 
 
-# ── 7. Detalle completo de un equipo intervenido ─────────────────────────────
+# ── 7. Detalle de un evento de mantenimiento ─────────────────────────────────
+# El parámetro :hm_id es historial_mantenimiento.id (NO equipo_intervenido.id).
+# El contexto del servicio (personal, herramientas, etc.) proviene del servicio
+# registrado en historial_mantenimiento.servicio_id, no del servicio actual del
+# equipo (que puede haber cambiado). Esto preserva el historial correcto.
 
-@router.get("/mantenimiento/{ei_id}/detalles")
+@router.get("/mantenimiento/{hm_id}/detalles")
 def portal_mantenimiento_detalles(
-    ei_id:   str,
+    hm_id:   str,
     payload: dict = Depends(_requires_client),
     db: Session   = Depends(get_db),
 ) -> dict[str, Any]:
     empresa_id, cliente_id = _ctx(payload)
 
-    # ── Equipo + Servicio + Proyecto (árbol completo) ─────────────────────────
+    # ── Paso 1: resolver historial_mantenimiento -> equipo_id + servicio_id ──
+    hm_row = db.execute(text("""
+        SELECT
+            hm.equipo_id::text   AS equipo_id,
+            hm.servicio_id::text AS servicio_id,
+            hm.estado            AS hm_estado
+        FROM historial_mantenimiento hm
+        JOIN equipo_intervenido ei ON ei.id = hm.equipo_id
+        LEFT JOIN proyecto_servicio ps ON ps.id = hm.servicio_id
+        LEFT JOIN proyecto          p  ON p.id  = ps.proyecto_id
+        WHERE hm.id::text = :hmid AND hm.empresa_id::text = :eid
+          AND (
+            ei.cliente_id::text = :cid
+            OR (p.id IS NOT NULL AND p.cliente_id::text = :cid)
+          )
+    """), {"hmid": hm_id, "eid": empresa_id, "cid": cliente_id}).fetchone()
+
+    if not hm_row:
+        raise HTTPException(status_code=404, detail="Registro no encontrado.")
+
+    ei_id_str  = hm_row[0]
+    ps_id_str  = hm_row[1]
+    hm_estado  = hm_row[2]
+
+    # ── Paso 2: equipo + servicio histórico + proyecto ────────────────────────
     row = db.execute(text("""
         SELECT
             ei.id,
-            ei.nombre            AS ei_nombre,
+            ei.nombre,
             ei.codigo,
             ei.marca,
             ei.modelo,
             ei.ubicacion_referencia,
             ei.estado,
-            ei.estado_intervencion,
+            CASE
+                WHEN ei.proyecto_servicio_id = ps.id
+                THEN COALESCE(ei.estado_intervencion, :hm_estado)
+                ELSE :hm_estado
+            END                      AS estado_intervencion,
             ei.ultimo_mantenimiento,
             ei.proximo_mantenimiento,
             ei.frecuencia_meses,
             ei.observaciones,
-            ei.proyecto_id,
-            ei.proyecto_servicio_id,
+            ps.proyecto_id,
             -- Proyecto
             p.nombre_proyecto,
             p.orden_trabajo,
@@ -429,14 +509,15 @@ def portal_mantenimiento_detalles(
             ps.lider_id,
             ps.responsable_id
         FROM equipo_intervenido ei
-        LEFT JOIN proyecto          p  ON p.id  = ei.proyecto_id
-        LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
-        WHERE ei.id = :eiid AND ei.empresa_id = :eid
-          AND (
-            ei.cliente_id = :cid
-            OR (ei.proyecto_id IS NOT NULL AND p.cliente_id = :cid)
-          )
-    """), {"eiid": ei_id, "eid": empresa_id, "cid": cliente_id}).fetchone()
+        LEFT JOIN proyecto_servicio ps ON ps.id::text = :psid
+        LEFT JOIN proyecto          p  ON p.id  = ps.proyecto_id
+        WHERE ei.id::text = :eiid AND ei.empresa_id::text = :eid
+    """), {
+        "eiid":     ei_id_str,
+        "psid":     ps_id_str,
+        "eid":      empresa_id,
+        "hm_estado": hm_estado,
+    }).fetchone()
 
     if not row:
         raise HTTPException(status_code=404, detail="Equipo no encontrado.")
@@ -445,11 +526,12 @@ def portal_mantenimiento_detalles(
         ei_id_db, nombre, codigo, marca, modelo,
         ubicacion, estado, estado_interv,
         ult_mant, prox_mant, frec, obs,
-        proyecto_id, ps_id,
-        nombre_proyecto, orden_trabajo, proj_inicio, proj_fin_est,
+        proyecto_id, nombre_proyecto, orden_trabajo, proj_inicio, proj_fin_est,
         serv_nombre, serv_estado, serv_fecha_prog, serv_inicio, serv_fin,
         zona_ejecucion, alcance, lider_id, responsable_id,
     ) = row
+
+    ps_id = ps_id_str
 
     # ── Personal técnico: líderes del servicio + miembros del proyecto ────────
     personal: list[dict] = []
@@ -594,6 +676,65 @@ def portal_mantenimiento_detalles(
                 "fecha":  g[1].isoformat() if g[1] else None,
             })
 
+    # ── Historial de ciclos de mantenimiento completados ─────────────────────
+    hist_rows = db.execute(text("""
+        SELECT
+            hi.id,
+            hi.fecha_inicio,
+            hi.fecha_fin,
+            hi.proxima_fecha_mantenimiento,
+            hi.observaciones,
+            ps2.nombre         AS serv_nombre,
+            ps2.estado         AS serv_estado,
+            ps2.fecha_inicio   AS serv_fi,
+            ps2.fecha_fin      AS serv_ff,
+            p2.nombre_proyecto,
+            p2.orden_trabajo
+        FROM historial_inspeccion hi
+        LEFT JOIN proyecto_servicio ps2 ON ps2.id = hi.proyecto_servicio_id
+        LEFT JOIN proyecto          p2  ON p2.id  = ps2.proyecto_id
+        WHERE hi.equipo_intervenido_id = :eiid
+          AND hi.empresa_id            = :eid
+          AND hi.estado                = 'completado'
+        ORDER BY hi.fecha_fin DESC NULLS LAST, hi.created_at DESC
+        LIMIT 20
+    """), {"eiid": str(ei_id_db), "eid": empresa_id}).fetchall()
+
+    historial: list[dict] = []
+    for h in hist_rows:
+        fi = h[7]   # serv fecha_inicio
+        ff = h[8]   # serv fecha_fin
+        duracion_dias = None
+        if fi and ff:
+            try:
+                d_fi = fi.date() if hasattr(fi, "date") else fi
+                d_ff = ff.date() if hasattr(ff, "date") else ff
+                duracion_dias = (d_ff - d_fi).days
+            except Exception:
+                pass
+        historial.append({
+            "id":             str(h[0]),
+            "fecha_inicio":   h[1].isoformat() if h[1] else None,
+            "fecha_fin":      h[2].isoformat() if h[2] else None,
+            "proxima_fecha":  h[3].isoformat() if h[3] else None,
+            "observaciones":  h[4] or None,
+            "servicio":       h[5] or "—",
+            "serv_estado":    h[6] or None,
+            "duracion_dias":  duracion_dias,
+            "proyecto":       h[9] or "—",
+            "orden_trabajo":  h[10] or None,
+        })
+
+    # ── Duración del servicio actual ─────────────────────────────────────────
+    duracion_actual = None
+    if serv_inicio and serv_fin:
+        try:
+            d_i = serv_inicio.date() if hasattr(serv_inicio, "date") else serv_inicio
+            d_f = serv_fin.date()    if hasattr(serv_fin,    "date") else serv_fin
+            duracion_actual = (d_f - d_i).days
+        except Exception:
+            pass
+
     return {
         "equipo": {
             "id":                    str(ei_id_db),
@@ -623,10 +764,12 @@ def portal_mantenimiento_detalles(
             "fecha_fin":        serv_fin.isoformat() if serv_fin else None,
             "zona_ejecucion":   zona_ejecucion,
             "alcance":          alcance,
+            "duracion_dias":    duracion_actual,
         },
         "personal":     personal,
         "herramientas": herramientas,
         "documentos":   documentos,
+        "historial":    historial,
     }
 
 

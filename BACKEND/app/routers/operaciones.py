@@ -53,6 +53,7 @@ from ..models.informe_tecnico import InformeTecnico
 from ..models.paso_mantenimiento import PasoMantenimiento
 from ..models.equipo_intervenido import EquipoIntervenido
 from ..models.historial_inspeccion import HistorialInspeccion
+from ..models.historial_mantenimiento import HistorialMantenimiento
 from ..models.ubicacion import Ubicacion
 from ..models.zona import Zona
 from ..models.catalogo_servicio import CatalogoServicio
@@ -2819,6 +2820,87 @@ def actualizar_proyecto(
     return {"ok": True}
 
 
+# ── Helper: vincular equipos de una ubicación/zona a su servicio ─────────────
+
+def _vincular_equipos_al_servicio(
+    db: Session,
+    ps: "ProyectoServicio",
+    empresa_id: str,
+    proyecto: "Proyecto",
+) -> int:
+    """Auto-vincula todos los equipos de la ubicación/zona del servicio a ese servicio.
+
+    Reglas:
+    - Solo actúa cuando tiene_equipos_intervenidos=True y ubicacion_id está definido.
+    - Filtra por zona exacta si hay zona_id; si no, por ubicacion completa.
+    - Resetea estado_intervencion='pendiente' excepto en equipos que ya están
+      'en_proceso' para ESTE mismo servicio (no interrumpe inspecciones activas).
+    - Propaga proyecto_id y cliente_id a todos los equipos vinculados.
+    """
+    if not getattr(ps, "tiene_equipos_intervenidos", False):
+        return 0
+    if not ps.ubicacion_id:
+        return 0
+
+    ps_id      = str(ps.id)
+    proy_id    = str(proyecto.id)
+    cliente_id = str(proyecto.cliente_id) if proyecto.cliente_id else None
+
+    filtros = [
+        EquipoIntervenido.empresa_id   == empresa_id,
+        EquipoIntervenido.activo       == True,
+        EquipoIntervenido.ubicacion_id == str(ps.ubicacion_id),
+    ]
+    if ps.zona_id:
+        filtros.append(EquipoIntervenido.zona_id == str(ps.zona_id))
+
+    equipos = db.query(EquipoIntervenido).filter(*filtros).all()
+
+    now   = datetime.utcnow()
+    count = 0
+    for ei in equipos:
+        old_ps_id = str(ei.proyecto_servicio_id) if ei.proyecto_servicio_id else None
+        already_active = (
+            ei.estado_intervencion == "en_proceso"
+            and old_ps_id == ps_id
+        )
+
+        # Congelar el registro histórico anterior si el equipo cambia de servicio
+        if old_ps_id and old_ps_id != ps_id:
+            old_hm = db.query(HistorialMantenimiento).filter(
+                HistorialMantenimiento.equipo_id   == str(ei.id),
+                HistorialMantenimiento.servicio_id == old_ps_id,
+            ).first()
+            if old_hm and old_hm.estado not in ("completado", "cancelado"):
+                old_hm.estado = ei.estado_intervencion or "pendiente"
+
+        ei.proyecto_servicio_id = ps_id
+        ei.proyecto_id          = proy_id
+        if cliente_id:
+            ei.cliente_id = cliente_id
+        if not already_active:
+            ei.estado_intervencion = "pendiente"
+        ei.updated_at = now
+
+        # Crear registro en historial_mantenimiento para este servicio
+        existing_hm = db.query(HistorialMantenimiento).filter(
+            HistorialMantenimiento.equipo_id   == str(ei.id),
+            HistorialMantenimiento.servicio_id == ps_id,
+        ).first()
+        if not existing_hm:
+            db.add(HistorialMantenimiento(
+                id          = str(_uuid.uuid4()),
+                empresa_id  = empresa_id,
+                equipo_id   = str(ei.id),
+                servicio_id = ps_id,
+                estado      = "pendiente",
+            ))
+
+        count += 1
+
+    return count
+
+
 # ── POST /operaciones/proyecto/{proyecto_id}/servicios ────────────────────────
 
 @router.post("/proyecto/{proyecto_id}/servicios", status_code=status.HTTP_201_CREATED)
@@ -2910,6 +2992,8 @@ def crear_servicio(
     db.flush()
     # Instanciar los procedimientos fijos desde la plantilla del tipo de trabajo.
     _instanciar_procedimientos(db, nuevo, empresa_id)
+    # Auto-vincular equipos de la ubicación/zona a este servicio.
+    _vincular_equipos_al_servicio(db, nuevo, empresa_id, proyecto)
     db.commit()
     return {"ok": True, "id": servicio_id}
 
@@ -2984,6 +3068,13 @@ def actualizar_servicio(
                 raise HTTPException(status_code=404, detail="Técnico líder no encontrado.")
         ps.responsable_id = responsable_id
 
+    # Detectar si cambian campos que afectan la vinculación de equipos
+    _relink_trigger = any([
+        body.tiene_equipos_intervenidos is not None,
+        body.ubicacion_id               is not None,
+        body.zona_id                    is not None,
+    ])
+
     if body.ubicacion_id is not None:
         ps.ubicacion_id = body.ubicacion_id or None
     if body.zona_id is not None:
@@ -2999,11 +3090,17 @@ def actualizar_servicio(
         ps.tipo_documento_cliente = tipo_doc
         ps.nro_documento = nro_doc
     elif body.nro_documento is not None:
-        # Cambió solo el nro: respetar el tipo actual
         _, nro_doc = _normalizar_documento(ps.tipo_documento_cliente, body.nro_documento)
         ps.nro_documento = nro_doc
 
     ps.updated_at = datetime.utcnow()
+
+    # Re-vincular equipos si cambió ubicacion, zona o flag de equipos intervenidos
+    if _relink_trigger:
+        _proyecto_upd = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+        if _proyecto_upd:
+            _vincular_equipos_al_servicio(db, ps, empresa_id, _proyecto_upd)
+
     db.commit()
     return {"ok": True}
 
@@ -3580,24 +3677,28 @@ def crear_equipo_catalogo(
             continue
     codigo = f"{pref}{maxn + 1:03d}"
 
+    proyecto_id_new = str(ps.proyecto_id) if ps and ps.proyecto_id else None
+
     nid = str(_uuid.uuid4())
     ei  = EquipoIntervenido(
-        id             = nid,
-        empresa_id     = empresa_id,
-        cliente_id     = cliente_id,
-        nombre         = nombre,
-        codigo         = codigo,
-        ubicacion_referencia = referencia,   # solo indicaciones fisicas
-        tipo_equipo_id = tipo_id or None,
-        ubicacion_id   = ubic_id or None,
-        zona_id        = zona_id or None,
-        marca          = marca,
-        modelo         = modelo,
-        numero_serie   = numero_serie,
+        id                   = nid,
+        empresa_id           = empresa_id,
+        cliente_id           = cliente_id,
+        proyecto_id          = proyecto_id_new,
+        proyecto_servicio_id = servicio_id,
+        nombre               = nombre,
+        codigo               = codigo,
+        ubicacion_referencia = referencia,
+        tipo_equipo_id       = tipo_id or None,
+        ubicacion_id         = ubic_id or None,
+        zona_id              = zona_id or None,
+        marca                = marca,
+        modelo               = modelo,
+        numero_serie         = numero_serie,
         proximo_mantenimiento = prox_mtto,
-        observaciones  = desc,
-        estado         = estado_in,
-        activo         = True,
+        observaciones        = desc,
+        estado               = estado_in,
+        activo               = True,
     )
     db.add(ei)
     db.commit()
@@ -3739,12 +3840,16 @@ def get_inspeccion_activa(
 
     plantilla = _get_plantilla_jsonb(tipo)
 
-    # ── Si el equipo ya está completado, devolver la última inspección sin
-    #    crear una nueva sesión (evita resetear estado_intervencion a "en_proceso")
-    if ei.estado_intervencion == "completado":
+    # ── Si el equipo está completado PARA ESTE servicio, devolver read-only ──
+    # Si fue completado bajo un servicio anterior, `_vincular_equipos_al_servicio`
+    # ya habrá reseteado estado_intervencion='pendiente', así que no llegamos aquí.
+    if ei.estado_intervencion == "completado" and str(ei.proyecto_servicio_id or "") == servicio_id:
         hi = (
             db.query(HistorialInspeccion)
-            .filter(HistorialInspeccion.equipo_intervenido_id == ei_id)
+            .filter(
+                HistorialInspeccion.equipo_intervenido_id == ei_id,
+                HistorialInspeccion.proyecto_servicio_id  == servicio_id,
+            )
             .order_by(HistorialInspeccion.created_at.desc())
             .first()
         )
@@ -3758,12 +3863,14 @@ def get_inspeccion_activa(
             "equipo":        _equipo_info_dict(db, ei, tipo),
         }
 
-    # Buscar sesión activa (en_proceso)
+    # Buscar sesión activa (en_proceso) para ESTE servicio — cada ciclo de
+    # mantenimiento tiene su propia sesión ligada al proyecto_servicio_id.
     hi = (
         db.query(HistorialInspeccion)
         .filter(
             HistorialInspeccion.equipo_intervenido_id == ei_id,
             HistorialInspeccion.estado                == "en_proceso",
+            HistorialInspeccion.proyecto_servicio_id  == servicio_id,
         )
         .order_by(HistorialInspeccion.created_at.desc())
         .first()
@@ -3780,8 +3887,18 @@ def get_inspeccion_activa(
             resultado             = _resultado_inicial(plantilla),
         )
         db.add(hi)
-        ei.estado_intervencion = "en_proceso"
-        ei.updated_at          = datetime.utcnow()
+        ei.estado_intervencion  = "en_proceso"
+        ei.proyecto_servicio_id = servicio_id
+        # Propagar proyecto_id y cliente_id desde el servicio si aún son NULL
+        _ps_link = db.query(ProyectoServicio).filter(ProyectoServicio.id == servicio_id).first()
+        if _ps_link and _ps_link.proyecto_id:
+            if not ei.proyecto_id:
+                ei.proyecto_id = str(_ps_link.proyecto_id)
+            if not ei.cliente_id:
+                _proy = db.query(Proyecto).filter(Proyecto.id == _ps_link.proyecto_id).first()
+                if _proy and _proy.cliente_id:
+                    ei.cliente_id = str(_proy.cliente_id)
+        ei.updated_at = datetime.utcnow()
         db.commit()
 
     # Mezclar resultado guardado con plantilla (para añadir nuevos procs si la plantilla creció)
@@ -4020,7 +4137,30 @@ def finalizar_inspeccion(
         ei.ultimo_mantenimiento = _date.today()
         if proxima_fecha:
             ei.proximo_mantenimiento = proxima_fecha
+        # Asegurar que el equipo queda vinculado al servicio donde se realizó la inspección
+        ei.proyecto_servicio_id = hi.proyecto_servicio_id
+        if hi.proyecto_servicio_id and (not ei.proyecto_id or not ei.cliente_id):
+            _ps_fin = db.query(ProyectoServicio).filter(
+                ProyectoServicio.id == hi.proyecto_servicio_id
+            ).first()
+            if _ps_fin and _ps_fin.proyecto_id:
+                if not ei.proyecto_id:
+                    ei.proyecto_id = str(_ps_fin.proyecto_id)
+                if not ei.cliente_id:
+                    _proy_fin = db.query(Proyecto).filter(Proyecto.id == _ps_fin.proyecto_id).first()
+                    if _proy_fin and _proy_fin.cliente_id:
+                        ei.cliente_id = str(_proy_fin.cliente_id)
         ei.updated_at = datetime.utcnow()
+
+    # Sincronizar estado completado en historial_mantenimiento
+    if hi.proyecto_servicio_id:
+        _hm_fin = db.query(HistorialMantenimiento).filter(
+            HistorialMantenimiento.equipo_id   == str(hi.equipo_intervenido_id),
+            HistorialMantenimiento.servicio_id == str(hi.proyecto_servicio_id),
+        ).first()
+        if _hm_fin:
+            _hm_fin.estado          = "completado"
+            _hm_fin.fecha_ejecucion = datetime.utcnow()
 
     db.commit()
 
