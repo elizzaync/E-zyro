@@ -24,6 +24,14 @@ export class PortalEquipoDetalleComponent implements OnInit {
   get personal()     { return this.data?.personal      ?? []; }
   get herramientas() { return this.data?.herramientas  ?? []; }
   get documentos()   { return this.data?.documentos    ?? []; }
+  get historial()    { return this.data?.historial     ?? []; }
+
+  duracionLabel(dias: number | null): string {
+    if (dias === null || dias === undefined) return '—';
+    if (dias === 0) return 'Mismo día';
+    if (dias === 1) return '1 día';
+    return `${dias} días`;
+  }
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';

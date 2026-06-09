@@ -193,3 +193,41 @@
   text-transform: uppercase; letter-spacing: .04em;
 }
 .ped-doc-card:hover .ped-doc-dl { color: var(--brand-green, #8dc63f); }
+
+/* Historial de Mantenimientos */
+.ped-hist-list { display: flex; flex-direction: column; gap: 0; }
+.ped-hist-item {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+}
+.ped-hist-item:last-child { border-bottom: none; }
+
+.ped-hist-icon {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  background: rgba(141,198,63,.12); color: var(--brand-green, #8dc63f);
+  display: flex; align-items: center; justify-content: center;
+}
+.ped-hist-body { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ped-hist-servicio { font-size: 13px; font-weight: 600; color: var(--text-main); }
+.ped-hist-proyecto { font-size: 12px; color: var(--text-muted); }
+.ped-hist-meta {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  font-size: 12px; color: var(--text-muted);
+}
+.ped-hist-dur {
+  background: rgba(141,198,63,.1); color: var(--brand-green, #8dc63f);
+  padding: 1px 7px; border-radius: 99px; font-weight: 600; font-size: 11px;
+}
+.ped-hist-obs {
+  font-size: 11px; color: var(--text-muted); font-style: italic;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Counter badge on card title */
+.ped-count-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px;
+  background: rgba(141,198,63,.15); color: var(--brand-green, #8dc63f);
+  font-size: 11px; font-weight: 700; margin-left: 6px;
+}

@@ -109,6 +109,10 @@
             </span>
           </div>
           <div class="ped-meta-item">
+            <span class="ped-meta-label">Duración del Servicio</span>
+            <span class="ped-meta-val">{{ duracionLabel(servicio.duracion_dias) }}</span>
+          </div>
+          <div class="ped-meta-item">
             <span class="ped-meta-label">Frecuencia Mantenimiento</span>
             <span class="ped-meta-val">
               {{ equipo.frecuencia_meses ? 'Cada ' + equipo.frecuencia_meses + ' meses' : '—' }}
@@ -191,6 +195,60 @@
               <span>Descargar</span>
             </div>
           </a>
+          }
+        </div>
+      </div>
+
+      <!-- Historial de Mantenimientos -->
+      <div class="ped-card">
+        <h2 class="ped-card-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          Historial de Mantenimientos
+          @if (historial.length > 0) {
+          <span class="ped-count-badge">{{ historial.length }}</span>
+          }
+        </h2>
+
+        @if (historial.length === 0) {
+        <div class="ped-empty-state">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p>Sin mantenimientos anteriores registrados</p>
+          <span class="ped-empty-tag">Sin historial</span>
+        </div>
+        }
+
+        <div class="ped-hist-list">
+          @for (h of historial; track h.id) {
+          <div class="ped-hist-item">
+            <div class="ped-hist-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <div class="ped-hist-body">
+              <span class="ped-hist-servicio">{{ h.servicio }}</span>
+              <span class="ped-hist-proyecto">{{ h.proyecto }}
+                @if (h.orden_trabajo) { · OT {{ h.orden_trabajo }} }
+              </span>
+              <div class="ped-hist-meta">
+                @if (h.fecha_fin) {
+                <span>{{ h.fecha_fin | date:'dd/MM/yyyy' }}</span>
+                }
+                @if (h.duracion_dias !== null && h.duracion_dias !== undefined) {
+                <span class="ped-hist-dur">{{ duracionLabel(h.duracion_dias) }}</span>
+                }
+              </div>
+              @if (h.observaciones) {
+              <span class="ped-hist-obs">{{ h.observaciones }}</span>
+              }
+            </div>
+          </div>
           }
         </div>
       </div>
