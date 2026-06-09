@@ -46,6 +46,9 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "equipo:ver_estado", "equipo:marcar_inoperativo", "equipo:reactivar",
         "calibracion:ver", "calibracion:crear", "calibracion:editar",
         "epp:ver", "inventario:ver", "empleados:ver",
+        "evaluacion:ver", "evaluacion:crear", "evaluacion:editar",
+        "evaluacion:enviar", "evaluacion:completar",
+        "vacaciones:ver", "vacaciones:configurar", "vacaciones:aprobar", "vacaciones:rechazar",
         "galeria:ver", "galeria:subir",
     ],
     "Logístico": [
@@ -69,6 +72,8 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "equipo:ver_estado", "equipo:marcar_inoperativo",
         "informe_servicio:ver", "informe_servicio:generar",
         "requerimientos:ver", "epp:ver", "calibracion:ver",
+        "evaluacion:ver", "evaluacion:crear", "evaluacion:editar", "evaluacion:enviar",
+        "vacaciones:ver", "vacaciones:aprobar", "vacaciones:rechazar",
         "galeria:ver", "galeria:subir",
     ],
     "Técnico de Campo": [
@@ -80,6 +85,8 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "equipo:ver_estado",
         "requerimientos:ver", "epp:ver", "calibracion:ver",
         "informe_servicio:ver",
+        "evaluacion:ver",
+        "vacaciones:ver", "vacaciones:solicitar",
         "galeria:ver", "galeria:subir",
     ],
     # Equipo de soporte interno: gestiona los tickets de TI de su empresa.

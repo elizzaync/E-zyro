@@ -10,20 +10,40 @@ from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import text
+from sqlalchemy import text, func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
 from ..core.permisos import exigir_permiso
 from ..db.database import get_db
-from ..models.calibracion import Calibracion, EquipoEstadoMov
+from ..models.calibracion import Calibracion, CalibracionEvento, EquipoEstadoMov
 from ..models.equipo import Equipo
-from ..services.cloudinary_service import subir_e_indexar, eliminar_imagen_cloudinary
+from ..services.cloudinary_service import (
+    subir_e_indexar, eliminar_imagen_cloudinary, subir_archivo_base64,
+)
 from ..services.cloudinary_paths import carpeta_calibracion
 from ..schemas.calibracion import (
     CalibracionIn, CalibracionOut, CertificadoIn,
+    EventoIn, EventoOut, CertificadoEventoIn,
     EstadoMovIn, EquipoEstadoOut,
 )
+
+
+def _parse_date(s: Optional[str]) -> Optional[date]:
+    if not s:
+        return None
+    return date.fromisoformat(s[:10])
+
+
+def _add_months(d: date, meses: int) -> date:
+    """Suma `meses` a una fecha sin dependencias externas (ajusta fin de mes)."""
+    m = d.month - 1 + meses
+    y = d.year + m // 12
+    m = m % 12 + 1
+    # día válido para el mes destino
+    import calendar
+    last = calendar.monthrange(y, m)[1]
+    return date(y, m, min(d.day, last))
 
 router = APIRouter(prefix="/calibraciones", tags=["calibraciones"])
 router_estado = APIRouter(prefix="/equipos", tags=["equipos-estado"])
@@ -36,14 +56,56 @@ def _equipo_or_404(db: Session, empresa_id: str, equipo_id: str) -> Equipo:
     return e
 
 
-def _cal_out(c: Calibracion, nombre: Optional[str]) -> CalibracionOut:
+def _cal_out(c: Calibracion, nombre: Optional[str], total: int = 0) -> CalibracionOut:
     return CalibracionOut(
         id=str(c.id), equipo_id=str(c.equipo_id), equipo_nombre=nombre,
         fecha_ultima=(str(c.fecha_ultima) if c.fecha_ultima else None),
         fecha_proxima=(str(c.fecha_proxima) if c.fecha_proxima else None),
         empresa_responsable=c.empresa_responsable, certificado_url=c.certificado_url,
-        observacion=c.observacion,
+        observacion=c.observacion, total_eventos=int(total or 0),
     )
+
+
+def _ev_out(e: CalibracionEvento, nombre: Optional[str] = None) -> EventoOut:
+    return EventoOut(
+        id=str(e.id), equipo_id=str(e.equipo_id), equipo_nombre=nombre,
+        fecha_realizada=(str(e.fecha_realizada) if e.fecha_realizada else None),
+        periodicidad_meses=e.periodicidad_meses,
+        fecha_proxima=(str(e.fecha_proxima) if e.fecha_proxima else None),
+        realizada_por=e.realizada_por, empresa_responsable=e.empresa_responsable,
+        numero_certificado=e.numero_certificado, resultado=e.resultado,
+        certificado_url=e.certificado_url, observacion=e.observacion,
+    )
+
+
+def _recalcular_snapshot(db: Session, empresa_id: str, equipo_id: str) -> None:
+    """Actualiza/crea la fila Calibracion (snapshot 'última conocida') con el
+    evento más reciente del equipo. Si no quedan eventos, limpia las fechas."""
+    ultimo = (
+        db.query(CalibracionEvento)
+        .filter(CalibracionEvento.empresa_id == empresa_id,
+                CalibracionEvento.equipo_id == equipo_id)
+        .order_by(CalibracionEvento.fecha_realizada.desc(),
+                  CalibracionEvento.created_at.desc())
+        .first()
+    )
+    snap = (
+        db.query(Calibracion)
+        .filter(Calibracion.empresa_id == empresa_id,
+                Calibracion.equipo_id == equipo_id)
+        .first()
+    )
+    if not snap:
+        snap = Calibracion(id=str(_uuid.uuid4()), empresa_id=empresa_id, equipo_id=equipo_id)
+        db.add(snap)
+    if ultimo:
+        snap.fecha_ultima = ultimo.fecha_realizada
+        snap.fecha_proxima = ultimo.fecha_proxima
+        snap.empresa_responsable = ultimo.empresa_responsable
+        snap.certificado_url = ultimo.certificado_url
+    else:
+        snap.fecha_ultima = None
+        snap.fecha_proxima = None
 
 
 # ── Calibraciones ────────────────────────────────────────────────────────────
@@ -53,16 +115,24 @@ def listar(
     por_vencer: bool = Query(False, description="próximas en <=30 días o vencidas"),
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
+    cnt = (
+        db.query(CalibracionEvento.equipo_id.label("eq"),
+                 func.count(CalibracionEvento.id).label("n"))
+        .filter(CalibracionEvento.empresa_id == payload["empresa_id"])
+        .group_by(CalibracionEvento.equipo_id)
+        .subquery()
+    )
     qry = (
-        db.query(Calibracion, Equipo.nombre)
+        db.query(Calibracion, Equipo.nombre, func.coalesce(cnt.c.n, 0))
         .outerjoin(Equipo, Equipo.id == Calibracion.equipo_id)
+        .outerjoin(cnt, cnt.c.eq == Calibracion.equipo_id)
         .filter(Calibracion.empresa_id == payload["empresa_id"])
     )
     if equipo_id:
         qry = qry.filter(Calibracion.equipo_id == equipo_id)
     if por_vencer:
         qry = qry.filter(Calibracion.fecha_proxima <= text("current_date + interval '30 day'"))
-    return [_cal_out(c, nombre) for c, nombre in qry.order_by(Calibracion.fecha_proxima).all()]
+    return [_cal_out(c, nombre, total) for c, nombre, total in qry.order_by(Calibracion.fecha_proxima).all()]
 
 
 @router.post("", response_model=CalibracionOut, status_code=201)
@@ -124,6 +194,86 @@ def subir_certificado(cal_id: str, body: CertificadoIn, payload: dict = Depends(
     db.commit()
     nombre = db.query(Equipo.nombre).filter(Equipo.id == c.equipo_id).scalar()
     return _cal_out(c, nombre)
+
+
+# ── Historial de calibraciones (eventos) ─────────────────────────────────────
+@router.get("/eventos", response_model=List[EventoOut])
+def listar_eventos(
+    equipo_id: str = Query(..., description="equipo cuyo historial se consulta"),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    nombre = db.query(Equipo.nombre).filter(Equipo.id == equipo_id).scalar()
+    rows = (
+        db.query(CalibracionEvento)
+        .filter(CalibracionEvento.empresa_id == empresa_id,
+                CalibracionEvento.equipo_id == equipo_id)
+        .order_by(CalibracionEvento.fecha_realizada.desc(),
+                  CalibracionEvento.created_at.desc())
+        .all()
+    )
+    return [_ev_out(e, nombre) for e in rows]
+
+
+@router.post("/eventos", response_model=EventoOut, status_code=201)
+def crear_evento(body: EventoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    exigir_permiso(db, payload, "calibracion", "crear")
+    empresa_id = payload["empresa_id"]
+    eq = _equipo_or_404(db, empresa_id, body.equipo_id)
+    f_real = _parse_date(body.fecha_realizada)
+    if not f_real:
+        raise HTTPException(status_code=422, detail="fecha_realizada es requerida (yyyy-mm-dd)")
+    f_prox = _parse_date(body.fecha_proxima)
+    if f_prox is None and body.periodicidad_meses:
+        f_prox = _add_months(f_real, body.periodicidad_meses)
+    ev = CalibracionEvento(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id, equipo_id=body.equipo_id,
+        fecha_realizada=f_real, periodicidad_meses=body.periodicidad_meses,
+        fecha_proxima=f_prox, realizada_por=body.realizada_por,
+        empresa_responsable=body.empresa_responsable,
+        numero_certificado=body.numero_certificado, resultado=body.resultado,
+        observacion=body.observacion, registrado_por_id=payload.get("id"),
+    )
+    db.add(ev)
+    db.flush()
+    _recalcular_snapshot(db, empresa_id, body.equipo_id)
+    db.commit()
+    return _ev_out(ev, eq.nombre)
+
+
+@router.post("/eventos/{evento_id}/certificado", response_model=EventoOut)
+def subir_certificado_evento(evento_id: str, body: CertificadoEventoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    exigir_permiso(db, payload, "calibracion", "editar")
+    empresa_id = payload["empresa_id"]
+    ev = db.query(CalibracionEvento).filter(
+        CalibracionEvento.id == evento_id, CalibracionEvento.empresa_id == empresa_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evento de calibración no encontrado")
+    res = subir_archivo_base64(
+        base64_data=body.archivo_base64,
+        folder=carpeta_calibracion(empresa_id, str(ev.equipo_id)),
+        public_id=f"cert_evento_{evento_id}", extension=(body.extension or "pdf"),
+    )
+    ev.certificado_url = res.get("secure_url")
+    _recalcular_snapshot(db, empresa_id, str(ev.equipo_id))
+    db.commit()
+    nombre = db.query(Equipo.nombre).filter(Equipo.id == ev.equipo_id).scalar()
+    return _ev_out(ev, nombre)
+
+
+@router.delete("/eventos/{evento_id}", status_code=204)
+def eliminar_evento(evento_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    exigir_permiso(db, payload, "calibracion", "eliminar")
+    empresa_id = payload["empresa_id"]
+    ev = db.query(CalibracionEvento).filter(
+        CalibracionEvento.id == evento_id, CalibracionEvento.empresa_id == empresa_id).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evento de calibración no encontrado")
+    equipo_id = str(ev.equipo_id)
+    db.delete(ev)
+    db.flush()
+    _recalcular_snapshot(db, empresa_id, equipo_id)
+    db.commit()
 
 
 # ── Estado operativo de equipos ──────────────────────────────────────────────

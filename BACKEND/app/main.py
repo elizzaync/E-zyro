@@ -38,6 +38,10 @@ from app.routers import soporte           as soporte_router
 from app.routers import portal_cliente    as portal_cliente_router
 from app.routers import analitica         as analitica_router
 from app.routers import planos            as planos_router
+from app.routers import personal          as personal_router
+from app.routers import evaluaciones      as evaluaciones_router
+from app.routers import vacaciones        as vacaciones_router
+from app.routers import indicadores       as indicadores_router
 # ── Módulo de Finanzas / ERP contable ──
 from app.routers import contabilidad      as contabilidad_router
 from app.routers import controlling        as controlling_router
@@ -91,6 +95,8 @@ from app.models import (  # noqa: F401
     epp,
     # Calibraciones + estado operativo de equipos (Fase 3)
     calibracion,
+    # RR.HH. · Vacaciones por ley (Punto 3.3)
+    vacaciones,
     # Correctivos + observaciones/descargos (Fase 4)
     correctivo,
     # Inspección ITSE (Fase 5)
@@ -820,6 +826,14 @@ def _run_migrations():
         sembrar_permisos(conn, "conciliacion_bancaria",
                          ["ver", "gestionar", "conciliar"],
                          descripcion_base="Conciliación bancaria:")
+        # ── RR.HH. · Evaluaciones de desempeño (Punto 3.2) ───────────────────
+        sembrar_permisos(conn, "evaluacion",
+                         ["ver", "crear", "editar", "enviar", "completar", "eliminar"],
+                         descripcion_base="Evaluación:")
+        # ── RR.HH. · Vacaciones por ley (Punto 3.3) ──────────────────────────
+        sembrar_permisos(conn, "vacaciones",
+                         ["ver", "configurar", "solicitar", "aprobar", "rechazar"],
+                         descripcion_base="Vacaciones:")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
@@ -1558,6 +1572,10 @@ app.include_router(equipos_intervenidos_router.router)
 app.include_router(activo_cliente_router.router)
 app.include_router(analitica_router.router)
 app.include_router(planos_router.router)
+app.include_router(personal_router.router)
+app.include_router(evaluaciones_router.router)
+app.include_router(vacaciones_router.router)
+app.include_router(indicadores_router.router)
 app.include_router(soporte_router.router)
 app.include_router(portal_cliente_router.router)
 # ── Módulo de Finanzas / ERP contable ──
