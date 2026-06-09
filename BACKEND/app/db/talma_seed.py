@@ -14,6 +14,7 @@ from sqlalchemy import text
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 _USERNAME   = "cliente_talma"
+_EMAIL      = "operaciones@talma.pe"
 _PASSWORD   = "Talma2026*"
 _ROL_NOMBRE = "ClienteExterno"
 _TALMA_RUC  = "20100173517"
@@ -111,24 +112,53 @@ def sembrar_talma(conn) -> None:
         """), {"id": rol_id, "eid": empresa_id, "nombre": _ROL_NOMBRE})
 
     # ── 4. Usuario portal dentro del operador ─────────────────────────────────
+    # El índice único es (empresa_id, email); también hay unicidad por username.
+    # Para ser idempotentes frente a estados previos inconsistentes (p.ej. un
+    # usuario con el email canónico pero otro username, dejado por versiones
+    # anteriores del seed), buscamos por username O email y normalizamos, en
+    # lugar de un INSERT a ciegas que choca con la constraint de email.
     row = conn.execute(text("""
         SELECT id FROM usuario
-        WHERE empresa_id = :eid AND username = :uname
+        WHERE empresa_id = :eid AND (username = :uname OR email = :email)
+        ORDER BY (username = :uname) DESC, (email = :email) DESC, created_at ASC
         LIMIT 1
-    """), {"eid": empresa_id, "uname": _USERNAME}).fetchone()
+    """), {"eid": empresa_id, "uname": _USERNAME, "email": _EMAIL}).fetchone()
 
     usuario_id: str = str(row[0]) if row else str(uuid.uuid4())
-    if not row:
+
+    # Liberar el username/email de cualquier OTRO usuario de la empresa que aún
+    # los retenga, para que la normalización/INSERT no viole las constraints.
+    conn.execute(text("""
+        UPDATE usuario
+        SET username = left(id::text, 8) || '_dup_' || username,
+            email    = left(id::text, 8) || '.dup.' || email,
+            activo   = false
+        WHERE empresa_id = :eid
+          AND id::text != :uid
+          AND (username = :uname OR email = :email)
+    """), {"eid": empresa_id, "uid": usuario_id, "uname": _USERNAME, "email": _EMAIL})
+
+    if row:
+        # Normalizar el usuario existente a los valores canónicos del portal.
+        conn.execute(text("""
+            UPDATE usuario
+            SET username = :uname, email = :email, nombre = 'Cliente',
+                apellido = 'TALMA', activo = true, email_verificado = true,
+                password_hash = :pwd
+            WHERE id = :uid
+        """), {"uid": usuario_id, "uname": _USERNAME, "email": _EMAIL,
+               "pwd": _pwd.hash(_PASSWORD)})
+    else:
         conn.execute(text("""
             INSERT INTO usuario
                 (id, empresa_id, nombre, apellido, username, email,
                  password_hash, activo, email_verificado, created_at)
             VALUES
-                (:id, :eid, 'Cliente', 'TALMA', :uname, 'operaciones@talma.pe',
+                (:id, :eid, 'Cliente', 'TALMA', :uname, :email,
                  :pwd, true, true, now())
         """), {
             "id": usuario_id, "eid": empresa_id,
-            "uname": _USERNAME,
+            "uname": _USERNAME, "email": _EMAIL,
             "pwd": _pwd.hash(_PASSWORD),
         })
 
