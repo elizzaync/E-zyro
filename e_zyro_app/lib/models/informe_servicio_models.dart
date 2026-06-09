@@ -7,6 +7,11 @@ class InformeServicio {
   final String? url;
   final String? fecha;
 
+  // Solo presentes en el listado global (/servicios/informes-todos).
+  final String? servicioNombre;
+  final String? proyectoId;
+  final String? proyectoNombre;
+
   const InformeServicio({
     required this.id,
     required this.servicioId,
@@ -14,6 +19,9 @@ class InformeServicio {
     this.titulo,
     this.url,
     this.fecha,
+    this.servicioNombre,
+    this.proyectoId,
+    this.proyectoNombre,
   });
 
   bool get esFinal => tipo == 'final';
@@ -25,5 +33,8 @@ class InformeServicio {
         titulo: j['titulo']?.toString(),
         url: j['url']?.toString(),
         fecha: j['fecha']?.toString(),
+        servicioNombre: j['servicio_nombre']?.toString(),
+        proyectoId: j['proyecto_id']?.toString(),
+        proyectoNombre: j['proyecto_nombre']?.toString(),
       );
 }

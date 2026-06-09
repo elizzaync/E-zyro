@@ -9,12 +9,15 @@ class _ClosedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCompletado = estado == 'Completado';
-    final color = isCompletado ? _green : _danger;
-    final icon = isCompletado ? Icons.task_alt : Icons.cancel_outlined;
-    final label = isCompletado
-        ? 'Servicio completado · Solo lectura'
-        : 'Servicio cancelado · Solo lectura';
+    // Terminado: el backend usa 'Completado', pero puede llegar
+    // 'finalizado'/'terminado' (comparación case-insensitive).
+    final isTerminado = const {'completado', 'finalizado', 'terminado'}
+        .contains(estado.trim().toLowerCase());
+    final color = isTerminado ? _green : _danger;
+    final icon = isTerminado ? Icons.task_alt : Icons.cancel_outlined;
+    final label = isTerminado
+        ? 'Servicio terminado — solo lectura'
+        : 'Servicio cancelado — solo lectura';
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

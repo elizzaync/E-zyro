@@ -146,6 +146,10 @@ class _MaterialesTabState extends State<_MaterialesTab> {
   /// "listo para recibir". Se toma el lock por requerimiento antes de firmar
   /// cada uno (mantiene la anti-duplicidad por solicitud).
   Future<void> _firmarRecepcionLote(List<ReqRecepcion> reqs) async {
+    if (widget.isClosed) {
+      _snack('Servicio terminado — solo lectura', _amber);
+      return;
+    }
     final firmables =
         reqs.where((r) => r.porFirmar && !r.hayAlguienFirmando).toList();
     if (firmables.isEmpty) {
@@ -347,6 +351,10 @@ class _MaterialesTabState extends State<_MaterialesTab> {
 
   // Editar cantidad de un material ya asignado/solicitado (si aún es editable).
   Future<void> _editarMaterial(ItemMaterial m) async {
+    if (widget.isClosed) {
+      _snack('Servicio terminado — solo lectura', _amber);
+      return;
+    }
     if (m.estadoReq == 'entregado' || m.estadoReq == 'aprobado') {
       _snack('Este ítem ya fue ${m.estadoReq} y no se puede editar.', _amber);
       return;

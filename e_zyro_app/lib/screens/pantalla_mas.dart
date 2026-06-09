@@ -7,6 +7,7 @@ import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_auditoria.dart';
+import 'pantalla_auditoria_general.dart';
 import 'pantalla_mantenimientos.dart';
 import 'pantalla_comunicados.dart';
 import 'pantalla_soporte.dart';
@@ -39,6 +40,7 @@ class _MoreScreenState extends State<MoreScreen> {
   String _userRol = '';
   String _fotoUrl = '';
   bool _puedeVerAuditoria = false;
+  bool _esSuperAdmin = false;
   bool _puedeVerMantenimiento = false;
   bool _puedeVerPersonal = false;
   bool _puedeVerDashboards = false;
@@ -66,6 +68,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _userRol  = prefs.getString('user_rol') ?? '';
         _fotoUrl  = prefs.getString('user_foto_url') ?? '';
         _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
+        _esSuperAdmin        = AppSession.i.esSuperAdmin;
         _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
         _puedeVerDashboards  = AppSession.i.canVerDashboards;
@@ -395,6 +398,16 @@ class _MoreScreenState extends State<MoreScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (_) => const PantallaAuditoria()),
+                      ),
+                    ),
+                  if (_esSuperAdmin)
+                    _MenuItem(
+                      icon: Icons.admin_panel_settings_outlined,
+                      label: 'Auditoría General',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaAuditoriaGeneral()),
                       ),
                     ),
                 ],

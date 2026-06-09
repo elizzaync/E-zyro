@@ -236,8 +236,12 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   Future<void> _toggleOptimista(ProcedimientoDetalle proc) async {
     final d = _detalle;
     if (d == null) return;
-    if (d.estado == 'Completado' || d.estado == 'Cancelado') {
-      _snack('El servicio está cerrado (solo lectura).', _amber);
+    if (d.esCerrado) {
+      _snack(
+          d.esTerminado
+              ? 'Servicio terminado — solo lectura'
+              : 'El servicio está cancelado (solo lectura).',
+          _amber);
       return;
     }
     final original = proc.estado;
@@ -265,8 +269,12 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   Future<void> _toggleTareaOptimista(TareaDetalle tarea) async {
     final d = _detalle;
     if (d == null) return;
-    if (d.estado == 'Completado' || d.estado == 'Cancelado') {
-      _snack('El servicio está cerrado (solo lectura).', _amber);
+    if (d.esCerrado) {
+      _snack(
+          d.esTerminado
+              ? 'Servicio terminado — solo lectura'
+              : 'El servicio está cancelado (solo lectura).',
+          _amber);
       return;
     }
     final original = tarea.estado;
@@ -442,7 +450,9 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               color: _puedeIniciar ? _green : null,
               onPressed: _iniciarServicio,
             ),
+          // Editar: oculto cuando el servicio está cerrado (solo lectura).
           if (d != null &&
+              !d.esCerrado &&
               (AppSession.i.isJefeOperaciones || AppSession.i.isAdmin))
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
@@ -463,7 +473,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
           if (d != null &&
               _puedeFinalizar &&
               !_cambiandoEstado &&
-              d.estado != 'Cancelado')
+              !d.esCancelado)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, size: 20),
               tooltip: 'Más acciones',
@@ -472,10 +482,10 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                 if (v == 'reabrir') _cambiarEstado('En_Proceso');
               },
               itemBuilder: (_) => [
-                if (d.estado != 'Cancelado' && d.estado != 'Completado')
+                if (!d.esCerrado)
                   const PopupMenuItem(
                       value: 'cancelar', child: Text('Cancelar servicio')),
-                if (d.estado == 'Completado')
+                if (d.esTerminado)
                   const PopupMenuItem(
                       value: 'reabrir', child: Text('Reabrir servicio')),
               ],
@@ -532,7 +542,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                     _Header(detalle: d),
                     const SizedBox(height: 10),
                     _FasesStepper(estado: d.estado, progreso: d.progreso),
-                    if (d.estado == 'Completado' || d.estado == 'Cancelado') ...[
+                    if (d.esCerrado) ...[
                       const SizedBox(height: 4),
                       _ClosedBanner(estado: d.estado),
                     ],
@@ -603,6 +613,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             service: widget.service,
                             onChanged: _reloadDetalle,
                             onToggle: _toggleOptimista,
+                            isClosed: d.esCerrado,
                           ),
                           _TareasTab(
                             tareas: d.tareas,
@@ -615,6 +626,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             proyectoId: d.proyectoId,
                             service: widget.service,
                             onChanged: _reloadDetalle,
+                            isClosed: d.esCerrado,
                           ),
                           _MaterialesTab(
                             servicioId: d.id,
@@ -624,13 +636,13 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             reqsRecepcion: _reqsRecepcion,
                             service: widget.service,
                             onChanged: _reloadMateriales,
-                            isClosed: d.estado == 'Completado' || d.estado == 'Cancelado',
+                            isClosed: d.esCerrado,
                           ),
                           _NotasTab(
                             servicioId: d.id,
                             notasIniciales: d.notas,
                             service: widget.service,
-                            isClosed: d.estado == 'Completado' || d.estado == 'Cancelado',
+                            isClosed: d.esCerrado,
                           ),
                           ChatTab(
                             room: 'servicio/${widget.servicioId}',

@@ -731,6 +731,16 @@ class ServicioDetalle {
     this.nroDocumento,
   });
 
+  /// Estado terminal del servicio: el backend usa 'Completado', pero en
+  /// algunos flujos llega 'finalizado'/'terminado'. Comparación case-insensitive.
+  bool get esTerminado => const {'completado', 'finalizado', 'terminado'}
+      .contains(estado.trim().toLowerCase());
+
+  bool get esCancelado => estado.trim().toLowerCase() == 'cancelado';
+
+  /// Cerrado = terminado o cancelado → solo lectura.
+  bool get esCerrado => esTerminado || esCancelado;
+
   factory ServicioDetalle.fromJson(Map<String, dynamic> j) => ServicioDetalle(
         id: j['id'] as String? ?? '',
         proyectoId: j['proyecto_id'] as String? ?? '',

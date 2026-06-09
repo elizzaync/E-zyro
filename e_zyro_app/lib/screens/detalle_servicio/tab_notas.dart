@@ -230,6 +230,7 @@ class _NotasTabState extends State<_NotasTab> {
                         itemBuilder: (_, i) => _NotaCard(
                           nota: _notas[i],
                           surface: surface,
+                          readOnly: widget.isClosed,
                           onEdit: () => _editar(_notas[i]),
                           onDelete: () => _eliminar(_notas[i]),
                         ),
@@ -244,12 +245,14 @@ class _NotasTabState extends State<_NotasTab> {
 class _NotaCard extends StatelessWidget {
   final NotaServicio nota;
   final Color surface;
+  final bool readOnly;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _NotaCard({
     required this.nota,
     required this.surface,
+    this.readOnly = false,
     required this.onEdit,
     required this.onDelete,
   });
@@ -303,7 +306,7 @@ class _NotaCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (nota.puedeEditar) ...[
+              if (!readOnly && nota.puedeEditar) ...[
                 InkWell(
                   onTap: onEdit,
                   borderRadius: BorderRadius.circular(20),

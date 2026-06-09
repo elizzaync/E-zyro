@@ -8,12 +8,14 @@ class _ProcedimientosTab extends StatelessWidget {
   final ProyectoService service;
   final Future<void> Function() onChanged;
   final void Function(ProcedimientoDetalle) onToggle;
+  final bool isClosed;
 
   const _ProcedimientosTab({
     required this.procedimientos,
     required this.service,
     required this.onChanged,
     required this.onToggle,
+    this.isClosed = false,
   });
 
   @override
@@ -33,6 +35,7 @@ class _ProcedimientosTab extends StatelessWidget {
         service: service,
         onChanged: onChanged,
         onToggle: onToggle,
+        isClosed: isClosed,
       ),
     );
   }
@@ -43,12 +46,14 @@ class _ProcedimientoCard extends StatelessWidget {
   final ProyectoService service;
   final Future<void> Function() onChanged;
   final void Function(ProcedimientoDetalle) onToggle;
+  final bool isClosed;
 
   const _ProcedimientoCard({
     required this.proc,
     required this.service,
     required this.onChanged,
     required this.onToggle,
+    this.isClosed = false,
   });
 
   Color get _color => switch (proc.estado) {
@@ -106,17 +111,21 @@ class _ProcedimientoCard extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 14, fontWeight: FontWeight.w600)),
               ),
-              TextButton.icon(
-                onPressed: () => _abrirEvidencia(context),
-                icon: const Icon(Icons.add_a_photo_outlined, size: 16),
-                label: const Text('Evidencia',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                style: TextButton.styleFrom(
-                  foregroundColor: _green,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: const Size(0, 32),
+              // Subir evidencia: oculto si el servicio está cerrado
+              // (las evidencias ya subidas siguen visibles abajo).
+              if (!isClosed)
+                TextButton.icon(
+                  onPressed: () => _abrirEvidencia(context),
+                  icon: const Icon(Icons.add_a_photo_outlined, size: 16),
+                  label: const Text('Evidencia',
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _green,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 32),
+                  ),
                 ),
-              ),
             ],
           ),
           if (proc.descripcion.isNotEmpty) ...[

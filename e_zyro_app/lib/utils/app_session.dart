@@ -32,6 +32,10 @@ class AppSession {
     return r == 'superadmin' || r == 'admin' || r == 'administrador';
   }
 
+  /// Solo SuperAdmin (no Admin): habilita la Auditoría General cross-empresa.
+  /// Normaliza espacios para reconocer "Super Admin" además de "SuperAdmin".
+  bool get esSuperAdmin => _rol.replaceAll(' ', '') == 'superadmin';
+
   /// true si es admin O tiene el permiso específico en su lista.
   /// Comparación insensible a mayúsculas/acentos de formato: el backend emite
   /// los permisos en minúsculas con formato `modulo:accion`.

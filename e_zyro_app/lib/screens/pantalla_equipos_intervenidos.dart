@@ -9,6 +9,7 @@ import '../utils/api_provider.dart';
 import '../core/api_result.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
+import 'detalle_equipo_intervenido.dart';
 
 class PantallaEquiposIntervenidos extends StatefulWidget {
   const PantallaEquiposIntervenidos({super.key});
@@ -135,6 +136,16 @@ class _State extends State<PantallaEquiposIntervenidos> {
             (e.codigo?.toLowerCase().contains(q) ?? false);
         return matchEstado && matchQ;
       }).toList();
+      // Próximo mantenimiento más cercano primero; sin plan al final.
+      _filtrados.sort((a, b) {
+        final pa = a.proximoMantDate;
+        final pb = b.proximoMantDate;
+        if (pa == null && pb == null) return a.nombre.compareTo(b.nombre);
+        if (pa == null) return 1;
+        if (pb == null) return -1;
+        final cmp = pa.compareTo(pb);
+        return cmp != 0 ? cmp : a.nombre.compareTo(b.nombre);
+      });
     });
   }
 
@@ -169,193 +180,20 @@ class _State extends State<PantallaEquiposIntervenidos> {
         _              => Icons.help_outline,
       };
 
-  // ── Detalle bottom sheet ────────────────────────────────────────────────────
+  // ── Detalle (pantalla completa) ─────────────────────────────────────────────
 
-  void _verDetalle(EquipoIntervenido e) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
-    final color = _colorEstado(e.estado);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.65,
-        minChildSize: 0.4,
-        maxChildSize: 0.92,
-        builder: (_, ctrl) => Container(
-          decoration: BoxDecoration(
-            color: surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              // Handle
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // Header con estado
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(_iconEstado(e.estado), color: color, size: 24),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(e.nombre,
-                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                              maxLines: 2, overflow: TextOverflow.ellipsis),
-                          if (e.codigo != null && e.codigo!.isNotEmpty)
-                            Text(e.codigo!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: color.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(_labelEstado(e.estado),
-                          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: ListView(
-                  controller: ctrl,
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                  children: [
-                    // Ubicación
-                    if (e.ubicacionCompleta.isNotEmpty) ...[
-                      _seccion('UBICACIÓN'),
-                      _infoRow(Icons.location_on_outlined, 'Instalación', e.ubicacionCompleta),
-                      const SizedBox(height: 4),
-                    ],
-                    // Proyecto
-                    if (e.proyectoNombre != null) ...[
-                      _seccion('PROYECTO'),
-                      _infoRow(Icons.work_outline, 'Proyecto', e.proyectoNombre!),
-                      const SizedBox(height: 4),
-                    ],
-                    // Datos técnicos
-                    _seccion('DATOS TÉCNICOS'),
-                    if (e.tipoEquipoNombre != null)
-                      _infoRow(Icons.category_outlined, 'Tipo', e.tipoEquipoNombre!),
-                    if (e.marca != null && e.marca!.isNotEmpty)
-                      _infoRow(Icons.verified_outlined, 'Marca', e.marca!),
-                    if (e.modelo != null && e.modelo!.isNotEmpty)
-                      _infoRow(Icons.info_outline, 'Modelo', e.modelo!),
-                    if (e.numeroSerie != null && e.numeroSerie!.isNotEmpty)
-                      _infoRow(Icons.qr_code_outlined, 'N° Serie', e.numeroSerie!),
-                    if (e.fechaInstalacion != null)
-                      _infoRow(Icons.calendar_today_outlined, 'Instalación', e.fechaInstalacion!),
-                    const SizedBox(height: 4),
-                    // Ficha técnica
-                    if (e.fichaTecnica != null && e.fichaTecnica!.isNotEmpty) ...[
-                      _seccion('FICHA TÉCNICA'),
-                      ...e.fichaTecnica!.entries
-                          .where((en) => en.value != null && en.value.toString().isNotEmpty)
-                          .map((en) => _infoRow(
-                                Icons.electrical_services_outlined,
-                                en.key.replaceAll('_', ' ').toUpperCase(),
-                                en.value.toString(),
-                              )),
-                      const SizedBox(height: 4),
-                    ],
-                    // Observaciones
-                    if (e.observaciones != null && e.observaciones!.isNotEmpty) ...[
-                      _seccion('OBSERVACIONES'),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.04)
-                              : Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(e.observaciones!,
-                            style: const TextStyle(fontSize: 13, height: 1.5)),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    // Botón editar
-                    if (AppSession.i.canEditarEquipoIntervenido)
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _abrirFormulario(equipo: e);
-                          },
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Editar equipo'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: _green,
-                            side: const BorderSide(color: _green),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+  Future<void> _verDetalle(EquipoIntervenido e) async {
+    final res = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => DetalleEquipoIntervenido(equipo: e)),
     );
+    if (!mounted) return;
+    if (res == 'editar') {
+      _abrirFormulario(equipo: e);
+    } else if (res == true) {
+      _cargar();
+    }
   }
-
-  Widget _seccion(String titulo) => Padding(
-        padding: const EdgeInsets.only(top: 16, bottom: 8),
-        child: Text(titulo,
-            style: const TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700,
-                color: Colors.grey, letterSpacing: 0.8)),
-      );
-
-  Widget _infoRow(IconData icon, String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 16, color: _green),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 90,
-              child: Text(label,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ),
-            Expanded(
-              child: Text(value,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            ),
-          ],
-        ),
-      );
 
   // ── Formulario crear / editar ───────────────────────────────────────────────
 
@@ -899,6 +737,11 @@ class _State extends State<PantallaEquiposIntervenidos> {
                         ],
                       ),
                     ],
+                    // Semáforo de mantenimiento
+                    if (e.proximoMantDate != null) ...[
+                      const SizedBox(height: 5),
+                      _indicadorMantenimiento(e),
+                    ],
                   ],
                 ),
               ),
@@ -924,6 +767,35 @@ class _State extends State<PantallaEquiposIntervenidos> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Semáforo de mantenimiento: rojo vencido, ámbar <=30 días, verde al día.
+  Widget _indicadorMantenimiento(EquipoIntervenido e) {
+    final dias = e.diasParaMantenimiento;
+    if (dias == null) return const SizedBox.shrink();
+    final Color color;
+    final String texto;
+    if (dias < 0) {
+      color = Colors.red.shade600;
+      texto = 'Mant. vencido hace ${-dias} d';
+    } else if (dias <= 30) {
+      color = Colors.amber.shade800;
+      texto = dias == 0 ? 'Mant. hoy' : 'Mant. en $dias d';
+    } else {
+      color = _green;
+      texto = 'Mant. en $dias d';
+    }
+    return Row(
+      children: [
+        Container(
+          width: 8, height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(texto,
+            style: TextStyle(fontSize: 10.5, color: color, fontWeight: FontWeight.w700)),
+      ],
     );
   }
 

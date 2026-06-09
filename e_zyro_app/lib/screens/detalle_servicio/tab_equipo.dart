@@ -9,6 +9,7 @@ class _EquipoTab extends StatefulWidget {
   final String proyectoId;
   final ProyectoService service;
   final Future<void> Function() onChanged;
+  final bool isClosed;
 
   const _EquipoTab({
     required this.equipo,
@@ -16,6 +17,7 @@ class _EquipoTab extends StatefulWidget {
     required this.proyectoId,
     required this.service,
     required this.onChanged,
+    this.isClosed = false,
   });
 
   @override
@@ -67,7 +69,8 @@ class _EquipoTabState extends State<_EquipoTab> {
                 ),
               ),
         // FAB de configuración solo para Jefe de Operaciones / Admin
-        if (_puedeAsignar)
+        // y mientras el servicio no esté cerrado (solo lectura).
+        if (_puedeAsignar && !widget.isClosed)
           Positioned(
             bottom: bottomSafeInset(context),
             right: 16,

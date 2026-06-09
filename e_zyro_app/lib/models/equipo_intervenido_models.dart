@@ -20,6 +20,10 @@ class EquipoIntervenido {
   final String? observaciones;
   final bool activo;
   final String createdAt;
+  // Plan de mantenimiento
+  final String? ultimoMantenimiento;   // yyyy-MM-dd
+  final String? proximoMantenimiento;  // yyyy-MM-dd
+  final int? frecuenciaMeses;
   // Nombres resueltos del backend
   final String? proyectoNombre;
   final String? clienteNombre;
@@ -49,6 +53,9 @@ class EquipoIntervenido {
     this.observaciones,
     required this.activo,
     required this.createdAt,
+    this.ultimoMantenimiento,
+    this.proximoMantenimiento,
+    this.frecuenciaMeses,
     this.proyectoNombre,
     this.clienteNombre,
     this.ubicacionNombre,
@@ -80,6 +87,9 @@ class EquipoIntervenido {
         observaciones: j['observaciones']?.toString(),
         activo: j['activo'] as bool? ?? true,
         createdAt: j['created_at']?.toString() ?? '',
+        ultimoMantenimiento: j['ultimo_mantenimiento']?.toString(),
+        proximoMantenimiento: j['proximo_mantenimiento']?.toString(),
+        frecuenciaMeses: (j['frecuencia_meses'] as num?)?.toInt(),
         proyectoNombre: j['proyecto_nombre']?.toString(),
         clienteNombre: j['cliente_nombre']?.toString(),
         ubicacionNombre: j['ubicacion_nombre']?.toString(),
@@ -102,4 +112,58 @@ class EquipoIntervenido {
     ];
     return partes.join(' › ');
   }
+
+  /// Fecha del próximo mantenimiento como DateTime (null si no hay plan).
+  DateTime? get proximoMantDate =>
+      proximoMantenimiento == null ? null : DateTime.tryParse(proximoMantenimiento!);
+
+  /// Fecha del último mantenimiento como DateTime.
+  DateTime? get ultimoMantDate =>
+      ultimoMantenimiento == null ? null : DateTime.tryParse(ultimoMantenimiento!);
+
+  /// Días que faltan para el próximo mantenimiento (negativo si está vencido).
+  int? get diasParaMantenimiento {
+    final p = proximoMantDate;
+    if (p == null) return null;
+    final hoy = DateTime.now();
+    return DateTime(p.year, p.month, p.day)
+        .difference(DateTime(hoy.year, hoy.month, hoy.day))
+        .inDays;
+  }
+}
+
+/// Evento del historial de mantenimientos de un equipo intervenido.
+class MantenimientoEquipo {
+  final String id;
+  final String equipoIntervenidoId;
+  final String fecha; // yyyy-MM-dd
+  final String tipo;  // preventivo | correctivo | inspeccion | otro
+  final String? descripcion;
+  final String? realizadoPor;
+  final String? proximoCalculado;
+  final String createdAt;
+
+  const MantenimientoEquipo({
+    required this.id,
+    required this.equipoIntervenidoId,
+    required this.fecha,
+    required this.tipo,
+    this.descripcion,
+    this.realizadoPor,
+    this.proximoCalculado,
+    required this.createdAt,
+  });
+
+  factory MantenimientoEquipo.fromJson(Map<String, dynamic> j) => MantenimientoEquipo(
+        id: j['id']?.toString() ?? '',
+        equipoIntervenidoId: j['equipo_intervenido_id']?.toString() ?? '',
+        fecha: j['fecha']?.toString() ?? '',
+        tipo: j['tipo']?.toString() ?? 'preventivo',
+        descripcion: j['descripcion']?.toString(),
+        realizadoPor: j['realizado_por']?.toString(),
+        proximoCalculado: j['proximo_calculado']?.toString(),
+        createdAt: j['created_at']?.toString() ?? '',
+      );
+
+  DateTime? get fechaDate => DateTime.tryParse(fecha);
 }
