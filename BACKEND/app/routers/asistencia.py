@@ -260,21 +260,20 @@ def marcar_asistencia(
     sin_selfie = not (body.imagen_selfie or "").strip()
 
     # 2 ── Foto biométrica base
-    # Solo se exige cuando va a haber comparación facial (marca CON selfie).
-    # Las marcas de almuerzo (v1 PYME) y los registros offline sin evidencia se
-    # aprueban por JWT + GPS, así que no requieren foto base registrada.
-    if not sin_selfie:
-        foto_base = db.query(FotoBiometrica).filter(
-            FotoBiometrica.usuario_id == usuario_id,
-            FotoBiometrica.empresa_id == empresa_id,
-            FotoBiometrica.activa.is_(True),
-        ).first()
-        if not foto_base:
-            raise HTTPException(
-                422,
-                "No tienes foto biométrica registrada. "
-                "Configura tu foto base en la sección de asistencia antes de marcar.",
-            )
+    # Se consulta siempre (puede ser None), pero solo se EXIGE cuando va a haber
+    # comparación facial (marca CON selfie). Las marcas de almuerzo (v1 PYME) y
+    # los registros offline sin evidencia se aprueban por JWT + GPS.
+    foto_base = db.query(FotoBiometrica).filter(
+        FotoBiometrica.usuario_id == usuario_id,
+        FotoBiometrica.empresa_id == empresa_id,
+        FotoBiometrica.activa.is_(True),
+    ).first()
+    if not sin_selfie and not foto_base:
+        raise HTTPException(
+            422,
+            "No tienes foto biométrica registrada. "
+            "Configura tu foto base en la sección de asistencia antes de marcar.",
+        )
 
     # 3b ── Reglas de negocio del almuerzo (v1 PYME: uno por día, orden lógico)
     if tipo in tipos_almuerzo:
@@ -412,16 +411,19 @@ def marcar_asistencia(
     db.add(registro)
     db.flush()
 
-    fa = FotoAsistencia(
-        registro_id=reg_id,
-        foto_base_id=foto_base.id,
-        url_cloudinary=selfie_url,
-        public_id_cloudinary=selfie_public_id,
-        similitud_ia=round(score / 100.0, 4),
-        resultado=resultado_ia,
-        fecha_captura=ahora,
-    )
-    db.add(fa)
+    # La evidencia fotográfica solo se registra si el empleado tiene foto base.
+    # El almuerzo sin selfie ni foto base se sustenta en JWT + GPS (sin FotoAsistencia).
+    if foto_base is not None:
+        fa = FotoAsistencia(
+            registro_id=reg_id,
+            foto_base_id=foto_base.id,
+            url_cloudinary=selfie_url,
+            public_id_cloudinary=selfie_public_id,
+            similitud_ia=round(score / 100.0, 4),
+            resultado=resultado_ia,
+            fecha_captura=ahora,
+        )
+        db.add(fa)
 
     gps_guardado = body.latitud is not None and body.longitud is not None
     if gps_guardado:
