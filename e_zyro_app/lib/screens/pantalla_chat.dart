@@ -15,7 +15,15 @@ class ChatTab extends StatefulWidget {
   /// El backend no envía la foto en el WS, así que se resuelve localmente.
   final Map<String, String> fotosPorId;
 
-  const ChatTab({super.key, required this.room, this.fotosPorId = const {}});
+  /// Servicio cerrado (terminado/cancelado): chat en solo lectura.
+  final bool isClosed;
+
+  const ChatTab({
+    super.key,
+    required this.room,
+    this.fotosPorId = const {},
+    this.isClosed = false,
+  });
 
   @override
   State<ChatTab> createState() => _ChatTabState();
@@ -245,6 +253,7 @@ class _ChatTabState extends State<ChatTab>
           controller: _inputCtrl,
           isConnected: _isConnected,
           isDark: isDark,
+          isClosed: widget.isClosed,
           onSend: _sendMessage,
         ),
       ],
@@ -565,6 +574,7 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool isConnected;
   final bool isDark;
+  final bool isClosed;
   final VoidCallback onSend;
 
   const _InputBar({
@@ -572,12 +582,45 @@ class _InputBar extends StatelessWidget {
     required this.isConnected,
     required this.isDark,
     required this.onSend,
+    this.isClosed = false,
   });
 
   static const _green = Color(0xFF8FD11B);
 
   @override
   Widget build(BuildContext context) {
+    // Servicio cerrado: chat en solo lectura.
+    if (isClosed) {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+            ),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_outline, size: 15, color: Colors.grey.shade500),
+              const SizedBox(width: 8),
+              Text(
+                'Servicio cerrado — chat en solo lectura',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final habilitado = isConnected;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: BoxDecoration(
@@ -601,14 +644,14 @@ class _InputBar extends StatelessWidget {
                 ),
                 child: TextField(
                   controller: controller,
-                  enabled: isConnected,
+                  enabled: habilitado,
                   maxLines: 4,
                   minLines: 1,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => onSend(),
                   style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
-                    hintText: isConnected
+                    hintText: habilitado
                         ? 'Escribe un mensaje…'
                         : 'Sin conexión',
                     hintStyle: const TextStyle(
@@ -632,15 +675,15 @@ class _InputBar extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: isConnected
+                color: habilitado
                     ? _green
                     : Colors.grey.withValues(alpha: 0.25),
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                onPressed: isConnected ? onSend : null,
+                onPressed: habilitado ? onSend : null,
                 icon: const Icon(Icons.send_rounded, size: 20),
-                color: isConnected ? Colors.black : Colors.grey,
+                color: habilitado ? Colors.black : Colors.grey,
                 padding: EdgeInsets.zero,
               ),
             ),

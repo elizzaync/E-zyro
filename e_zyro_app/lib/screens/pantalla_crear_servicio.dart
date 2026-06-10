@@ -49,6 +49,7 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
   String? _fechaInicio;
   String? _fechaFin;
 
+  bool _inspeccionEquipos = false;
   bool _cargando = true;
   bool _guardando = false;
   String? _errorMsg;
@@ -112,6 +113,7 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
         _fechaProgramada = _soloFecha(s.fechaProgramada);
         _fechaInicio = _soloFecha(s.fechaInicio);
         _fechaFin = _soloFecha(s.fechaFin);
+        _inspeccionEquipos = s.inspeccionEquiposActiva;
       }
     }
     if (!mounted) return;
@@ -195,6 +197,7 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
               ? null
               : _nroDocumento.text.trim()),
       'estado': _estado,
+      'tiene_equipos_intervenidos': _inspeccionEquipos,
       'fecha_programada': _fechaProgramada,
       'fecha_inicio': _fechaInicio,
       'fecha_fin': _fechaFin,
@@ -360,6 +363,55 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
                               child: _fechaField('Fecha fin', _fechaFin,
                                   () => _pickFecha('fin'))),
                         ],
+                      ),
+                      const SizedBox(height: 16),
+                      // ── Toggle Inspección de Equipos ──────────────────────
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: _inspeccionEquipos
+                              ? _green.withValues(alpha: 0.08)
+                              : Colors.grey.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _inspeccionEquipos
+                                ? _green.withValues(alpha: 0.35)
+                                : Colors.grey.withValues(alpha: 0.20),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.electrical_services_outlined,
+                                size: 20, color: _green),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Inspección de Equipos',
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Activa la sección para intervenir activos del cliente en este servicio.',
+                                    style: TextStyle(
+                                        fontSize: 11.5, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: _inspeccionEquipos,
+                              onChanged: (v) =>
+                                  setState(() => _inspeccionEquipos = v),
+                              activeThumbColor: _green,
+                              activeTrackColor: _green.withValues(alpha: 0.35),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

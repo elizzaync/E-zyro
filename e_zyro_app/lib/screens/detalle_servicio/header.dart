@@ -5,7 +5,11 @@ part of '../pantalla_detalle_servicio.dart';
 
 class _Header extends StatelessWidget {
   final ServicioDetalle detalle;
-  const _Header({required this.detalle});
+  /// Progreso a mostrar (override basado en tareas). Si es null usa detalle.progreso.
+  final double? progresoMostrado;
+  const _Header({required this.detalle, this.progresoMostrado});
+
+  double get _progreso => progresoMostrado ?? detalle.progreso;
 
   Color get _statusColor => switch (detalle.estado) {
         'Completado' => _green,
@@ -84,12 +88,12 @@ class _Header extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              const Text('Progreso',
+              const Text('Progreso de tareas',
                   style: TextStyle(color: Colors.grey, fontSize: 11)),
               const Spacer(),
-              Text('${detalle.progreso.round()}%',
+              Text('${_progreso.round()}%',
                   style: TextStyle(
-                      color: detalle.progreso >= 100 ? _green : _amber,
+                      color: _progreso >= 100 ? _green : _amber,
                       fontSize: 11,
                       fontWeight: FontWeight.w600)),
             ],
@@ -98,11 +102,11 @@ class _Header extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: detalle.progreso / 100,
+              value: _progreso / 100,
               backgroundColor:
                   isDark ? Colors.grey.shade800 : Colors.grey.shade200,
               valueColor: AlwaysStoppedAnimation<Color>(
-                  detalle.progreso >= 100 ? _green : _amber),
+                  _progreso >= 100 ? _green : _amber),
               minHeight: 5,
             ),
           ),
@@ -169,7 +173,7 @@ class _FasesStepper extends StatelessWidget {
                             height: 3,
                             color: f.n == 1
                                 ? Colors.transparent
-                                : (faseClase(f.n - 1, estado, progreso) != 'muted'
+                                : (faseClase(f.n - 1, estado, progreso) == 'done'
                                     ? _green
                                     : muted.withValues(alpha: 0.3)),
                           ),
@@ -233,6 +237,7 @@ class _ChecklistPreparacion extends StatelessWidget {
   final bool tareasListo;
   final bool materialesListo;
   final bool puedeIniciar;
+  final bool esJefe;
   final bool iniciando;
   final List<String> motivos;
   final VoidCallback onIniciar;
@@ -242,6 +247,7 @@ class _ChecklistPreparacion extends StatelessWidget {
     required this.tareasListo,
     required this.materialesListo,
     required this.puedeIniciar,
+    required this.esJefe,
     required this.iniciando,
     required this.motivos,
     required this.onIniciar,
@@ -282,24 +288,35 @@ class _ChecklistPreparacion extends StatelessWidget {
             Text('Falta: ${motivos.join(' · ')}.',
                 style: const TextStyle(
                     color: _amber, fontSize: 11.5, fontWeight: FontWeight.w500))
+          else if (!esJefe)
+            const Text(
+                'Todo listo. Espera que el Jefe de Operaciones marque EN SITIO.',
+                style: TextStyle(
+                    color: _green, fontSize: 11.5, fontWeight: FontWeight.w600))
           else
-            const Text('Todo listo. Ya puedes iniciar el servicio.',
+            const Text('Todo listo. Marca EN SITIO al llegar al lugar.',
                 style: TextStyle(
                     color: _green, fontSize: 11.5, fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: (puedeIniciar && !iniciando) ? onIniciar : null,
+              onPressed: (puedeIniciar && esJefe && !iniciando) ? onIniciar : null,
               icon: iniciando
                   ? const SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
-                  : Icon(puedeIniciar ? Icons.play_arrow_rounded : Icons.lock_outline,
+                  : Icon(
+                      (puedeIniciar && esJefe)
+                          ? Icons.location_on_rounded
+                          : Icons.lock_outline,
                       size: 18),
-              label: Text(puedeIniciar ? 'Iniciar servicio' : 'Iniciar (bloqueado)',
+              label: Text(
+                  (puedeIniciar && esJefe)
+                      ? 'Marcar EN SITIO'
+                      : (!esJefe ? 'EN SITIO (solo Jefe de Op.)' : 'EN SITIO (bloqueado)'),
                   style: const TextStyle(fontWeight: FontWeight.w700)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _green,
@@ -357,6 +374,113 @@ class _PrepStep extends StatelessWidget {
                     fontWeight: ok ? FontWeight.w500 : FontWeight.w400)),
           ),
           if (ok) const Icon(Icons.check_circle, size: 14, color: _green),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Tarjeta Fase Ejecución / Cierre (servicio En Proceso) ────────────────────
+
+class _FaseEjecucionCard extends StatelessWidget {
+  final int totalTareas;
+  final int tareasCompletas;
+  final bool todasCompletas;
+  final bool esJefe;
+  final bool cerrando;
+  final VoidCallback onCerrar;
+
+  const _FaseEjecucionCard({
+    required this.totalTareas,
+    required this.tareasCompletas,
+    required this.todasCompletas,
+    required this.esJefe,
+    required this.cerrando,
+    required this.onCerrar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    final listoCerrar = todasCompletas && totalTareas > 0;
+    final color = listoCerrar ? _green : const Color(0xFF3B82F6);
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(listoCerrar ? Icons.flag_circle_outlined : Icons.engineering_outlined,
+                  size: 16, color: color),
+              const SizedBox(width: 6),
+              Text(listoCerrar ? 'Fase 4 · Cierre' : 'Fase 3 · Ejecución',
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+              const Spacer(),
+              Text('$tareasCompletas / $totalTareas tareas',
+                  style: const TextStyle(fontSize: 11.5, color: Colors.grey)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (totalTareas == 0)
+            const Text('Reparte tareas en el cronograma para ejecutar el servicio.',
+                style: TextStyle(
+                    color: _amber, fontSize: 11.5, fontWeight: FontWeight.w500))
+          else if (!todasCompletas)
+            const Text('Marca todas las tareas para poder cerrar el servicio.',
+                style: TextStyle(
+                    color: Color(0xFF3B82F6),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500))
+          else if (!esJefe)
+            const Text(
+                'Todas las tareas listas. Espera que el Jefe de Operaciones cierre el servicio.',
+                style: TextStyle(
+                    color: _green, fontSize: 11.5, fontWeight: FontWeight.w600))
+          else
+            const Text('Todas las tareas completas. Ya puedes cerrar el servicio.',
+                style: TextStyle(
+                    color: _green, fontSize: 11.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed:
+                  (listoCerrar && esJefe && !cerrando) ? onCerrar : null,
+              icon: cerrando
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : Icon(
+                      (listoCerrar && esJefe)
+                          ? Icons.check_circle_outline
+                          : Icons.lock_outline,
+                      size: 18),
+              label: Text(
+                  (listoCerrar && esJefe)
+                      ? 'Cerrar servicio'
+                      : (!esJefe ? 'Cerrar (solo Jefe de Op.)' : 'Cerrar (bloqueado)'),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _green,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    Theme.of(context).disabledColor.withValues(alpha: 0.15),
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
         ],
       ),
     );

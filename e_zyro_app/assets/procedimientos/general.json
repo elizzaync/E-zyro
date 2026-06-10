@@ -1,0 +1,42 @@
+[
+  {
+    "orden": 1,
+    "nombre": "Inspección visual inicial",
+    "descripcion": "Inspección visual del equipo: estado general, condición física, identificación y señalización de seguridad."
+  },
+  {
+    "orden": 2,
+    "nombre": "Verificación de condiciones de operación",
+    "descripcion": "Verificar que el equipo opera dentro de los parámetros normales: temperatura, vibración, ruido y señales de alarma."
+  },
+  {
+    "orden": 3,
+    "nombre": "Limpieza general",
+    "descripcion": "Limpieza exterior e interior del equipo según procedimiento del fabricante. Remoción de polvo, suciedad y cuerpos extraños."
+  },
+  {
+    "orden": 4,
+    "nombre": "Revisión de conexiones",
+    "descripcion": "Verificar apriete y estado de todas las conexiones eléctricas y mecánicas. Inspeccionar cables y terminales."
+  },
+  {
+    "orden": 5,
+    "nombre": "Pruebas de funcionamiento",
+    "descripcion": "Realizar pruebas de funcionamiento completas. Verificar todas las funciones y modos de operación del equipo."
+  },
+  {
+    "orden": 6,
+    "nombre": "Lubricación de partes móviles",
+    "descripcion": "Lubricar partes móviles con el lubricante especificado por el fabricante. Verificar niveles de aceite o grasa."
+  },
+  {
+    "orden": 7,
+    "nombre": "Calibración y ajuste",
+    "descripcion": "Verificar y ajustar calibración del equipo según especificaciones técnicas. Registrar valores antes y después."
+  },
+  {
+    "orden": 8,
+    "nombre": "Documentación y cierre",
+    "descripcion": "Registrar todos los trabajos realizados, valores medidos, repuestos utilizados y estado final del equipo."
+  }
+]

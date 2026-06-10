@@ -1,0 +1,57 @@
+[
+  {
+    "orden": 1,
+    "nombre": "Inspección visual del equipo",
+    "descripcion": "Inspección visual de la unidad UPS: carcasa, ventiladores, pantalla de estado, luces indicadoras y conectores."
+  },
+  {
+    "orden": 2,
+    "nombre": "Verificación de alarmas activas",
+    "descripcion": "Revisión de alarmas activas en el panel de control: batería baja, bypass activo, sobrecarga, temperatura alta."
+  },
+  {
+    "orden": 3,
+    "nombre": "Medición de tensión de entrada",
+    "descripcion": "Medir tensión de entrada en cada fase (L1-L2-L3 y neutro). Verificar equilibrio de fases dentro del ±2%."
+  },
+  {
+    "orden": 4,
+    "nombre": "Medición de tensión de salida",
+    "descripcion": "Medir tensión de salida de la UPS en cada fase. Verificar regulación ≤ ±1% bajo carga nominal."
+  },
+  {
+    "orden": 5,
+    "nombre": "Prueba de autonomía de baterías",
+    "descripcion": "Realizar prueba de autonomía: desconectar alimentación y verificar tiempo de respaldo según especificación del equipo."
+  },
+  {
+    "orden": 6,
+    "nombre": "Revisión del banco de baterías",
+    "descripcion": "Inspeccionar baterías: verificar tensión individual, temperatura, sulfatación, fugas y fecha de vencimiento."
+  },
+  {
+    "orden": 7,
+    "nombre": "Limpieza de filtros y ventilación",
+    "descripcion": "Limpieza de filtros de aire y rejillas de ventilación. Verificar libre circulación de aire en la sala de baterías."
+  },
+  {
+    "orden": 8,
+    "nombre": "Revisión de conexiones internas",
+    "descripcion": "Verificar apriete de terminales de potencia y control. Inspeccionar estado del cableado interno y buses de distribución."
+  },
+  {
+    "orden": 9,
+    "nombre": "Prueba de transferencia",
+    "descripcion": "Probar transferencia automática a bypass y retorno. Medir tiempo de conmutación y verificar continuidad de alimentación."
+  },
+  {
+    "orden": 10,
+    "nombre": "Actualización de firmware",
+    "descripcion": "Verificar versión de firmware del sistema de gestión de la UPS y actualizar si hay versiones estables disponibles."
+  },
+  {
+    "orden": 11,
+    "nombre": "Registro y cierre",
+    "descripcion": "Registrar todos los valores medidos, estado de la batería, alarmas solucionadas y próxima fecha de mantenimiento."
+  }
+]

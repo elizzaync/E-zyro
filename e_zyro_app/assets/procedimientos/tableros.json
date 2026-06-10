@@ -1,0 +1,57 @@
+[
+  {
+    "orden": 1,
+    "nombre": "Revisión de condiciones ambientales",
+    "descripcion": "Verificar temperatura, humedad y ventilación del ambiente donde se encuentra el tablero eléctrico."
+  },
+  {
+    "orden": 2,
+    "nombre": "Inspección visual exterior",
+    "descripcion": "Inspección visual del gabinete: puertas, bisagras, cerraduras, ventanas de inspección, estado de pintura y herrajes."
+  },
+  {
+    "orden": 3,
+    "nombre": "Revisión de cableado de potencia",
+    "descripcion": "Verificar estado del cableado de potencia: aislamiento, calibre, identificación y sujeción correcta. Detectar cables pelados o deteriorados."
+  },
+  {
+    "orden": 4,
+    "nombre": "Revisión de cableado de control",
+    "descripcion": "Inspección del cableado de control y señalización: continuidad, marcado de conductores y fijación de terminales."
+  },
+  {
+    "orden": 5,
+    "nombre": "Verificación de interruptores",
+    "descripcion": "Verificar operación mecánica y eléctrica de interruptores automáticos (MCB, MCCB). Maniobra de prueba ON/OFF y verificación de disparo."
+  },
+  {
+    "orden": 6,
+    "nombre": "Apriete de terminales",
+    "descripcion": "Apriete de todos los terminales de fuerza y control con torquímetro calibrado según especificaciones del fabricante."
+  },
+  {
+    "orden": 7,
+    "nombre": "Limpieza interna",
+    "descripcion": "Limpieza interna del tablero con aspiradora industrial y paño antiestático. Remoción de polvo, insectos y cuerpos extraños."
+  },
+  {
+    "orden": 8,
+    "nombre": "Prueba de aislamiento",
+    "descripcion": "Medición de resistencia de aislamiento entre fases y tierra con megóhmetro. Valores mínimos aceptables según IEC 60364."
+  },
+  {
+    "orden": 9,
+    "nombre": "Verificación de protecciones",
+    "descripcion": "Comprobación de relés de protección, fusibles y protecciones termomagnéticas. Verificar calibración y coordinación."
+  },
+  {
+    "orden": 10,
+    "nombre": "Prueba de puesta a tierra",
+    "descripcion": "Medir continuidad y resistencia del sistema de puesta a tierra del tablero. Verificar conexión del neutro y conductor de protección."
+  },
+  {
+    "orden": 11,
+    "nombre": "Documentación y etiquetado",
+    "descripcion": "Actualizar planos eléctricos del tablero, etiquetas de circuitos y registro de mantenimiento con resultados de mediciones."
+  }
+]

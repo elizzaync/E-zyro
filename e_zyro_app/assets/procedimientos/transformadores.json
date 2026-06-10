@@ -1,0 +1,57 @@
+[
+  {
+    "orden": 1,
+    "nombre": "Inspección visual exterior",
+    "descripcion": "Inspección de la carcasa, bushings, indicadores de nivel de aceite, válvulas de alivio de presión y termómetros."
+  },
+  {
+    "orden": 2,
+    "nombre": "Medición de temperatura",
+    "descripcion": "Registrar temperatura del aceite y temperatura de ambiente. Verificar operación normal del sistema de refrigeración."
+  },
+  {
+    "orden": 3,
+    "nombre": "Análisis de aceite dieléctrico",
+    "descripcion": "Tomar muestra de aceite dieléctrico para análisis de rigidez dieléctrica, humedad y contenido de gas disuelto (DGA)."
+  },
+  {
+    "orden": 4,
+    "nombre": "Prueba de resistencia de aislamiento",
+    "descripcion": "Medir resistencia de aislamiento entre devanados y tierra. Calcular índice de polarización (PI) para evaluar condición del aislamiento."
+  },
+  {
+    "orden": 5,
+    "nombre": "Medición de relación de transformación",
+    "descripcion": "Verificar relación de transformación (TTR) en todas las posiciones del cambiador de taps. Tolerancia ≤ 0.5%."
+  },
+  {
+    "orden": 6,
+    "nombre": "Revisión del cambiador de taps",
+    "descripcion": "Operar el cambiador de taps en todas las posiciones. Verificar continuidad, contactos y mecanismo de operación."
+  },
+  {
+    "orden": 7,
+    "nombre": "Inspección de terminales y bushings",
+    "descripcion": "Verificar estado de los bushings de porcelana: limpieza, grietas, fugas de aceite y apriete de terminales de AT y BT."
+  },
+  {
+    "orden": 8,
+    "nombre": "Prueba de continuidad de devanados",
+    "descripcion": "Medir resistencia DC de los devanados primario y secundario. Comparar con valores de fábrica y registros históricos."
+  },
+  {
+    "orden": 9,
+    "nombre": "Verificación del sistema de tierra",
+    "descripcion": "Verificar conexión del neutro y sistema de puesta a tierra del transformador. Medir resistencia de tierra."
+  },
+  {
+    "orden": 10,
+    "nombre": "Prueba de protecciones",
+    "descripcion": "Verificar operación de relé Buchholz, termómetros de contacto, protección diferencial y relés de sobrecorriente."
+  },
+  {
+    "orden": 11,
+    "nombre": "Documentación técnica",
+    "descripcion": "Registrar todas las mediciones, estado del aceite, ajustes realizados y comparar con registros históricos para análisis de tendencia."
+  }
+]

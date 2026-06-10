@@ -64,6 +64,7 @@ class _MaterialesTabState extends State<_MaterialesTab> {
         builder: (_) => PantallaPrestamosServicio(
           servicioId: widget.servicioId,
           servicioNombre: 'Servicio',
+          isClosed: widget.isClosed,
         ),
       ),
     );

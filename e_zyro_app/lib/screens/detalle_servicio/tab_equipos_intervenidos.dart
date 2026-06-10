@@ -60,10 +60,14 @@ Future<String?> _imagenADataUrl() async {
 class _EquiposIntervenidosTab extends StatefulWidget {
   final String servicioId;
   final bool isClosed;
+  final String? ubicacionId;
+  final String? zonaId;
 
   const _EquiposIntervenidosTab({
     required this.servicioId,
     this.isClosed = false,
+    this.ubicacionId,
+    this.zonaId,
   });
 
   @override
@@ -109,7 +113,11 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
       _error = false;
       _seleccionados.clear();
     });
-    final res = await _svc!.getEquiposIntervenidos(widget.servicioId);
+    final res = await _svc!.getEquiposIntervenidos(
+      widget.servicioId,
+      ubicacionId: widget.ubicacionId,
+      zonaId: widget.zonaId,
+    );
     if (!mounted) return;
     setState(() {
       _cargando = false;
@@ -328,6 +336,29 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
     final filtrados = _filtrados;
     return Column(
       children: [
+        // Banner: equipos filtrados por ubicación/zona del servicio
+        if (widget.ubicacionId != null || widget.zonaId != null)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _green.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _green.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: _green),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Equipos de la ubicación y zona de este servicio.',
+                    style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+                  ),
+                ),
+              ],
+            ),
+          ),
         // Buscador + acciones
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),

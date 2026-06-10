@@ -4,7 +4,6 @@ import '../services/proyecto_service.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import 'pantalla_detalle_servicio.dart';
-import 'pantalla_equipos.dart';
 import 'pantalla_gantt.dart';
 import 'pantalla_crear_proyecto.dart';
 import 'pantalla_crear_servicio.dart';
@@ -35,7 +34,7 @@ class _ServiciosScreenState extends State<ServiciosScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 1, vsync: this);
     _load();
     syncCompletedNotifier.addListener(_onSyncCompleted);
   }
@@ -173,7 +172,6 @@ class _ServiciosScreenState extends State<ServiciosScreen>
           unselectedLabelStyle: const TextStyle(fontSize: 13),
           tabs: [
             Tab(text: 'Servicios (${_servicios.length})'),
-            const Tab(text: 'Equipos Intervenidos'),
           ],
         ),
       ),
@@ -240,8 +238,6 @@ class _ServiciosScreenState extends State<ServiciosScreen>
                             ),
                           ),
 
-                // ── Tab Equipos ────────────────────────────────────────────
-                EquiposTab(proyectoId: proyecto.id),
               ],
             ),
           ),
@@ -391,144 +387,139 @@ class _ServicioCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: surface,
-          borderRadius: BorderRadius.circular(14),
-          border: isDark
-              ? Border.all(
-                  color: green.withValues(alpha: 0.35), width: 1.0)
-              : null,
-          boxShadow: isDark
-              ? [
-                  BoxShadow(
-                    color: green.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                  )
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  )
-                ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(14),
+            border: isDark
+                ? Border.all(color: green.withValues(alpha: 0.35), width: 1.0)
+                : null,
+            boxShadow: isDark
+                ? [BoxShadow(color: green.withValues(alpha: 0.08), blurRadius: 10)]
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── Número de orden ──────────────────────────────────────
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? _dotColor.withValues(alpha: 0.15)
-                        : _dotColor.withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      '${servicio.orden}',
-                      style: TextStyle(
-                        color: _dotColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // ── Nombre y fecha ───────────────────────────────────────
+                // ── Borde de estado ──────────────────────────────────────
+                Container(width: 5, color: _statusColor),
+                // ── Contenido ────────────────────────────────────────────
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        servicio.nombre,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600),
-                      ),
-                      if (servicio.descripcion != null &&
-                          servicio.descripcion!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          servicio.descripcion!,
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      if (servicio.fechaProgramada != null) ...[
-                        const SizedBox(height: 4),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Row(
                           children: [
-                            const Icon(Icons.calendar_today_outlined,
-                                size: 11, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              servicio.fechaProgramada!,
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 11),
+                            // Número de orden
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? _dotColor.withValues(alpha: 0.15)
+                                    : _dotColor.withValues(alpha: 0.10),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${servicio.orden}',
+                                  style: TextStyle(
+                                    color: _dotColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Nombre y fecha
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    servicio.nombre,
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                                  ),
+                                  if (servicio.descripcion != null && servicio.descripcion!.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      servicio.descripcion!,
+                                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                  if (servicio.fechaProgramada != null) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.calendar_today_outlined, size: 11, color: Colors.grey),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          servicio.fechaProgramada!,
+                                          style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Estado + chevron
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? _statusColor.withValues(alpha: 0.15)
+                                        : _statusColor.withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    _estadoLabel,
+                                    style: TextStyle(
+                                      color: _statusColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+                              ],
                             ),
                           ],
                         ),
+                        // Stepper de procedimientos
+                        if (servicio.totalProcedimientos > 0) ...[
+                          const SizedBox(height: 12),
+                          Divider(
+                            height: 1,
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.06)
+                                : Colors.grey.withValues(alpha: 0.15),
+                          ),
+                          const SizedBox(height: 10),
+                          _ProcedimientoStepper(
+                            total: servicio.totalProcedimientos,
+                            completados: servicio.procedimientosCompletados,
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-
-                // ── Estado + chevron ─────────────────────────────────────
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? _statusColor.withValues(alpha: 0.15)
-                            : _statusColor.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _estadoLabel,
-                        style: TextStyle(
-                          color: _statusColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                     ),
-                    const SizedBox(height: 8),
-                    const Icon(Icons.chevron_right,
-                        color: Colors.grey, size: 18),
-                  ],
+                  ),
                 ),
               ],
             ),
-
-            // ── Stepper de procedimientos ───────────────────────────────
-            if (servicio.totalProcedimientos > 0) ...[
-              const SizedBox(height: 12),
-              Divider(
-                height: 1,
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.grey.withValues(alpha: 0.15),
-              ),
-              const SizedBox(height: 10),
-              _ProcedimientoStepper(
-                total: servicio.totalProcedimientos,
-                completados: servicio.procedimientosCompletados,
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );

@@ -43,16 +43,23 @@ class IntervencionService {
 
   // ── Equipos intervenidos del servicio ───────────────────────────────────────
 
-  // GET /operaciones/servicio/{id}/equipos-intervenidos
+  // GET /operaciones/servicio/{id}/equipos-intervenidos?ubicacion_id=&zona_id=
   Future<ApiResult<List<EquipoIntervenidoServicio>>> getEquiposIntervenidos(
-          String servicioId) =>
-      _run(
-        () => _client.get('/operaciones/servicio/$servicioId/equipos-intervenidos'),
-        (r) => ((jsonDecode(r.body) as List?) ?? [])
-            .map((e) =>
-                EquipoIntervenidoServicio.fromJson(e as Map<String, dynamic>))
-            .toList(),
-      );
+    String servicioId, {
+    String? ubicacionId,
+    String? zonaId,
+  }) {
+    final params = <String, String>{};
+    if (ubicacionId != null && ubicacionId.isNotEmpty) params['ubicacion_id'] = ubicacionId;
+    if (zonaId != null && zonaId.isNotEmpty) params['zona_id'] = zonaId;
+    final query = params.isEmpty ? '' : '?${params.entries.map((e) => '${e.key}=${e.value}').join('&')}';
+    return _run(
+      () => _client.get('/operaciones/servicio/$servicioId/equipos-intervenidos$query'),
+      (r) => ((jsonDecode(r.body) as List?) ?? [])
+          .map((e) => EquipoIntervenidoServicio.fromJson(e as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 
   // POST /operaciones/servicio/{id}/equipos-intervenidos
   // Crea un activo nuevo en el catálogo. Ubicación/zona/cliente NO se envían:

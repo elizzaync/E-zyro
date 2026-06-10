@@ -1,4 +1,6 @@
 // Tab Procedimientos: lista, card, sheet de evidencias, thumb.
+// Conservado para referencia futura (retirado de la barra de tabs).
+// ignore_for_file: unused_element
 part of '../pantalla_detalle_servicio.dart';
 
 // ─── Tab: Procedimientos (interactivo) ────────────────────────────────────────
@@ -15,6 +17,7 @@ class _ProcedimientosTab extends StatelessWidget {
     required this.service,
     required this.onChanged,
     required this.onToggle,
+    // ignore: unused_element_parameter
     this.isClosed = false,
   });
 

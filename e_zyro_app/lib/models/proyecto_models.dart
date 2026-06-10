@@ -699,6 +699,7 @@ class ServicioDetalle {
   final String? alcance;
   final String? tipoDocumentoCliente;
   final String? nroDocumento;
+  final bool inspeccionEquiposActiva;
 
   ServicioDetalle({
     required this.id,
@@ -729,6 +730,7 @@ class ServicioDetalle {
     this.alcance,
     this.tipoDocumentoCliente,
     this.nroDocumento,
+    this.inspeccionEquiposActiva = false,
   });
 
   /// Estado terminal del servicio: el backend usa 'Completado', pero en
@@ -783,6 +785,12 @@ class ServicioDetalle {
         alcance: j['alcance'] as String?,
         tipoDocumentoCliente: j['tipo_documento_cliente'] as String?,
         nroDocumento: j['nro_documento'] as String?,
+        // El backend desplegado expone `es_mantenimiento`; el campo nuevo
+        // `inspeccion_equipos_activa` es su alias. Aceptamos ambos para que el
+        // botón aparezca con o sin el último deploy.
+        inspeccionEquiposActiva: (j['inspeccion_equipos_activa'] as bool?) ??
+            (j['es_mantenimiento'] as bool?) ??
+            false,
       );
 }
 

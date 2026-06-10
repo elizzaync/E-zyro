@@ -37,8 +37,8 @@ import 'pantalla_asignacion_servicio.dart';
 import 'pantalla_crear_servicio.dart';
 import 'pantalla_intervencion_equipo.dart';
 
-part 'detalle_servicio/header.dart';
 part 'detalle_servicio/tab_procedimientos.dart';
+part 'detalle_servicio/header.dart';
 part 'detalle_servicio/tab_tareas.dart';
 part 'detalle_servicio/tab_equipo.dart';
 part 'detalle_servicio/tab_materiales.dart';
@@ -89,7 +89,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 8, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _checkRol();
     _load();
     _conectarEventos();
@@ -234,43 +234,72 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     return total > 0 && _borrador.items.isEmpty;
   }
 
-  double _calcProgreso(List<ProcedimientoDetalle> procs) {
-    if (procs.isEmpty) return 0;
-    final done = procs.where((p) => p.estado == 'completado').length;
-    return (done / procs.length) * 100;
+  // ── Fases operativas (En sitio / Ejecución / Cierre) basadas en TAREAS ──────
+  // El flujo lo controla el cronograma de tareas, no los procedimientos.
+  double get _progresoTareas {
+    final t = _detalle?.tareas ?? const [];
+    if (t.isEmpty) return 0;
+    final done = t.where((x) => x.estado == 'completado').length;
+    return done / t.length * 100;
   }
 
-  // ── Toggle de tarea optimista (refleja al instante, revierte si falla) ──────
-  Future<void> _toggleOptimista(ProcedimientoDetalle proc) async {
+  bool get _todasTareasCompletas {
+    final t = _detalle?.tareas ?? const [];
+    return t.isNotEmpty && t.every((x) => x.estado == 'completado');
+  }
+
+  /// Solo el Jefe de Operaciones (o Admin) controla las transiciones de fase.
+  bool get _esJefeOperaciones =>
+      AppSession.i.isJefeOperaciones || AppSession.i.isAdmin;
+
+  // ── Marcar EN SITIO (Pendiente → En_Proceso), solo jefe de operaciones ──────
+  Future<void> _marcarEnSitio() async {
     final d = _detalle;
-    if (d == null) return;
-    if (d.esCerrado) {
-      _snack(
-          d.esTerminado
-              ? 'Servicio terminado — solo lectura'
-              : 'El servicio está cancelado (solo lectura).',
-          _amber);
+    if (d == null || d.estado != 'Pendiente') return;
+    if (!_esJefeOperaciones) {
+      _snack('Solo el Jefe de Operaciones puede marcar EN SITIO.', _amber);
       return;
     }
-    final original = proc.estado;
-    final nuevo = original == 'completado' ? 'pendiente' : 'completado';
-    setState(() {
-      proc.estado = nuevo;
-      d.progreso = _calcProgreso(d.procedimientos);
-    });
-    final res =
-        await widget.service.toggleProcedimiento(proc.id, nuevo, servicioId: d.id);
-    if (!mounted) return;
-    if (!res.ok) {
-      setState(() {
-        proc.estado = original;
-        d.progreso = _calcProgreso(d.procedimientos);
-      });
-      _snack(res.errorMessage.isEmpty ? 'No se pudo actualizar el paso' : res.errorMessage,
-          _danger);
-    } else if (res.queued) {
-      _snack('Paso actualizado · se sincronizará al reconectar', _amber);
+    final motivos = _motivosInicio;
+    if (motivos.isNotEmpty) {
+      _snack('No puedes iniciar aún. Falta: ${motivos.join(' · ')}.', _amber);
+      return;
     }
+    await _cambiarEstado('En_Proceso');
+  }
+
+  // ── Cerrar servicio (En_Proceso → Completado) cuando todas las tareas listas ─
+  Future<void> _cerrarServicio() async {
+    final d = _detalle;
+    if (d == null || d.estado != 'En_Proceso') return;
+    if (!_esJefeOperaciones) {
+      _snack('Solo el Jefe de Operaciones puede cerrar el servicio.', _danger);
+      return;
+    }
+    if (!_todasTareasCompletas) {
+      _snack('Marca todas las tareas antes de cerrar el servicio.', _amber);
+      return;
+    }
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cerrar servicio'),
+        content: const Text(
+            '¿Confirmas el cierre del servicio? Se generará el pre-informe de conformidad y el servicio quedará en solo lectura.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: _green),
+              child: const Text('Sí, cerrar',
+                  style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+    await _finalizarServicio();
   }
 
   // ── Toggle de tarea (cronograma) — no afecta el avance del servicio ─────────
@@ -315,18 +344,6 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     }
   }
 
-  // ── Iniciar servicio (Pendiente → En_Proceso) con checklist ─────────────────
-  Future<void> _iniciarServicio() async {
-    final d = _detalle;
-    if (d == null || d.estado != 'Pendiente') return;
-    final motivos = _motivosInicio;
-    if (motivos.isNotEmpty) {
-      _snack('No puedes iniciar aún. Falta: ${motivos.join(' · ')}.', _amber);
-      return;
-    }
-    await _cambiarEstado('En_Proceso');
-  }
-
   // ── Cancelar / reabrir servicio (solo jefe / admin) ─────────────────────────
   Future<void> _cancelarServicio() async {
     final confirmar = await showDialog<bool>(
@@ -357,8 +374,8 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
       _snack('Solo el Jefe de Operaciones puede finalizar el servicio', _danger);
       return;
     }
-    if (d.progreso < 100) {
-      _snack('Completa todos los pasos antes de finalizar', _amber);
+    if (!_todasTareasCompletas) {
+      _snack('Marca todas las tareas antes de cerrar el servicio', _amber);
       return;
     }
     // Cerrar el servicio y abrir el pre-informe PDF
@@ -447,16 +464,19 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                 ),
               ),
             ),
-          // Iniciar: solo en Pendiente. Bloqueado (gris) hasta cumplir checklist.
-          if (d != null && d.estado == 'Pendiente' && !_cambiandoEstado)
+          // EN SITIO: solo en Pendiente, solo jefe de operaciones, tras checklist.
+          if (d != null &&
+              d.estado == 'Pendiente' &&
+              !_cambiandoEstado &&
+              _esJefeOperaciones)
             IconButton(
-              icon: Icon(_puedeIniciar ? Icons.play_circle_outline : Icons.lock_outline,
+              icon: Icon(_puedeIniciar ? Icons.location_on_outlined : Icons.lock_outline,
                   size: 20),
               tooltip: _puedeIniciar
-                  ? 'Iniciar servicio'
+                  ? 'Marcar EN SITIO'
                   : 'Falta: ${_motivosInicio.join(' · ')}',
               color: _puedeIniciar ? _green : null,
-              onPressed: _iniciarServicio,
+              onPressed: _marcarEnSitio,
             ),
           // Editar: oculto cuando el servicio está cerrado (solo lectura).
           if (d != null &&
@@ -467,15 +487,15 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               tooltip: 'Editar servicio',
               onPressed: _editarServicio,
             ),
-          // Finalizar: solo jefe/admin, al 100%.
+          // Cerrar: solo jefe/admin, con todas las tareas completas.
           if (d != null && _puedeFinalizar && d.estado == 'En_Proceso')
             IconButton(
               icon: const Icon(Icons.task_alt_outlined, size: 20),
-              tooltip: d.progreso >= 100
-                  ? 'Finalizar y generar informe'
-                  : 'Completa los pasos para finalizar',
-              color: d.progreso >= 100 ? _green : null,
-              onPressed: _finalizarServicio,
+              tooltip: _todasTareasCompletas
+                  ? 'Cerrar servicio y generar informe'
+                  : 'Marca todas las tareas para cerrar',
+              color: _todasTareasCompletas ? _green : null,
+              onPressed: _cerrarServicio,
             ),
           // Menú de líder: cancelar / reabrir (acciones terminales protegidas).
           if (d != null &&
@@ -547,9 +567,19 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               ? _ErrorView(onRetry: _load)
               : Column(
                   children: [
-                    _Header(detalle: d),
+                    _Header(detalle: d, progresoMostrado: _progresoTareas),
                     const SizedBox(height: 10),
-                    _FasesStepper(estado: d.estado, progreso: d.progreso),
+                    _FasesStepper(estado: d.estado, progreso: _progresoTareas),
+                    // ── Botón Equipos Intervenidos (solo si está activo) ──
+                    if (d.inspeccionEquiposActiva) ...[
+                      const SizedBox(height: 8),
+                      _EquiposIntervenidosButton(
+                        servicioId: d.id,
+                        ubicacionId: d.ubicacionId,
+                        zonaId: d.zonaId,
+                        isClosed: d.esCerrado,
+                      ),
+                    ],
                     if (d.esCerrado) ...[
                       const SizedBox(height: 4),
                       _ClosedBanner(estado: d.estado),
@@ -561,9 +591,23 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                         tareasListo: _prepTareasListo,
                         materialesListo: _prepMaterialesListo,
                         puedeIniciar: _puedeIniciar,
+                        esJefe: _esJefeOperaciones,
                         motivos: _motivosInicio,
                         iniciando: _cambiandoEstado,
-                        onIniciar: _iniciarServicio,
+                        onIniciar: _marcarEnSitio,
+                      ),
+                    ],
+                    // ── Fase Ejecución / Cierre (servicio En Proceso) ──────
+                    if (d.estado == 'En_Proceso') ...[
+                      const SizedBox(height: 8),
+                      _FaseEjecucionCard(
+                        totalTareas: d.tareas.length,
+                        tareasCompletas:
+                            d.tareas.where((t) => t.estado == 'completado').length,
+                        todasCompletas: _todasTareasCompletas,
+                        esJefe: _esJefeOperaciones,
+                        cerrando: _cambiandoEstado,
+                        onCerrar: _cerrarServicio,
                       ),
                     ],
                     const SizedBox(height: 10),
@@ -581,10 +625,6 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                       tabs: [
                         Tab(
                             height: 46,
-                            icon: const Icon(Icons.checklist_rounded, size: 18),
-                            text: 'Procedimientos · ${d.procedimientos.length}'),
-                        Tab(
-                            height: 46,
                             icon: const Icon(Icons.assignment_outlined, size: 18),
                             text: 'Tareas · ${d.tareas.length}'),
                         Tab(
@@ -597,15 +637,9 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                           text:
                               'Material · ${d.materialesAsignados.length + d.materialesSolicitados.length}',
                         ),
-                        const Tab(
-                            height: 46,
-                            icon: Icon(Icons.electrical_services_outlined,
-                                size: 18),
-                            text: 'Equipos Int.'),
                         Tab(
                             height: 46,
-                            icon: const Icon(Icons.sticky_note_2_outlined,
-                                size: 18),
+                            icon: const Icon(Icons.sticky_note_2_outlined, size: 18),
                             text: 'Notas · ${d.notas.length}'),
                         const Tab(
                             height: 46,
@@ -621,13 +655,6 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _ProcedimientosTab(
-                            procedimientos: d.procedimientos,
-                            service: widget.service,
-                            onChanged: _reloadDetalle,
-                            onToggle: _toggleOptimista,
-                            isClosed: d.esCerrado,
-                          ),
                           _TareasTab(
                             tareas: d.tareas,
                             equipo: d.equipo,
@@ -651,10 +678,6 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             onChanged: _reloadMateriales,
                             isClosed: d.esCerrado,
                           ),
-                          _EquiposIntervenidosTab(
-                            servicioId: d.id,
-                            isClosed: d.esCerrado,
-                          ),
                           _NotasTab(
                             servicioId: d.id,
                             notasIniciales: d.notas,
@@ -663,12 +686,16 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                           ),
                           ChatTab(
                             room: 'servicio/${widget.servicioId}',
+                            isClosed: d.esCerrado,
                             fotosPorId: {
                               for (final m in d.equipo)
                                 if (m.fotoUrl.isNotEmpty) m.id: m.fotoUrl,
                             },
                           ),
-                          _ComunicadosTab(proyectoId: widget.proyectoId),
+                          _ComunicadosTab(
+                            proyectoId: widget.proyectoId,
+                            isClosed: d.esCerrado,
+                          ),
                         ],
                       ),
                     ),

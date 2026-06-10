@@ -23,11 +23,13 @@ const _kGray  = Color(0xFF6B7280);
 class PantallaPrestamosServicio extends StatefulWidget {
   final String servicioId;
   final String servicioNombre;
+  final bool isClosed;
 
   const PantallaPrestamosServicio({
     super.key,
     required this.servicioId,
     required this.servicioNombre,
+    this.isClosed = false,
   });
 
   @override
@@ -190,7 +192,9 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
         elevation: 0,
         backgroundColor: Colors.transparent,
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: widget.isClosed
+          ? null
+          : FloatingActionButton.extended(
         onPressed: _abrirSolicitarSheet,
         backgroundColor: _kGreen,
         foregroundColor: Colors.white,

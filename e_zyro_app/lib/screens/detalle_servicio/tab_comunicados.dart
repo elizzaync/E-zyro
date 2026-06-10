@@ -5,7 +5,8 @@ part of '../pantalla_detalle_servicio.dart';
 
 class _ComunicadosTab extends StatefulWidget {
   final String proyectoId;
-  const _ComunicadosTab({required this.proyectoId});
+  final bool isClosed;
+  const _ComunicadosTab({required this.proyectoId, this.isClosed = false});
 
   @override
   State<_ComunicadosTab> createState() => _ComunicadosTabState();
@@ -41,7 +42,11 @@ class _ComunicadosTabState extends State<_ComunicadosTab>
 
   Future<void> _checkPermiso() async {
     await AppSession.load();
-    if (mounted) setState(() => _puedeEnviar = AppSession.i.canEnviarComunicado);
+    // Servicio cerrado → nadie publica avisos desde esta vista.
+    if (mounted) {
+      setState(() => _puedeEnviar =
+          !widget.isClosed && AppSession.i.canEnviarComunicado);
+    }
   }
 
   @override

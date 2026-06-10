@@ -19,16 +19,17 @@ const List<FaseServicio> fasesServicio = [
   FaseServicio(4, 'Cierre', 'Informe y firma'),
 ];
 
-/// Fase activa (1-4) derivada del estado del servicio y su progreso.
+/// Fase activa (1-4) derivada del estado del servicio y el progreso de TAREAS.
 /// - Pendiente  → 1 (Preparación)
-/// - En_Proceso → 2 (En sitio) hasta el 50 %, luego 3 (Ejecución)
+/// - En_Proceso + 0 % tareas → 2 (En sitio: el equipo llegó, aún no ejecuta)
+/// - En_Proceso + alguna tarea marcada → 3 (Ejecución)
 /// - Completado → 4 (Cierre)
 int faseActiva(String estado, [double progreso = 0]) {
   switch (estado) {
     case 'Pendiente':
       return 1;
     case 'En_Proceso':
-      return progreso >= 50 ? 3 : 2;
+      return progreso > 0 ? 3 : 2;
     case 'Completado':
       return 4;
     default:

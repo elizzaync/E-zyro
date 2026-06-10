@@ -61,6 +61,137 @@ class _EmptyTab extends StatelessWidget {
   }
 }
 
+// ─── Botón Equipos Intervenidos (aparece sobre la barra de tabs) ──────────────
+
+class _EquiposIntervenidosButton extends StatelessWidget {
+  final String servicioId;
+  final String? ubicacionId;
+  final String? zonaId;
+  final bool isClosed;
+
+  const _EquiposIntervenidosButton({
+    required this.servicioId,
+    this.ubicacionId,
+    this.zonaId,
+    this.isClosed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GestureDetector(
+        onTap: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => _EquiposIntervenidosSheet(
+            servicioId: servicioId,
+            ubicacionId: ubicacionId,
+            zonaId: zonaId,
+            isClosed: isClosed,
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: _green.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _green.withValues(alpha: 0.40)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.electrical_services_outlined, size: 16, color: _green),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Equipos Intervenidos',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _green),
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 18, color: _green),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Sheet: lista de equipos intervenidos ────────────────────────────────────
+
+class _EquiposIntervenidosSheet extends StatelessWidget {
+  final String servicioId;
+  final String? ubicacionId;
+  final String? zonaId;
+  final bool isClosed;
+
+  const _EquiposIntervenidosSheet({
+    required this.servicioId,
+    this.ubicacionId,
+    this.zonaId,
+    this.isClosed = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.92,
+      maxChildSize: 0.96,
+      minChildSize: 0.5,
+      builder: (_, ctrl) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Icon(Icons.electrical_services_outlined, size: 18, color: _green),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Equipos Intervenidos',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: _EquiposIntervenidosTab(
+                servicioId: servicioId,
+                ubicacionId: ubicacionId,
+                zonaId: zonaId,
+                isClosed: isClosed,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Error view ───────────────────────────────────────────────────────────────
 
 class _ErrorView extends StatelessWidget {

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/intervencion_models.dart';
 import '../services/intervencion_service.dart';
+import '../utils/procedimientos_locales.dart';
 import 'pantalla_certificado_equipo.dart';
 
 const _green = Color(0xFF8FD11B);
@@ -73,17 +74,38 @@ class _PantallaIntervencionEquipoState
     });
     final res = await _svc!.getInspeccionActiva(widget.servicioId, widget.eiId);
     if (!mounted) return;
-    setState(() {
-      _cargando = false;
-      if (res.ok && res.data != null) {
-        _data = res.data;
-        _obsCtrl.text = res.data!.observaciones ?? '';
-        _proximaFecha = res.data!.proximaFecha ?? '';
-        _mostrarFinalizar = _todosCompletados;
-      } else {
-        _error = true;
+    if (res.ok && res.data != null) {
+      var data = res.data!;
+      // Si el backend no tiene procedimientos, cargar los locales por tipo.
+      if (data.pasos.isEmpty) {
+        final tipo = data.equipo.tipoNombre ?? '';
+        final locales = await cargarProcedimientosLocales(tipo);
+        if (locales.isNotEmpty) {
+          data = InspeccionActiva(
+            inspeccionId: data.inspeccionId,
+            estado: data.estado,
+            pasos: locales,
+            observaciones: data.observaciones,
+            proximaFecha: data.proximaFecha,
+            equipo: data.equipo,
+          );
+        }
       }
-    });
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _data = data;
+        _obsCtrl.text = data.observaciones ?? '';
+        _proximaFecha = data.proximaFecha ?? '';
+        _mostrarFinalizar = _todosCompletados;
+      });
+    } else {
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _error = true;
+      });
+    }
   }
 
   // ── Computed (mismos getters que el componente Angular) ─────────────────────

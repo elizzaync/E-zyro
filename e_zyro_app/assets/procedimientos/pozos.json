@@ -1,0 +1,57 @@
+[
+  {
+    "orden": 1,
+    "nombre": "Identificación y etiquetado",
+    "descripcion": "Identificación, etiquetado y documentación visual del pozo a tierra para fácil localización en mantenimientos futuros. (Art. 320 CNE)"
+  },
+  {
+    "orden": 2,
+    "nombre": "Inspección visual inicial",
+    "descripcion": "Inspección visual inicial para evaluar condición física del pozo, integridad y condiciones ambientales. (Art. 330 CNE)"
+  },
+  {
+    "orden": 3,
+    "nombre": "Retiro del conector AB",
+    "descripcion": "Retiro del conector AB del pozo a tierra siguiendo procedimientos de seguridad eléctrica. (Art. 340 CNE)"
+  },
+  {
+    "orden": 4,
+    "nombre": "Medición de resistencia inicial",
+    "descripcion": "Medición inicial de resistencia del pozo a tierra con telurómetro calibrado para establecer línea base. (Art. 350 CNE)"
+  },
+  {
+    "orden": 5,
+    "nombre": "Limpieza del sistema",
+    "descripcion": "Limpieza del sistema de puesta a tierra: remoción de óxido, corrosión y depósitos que afecten la conductividad."
+  },
+  {
+    "orden": 6,
+    "nombre": "Aplicación de compuesto conductor",
+    "descripcion": "Aplicación de compuesto conductor THOR GEL o similar en el electrodo y conexiones para reducir resistencia de contacto."
+  },
+  {
+    "orden": 7,
+    "nombre": "Verificación de profundidad",
+    "descripcion": "Verificación de la profundidad del electrodo de puesta a tierra según especificación del diseño eléctrico."
+  },
+  {
+    "orden": 8,
+    "nombre": "Reconexión y torque",
+    "descripcion": "Reconexión del conductor de puesta a tierra con el torque especificado y verificación de continuidad eléctrica."
+  },
+  {
+    "orden": 9,
+    "nombre": "Medición de resistencia final",
+    "descripcion": "Medición final de resistencia luego del mantenimiento. Debe ser ≤ 5 Ω (sistemas TN) o ≤ 25 Ω (sistemas IT). (Art. 060 CNE)"
+  },
+  {
+    "orden": 10,
+    "nombre": "Documentación fotográfica",
+    "descripcion": "Registro fotográfico del estado final: pozo cerrado, etiqueta visible, mediciones y conexiones correctamente establecidas."
+  },
+  {
+    "orden": 11,
+    "nombre": "Registro en bitácora",
+    "descripcion": "Registro en bitácora del equipo con fecha, valores de resistencia (antes y después), materiales utilizados y firma del técnico."
+  }
+]
