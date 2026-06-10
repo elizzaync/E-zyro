@@ -209,16 +209,39 @@ def portal_proyecto_detalle(
         r[0]: (round(r[2] / r[1] * 100) if r[1] else 0) for r in prog_rows
     }
 
-    # Responsables de tareas por servicio (equipo técnico real del servicio)
-    resp_rows = db.execute(text("""
-        SELECT DISTINCT t.proyecto_servicio_id::text, t.responsable_id::text
+    # Cronograma de actividades por servicio (solo lectura para el cliente)
+    tareas_rows = db.execute(text("""
+        SELECT t.proyecto_servicio_id::text,
+               t.id::text, t.nombre, t.estado,
+               t.fecha_inicio_tarea, t.fecha_limite,
+               t.responsable_id::text, t.orden
         FROM tarea t
         JOIN proyecto_servicio ps ON ps.id = t.proyecto_servicio_id
-        WHERE ps.proyecto_id = :pid AND t.responsable_id IS NOT NULL
+        WHERE ps.proyecto_id = :pid
+        ORDER BY t.orden ASC, t.fecha_inicio_tarea ASC NULLS LAST
     """), {"pid": proyecto_id}).fetchall()
+
     resp_por_svc: dict[str, list[str]] = {}
-    for sid, rid in resp_rows:
-        resp_por_svc.setdefault(sid, []).append(rid)
+    for t in tareas_rows:
+        if t[6] and t[6] not in resp_por_svc.setdefault(t[0], []):
+            resp_por_svc[t[0]].append(t[6])
+
+    # Pasos fijos (procedimientos) por servicio — alimentan el avance
+    pasos_rows = db.execute(text("""
+        SELECT pr.proyecto_servicio_id::text,
+               pr.nombre, pr.estado, pr.orden
+        FROM procedimiento pr
+        JOIN proyecto_servicio ps ON ps.id = pr.proyecto_servicio_id
+        WHERE ps.proyecto_id = :pid
+        ORDER BY pr.orden ASC
+    """), {"pid": proyecto_id}).fetchall()
+    pasos_por_svc: dict[str, list[dict[str, Any]]] = {}
+    for p in pasos_rows:
+        pasos_por_svc.setdefault(p[0], []).append({
+            "nombre": p[1] or "",
+            "estado": (p[2] or "pendiente").lower(),
+            "orden":  p[3] or 0,
+        })
 
     # Datos de persona (nombre/cargo/foto) de todos los involucrados, en batch
     emp_ids: set[str] = set()
@@ -279,6 +302,20 @@ def portal_proyecto_detalle(
             _push(eid, "Técnico")
         return out
 
+    # Cronograma serializado por servicio (nombre del responsable resuelto)
+    crono_por_svc: dict[str, list[dict[str, Any]]] = {}
+    for t in tareas_rows:
+        persona = persona_map.get(t[6]) if t[6] else None
+        resp_nombre = f"{persona['nombre']} {persona['apellido']}".strip() if persona else None
+        crono_por_svc.setdefault(t[0], []).append({
+            "id":           t[1],
+            "nombre":       t[2] or "",
+            "estado":       (t[3] or "pendiente").lower(),
+            "fecha_inicio": t[4].isoformat() if t[4] else None,
+            "fecha_fin":    t[5].isoformat() if t[5] else None,
+            "responsable":  resp_nombre,
+        })
+
     servicios = []
     for s in servicios_rows:
         sid       = str(s[0])
@@ -294,6 +331,8 @@ def portal_proyecto_detalle(
             "fecha_fin":        s[5].isoformat() if s[5] else None,
             "progreso":         progreso,
             "equipo":           _equipo_de(s),
+            "cronograma":       crono_por_svc.get(sid, []),
+            "pasos":            pasos_por_svc.get(sid, []),
         })
 
     # Avance del proyecto: promedio dinámico del avance real de sus servicios
