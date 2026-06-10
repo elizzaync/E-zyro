@@ -75,11 +75,15 @@ def listar_cuentas(
     exigir_permiso(db, payload, "conciliacion_bancaria", "ver")
     empresa_id = payload["empresa_id"]
     cuentas = cb.listar_cuentas(db, empresa_id, solo_activas)
+    # Sin cuentas → no consultar el PCGE. El placeholder ["-"] rompía con
+    # 'invalid input syntax for type uuid: "-"' (columna id es UUID nativo),
+    # devolviendo 500 cada vez que la empresa no tenía cuentas bancarias.
+    ids_pcge = [x.cuenta_contable_id for x in cuentas]
     pcge = {
         str(c.id): c for c in db.query(CuentaContable).filter(
-            CuentaContable.id.in_([x.cuenta_contable_id for x in cuentas] or ["-"])
+            CuentaContable.id.in_(ids_pcge)
         ).all()
-    }
+    } if ids_pcge else {}
     return [_cuenta_out(db, empresa_id, c, pcge) for c in cuentas]
 
 
