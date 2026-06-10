@@ -232,16 +232,29 @@ def portal_proyecto_detalle(
     if emp_ids:
         persona_rows = db.execute(text("""
             SELECT e.id::text,
-                   TRIM(u.nombre || ' ' || COALESCE(u.apellido, '')) AS nombre,
+                   u.nombre,
+                   COALESCE(u.apellido, '')        AS apellido,
                    e.cargo,
-                   u.foto_url
+                   u.foto_url,
+                   u.email,
+                   u.telefono,
+                   emp.razon_social                AS empresa
             FROM empleado e
-            JOIN usuario u ON u.id = e.usuario_id
+            JOIN usuario u   ON u.id   = e.usuario_id
+            LEFT JOIN empresa emp ON emp.id = u.empresa_id
             WHERE e.id::text = ANY(:ids)
         """), {"ids": list(emp_ids)}).fetchall()
         persona_map = {
-            r[0]: {"id": r[0], "nombre": r[1] or "Sin nombre",
-                   "cargo": r[2] or "Técnico", "foto_url": r[3]}
+            r[0]: {
+                "id":       r[0],
+                "nombre":   r[1] or "Sin nombre",
+                "apellido": r[2] or "",
+                "cargo":    r[3] or "Técnico",
+                "foto_url": r[4],
+                "email":    r[5],
+                "telefono": r[6],
+                "empresa":  r[7] or "",
+            }
             for r in persona_rows
         }
 
