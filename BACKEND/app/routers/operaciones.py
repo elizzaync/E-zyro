@@ -511,7 +511,11 @@ def get_detalle_servicio(
     fecha_str = fp.strftime("%d %b %Y") if fp else "Sin fecha"
     hora_str  = fp.strftime("%I:%M %p") if fp else "--:--"
 
-    # 3. Equipo de trabajo
+    # 3. Equipo de trabajo — POR SERVICIO, no por proyecto.
+    # ProyectoMiembro es a nivel de PROYECTO (sirve para control de acceso):
+    # un servicio recién creado "heredaría" a los técnicos asignados a OTROS
+    # servicios del mismo proyecto. La asignación real por servicio son los
+    # responsables de las TAREAS de este servicio (creadas en configurar).
     equipo_rows = (
         db.query(
             Usuario,
@@ -519,22 +523,25 @@ def get_detalle_servicio(
             Empleado.id.label("empleado_id"),
             ProyectoMiembro.rol_proyecto,
         )
-        .join(Empleado, Empleado.id == ProyectoMiembro.empleado_id)
+        .select_from(Tarea)
+        .join(Empleado, Empleado.id == Tarea.responsable_id)
         .join(Usuario,  Usuario.id  == Empleado.usuario_id)
+        .outerjoin(ProyectoMiembro, (ProyectoMiembro.proyecto_id == ps.proyecto_id)
+                                  & (ProyectoMiembro.empleado_id == Empleado.id))
         .filter(
-            ProyectoMiembro.proyecto_id == ps.proyecto_id,
-            ProyectoMiembro.activo      == True,
+            Tarea.proyecto_servicio_id == servicio_id,
+            Tarea.responsable_id.isnot(None),
         )
+        .distinct()
         .all()
     )
 
-    # El equipo muestra SOLO a los asignados explícitamente al servicio:
-    # líder del servicio, técnico líder y miembros del equipo técnico.
+    # El equipo muestra SOLO a los asignados explícitamente a ESTE servicio:
+    # líder del servicio, técnico líder y responsables de sus tareas.
     # El creador / jefe de operaciones del proyecto NO se muestra aquí salvo
     # que esté asignado (queda solo en los campos de auditoría del proyecto).
     lider_emp_id   = str(ps.lider_id)       if ps.lider_id       else None
     tecnico_emp_id = str(ps.responsable_id) if ps.responsable_id else None
-    jefe_ops_id    = str(proyecto.jefe_operaciones_id) if proyecto.jefe_operaciones_id else None
 
     equipo: list[MiembroEquipoOut] = []
     _vistos: set[str] = set()
@@ -564,11 +571,6 @@ def get_detalle_servicio(
         emp_id = str(r.empleado_id)
         if emp_id in _vistos:
             continue  # ya listado como líder / técnico líder
-        # El jefe de operaciones del proyecto solo aparece si fue asignado
-        # explícitamente como líder/técnico/miembro de ESTE servicio; su fila
-        # de ProyectoMiembro se crea automáticamente al crear el proyecto.
-        if jefe_ops_id and emp_id == jefe_ops_id:
-            continue
         _vistos.add(emp_id)
         equipo.append(MiembroEquipoOut(
             id=emp_id,
