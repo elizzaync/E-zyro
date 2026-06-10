@@ -55,7 +55,10 @@
 
     <div class="pdet-svc-grid">
       @for (s of data.servicios; track s.id) {
-      <div class="pdet-svc-card" [class.pdet-svc-card--done]="esCompletado(s.estado)">
+      <div class="pdet-svc-card pdet-svc-card--clickable"
+           [class.pdet-svc-card--done]="esCompletado(s.estado)"
+           (click)="abrirDrawer(s)"
+           title="Ver el detalle y cronograma del servicio">
 
         <!-- Cabecera: nombre + estado -->
         <div class="pdet-svc-head">
@@ -88,7 +91,7 @@
           <span class="pdet-svc-equipo-vacio">Equipo por asignar</span>
           } @else {
           <button class="pdet-svc-equipo-btn" type="button"
-                  (click)="abrirEquipoModal(s)"
+                  (click)="$event.stopPropagation(); abrirEquipoModal(s)"
                   title="Ver los datos del equipo asignado">
             <svg class="pdet-svc-equipo-icon" viewBox="0 0 20 20" fill="currentColor">
               <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM2 8a2 2 0 114 0 2 2 0 01-4 0zm16.364 9H17a5 5 0 00-9.9-1H1.636A2 2 0 000 18.5v.5h20v-.5a2 2 0 00-1.636-1.5z"/>
@@ -134,6 +137,147 @@
 
   }
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DRAWER LATERAL: detalle del servicio + cronograma (solo lectura)
+═══════════════════════════════════════════════════════════════ -->
+@if (drawerServicio) {
+<div class="pdet-dw-overlay" (click)="cerrarDrawer()" role="dialog" aria-modal="true"
+     aria-label="Detalle del servicio">
+  <aside class="pdet-dw" (click)="$event.stopPropagation()">
+
+    <!-- Cabecera -->
+    <div class="pdet-dw-head">
+      <div class="pdet-dw-head-info">
+        <span class="pdet-badge-sm" [class]="estadoBadge(drawerServicio.estado)">{{ estadoLabel(drawerServicio.estado) }}</span>
+        <h3 class="pdet-dw-title">{{ drawerServicio.nombre }}</h3>
+        @if (drawerServicio.descripcion) {
+        <p class="pdet-dw-desc">{{ drawerServicio.descripcion }}</p>
+        }
+        <div class="pdet-dw-fechas">
+          @if (drawerServicio.fecha_programada) {
+          <span>Programado: <strong>{{ drawerServicio.fecha_programada | date:'dd/MM/yyyy' }}</strong></span>
+          }
+          @if (drawerServicio.fecha_fin) {
+          <span>Fin: <strong>{{ drawerServicio.fecha_fin | date:'dd/MM/yyyy' }}</strong></span>
+          }
+        </div>
+      </div>
+      <button class="pdet-eq-close" (click)="cerrarDrawer()" aria-label="Cerrar">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="pdet-dw-body">
+
+      <!-- Avance -->
+      <div class="pdet-dw-section">
+        <div class="pdet-svc-prog-head">
+          <span class="pdet-dw-section-title">Avance del servicio</span>
+          <span class="pdet-svc-prog-pct" [class]="progresoClase(drawerServicio)">{{ progresoPct(drawerServicio) }}%</span>
+        </div>
+        <div class="pdet-svc-track">
+          <div class="pdet-svc-fill" [class]="progresoClase(drawerServicio)" [style.width.%]="progresoPct(drawerServicio)"></div>
+        </div>
+      </div>
+
+      <!-- Cronograma de actividades -->
+      <div class="pdet-dw-section">
+        <span class="pdet-dw-section-title">
+          Cronograma de actividades
+          @if (drawerServicio.cronograma.length > 0) {
+          <span class="pdet-svc-total">{{ drawerServicio.cronograma.length }}</span>
+          }
+        </span>
+        @if (drawerServicio.cronograma.length === 0) {
+        <p class="pdet-dw-vacio">Aún no hay actividades programadas.</p>
+        } @else {
+        <div class="pdet-dw-timeline">
+          @for (a of drawerServicio.cronograma; track a.id) {
+          <div class="pdet-dw-act">
+            <div class="pdet-dw-act-marker" [class]="estadoActividad(a.estado)">
+              @if (estadoActividad(a.estado) === 'act-done') {
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              }
+            </div>
+            <div class="pdet-dw-act-body">
+              <span class="pdet-dw-act-nombre">{{ a.nombre }}</span>
+              <div class="pdet-dw-act-meta">
+                @if (a.responsable) {
+                <span class="pdet-dw-act-resp">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
+                  {{ a.responsable }}
+                </span>
+                }
+                @if (a.fecha_inicio || a.fecha_fin) {
+                <span class="pdet-dw-act-fechas">
+                  <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+                  {{ a.fecha_inicio ? (a.fecha_inicio | date:'dd/MM/yyyy') : '—' }} → {{ a.fecha_fin ? (a.fecha_fin | date:'dd/MM/yyyy') : '—' }}
+                </span>
+                }
+              </div>
+            </div>
+            <span class="pdet-dw-act-estado" [class]="estadoActividad(a.estado)">
+              {{ estadoLabel(a.estado) }}
+            </span>
+          </div>
+          }
+        </div>
+        }
+      </div>
+
+      <!-- Pasos del servicio -->
+      <div class="pdet-dw-section">
+        <span class="pdet-dw-section-title">
+          Pasos del servicio
+          @if (drawerServicio.pasos.length > 0) {
+          <span class="pdet-dw-pasos-count">{{ pasosCompletados(drawerServicio) }}/{{ drawerServicio.pasos.length }}</span>
+          }
+        </span>
+        @if (drawerServicio.pasos.length === 0) {
+        <p class="pdet-dw-vacio">Sin pasos registrados.</p>
+        } @else {
+        <ul class="pdet-dw-pasos">
+          @for (p of drawerServicio.pasos; track p.orden) {
+          <li class="pdet-dw-paso" [class.pdet-dw-paso--done]="p.estado === 'completado'">
+            <span class="pdet-dw-paso-check">
+              @if (p.estado === 'completado') {
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+              }
+            </span>
+            {{ p.nombre }}
+          </li>
+          }
+        </ul>
+        }
+      </div>
+
+      <!-- Equipo (acceso al modal con datos completos) -->
+      @if ((drawerServicio.equipo ?? []).length > 0) {
+      <div class="pdet-dw-section">
+        <span class="pdet-dw-section-title">Equipo</span>
+        <button class="pdet-svc-equipo-btn" type="button" (click)="abrirEquipoModal(drawerServicio)">
+          <svg class="pdet-svc-equipo-icon" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM2 8a2 2 0 114 0 2 2 0 01-4 0zm16.364 9H17a5 5 0 00-9.9-1H1.636A2 2 0 000 18.5v.5h20v-.5a2 2 0 00-1.636-1.5z"/>
+          </svg>
+          <span class="pdet-svc-equipo-resumen">
+            {{ drawerServicio.equipo.length }} técnico{{ drawerServicio.equipo.length !== 1 ? 's' : '' }} asignado{{ drawerServicio.equipo.length !== 1 ? 's' : '' }}
+          </span>
+          <svg class="pdet-svc-equipo-chevron" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+      </div>
+      }
+
+      <p class="pdet-dw-nota">Vista informativa de solo lectura.</p>
+    </div>
+
+  </aside>
+</div>
+}
 
 <!-- ═══════════════════════════════════════════════════════════════
      MODAL: Equipo de trabajo del servicio (datos completos + foto)

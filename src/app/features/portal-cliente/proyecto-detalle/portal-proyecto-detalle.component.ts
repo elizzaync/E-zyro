@@ -15,6 +15,21 @@ export interface MiembroServicioPortal {
   rol: string;
 }
 
+export interface ActividadCronograma {
+  id: string;
+  nombre: string;
+  estado: string;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  responsable: string | null;
+}
+
+export interface PasoServicio {
+  nombre: string;
+  estado: string;
+  orden: number;
+}
+
 export interface ServicioPortal {
   id: string;
   nombre: string;
@@ -25,6 +40,8 @@ export interface ServicioPortal {
   fecha_fin: string | null;
   progreso: number;
   equipo: MiembroServicioPortal[];
+  cronograma: ActividadCronograma[];
+  pasos: PasoServicio[];
 }
 
 @Component({
@@ -120,11 +137,39 @@ export class PortalProyectoDetalleComponent implements OnInit {
 
   cerrarEquipoModal(): void {
     this.equipoModalServicio = null;
+    document.body.style.overflow = this.drawerServicio ? 'hidden' : '';
+  }
+
+  // ── Drawer lateral: detalle del servicio (cronograma, solo lectura) ───
+
+  drawerServicio: ServicioPortal | null = null;
+
+  abrirDrawer(s: ServicioPortal): void {
+    this.drawerServicio = s;
+    document.body.style.overflow = 'hidden';
+  }
+
+  cerrarDrawer(): void {
+    this.drawerServicio = null;
     document.body.style.overflow = '';
   }
 
+  estadoActividad(e: string): string {
+    const k = (e ?? '').toLowerCase();
+    if (k === 'completado' || k === 'completada') return 'act-done';
+    if (k === 'en_proceso' || k === 'en_curso') return 'act-prog';
+    return 'act-pend';
+  }
+
+  pasosCompletados(s: ServicioPortal): number {
+    return (s.pasos ?? []).filter(p => (p.estado ?? '').toLowerCase() === 'completado').length;
+  }
+
   @HostListener('document:keydown.escape')
-  onEsc(): void { this.cerrarEquipoModal(); }
+  onEsc(): void {
+    if (this.equipoModalServicio) this.cerrarEquipoModal();
+    else this.cerrarDrawer();
+  }
 
   colorAvatar(id: string): string {
     const palette = ['#8dc63f', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#14b8a6'];

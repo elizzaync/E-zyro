@@ -135,6 +135,106 @@
 .rol-lider        { color: #d97706; font-weight: 700; }
 .rol-tecnico-lider { color: #2563eb; font-weight: 600; }
 
+/* ── Drawer lateral: detalle del servicio + cronograma (solo lectura) ── */
+.pdet-svc-card--clickable { cursor: pointer; }
+
+.pdet-dw-overlay {
+  position: fixed; inset: 0; z-index: 990;
+  background: rgba(15, 23, 42, .45);
+  display: flex; justify-content: flex-end;
+  animation: pdetFade .18s ease;
+}
+.pdet-dw {
+  width: 100%; max-width: 480px; height: 100%;
+  background: var(--card-bg,#fff);
+  box-shadow: -12px 0 40px rgba(0,0,0,.18);
+  display: flex; flex-direction: column;
+  animation: pdetSlide .25s ease;
+}
+@keyframes pdetSlide { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.pdet-dw-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+  padding: 1.375rem 1.5rem 1.125rem;
+  border-bottom: 1px solid var(--border-color,#e5e7eb);
+}
+.pdet-dw-head-info { min-width: 0; }
+.pdet-dw-title { margin: 8px 0 0; font-size: 18px; font-weight: 800; color: var(--text-main); line-height: 1.3; }
+.pdet-dw-desc  { margin: 5px 0 0; font-size: 13px; color: var(--text-muted); line-height: 1.45; }
+.pdet-dw-fechas {
+  display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 8px;
+  font-size: 12px; color: var(--text-muted);
+}
+.pdet-dw-fechas strong { color: var(--text-main); font-weight: 600; }
+
+.pdet-dw-body { padding: 1.25rem 1.5rem 2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.5rem; }
+.pdet-dw-section-title {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text-muted);
+}
+.pdet-dw-vacio { margin: 0; font-size: 13px; font-style: italic; color: var(--text-muted); }
+
+/* Timeline del cronograma */
+.pdet-dw-timeline { display: flex; flex-direction: column; }
+.pdet-dw-act {
+  position: relative;
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+}
+.pdet-dw-act:not(:last-child)::before {
+  content: ''; position: absolute; left: 10px; top: 34px; bottom: -4px;
+  width: 2px; background: var(--border-color,#e5e7eb);
+}
+.pdet-dw-act-marker {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--border-color,#cbd5e1); background: var(--card-bg,#fff);
+  z-index: 1;
+}
+.pdet-dw-act-marker svg { width: 12px; height: 12px; color: #fff; }
+.pdet-dw-act-marker.act-done { background: #10b981; border-color: #10b981; }
+.pdet-dw-act-marker.act-prog { border-color: #3b82f6; box-shadow: inset 0 0 0 3px rgba(59,130,246,.25); }
+.pdet-dw-act-body { flex: 1; min-width: 0; }
+.pdet-dw-act-nombre { display: block; font-size: 13.5px; font-weight: 700; color: var(--text-main); line-height: 1.35; }
+.pdet-dw-act-meta { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.pdet-dw-act-resp, .pdet-dw-act-fechas {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-muted);
+}
+.pdet-dw-act-resp svg, .pdet-dw-act-fechas svg { width: 12px; height: 12px; flex-shrink: 0; }
+.pdet-dw-act-estado {
+  flex-shrink: 0; padding: 2px 9px; border-radius: 99px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; white-space: nowrap;
+  background: #f1f5f9; color: #64748b;
+}
+.pdet-dw-act-estado.act-done { background: #d1fae5; color: #065f46; }
+.pdet-dw-act-estado.act-prog { background: #dbeafe; color: #1d4ed8; }
+
+/* Pasos del servicio */
+.pdet-dw-pasos-count {
+  padding: 1px 8px; border-radius: 99px;
+  background: var(--brand-green,#8dc63f); color: #fff;
+  font-size: 10.5px; font-weight: 800;
+}
+.pdet-dw-pasos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.pdet-dw-paso {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--text-main);
+}
+.pdet-dw-paso-check {
+  width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0;
+  border: 1.5px solid var(--border-color,#cbd5e1);
+  display: flex; align-items: center; justify-content: center;
+}
+.pdet-dw-paso-check svg { width: 11px; height: 11px; color: #fff; }
+.pdet-dw-paso--done .pdet-dw-paso-check { background: #10b981; border-color: #10b981; }
+.pdet-dw-paso--done { color: var(--text-muted); text-decoration: line-through; }
+
+.pdet-dw-nota { margin: 0; font-size: 11.5px; color: var(--text-muted); font-style: italic; text-align: center; }
+
+@media (max-width: 540px) { .pdet-dw { max-width: 100%; } }
+
 /* ── Modal: equipo del servicio ── */
 .pdet-eq-overlay {
   position: fixed; inset: 0; z-index: 1000;
