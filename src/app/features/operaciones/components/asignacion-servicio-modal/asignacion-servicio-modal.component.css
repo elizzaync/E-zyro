@@ -344,6 +344,26 @@
 }
 .lider-label svg { width: 14px; height: 14px; color: var(--asm-warn); }
 
+/* ── Técnico Líder (selector opcional) ── */
+.tl-optional { font-weight: 500; text-transform: none; letter-spacing: 0; opacity: .75; }
+.tl-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--asm-border, var(--border-color, #d1d5db));
+  border-radius: 10px;
+  background: var(--asm-input-bg, var(--input-bg, #fff));
+  color: var(--asm-text, var(--text-main, #111827));
+  font-size: 13px;
+  outline: none;
+}
+.tl-select:focus { border-color: var(--asm-brand, #8dc63f); }
+.tl-empty {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--asm-muted, var(--text-muted, #6b7280));
+  font-style: italic;
+}
+
 .lider-card {
   display: flex;
   align-items: center;

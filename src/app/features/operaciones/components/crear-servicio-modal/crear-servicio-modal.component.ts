@@ -377,8 +377,10 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       nombre:                 v.nombre,
       catalogo_servicio_id:   v.catalogo_servicio_id,
       descripcion:            v.descripcion || null,
-      lider_id:               v.lider_id || null,
-      responsable_id:         v.responsable_id || null,
+      // Opcionales: se envía el valor del form tal cual ('' = sin asignar /
+      // quitar). El backend acepta vacío en crear y editar.
+      lider_id:               v.lider_id ?? '',
+      responsable_id:         v.responsable_id ?? '',
       ubicacion_id:           v.ubicacion_id || null,
       zona_id:                v.zona_id || null,
       alcance:                v.alcance || null,

@@ -165,6 +165,8 @@ export class OperacionesService {
   configurarServicio(psId: string, payload: {
     equipo: string[];
     lider_id?: string;
+    /** Técnico Líder (opcional): '' = quitar / sin asignar. */
+    responsable_id?: string;
     procedimientos: {
       id?: string;
       nombre: string;

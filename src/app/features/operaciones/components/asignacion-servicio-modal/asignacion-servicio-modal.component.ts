@@ -89,10 +89,12 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   liderNombre       = '';
   liderCargo        = '';
   liderFoto         = '';
-  // Técnico Líder (opcional, también definido al crear el servicio)
+  // Técnico Líder (opcional: puede venir de la creación o asignarse aquí)
   tecnicoLiderId     = '';
   tecnicoLiderNombre = '';
   tecnicoLiderCargo  = '';
+  /** Candidatos a Técnico Líder (para el selector del Paso 1). */
+  responsablesOpciones: { id: string; nombre: string; apellido: string; cargo: string }[] = [];
 
   /** empleado.id → datos básicos, para resolver nombre/foto del líder y técnico líder. */
   private _personasMap = new Map<string, { nombre: string; apellido: string; cargo: string; fotoUrl: string }>();
@@ -236,7 +238,14 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     });
     this.svc.getResponsablesServicio().pipe(takeUntil(this.destroy$)).subscribe({
       next: (res: any) => {
-        this._indexarPersonas(Array.isArray(res) ? res : (res?.responsables ?? []));
+        const lista = Array.isArray(res) ? res : (res?.responsables ?? []);
+        this._indexarPersonas(lista);
+        this.responsablesOpciones = (lista ?? []).map((p: any) => ({
+          id:       String(p.id ?? p.usuario_id ?? ''),
+          nombre:   String(p.nombre   ?? ''),
+          apellido: String(p.apellido ?? ''),
+          cargo:    String(p.cargo    ?? ''),
+        })).filter((p: any) => p.id);
         this._resolverLider();
       }
     });
@@ -272,6 +281,13 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
         this.tecnicoLiderCargo  = p.cargo || this.tecnicoLiderCargo;
       }
     }
+  }
+
+  /** Cambio de Técnico Líder desde el selector ('' = sin asignar). */
+  onTecnicoLiderChange(): void {
+    this.tecnicoLiderNombre = '';
+    this.tecnicoLiderCargo  = '';
+    this._resolverLider();
   }
 
   /** true si el servicio ya trae un líder definido desde su creación. */
@@ -349,7 +365,12 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   }
 
   private _precargarEquipo(equipo: any[]): void {
-    this.equipoSeleccionado = equipo.map((m: any) => ({
+    // El detalle incluye al líder y técnico líder con roles propios; aquí solo
+    // se precargan los MIEMBROS del equipo técnico (los roles van aparte).
+    const soloMiembros = (equipo ?? []).filter((m: any) =>
+      m.rol_proyecto !== 'Líder del Servicio' && m.rol_proyecto !== 'Técnico Líder'
+    );
+    this.equipoSeleccionado = soloMiembros.map((m: any) => ({
       id:          String(m.id ?? ''),
       usuarioId:   String(m.usuario_id ?? ''),
       nombre:      String(m.nombre   ?? ''),
@@ -659,8 +680,11 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
     const payload = {
       equipo:  this.equipoSeleccionado.map(e => e.id),
       // El líder es el asignado al CREAR el servicio (no el usuario logueado).
-      // Respaldo al usuario actual solo si el servicio no tiene líder definido.
+      // Respaldo al usuario actual solo si el servicio no tiene líder definido;
+      // si tampoco hay, el backend reclama al usuario del JWT automáticamente.
       lider_id: this.liderId || this.currentUserEmpleadoId || undefined,
+      // Técnico Líder: opcional; '' indica explícitamente "sin técnico líder".
+      responsable_id: this.tecnicoLiderId || '',
       procedimientos: this.procedimientosArray.value.map((p: TareaForm) => ({
         ...(p.id ? { id: p.id } : {}),
         nombre:         p.nombre,

@@ -339,7 +339,7 @@
           Equipo de Trabajo
         </h3>
         @if (servicio.equipo.length === 0) {
-        <p class="empty-msg">Sin miembros asignados.</p>
+        <p class="empty-msg">Sin equipo asignado</p>
         } @else {
         <div class="equipo-grid">
           @for (miembro of servicio.equipo; track miembro.id; let i = $index) {
