@@ -246,19 +246,6 @@ def marcar_asistencia(
     if not empleado:
         raise HTTPException(404, "Empleado no encontrado o inactivo.")
 
-    # 2 ── Foto biométrica base
-    foto_base = db.query(FotoBiometrica).filter(
-        FotoBiometrica.usuario_id == usuario_id,
-        FotoBiometrica.empresa_id == empresa_id,
-        FotoBiometrica.activa.is_(True),
-    ).first()
-    if not foto_base:
-        raise HTTPException(
-            422,
-            "No tienes foto biométrica registrada. "
-            "Configura tu foto base en la sección de asistencia antes de marcar.",
-        )
-
     # 3 ── Validar tipo
     tipos_validos = {"entrada", "salida", "entrada_almuerzo", "salida_almuerzo"}
     tipo = body.tipo.lower().strip()
@@ -266,6 +253,53 @@ def marcar_asistencia(
         raise HTTPException(
             422, f"Tipo '{tipo}' inválido. Valores: {sorted(tipos_validos)}"
         )
+
+    tipos_almuerzo = {"entrada_almuerzo", "salida_almuerzo"}
+    sin_selfie = not (body.imagen_selfie or "").strip()
+
+    # 2 ── Foto biométrica base
+    # Solo se exige cuando va a haber comparación facial (marca CON selfie).
+    # Las marcas de almuerzo (v1 PYME) y los registros offline sin evidencia se
+    # aprueban por JWT + GPS, así que no requieren foto base registrada.
+    if not sin_selfie:
+        foto_base = db.query(FotoBiometrica).filter(
+            FotoBiometrica.usuario_id == usuario_id,
+            FotoBiometrica.empresa_id == empresa_id,
+            FotoBiometrica.activa.is_(True),
+        ).first()
+        if not foto_base:
+            raise HTTPException(
+                422,
+                "No tienes foto biométrica registrada. "
+                "Configura tu foto base en la sección de asistencia antes de marcar.",
+            )
+
+    # 3b ── Reglas de negocio del almuerzo (v1 PYME: uno por día, orden lógico)
+    if tipo in tipos_almuerzo:
+        hoy_lima = datetime.now(ZoneInfo("America/Lima")).date()
+        regs_hoy = (
+            db.query(RegistroAsistencia)
+            .filter(
+                RegistroAsistencia.empleado_id == empleado.id,
+                RegistroAsistencia.empresa_id == empresa_id,
+                cast(RegistroAsistencia.fecha_hora, Date) == hoy_lima,
+            )
+            .all()
+        )
+        tipos_hoy = {r.tipo for r in regs_hoy}
+        if "entrada" not in tipos_hoy:
+            raise HTTPException(
+                422, "Debes marcar tu entrada antes de registrar el almuerzo."
+            )
+        if tipo == "entrada_almuerzo" and "entrada_almuerzo" in tipos_hoy:
+            raise HTTPException(422, "Ya registraste el inicio de tu almuerzo hoy.")
+        if tipo == "salida_almuerzo":
+            if "entrada_almuerzo" not in tipos_hoy:
+                raise HTTPException(
+                    422, "Primero marca el inicio de tu almuerzo."
+                )
+            if "salida_almuerzo" in tipos_hoy:
+                raise HTTPException(422, "Ya registraste el fin de tu almuerzo hoy.")
 
     # 4 ── Verificar que la selfie tenga un rostro detectable
     # Excepción: registros sincronizados offline (uuid_cliente presente, imagen vacía)
@@ -463,12 +497,21 @@ def estado_hoy(
 
     entrada = next((r for r in registros_hoy if r.tipo == "entrada"), None)
     salida  = next((r for r in registros_hoy if r.tipo == "salida"),  None)
+    ini_alm = next((r for r in registros_hoy if r.tipo == "entrada_almuerzo"), None)
+    fin_alm = next((r for r in registros_hoy if r.tipo == "salida_almuerzo"), None)
 
     def _fmt(r) -> Optional[str]:
         if not r:
             return None
         # Como la BD ya tiene los números exactos de Perú, se lee y formatea directo
         return r.fecha_hora.strftime("%H:%M")
+
+    # Duración del almuerzo (minutos) solo cuando ambos extremos existen.
+    duracion_almuerzo = None
+    if ini_alm and fin_alm:
+        duracion_almuerzo = int(
+            (fin_alm.fecha_hora - ini_alm.fecha_hora).total_seconds() // 60
+        )
 
     return {
         "tiene_entrada":    entrada is not None,
@@ -477,6 +520,15 @@ def estado_hoy(
         "entrada_hora":     _fmt(entrada),
         "salida_hora":      _fmt(salida),
         "jornada_completa": entrada is not None and salida is not None,
+        # ── Almuerzo (v1 PYME) ──────────────────────────────────────────────
+        "tiene_inicio_almuerzo": ini_alm is not None,
+        "tiene_fin_almuerzo":    fin_alm is not None,
+        "inicio_almuerzo_hora":  _fmt(ini_alm),
+        "fin_almuerzo_hora":     _fmt(fin_alm),
+        "en_almuerzo":           ini_alm is not None and fin_alm is None,
+        "duracion_almuerzo_min": duracion_almuerzo,
+        # ISO del inicio para que el app calcule el cronómetro vivo y la alerta de fin.
+        "inicio_almuerzo_iso":   ini_alm.fecha_hora.isoformat() if ini_alm else None,
     }
 
 
