@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
@@ -105,6 +105,24 @@ export class PortalProyectoDetalleComponent implements OnInit {
   equipoExtra(s: ServicioPortal): number {
     return Math.max(0, (s.equipo ?? []).length - this.MAX_AVATARES);
   }
+
+  // ── Modal: datos del equipo del servicio ──────────────────────────────
+
+  equipoModalServicio: ServicioPortal | null = null;
+
+  abrirEquipoModal(s: ServicioPortal): void {
+    if ((s.equipo ?? []).length === 0) return;
+    this.equipoModalServicio = s;
+    document.body.style.overflow = 'hidden';
+  }
+
+  cerrarEquipoModal(): void {
+    this.equipoModalServicio = null;
+    document.body.style.overflow = '';
+  }
+
+  @HostListener('document:keydown.escape')
+  onEsc(): void { this.cerrarEquipoModal(); }
 
   colorAvatar(id: string): string {
     const palette = ['#8dc63f', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#14b8a6'];

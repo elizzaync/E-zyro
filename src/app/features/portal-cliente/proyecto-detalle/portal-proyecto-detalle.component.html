@@ -82,15 +82,17 @@
           </div>
         </div>
 
-        <!-- Equipo del servicio -->
+        <!-- Equipo del servicio: resumen clickeable → modal con los datos -->
         <div class="pdet-svc-equipo">
           <span class="pdet-svc-equipo-label">Equipo de trabajo</span>
           @if ((s.equipo ?? []).length === 0) {
           <span class="pdet-svc-equipo-vacio">Por asignar</span>
           } @else {
-          <div class="pdet-svc-miembros">
-            @for (m of equipoVisible(s); track m.id) {
-            <div class="pdet-svc-miembro" [title]="m.nombre + ' · ' + m.rol">
+          <button class="pdet-svc-equipo-btn" type="button"
+                  (click)="abrirEquipoModal(s)"
+                  [title]="'Ver datos del equipo (' + s.equipo.length + ')'">
+            <div class="pdet-svc-stack">
+              @for (m of equipoVisible(s); track m.id) {
               <div class="pdet-svc-avatar"
                    [class.pdet-svc-avatar--lider]="m.rol === 'Líder del Servicio'"
                    [style.background]="m.foto_url ? 'transparent' : colorAvatar(m.id)">
@@ -100,23 +102,18 @@
                 {{ iniciales(m.nombre) }}
                 }
               </div>
-              <div class="pdet-svc-miembro-info">
-                <span class="pdet-svc-miembro-nombre">{{ m.nombre }}</span>
-                <span class="pdet-svc-miembro-rol"
-                      [class.rol-lider]="m.rol === 'Líder del Servicio'"
-                      [class.rol-tecnico-lider]="m.rol === 'Técnico Líder'">{{ m.rol }}</span>
-              </div>
-            </div>
-            }
-            @if (equipoExtra(s) > 0) {
-            <div class="pdet-svc-miembro pdet-svc-miembro--mas">
+              }
+              @if (equipoExtra(s) > 0) {
               <div class="pdet-svc-avatar pdet-svc-avatar--mas">+{{ equipoExtra(s) }}</div>
-              <div class="pdet-svc-miembro-info">
-                <span class="pdet-svc-miembro-nombre">{{ equipoExtra(s) }} más</span>
-              </div>
+              }
             </div>
-            }
-          </div>
+            <span class="pdet-svc-equipo-resumen">
+              {{ s.equipo.length }} asignado{{ s.equipo.length !== 1 ? 's' : '' }}
+            </span>
+            <svg class="pdet-svc-equipo-chevron" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+            </svg>
+          </button>
           }
         </div>
 
@@ -151,3 +148,52 @@
 
   }
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MODAL: Equipo de trabajo del servicio (datos completos + foto)
+═══════════════════════════════════════════════════════════════ -->
+@if (equipoModalServicio) {
+<div class="pdet-eq-overlay" (click)="cerrarEquipoModal()" role="dialog" aria-modal="true"
+     aria-label="Equipo de trabajo del servicio">
+  <div class="pdet-eq-modal" (click)="$event.stopPropagation()">
+
+    <div class="pdet-eq-head">
+      <div>
+        <h3 class="pdet-eq-title">Equipo de trabajo</h3>
+        <p class="pdet-eq-subtitle">{{ equipoModalServicio.nombre }}</p>
+      </div>
+      <button class="pdet-eq-close" (click)="cerrarEquipoModal()" aria-label="Cerrar">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="pdet-eq-body">
+      @for (m of equipoModalServicio.equipo; track m.id) {
+      <div class="pdet-eq-miembro"
+           [class.pdet-eq-miembro--lider]="m.rol === 'Líder del Servicio'">
+        <div class="pdet-eq-foto" [style.background]="m.foto_url ? 'transparent' : colorAvatar(m.id)">
+          @if (m.foto_url) {
+          <img [src]="m.foto_url" [alt]="m.nombre">
+          } @else {
+          {{ iniciales(m.nombre) }}
+          }
+        </div>
+        <div class="pdet-eq-datos">
+          <span class="pdet-eq-nombre">{{ m.nombre }}</span>
+          <span class="pdet-eq-cargo">{{ m.cargo }}</span>
+          <span class="pdet-eq-rol"
+                [class.rol-lider]="m.rol === 'Líder del Servicio'"
+                [class.rol-tecnico-lider]="m.rol === 'Técnico Líder'">
+            @if (m.rol === 'Líder del Servicio') { ★ }
+            {{ m.rol }}
+          </span>
+        </div>
+      </div>
+      }
+    </div>
+
+  </div>
+</div>
+}
