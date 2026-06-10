@@ -2519,6 +2519,29 @@ def get_personal_tecnicos(
         if eid not in emp_a_grupo:
             emp_a_grupo[eid] = str(m.grupo_id)
 
+    # ─────────────────────────────────────────────────────────────────────────
+    # 3b. Ocupación REAL por servicio (regla de negocio): el grupo de trabajo
+    #     se forma al asignar el equipo de un servicio y se libera cuando el
+    #     servicio finaliza. Un técnico está "en un grupo" si es responsable
+    #     de tareas de un servicio AÚN ACTIVO (Pendiente / En_Proceso).
+    #     Esto alimenta `grupo_actual` → alerta HU-13 al re-asignarlo.
+    # ─────────────────────────────────────────────────────────────────────────
+    ocupacion_rows = (
+        db.query(Tarea.responsable_id, ProyectoServicio.nombre)
+        .join(ProyectoServicio, ProyectoServicio.id == Tarea.proyecto_servicio_id)
+        .filter(
+            ProyectoServicio.empresa_id == empresa_id,
+            ProyectoServicio.estado.in_(["Pendiente", "En_Proceso"]),
+            Tarea.responsable_id.isnot(None),
+        )
+        .all()
+    )
+    emp_a_servicio: dict[str, str] = {}
+    for resp_id, svc_nombre in ocupacion_rows:
+        rid = str(resp_id)
+        if rid not in emp_a_servicio:
+            emp_a_servicio[rid] = svc_nombre or "un servicio activo"
+
     # grupo_id_str → [empleado_id_str, ...]
     miembros_by_grupo: dict[str, list[str]] = {}
     for m in miembros_db:
@@ -2544,7 +2567,9 @@ def get_personal_tecnicos(
             foto_url     = row.foto_url,          # str | None — OK
             grupo_id     = grupo_id_s,            # str | None — ya es str
             grupo_nombre = _grupo_nombre,
-            grupo_actual = _grupo_nombre,         # HU-13: usado en alerta de conflicto de grupo
+            # HU-13 — alerta de conflicto: prioriza la ocupación real (servicio
+            # activo donde tiene tareas); cae al grupo manual si no hay ninguna.
+            grupo_actual = emp_a_servicio.get(emp_id_str) or _grupo_nombre,
         )
         tecnicos.append(tec)
         emp_map[emp_id_str] = tec
@@ -2636,12 +2661,16 @@ def validar_horario_tecnico(
     if fecha_fin_dt < fecha_ini_dt:
         raise HTTPException(status_code=422, detail="fecha_fin no puede ser anterior a fecha_inicio.")
 
-    # Construir la query base (el cronograma vive en Tarea: responsable + fechas)
+    # Construir la query base (el cronograma vive en Tarea: responsable + fechas).
+    # Solo cuentan tareas de servicios AÚN ACTIVOS: al finalizar/cancelar un
+    # servicio sus técnicos quedan liberados y no generan conflicto de fechas.
     q = (
         db.query(Tarea)
+        .join(ProyectoServicio, ProyectoServicio.id == Tarea.proyecto_servicio_id)
         .filter(
             Tarea.responsable_id     == body.empleado_id,
             Tarea.estado.in_(["pendiente", "en_proceso"]),
+            ProyectoServicio.estado.in_(["Pendiente", "En_Proceso"]),
             Tarea.fecha_inicio_tarea != None,
             Tarea.fecha_limite       != None,
             # Condición de solapamiento
