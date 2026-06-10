@@ -455,7 +455,8 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   seleccionarTecnico(t: TecnicoDisponible): void {
     if (this.estaSeleccionado(t.id)) return;
 
-    if (t.grupoActual) {
+    // Alerta solo si su grupo/servicio activo es OTRO (no el que se está configurando)
+    if (t.grupoActual && t.grupoActual !== this.servicio?.nombre) {
       this.confirmGrupoTecnico = t;
       this.confirmGrupoOpen = true;
       return;
