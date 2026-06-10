@@ -246,6 +246,102 @@ class AsistenciaService {
     );
   }
 
+  // ── Marcar almuerzo (offline-first, SIN selfie — v1 PYME) ─────────────────
+
+  /// Marca inicio/fin de almuerzo con solo GPS + hora (sin biometría).
+  /// `tipo` debe ser 'entrada_almuerzo' o 'salida_almuerzo'.
+  /// Reutiliza la misma cola offline e idempotencia que [marcar].
+  Future<MarcarResponse> marcarAlmuerzo({
+    required String tipo,
+    double? latitud,
+    double? longitud,
+    double? precisionM,
+    double? altitud,
+  }) async {
+    final clientUuid = const Uuid().v4();
+    await TrustedClock.sync().timeout(
+      const Duration(seconds: 3),
+      onTimeout: () => false,
+    );
+    final trustedTs = TrustedClock.now();
+    final ahora = trustedTs.time;
+    final t = tipo.toLowerCase();
+
+    // 1. Guardar localmente PRIMERO (evidenciaPath null: el almuerzo no usa selfie).
+    await _repo.insertarPendiente(RegistroAsistenciaLocal(
+      uuid: clientUuid,
+      timestampDispositivo: ahora,
+      latitud: latitud ?? 0,
+      longitud: longitud ?? 0,
+      tipoMarcacion: t,
+      evidenciaPath: null,
+      fuenteTiempo: trustedTs.etiqueta,
+    ));
+    await _actualizarNotifier();
+    await _aplicarMarcaLocalAlCache(t, ahora);
+
+    // 2. Intentar enviar de inmediato (sin imagen_selfie).
+    late http.Response resp;
+    try {
+      final body = <String, dynamic>{
+        'tipo':          t,
+        'uuid_cliente':  clientUuid,
+        'timestamp':     ahora.toIso8601String(),
+        'fuente_tiempo': trustedTs.etiqueta,
+      };
+      if (latitud    != null) body['latitud']     = latitud;
+      if (longitud   != null) body['longitud']    = longitud;
+      if (precisionM != null) body['precision_m'] = precisionM;
+      if (altitud    != null) body['altitud']     = altitud;
+
+      resp = await _client.post('/asistencia/marcar', body,
+          timeout: AppConstants.uploadTimeout);
+    } catch (e) {
+      final isSession = _isSessionError(e.toString());
+      if (isSession) sessionExpiredSyncNotifier.value++;
+      return MarcarResponse(
+        registroId: clientUuid,
+        status: 'PENDIENTE_SYNC',
+        score: 0,
+        motivo: 'Almuerzo guardado localmente. Se enviará al reconectar.',
+        timestamp: ahora,
+        gpsGuardado: latitud != null,
+        fotoUrl: null,
+        resultadoIa: 'pendiente',
+      );
+    }
+
+    if (resp.statusCode == 200) {
+      await _repo.marcarEnviado(clientUuid);
+      await _actualizarNotifier();
+      return MarcarResponse.fromJson(jsonDecode(resp.body) as Map<String, dynamic>);
+    }
+
+    final serverMsg = _extractServerMessage(resp.body);
+    if (resp.statusCode >= 400 && resp.statusCode < 500) {
+      // Rechazo permanente (ej. regla de negocio: "ya almorzaste hoy").
+      // Revertir el cache local optimista y descartar el registro pendiente.
+      await _repo.marcarErrorPermanente(clientUuid);
+      await _revertirMarcaAlmuerzoCache(t);
+      await _actualizarNotifier();
+      throw Exception(serverMsg.isNotEmpty
+          ? serverMsg
+          : 'Registro de almuerzo rechazado (${resp.statusCode})');
+    }
+
+    // 5xx — queda en cola para reintento.
+    return MarcarResponse(
+      registroId: clientUuid,
+      status: 'ERROR_SERVIDOR',
+      score: 0,
+      motivo: 'El servidor tuvo un error. Tu almuerzo se reenviará automáticamente.',
+      timestamp: ahora,
+      gpsGuardado: latitud != null,
+      fotoUrl: null,
+      resultadoIa: 'pendiente',
+    );
+  }
+
   // ── Sincronización manual de pendientes ───────────────────────────────────
 
   Future<int> sincronizarPendientes() async {
@@ -307,6 +403,12 @@ class AsistenciaService {
           if (r.longitud != 0) 'longitud': r.longitud,
         };
 
+        // El almuerzo (v1 PYME) se marca sin selfie por diseño: se envía solo
+        // GPS + hora y el backend lo aprueba por JWT+GPS. Para entrada/salida,
+        // la ausencia de selfie sí es evidencia perdida → error permanente.
+        final esAlmuerzo = r.tipoMarcacion == 'entrada_almuerzo' ||
+            r.tipoMarcacion == 'salida_almuerzo';
+
         if (evidenciaExiste) {
           // Comprimir antes de codificar para reducir payload (fix 500 por imagen grande).
           final tmpDir  = await getTemporaryDirectory();
@@ -318,6 +420,10 @@ class AsistenciaService {
           final encPath = compressed?.path ?? r.evidenciaPath!;
           body['imagen_selfie'] = await compute(_fileToBase64, encPath);
           try { if (compressed != null) File(tmpPath).deleteSync(); } catch (_) {}
+        } else if (esAlmuerzo) {
+          // Sin selfie por diseño: no agregar imagen_selfie (el backend lo aprueba
+          // por JWT+GPS). No descartar.
+          debugPrint('[AsistenciaService] uuid=${r.uuid.substring(0, 8)} → almuerzo sin selfie, enviando GPS+hora');
         } else {
           // Sin imagen en disco → marcar como error permanente y saltar.
           // Enviar imagen_selfie vacía causa 500 en el backend.
@@ -519,11 +625,37 @@ class AsistenciaService {
   }
 
   /// Refleja en el caché una marcación hecha localmente, para que la UI muestre
-  /// el avance (entrada → salida) sin esperar al servidor.
+  /// el avance (entrada → salida, almuerzo) sin esperar al servidor.
   Future<void> _aplicarMarcaLocalAlCache(String tipo, DateTime ts) async {
     final actual = await _leerEstadoCache();
     final hhmm = '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}';
     final t = tipo.toLowerCase();
+
+    if (t == 'entrada_almuerzo') {
+      await _guardarEstadoCache(actual.copyWith(
+        tieneInicioAlmuerzo: true,
+        inicioAlmuerzoHora: hhmm,
+        inicioAlmuerzoIso: ts.toIso8601String(),
+        enAlmuerzo: true,
+      ));
+      return;
+    }
+    if (t == 'salida_almuerzo') {
+      int? dur;
+      final iso = actual.inicioAlmuerzoIso;
+      if (iso != null) {
+        final ini = DateTime.tryParse(iso);
+        if (ini != null) dur = ts.difference(ini).inMinutes;
+      }
+      await _guardarEstadoCache(actual.copyWith(
+        tieneFinAlmuerzo: true,
+        finAlmuerzoHora: hhmm,
+        enAlmuerzo: false,
+        duracionAlmuerzoMin: dur,
+      ));
+      return;
+    }
+
     final actualizado = actual.copyWith(
       tieneEntrada: t == 'entrada' ? true : actual.tieneEntrada,
       tieneSalida:  t == 'salida'  ? true : actual.tieneSalida,
@@ -535,6 +667,25 @@ class AsistenciaService {
         jornadaCompleta: actualizado.tieneEntrada && actualizado.tieneSalida,
       ),
     );
+  }
+
+  /// Revierte en el caché una marca de almuerzo optimista que el servidor
+  /// rechazó (ej. regla "ya almorzaste hoy"), para que el botón no quede
+  /// mostrando un estado falso.
+  Future<void> _revertirMarcaAlmuerzoCache(String tipo) async {
+    final actual = await _leerEstadoCache();
+    final t = tipo.toLowerCase();
+    if (t == 'entrada_almuerzo') {
+      await _guardarEstadoCache(actual.copyWith(
+        tieneInicioAlmuerzo: false,
+        enAlmuerzo: false,
+      ));
+    } else if (t == 'salida_almuerzo') {
+      await _guardarEstadoCache(actual.copyWith(
+        tieneFinAlmuerzo: false,
+        enAlmuerzo: true,
+      ));
+    }
   }
 
   // ── Helpers privados ──────────────────────────────────────────────────────

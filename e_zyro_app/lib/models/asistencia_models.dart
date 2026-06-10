@@ -91,6 +91,14 @@ class EstadoHoy {
   final String? entradaHora; // "HH:MM"
   final String? salidaHora; // "HH:MM"
   final bool jornadaCompleta;
+  // ── Almuerzo (v1 PYME) ──────────────────────────────────────────────────
+  final bool tieneInicioAlmuerzo;
+  final bool tieneFinAlmuerzo;
+  final String? inicioAlmuerzoHora; // "HH:MM"
+  final String? finAlmuerzoHora; // "HH:MM"
+  final bool enAlmuerzo;
+  final int? duracionAlmuerzoMin;
+  final String? inicioAlmuerzoIso; // ISO 8601 del inicio (cronómetro / alerta)
 
   const EstadoHoy({
     required this.tieneEntrada,
@@ -99,6 +107,13 @@ class EstadoHoy {
     this.entradaHora,
     this.salidaHora,
     required this.jornadaCompleta,
+    this.tieneInicioAlmuerzo = false,
+    this.tieneFinAlmuerzo = false,
+    this.inicioAlmuerzoHora,
+    this.finAlmuerzoHora,
+    this.enAlmuerzo = false,
+    this.duracionAlmuerzoMin,
+    this.inicioAlmuerzoIso,
   });
 
   factory EstadoHoy.fromJson(Map<String, dynamic> json) {
@@ -109,6 +124,13 @@ class EstadoHoy {
       entradaHora: json['entrada_hora'] as String?,
       salidaHora: json['salida_hora'] as String?,
       jornadaCompleta: json['jornada_completa'] as bool? ?? false,
+      tieneInicioAlmuerzo: json['tiene_inicio_almuerzo'] as bool? ?? false,
+      tieneFinAlmuerzo: json['tiene_fin_almuerzo'] as bool? ?? false,
+      inicioAlmuerzoHora: json['inicio_almuerzo_hora'] as String?,
+      finAlmuerzoHora: json['fin_almuerzo_hora'] as String?,
+      enAlmuerzo: json['en_almuerzo'] as bool? ?? false,
+      duracionAlmuerzoMin: (json['duracion_almuerzo_min'] as num?)?.toInt(),
+      inicioAlmuerzoIso: json['inicio_almuerzo_iso'] as String?,
     );
   }
 
@@ -127,6 +149,13 @@ class EstadoHoy {
     'entrada_hora': entradaHora,
     'salida_hora': salidaHora,
     'jornada_completa': jornadaCompleta,
+    'tiene_inicio_almuerzo': tieneInicioAlmuerzo,
+    'tiene_fin_almuerzo': tieneFinAlmuerzo,
+    'inicio_almuerzo_hora': inicioAlmuerzoHora,
+    'fin_almuerzo_hora': finAlmuerzoHora,
+    'en_almuerzo': enAlmuerzo,
+    'duracion_almuerzo_min': duracionAlmuerzoMin,
+    'inicio_almuerzo_iso': inicioAlmuerzoIso,
   };
 
   EstadoHoy copyWith({
@@ -136,6 +165,13 @@ class EstadoHoy {
     String? entradaHora,
     String? salidaHora,
     bool? jornadaCompleta,
+    bool? tieneInicioAlmuerzo,
+    bool? tieneFinAlmuerzo,
+    String? inicioAlmuerzoHora,
+    String? finAlmuerzoHora,
+    bool? enAlmuerzo,
+    int? duracionAlmuerzoMin,
+    String? inicioAlmuerzoIso,
   }) => EstadoHoy(
     tieneEntrada: tieneEntrada ?? this.tieneEntrada,
     tieneSalida: tieneSalida ?? this.tieneSalida,
@@ -143,11 +179,28 @@ class EstadoHoy {
     entradaHora: entradaHora ?? this.entradaHora,
     salidaHora: salidaHora ?? this.salidaHora,
     jornadaCompleta: jornadaCompleta ?? this.jornadaCompleta,
+    tieneInicioAlmuerzo: tieneInicioAlmuerzo ?? this.tieneInicioAlmuerzo,
+    tieneFinAlmuerzo: tieneFinAlmuerzo ?? this.tieneFinAlmuerzo,
+    inicioAlmuerzoHora: inicioAlmuerzoHora ?? this.inicioAlmuerzoHora,
+    finAlmuerzoHora: finAlmuerzoHora ?? this.finAlmuerzoHora,
+    enAlmuerzo: enAlmuerzo ?? this.enAlmuerzo,
+    duracionAlmuerzoMin: duracionAlmuerzoMin ?? this.duracionAlmuerzoMin,
+    inicioAlmuerzoIso: inicioAlmuerzoIso ?? this.inicioAlmuerzoIso,
   );
 
   String? get tipoProximo {
     if (!tieneEntrada) return 'ENTRADA';
     if (!tieneSalida) return 'SALIDA';
     return null;
+  }
+
+  /// Estado del almuerzo para la UI del botón dinámico:
+  /// 'bloqueado' (sin entrada) · 'disponible' (puede iniciar) ·
+  /// 'en_curso' (almorzando) · 'completado' (ya almorzó).
+  String get estadoAlmuerzo {
+    if (tieneFinAlmuerzo) return 'completado';
+    if (tieneInicioAlmuerzo) return 'en_curso';
+    if (!tieneEntrada || tieneSalida) return 'bloqueado';
+    return 'disponible';
   }
 }

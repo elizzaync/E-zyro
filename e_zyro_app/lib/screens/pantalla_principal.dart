@@ -11,6 +11,7 @@ import '../widgets/topo_background.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
 import 'pantalla_notificaciones.dart';
+import 'almuerzo/tarjeta_almuerzo.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -366,6 +367,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 14),
                         _buildQuickActions(context),
+                        const SizedBox(height: 16),
+                        const TarjetaAlmuerzo(),
                         const SizedBox(height: 28),
                         _buildResumenMes(),
                       ],
