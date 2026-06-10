@@ -196,7 +196,9 @@ def registrar_pago(db: Session, empresa_id: str, datos, creado_por_id: str | Non
     facturas_estado: list[tuple[FacturaProveedor, Decimal, Decimal]] = []  # (factura, aplicado, saldo_nuevo)
     for ap in datos.aplicaciones:
         f = get_factura(db, empresa_id, ap.factura_id)
-        if f.proveedor_id != datos.proveedor_id:
+        # f.proveedor_id es uuid.UUID (columna UUID nativa) y datos.proveedor_id
+        # es str: comparar sin normalizar da SIEMPRE True y rechaza todo pago.
+        if str(f.proveedor_id) != str(datos.proveedor_id):
             raise HTTPException(status_code=422, detail=f"La factura {f.numero_documento} no es del proveedor indicado.")
         if f.estado == "anulada":
             raise HTTPException(status_code=422, detail=f"La factura {f.numero_documento} está anulada.")

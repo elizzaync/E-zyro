@@ -166,7 +166,9 @@ def registrar_cobro(db: Session, empresa_id: str, datos, creado_por_id: str | No
     facturas_estado: list[tuple[FacturaCliente, Decimal, Decimal]] = []
     for ap in datos.aplicaciones:
         f = get_factura(db, empresa_id, ap.factura_id)
-        if f.cliente_id != datos.cliente_id:
+        # f.cliente_id es uuid.UUID (columna UUID nativa) y datos.cliente_id es
+        # str: comparar sin normalizar da SIEMPRE True y rechaza todo cobro.
+        if str(f.cliente_id) != str(datos.cliente_id):
             raise HTTPException(status_code=422, detail=f"El comprobante {f.numero_documento} no es del cliente indicado.")
         if f.estado == "anulada":
             raise HTTPException(status_code=422, detail=f"El comprobante {f.numero_documento} está anulado.")
