@@ -27,10 +27,11 @@
       }
     </header>
 
+    <!-- TEMPORAL: gating por permisosUsuario deshabilitado, todos los roles ven todo el dashboard -->
     <div class="dashboard-grid">
       <div class="left-panel">
 
-        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        @if (true) {
         <div class="summary-grid">
           @for (tarjeta of tarjetasHome; track tarjeta.titulo; let i = $index) {
           <div class="reveal-on-scroll" [style.transition-delay]="(i * 0.1) + 's'">
@@ -42,7 +43,7 @@
         </div>
         }
 
-        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        @if (true) {
         <div class="reveal-on-scroll delay-3 mt-widget">
           <app-monthly-summary-widget></app-monthly-summary-widget>
         </div>
@@ -51,7 +52,7 @@
       </div>
 
       <div class="right-panel">
-        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        @if (true) {
         <div class="reveal-on-scroll delay-5">
           <app-calendar-widget></app-calendar-widget>
         </div>
@@ -59,8 +60,7 @@
       </div>
     </div>
 
-    @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.includes('PERSONAL') || permisosUsuario.length ===
-    0) {
+    @if (true) {
     <hr class="section-divider">
 
     <header class="home-header reveal-on-scroll">
@@ -70,13 +70,13 @@
     <div class="dashboard-grid reveal-on-scroll delay-2">
 
       <div class="left-panel">
-        @if (permisosUsuario.includes('OPERACIONES') || permisosUsuario.length === 0) {
+        @if (true) {
         <app-upcoming-services-widget></app-upcoming-services-widget>
         }
       </div>
 
       <div class="right-panel">
-        @if (permisosUsuario.includes('PERSONAL') || permisosUsuario.length === 0) {
+        @if (true) {
         <div class="reveal-on-scroll delay-4">
           <app-quick-actions-widget></app-quick-actions-widget>
         </div>
