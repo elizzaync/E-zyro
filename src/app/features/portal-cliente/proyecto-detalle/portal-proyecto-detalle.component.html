@@ -82,33 +82,19 @@
           </div>
         </div>
 
-        <!-- Equipo del servicio: resumen clickeable → modal con los datos -->
+        <!-- Equipo del servicio: "N técnicos asignados" → modal con los datos -->
         <div class="pdet-svc-equipo">
-          <span class="pdet-svc-equipo-label">Equipo de trabajo</span>
           @if ((s.equipo ?? []).length === 0) {
-          <span class="pdet-svc-equipo-vacio">Por asignar</span>
+          <span class="pdet-svc-equipo-vacio">Equipo por asignar</span>
           } @else {
           <button class="pdet-svc-equipo-btn" type="button"
                   (click)="abrirEquipoModal(s)"
-                  [title]="'Ver datos del equipo (' + s.equipo.length + ')'">
-            <div class="pdet-svc-stack">
-              @for (m of equipoVisible(s); track m.id) {
-              <div class="pdet-svc-avatar"
-                   [class.pdet-svc-avatar--lider]="m.rol === 'Líder del Servicio'"
-                   [style.background]="m.foto_url ? 'transparent' : colorAvatar(m.id)">
-                @if (m.foto_url) {
-                <img [src]="m.foto_url" [alt]="m.nombre">
-                } @else {
-                {{ iniciales(m.nombre) }}
-                }
-              </div>
-              }
-              @if (equipoExtra(s) > 0) {
-              <div class="pdet-svc-avatar pdet-svc-avatar--mas">+{{ equipoExtra(s) }}</div>
-              }
-            </div>
+                  title="Ver los datos del equipo asignado">
+            <svg class="pdet-svc-equipo-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM2 8a2 2 0 114 0 2 2 0 01-4 0zm16.364 9H17a5 5 0 00-9.9-1H1.636A2 2 0 000 18.5v.5h20v-.5a2 2 0 00-1.636-1.5z"/>
+            </svg>
             <span class="pdet-svc-equipo-resumen">
-              {{ s.equipo.length }} asignado{{ s.equipo.length !== 1 ? 's' : '' }}
+              {{ s.equipo.length }} técnico{{ s.equipo.length !== 1 ? 's' : '' }} asignado{{ s.equipo.length !== 1 ? 's' : '' }}
             </span>
             <svg class="pdet-svc-equipo-chevron" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
@@ -159,8 +145,8 @@
 
     <div class="pdet-eq-head">
       <div>
-        <h3 class="pdet-eq-title">Equipo de trabajo</h3>
-        <p class="pdet-eq-subtitle">{{ equipoModalServicio.nombre }}</p>
+        <h3 class="pdet-eq-title">Técnicos asignados</h3>
+        <p class="pdet-eq-subtitle">{{ equipoModalServicio.nombre }} · {{ equipoModalServicio.equipo.length }} miembro{{ equipoModalServicio.equipo.length !== 1 ? 's' : '' }}</p>
       </div>
       <button class="pdet-eq-close" (click)="cerrarEquipoModal()" aria-label="Cerrar">
         <svg viewBox="0 0 20 20" fill="currentColor">
@@ -173,23 +159,56 @@
       @for (m of equipoModalServicio.equipo; track m.id) {
       <div class="pdet-eq-miembro"
            [class.pdet-eq-miembro--lider]="m.rol === 'Líder del Servicio'">
+
+        <!-- Foto grande -->
         <div class="pdet-eq-foto" [style.background]="m.foto_url ? 'transparent' : colorAvatar(m.id)">
           @if (m.foto_url) {
-          <img [src]="m.foto_url" [alt]="m.nombre">
+          <img [src]="m.foto_url" [alt]="nombreCompleto(m)">
           } @else {
-          {{ iniciales(m.nombre) }}
+          {{ inicialesMiembro(m) }}
           }
         </div>
+
+        <!-- Datos completos -->
         <div class="pdet-eq-datos">
-          <span class="pdet-eq-nombre">{{ m.nombre }}</span>
+          <div class="pdet-eq-linea-top">
+            <span class="pdet-eq-nombre">{{ nombreCompleto(m) }}</span>
+            <span class="pdet-eq-rol-badge"
+                  [class.rol-lider]="m.rol === 'Líder del Servicio'"
+                  [class.rol-tecnico-lider]="m.rol === 'Técnico Líder'">
+              @if (m.rol === 'Líder del Servicio') { ★ }
+              {{ m.rol }}
+            </span>
+          </div>
           <span class="pdet-eq-cargo">{{ m.cargo }}</span>
-          <span class="pdet-eq-rol"
-                [class.rol-lider]="m.rol === 'Líder del Servicio'"
-                [class.rol-tecnico-lider]="m.rol === 'Técnico Líder'">
-            @if (m.rol === 'Líder del Servicio') { ★ }
-            {{ m.rol }}
-          </span>
+
+          <div class="pdet-eq-contacto">
+            @if (m.empresa) {
+            <span class="pdet-eq-dato" title="Empresa">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-1 1h-2a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/></svg>
+              {{ m.empresa }}
+            </span>
+            }
+            @if (m.email) {
+            <a class="pdet-eq-dato pdet-eq-dato--link" [href]="'mailto:' + m.email" title="Enviar correo">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>
+              {{ m.email }}
+            </a>
+            }
+            @if (m.telefono) {
+            <a class="pdet-eq-dato pdet-eq-dato--link" [href]="'tel:' + m.telefono" title="Llamar">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+              {{ m.telefono }}
+            </a>
+            } @else {
+            <span class="pdet-eq-dato pdet-eq-dato--vacio">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+              Sin teléfono registrado
+            </span>
+            }
+          </div>
         </div>
+
       </div>
       }
     </div>

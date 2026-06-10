@@ -6,8 +6,12 @@ import { PortalClienteService } from '../../../core/services/portal-cliente.serv
 export interface MiembroServicioPortal {
   id: string;
   nombre: string;
+  apellido: string;
   cargo: string;
   foto_url: string | null;
+  email: string | null;
+  telefono: string | null;
+  empresa: string;
   rol: string;
 }
 
@@ -37,8 +41,6 @@ export class PortalProyectoDetalleComponent implements OnInit {
   cargando    = true;
   error       = '';
   data: any   = null;
-
-  private readonly MAX_AVATARES = 5;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
@@ -98,12 +100,12 @@ export class PortalProyectoDetalleComponent implements OnInit {
     return 'pg-gris';
   }
 
-  equipoVisible(s: ServicioPortal): MiembroServicioPortal[] {
-    return (s.equipo ?? []).slice(0, this.MAX_AVATARES);
+  nombreCompleto(m: MiembroServicioPortal): string {
+    return `${m.nombre} ${m.apellido ?? ''}`.trim();
   }
 
-  equipoExtra(s: ServicioPortal): number {
-    return Math.max(0, (s.equipo ?? []).length - this.MAX_AVATARES);
+  inicialesMiembro(m: MiembroServicioPortal): string {
+    return ((m.nombre?.[0] ?? '') + (m.apellido?.[0] ?? '')).toUpperCase() || '?';
   }
 
   // ── Modal: datos del equipo del servicio ──────────────────────────────

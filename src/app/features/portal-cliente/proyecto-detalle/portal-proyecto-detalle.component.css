@@ -116,31 +116,21 @@
 }
 .pdet-svc-equipo-vacio { font-size: 12.5px; font-style: italic; color: var(--text-muted); }
 
-/* Resumen clickeable del equipo (abre el modal) */
+/* Resumen clickeable del equipo: "N técnicos asignados" (abre el modal) */
 .pdet-svc-equipo-btn {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 7px 10px; border-radius: var(--radius-sm,8px);
-  border: 1px solid transparent; background: transparent;
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 9px 12px; border-radius: var(--radius-sm,8px);
+  border: 1px solid var(--border-color,#e5e7eb);
+  background: var(--card-bg,#fff);
   cursor: pointer; text-align: left;
-  transition: background .15s ease, border-color .15s ease;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 .pdet-svc-equipo-btn:hover {
-  background: var(--card-bg,#fff);
   border-color: var(--brand-green,#8dc63f);
+  box-shadow: 0 2px 8px rgba(141, 198, 63, .18);
 }
-.pdet-svc-stack { display: flex; align-items: center; }
-.pdet-svc-stack .pdet-svc-avatar { margin-left: -9px; border: 2px solid var(--bg-color,#f9fafb); }
-.pdet-svc-stack .pdet-svc-avatar:first-child { margin-left: 0; }
-.pdet-svc-avatar {
-  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 11px; font-weight: 700;
-  overflow: hidden;
-}
-.pdet-svc-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.pdet-svc-avatar--lider { box-shadow: 0 0 0 2px #f59e0b; }
-.pdet-svc-avatar--mas { background: var(--border-color,#e5e7eb); color: var(--text-muted,#6b7280); }
-.pdet-svc-equipo-resumen { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--text-main); }
+.pdet-svc-equipo-icon { width: 17px; height: 17px; color: var(--brand-green,#8dc63f); flex-shrink: 0; }
+.pdet-svc-equipo-resumen { flex: 1; font-size: 13px; font-weight: 700; color: var(--text-main); }
 .pdet-svc-equipo-chevron { width: 15px; height: 15px; color: var(--text-muted); flex-shrink: 0; }
 .rol-lider        { color: #d97706; font-weight: 700; }
 .rol-tecnico-lider { color: #2563eb; font-weight: 600; }
@@ -155,7 +145,7 @@
 }
 @keyframes pdetFade { from { opacity: 0; } to { opacity: 1; } }
 .pdet-eq-modal {
-  width: 100%; max-width: 460px; max-height: 80vh;
+  width: 100%; max-width: 640px; max-height: 85vh;
   background: var(--card-bg,#fff);
   border-radius: var(--radius-lg,16px);
   box-shadow: var(--shadow-modal, 0 20px 60px rgba(0,0,0,.25));
@@ -184,25 +174,46 @@
   overflow-y: auto;
 }
 .pdet-eq-miembro {
-  display: flex; align-items: center; gap: 1rem;
-  padding: 0.875rem 1rem;
+  display: flex; align-items: flex-start; gap: 1.125rem;
+  padding: 1.125rem 1.25rem;
   border: 1px solid var(--border-color,#e5e7eb);
-  border-radius: var(--radius-md,10px);
+  border-radius: var(--radius-md,12px);
   background: var(--bg-color,#f9fafb);
 }
 .pdet-eq-miembro--lider { border-color: #f59e0b; background: rgba(245, 158, 11, .06); }
 .pdet-eq-foto {
-  width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+  width: 76px; height: 76px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 18px; font-weight: 700;
+  color: #fff; font-size: 24px; font-weight: 700;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  box-shadow: 0 3px 10px rgba(0,0,0,.15);
 }
 .pdet-eq-foto img { width: 100%; height: 100%; object-fit: cover; }
-.pdet-eq-datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pdet-eq-nombre { font-size: 15px; font-weight: 700; color: var(--text-main); }
-.pdet-eq-cargo  { font-size: 12.5px; color: var(--text-muted); }
-.pdet-eq-rol    { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-top: 2px; }
+.pdet-eq-datos { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.pdet-eq-linea-top { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.pdet-eq-nombre { font-size: 16.5px; font-weight: 800; color: var(--text-main); }
+.pdet-eq-rol-badge {
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px;
+  background: var(--border-color,#e5e7eb); color: var(--text-muted);
+  white-space: nowrap;
+}
+.pdet-eq-rol-badge.rol-lider        { background: #fef3c7; color: #92400e; }
+.pdet-eq-rol-badge.rol-tecnico-lider { background: #dbeafe; color: #1d4ed8; }
+.pdet-eq-cargo  { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: capitalize; }
+.pdet-eq-contacto {
+  display: flex; flex-direction: column; gap: 5px;
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed var(--border-color,#e5e7eb);
+}
+.pdet-eq-dato {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; color: var(--text-main);
+  text-decoration: none; min-width: 0;
+}
+.pdet-eq-dato svg { width: 14px; height: 14px; color: var(--brand-green,#8dc63f); flex-shrink: 0; }
+.pdet-eq-dato--link:hover { color: var(--brand-green,#8dc63f); text-decoration: underline; }
+.pdet-eq-dato--vacio { color: var(--text-muted); font-style: italic; }
+.pdet-eq-dato--vacio svg { color: var(--text-muted); }
 
 /* Badges */
 .pdet-badge { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
