@@ -59,6 +59,82 @@
 .pdet-equipo-code   { margin: 3px 0 0; font-size: 11px; color: var(--text-muted); }
 .pdet-equipo-model  { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); }
 
+/* ── Servicios con avance + equipo (distribución por servicio) ── */
+.pdet-svc-total {
+  min-width: 20px; height: 20px; padding: 0 6px; margin-left: 2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 99px; background: var(--brand-green,#8dc63f); color: #fff;
+  font-size: 11px; font-weight: 700;
+}
+.pdet-svc-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 700px) { .pdet-svc-grid { grid-template-columns: 1fr; } }
+
+.pdet-svc-card {
+  border: 1px solid var(--border-color,#e5e7eb);
+  border-radius: var(--radius-md,10px);
+  padding: 1rem 1.125rem;
+  background: var(--bg-color,#f9fafb);
+  display: flex; flex-direction: column; gap: 0.875rem;
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+.pdet-svc-card:hover { box-shadow: var(--shadow-panel); transform: translateY(-2px); }
+.pdet-svc-card--done { border-left: 3px solid #10b981; }
+
+.pdet-svc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
+.pdet-svc-titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pdet-svc-name { font-size: 14px; font-weight: 700; color: var(--text-main); line-height: 1.3; }
+.pdet-svc-date {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11.5px; color: var(--text-muted);
+}
+.pdet-svc-date svg { width: 12px; height: 12px; }
+
+.pdet-svc-prog-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.pdet-svc-prog-label {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text-muted);
+}
+.pdet-svc-prog-pct { font-size: 14px; font-weight: 800; }
+.pdet-svc-prog-pct.pg-gris  { color: var(--text-muted,#6b7280); }
+.pdet-svc-prog-pct.pg-ambar { color: #d97706; }
+.pdet-svc-prog-pct.pg-azul  { color: #2563eb; }
+.pdet-svc-prog-pct.pg-verde { color: #059669; }
+.pdet-svc-track { height: 7px; border-radius: 99px; overflow: hidden; background: var(--border-color,#e5e7eb); }
+.pdet-svc-fill  { height: 100%; border-radius: 99px; transition: width .5s ease; }
+.pdet-svc-fill.pg-gris  { background: #9ca3af; }
+.pdet-svc-fill.pg-ambar { background: linear-gradient(90deg,#fbbf24,#f59e0b); }
+.pdet-svc-fill.pg-azul  { background: linear-gradient(90deg,#60a5fa,#3b82f6); }
+.pdet-svc-fill.pg-verde { background: linear-gradient(90deg,#34d399,#10b981); }
+
+.pdet-svc-equipo-label {
+  display: block; margin-bottom: 7px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text-muted);
+}
+.pdet-svc-equipo-vacio { font-size: 12.5px; font-style: italic; color: var(--text-muted); }
+.pdet-svc-miembros { display: flex; flex-direction: column; gap: 7px; }
+.pdet-svc-miembro { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.pdet-svc-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 11px; font-weight: 700;
+  overflow: hidden;
+}
+.pdet-svc-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.pdet-svc-avatar--lider { box-shadow: 0 0 0 2px #f59e0b; }
+.pdet-svc-avatar--mas { background: var(--border-color,#e5e7eb); color: var(--text-muted,#6b7280); }
+.pdet-svc-miembro-info { display: flex; flex-direction: column; min-width: 0; }
+.pdet-svc-miembro-nombre {
+  font-size: 12.5px; font-weight: 600; color: var(--text-main);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pdet-svc-miembro-rol { font-size: 11px; color: var(--text-muted); }
+.pdet-svc-miembro-rol.rol-lider        { color: #d97706; font-weight: 700; }
+.pdet-svc-miembro-rol.rol-tecnico-lider { color: #2563eb; font-weight: 600; }
+
 /* Badges */
 .pdet-badge { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
 .pdet-badge-sm { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }

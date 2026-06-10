@@ -23,7 +23,7 @@
         }
       </div>
     </div>
-    <span class="pdet-badge" [class]="estadoBadge(data.proyecto.estado)">{{ data.proyecto.estado }}</span>
+    <span class="pdet-badge" [class]="estadoBadge(data.proyecto.estado)">{{ estadoLabel(data.proyecto.estado) }}</span>
   </div>
 
   <!-- Avance general -->
@@ -41,56 +41,88 @@
     </p>
   </div>
 
-  <div class="pdet-grid">
+  <!-- Servicios: cada uno con su avance y su equipo de trabajo -->
+  <div class="pdet-card">
+    <h2 class="pdet-section-title">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+      Servicios / Mantenimientos
+      <span class="pdet-svc-total">{{ data.servicios.length }}</span>
+    </h2>
 
-    <!-- Servicios -->
-    <div class="pdet-card">
-      <h2 class="pdet-section-title">Servicios / Mantenimientos</h2>
-      @if (data.servicios.length === 0) {
-      <p class="pdet-empty-sm">Sin servicios registrados.</p>
-      }
-      <div class="pdet-service-list">
-        @for (s of data.servicios; track s.id) {
-        <div class="pdet-service-item">
-          <span class="pdet-badge-sm" [class]="estadoBadge(s.estado)">{{ s.estado }}</span>
-          <div class="pdet-service-info">
-            <span class="pdet-service-name">{{ s.nombre }}</span>
+    @if (data.servicios.length === 0) {
+    <p class="pdet-empty-sm">Sin servicios registrados.</p>
+    }
+
+    <div class="pdet-svc-grid">
+      @for (s of data.servicios; track s.id) {
+      <div class="pdet-svc-card" [class.pdet-svc-card--done]="esCompletado(s.estado)">
+
+        <!-- Cabecera: nombre + estado -->
+        <div class="pdet-svc-head">
+          <div class="pdet-svc-titles">
+            <span class="pdet-svc-name">{{ s.nombre }}</span>
             @if (s.fecha_programada) {
-            <span class="pdet-service-date">{{ s.fecha_programada | date:'dd/MM/yyyy' }}</span>
+            <span class="pdet-svc-date">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+              {{ s.fecha_programada | date:'dd/MM/yyyy' }}
+            </span>
             }
           </div>
-          @if (s.estado === 'completado') {
-          <svg class="pdet-check" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-          </svg>
-          }
+          <span class="pdet-badge-sm" [class]="estadoBadge(s.estado)">{{ estadoLabel(s.estado) }}</span>
         </div>
-        }
-      </div>
-    </div>
 
-    <!-- Personal asignado -->
-    <div class="pdet-card">
-      <h2 class="pdet-section-title">
-        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM2 8a2 2 0 114 0 2 2 0 01-4 0zm16.364 9H17a5 5 0 00-9.9-1H1.636A2 2 0 000 18.5v.5h20v-.5a2 2 0 00-1.636-1.5z"/></svg>
-        Personal Asignado
-      </h2>
-      @if (data.personal.length === 0) {
-      <p class="pdet-empty-sm">Sin personal registrado.</p>
-      }
-      <div class="pdet-personal-list">
-        @for (p of data.personal; track p.id) {
-        <div class="pdet-personal-item">
-          <div class="pdet-avatar">{{ iniciales(p.nombre) }}</div>
-          <div>
-            <p class="pdet-personal-nombre">{{ p.nombre }}</p>
-            <p class="pdet-personal-cargo">{{ p.cargo || p.rol_proyecto || 'Técnico' }}</p>
+        <!-- Avance del servicio -->
+        <div class="pdet-svc-prog">
+          <div class="pdet-svc-prog-head">
+            <span class="pdet-svc-prog-label">Avance</span>
+            <span class="pdet-svc-prog-pct" [class]="progresoClase(s)">{{ progresoPct(s) }}%</span>
+          </div>
+          <div class="pdet-svc-track">
+            <div class="pdet-svc-fill" [class]="progresoClase(s)" [style.width.%]="progresoPct(s)"></div>
           </div>
         </div>
-        }
-      </div>
-    </div>
 
+        <!-- Equipo del servicio -->
+        <div class="pdet-svc-equipo">
+          <span class="pdet-svc-equipo-label">Equipo de trabajo</span>
+          @if ((s.equipo ?? []).length === 0) {
+          <span class="pdet-svc-equipo-vacio">Por asignar</span>
+          } @else {
+          <div class="pdet-svc-miembros">
+            @for (m of equipoVisible(s); track m.id) {
+            <div class="pdet-svc-miembro" [title]="m.nombre + ' · ' + m.rol">
+              <div class="pdet-svc-avatar"
+                   [class.pdet-svc-avatar--lider]="m.rol === 'Líder del Servicio'"
+                   [style.background]="m.foto_url ? 'transparent' : colorAvatar(m.id)">
+                @if (m.foto_url) {
+                <img [src]="m.foto_url" [alt]="m.nombre">
+                } @else {
+                {{ iniciales(m.nombre) }}
+                }
+              </div>
+              <div class="pdet-svc-miembro-info">
+                <span class="pdet-svc-miembro-nombre">{{ m.nombre }}</span>
+                <span class="pdet-svc-miembro-rol"
+                      [class.rol-lider]="m.rol === 'Líder del Servicio'"
+                      [class.rol-tecnico-lider]="m.rol === 'Técnico Líder'">{{ m.rol }}</span>
+              </div>
+            </div>
+            }
+            @if (equipoExtra(s) > 0) {
+            <div class="pdet-svc-miembro pdet-svc-miembro--mas">
+              <div class="pdet-svc-avatar pdet-svc-avatar--mas">+{{ equipoExtra(s) }}</div>
+              <div class="pdet-svc-miembro-info">
+                <span class="pdet-svc-miembro-nombre">{{ equipoExtra(s) }} más</span>
+              </div>
+            </div>
+            }
+          </div>
+          }
+        </div>
+
+      </div>
+      }
+    </div>
   </div>
 
   <!-- Equipos intervenidos -->
