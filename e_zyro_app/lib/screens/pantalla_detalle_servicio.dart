@@ -4,18 +4,24 @@ import 'dart:typed_data';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:signature/signature.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/api_client.dart';
+import '../core/api_result.dart';
 import '../core/app_constants.dart';
+import '../models/intervencion_models.dart';
 import '../models/proyecto_models.dart';
 import '../models/comunicado_models.dart';
 import '../models/recepcion_models.dart';
+import '../services/intervencion_service.dart';
 import '../services/proyecto_service.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../utils/fase_servicio.dart';
+import '../utils/informe_general_config.dart';
 import '../utils/ui_insets.dart';
 import '../services/comunicado_service.dart';
 import '../services/chat_service.dart';
@@ -29,6 +35,7 @@ import '../pdf/pdf_preview_screen.dart';
 import 'pantalla_chat.dart';
 import 'pantalla_asignacion_servicio.dart';
 import 'pantalla_crear_servicio.dart';
+import 'pantalla_intervencion_equipo.dart';
 
 part 'detalle_servicio/header.dart';
 part 'detalle_servicio/tab_procedimientos.dart';
@@ -39,6 +46,7 @@ part 'detalle_servicio/materiales_solicitar.dart';
 part 'detalle_servicio/materiales_recepcion.dart';
 part 'detalle_servicio/tab_notas.dart';
 part 'detalle_servicio/tab_comunicados.dart';
+part 'detalle_servicio/tab_equipos_intervenidos.dart';
 part 'detalle_servicio/shared.dart';
 
 const _green = Color(0xFF8FD11B);
@@ -81,7 +89,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 7, vsync: this);
+    _tabController = TabController(length: 8, vsync: this);
     _checkRol();
     _load();
     _conectarEventos();
@@ -589,6 +597,11 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                           text:
                               'Material · ${d.materialesAsignados.length + d.materialesSolicitados.length}',
                         ),
+                        const Tab(
+                            height: 46,
+                            icon: Icon(Icons.electrical_services_outlined,
+                                size: 18),
+                            text: 'Equipos Int.'),
                         Tab(
                             height: 46,
                             icon: const Icon(Icons.sticky_note_2_outlined,
@@ -636,6 +649,10 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                             reqsRecepcion: _reqsRecepcion,
                             service: widget.service,
                             onChanged: _reloadMateriales,
+                            isClosed: d.esCerrado,
+                          ),
+                          _EquiposIntervenidosTab(
+                            servicioId: d.id,
                             isClosed: d.esCerrado,
                           ),
                           _NotasTab(

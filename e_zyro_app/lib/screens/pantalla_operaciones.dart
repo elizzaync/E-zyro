@@ -10,6 +10,7 @@ import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_servicios.dart';
 import 'pantalla_crear_proyecto.dart';
+import 'pantalla_dashboard_operaciones.dart';
 
 class OperationsScreen extends StatefulWidget {
   const OperationsScreen({super.key});
@@ -145,6 +146,16 @@ class _OperationsScreenState extends State<OperationsScreen> {
                           ),
                         ],
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'Dashboard de operaciones',
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                const PantallaDashboardOperaciones()),
+                      ),
+                      icon: const Icon(Icons.insights_outlined, size: 22),
                     ),
                     if (_puedeCrear)
                       ElevatedButton.icon(
