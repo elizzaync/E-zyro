@@ -1,7 +1,7 @@
 :host {
   display: block;
   min-height: calc(100vh - 72px);
-  background-color: var(--bg-color);
+  background-color: transparent; /* deja ver el fondo de partículas */
 }
 .req-layout {
   width: 100%; box-sizing: border-box;

@@ -4,6 +4,8 @@
 .top-navbar {
   display: flex; align-items: center; justify-content: space-between;
   height: 72px; padding: 0 24px;
+  /* siempre por encima del canvas de partículas (z-index:-1) */
+  position: relative; z-index: 10;
   background-color: var(--card-bg); border-bottom: 1px solid var(--border-color);
   font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
   transition: background-color 0.4s ease, border-color 0.4s ease;

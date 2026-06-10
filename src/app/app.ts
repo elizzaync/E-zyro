@@ -6,13 +6,11 @@ import { ToastComponent } from './shared/components/toast/toast.component';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { AuthService } from './core/services/auth.service';
 import { ChatbotComponent } from './shared/components/chatbot/chatbot.component';
-import { NeuralBackgroundComponent } from './shared/components/neural-background/neural-background.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  // 👇 Lo agregamos a los imports
-  imports: [RouterOutlet, ToastComponent, NavbarComponent, ChatbotComponent, CommonModule, NeuralBackgroundComponent],
+  imports: [RouterOutlet, ToastComponent, NavbarComponent, ChatbotComponent, CommonModule],
   templateUrl: './app.html',
 })
 export class App implements OnInit {
@@ -46,6 +44,12 @@ export class App implements OnInit {
     } else {
       this.mostrarNavbar = true;
     }
+
+    // Fondo de partículas (public/background.js): SOLO portal cliente
+    // (rutas /portal-cliente/* protegidas por clientPortalGuard → rol ClienteExterno)
+    const esPortal = url.startsWith('/portal-cliente');
+    (window as any).__particleBgEnabled = esPortal;
+    (window as any).setParticleBackground?.(esPortal);
   }
 
   get esPortalCliente(): boolean {

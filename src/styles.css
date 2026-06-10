@@ -6,6 +6,23 @@ html, body {
   box-sizing: border-box;
   font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
 }
+
+/* =======================================================
+   CAPA DE FONDO DE PARTÍCULAS (public/background.js)
+   El canvas es position:fixed con z-index:-1 y pointer-events:none:
+   queda SIEMPRE detrás de navbar, cards y modales.
+   body es dueño del color de fondo (detrás del canvas, cambia con el
+   tema). Para que las partículas se vean en una página, el wrapper de
+   esa página debe tener background: transparent (ej. .home-layout).
+   ======================================================= */
+body {
+  background-color: var(--bg-color);
+  transition: background-color 0.4s ease;
+}
+app-root {
+  position: relative;
+  z-index: 1;
+}
 /* =======================================================
    SISTEMA DE DISEÑO GLOBAL — VARIABLES Y TEMAS
    ======================================================= */
@@ -85,7 +102,7 @@ html, body {
    PORTAL CLIENTE — modo de visualización restringida
    ======================================================= */
 main.portal-mode {
-  background: var(--bg-color);
+  background: transparent; /* deja ver el canvas de partículas (background.js) */
   min-height: calc(100vh - 72px); /* 72px = altura del top-navbar */
   /* Stacking context: el canvas neuronal (z-index negativo) queda sobre este
      fondo pero debajo de todo el contenido del portal */

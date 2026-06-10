@@ -1,5 +1,5 @@
 .page-layout {
-    background-color: var(--bg-color);
+    background-color: transparent; /* deja ver el fondo de partículas */
     min-height: calc(100vh - 72px);
     padding: 40px 32px;
     box-sizing: border-box;

@@ -3,7 +3,7 @@
 
 /* --- LIENZO PRINCIPAL --- */
 .main-layout {
-  background-color: var(--bg-color); /* Variable CSS → funciona con sistema Y toggle manual */
+  background-color: transparent; /* el color lo pone body; deja ver el fondo de partículas */
   min-height: 100vh;
   padding: 40px 24px;
   transition: background-color 0.4s ease;

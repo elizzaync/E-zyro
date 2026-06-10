@@ -2,11 +2,11 @@
    HOME COMPONENT CSS (RESTAURADO)
    ======================================================= */
 .home-layout {
-  background-color: var(--bg-color);
+  /* transparente: el color lo pone body y deja ver el canvas de partículas */
+  background-color: transparent;
   min-height: calc(100vh - 72px);
   padding: 40px 32px;
   box-sizing: border-box;
-  transition: background-color 0.4s ease;
   font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
 }
 

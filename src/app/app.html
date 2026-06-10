@@ -3,11 +3,8 @@
 }
 
 <main [class.portal-mode]="esPortalCliente">
-    <!-- Fondo neuronal — solo en /portal-cliente/* (rutas protegidas por clientPortalGuard,
-         exclusivas del rol ClienteExterno); jamás se instancia para usuarios internos -->
-    @if (esPortalCliente) {
-    <app-neural-background></app-neural-background>
-    }
+    <!-- El fondo de partículas global lo dibuja public/background.js
+         (canvas fixed con z-index:-1, detrás de navbar, cards y modales) -->
     <router-outlet></router-outlet>
 </main>
 

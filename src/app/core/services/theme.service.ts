@@ -27,6 +27,7 @@ export class ThemeService {
 
   private _apply(dark: boolean): void {
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    (window as any).setParticleTheme?.(dark ? 'dark' : 'light');
     this._isDark.next(dark);
   }
 }

@@ -4,7 +4,7 @@
 
 /* ── CONTENEDOR PADRE (100% Ancho, aplica el fondo a toda la pantalla) ── */
 .mas-layout {
-    background-color: var(--bg-color); /* Aplica el color global de fondo a TODA la pantalla */
+    background-color: transparent; /* el color lo pone body; deja ver el fondo de partículas */
     min-height: calc(100vh - 72px);
     padding: 40px 24px;
     box-sizing: border-box;
