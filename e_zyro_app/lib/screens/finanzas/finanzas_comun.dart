@@ -7,6 +7,15 @@ final NumberFormat _fmtMoneda = NumberFormat.currency(locale: 'es_PE', symbol: '
 
 String money(num v) => _fmtMoneda.format(v);
 
+/// Convierte de forma segura un valor JSON (num/String/null) a double.
+/// El backend serializa los Decimal como string ("0.00"); castear a `num`
+/// directamente revienta con "type 'String' is not a subtype of type 'num?'".
+double toNum(dynamic v) {
+  if (v == null) return 0;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString()) ?? 0;
+}
+
 /// Periodo 'YYYY-MM' del mes actual.
 String periodoActual() {
   final now = DateTime.now();

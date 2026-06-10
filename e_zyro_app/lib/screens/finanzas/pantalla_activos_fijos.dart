@@ -140,7 +140,7 @@ class _PantallaActivosFijosState extends State<PantallaActivosFijos> {
     if (res.ok) {
       final d = res.data!;
       mostrarOk(context, 'Procesados: ${d['procesados']} · Omitidos: ${d['omitidos']} '
-          '· Total ${money((d['total_depreciado'] as num?)?.toDouble() ?? 0)}');
+          '· Total ${money(toNum(d['total_depreciado']))}');
       _cargar();
     } else {
       mostrarError(context, res.errorMessage);
