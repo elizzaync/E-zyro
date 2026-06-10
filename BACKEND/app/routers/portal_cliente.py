@@ -141,7 +141,7 @@ def portal_proyectos(
             p.fecha_inicio,
             p.fecha_fin_estimada,
             COUNT(ps.id)                                                AS total_servicios,
-            COUNT(ps.id) FILTER (WHERE ps.estado = 'completado')        AS completados
+            COUNT(ps.id) FILTER (WHERE LOWER(ps.estado) = 'completado') AS completados
         FROM proyecto p
         LEFT JOIN proyecto_servicio ps ON ps.proyecto_id = p.id
         WHERE p.empresa_id = :eid AND p.cliente_id = :cid
@@ -186,28 +186,105 @@ def portal_proyecto_detalle(
     if not proy:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado.")
 
-    # Servicios
+    # Servicios — cada uno con su % de avance y su equipo de trabajo propio
     servicios_rows = db.execute(text("""
-        SELECT id, nombre, estado, fecha_programada, fecha_inicio, fecha_fin
+        SELECT id, nombre, estado, fecha_programada, fecha_inicio, fecha_fin,
+               lider_id, responsable_id, descripcion
         FROM proyecto_servicio
         WHERE proyecto_id = :pid
-        ORDER BY COALESCE(fecha_programada, fecha_inicio), nombre
+        ORDER BY orden ASC, COALESCE(fecha_programada, fecha_inicio), nombre
     """), {"pid": proyecto_id}).fetchall()
 
-    total = len(servicios_rows)
-    comp  = sum(1 for s in servicios_rows if s[2] == "completado")
+    # Avance por servicio: % de procedimientos (pasos fijos) completados
+    prog_rows = db.execute(text("""
+        SELECT pr.proyecto_servicio_id::text,
+               COUNT(*)                                               AS total,
+               COUNT(*) FILTER (WHERE LOWER(pr.estado) = 'completado') AS completos
+        FROM procedimiento pr
+        JOIN proyecto_servicio ps ON ps.id = pr.proyecto_servicio_id
+        WHERE ps.proyecto_id = :pid
+        GROUP BY pr.proyecto_servicio_id
+    """), {"pid": proyecto_id}).fetchall()
+    progreso_map = {
+        r[0]: (round(r[2] / r[1] * 100) if r[1] else 0) for r in prog_rows
+    }
 
-    servicios = [
-        {
-            "id":               str(s[0]),
+    # Responsables de tareas por servicio (equipo técnico real del servicio)
+    resp_rows = db.execute(text("""
+        SELECT DISTINCT t.proyecto_servicio_id::text, t.responsable_id::text
+        FROM tarea t
+        JOIN proyecto_servicio ps ON ps.id = t.proyecto_servicio_id
+        WHERE ps.proyecto_id = :pid AND t.responsable_id IS NOT NULL
+    """), {"pid": proyecto_id}).fetchall()
+    resp_por_svc: dict[str, list[str]] = {}
+    for sid, rid in resp_rows:
+        resp_por_svc.setdefault(sid, []).append(rid)
+
+    # Datos de persona (nombre/cargo/foto) de todos los involucrados, en batch
+    emp_ids: set[str] = set()
+    for s in servicios_rows:
+        if s[6]: emp_ids.add(str(s[6]))
+        if s[7]: emp_ids.add(str(s[7]))
+    for ids in resp_por_svc.values():
+        emp_ids.update(ids)
+
+    persona_map: dict[str, dict[str, Any]] = {}
+    if emp_ids:
+        persona_rows = db.execute(text("""
+            SELECT e.id::text,
+                   TRIM(u.nombre || ' ' || COALESCE(u.apellido, '')) AS nombre,
+                   e.cargo,
+                   u.foto_url
+            FROM empleado e
+            JOIN usuario u ON u.id = e.usuario_id
+            WHERE e.id::text = ANY(:ids)
+        """), {"ids": list(emp_ids)}).fetchall()
+        persona_map = {
+            r[0]: {"id": r[0], "nombre": r[1] or "Sin nombre",
+                   "cargo": r[2] or "Técnico", "foto_url": r[3]}
+            for r in persona_rows
+        }
+
+    def _equipo_de(svc_row) -> list[dict[str, Any]]:
+        """Solo asignados explícitos a ESTE servicio (nunca el creador del proyecto)."""
+        out: list[dict[str, Any]] = []
+        vistos: set[str] = set()
+
+        def _push(emp_id, rol: str):
+            eid = str(emp_id) if emp_id else None
+            if not eid or eid in vistos:
+                return
+            p = persona_map.get(eid)
+            if not p:
+                return
+            vistos.add(eid)
+            out.append({**p, "rol": rol})
+
+        _push(svc_row[6], "Líder del Servicio")
+        _push(svc_row[7], "Técnico Líder")
+        for eid in resp_por_svc.get(str(svc_row[0]), []):
+            _push(eid, "Técnico")
+        return out
+
+    servicios = []
+    for s in servicios_rows:
+        sid       = str(s[0])
+        estado    = s[2] or "Pendiente"
+        progreso  = 100 if estado.lower() == "completado" else progreso_map.get(sid, 0)
+        servicios.append({
+            "id":               sid,
             "nombre":           s[1],
-            "estado":           s[2],
+            "descripcion":      s[8],
+            "estado":           estado,
             "fecha_programada": s[3].isoformat() if s[3] else None,
             "fecha_inicio":     s[4].isoformat() if s[4] else None,
             "fecha_fin":        s[5].isoformat() if s[5] else None,
-        }
-        for s in servicios_rows
-    ]
+            "progreso":         progreso,
+            "equipo":           _equipo_de(s),
+        })
+
+    # Avance del proyecto: promedio dinámico del avance real de sus servicios
+    avance_proyecto = round(sum(x["progreso"] for x in servicios) / len(servicios)) if servicios else 0
 
     # Personal asignado (proyecto_miembro → empleado → usuario)
     personal_rows = db.execute(text("""
@@ -260,7 +337,7 @@ def portal_proyecto_detalle(
             "estado":             proy[2],
             "fecha_inicio":       proy[3].isoformat() if proy[3] else None,
             "fecha_fin_estimada": proy[4].isoformat() if proy[4] else None,
-            "avance_pct":         round(comp / total * 100) if total > 0 else 0,
+            "avance_pct":         avance_proyecto,
         },
         "servicios":  servicios,
         "personal":   personal,
