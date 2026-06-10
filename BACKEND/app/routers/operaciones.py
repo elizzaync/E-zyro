@@ -528,34 +528,56 @@ def get_detalle_servicio(
         .all()
     )
 
-    miembro_empleado_ids = {r.empleado_id for r in equipo_rows}
+    # El equipo muestra SOLO a los asignados explícitamente al servicio:
+    # líder del servicio, técnico líder y miembros del equipo técnico.
+    # El creador / jefe de operaciones del proyecto NO se muestra aquí salvo
+    # que esté asignado (queda solo en los campos de auditoría del proyecto).
+    lider_emp_id   = str(ps.lider_id)       if ps.lider_id       else None
+    tecnico_emp_id = str(ps.responsable_id) if ps.responsable_id else None
+    jefe_ops_id    = str(proyecto.jefe_operaciones_id) if proyecto.jefe_operaciones_id else None
 
-    equipo = [
-        MiembroEquipoOut(
-            id=str(r.empleado_id),   # empleado.id — requerido por el modal de configurar
+    equipo: list[MiembroEquipoOut] = []
+    _vistos: set[str] = set()
+
+    def _add_asignado(emp_id: str | None, rol: str) -> None:
+        """Agrega líder / técnico líder al equipo (tolera IDs nulos o huérfanos)."""
+        if not emp_id or emp_id in _vistos:
+            return
+        emp = db.query(Empleado).filter(Empleado.id == emp_id).first()
+        usr = db.query(Usuario).filter(Usuario.id == emp.usuario_id).first() if emp else None
+        if not emp or not usr:
+            return
+        _vistos.add(emp_id)
+        equipo.append(MiembroEquipoOut(
+            id=str(emp.id),  # empleado.id — requerido por el modal de configurar
+            nombre=usr.nombre or "",
+            apellido=usr.apellido or "",
+            foto_url=usr.foto_url or "",
+            cargo=emp.cargo or "Sin Cargo",
+            rol_proyecto=rol,
+        ))
+
+    _add_asignado(lider_emp_id,   "Líder del Servicio")
+    _add_asignado(tecnico_emp_id, "Técnico Líder")
+
+    for r in equipo_rows:
+        emp_id = str(r.empleado_id)
+        if emp_id in _vistos:
+            continue  # ya listado como líder / técnico líder
+        # El jefe de operaciones del proyecto solo aparece si fue asignado
+        # explícitamente como líder/técnico/miembro de ESTE servicio; su fila
+        # de ProyectoMiembro se crea automáticamente al crear el proyecto.
+        if jefe_ops_id and emp_id == jefe_ops_id:
+            continue
+        _vistos.add(emp_id)
+        equipo.append(MiembroEquipoOut(
+            id=emp_id,
             nombre=r.Usuario.nombre or "",
             apellido=r.Usuario.apellido or "",
             foto_url=r.Usuario.foto_url or "",
             cargo=r.cargo or "Sin Cargo",
             rol_proyecto=r.rol_proyecto or "Técnico",
-        )
-        for r in equipo_rows
-    ]
-
-    # Añadir jefe de operaciones si no está ya en ProyectoMiembro
-    if proyecto.jefe_operaciones_id not in miembro_empleado_ids:
-        jefe_emp = db.query(Empleado).filter(Empleado.id == proyecto.jefe_operaciones_id).first()
-        if jefe_emp:
-            jefe_usr = db.query(Usuario).filter(Usuario.id == jefe_emp.usuario_id).first()
-            if jefe_usr:
-                equipo.insert(0, MiembroEquipoOut(
-                    id=str(jefe_emp.id),  # empleado.id
-                    nombre=jefe_usr.nombre or "",
-                    apellido=jefe_usr.apellido or "",
-                    foto_url=jefe_usr.foto_url or "",
-                    cargo=jefe_emp.cargo or "Sin Cargo",
-                    rol_proyecto="Jefe de Operaciones",
-                ))
+        ))
 
     # 4. Procedimientos (pasos fijos) + Evidencias
     # Instanciación perezosa desde la plantilla por tipo de trabajo (cubre
@@ -2948,20 +2970,21 @@ def crear_servicio(
     if not catalogo:
         raise HTTPException(status_code=404, detail="Catálogo de servicio no encontrado")
 
-    # ── Líder del Servicio: obligatorio y solo Jefes de Operaciones / Proyecto ──
-    lider_id = (body.lider_id or "").strip()
-    if not lider_id:
-        raise HTTPException(status_code=422, detail="El servicio requiere un Líder del Servicio.")
-    lider = db.query(Empleado).filter(
-        Empleado.id == lider_id, Empleado.empresa_id == empresa_id
-    ).first()
-    if not lider:
-        raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
-    if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
-        raise HTTPException(
-            status_code=422,
-            detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
-        )
+    # ── Líder del Servicio (OPCIONAL): si se omite, el Jefe de Operaciones que
+    # tome el servicio quedará como líder al configurarlo. Si se envía, debe
+    # ser un Jefe de Operaciones / Proyecto válido. ──
+    lider_id = (body.lider_id or "").strip() or None
+    if lider_id:
+        lider = db.query(Empleado).filter(
+            Empleado.id == lider_id, Empleado.empresa_id == empresa_id
+        ).first()
+        if not lider:
+            raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
+        if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
+            raise HTTPException(
+                status_code=422,
+                detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
+            )
 
     # ── Técnico Líder (opcional): cualquier empleado activo de la empresa ──
     responsable_id = (body.responsable_id or "").strip() or None
@@ -3065,21 +3088,20 @@ def actualizar_servicio(
     if body.fecha_fin is not None:
         ps.fecha_fin = _parse_date(body.fecha_fin)
 
-    # Líder del Servicio (si cambió): validar elegibilidad
+    # Líder del Servicio (OPCIONAL): '' = quitar líder; si se envía uno, validar elegibilidad
     if body.lider_id is not None:
-        lider_id = (body.lider_id or "").strip()
-        if not lider_id:
-            raise HTTPException(status_code=422, detail="El servicio requiere un Líder del Servicio.")
-        lider = db.query(Empleado).filter(
-            Empleado.id == lider_id, Empleado.empresa_id == empresa_id
-        ).first()
-        if not lider:
-            raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
-        if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
-            raise HTTPException(
-                status_code=422,
-                detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
-            )
+        lider_id = (body.lider_id or "").strip() or None
+        if lider_id:
+            lider = db.query(Empleado).filter(
+                Empleado.id == lider_id, Empleado.empresa_id == empresa_id
+            ).first()
+            if not lider:
+                raise HTTPException(status_code=404, detail="Líder del servicio no encontrado.")
+            if not _empleado_es_lider_elegible(db, lider_id, empresa_id):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Solo un Jefe de Operaciones o Jefe de Proyecto puede ser Líder del Servicio.",
+                )
         ps.lider_id = lider_id
 
     # Técnico Líder (opcional)
@@ -3229,21 +3251,24 @@ def configurar_servicio(
         ))
 
     # ── 3. Auto-liderazgo (HU-13) ─────────────────────────────────────────────
-    # Determinar el responsable del servicio:
+    # Determinar el LÍDER DEL SERVICIO (ps.lider_id — nunca el técnico líder):
     #   a) Usar body.lider_id si el frontend lo envía explícitamente, O
-    #   b) Derivar desde el JWT (usuario que está configurando el servicio)
-    lider_empleado_id: str | None = None
+    #   b) Si el servicio aún no tiene líder, el Jefe de Operaciones que lo está
+    #      configurando (JWT) lo reclama automáticamente.
+    # Si el líder fue definido al CREAR el servicio, se respeta salvo override
+    # explícito (escenarios A y B coexisten).
+    lider_empleado_id: str | None = str(ps.lider_id) if ps.lider_id else None
 
     if body.lider_id:
-        # Verificar que pertenece a la empresa
+        # Override explícito: verificar que pertenece a la empresa
         emp_lider = db.query(Empleado).filter(
             Empleado.id         == body.lider_id,
             Empleado.empresa_id == empresa_id,
         ).first()
         if emp_lider:
             lider_empleado_id = str(emp_lider.id)
-    else:
-        # Fallback: buscar el empleado del usuario autenticado
+    elif not lider_empleado_id:
+        # Reclamo automático: el empleado del usuario autenticado toma el liderazgo
         usuario_id = payload.get("id", "")
         emp_lider = db.query(Empleado).filter(
             Empleado.usuario_id == usuario_id,
@@ -3254,11 +3279,23 @@ def configurar_servicio(
             lider_empleado_id = str(emp_lider.id)
 
     if lider_empleado_id:
-        # Asignar como responsable del servicio
-        ps.responsable_id = lider_empleado_id
+        # Asignar como LÍDER del servicio (el técnico líder es independiente)
+        ps.lider_id = lider_empleado_id
         # Asignar como jefe de operaciones del proyecto si no tenía uno
         if proyecto and not proyecto.jefe_operaciones_id:
             proyecto.jefe_operaciones_id = lider_empleado_id
+
+    # ── 3b. Técnico Líder (OPCIONAL): '' = quitar; None = no tocar ────────────
+    if body.responsable_id is not None:
+        responsable_id = (body.responsable_id or "").strip() or None
+        if responsable_id:
+            tecnico = db.query(Empleado).filter(
+                Empleado.id         == responsable_id,
+                Empleado.empresa_id == empresa_id,
+            ).first()
+            if not tecnico:
+                raise HTTPException(status_code=404, detail="Técnico líder no encontrado.")
+        ps.responsable_id = responsable_id
 
     # Si el servicio estaba en Pendiente y se le asigna equipo, pasarlo a En_Proceso
     if ps.estado == "Pendiente" and equipo_ids:

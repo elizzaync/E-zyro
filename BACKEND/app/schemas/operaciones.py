@@ -336,8 +336,9 @@ class CrearServicioBody(BaseModel):
     fecha_programada: Optional[str] = None
     fecha_inicio: Optional[str] = None
     fecha_fin: Optional[str] = None
-    # Liderazgo
-    lider_id: str                                   # empleado.id — Líder del Servicio (obligatorio)
+    # Liderazgo (ambos opcionales: el Jefe de Operaciones que tome el servicio
+    # puede asignarse después desde el flujo de configuración)
+    lider_id: Optional[str] = None                  # empleado.id — Líder del Servicio (opcional)
     responsable_id: Optional[str] = None            # empleado.id — Técnico Líder (opcional)
     # Geografía
     ubicacion_id: Optional[str] = None
@@ -384,7 +385,8 @@ class ConfigurarServicioBody(BaseModel):
     # Nota: el campo se sigue llamando `procedimientos` por compatibilidad con el
     # frontend Angular, pero ahora se persiste como Tareas (cronograma).
     procedimientos: List[ProcedimientoConfigBody]
-    lider_id: Optional[str] = None          # empleado.id del responsable del servicio
+    lider_id: Optional[str] = None          # empleado.id — Líder del Servicio
+    responsable_id: Optional[str] = None    # empleado.id — Técnico Líder ('' = quitar)
 
 
 # ── Plantillas de Procedimientos (estándar por tipo de trabajo) ───────────────
