@@ -85,6 +85,7 @@ class ServicioDetalleOut(BaseModel):
     tipo_documento_cliente: Optional[str] = None
     nro_documento: Optional[str] = None
     es_mantenimiento: bool = False
+    inspeccion_equipos_activa: bool = False   # alias móvil de es_mantenimiento
     ubicacion_id: Optional[str] = None
     zona_id: Optional[str] = None
     ubicacion_nombre: Optional[str] = None

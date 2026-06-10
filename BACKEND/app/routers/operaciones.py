@@ -15,9 +15,9 @@ from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Form, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, UploadFile, File, Form, status
 from fastapi.responses import StreamingResponse
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError, ProgrammingError
@@ -707,6 +707,7 @@ def get_detalle_servicio(
         tipo_documento_cliente=ps.tipo_documento_cliente or None,
         nro_documento=ps.nro_documento or None,
         es_mantenimiento=bool(ps.tiene_equipos_intervenidos),
+        inspeccion_equipos_activa=bool(ps.tiene_equipos_intervenidos),
         ubicacion_id=str(ps.ubicacion_id) if ps.ubicacion_id else None,
         zona_id=str(ps.zona_id) if ps.zona_id else None,
         ubicacion_nombre=ubic_nombre,
@@ -3527,12 +3528,14 @@ def _map_hi(hi: HistorialInspeccion) -> dict:
 @router.get("/servicio/{servicio_id}/equipos-intervenidos")
 def list_equipos_intervenidos(
     servicio_id: str,
+    ubicacion_id: Optional[str] = Query(None),
+    zona_id:      Optional[str] = Query(None),
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
 
-    # Obtener el servicio para conocer su ubicacion/zona
+    # Obtener el servicio para validar acceso y obtener su ubicacion/zona
     ps = db.query(ProyectoServicio).filter(
         ProyectoServicio.id         == servicio_id,
         ProyectoServicio.empresa_id == empresa_id,
@@ -3540,8 +3543,9 @@ def list_equipos_intervenidos(
     if not ps:
         raise HTTPException(status_code=404, detail="Servicio no encontrado")
 
-    servicio_ubicacion_id = str(ps.ubicacion_id) if ps.ubicacion_id else None
-    servicio_zona_id      = str(ps.zona_id)      if ps.zona_id      else None
+    # Prioridad: query params (override desde el app) → campos del servicio
+    filtro_ubicacion_id = ubicacion_id or (str(ps.ubicacion_id) if ps.ubicacion_id else None)
+    filtro_zona_id      = zona_id      or (str(ps.zona_id)      if ps.zona_id      else None)
 
     # Subquery: última inspección de cada equipo en este servicio
     historial_sq = (
@@ -3577,18 +3581,17 @@ def list_equipos_intervenidos(
         )
     )
 
-    # Filtro geográfico inteligente: zona exacta -> (si vacia) ubicacion -> (si no hay) todos.
-    # Caso real: un servicio en AREQUIPA/AREQUIPA donde la zona "AREQUIPA" es la generica
-    # y los equipos viven en sub-zonas (RAMPA/CARGA/PAX): cae a la ubicacion y los muestra.
+    # Filtro geográfico inteligente:
+    # 1. Zona exacta → 2. Fallback a ubicación → 3. Sin criterio: lista vacía
+    # (ya no se devuelven todos los equipos de la empresa cuando no hay filtro)
     orden = (TipoEquipo.nombre.asc(), EquipoIntervenido.nombre.asc())
 
     rows = []
-    if servicio_zona_id:
-        rows = q.filter(EquipoIntervenido.zona_id == servicio_zona_id).order_by(*orden).all()
-    if not rows and servicio_ubicacion_id:
-        rows = q.filter(EquipoIntervenido.ubicacion_id == servicio_ubicacion_id).order_by(*orden).all()
-    if not rows and not servicio_zona_id and not servicio_ubicacion_id:
-        rows = q.order_by(*orden).all()
+    if filtro_zona_id:
+        rows = q.filter(EquipoIntervenido.zona_id == filtro_zona_id).order_by(*orden).all()
+    if not rows and filtro_ubicacion_id:
+        rows = q.filter(EquipoIntervenido.ubicacion_id == filtro_ubicacion_id).order_by(*orden).all()
+    # Si no hay ningún criterio geográfico no devolvemos todos: lista vacía con mensaje claro.
 
     return [
         {
