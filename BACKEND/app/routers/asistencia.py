@@ -45,7 +45,9 @@ class FotoBaseResponse(BaseModel):
 
 
 class MarcarRequest(BaseModel):
-    imagen_selfie: str        # JPEG/PNG en base64
+    # Opcional: el almuerzo (v1 PYME) y los registros offline se marcan sin
+    # selfie (se aprueban por JWT + GPS). Para entrada/salida el cliente la envía.
+    imagen_selfie: Optional[str] = None   # JPEG/PNG en base64
     tipo: str                 # entrada | salida | entrada_almuerzo | salida_almuerzo
     latitud:              Optional[float] = None
     longitud:             Optional[float] = None
