@@ -8,6 +8,9 @@ def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_pe
     Sube una imagen optimizada a Cloudinary.
     """
     try:
+        if not base64_data:
+            raise Exception("No se recibió ninguna imagen para subir.")
+
         # Cloudinary requiere el prefijo data URI; añadirlo si viene como base64 puro
         if not base64_data.startswith("data:"):
             base64_data = f"data:image/jpeg;base64,{base64_data}"

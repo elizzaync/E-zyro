@@ -371,23 +371,26 @@ def marcar_asistencia(
     motivo = _motivos.get(resultado_ia, motivo)
 
     # 7 ── Subir selfie a Cloudinary (fallo no bloquea el registro)
+    # Registros sincronizados offline llegan sin selfie (es_sync_sin_selfie):
+    # no hay nada que subir, así que ni lo intentamos.
     selfie_url:       Optional[str] = None
     selfie_public_id: Optional[str] = None
-    try:
-        selfie_folder = carpeta_asistencia(empresa_id, empleado.id, ahora.strftime('%Y-%m'))
-        selfie_name   = f"{ahora.strftime('%Y%m%d')}_{uuid.uuid4().hex[:10]}"
-        selfie_public_id = f"{selfie_folder}/{selfie_name}"
-        selfie_url = subir_imagen_cloudinary(
-            base64_data=body.imagen_selfie,
-            folder=selfie_folder,
-            public_id=selfie_name,       # solo el nombre, folder lo pone Cloudinary
-            is_perfil=False,
-        )
-    except Exception as exc:
-        # Loguear para diagnosticar en Railway — causa más común: CLOUDINARY_* no configuradas
-        logger.error("Cloudinary upload failed (selfie): %s", exc, exc_info=True)
-        selfie_url       = None
-        selfie_public_id = None
+    if (body.imagen_selfie or "").strip():
+        try:
+            selfie_folder = carpeta_asistencia(empresa_id, empleado.id, ahora.strftime('%Y-%m'))
+            selfie_name   = f"{ahora.strftime('%Y%m%d')}_{uuid.uuid4().hex[:10]}"
+            selfie_public_id = f"{selfie_folder}/{selfie_name}"
+            selfie_url = subir_imagen_cloudinary(
+                base64_data=body.imagen_selfie,
+                folder=selfie_folder,
+                public_id=selfie_name,       # solo el nombre, folder lo pone Cloudinary
+                is_perfil=False,
+            )
+        except Exception as exc:
+            # Loguear para diagnosticar en Railway — causa más común: CLOUDINARY_* no configuradas
+            logger.error("Cloudinary upload failed (selfie): %s", exc, exc_info=True)
+            selfie_url       = None
+            selfie_public_id = None
 
     # 8 ── Persistencia en BD (3 tablas en una transacción)
     reg_id = str(uuid.uuid4())
@@ -411,9 +414,9 @@ def marcar_asistencia(
     db.add(registro)
     db.flush()
 
-    # La evidencia fotográfica solo se registra si el empleado tiene foto base.
-    # El almuerzo sin selfie ni foto base se sustenta en JWT + GPS (sin FotoAsistencia).
-    if foto_base is not None:
+    # La evidencia fotográfica solo se registra si hay selfie subida exitosamente.
+    # Registros offline sin selfie (sin_evidencia_offline) no generan FotoAsistencia.
+    if foto_base is not None and selfie_url is not None:
         fa = FotoAsistencia(
             registro_id=reg_id,
             foto_base_id=foto_base.id,

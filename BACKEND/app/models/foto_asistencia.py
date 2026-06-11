@@ -13,5 +13,5 @@ class FotoAsistencia(Base):
     url_cloudinary       = Column(String(500), nullable=True)
     public_id_cloudinary = Column(String(255), nullable=True)
     similitud_ia         = Column(Numeric(6, 4), nullable=True)
-    resultado            = Column(String(20),  nullable=True)
+    resultado            = Column(String(30),  nullable=True)
     fecha_captura        = Column(DateTime, nullable=False, default=datetime.utcnow)
