@@ -27,6 +27,29 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return (this.usuarioActual.rol || '').toLowerCase().replace(/\s+/g, '') === 'clienteexterno';
   }
 
+  get isTecnico(): boolean {
+    return (this.usuarioActual.rol || '').trim() === 'Técnico de Campo';
+  }
+
+  get isJefeOperaciones(): boolean {
+    return (this.usuarioActual.rol || '').trim() === 'Jefe de Operaciones';
+  }
+
+  /** Puede ver la sección Nube de Planos (no Técnico) */
+  get puedeVerPlanos(): boolean {
+    return !this.isTecnico && !this.isClienteExterno;
+  }
+
+  /** Puede ver Requerimientos y Compras en logística */
+  get puedeVerLogisticaAvanzada(): boolean {
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno;
+  }
+
+  /** Puede ver Salidas en logística */
+  get puedeVerSalidas(): boolean {
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno;
+  }
+
   get panelSubtitulo(): string {
     if (this.isClienteExterno) return 'Portal Cliente';
     const rol = (this.usuarioActual.rol || '').trim();

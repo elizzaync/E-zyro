@@ -1891,3 +1891,12 @@
   </div>
 </div>
 }
+
+<!-- ══ Modal de Justificación (Jefe de Operaciones — cambio de tarea) ══ -->
+<app-justificacion-modal
+  [visible]="showJustModal"
+  titulo="Justificación de cambio en tarea"
+  descripcion="Como Jefe de Operaciones, este cambio queda registrado en auditoría. Describe brevemente el motivo."
+  (confirmado)="onJustTareaConfirmado($event)"
+  (cancelado)="onJustTareaCancelado()"
+></app-justificacion-modal>

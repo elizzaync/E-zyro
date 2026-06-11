@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { OperacionesService } from '../../core/services/operaciones.service';
 import { ToastService } from '../../core/services/toast.service';
+import { AuthService } from '../../core/services/auth.service';
 import { AlertComponent } from '../../shared/components/login/alert.component';
 import { SpinnerComponent } from '../../shared/components/spinner/spinner.component';
 import { CrearProyectoModalComponent } from './components/crear-proyecto-modal/crear-proyecto-modal.component';
@@ -38,6 +39,14 @@ export class OperacionesComponent implements OnInit {
   private svc    = inject(OperacionesService);
   private toast  = inject(ToastService);
   private router = inject(Router);
+  private auth   = inject(AuthService);
+
+  get isTecnico(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
+  }
+  get isJefeOperaciones(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
+  }
 
   proyectos: ProyectoOperacion[] = [];
   kpis: KpisOperaciones = { total_proyectos: 0, servicios_completados: 0, servicios_pendientes: 0, tasa_avance: 0 };

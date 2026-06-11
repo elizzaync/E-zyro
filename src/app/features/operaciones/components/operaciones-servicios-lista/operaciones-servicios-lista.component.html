@@ -14,6 +14,7 @@
     </div>
     <!-- Acciones de cabecera -->
     <div class="header-actions">
+      @if (!isTecnico) {
       <button class="btn-nuevo-servicio" (click)="abrirCrearServicio()" title="Agregar nuevo servicio al proyecto">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="12" y1="5" x2="12" y2="19"/>
@@ -21,6 +22,7 @@
         </svg>
         Nuevo Servicio
       </button>
+      }
       <button class="btn-cronograma" (click)="irAlCronograma()" title="Ver cronograma del proyecto">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="4" width="18" height="18" rx="2"/>
@@ -107,7 +109,8 @@
           {{ estadoLabel(servicio.estado) }}
         </span>
 
-        <!-- ── Botón Editar Servicio ── -->
+        <!-- ── Botón Editar Servicio (no Técnico) ── -->
+        @if (!isTecnico) {
         <button
           class="btn-editar-srv"
           (click)="abrirEditarServicio($event, servicio)"
@@ -118,6 +121,7 @@
             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
         </button>
+        }
 
         <!-- ── HU-13: Botón Asignar Personal ── -->
         @if (puedeAsignar(servicio)) {

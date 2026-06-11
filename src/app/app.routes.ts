@@ -21,6 +21,11 @@ import { EquiposIntervenidosComponent } from './features/operaciones/components/
 import { IntervencionEquipoComponent } from './features/operaciones/components/intervencion-equipo/intervencion-equipo.component';
 import { CertificadoComponent } from './features/operaciones/components/certificado/certificado.component';
 import { clientPortalGuard } from './core/guards/client-portal.guard';
+import { bloquearRolesGuard } from './core/guards/roles.guard';
+
+// Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
+const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico de Campo', 'Jefe de Operaciones'];
+const _ROLES_BLOQUEADOS_TECNICO = ['Técnico de Campo'];
 import { PortalDashboardComponent } from './features/portal-cliente/dashboard/portal-dashboard.component';
 import { PortalProyectosComponent } from './features/portal-cliente/proyectos/portal-proyectos.component';
 import { PortalProyectoDetalleComponent } from './features/portal-cliente/proyecto-detalle/portal-proyecto-detalle.component';
@@ -74,7 +79,7 @@ export const routes: Routes = [
     path: 'documentacion',
     component: DocumentacionComponent,
     title: 'Documentación | E-System Tic',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_TECNICO)]
 },
 {
     path: 'operaciones',
@@ -92,19 +97,19 @@ export const routes: Routes = [
     path: 'logistica/requerimientos',
     component: RequerimientosComponent,
     title: 'Requerimientos | E-System Tic',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
 },
 {
     path: 'logistica/compras',
     component: ComprasComponent,
     title: 'Compras | E-System Tic',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
 },
 {
     path: 'logistica/salidas',
     component: SalidasComponent,
     title: 'Salidas de Materiales | E-System Tic',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
 },
 {
     path: 'operaciones/proyecto/:id',

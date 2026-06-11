@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 export interface MaterialBusqueda {
@@ -34,8 +34,9 @@ export class OperacionesService {
     return this.http.patch(`${this.api}/operaciones/servicio/${psId}/estado`, { estado });
   }
 
-  toggleProcedimiento(procId: string, estado: string): Observable<any> {
-    return this.http.patch(`${this.api}/operaciones/procedimiento/${procId}/estado`, { estado });
+  toggleProcedimiento(procId: string, estado: string, justificacion?: string): Observable<any> {
+    const headers = new HttpHeaders(justificacion ? { 'X-Justificacion': justificacion } : {});
+    return this.http.patch(`${this.api}/operaciones/procedimiento/${procId}/estado`, { estado }, { headers });
   }
 
   subirEvidencia(procId: string, formData: FormData): Observable<any> {
@@ -174,8 +175,9 @@ export class OperacionesService {
       fecha_inicio: string;
       fecha_fin: string;
     }[];
-  }): Observable<any> {
-    return this.http.post(`${this.api}/operaciones/servicio/${psId}/configurar`, payload);
+  }, justificacion?: string): Observable<any> {
+    const headers = new HttpHeaders(justificacion ? { 'X-Justificacion': justificacion } : {});
+    return this.http.post(`${this.api}/operaciones/servicio/${psId}/configurar`, payload, { headers });
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -258,8 +260,9 @@ export class OperacionesService {
     return this.http.post(`${this.api}/operaciones/proyecto/${proyectoId}/servicios`, payload);
   }
 
-  actualizarServicio(servicioId: string, payload: object): Observable<any> {
-    return this.http.patch(`${this.api}/operaciones/servicio/${servicioId}`, payload);
+  actualizarServicio(servicioId: string, payload: object, justificacion?: string): Observable<any> {
+    const headers = new HttpHeaders(justificacion ? { 'X-Justificacion': justificacion } : {});
+    return this.http.patch(`${this.api}/operaciones/servicio/${servicioId}`, payload, { headers });
   }
 
   // ─────────────────────────────────────────────────────────────────────

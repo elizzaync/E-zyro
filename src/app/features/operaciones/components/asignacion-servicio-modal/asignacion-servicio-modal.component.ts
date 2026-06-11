@@ -8,7 +8,9 @@ import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { JustificacionModalComponent } from '../../../../shared/components/justificacion-modal/justificacion-modal.component';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -61,7 +63,7 @@ export interface CruceState {
 @Component({
   selector: 'app-asignacion-servicio-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, JustificacionModalComponent],
   templateUrl: './asignacion-servicio-modal.component.html',
   styleUrls: ['./asignacion-servicio-modal.component.css']
 })
@@ -73,9 +75,17 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   @Output() closed = new EventEmitter<{ guardado: boolean }>();
 
   // ── DI ───────────────────────────────────────────────────────────────────
-  private fb  = inject(FormBuilder);
-  private svc = inject(OperacionesService);
+  private fb   = inject(FormBuilder);
+  private svc  = inject(OperacionesService);
+  private auth = inject(AuthService);
   private destroy$ = new Subject<void>();
+
+  get isJefeOperaciones(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
+  }
+
+  showJustModal      = false;
+  _pendingPayload: any = null;
 
   // ── Estado del usuario logueado ──────────────────────────────────────────
   usuarioActual = { id: '', nombre: 'Cargando...', rol: '', fotoUrl: '' };
@@ -676,15 +686,9 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.guardando = true;
-
     const payload = {
       equipo:  this.equipoSeleccionado.map(e => e.id),
-      // El líder es el asignado al CREAR el servicio (no el usuario logueado).
-      // Respaldo al usuario actual solo si el servicio no tiene líder definido;
-      // si tampoco hay, el backend reclama al usuario del JWT automáticamente.
       lider_id: this.liderId || this.currentUserEmpleadoId || undefined,
-      // Técnico Líder: opcional; '' indica explícitamente "sin técnico líder".
       responsable_id: this.tecnicoLiderId || '',
       procedimientos: this.procedimientosArray.value.map((p: TareaForm) => ({
         ...(p.id ? { id: p.id } : {}),
@@ -695,7 +699,18 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
       }))
     };
 
-    this.svc.configurarServicio(this.servicioId, payload)
+    if (this.isJefeOperaciones) {
+      this._pendingPayload = payload;
+      this.showJustModal = true;
+      return;
+    }
+
+    this.guardando = true;
+    this._ejecutarConfigurar(payload);
+  }
+
+  private _ejecutarConfigurar(payload: any, justificacion?: string): void {
+    this.svc.configurarServicio(this.servicioId, payload, justificacion)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
@@ -707,6 +722,20 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
           this.errorMsg = err?.error?.detail ?? 'Error al guardar. Intenta nuevamente.';
         }
       });
+  }
+
+  onJustConfirmado(justificacion: string): void {
+    this.showJustModal = false;
+    if (this._pendingPayload) {
+      this.guardando = true;
+      this._ejecutarConfigurar(this._pendingPayload, justificacion);
+      this._pendingPayload = null;
+    }
+  }
+
+  onJustCancelado(): void {
+    this.showJustModal = false;
+    this._pendingPayload = null;
   }
 
   cerrar(): void { this.closed.emit({ guardado: false }); }

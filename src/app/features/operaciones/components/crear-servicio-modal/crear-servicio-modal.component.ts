@@ -7,7 +7,9 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { FormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { JustificacionModalComponent } from '../../../../shared/components/justificacion-modal/justificacion-modal.component';
 
 export interface CatalogoServicio {
   id: string;
@@ -31,7 +33,7 @@ interface GeoItem { id: string; nombre: string; }
 @Component({
   selector: 'app-crear-servicio-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, JustificacionModalComponent],
   templateUrl: './crear-servicio-modal.component.html',
   styleUrls: ['./crear-servicio-modal.component.css']
 })
@@ -43,8 +45,16 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
 
   private fb       = inject(FormBuilder);
   private svc      = inject(OperacionesService);
+  private auth     = inject(AuthService);
   private elRef    = inject(ElementRef);
   private destroy$ = new Subject<void>();
+
+  get isJefeOperaciones(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
+  }
+
+  showJustModal    = false;
+  _pendingPayload: object | null = null;
 
   catalogo: CatalogoServicio[]    = [];
   lideres: PersonaServicio[]      = [];
@@ -372,13 +382,10 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.guardando = true;
     const payload = {
       nombre:                 v.nombre,
       catalogo_servicio_id:   v.catalogo_servicio_id,
       descripcion:            v.descripcion || null,
-      // Opcionales: se envía el valor del form tal cual ('' = sin asignar /
-      // quitar). El backend acepta vacío en crear y editar.
       lider_id:               v.lider_id ?? '',
       responsable_id:         v.responsable_id ?? '',
       ubicacion_id:           v.ubicacion_id || null,
@@ -393,8 +400,19 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       tiene_equipos_intervenidos: !!v.tiene_equipos_intervenidos,
     };
 
+    if (this.mode === 'editar' && this.isJefeOperaciones) {
+      this._pendingPayload = payload;
+      this.showJustModal = true;
+      return;
+    }
+
+    this.guardando = true;
+    this._ejecutarGuardar(payload);
+  }
+
+  private _ejecutarGuardar(payload: object, justificacion?: string): void {
     const obs = this.mode === 'editar' && this.servicioId
-      ? this.svc.actualizarServicio(this.servicioId, payload)
+      ? this.svc.actualizarServicio(this.servicioId, payload, justificacion)
       : this.svc.crearServicio(this.proyectoId, payload);
 
     obs.pipe(takeUntil(this.destroy$)).subscribe({
@@ -404,6 +422,20 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
         this.errorMsg = err?.error?.detail ?? 'Error al guardar el servicio.';
       }
     });
+  }
+
+  onJustConfirmado(justificacion: string): void {
+    this.showJustModal = false;
+    if (this._pendingPayload) {
+      this.guardando = true;
+      this._ejecutarGuardar(this._pendingPayload, justificacion);
+      this._pendingPayload = null;
+    }
+  }
+
+  onJustCancelado(): void {
+    this.showJustModal = false;
+    this._pendingPayload = null;
   }
 
   cerrar(): void { this.closed.emit({ guardado: false }); }

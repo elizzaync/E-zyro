@@ -726,3 +726,12 @@
 </div>
 }
 
+<!-- Modal de justificación (Jefe de Operaciones — configurar/editar asignación) -->
+<app-justificacion-modal
+  [visible]="showJustModal"
+  titulo="Justificación de configuración"
+  descripcion="Como Jefe de Operaciones, este cambio queda registrado en auditoría. Describe brevemente el motivo de la modificación."
+  (confirmado)="onJustConfirmado($event)"
+  (cancelado)="onJustCancelado()"
+></app-justificacion-modal>
+

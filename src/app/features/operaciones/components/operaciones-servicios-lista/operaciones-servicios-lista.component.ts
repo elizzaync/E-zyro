@@ -4,6 +4,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { AsignacionServicioModalComponent } from '../asignacion-servicio-modal/asignacion-servicio-modal.component';
 import { CrearServicioModalComponent } from '../crear-servicio-modal/crear-servicio-modal.component';
 import { FASES_SERVICIO, faseClase as faseClaseServicio } from '../../fase-servicio';
@@ -32,6 +33,14 @@ export class OperacionesServiciosListaComponent implements OnInit {
   private router = inject(Router);
   private svc    = inject(OperacionesService);
   private toast  = inject(ToastService);
+  private auth   = inject(AuthService);
+
+  get isTecnico(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
+  }
+  get isJefeOperaciones(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
+  }
 
   proyectoId: string | null = null;
   servicios: ServicioProyecto[] = [];
@@ -127,8 +136,9 @@ export class OperacionesServiciosListaComponent implements OnInit {
     this.modalServicioId = null;
   }
 
-  /** Visible para todos — solo oculto en estados terminales */
+  /** Oculto para Técnico y en estados terminales */
   puedeAsignar(servicio: ServicioProyecto): boolean {
+    if (this.isTecnico) return false;
     return servicio.estado !== 'Completado' && servicio.estado !== 'Cancelado';
   }
 

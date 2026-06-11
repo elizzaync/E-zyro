@@ -591,3 +591,12 @@
 
   </div><!-- /csm-container -->
 </div><!-- /csm-overlay -->
+
+<!-- Modal de justificación (Jefe de Operaciones — edición de servicio) -->
+<app-justificacion-modal
+  [visible]="showJustModal"
+  titulo="Justificación de edición de servicio"
+  descripcion="Como Jefe de Operaciones, este cambio queda registrado en auditoría. Describe brevemente el motivo de la modificación."
+  (confirmado)="onJustConfirmado($event)"
+  (cancelado)="onJustCancelado()"
+></app-justificacion-modal>

@@ -11,6 +11,7 @@ import { OperacionesService } from '../../../../core/services/operaciones.servic
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { JustificacionModalComponent } from '../../../../shared/components/justificacion-modal/justificacion-modal.component';
 import { FASES_SERVICIO, faseClase as faseClaseServicio } from '../../fase-servicio';
 import { Requerimiento } from '../../../logistica/logistica.models';
 
@@ -104,7 +105,7 @@ export interface NotaItem {
 @Component({
   selector: 'app-operaciones-detalle',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, RouterModule, FormsModule, SpinnerComponent, JustificacionModalComponent],
   templateUrl: './operaciones-detalle.component.html',
   styleUrls: ['./operaciones-detalle.component.css']
 })
@@ -248,6 +249,13 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   chatDestinatario: string | null = null;
   soyJefeOperaciones              = false;
 
+  // ── Modal de justificación (Jefe de Operaciones) ──────────
+  showJustModal     = false;
+  _pendingProcId    = '';
+  _pendingEstado: 'completado' | 'pendiente' = 'completado';
+  _pendingProcRef: any = null;
+  _pendingEstadoPrev: string = '';
+
   // ── Comunicados (nivel proyecto) ───────────────────────────
   comunicados: ComunicadoItem[]   = [];
   cargandoComunicados             = false;
@@ -334,7 +342,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         if (u?.nombre_completo) this._nombreUsuario = u.nombre_completo;
         if (u?.id)              this._usuarioId     = u.id;
         if (u?.foto_url)        this._usuarioFoto   = u.foto_url;
-        if (u?.rol === 'jefe_operaciones' || u?.rol === 'administrador') {
+        if (u?.rol === 'Jefe de Operaciones' || u?.rol === 'Administrador' || u?.rol === 'jefe_operaciones' || u?.rol === 'administrador') {
           this.soyJefeOperaciones = true;
         }
       } catch { /* ignore */ }
@@ -1338,15 +1346,38 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   toggleProcedimiento(proc: Procedimiento): void {
     const nuevoEstado: Procedimiento['estado'] =
       proc.estado === 'completado' ? 'pendiente' : 'completado';
-    const prevEstado = proc.estado;
+    if (this.soyJefeOperaciones) {
+      this._pendingProcRef   = proc;
+      this._pendingEstado    = nuevoEstado as 'completado' | 'pendiente';
+      this._pendingEstadoPrev = proc.estado;
+      this.showJustModal = true;
+      return;
+    }
+    this._doToggleProcedimiento(proc, nuevoEstado as 'completado' | 'pendiente', proc.estado);
+  }
+
+  private _doToggleProcedimiento(proc: Procedimiento, nuevoEstado: Procedimiento['estado'], prevEstado: string, justificacion?: string): void {
     proc.estado = nuevoEstado;
     this.recalcularProgreso();
-    this.svc.toggleProcedimiento(proc.id, nuevoEstado).subscribe({
+    this.svc.toggleProcedimiento(proc.id, nuevoEstado, justificacion).subscribe({
       error: () => {
-        proc.estado = prevEstado;
+        proc.estado = prevEstado as Procedimiento['estado'];
         this.recalcularProgreso();
       }
     });
+  }
+
+  onJustTareaConfirmado(justificacion: string): void {
+    this.showJustModal = false;
+    if (this._pendingProcRef) {
+      this._doToggleProcedimiento(this._pendingProcRef, this._pendingEstado, this._pendingEstadoPrev, justificacion);
+    }
+    this._pendingProcRef = null;
+  }
+
+  onJustTareaCancelado(): void {
+    this.showJustModal = false;
+    this._pendingProcRef = null;
   }
 
   recalcularProgreso(): void {

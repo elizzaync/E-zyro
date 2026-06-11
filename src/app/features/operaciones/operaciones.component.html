@@ -10,7 +10,8 @@
       </p>
     </div>
 
-    <!-- Botón Nuevo Proyecto -->
+    <!-- Botón Nuevo Proyecto: solo Administradores -->
+    @if (!isTecnico && !isJefeOperaciones) {
     <button class="btn-nuevo-proyecto" (click)="abrirCrearProyecto()" title="Crear nuevo proyecto">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="12" y1="5" x2="12" y2="19"/>
@@ -18,6 +19,7 @@
       </svg>
       Nuevo Proyecto
     </button>
+    }
   </div>
 
   <!-- ERROR -->
@@ -109,6 +111,7 @@
         <span class="pc-estado" [ngClass]="estadoClass(proyecto.estado)">
           {{ estadoLabel(proyecto.estado) }}
         </span>
+        @if (!isTecnico) {
         <button
           class="btn-editar-proyecto"
           (click)="abrirEditarProyecto($event, proyecto.id)"
@@ -119,6 +122,7 @@
             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
           </svg>
         </button>
+        }
       </div>
 
       <!-- Nombre del proyecto -->
