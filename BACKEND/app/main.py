@@ -46,6 +46,7 @@ from app.routers import vacaciones        as vacaciones_router
 from app.routers import indicadores       as indicadores_router
 from app.routers import rrhh_legajo       as rrhh_legajo_router
 from app.routers import rrhh_solicitudes  as rrhh_solicitudes_router
+from app.routers import rrhh_asistencia   as rrhh_asistencia_router
 # ── Módulo de Finanzas / ERP contable ──
 from app.routers import contabilidad      as contabilidad_router
 from app.routers import controlling        as controlling_router
@@ -1736,6 +1737,7 @@ app.include_router(vacaciones_router.router)
 app.include_router(indicadores_router.router)
 app.include_router(rrhh_legajo_router.router)
 app.include_router(rrhh_solicitudes_router.router)
+app.include_router(rrhh_asistencia_router.router)
 app.include_router(soporte_router.router)
 app.include_router(portal_cliente_router.router)
 # ── Módulo de Finanzas / ERP contable ──
