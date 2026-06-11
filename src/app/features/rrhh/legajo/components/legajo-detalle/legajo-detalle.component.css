@@ -171,10 +171,18 @@
   border-radius: 6px;
   font-size: 11px;
   font-weight: 700;
-  background: rgba(141,198,63,.12);
-  color: var(--brand-green);
   white-space: nowrap;
 }
+
+/* Colores por tipo */
+.tipo-boleta   { background: rgba(99,102,241,.1);  color: #4f46e5; }
+.tipo-contrato { background: rgba(34,197,94,.1);   color: #16a34a; }
+.tipo-memo     { background: rgba(239,68,68,.1);   color: #dc2626; }
+.tipo-cert     { background: rgba(245,158,11,.1);  color: #d97706; }
+.tipo-const    { background: rgba(14,165,233,.1);  color: #0284c7; }
+.tipo-acta     { background: rgba(168,85,247,.1);  color: #9333ea; }
+.tipo-politica { background: rgba(20,184,166,.1);  color: #0d9488; }
+.tipo-otro     { background: rgba(141,198,63,.12); color: var(--brand-green); }
 .doc-nombre { font-weight: 600; color: var(--text-main); }
 .text-muted  { color: var(--text-muted); font-size: 13px; }
 .text-center { text-align: center; }
@@ -219,6 +227,13 @@
 }
 .btn-sign:hover { background: rgba(141,198,63,.2); }
 
+.btn-delete {
+  background: rgba(239,68,68,.08);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,.2);
+}
+.btn-delete:hover { background: rgba(239,68,68,.15); }
+
 .btn-danger {
   background: rgba(239,68,68,.08);
   color: #ef4444;
@@ -260,6 +275,59 @@
 }
 .empty-state h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--text-main); }
 .empty-state p  { margin: 6px 0 0; font-size: 14px; color: var(--text-muted); }
+
+/* ── meta-fecha compacta ── */
+.meta-fecha { font-size: 14px; }
+
+/* ══════════════════════════════════════════════════════════
+   PAGINACIÓN
+   ══════════════════════════════════════════════════════════ */
+.pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pagination-info {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-pag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-pag:hover:not(:disabled) {
+  border-color: var(--brand-green);
+  color: var(--brand-green);
+}
+.btn-pag:disabled { opacity: 0.35; cursor: not-allowed; }
+.pag-info-mid {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  padding: 4px 10px;
+  background: var(--input-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
 
 /* ══════════════════════════════════════════════════════════
    MODALES
@@ -434,6 +502,45 @@
 .firma-no-firma p { margin: 0; font-size: 13px; }
 .firma-disclaimer { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 
+/* ── Modal pro (backdrop plano sin flex-center) ── */
+.modal-backdrop-pro {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 1000;
+  animation: fadeIn .15s ease;
+}
+/* reutiliza .modal-card existente, pero ahora se posiciona con fixed centrado */
+.modal-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  width: calc(100% - 32px);
+}
+
+/* ── Boleta preview ── */
+.boleta-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(99,102,241,.06);
+  border: 1px solid rgba(99,102,241,.2);
+  font-size: 13px;
+  color: #4f46e5;
+}
+.boleta-preview strong { font-weight: 700; }
+
+/* ── Grid 2 columnas en formulario ── */
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 /* ── Dark Mode ── */
 :host-context(html[data-theme="dark"]) .modal-card {
   box-shadow: 0 24px 64px rgba(0,0,0,.6);
@@ -441,3 +548,11 @@
 :host-context(html[data-theme="dark"]) .firma-ok   { color: #4ade80; }
 :host-context(html[data-theme="dark"]) .firma-pend { color: #fbbf24; }
 :host-context(html[data-theme="dark"]) .badge-active { color: #4ade80; }
+:host-context(html[data-theme="dark"]) .btn-pag      { border-color: var(--border-color); }
+:host-context(html[data-theme="dark"]) .pag-info-mid { background: var(--input-bg); border-color: var(--border-color); }
+:host-context(html[data-theme="dark"]) .tipo-boleta  { background: rgba(99,102,241,.15); color: #a5b4fc; }
+:host-context(html[data-theme="dark"]) .tipo-memo    { background: rgba(239,68,68,.15);  color: #fca5a5; }
+:host-context(html[data-theme="dark"]) .tipo-cert    { background: rgba(245,158,11,.15); color: #fcd34d; }
+:host-context(html[data-theme="dark"]) .tipo-const   { background: rgba(14,165,233,.15); color: #7dd3fc; }
+:host-context(html[data-theme="dark"]) .tipo-acta    { background: rgba(168,85,247,.15); color: #d8b4fe; }
+:host-context(html[data-theme="dark"]) .boleta-preview { background: rgba(99,102,241,.1); border-color: rgba(99,102,241,.25); color: #a5b4fc; }

@@ -101,6 +101,12 @@ export class RrhhService {
     );
   }
 
+  getDocumentosEmpleado(empleadoId: string): Observable<{ documentos: DocumentoDto[]; total: number }> {
+    return this.http.get<{ documentos: DocumentoDto[]; total: number }>(
+      `${this.api}/rrhh/legajo/${empleadoId}/documentos`
+    );
+  }
+
   subirDocumento(empleadoId: string, form: FormData): Observable<{ id: string; url_archivo: string; mensaje: string }> {
     return this.http.post<any>(`${this.api}/rrhh/legajo/${empleadoId}/documento`, form);
   }

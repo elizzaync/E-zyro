@@ -6,6 +6,7 @@ import { RrhhService, DocumentoDto, EmpleadoInfoDto } from '../../../../../core/
 import { AuthService } from '../../../../../core/services/auth.service';
 
 const TIPOS_DOCUMENTO = [
+  'Boleta Mensual',
   'Contrato',
   'Memorándum',
   'Certificado',
@@ -13,6 +14,15 @@ const TIPOS_DOCUMENTO = [
   'Acta de compromiso',
   'Política interna',
   'Otro',
+];
+
+const MESES_ES = [
+  { value: 1,  label: 'Enero' },   { value: 2,  label: 'Febrero' },
+  { value: 3,  label: 'Marzo' },   { value: 4,  label: 'Abril' },
+  { value: 5,  label: 'Mayo' },    { value: 6,  label: 'Junio' },
+  { value: 7,  label: 'Julio' },   { value: 8,  label: 'Agosto' },
+  { value: 9,  label: 'Septiembre' }, { value: 10, label: 'Octubre' },
+  { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
 ];
 
 @Component({
@@ -23,43 +33,90 @@ const TIPOS_DOCUMENTO = [
   styleUrls: ['./legajo-detalle.component.css']
 })
 export class LegajoDetalleComponent implements OnInit {
+
   empleadoId = '';
   empleado: EmpleadoInfoDto | null = null;
   documentos: DocumentoDto[] = [];
-  cargando = true;
-  error = '';
+  cargando  = true;
+  error     = '';
 
   tiposDocumento = TIPOS_DOCUMENTO;
+  mesesEs        = MESES_ES;
 
-  // Upload modal
+  // ── Paginación ────────────────────────────────────────────────────────────
+  currentPage  = 1;
+  itemsPerPage = 10;
+
+  get paginatedDocumentos(): DocumentoDto[] {
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    return this.documentos.slice(start, start + this.itemsPerPage);
+  }
+
+  get totalPaginas(): number {
+    return Math.max(1, Math.ceil(this.documentos.length / this.itemsPerPage));
+  }
+
+  get rangoMostrando(): { desde: number; hasta: number; total: number } {
+    if (this.documentos.length === 0) return { desde: 0, hasta: 0, total: 0 };
+    const desde = (this.currentPage - 1) * this.itemsPerPage + 1;
+    const hasta = Math.min(this.currentPage * this.itemsPerPage, this.documentos.length);
+    return { desde, hasta, total: this.documentos.length };
+  }
+
+  paginaSiguiente(): void {
+    if (this.currentPage < this.totalPaginas) this.currentPage++;
+  }
+
+  paginaAnterior(): void {
+    if (this.currentPage > 1) this.currentPage--;
+  }
+
+  // ── Upload modal ──────────────────────────────────────────────────────────
   showUploadModal = false;
-  uploadCargando = false;
-  uploadError = '';
+  uploadCargando  = false;
+  uploadError     = '';
   uploadForm = {
-    tipo: '',
-    nombre: '',
+    tipo:         '',
+    nombre:       '',
     fechaEmision: '',
     requiereFirma: false,
+    mes:          0,
+    anio:         new Date().getFullYear(),
   };
   archivoSeleccionado: File | null = null;
 
-  // Firma modal
+  get esBoletaSeleccionada(): boolean {
+    return this.uploadForm.tipo === 'Boleta Mensual';
+  }
+
+  get aniosDisponibles(): number[] {
+    const anio = new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, i) => anio - 4 + i).reverse();
+  }
+
+  get nombreBoleta(): string {
+    if (!this.uploadForm.mes || !this.uploadForm.anio) return '';
+    const mes = MESES_ES.find(m => m.value === this.uploadForm.mes);
+    return mes ? `Boleta de Pago - ${mes.label} ${this.uploadForm.anio}` : '';
+  }
+
+  // ── Firma modal ───────────────────────────────────────────────────────────
   showFirmarModal = false;
-  firmarCargando = false;
-  firmarError = '';
+  firmarCargando  = false;
+  firmarError     = '';
   docParaFirmar: DocumentoDto | null = null;
   firmaUrl: string | null = null;
 
-  // Confirm delete
+  // ── Confirm delete ────────────────────────────────────────────────────────
   showConfirmEliminar = false;
   docParaEliminar: DocumentoDto | null = null;
-  eliminandoCargando = false;
+  eliminandoCargando  = false;
 
   constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private rrhhService: RrhhService,
-    private authService: AuthService,
+    private route:        ActivatedRoute,
+    private router:       Router,
+    private rrhhService:  RrhhService,
+    private authService:  AuthService,
   ) {}
 
   ngOnInit(): void {
@@ -68,8 +125,7 @@ export class LegajoDetalleComponent implements OnInit {
   }
 
   get isAdmin(): boolean {
-    const u = this.authService.getUsuario();
-    const rol = (u?.rol || '').trim();
+    const rol = (this.authService.getUsuario()?.rol || '').trim();
     return rol === 'Administrador' || rol === 'administrador';
   }
 
@@ -79,18 +135,34 @@ export class LegajoDetalleComponent implements OnInit {
     return !!u && u.id === this.empleado.usuarioId;
   }
 
+  get firmadosCount(): number {
+    return this.documentos.filter(d => d.firmado).length;
+  }
+
+  // ── Carga ─────────────────────────────────────────────────────────────────
+
   private cargarDetalle(): void {
     this.cargando = true;
     this.rrhhService.getEmpleadoDetalle(this.empleadoId).subscribe({
       next: (res) => {
-        this.empleado = res.empleado;
+        this.empleado  = res.empleado;
         this.documentos = res.documentos;
-        this.cargando = false;
+        this.cargando  = false;
       },
       error: () => {
-        this.error = 'No se pudo cargar el expediente del empleado.';
+        this.error    = 'No se pudo cargar el expediente del empleado.';
         this.cargando = false;
-      }
+      },
+    });
+  }
+
+  private recargarDocumentos(): void {
+    this.rrhhService.getDocumentosEmpleado(this.empleadoId).subscribe({
+      next: (res) => {
+        this.documentos = res.documentos;
+        this.currentPage = 1;
+      },
+      error: () => {},
     });
   }
 
@@ -98,22 +170,23 @@ export class LegajoDetalleComponent implements OnInit {
     this.router.navigate(['/rrhh/legajo']);
   }
 
-  // ── Upload modal ──────────────────────────────────────────────────────────
+  // ── Upload ────────────────────────────────────────────────────────────────
 
   abrirUploadModal(): void {
-    this.uploadForm = { tipo: '', nombre: '', fechaEmision: '', requiereFirma: false };
+    this.uploadForm = {
+      tipo: '', nombre: '', fechaEmision: '',
+      requiereFirma: false, mes: 0, anio: new Date().getFullYear(),
+    };
     this.archivoSeleccionado = null;
     this.uploadError = '';
     this.showUploadModal = true;
   }
 
-  cerrarUploadModal(): void {
-    this.showUploadModal = false;
-  }
+  cerrarUploadModal(): void { this.showUploadModal = false; }
 
   onArchivoSeleccionado(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
+    const file  = input.files?.[0] ?? null;
     if (file && file.type !== 'application/pdf') {
       this.uploadError = 'Solo se permiten archivos PDF.';
       this.archivoSeleccionado = null;
@@ -129,123 +202,152 @@ export class LegajoDetalleComponent implements OnInit {
   }
 
   subirDocumento(): void {
-    if (!this.uploadForm.tipo || !this.uploadForm.nombre || !this.uploadForm.fechaEmision) {
-      this.uploadError = 'Completa todos los campos obligatorios.';
+    if (!this.uploadForm.tipo) {
+      this.uploadError = 'Selecciona el tipo de documento.';
       return;
     }
+
+    let nombreFinal  = this.uploadForm.nombre;
+    let fechaFinal   = this.uploadForm.fechaEmision;
+
+    if (this.esBoletaSeleccionada) {
+      if (!this.uploadForm.mes || !this.uploadForm.anio) {
+        this.uploadError = 'Selecciona el mes y el año de la boleta.';
+        return;
+      }
+      const mes = MESES_ES.find(m => m.value === this.uploadForm.mes)!;
+      nombreFinal = `Boleta de Pago - ${mes.label} ${this.uploadForm.anio}`;
+      // Fecha = primer día del mes seleccionado
+      fechaFinal  = `${this.uploadForm.anio}-${String(this.uploadForm.mes).padStart(2, '0')}-01`;
+    } else {
+      if (!nombreFinal.trim()) {
+        this.uploadError = 'Completa el nombre del documento.';
+        return;
+      }
+      if (!fechaFinal) {
+        this.uploadError = 'Selecciona la fecha de emisión.';
+        return;
+      }
+    }
+
     if (!this.archivoSeleccionado) {
       this.uploadError = 'Selecciona un archivo PDF.';
       return;
     }
+
     this.uploadCargando = true;
-    this.uploadError = '';
+    this.uploadError    = '';
 
     const form = new FormData();
-    form.append('tipo', this.uploadForm.tipo);
-    form.append('nombre', this.uploadForm.nombre);
-    form.append('fecha_emision', this.uploadForm.fechaEmision);
+    form.append('tipo',          this.uploadForm.tipo);
+    form.append('nombre',        nombreFinal);
+    form.append('fecha_emision', fechaFinal);
     form.append('requiere_firma', String(this.uploadForm.requiereFirma));
-    form.append('archivo', this.archivoSeleccionado);
+    form.append('archivo',       this.archivoSeleccionado);
+    if (this.esBoletaSeleccionada) {
+      form.append('mes',  String(this.uploadForm.mes));
+      form.append('anio', String(this.uploadForm.anio));
+    }
 
     this.rrhhService.subirDocumento(this.empleadoId, form).subscribe({
       next: () => {
-        this.uploadCargando = false;
+        this.uploadCargando  = false;
         this.showUploadModal = false;
-        this.cargarDetalle();
+        this.recargarDocumentos();
       },
       error: (err) => {
         this.uploadCargando = false;
-        this.uploadError = err?.error?.detail ?? 'Error al subir el documento.';
-      }
+        this.uploadError    = err?.error?.detail ?? 'Error al subir el documento.';
+      },
     });
   }
 
-  // ── Firma modal ───────────────────────────────────────────────────────────
+  // ── Firma ─────────────────────────────────────────────────────────────────
 
   abrirFirmarModal(doc: DocumentoDto): void {
     this.docParaFirmar = doc;
-    this.firmarError = '';
-    this.firmaUrl = null;
+    this.firmarError   = '';
+    this.firmaUrl      = null;
     this.showFirmarModal = true;
-
     this.rrhhService.getMiFirma().subscribe({
-      next: (res) => {
-        this.firmaUrl = res.firma?.url_cloudinary ?? null;
-      },
-      error: () => {
-        this.firmarError = 'No se pudo cargar tu firma digital.';
-      }
+      next:  (res) => { this.firmaUrl = res.firma?.url_cloudinary ?? null; },
+      error: ()    => { this.firmarError = 'No se pudo cargar tu firma digital.'; },
     });
   }
 
   cerrarFirmarModal(): void {
     this.showFirmarModal = false;
-    this.docParaFirmar = null;
+    this.docParaFirmar   = null;
   }
 
   confirmarFirma(): void {
     if (!this.docParaFirmar) return;
-    if (!this.firmaUrl) {
-      this.firmarError = 'No tienes una firma digital registrada.';
-      return;
-    }
+    if (!this.firmaUrl) { this.firmarError = 'No tienes una firma digital registrada.'; return; }
     this.firmarCargando = true;
-    this.firmarError = '';
-
+    this.firmarError    = '';
     this.rrhhService.firmarDocumento(this.docParaFirmar.id).subscribe({
       next: () => {
-        this.firmarCargando = false;
+        this.firmarCargando  = false;
         this.showFirmarModal = false;
-        this.cargarDetalle();
+        this.recargarDocumentos();
       },
       error: (err) => {
         this.firmarCargando = false;
-        this.firmarError = err?.error?.detail ?? 'Error al firmar el documento.';
-      }
+        this.firmarError    = err?.error?.detail ?? 'Error al firmar el documento.';
+      },
     });
   }
 
   // ── Eliminar ──────────────────────────────────────────────────────────────
 
   pedirConfirmEliminar(doc: DocumentoDto): void {
-    this.docParaEliminar = doc;
+    this.docParaEliminar     = doc;
     this.showConfirmEliminar = true;
   }
 
   cancelarEliminar(): void {
     this.showConfirmEliminar = false;
-    this.docParaEliminar = null;
+    this.docParaEliminar     = null;
   }
 
   confirmarEliminar(): void {
     if (!this.docParaEliminar) return;
     this.eliminandoCargando = true;
-
     this.rrhhService.eliminarDocumento(this.docParaEliminar.id).subscribe({
       next: () => {
-        this.eliminandoCargando = false;
+        this.eliminandoCargando  = false;
         this.showConfirmEliminar = false;
-        this.cargarDetalle();
+        this.recargarDocumentos();
       },
       error: () => {
-        this.eliminandoCargando = false;
+        this.eliminandoCargando  = false;
         this.showConfirmEliminar = false;
-      }
+      },
     });
   }
 
   // ── Utilidades ────────────────────────────────────────────────────────────
 
-  get firmadosCount(): number {
-    return this.documentos.filter(d => d.firmado).length;
+  tipoClase(tipo: string): string {
+    const map: Record<string, string> = {
+      'boleta mensual':    'tipo-boleta',
+      'contrato':          'tipo-contrato',
+      'memorándum':        'tipo-memo',
+      'memorandum':        'tipo-memo',
+      'certificado':       'tipo-cert',
+      'constancia':        'tipo-const',
+      'acta de compromiso':'tipo-acta',
+      'política interna':  'tipo-politica',
+    };
+    return map[tipo.toLowerCase()] ?? 'tipo-otro';
   }
 
   formatearFecha(iso: string | null): string {
     if (!iso) return '—';
     try {
-      return new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return iso;
-    }
+      return new Date(iso + (iso.length === 10 ? 'T00:00:00' : '')).toLocaleDateString(
+        'es-PE', { day: '2-digit', month: 'short', year: 'numeric' }
+      );
+    } catch { return iso; }
   }
 }
