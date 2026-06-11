@@ -77,13 +77,16 @@ def registrar_dispositivo(
     usuario_id = payload["id"]
     uid = _uid(usuario_id)
 
-    # Desactivar tokens anteriores de la misma plataforma
+    # Eliminar tokens anteriores de la misma plataforma para este usuario.
+    # Cada reinstalación/rebuild del app genera un token FCM nuevo; si solo se
+    # desactivaran, la tabla acumularía decenas de filas obsoletas (y Firebase
+    # podría aceptar envíos a tokens muertos → falsos "fcm_enviado=true").
+    # Dejamos exactamente un token activo por (usuario, plataforma).
     db.query(DispositivoPush).filter(
         DispositivoPush.usuario_id == uid,
         DispositivoPush.plataforma == body.plataforma,
         DispositivoPush.token_push != body.token_push,
-        DispositivoPush.activo == True,
-    ).update({"activo": False, "updated_at": datetime.now(ZONA)})
+    ).delete(synchronize_session=False)
 
     # Upsert: buscar por (usuario_id, token_push)
     existing = db.query(DispositivoPush).filter(

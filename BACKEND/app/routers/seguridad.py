@@ -5,6 +5,7 @@ Historial de sesiones del usuario (propio y, para admins/personal, de terceros).
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Security
@@ -57,12 +58,16 @@ def _tiene_permiso_personal(db: Session, usuario_id: str, payload: dict) -> bool
 
 
 def _sesion_dict(s: SesionUsuario, token_hash_actual: Optional[str]) -> dict:
+    # Una sesión solo está realmente activa si su flag lo indica Y aún no expiró.
+    # Sin esto, sesiones cuyo token ya venció seguían apareciendo como "activas".
+    expirada = bool(s.fecha_expiracion and s.fecha_expiracion < datetime.utcnow())
+    activa_efectiva = bool(s.activa) and not expirada
     return {
         "id":                str(s.id),
         "dispositivo":       s.dispositivo or "",
         "ip":                s.ip or "",
         "user_agent":        s.user_agent or "",
-        "activa":            bool(s.activa),
+        "activa":            activa_efectiva,
         "es_actual":         (token_hash_actual is not None
                               and s.token_hash == token_hash_actual),
         "fecha_inicio":      fmt_lima(s.created_at),
@@ -143,13 +148,16 @@ def listar_usuarios(
         .subquery()
     )
 
-    # Sesiones activas por usuario.
+    # Sesiones activas por usuario: solo cuentan las activas y NO expiradas.
     activas_sub = (
         db.query(
             SesionUsuario.usuario_id.label("uid"),
             func.count(SesionUsuario.id).label("n"),
         )
-        .filter(SesionUsuario.activa.is_(True))
+        .filter(
+            SesionUsuario.activa.is_(True),
+            SesionUsuario.fecha_expiracion > datetime.utcnow(),
+        )
         .group_by(SesionUsuario.usuario_id)
         .subquery()
     )
