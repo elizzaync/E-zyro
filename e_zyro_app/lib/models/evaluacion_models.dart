@@ -1,10 +1,34 @@
 // DTOs de Evaluaciones de desempeño (Punto 3.2).
 
+/// Tipos de evaluación (deben coincidir con el backend).
+class TipoEvaluacion {
+  static const rrhh = 'rrhh';
+  static const jefeDirecto = 'jefe_directo';
+  static const companero = 'companero';
+
+  static const todos = [rrhh, jefeDirecto, companero];
+
+  static String etiqueta(String tipo) => switch (tipo) {
+        rrhh => 'Evaluación RRHH',
+        jefeDirecto => 'Evaluación Jefe Directo',
+        companero => 'Evaluación Compañero',
+        _ => 'Evaluación',
+      };
+
+  static String etiquetaCorta(String tipo) => switch (tipo) {
+        rrhh => 'RRHH',
+        jefeDirecto => 'Jefe Directo',
+        companero => 'Compañero',
+        _ => 'General',
+      };
+}
+
 class CriterioEvaluacion {
   final String id;
   final String nombre;
   final String? descripcion;
   final double peso;
+  final String tipo;
   final bool activo;
 
   const CriterioEvaluacion({
@@ -12,6 +36,7 @@ class CriterioEvaluacion {
     required this.nombre,
     this.descripcion,
     this.peso = 1.0,
+    this.tipo = TipoEvaluacion.rrhh,
     this.activo = true,
   });
 
@@ -20,6 +45,7 @@ class CriterioEvaluacion {
         nombre: j['nombre']?.toString() ?? '',
         descripcion: j['descripcion']?.toString(),
         peso: (j['peso'] as num?)?.toDouble() ?? 1.0,
+        tipo: j['tipo']?.toString() ?? TipoEvaluacion.rrhh,
         activo: j['activo'] as bool? ?? true,
       );
 }
@@ -63,6 +89,7 @@ class Evaluacion {
   final String? empleadoNombre;
   final String evaluadorId;
   final String? evaluadorNombre;
+  final String tipo;
   final String periodo;
   final String estado; // borrador|enviada|completada
   final String? fecha;
@@ -75,6 +102,7 @@ class Evaluacion {
     this.empleadoNombre,
     required this.evaluadorId,
     this.evaluadorNombre,
+    this.tipo = TipoEvaluacion.rrhh,
     required this.periodo,
     required this.estado,
     this.fecha,
@@ -88,6 +116,7 @@ class Evaluacion {
         empleadoNombre: j['empleado_nombre']?.toString(),
         evaluadorId: j['evaluador_id']?.toString() ?? '',
         evaluadorNombre: j['evaluador_nombre']?.toString(),
+        tipo: j['tipo']?.toString() ?? TipoEvaluacion.rrhh,
         periodo: j['periodo']?.toString() ?? '',
         estado: j['estado']?.toString() ?? 'borrador',
         fecha: j['fecha']?.toString(),

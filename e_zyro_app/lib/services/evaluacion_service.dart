@@ -9,9 +9,10 @@ class EvaluacionService {
   EvaluacionService(this._client);
 
   // ── Criterios ───────────────────────────────────────────────────────────
-  Future<ApiResult<List<CriterioEvaluacion>>> listarCriterios() async {
+  Future<ApiResult<List<CriterioEvaluacion>>> listarCriterios({String? tipo}) async {
     try {
-      final r = await _client.get('/evaluaciones/criterios');
+      final qs = tipo != null ? '?tipo=$tipo' : '';
+      final r = await _client.get('/evaluaciones/criterios$qs');
       if (r.statusCode == 200) {
         final list = jsonDecode(r.body) as List;
         return ApiResult.ok(list.map((e) => CriterioEvaluacion.fromJson(e as Map<String, dynamic>)).toList());
@@ -24,12 +25,14 @@ class EvaluacionService {
 
   Future<ApiResult<CriterioEvaluacion>> crearCriterio({
     required String nombre, String? descripcion, double peso = 1.0,
+    String tipo = 'rrhh',
   }) async {
     try {
       final r = await _client.post('/evaluaciones/criterios', {
         'nombre': nombre,
         'descripcion': ?descripcion,
         'peso': peso,
+        'tipo': tipo,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(CriterioEvaluacion.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -97,6 +100,7 @@ class EvaluacionService {
   Future<ApiResult<Evaluacion>> crear({
     required String empleadoId,
     required String periodo,
+    String tipo = 'rrhh',
     String? fecha,
     required List<DetalleEvaluacion> detalles,
   }) async {
@@ -104,6 +108,7 @@ class EvaluacionService {
       final r = await _client.post('/evaluaciones', {
         'empleado_id': empleadoId,
         'periodo': periodo,
+        'tipo': tipo,
         'fecha': ?fecha,
         'detalles': detalles.map((d) => d.toJson()).toList(),
       });

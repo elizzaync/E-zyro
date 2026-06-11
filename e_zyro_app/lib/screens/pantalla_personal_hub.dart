@@ -10,7 +10,7 @@ import '../services/vacaciones_service.dart';
 import '../utils/abrir_enlace.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
-import 'pantalla_evaluaciones.dart' show PantallaEvaluaciones, CrearEvaluacionScreen, DetalleEvaluacionScreen;
+import 'pantalla_evaluaciones.dart' show ConfigEvaluacionesScreen, CrearEvaluacionScreen, DetalleEvaluacionScreen;
 import 'pantalla_vacaciones.dart';
 import 'pantalla_indicadores.dart';
 
@@ -115,8 +115,8 @@ class _PantallaPersonalHubState extends State<PantallaPersonalHub> {
           () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PantallaVacaciones()))));
     }
     if (AppSession.i.canVerEvaluacion) {
-      chips.add(_chip('Evaluaciones', Icons.assessment_outlined, Colors.deepPurple,
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PantallaEvaluaciones()))));
+      chips.add(_chip('Config. Eval.', Icons.assessment_outlined, Colors.deepPurple,
+          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfigEvaluacionesScreen()))));
     }
     if (chips.isEmpty) return const SizedBox.shrink();
     return Padding(
@@ -400,19 +400,60 @@ class _EvaluacionesTabState extends State<_EvaluacionesTab> with AutomaticKeepAl
         _ => Colors.orange,
       };
 
+  IconData _iconoTipo(String t) => switch (t) {
+        TipoEvaluacion.rrhh => Icons.badge_outlined,
+        TipoEvaluacion.jefeDirecto => Icons.supervisor_account_outlined,
+        TipoEvaluacion.companero => Icons.groups_outlined,
+        _ => Icons.assessment_outlined,
+      };
+
+  /// Hoja inferior para elegir el tipo de evaluación a asignar al colaborador.
+  Future<void> _asignarEvaluacion() async {
+    final tipo = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Asignar evaluación',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ),
+            for (final t in TipoEvaluacion.todos)
+              ListTile(
+                leading: Icon(_iconoTipo(t), color: Colors.deepPurple),
+                title: Text(TipoEvaluacion.etiqueta(t)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.pop(ctx, t),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (tipo == null || !mounted) return;
+    final creada = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CrearEvaluacionScreen(empleadoPre: widget.empleado, tipo: tipo),
+      ),
+    );
+    if (creada == true) _cargar();
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     return Scaffold(
       floatingActionButton: AppSession.i.canCrearEvaluacion
           ? FloatingActionButton.extended(
-              onPressed: () async {
-                final creada = await Navigator.push<bool>(
-                    context, MaterialPageRoute(builder: (_) => CrearEvaluacionScreen(empleadoPre: widget.empleado)));
-                if (creada == true) _cargar();
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Nueva'))
+              onPressed: _asignarEvaluacion,
+              icon: const Icon(Icons.assignment_add),
+              label: const Text('Asignar'))
           : null,
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
@@ -434,8 +475,8 @@ class _EvaluacionesTabState extends State<_EvaluacionesTab> with AutomaticKeepAl
                               child: Text(e.promedio?.toStringAsFixed(1) ?? '—',
                                   style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
                             ),
-                            title: Text('Periodo: ${e.periodo}'),
-                            subtitle: Text('${e.fecha ?? '-'} · ${e.estado}'),
+                            title: Text(TipoEvaluacion.etiqueta(e.tipo)),
+                            subtitle: Text('Periodo: ${e.periodo} · ${e.fecha ?? '-'} · ${e.estado}'),
                             trailing: const Icon(Icons.chevron_right),
                             onTap: () async {
                               final cambio = await Navigator.push<bool>(context,

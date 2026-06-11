@@ -131,7 +131,10 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
 class CrearEvaluacionScreen extends StatefulWidget {
   /// Si se indica, la evaluación se crea para este empleado (preseleccionado).
   final Empleado? empleadoPre;
-  const CrearEvaluacionScreen({super.key, this.empleadoPre});
+
+  /// Tipo de evaluación a realizar (rrhh|jefe_directo|companero).
+  final String tipo;
+  const CrearEvaluacionScreen({super.key, this.empleadoPre, this.tipo = TipoEvaluacion.rrhh});
 
   @override
   State<CrearEvaluacionScreen> createState() => _CrearEvaluacionScreenState();
@@ -163,7 +166,7 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
     final ps = await getPersonalService();
     final es = await getEvaluacionService();
     final emp = await ps.listar();
-    final crit = await es.listarCriterios();
+    final crit = await es.listarCriterios(tipo: widget.tipo);
     if (!mounted) return;
     setState(() {
       _cargando = false;
@@ -210,7 +213,8 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
         .map((c) => DetalleEvaluacion(criterioId: c.id, puntaje: _puntajes[c.id] ?? 7))
         .toList();
     final r = await svc.crear(
-      empleadoId: _sel!.id, periodo: _periodo.text.trim(), detalles: detalles);
+      empleadoId: _sel!.id, periodo: _periodo.text.trim(),
+      tipo: widget.tipo, detalles: detalles);
     if (!mounted) return;
     setState(() => _guardando = false);
     if (r.ok) {
@@ -223,7 +227,7 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Nueva evaluación')),
+      appBar: AppBar(title: Text(TipoEvaluacion.etiqueta(widget.tipo))),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -477,7 +481,9 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
 // Gestión de criterios de evaluación (catálogo de la empresa)
 // ═══════════════════════════════════════════════════════════════════════════
 class CriteriosTab extends StatefulWidget {
-  const CriteriosTab({super.key});
+  /// Tipo de evaluación cuyos criterios gestiona esta pestaña.
+  final String tipo;
+  const CriteriosTab({super.key, this.tipo = TipoEvaluacion.rrhh});
 
   @override
   State<CriteriosTab> createState() => _CriteriosTabState();
@@ -500,7 +506,7 @@ class _CriteriosTabState extends State<CriteriosTab> {
       _error = null;
     });
     final svc = await getEvaluacionService();
-    final r = await svc.listarCriterios();
+    final r = await svc.listarCriterios(tipo: widget.tipo);
     if (!mounted) return;
     setState(() {
       _cargando = false;
@@ -551,6 +557,7 @@ class _CriteriosTabState extends State<CriteriosTab> {
       nombre: nombre.text.trim(),
       descripcion: desc.text.trim().isEmpty ? null : desc.text.trim(),
       peso: double.tryParse(peso.text.trim()) ?? 1.0,
+      tipo: widget.tipo,
     );
     if (!mounted) return;
     r.ok ? _cargar() : _snack(r.errorMessage, error: true);
@@ -615,6 +622,56 @@ class _CriteriosTabState extends State<CriteriosTab> {
                         },
                       ),
                     ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Configuración de evaluaciones: arma los criterios de cada uno de los 3 tipos.
+// (Botón superior del módulo de Personal/RR.HH.)
+// ═══════════════════════════════════════════════════════════════════════════
+class ConfigEvaluacionesScreen extends StatelessWidget {
+  const ConfigEvaluacionesScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: TipoEvaluacion.todos.length,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Config. Evaluaciones',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          bottom: TabBar(
+            isScrollable: true,
+            tabs: [
+              for (final t in TipoEvaluacion.todos)
+                Tab(text: TipoEvaluacion.etiquetaCorta(t)),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            for (final t in TipoEvaluacion.todos)
+              Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Text(
+                      'Criterios de la ${TipoEvaluacion.etiqueta(t)}. '
+                      'Estos forman el formulario que se aplicará al asignarla a un colaborador.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Expanded(child: CriteriosTab(tipo: t)),
+                ],
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
