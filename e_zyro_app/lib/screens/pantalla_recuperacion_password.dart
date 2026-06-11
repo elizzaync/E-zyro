@@ -1,6 +1,17 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../utils/api_provider.dart';
+import '../widgets/topo_background.dart';
+
+// ── Paleta de marca "E-System" (consistente con el login) ───────────────────
+const _kAccent = Color(0xFF8FD11B); // verde lima — acentos
+const _kBg1 = Color(0xFF1A4400); // fondo superior (topo c1)
+const _kBg2 = Color(0xFF2D7100); // fondo medio  (topo c2)
+const _kBgBase = Color(0xFF091500); // base más oscura (topo base)
+const _kCardBg = Color(0xFF0F1A08); // superficie de tarjeta oscura
+const _kFieldBg = Color(0xFF16240C); // relleno de campos
+const _kOnDark = Color(0xFFE7F2D8); // texto sobre oscuro
+const _kMuted = Color(0xFF9FB58B); // texto secundario
 
 class PasswordRecoveryScreen extends StatefulWidget {
   const PasswordRecoveryScreen({super.key});
@@ -139,25 +150,52 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF2F2F2),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F2F2),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: _goBack,
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+      backgroundColor: Colors.transparent,
+      body: TopoBackground(
+        c1: _kBg1,
+        c2: _kBg2,
+        base: _kBgBase,
+        count: 28,
+        amp: 14,
+        stroke: 0.45,
+        speed: 0.55,
+        child: SafeArea(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 8),
-              _buildStepIndicator(),
-              const SizedBox(height: 36),
-              _buildStepContent(),
+              // Barra superior con botón de retroceso
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new,
+                      size: 20, color: _kOnDark),
+                  onPressed: _goBack,
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildStepIndicator(),
+                      const SizedBox(height: 32),
+                      // Tarjeta oscura tipo "glass" con el contenido del paso
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: _kCardBg.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _kAccent.withValues(alpha: 0.22),
+                          ),
+                        ),
+                        child: _buildStepContent(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -172,6 +210,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
       children: List.generate(3, (i) {
         final done = _step > i;
         final active = _step == i;
+        final on = done || active;
         return Expanded(
           child: Row(
             children: [
@@ -181,18 +220,24 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: (done || active)
-                          ? const Color(0xFF8FD11B)
-                          : Colors.grey.shade200,
+                      color: on ? _kAccent : _kFieldBg,
                       shape: BoxShape.circle,
+                      border: Border.all(
+                        color: on
+                            ? _kAccent
+                            : _kAccent.withValues(alpha: 0.18),
+                      ),
                     ),
                     child: Center(
                       child: done
-                          ? const Icon(Icons.check, color: Colors.white, size: 18)
+                          ? const Icon(Icons.check,
+                              color: Color(0xFF0C1506), size: 18)
                           : Text(
                               '${i + 1}',
                               style: TextStyle(
-                                color: active ? Colors.white : Colors.grey,
+                                color: active
+                                    ? const Color(0xFF0C1506)
+                                    : _kMuted,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
@@ -204,9 +249,8 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                     labels[i],
                     style: TextStyle(
                       fontSize: 11,
-                      color: (done || active) ? Colors.black87 : Colors.grey,
-                      fontWeight:
-                          active ? FontWeight.w600 : FontWeight.normal,
+                      color: on ? _kOnDark : _kMuted,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -217,8 +261,8 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                     height: 2,
                     margin: const EdgeInsets.only(bottom: 20),
                     color: _step > i
-                        ? const Color(0xFF8FD11B)
-                        : Colors.grey.shade200,
+                        ? _kAccent
+                        : _kAccent.withValues(alpha: 0.14),
                   ),
                 ),
             ],
@@ -247,20 +291,10 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Recuperar Contraseña',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
+        _title('Recuperar Contraseña'),
         const SizedBox(height: 8),
-        const Text(
-          'Ingresa tu correo y te enviaremos un código de 6 dígitos.',
-          style: TextStyle(fontSize: 13, color: Colors.grey),
-        ),
-        const SizedBox(height: 32),
+        _subtitle('Ingresa tu correo y te enviaremos un código de 6 dígitos.'),
+        const SizedBox(height: 28),
         _buildField(
           controller: _emailController,
           hint: 'correo@ejemplo.com',
@@ -277,20 +311,10 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Verificar Código',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
+        _title('Verificar Código'),
         const SizedBox(height: 8),
-        Text(
-          'Ingresa el código de 6 dígitos enviado a $_verifiedEmail',
-          style: const TextStyle(fontSize: 13, color: Colors.grey),
-        ),
-        const SizedBox(height: 32),
+        _subtitle('Ingresa el código de 6 dígitos enviado a $_verifiedEmail'),
+        const SizedBox(height: 28),
         TextField(
           controller: _codeController,
           keyboardType: TextInputType.number,
@@ -300,35 +324,25 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
             fontSize: 28,
             fontWeight: FontWeight.bold,
             letterSpacing: 10,
-            color: Colors.black87,
+            color: _kOnDark,
           ),
           decoration: InputDecoration(
             counterText: '',
             hintText: '000000',
             hintStyle: TextStyle(
-              color: Colors.grey.shade300,
+              color: _kMuted.withValues(alpha: 0.5),
               fontSize: 28,
               letterSpacing: 10,
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: _kFieldBg,
             contentPadding: const EdgeInsets.symmetric(vertical: 18),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide:
-                  const BorderSide(color: Color(0xFF8FD11B), width: 1.5),
-            ),
+            border: _fieldBorder(),
+            enabledBorder: _fieldBorder(),
+            focusedBorder: _fieldBorder(focused: true),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
@@ -341,11 +355,11 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                   },
             child: const Text(
               'Usar otro correo',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+              style: TextStyle(color: _kMuted, fontSize: 13),
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _buildButton('Verificar Código', _verifyCode),
       ],
     );
@@ -356,20 +370,10 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Nueva Contraseña',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
+        _title('Nueva Contraseña'),
         const SizedBox(height: 8),
-        const Text(
-          'Crea una contraseña segura de al menos 6 caracteres.',
-          style: TextStyle(fontSize: 13, color: Colors.grey),
-        ),
-        const SizedBox(height: 32),
+        _subtitle('Crea una contraseña segura de al menos 6 caracteres.'),
+        const SizedBox(height: 28),
         _buildField(
           controller: _newPassController,
           hint: 'Nueva contraseña',
@@ -379,7 +383,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
               _obscureNew
                   ? Icons.visibility_off_outlined
                   : Icons.visibility_outlined,
-              color: Colors.grey.shade400,
+              color: _kMuted,
               size: 20,
             ),
             onPressed: () => setState(() => _obscureNew = !_obscureNew),
@@ -395,20 +399,41 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
               _obscureConfirm
                   ? Icons.visibility_off_outlined
                   : Icons.visibility_outlined,
-              color: Colors.grey.shade400,
+              color: _kMuted,
               size: 20,
             ),
             onPressed: () =>
                 setState(() => _obscureConfirm = !_obscureConfirm),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 28),
         _buildButton('Cambiar Contraseña', _resetPassword),
       ],
     );
   }
 
   // ── Helpers de UI ──────────────────────────────────────────────────────────
+  Widget _title(String text) => Text(
+        text,
+        style: const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: _kOnDark,
+        ),
+      );
+
+  Widget _subtitle(String text) => Text(
+        text,
+        style: const TextStyle(fontSize: 13, color: _kMuted),
+      );
+
+  OutlineInputBorder _fieldBorder({bool focused = false}) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: focused
+            ? const BorderSide(color: _kAccent, width: 1.5)
+            : BorderSide(color: _kAccent.withValues(alpha: 0.18)),
+      );
+
   Widget _buildField({
     required TextEditingController controller,
     required String hint,
@@ -420,28 +445,19 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscure,
-      style: const TextStyle(fontSize: 14, color: Colors.black87),
+      style: const TextStyle(fontSize: 14, color: _kOnDark),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+        hintStyle: const TextStyle(color: _kMuted, fontSize: 14),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: _kFieldBg,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 20,
           vertical: 16,
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF8FD11B), width: 1.5),
-        ),
+        border: _fieldBorder(),
+        enabledBorder: _fieldBorder(),
+        focusedBorder: _fieldBorder(focused: true),
         suffixIcon: suffix,
       ),
     );
@@ -454,10 +470,9 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
       child: ElevatedButton(
         onPressed: (_isLoading || _authService == null) ? null : action,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF8FD11B),
-          foregroundColor: Colors.white,
-          disabledBackgroundColor:
-              const Color(0xFF8FD11B).withValues(alpha: 0.6),
+          backgroundColor: _kAccent,
+          foregroundColor: const Color(0xFF0C1506),
+          disabledBackgroundColor: _kAccent.withValues(alpha: 0.5),
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -469,14 +484,15 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
                 height: 22,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor:
+                      AlwaysStoppedAnimation<Color>(Color(0xFF0C1506)),
                 ),
               )
             : Text(
                 label,
                 style: const TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
       ),
