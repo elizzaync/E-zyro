@@ -65,9 +65,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (!r || r === '...') return r;
     return r.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
+get puedeAdministrarRRHH(): boolean {
+    return !this.isTecnico && !this.isClienteExterno;
+  }
 
+get enRRHH(): boolean {
+    return this.router.url.startsWith('/rrhh');
+  }
   isMenuOpen = false;
   logisticaOpen = false;
+  rrhhOpen = false;
   showProfileModal = false;
   isEditingProfile = false;
   permisosUsuario: string[] = [];

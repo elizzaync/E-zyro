@@ -1,0 +1,148 @@
+<div class="legajo-wrapper fade-in">
+
+    <div class="legajo-header">
+        <div class="header-text">
+            <h1 class="page-title">Legajo Digital</h1>
+            <p class="page-subtitle">Gestión centralizada de expedientes, contratos y certificaciones del personal.</p>
+        </div>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-blue">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Total Personal</span>
+                <span class="kpi-value">{{ stats.total }}</span>
+            </div>
+        </div>
+
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-green">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Personal Activo</span>
+                <span class="kpi-value">{{ stats.activos }}</span>
+            </div>
+        </div>
+
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-purple">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Documentos Subidos</span>
+                <span class="kpi-value">{{ stats.totalDocs }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="legajo-toolbar">
+        <div class="segmented-control">
+            <button (click)="setFiltro('Todos')" [class.active]="filtroEstado === 'Todos'"
+                class="tab-btn">Todos</button>
+            <button (click)="setFiltro('Activo')" [class.active]="filtroEstado === 'Activo'"
+                class="tab-btn">Activos</button>
+            <button (click)="setFiltro('Inactivo')" [class.active]="filtroEstado === 'Inactivo'"
+                class="tab-btn">Inactivos</button>
+        </div>
+
+        <div class="search-box">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" [(ngModel)]="searchTerm" placeholder="Buscar por nombre o cargo..." class="search-input">
+        </div>
+    </div>
+
+    <div class="card-panel table-container">
+        <div class="legajo-scroll">
+            <table class="legajo-table">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Cargo</th>
+                        <th>Estado</th>
+                        <th class="text-center">Archivos</th>
+                        <th class="text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (empleado of filteredEmpleados; track empleado.id) {
+                    <tr>
+                        <td>
+                            <div class="emp-profile">
+                                <div class="emp-avatar">
+                                    {{ empleado.iniciales }}
+                                    <span class="status-dot" [class.active]="empleado.estado === 'Activo'"></span>
+                                </div>
+                                <div class="emp-info">
+                                    <span class="emp-name">{{ empleado.nombreCompleto }}</span>
+                                    <span class="emp-id">ID: EMP-{{ empleado.id.padStart(4, '0') }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="emp-cargo">{{ empleado.cargo }}</span>
+                        </td>
+                        <td>
+                            @if (empleado.estado === 'Activo') {
+                            <span class="badge badge-active">Activo</span>
+                            } @else {
+                            <span class="badge badge-inactive">Inactivo</span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            <div class="emp-docs">
+                                <span class="docs-count">{{ empleado.documentosCount }}</span>
+                                <span class="docs-date">Act: {{ empleado.ultimaActualizacion }}</span>
+                            </div>
+                        </td>
+                        <td class="text-right">
+                            <button class="btn-secondary btn-sm group">
+                                Abrir Expediente
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                    }
+
+                    @if (filteredEmpleados.length === 0) {
+                    <tr>
+                        <td colspan="5">
+                            <div class="empty-state">
+                                <div class="empty-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                </div>
+                                <h3>No hay coincidencias</h3>
+                                <p>Prueba cambiando el término de búsqueda o el filtro de estado.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

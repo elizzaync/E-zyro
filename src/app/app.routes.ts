@@ -22,6 +22,8 @@ import { IntervencionEquipoComponent } from './features/operaciones/components/i
 import { CertificadoComponent } from './features/operaciones/components/certificado/certificado.component';
 import { clientPortalGuard } from './core/guards/client-portal.guard';
 import { bloquearRolesGuard } from './core/guards/roles.guard';
+// 👇 IMPORT NUEVO COMPONENTE LEGAJO
+import { LegajoListaComponent } from './features/rrhh/legajo/legajo-lista.component';
 
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
 const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico de Campo', 'Jefe de Operaciones'];
@@ -32,38 +34,50 @@ import { PortalProyectoDetalleComponent } from './features/portal-cliente/proyec
 import { PortalDocumentosComponent } from './features/portal-cliente/documentos/portal-documentos.component';
 import { PortalEquipoDetalleComponent } from './features/portal-cliente/equipo-detalle/portal-equipo-detalle.component';
 import { ClientEquipmentHistoryComponent } from './features/portal-cliente/mantenimientos/client-equipment-history.component';
+
 export const routes: Routes = [
   {
     path: '',
     component: LoginComponent,
-    title: 'Login | E-System Tic'
+    title: 'Login | e-zyro TIC'
   },
   {
     path: 'reset-password',
-    component: ResetPasswordComponent, // <-- Ahora este maneja todo el flujo de 4 pasos
-    title: 'Recuperar Contraseña | E-System Tic'
+    component: ResetPasswordComponent,
+    title: 'Recuperar Contraseña | e-zyro TIC'
   },
   {
     path: 'home',
     component: HomeComponent,
-    title: 'Inicio | E-System Tic',
-    canActivate: [authGuard] // Esto bloquea a los que no tienen Token JWT
-  },
-    {
-    path: 'personal',
-    component: PersonalComponent,
-    title: 'Personal | E-System Tic',
+    title: 'Inicio | e-zyro TIC',
     canActivate: [authGuard]
   },
   {
-    path: 'mas',
-    component: MasComponent,
-    title: 'Más | E-System Tic',
+    path: 'personal',
+    component: PersonalComponent,
+    title: 'Personal | e-zyro TIC',
     canActivate: [authGuard]
   },
-    { path: 'permisos',
+
+  // ── Módulo Recursos Humanos (HU-30) ────
+  {
+    path: 'rrhh/legajo',
+    component: LegajoListaComponent,
+    title: 'Legajo Digital | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+
+  {
+    path: 'mas',
+    component: MasComponent,
+    title: 'Más | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'permisos',
     component: PermisosComponent,
-    canActivate: [authGuard] },
+    canActivate: [authGuard]
+  },
   {
     path: 'configuracion',
     component: ConfiguracionComponent,
@@ -72,81 +86,82 @@ export const routes: Routes = [
   {
     path: 'centro-ayuda',
     component: CentroAyudaComponent,
-    title: 'Centro de Ayuda | E-System Tic',
+    title: 'Centro de Ayuda | e-zyro TIC',
     canActivate: [authGuard]
   },
   {
     path: 'documentacion',
     component: DocumentacionComponent,
-    title: 'Documentación | E-System Tic',
+    title: 'Documentación | e-zyro TIC',
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_TECNICO)]
-},
-{
+  },
+  {
     path: 'operaciones',
     component: OperacionesComponent,
-    title: 'Operaciones | E-System Tic',
+    title: 'Operaciones | e-zyro TIC',
     canActivate: [authGuard]
-},
-{
+  },
+  {
     path: 'logistica',
     component: LogisticaComponent,
-    title: 'Logística | E-System Tic',
+    title: 'Logística | e-zyro TIC',
     canActivate: [authGuard]
-},
-{
+  },
+  {
     path: 'logistica/requerimientos',
     component: RequerimientosComponent,
-    title: 'Requerimientos | E-System Tic',
+    title: 'Requerimientos | e-zyro TIC',
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
-},
-{
+  },
+  {
     path: 'logistica/compras',
     component: ComprasComponent,
-    title: 'Compras | E-System Tic',
+    title: 'Compras | e-zyro TIC',
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
-},
-{
+  },
+  {
     path: 'logistica/salidas',
     component: SalidasComponent,
-    title: 'Salidas de Materiales | E-System Tic',
+    title: 'Salidas de Materiales | e-zyro TIC',
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
-},
-{
+  },
+  {
     path: 'operaciones/proyecto/:id',
     component: OperacionesServiciosListaComponent,
-    title: 'Servicios del Proyecto | E-System Tic',
+    title: 'Servicios del Proyecto | e-zyro TIC',
     canActivate: [authGuard]
-},
-{
+  },
+  {
     path: 'operaciones/servicio/:id',
     component: OperacionesDetalleComponent,
-    title: 'Detalle de Servicio | E-System Tic',
+    title: 'Detalle de Servicio | e-zyro TIC',
     canActivate: [authGuard]
-},
-{
+  },
+  {
     path: 'operaciones/cronograma/:proyectoId',
     component: OperacionesCronogramaComponent,
-    title: 'Cronograma | E-System Tic',
+    title: 'Cronograma | e-zyro TIC',
     canActivate: [authGuard]
-},
-{
+  },
+  {
     path: 'operaciones/servicio/:id/equipos-intervenidos',
     component: EquiposIntervenidosComponent,
-    title: 'Equipos Intervenidos | E-System Tic',
+    title: 'Equipos Intervenidos | e-zyro TIC',
     canActivate: [authGuard]
-},
-{
+  },
+  {
     path: 'operaciones/servicio/:id/equipos-intervenidos/:eiId',
     component: IntervencionEquipoComponent,
-    title: 'Intervención de Equipo | E-System Tic',
+    title: 'Intervención de Equipo | e-zyro TIC',
     canActivate: [authGuard]
-},
-{
+  },
+  {
     path: 'operaciones/servicio/:id/equipos-intervenidos/:eiId/certificado/:tipo',
     component: CertificadoComponent,
-    title: 'Certificado | E-System Tic',
+    title: 'Certificado | e-zyro TIC',
     canActivate: [authGuard]
-},
+  },
+
   // ── Portal Cliente (HU-22) — reutiliza el layout/navbar del ERP ────
   {
     path: 'portal-cliente',
