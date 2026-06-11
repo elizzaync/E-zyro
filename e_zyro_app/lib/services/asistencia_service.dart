@@ -11,6 +11,7 @@ import '../core/app_constants.dart';
 import '../core/sync_logger.dart';
 import '../core/trusted_clock.dart';
 import '../models/asistencia_models.dart';
+import '../models/control_asistencia_models.dart';
 import '../models/registro_asistencia_local.dart';
 import '../repositories/asistencia_local_repo.dart';
 import '../utils/app_notifiers.dart';
@@ -586,6 +587,84 @@ class AsistenciaService {
       }
     } catch (_) {}
     return [];
+  }
+
+  // ── Control de asistencias (supervisión, requiere asistencia:ver) ─────────
+
+  /// Resumen del día por empleado (entrada/salida/almuerzo + horas + cumplimiento).
+  /// [fecha] en formato YYYY-MM-DD; null = hoy (zona Perú en el backend).
+  Future<ControlAsistenciaDia?> getControlDiario({String? fecha}) async {
+    try {
+      final q = (fecha != null && fecha.isNotEmpty) ? '?fecha=$fecha' : '';
+      final r = await _client.get('/asistencia/control-diario$q');
+      if (r.statusCode == 200) {
+        return ControlAsistenciaDia.fromJson(
+            jsonDecode(r.body) as Map<String, dynamic>);
+      }
+    } catch (e) {
+      debugPrint('[AsistenciaService] getControlDiario error: $e');
+    }
+    return null;
+  }
+
+  /// Turnos de la empresa (para asignar excepciones de horario).
+  Future<List<TurnoItem>> getTurnos() async {
+    try {
+      final r = await _client.get('/asistencia/turnos');
+      if (r.statusCode == 200) {
+        final list = (jsonDecode(r.body) as List?) ?? [];
+        return list
+            .map((e) => TurnoItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[AsistenciaService] getTurnos error: $e');
+    }
+    return [];
+  }
+
+  /// Crea un turno (p. ej. "Practicante 08:00–13:00"). Requiere asistencia:validar.
+  Future<bool> crearTurno({
+    required String nombre,
+    required String horaEntrada,
+    required String horaSalida,
+    int duracionAlmuerzoMinutos = 60,
+    int toleranciaMinutos = 5,
+  }) async {
+    try {
+      final r = await _client.post('/asistencia/turnos', {
+        'nombre': nombre,
+        'hora_entrada': horaEntrada,
+        'hora_salida': horaSalida,
+        'duracion_almuerzo_minutos': duracionAlmuerzoMinutos,
+        'tolerancia_minutos': toleranciaMinutos,
+      });
+      return r.statusCode == 200;
+    } catch (e) {
+      debugPrint('[AsistenciaService] crearTurno error: $e');
+      return false;
+    }
+  }
+
+  /// Asigna un turno-excepción a un empleado con vigencia. Requiere asistencia:validar.
+  Future<bool> asignarTurno({
+    required String empleadoId,
+    required String turnoId,
+    String? fechaDesde,
+    String? fechaHasta,
+  }) async {
+    try {
+      final r = await _client.post('/asistencia/turno-empleado', {
+        'empleado_id': empleadoId,
+        'turno_id': turnoId,
+        'fecha_desde': ?fechaDesde,
+        'fecha_hasta': ?fechaHasta,
+      });
+      return r.statusCode == 200;
+    } catch (e) {
+      debugPrint('[AsistenciaService] asignarTurno error: $e');
+      return false;
+    }
   }
 
   // ── Caché local del estado de asistencia (offline-first) ──────────────────

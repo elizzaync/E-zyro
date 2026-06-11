@@ -25,6 +25,7 @@ import 'pantalla_catalogos.dart';
 import 'pantalla_plantillas_procedimiento.dart';
 import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
+import 'pantalla_control_asistencias.dart';
 import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
 import 'finanzas/pantalla_manual_finanzas.dart';
@@ -45,6 +46,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _puedeVerMantenimiento = false;
   bool _puedeVerPersonal = false;
   bool _puedeVerDashboards = false;
+  bool _puedeVerControlAsistencias = false;
   // Visibilidad de módulos por permiso (admin ve todos).
   bool _canCalibracion = false;
   bool _canCorrectivo = false;
@@ -73,6 +75,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
         _puedeVerDashboards  = AppSession.i.canVerDashboards;
+        _puedeVerControlAsistencias = AppSession.i.canVerControlAsistencias;
         _canCalibracion  = AppSession.i.canVerCalibracion;
         _canCorrectivo   = AppSession.i.canVerCorrectivo;
         _canItse         = AppSession.i.canVerItse;
@@ -357,13 +360,23 @@ class _MoreScreenState extends State<MoreScreen> {
                 ),
               ],
             ),
-            if (_puedeVerAuditoria || _puedeVerMantenimiento || _puedeVerPersonal || _puedeVerDashboards) ...[
+            if (_puedeVerAuditoria || _puedeVerMantenimiento || _puedeVerPersonal || _puedeVerDashboards || _puedeVerControlAsistencias) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
+                  if (_puedeVerControlAsistencias)
+                    _MenuItem(
+                      icon: Icons.fact_check_outlined,
+                      label: 'Control de Asistencias',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaControlAsistencias()),
+                      ),
+                    ),
                   if (_puedeVerDashboards)
                     _MenuItem(
                       icon: Icons.insights_outlined,

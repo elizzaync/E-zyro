@@ -93,8 +93,9 @@ class ServicioItem {
   final String? fechaInicio;
   final String? fechaFin;
   final String estadoColor;
-  final int totalProcedimientos;
-  final int procedimientosCompletados;
+  // Avance por TAREAS del cronograma (el backend ya no envía procedimientos).
+  final int totalTareas;
+  final int tareasCompletadas;
 
   const ServicioItem({
     required this.id,
@@ -106,8 +107,8 @@ class ServicioItem {
     this.fechaInicio,
     this.fechaFin,
     required this.estadoColor,
-    this.totalProcedimientos = 0,
-    this.procedimientosCompletados = 0,
+    this.totalTareas = 0,
+    this.tareasCompletadas = 0,
   });
 
   factory ServicioItem.fromJson(Map<String, dynamic> j) => ServicioItem(
@@ -120,8 +121,8 @@ class ServicioItem {
         fechaInicio: j['fecha_inicio'] as String?,
         fechaFin: j['fecha_fin'] as String?,
         estadoColor: j['estado_color'] as String? ?? 'amarillo',
-        totalProcedimientos: j['total_procedimientos'] as int? ?? 0,
-        procedimientosCompletados: j['procedimientos_completados'] as int? ?? 0,
+        totalTareas: j['total_tareas'] as int? ?? 0,
+        tareasCompletadas: j['tareas_completadas'] as int? ?? 0,
       );
 }
 

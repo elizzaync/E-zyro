@@ -9,7 +9,7 @@ import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 // Paleta
-const _kRed   = Color(0xFFE53935);
+const _kRed = Color(0xFFE53935);
 const _kGreen = Color(0xFF8FD11B);
 
 class ComunicadosScreen extends StatefulWidget {
@@ -88,72 +88,75 @@ class _ComunicadosScreenState extends State<ComunicadosScreen> {
       stroke: 0.35,
       speed: 0.4,
       child: Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        leading: const BackButton(),
-        title: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: _kRed.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.campaign_rounded,
-                  size: 18, color: _kRed),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Tablón de Comunicados',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          leading: const BackButton(),
+          title: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: _kRed.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
                 ),
-                if (!_isLoading && noLeidos > 0)
-                  Text(
-                    '$noLeidos sin leer',
-                    style: const TextStyle(fontSize: 10, color: _kRed),
+                child: const Icon(
+                  Icons.campaign_rounded,
+                  size: 18,
+                  color: _kRed,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tablón de Comunicados',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-              ],
-            ),
+                  if (!_isLoading && noLeidos > 0)
+                    Text(
+                      '$noLeidos sin leer',
+                      style: const TextStyle(fontSize: 10, color: _kRed),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          elevation: 0,
+          backgroundColor: const Color.fromARGB(0, 255, 255, 255),
+          actions: [
+            if (!_isLoading && _comunicados.any((c) => !c.leido))
+              TextButton(
+                onPressed: _marcarTodosLeidos,
+                child: const Text(
+                  'Leer todos',
+                  style: TextStyle(
+                    color: _kGreen,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
           ],
         ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        actions: [
-          if (!_isLoading && _comunicados.any((c) => !c.leido))
-            TextButton(
-              onPressed: _marcarTodosLeidos,
-              child: const Text(
-                'Leer todos',
-                style: TextStyle(
-                    color: _kGreen, fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-            ),
-        ],
-      ),
-      body: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: _kRed),
-              )
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: _kRed))
             : _comunicados.isEmpty
-                ? _buildEmpty()
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    color: _kRed,
-                    child: ListView.separated(
-                      padding: bottomSafePadding(context, top: 12, extra: 24),
-                      itemCount: _comunicados.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (_, i) => _ComunicadoBulletinCard(
-                        comunicado: _comunicados[i],
-                        onMarcarLeido: () => _marcarLeido(i),
-                      ),
-                    ),
+            ? _buildEmpty()
+            : RefreshIndicator(
+                onRefresh: _load,
+                color: _kRed,
+                child: ListView.separated(
+                  padding: bottomSafePadding(context, top: 12, extra: 24),
+                  itemCount: _comunicados.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => _ComunicadoBulletinCard(
+                    comunicado: _comunicados[i],
+                    onMarcarLeido: () => _marcarLeido(i),
                   ),
+                ),
+              ),
       ),
     );
   }
@@ -170,14 +173,12 @@ class _ComunicadosScreenState extends State<ComunicadosScreen> {
               color: _kRed.withValues(alpha: 0.10),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.campaign_outlined,
-                size: 40, color: _kRed),
+            child: const Icon(Icons.campaign_outlined, size: 40, color: _kRed),
           ),
           const SizedBox(height: 16),
           const Text(
             'Sin comunicados',
-            style: TextStyle(
-                fontSize: 17, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -194,12 +195,8 @@ class _ComunicadosScreenState extends State<ComunicadosScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            icon: const Icon(Icons.refresh_rounded,
-                color: _kRed, size: 16),
-            label: const Text(
-              'Actualizar',
-              style: TextStyle(color: _kRed),
-            ),
+            icon: const Icon(Icons.refresh_rounded, color: _kRed, size: 16),
+            label: const Text('Actualizar', style: TextStyle(color: _kRed)),
           ),
         ],
       ),
@@ -231,9 +228,7 @@ class _ComunicadoBulletinCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border(
-          left: BorderSide(color: accentColor, width: 4),
-        ),
+        border: Border(left: BorderSide(color: accentColor, width: 4)),
         boxShadow: [
           BoxShadow(
             color: leido
@@ -253,11 +248,11 @@ class _ComunicadoBulletinCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: leido
                   ? (isDark
-                      ? Colors.white.withValues(alpha: 0.03)
-                      : Colors.grey.withValues(alpha: 0.06))
+                        ? Colors.white.withValues(alpha: 0.03)
+                        : Colors.grey.withValues(alpha: 0.06))
                   : (isDark
-                      ? _kRed.withValues(alpha: 0.12)
-                      : _kRed.withValues(alpha: 0.06)),
+                        ? _kRed.withValues(alpha: 0.12)
+                        : _kRed.withValues(alpha: 0.06)),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -276,7 +271,9 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                 if (!leido) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: _kRed,
                       borderRadius: BorderRadius.circular(20),
@@ -284,10 +281,11 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                     child: const Text(
                       'COMUNICADO',
                       style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8),
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -297,8 +295,7 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                     leido ? 'Comunicado' : 'AVISO OBLIGATORIO',
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight:
-                          leido ? FontWeight.w400 : FontWeight.w700,
+                      fontWeight: leido ? FontWeight.w400 : FontWeight.w700,
                       color: accentColor,
                       letterSpacing: leido ? 0 : 0.3,
                     ),
@@ -310,7 +307,9 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                     width: 8,
                     height: 8,
                     decoration: const BoxDecoration(
-                        color: _kRed, shape: BoxShape.circle),
+                      color: _kRed,
+                      shape: BoxShape.circle,
+                    ),
                   ),
               ],
             ),
@@ -327,13 +326,11 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                   comunicado.titulo,
                   style: TextStyle(
                     fontSize: 15,
-                    fontWeight:
-                        leido ? FontWeight.w600 : FontWeight.bold,
+                    fontWeight: leido ? FontWeight.w600 : FontWeight.bold,
                     color: leido
-                        ? Theme.of(context)
-                            .colorScheme
-                            .onSurface
-                            .withValues(alpha: 0.75)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.75)
                         : null,
                   ),
                 ),
@@ -344,10 +341,9 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                   comunicado.contenido,
                   style: TextStyle(
                     fontSize: 13,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: leido ? 0.55 : 0.80),
+                    color: Theme.of(context).colorScheme.onSurface.withValues(
+                      alpha: leido ? 0.55 : 0.80,
+                    ),
                     height: 1.55,
                   ),
                 ),
@@ -360,42 +356,47 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                     if (comunicado.autor.isNotEmpty) ...[
                       CircleAvatar(
                         radius: 11,
-                        backgroundColor:
-                            accentColor.withValues(alpha: 0.15),
+                        backgroundColor: accentColor.withValues(alpha: 0.15),
                         child: Text(
                           comunicado.autor[0].toUpperCase(),
                           style: TextStyle(
-                              fontSize: 10,
-                              color: accentColor,
-                              fontWeight: FontWeight.bold),
+                            fontSize: 10,
+                            color: accentColor,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 5),
                       Text(
                         comunicado.autor,
                         style: TextStyle(
-                            fontSize: 11,
-                            color: accentColor,
-                            fontWeight: FontWeight.w600),
+                          fontSize: 11,
+                          color: accentColor,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Container(
-                          width: 3,
-                          height: 3,
-                          decoration: BoxDecoration(
-                              color: Colors.grey.shade400,
-                              shape: BoxShape.circle)),
+                        width: 3,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade400,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
                       const SizedBox(width: 8),
                     ],
 
                     // Fecha
-                    const Icon(Icons.schedule_outlined,
-                        size: 11, color: Colors.grey),
+                    const Icon(
+                      Icons.schedule_outlined,
+                      size: 11,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(width: 3),
                     Text(
                       comunicado.fecha,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.grey),
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
 
                     const Spacer(),
@@ -406,14 +407,17 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                         onTap: onMarcarLeido,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 5),
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: _kRed.withValues(
-                                alpha: isDark ? 0.15 : 0.08),
+                              alpha: isDark ? 0.15 : 0.08,
+                            ),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                                color:
-                                    _kRed.withValues(alpha: 0.40)),
+                              color: _kRed.withValues(alpha: 0.40),
+                            ),
                           ),
                           child: const Text(
                             'Recibido ✓',
@@ -429,14 +433,18 @@ class _ComunicadoBulletinCard extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.done_all_rounded,
-                              size: 14, color: Colors.grey.shade400),
+                          Icon(
+                            Icons.done_all_rounded,
+                            size: 14,
+                            color: Colors.grey.shade400,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             'Recibido',
                             style: TextStyle(
-                                color: Colors.grey.shade400,
-                                fontSize: 11),
+                              color: Colors.grey.shade400,
+                              fontSize: 11,
+                            ),
                           ),
                         ],
                       ),

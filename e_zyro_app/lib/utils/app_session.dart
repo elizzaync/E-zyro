@@ -66,6 +66,10 @@ class AppSession {
   bool get canGestionarPlanos  => isAdmin || _esJefeOp || isSupervisor || _esLogistica;
   bool get canGestClientes     => hasPerm('clientes:gestionar');
   bool get canValidarAsistencia=> hasPerm('asistencia:validar');
+  // Control de asistencias (supervisión): ver el tablero diario de marcas/horas.
+  bool get canVerControlAsistencias => hasPerm('asistencia:ver');
+  // Configurar turnos y asignar excepciones de horario (permiso específico).
+  bool get canConfigurarTurnos => hasPerm('asistencia:configurar');
 
   // ── Visibilidad de módulos (pestañas / entradas de menú) ──────────────────
   // hasPerm ya da true para admin, así que el admin ve todos los módulos.

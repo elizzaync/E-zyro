@@ -244,8 +244,10 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   }
 
   bool get _todasTareasCompletas {
+    // Avance por tareas: el servicio puede cerrarse cuando no quedan tareas
+    // pendientes. Un servicio sin cronograma (sin tareas) también puede cerrarse.
     final t = _detalle?.tareas ?? const [];
-    return t.isNotEmpty && t.every((x) => x.estado == 'completado');
+    return t.every((x) => x.estado == 'completado');
   }
 
   /// Solo el Jefe de Operaciones (o Admin) controla las transiciones de fase.

@@ -498,8 +498,8 @@ class _ServicioCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                        // Stepper de procedimientos
-                        if (servicio.totalProcedimientos > 0) ...[
+                        // Stepper de avance por tareas del cronograma
+                        if (servicio.totalTareas > 0) ...[
                           const SizedBox(height: 12),
                           Divider(
                             height: 1,
@@ -509,8 +509,8 @@ class _ServicioCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 10),
                           _ProcedimientoStepper(
-                            total: servicio.totalProcedimientos,
-                            completados: servicio.procedimientosCompletados,
+                            total: servicio.totalTareas,
+                            completados: servicio.tareasCompletadas,
                           ),
                         ],
                       ],
@@ -581,7 +581,7 @@ class _ProcedimientoStepper extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Text(
-          '$completados/$total pasos',
+          '$completados/$total tareas',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
