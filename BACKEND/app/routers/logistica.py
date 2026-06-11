@@ -19,6 +19,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
+from ..core.permisos import es_tecnico, es_jefe_operaciones, exigir_no_roles_operativos
 from ..core.audit_context import get_audit_context
 from ..db.database import get_db
 from ..services.firma_seguridad import registrar_firma, verificar_evento
@@ -84,12 +85,27 @@ def _autorizar_logistica(payload: dict) -> None:
     Acepta el nombre real del rol en BD ('Logístico') además de variantes; el
     admin (administrador/admin/superadmin) siempre pasa. Equivale al permiso
     inventario:gestionar dado el seed de rol_permiso.
+    Técnico y Jefe de Operaciones NO pueden mutar logística.
     """
     rol = (payload.get("rol") or "").lower().strip()
     if rol in ("logística", "logistica", "logístico", "logistico",
                "administrador", "admin", "superadmin"):
         return
     raise HTTPException(status_code=403, detail="Sin permiso para operar sobre logística")
+
+
+def _bloquear_seccion_logistica(payload: dict, seccion: str = "esta sección de logística") -> None:
+    """Bloquea el acceso de Técnico y Jefe de Operaciones a secciones que no pueden ver
+    (Salidas, Ingresos, Retornos, Incidencias, Requerimientos, Compras)."""
+    exigir_no_roles_operativos(payload, f"Técnico y Jefe de Operaciones no tienen acceso a {seccion}")
+
+
+def _ocultar_precio(payload: dict, out: dict) -> dict:
+    """Elimina el campo 'precio' del dict de salida si el rol no puede verlo."""
+    if es_tecnico(payload) or es_jefe_operaciones(payload):
+        out["precio"] = None
+        out["precioUnitario"] = None
+    return out
 
 
 def _siguiente_codigo(db: Session, empresa_id: str, prefijo: str, modelo) -> str:
@@ -566,6 +582,11 @@ def listar_materiales(
         .all()
     )
     items = [_material_out(db, m, empresa_id) for m in rows]
+
+    # Técnico y Jefe no ven precios
+    if es_tecnico(payload) or es_jefe_operaciones(payload):
+        for item in items:
+            item.precio = None
 
     if estado == "stock_bajo":
         items = [m for m in items if m.cantidad <= m.stockMinimo]
@@ -1101,6 +1122,7 @@ def listar_requerimientos(
     db:          Session = Depends(get_db),
 ):
     """Lista requerimientos para el panel de Logística (excluye borradores)."""
+    _bloquear_seccion_logistica(payload, "Requerimientos")
     empresa_id = payload["empresa_id"]
     base = db.query(Requerimiento).filter(
         Requerimiento.empresa_id == empresa_id,
@@ -1150,6 +1172,7 @@ def historial_requerimientos(
     db:          Session = Depends(get_db),
 ):
     """Historial de consumo: requerimientos ya aprobados / entregados / rechazados."""
+    _bloquear_seccion_logistica(payload, "Requerimientos")
     empresa_id = payload["empresa_id"]
     base = db.query(Requerimiento).filter(
         Requerimiento.empresa_id == empresa_id,
@@ -2819,6 +2842,7 @@ def salidas_kpis(
     db:      Session = Depends(get_db),
 ):
     """Métricas globales de salidas de materiales."""
+    _bloquear_seccion_logistica(payload, "Salidas de Materiales")
     empresa_id = payload["empresa_id"]
 
     total = (
@@ -2881,6 +2905,7 @@ def listar_salidas(
     Filtros: proyecto_id, servicio_id (proyecto_servicio_id), desde/hasta, búsqueda libre.
     Cada ítem incluye origenItem ('stock' | 'compra') para trazabilidad.
     """
+    _bloquear_seccion_logistica(payload, "Salidas de Materiales")
     empresa_id = payload["empresa_id"]
 
     base = db.query(Requerimiento).filter(
@@ -2953,6 +2978,7 @@ def listar_ingresos(
     Devuelve un registro por TicketCompra cuyo ingreso_registrado=True.
     Por defecto filtra el mes en curso; acepta rango desde/hasta.
     """
+    _bloquear_seccion_logistica(payload, "Ingresos")
     empresa_id = payload["empresa_id"]
     now = datetime.utcnow()
 
@@ -3587,6 +3613,7 @@ def crear_retorno(
     db:      Session = Depends(get_db),
 ):
     """Técnico declara ítems a devolver. Crea retorno en estado='enviado'."""
+    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -3682,6 +3709,7 @@ def crear_retorno_desde_servicio(
     del servicio en un único retorno. Un servicio solo puede tener
     un retorno activo (409 si ya existe).
     """
+    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -3788,6 +3816,7 @@ def check_retorno_servicio(
     El frontend lo usa al cargar un servicio Completado para decidir
     si debe forzar el modal de devolución.
     """
+    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     retorno = db.query(Retorno).filter(
         Retorno.proyecto_servicio_id == servicio_id,
@@ -3814,6 +3843,7 @@ def listar_retornos(
     payload:   dict          = Depends(verificar_token),
     db:        Session       = Depends(get_db),
 ):
+    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     base = db.query(Retorno).filter(Retorno.empresa_id == empresa_id)
     if estado:
@@ -3852,6 +3882,7 @@ def detalle_retorno(
     payload:    dict    = Depends(verificar_token),
     db:         Session = Depends(get_db),
 ):
+    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     r = db.query(Retorno).filter(Retorno.id == retorno_id, Retorno.empresa_id == empresa_id).first()
     if not r:
@@ -4063,6 +4094,7 @@ def crear_incidencia(
     db:      Session = Depends(get_db),
 ):
     """Técnico reporta una incidencia sobre un equipo o herramienta."""
+    _bloquear_seccion_logistica(payload, "Incidencias")
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -4111,6 +4143,7 @@ def listar_incidencias(
     payload:   dict          = Depends(verificar_token),
     db:        Session       = Depends(get_db),
 ):
+    _bloquear_seccion_logistica(payload, "Incidencias")
     empresa_id = payload["empresa_id"]
     base = db.query(Incidencia).filter(Incidencia.empresa_id == empresa_id)
 
@@ -4151,6 +4184,7 @@ def detalle_incidencia(
     payload:       dict    = Depends(verificar_token),
     db:            Session = Depends(get_db),
 ):
+    _bloquear_seccion_logistica(payload, "Incidencias")
     empresa_id = payload["empresa_id"]
     inc = db.query(Incidencia).filter(Incidencia.id == incidencia_id, Incidencia.empresa_id == empresa_id).first()
     if not inc:

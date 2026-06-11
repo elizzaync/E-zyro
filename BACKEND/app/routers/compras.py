@@ -13,6 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token, es_superadmin
+from ..core.permisos import exigir_no_roles_operativos
 from ..db.database import get_db
 
 from ..models.proveedor import Proveedor
@@ -33,7 +34,16 @@ from ..schemas.compras import (
     RecibirOrdenBody,
 )
 
-router = APIRouter(prefix="/compras", tags=["compras"])
+def _dep_bloquear_compras(payload: dict = Depends(verificar_token)) -> None:
+    """Dependencia FastAPI: bloquea Técnico y Jefe de Operaciones en todo el router."""
+    exigir_no_roles_operativos(payload, "Técnico y Jefe de Operaciones no tienen acceso a Compras")
+
+
+router = APIRouter(
+    prefix="/compras",
+    tags=["compras"],
+    dependencies=[Depends(_dep_bloquear_compras)],
+)
 
 
 def _puede_gestionar(payload: dict) -> bool:

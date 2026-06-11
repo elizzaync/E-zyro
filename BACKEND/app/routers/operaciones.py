@@ -15,7 +15,7 @@ from datetime import date, datetime
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, UploadFile, File, Form, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, UploadFile, File, Form, status
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 
@@ -24,7 +24,11 @@ from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, aliased
 
 from ..core.security import verificar_token, es_superadmin
-from ..core.permisos import exigir_permiso
+from ..core.permisos import (
+    exigir_permiso, es_tecnico, es_jefe_operaciones,
+    exigir_no_tecnico, exigir_solo_admin,
+)
+from ..core.audit_context import set_justificacion
 from ..core.tz import fmt_lima
 from ..db.database import get_db
 import requests as _requests
@@ -255,6 +259,25 @@ def get_proyectos(
     if rol == "Administrador":
         # Admin ve todos los proyectos de la empresa sin restricción de membresía
         rows = base_q.order_by(Proyecto.created_at.desc()).all()
+    elif es_tecnico(payload):
+        # Técnico: solo proyectos donde tiene al menos UNA tarea asignada a su nombre
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        proyectos_con_tarea_sq = (
+            db.query(ProyectoServicio.proyecto_id)
+            .join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
+            .filter(
+                Tarea.responsable_id == empleado.id,
+                Tarea.empresa_id     == empresa_id,
+            )
+            .distinct()
+            .subquery()
+        )
+        rows = (
+            base_q
+            .filter(Proyecto.id.in_(proyectos_con_tarea_sq))
+            .order_by(Proyecto.created_at.desc())
+            .all()
+        )
     else:
         empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
         miembro_sq = (
@@ -334,15 +357,47 @@ def get_servicios_proyecto(
         if not es_jefe and not es_miembro:
             raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
 
-    servicios = (
-        db.query(ProyectoServicio)
-        .filter(
-            ProyectoServicio.proyecto_id == proyecto_id,
-            ProyectoServicio.empresa_id  == empresa_id,
+    if es_tecnico(payload):
+        # Técnico: solo los servicios donde tiene al menos una tarea asignada
+        empleado_tec = _get_empleado_or_403(db, usuario_id, empresa_id)
+        servicios_asignados_ids = (
+            db.query(Tarea.proyecto_servicio_id)
+            .filter(
+                Tarea.responsable_id == empleado_tec.id,
+                Tarea.empresa_id     == empresa_id,
+                Tarea.proyecto_servicio_id.isnot(None),
+            )
+            .filter(
+                Tarea.proyecto_servicio_id.in_(
+                    db.query(ProyectoServicio.id).filter(
+                        ProyectoServicio.proyecto_id == proyecto_id
+                    )
+                )
+            )
+            .distinct()
+            .all()
         )
-        .order_by(ProyectoServicio.orden.asc())
-        .all()
-    )
+        ids_permitidos = {str(r[0]) for r in servicios_asignados_ids}
+        servicios = (
+            db.query(ProyectoServicio)
+            .filter(
+                ProyectoServicio.proyecto_id == proyecto_id,
+                ProyectoServicio.empresa_id  == empresa_id,
+                ProyectoServicio.id.in_(ids_permitidos),
+            )
+            .order_by(ProyectoServicio.orden.asc())
+            .all()
+        )
+    else:
+        servicios = (
+            db.query(ProyectoServicio)
+            .filter(
+                ProyectoServicio.proyecto_id == proyecto_id,
+                ProyectoServicio.empresa_id  == empresa_id,
+            )
+            .order_by(ProyectoServicio.orden.asc())
+            .all()
+        )
 
     hoy = date.today()
     result = []
@@ -625,12 +680,18 @@ def get_detalle_servicio(
     ]
 
     # 4b. Tareas (cronograma: responsable + fechas)
-    tareas_rows = (
-        db.query(Tarea)
-        .filter(Tarea.proyecto_servicio_id == servicio_id)
-        .order_by(Tarea.orden.asc())
-        .all()
-    )
+    # Técnico: solo sus propias tareas; otros roles: todas
+    _tareas_q = db.query(Tarea).filter(Tarea.proyecto_servicio_id == servicio_id)
+    if es_tecnico(payload):
+        _emp_tec = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if _emp_tec:
+            _tareas_q = _tareas_q.filter(Tarea.responsable_id == _emp_tec.id)
+        else:
+            _tareas_q = _tareas_q.filter(False)
+    tareas_rows = _tareas_q.order_by(Tarea.orden.asc()).all()
     tareas = [
         TareaOut(
             id=str(t.id),
@@ -765,7 +826,11 @@ def actualizar_estado_servicio(
     body: ActualizarEstadoBody,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
+    x_justificacion: str | None = Header(default=None, alias="X-Justificacion"),
 ):
+    exigir_no_tecnico(payload, "Técnico no puede cambiar el estado de un servicio")
+    if es_jefe_operaciones(payload) and (x_justificacion or "").strip():
+        set_justificacion(x_justificacion)
     estados_validos = {"Pendiente", "En_Proceso", "Completado", "Cancelado"}
     if body.estado not in estados_validos:
         raise HTTPException(status_code=422, detail="Estado inválido")
@@ -863,19 +928,41 @@ def actualizar_estado_tarea(
     body:     ActualizarProcedimientoBody,
     payload:  dict    = Depends(verificar_token),
     db:       Session = Depends(get_db),
+    x_justificacion: str | None = Header(default=None, alias="X-Justificacion"),
 ):
     estados_validos = {"pendiente", "en_proceso", "completado", "bloqueado"}
     if body.estado not in estados_validos:
         raise HTTPException(status_code=422, detail="Estado inválido")
 
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
     tarea = db.query(Tarea).filter(
         Tarea.id         == tarea_id,
-        Tarea.empresa_id == payload["empresa_id"],
+        Tarea.empresa_id == empresa_id,
     ).first()
     if not tarea:
         raise HTTPException(status_code=404, detail="Tarea no encontrada")
 
-    _assert_servicio_abierto(tarea.proyecto_servicio_id, db, payload["empresa_id"])
+    # Técnico: solo puede actualizar sus propias tareas
+    if es_tecnico(payload):
+        emp = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if not emp or tarea.responsable_id != emp.id:
+            raise HTTPException(status_code=403, detail="Solo puedes actualizar tus propias tareas")
+
+    # Jefe de Operaciones: requiere justificación
+    if es_jefe_operaciones(payload):
+        if not (x_justificacion or "").strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Se requiere justificación (X-Justificacion) para modificar tareas como Jefe de Operaciones",
+            )
+        set_justificacion(x_justificacion)
+
+    _assert_servicio_abierto(tarea.proyecto_servicio_id, db, empresa_id)
 
     tarea.estado     = body.estado
     tarea.updated_at = datetime.utcnow()
@@ -2767,6 +2854,7 @@ def crear_proyecto(
     db:      Session = Depends(get_db),
 ):
     """Crea un nuevo proyecto y su detalle."""
+    exigir_solo_admin(payload, "Solo Administradores pueden crear proyectos")
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -2841,6 +2929,7 @@ def actualizar_proyecto(
     db:          Session = Depends(get_db),
 ):
     """Actualiza los campos de un proyecto y su detalle."""
+    exigir_no_tecnico(payload, "Técnico no puede editar proyectos")
     empresa_id = payload["empresa_id"]
 
     proyecto = db.query(Proyecto).filter(
@@ -2984,6 +3073,7 @@ def crear_servicio(
     db:          Session = Depends(get_db),
 ):
     """Agrega un nuevo servicio a un proyecto existente."""
+    exigir_no_tecnico(payload, "Técnico no puede crear servicios")
     empresa_id = payload["empresa_id"]
 
     proyecto = db.query(Proyecto).filter(
@@ -3080,8 +3170,17 @@ def actualizar_servicio(
     body:        ActualizarServicioBody,
     payload:     dict    = Depends(verificar_token),
     db:          Session = Depends(get_db),
+    x_justificacion: str | None = Header(default=None, alias="X-Justificacion"),
 ):
     """Actualiza los metadatos de un servicio (nombre, catálogo, fechas, estado, descripción)."""
+    exigir_no_tecnico(payload, "Técnico no puede editar servicios")
+    if es_jefe_operaciones(payload):
+        if not (x_justificacion or "").strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Se requiere justificación (X-Justificacion) para modificar servicios como Jefe de Operaciones",
+            )
+        set_justificacion(x_justificacion)
     empresa_id = payload["empresa_id"]
 
     ps = db.query(ProyectoServicio).filter(
@@ -3191,6 +3290,7 @@ def configurar_servicio(
     body:        ConfigurarServicioBody,
     payload:     dict    = Depends(verificar_token),
     db:          Session = Depends(get_db),
+    x_justificacion: str | None = Header(default=None, alias="X-Justificacion"),
 ):
     """
     Configura un servicio:
@@ -3198,6 +3298,14 @@ def configurar_servicio(
     - Reemplaza el cronograma de Tareas (responsable + fechas). El body llega
       como `procedimientos` por compatibilidad con el frontend Angular.
     """
+    exigir_no_tecnico(payload, "Técnico no puede configurar servicios ni asignar miembros")
+    if es_jefe_operaciones(payload):
+        if not (x_justificacion or "").strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Se requiere justificación (X-Justificacion) para configurar servicios como Jefe de Operaciones",
+            )
+        set_justificacion(x_justificacion)
     empresa_id = payload["empresa_id"]
 
     ps = _exigir_servicio_abierto(db, empresa_id, servicio_id)
@@ -4527,6 +4635,8 @@ def generar_informe_general(
     from ..services.report_templates import get_config
 
     empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
     ps = db.query(ProyectoServicio).filter(
         ProyectoServicio.id         == servicio_id,
         ProyectoServicio.empresa_id == empresa_id,
@@ -4538,6 +4648,43 @@ def generar_informe_general(
 
     # ── Validar y extraer payload ──────────────────────────────────────────────
     equipos_payload     = body.get("equipos", []) or []
+
+    # Técnico: solo puede generar pre-informe de sus propias tareas/equipos intervenidos
+    if es_tecnico(payload):
+        emp_tec = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if emp_tec:
+            mis_tareas = db.query(Tarea).filter(
+                Tarea.proyecto_servicio_id == servicio_id,
+                Tarea.responsable_id       == emp_tec.id,
+            ).all()
+            if not mis_tareas:
+                raise HTTPException(
+                    status_code=403,
+                    detail="No tienes tareas asignadas en este servicio para generar el pre-informe",
+                )
+        else:
+            raise HTTPException(status_code=403, detail="No eres empleado registrado")
+
+    # Jefe de Operaciones: solo genera pre-informe si tiene tareas asignadas a su nombre
+    if es_jefe_operaciones(payload):
+        emp_jefe = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if emp_jefe:
+            tiene_tareas = db.query(Tarea).filter(
+                Tarea.proyecto_servicio_id == servicio_id,
+                Tarea.responsable_id       == emp_jefe.id,
+            ).first() is not None
+            if not tiene_tareas:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Como Jefe de Operaciones, solo puedes generar el pre-informe si tienes tareas asignadas a tu nombre en este servicio",
+                )
+
     epps_payload        = body.get("epps", []) or []
     herramientas_payload= body.get("herramientas", []) or []
     materiales_payload  = body.get("materiales", []) or []

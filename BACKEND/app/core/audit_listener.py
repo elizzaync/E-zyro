@@ -154,6 +154,7 @@ def _nuevo_registro(
         datos_anteriores = ant,
         datos_nuevos     = nvo,
         ip               = ctx["ip"],
+        justificacion    = ctx.get("justificacion"),
         fecha            = datetime.utcnow(),
     )
 

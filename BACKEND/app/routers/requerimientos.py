@@ -8,11 +8,12 @@ import uuid as _uuid
 from datetime import date, datetime
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Security
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token, es_superadmin
+from ..core.permisos import exigir_no_roles_operativos
 from ..db.database import get_db
 
 from ..models.material import Material, Stock
@@ -35,7 +36,16 @@ from ..schemas.requerimientos import (
 )
 import json as _json
 
-router = APIRouter(prefix="/requerimientos", tags=["requerimientos"])
+def _dep_bloquear_requerimientos(payload: dict = Depends(verificar_token)) -> None:
+    """Dependencia FastAPI: bloquea Técnico y Jefe de Operaciones en todo el router."""
+    exigir_no_roles_operativos(payload, "Técnico y Jefe de Operaciones no tienen acceso a Requerimientos")
+
+
+router = APIRouter(
+    prefix="/requerimientos",
+    tags=["requerimientos"],
+    dependencies=[Depends(_dep_bloquear_requerimientos)],
+)
 
 
 def _get_empleado_or_403(db: Session, usuario_id: str, empresa_id: str) -> Empleado:

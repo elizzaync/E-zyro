@@ -15,6 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
+from ..core.permisos import exigir_no_tecnico
 from ..db.database import get_db
 from ..models.plano import Plano, VersionPlano
 from ..models.carpeta_documental import CarpetaDocumental
@@ -28,7 +29,16 @@ from ..schemas.planos import (
     PlanoIn, PlanoOut, PlanoDetalleOut, VersionIn, VersionOut,
 )
 
-router = APIRouter(prefix="/planos", tags=["planos"])
+def _dep_bloquear_tecnico_planos(payload: dict = Depends(verificar_token)) -> None:
+    """Técnico no puede acceder a la Nube de Planos bajo ninguna circunstancia."""
+    exigir_no_tecnico(payload, "Técnico no tiene acceso a la Nube de Planos")
+
+
+router = APIRouter(
+    prefix="/planos",
+    tags=["planos"],
+    dependencies=[Depends(_dep_bloquear_tecnico_planos)],
+)
 
 _ROLES_GESTION = {
     "superadmin", "admin", "administrador",
