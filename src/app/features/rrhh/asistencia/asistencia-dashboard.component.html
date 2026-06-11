@@ -1,0 +1,329 @@
+<div class="asist-wrapper fade-in">
+
+    <!-- ══════════════════════════════════════════════════
+         ENCABEZADO
+         ══════════════════════════════════════════════════ -->
+    <div class="asist-header">
+        <div class="header-left">
+            <h1 class="page-title">Asistencia y Planillas</h1>
+            <p class="page-subtitle">Seguimiento de horas semanales · jornada 48h (Lun–Sáb)</p>
+        </div>
+
+        <!-- Navegación de semana -->
+        <div class="period-nav">
+            <button class="nav-btn" (click)="irSemanaAnterior()" title="Semana anterior">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6" />
+                </svg>
+            </button>
+            <span class="period-label">{{ labelSemana }}</span>
+            <button class="nav-btn" (click)="irSemanaSiguiente()" [disabled]="esSemanaActual" title="Semana siguiente">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         KPIs
+         ══════════════════════════════════════════════════ -->
+    <div class="kpi-grid">
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-blue">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Personal</span>
+                <span class="kpi-value">{{ kpis.total }}</span>
+            </div>
+        </div>
+
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-green">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Al día</span>
+                <span class="kpi-value">{{ kpis.alDia }}</span>
+            </div>
+        </div>
+
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-red">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Con faltas</span>
+                <span class="kpi-value">{{ kpis.conFaltas }}</span>
+            </div>
+        </div>
+
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-yellow">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Con advertencias</span>
+                <span class="kpi-value">{{ kpis.conAdvertencias }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         TOOLBAR
+         ══════════════════════════════════════════════════ -->
+    <div class="asist-toolbar">
+        <div class="search-box">
+            <svg class="search-icon" width="17" height="17" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" class="search-input" [(ngModel)]="searchTerm"
+                placeholder="Buscar por nombre, cargo o área…" />
+        </div>
+        @if (periodo) {
+        <span class="meta-chip">Meta: {{ periodo.meta_horas }}h / semana</span>
+        }
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         ESTADO CARGANDO / ERROR
+         ══════════════════════════════════════════════════ -->
+    @if (cargando) {
+    <div class="state-center card-panel">
+        <div class="spinner"></div>
+        <p>Calculando horas…</p>
+    </div>
+    } @else if (error) {
+    <div class="state-center card-panel">
+        <p class="error-msg">{{ error }}</p>
+    </div>
+    } @else {
+
+    <!-- ══════════════════════════════════════════════════
+         TABLA DE ASISTENCIA
+         ══════════════════════════════════════════════════ -->
+    <div class="card-panel table-wrap">
+        @if (filteredEmpleados.length === 0) {
+        <div class="empty-state">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" />
+            </svg>
+            <p>No se encontraron empleados.</p>
+        </div>
+        } @else {
+        <table class="asist-table">
+            <thead>
+                <tr>
+                    <th>Empleado</th>
+                    <th>Progreso semanal</th>
+                    <th class="text-center">Horas reales</th>
+                    <th class="text-center">Justificadas</th>
+                    <th class="text-center">Estado</th>
+                    <th class="text-center">Advertencias</th>
+                    @if (puedeEmitir) {
+                    <th class="text-right">Acción</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @for (emp of filteredEmpleados; track emp.id) {
+                <tr [class.row-falta]="emp.horas_faltantes > 0">
+
+                    <!-- Empleado -->
+                    <td>
+                        <div class="emp-cell">
+                            <div class="emp-avatar">
+                                @if (emp.fotoUrl) {
+                                <img [src]="emp.fotoUrl" [alt]="emp.nombreCompleto"
+                                    class="avatar-photo" width="38" height="38" />
+                                } @else {
+                                <span>{{ emp.iniciales }}</span>
+                                }
+                            </div>
+                            <div class="emp-info">
+                                <span class="emp-name">{{ emp.nombreCompleto }}</span>
+                                <span class="emp-cargo">{{ emp.cargo }}</span>
+                            </div>
+                        </div>
+                    </td>
+
+                    <!-- Progreso -->
+                    <td class="progress-cell">
+                        <div class="progress-row">
+                            <div class="progress-track">
+                                <div class="progress-fill"
+                                    [class]="barraClase(emp)"
+                                    [style.width.%]="barraAncho(emp)">
+                                </div>
+                            </div>
+                            <span class="progress-label">
+                                {{ emp.horas_total.toFixed(1) }}h / {{ emp.meta_horas }}h
+                            </span>
+                        </div>
+                    </td>
+
+                    <!-- Horas reales -->
+                    <td class="text-center">
+                        <span class="hrs-num">{{ emp.horas_reales.toFixed(1) }}h</span>
+                    </td>
+
+                    <!-- Justificadas -->
+                    <td class="text-center">
+                        @if (emp.horas_justificadas > 0) {
+                        <span class="badge-justif">+{{ emp.horas_justificadas.toFixed(0) }}h</span>
+                        } @else {
+                        <span class="hrs-cero">—</span>
+                        }
+                    </td>
+
+                    <!-- Estado -->
+                    <td class="text-center">
+                        <span class="badge" [class]="estadoClase(emp)">{{ estadoLabel(emp) }}</span>
+                    </td>
+
+                    <!-- Advertencias -->
+                    <td class="text-center">
+                        @if (emp.advertencias > 0) {
+                        <span class="adv-badge" [class]="advClase(emp.advertencias)">
+                            {{ emp.advertencias }}/3
+                        </span>
+                        } @else {
+                        <span class="adv-ninguna">—</span>
+                        }
+                    </td>
+
+                    <!-- Acción -->
+                    @if (puedeEmitir) {
+                    <td class="text-right">
+                        @if (emp.horas_faltantes > 0 && emp.advertencias < 3) {
+                        <button class="btn-advertir" (click)="abrirModalAdv(emp)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            Advertencia
+                        </button>
+                        } @else if (emp.advertencias >= 3) {
+                        <span class="badge-maxadv">Falta grave</span>
+                        }
+                    </td>
+                    }
+
+                </tr>
+                }
+            </tbody>
+        </table>
+        }
+    </div>
+
+    }<!-- end @else -->
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL DE CONFIRMACIÓN — ADVERTENCIA
+     ════════════════════════════════════════════════════════════════════════ -->
+@if (showModalAdv && empleadoSeleccionado) {
+<div class="modal-backdrop-pro" (click)="cerrarModalAdv()"></div>
+<div class="modal-adv fade-in-up" (click)="$event.stopPropagation()">
+
+    <!-- Cabecera -->
+    <div class="modal-adv-head">
+        <div class="modal-adv-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        </div>
+        <div>
+            <h3 class="modal-adv-title">Emitir Advertencia Legal</h3>
+            <p class="modal-adv-sub">Memorándum por faltas / tardanzas injustificadas</p>
+        </div>
+        <button class="modal-close-btn" (click)="cerrarModalAdv()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Cuerpo -->
+    <div class="modal-adv-body">
+        <div class="adv-emp-row">
+            <div class="sol-avatar">
+                @if (empleadoSeleccionado.fotoUrl) {
+                <img [src]="empleadoSeleccionado.fotoUrl" [alt]="empleadoSeleccionado.nombreCompleto"
+                    class="avatar-photo" width="48" height="48" />
+                } @else {
+                <span>{{ empleadoSeleccionado.iniciales }}</span>
+                }
+            </div>
+            <div>
+                <p class="adv-emp-name">{{ empleadoSeleccionado.nombreCompleto }}</p>
+                <p class="adv-emp-cargo">{{ empleadoSeleccionado.cargo }}</p>
+            </div>
+        </div>
+
+        <div class="adv-detail-grid">
+            <div class="adv-detail-item">
+                <span class="adv-detail-label">Horas faltantes</span>
+                <span class="adv-detail-val rojo">{{ empleadoSeleccionado.horas_faltantes.toFixed(1) }}h</span>
+            </div>
+            <div class="adv-detail-item">
+                <span class="adv-detail-label">Horas trabajadas</span>
+                <span class="adv-detail-val">{{ empleadoSeleccionado.horas_reales.toFixed(1) }}h</span>
+            </div>
+            <div class="adv-detail-item">
+                <span class="adv-detail-label">Advertencias previas</span>
+                <span class="adv-detail-val">{{ empleadoSeleccionado.advertencias }} / 3</span>
+            </div>
+            <div class="adv-detail-item">
+                <span class="adv-detail-label">Período</span>
+                <span class="adv-detail-val">{{ labelSemana }}</span>
+            </div>
+        </div>
+
+        <div class="adv-aviso">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            Se generará un <strong>Memorándum de Advertencia</strong> registrado en el legajo del empleado.
+            Esta acción queda como evidencia formal.
+        </div>
+
+        @if (advError) {
+        <div class="alert-error">{{ advError }}</div>
+        }
+        @if (advExito) {
+        <div class="alert-success">{{ advExito }}</div>
+        }
+    </div>
+
+    <!-- Pie -->
+    <div class="modal-adv-footer">
+        <button class="btn-cancel" (click)="cerrarModalAdv()" [disabled]="advCargando">
+            Cancelar
+        </button>
+        <button class="btn-danger" (click)="confirmarAdvertencia()"
+            [disabled]="advCargando || !!advExito">
+            @if (advCargando) { Emitiendo… }
+            @else { Confirmar y Emitir }
+        </button>
+    </div>
+</div>
+}

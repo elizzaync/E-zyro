@@ -63,6 +63,28 @@ export interface SolicitudLaboralDto {
   empleado: SolicitudEmpleadoDto;
 }
 
+export interface PeriodoDto {
+  fecha_inicio: string;
+  fecha_fin: string;
+  meta_horas: number;
+}
+
+export interface ResumenEmpleadoDto {
+  id: string;
+  nombreCompleto: string;
+  cargo: string;
+  area: string;
+  iniciales: string;
+  fotoUrl: string;
+  horas_reales: number;
+  horas_justificadas: number;
+  horas_total: number;
+  horas_faltantes: number;
+  meta_horas: number;
+  porcentaje: number;
+  advertencias: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RrhhService {
   private readonly api = environment.apiUrl;
@@ -112,5 +134,19 @@ export class RrhhService {
 
   evaluarSolicitud(id: string, estado: string, observacion: string): Observable<any> {
     return this.http.put(`${this.api}/rrhh/solicitudes/${id}/evaluar`, { estado, observacion });
+  }
+
+  // ── Asistencia ───────────────────────────────────────────────────────────
+
+  getResumenAsistencia(params?: { fecha_inicio?: string; fecha_fin?: string }): Observable<{ periodo: PeriodoDto; empleados: ResumenEmpleadoDto[] }> {
+    const qs: string[] = [];
+    if (params?.fecha_inicio) qs.push(`fecha_inicio=${params.fecha_inicio}`);
+    if (params?.fecha_fin)    qs.push(`fecha_fin=${params.fecha_fin}`);
+    const url = `${this.api}/rrhh/asistencia/resumen` + (qs.length ? '?' + qs.join('&') : '');
+    return this.http.get<{ periodo: PeriodoDto; empleados: ResumenEmpleadoDto[] }>(url);
+  }
+
+  emitirAdvertencia(empleadoId: string): Observable<{ id: string; mensaje: string; numero_advertencia: number; advertencias_restantes: number }> {
+    return this.http.post<any>(`${this.api}/rrhh/asistencia/${empleadoId}/advertencia`, {});
   }
 }

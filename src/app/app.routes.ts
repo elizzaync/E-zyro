@@ -25,6 +25,7 @@ import { bloquearRolesGuard } from './core/guards/roles.guard';
 import { LegajoListaComponent } from './features/rrhh/legajo/legajo-lista.component';
 import { LegajoDetalleComponent } from './features/rrhh/legajo/components/legajo-detalle/legajo-detalle.component';
 import { SolicitudesListaComponent } from './features/rrhh/solicitudes/solicitudes-lista.component';
+import { AsistenciaDashboardComponent } from './features/rrhh/asistencia/asistencia-dashboard.component';
 
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
 const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico de Campo', 'Jefe de Operaciones'];
@@ -77,6 +78,12 @@ export const routes: Routes = [
     path: 'rrhh/solicitudes',
     component: SolicitudesListaComponent,
     title: 'Bandeja de Solicitudes | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'rrhh/asistencia',
+    component: AsistenciaDashboardComponent,
+    title: 'Asistencia | e-zyro TIC',
     canActivate: [authGuard]
   },
 
