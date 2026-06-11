@@ -4,6 +4,7 @@ Scheduler nocturno para recordatorios de calendario.
 Corre cada día a las 8:00 AM y busca notas para HOY y MAÑANA.
 Instalar dependencia: pip install apscheduler
 """
+import uuid as _uuid
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import date, datetime, time, timedelta
@@ -11,6 +12,52 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.notificacion import Notificacion
 from app.services.fcm_service import enviar_push_a_usuario
+
+
+# ── Helpers compartidos ──────────────────────────────────────────────────────
+def _usuarios_por_rol(db, empresa_id, roles):
+    """IDs de usuarios activos de la empresa que tengan alguno de los roles."""
+    from app.models.usuario import Usuario
+    from app.models.usuario_rol import UsuarioRol
+    from app.models.rol import Rol
+    rows = (
+        db.query(Usuario.id)
+        .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
+        .join(Rol, Rol.id == UsuarioRol.rol_id)
+        .filter(Usuario.empresa_id == empresa_id,
+                Usuario.activo.is_(True),
+                Rol.nombre.in_(roles))
+        .distinct()
+        .all()
+    )
+    return [r.id for r in rows]
+
+
+def _emitir(db, *, empresa_id, usuarios, tipo, categoria, titulo, mensaje, ref_key):
+    """Crea la notificación + push para cada usuario. Idempotente por `ref_key`
+    (clave completa en referencia_tabla; referencia_id es uuid y queda NULL).
+    Devuelve True si emitió (no existía antes)."""
+    if not usuarios:
+        return False
+    ya = db.query(Notificacion.id).filter(
+        Notificacion.referencia_tabla == ref_key,
+    ).first()
+    if ya:
+        return False
+    for uid in usuarios:
+        db.add(Notificacion(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id, usuario_id=uid,
+            tipo=tipo, categoria=categoria, titulo=titulo, mensaje=mensaje,
+            leido=False, enviado=False, fecha_envio=datetime.utcnow(),
+            referencia_tabla=ref_key, referencia_id=None,
+        ))
+        try:
+            enviar_push_a_usuario(usuario_id=uid, titulo=titulo, mensaje=mensaje,
+                                  db=db, tipo=tipo, categoria=categoria,
+                                  referencia_tabla=ref_key)
+        except Exception:
+            pass
+    return True
 
 scheduler = BackgroundScheduler(timezone="America/Lima")
 
@@ -136,12 +183,12 @@ def _alertas_mantenimiento_equipos():
             if not umbral:
                 continue
 
-            ref_tabla = f"eqmant:{e.id}"          # ≤ 100
-            ref_id = f"{prox.isoformat()}:{umbral}"  # ≤ 36
+            # Clave de idempotencia COMPLETA en referencia_tabla (varchar 100).
+            # referencia_id es uuid en BD: no admite strings compuestos.
+            ref_tabla = f"eqmant:{e.id}:{prox.isoformat()}:{umbral}"  # ≤ 100
 
             ya = db.query(Notificacion.id).filter(
                 Notificacion.referencia_tabla == ref_tabla,
-                Notificacion.referencia_id == ref_id,
             ).first()
             if ya:
                 continue  # ya avisado este ciclo/umbral
@@ -175,12 +222,12 @@ def _alertas_mantenimiento_equipos():
                     tipo="warning", categoria="mantenimiento",
                     titulo=titulo, mensaje=mensaje,
                     leido=False, enviado=False, fecha_envio=datetime.utcnow(),
-                    referencia_tabla=ref_tabla, referencia_id=ref_id,
+                    referencia_tabla=ref_tabla, referencia_id=None,
                 ))
                 try:
                     enviar_push_a_usuario(usuario_id=uid, titulo=titulo, mensaje=mensaje, db=db,
                                           tipo="warning", categoria="mantenimiento",
-                                          referencia_tabla=ref_tabla, referencia_id=ref_id)
+                                          referencia_tabla=ref_tabla)
                 except Exception:
                     pass
             enviados += 1
@@ -396,6 +443,285 @@ def _aviso_fin_almuerzo():
         db.close()
 
 
+def _alertas_vencimientos():
+    """Diario: contratos, calibraciones, CXP y CXC próximos a vencer / vencidos.
+    Destinatarios: Administradores de la empresa. Idempotente por umbral."""
+    from app.models.empleado import Empleado
+    from app.models.usuario import Usuario
+    from app.models.calibracion import Calibracion
+    from app.models.cuentas_por_pagar import FacturaProveedor
+    from app.models.cuentas_por_cobrar import FacturaCliente
+    from app.models.equipo import Equipo
+    from app.models.proveedor import Proveedor
+    from app.models.cliente import Cliente
+
+    ROLES = ["Administrador", "SuperAdmin"]
+
+    def _umbral(dias: int):
+        if dias < 0:
+            return "vencido"
+        for lim in (3, 7, 15, 30):
+            if dias <= lim:
+                return str(lim)
+        return None
+
+    db: Session = SessionLocal()
+    try:
+        hoy = date.today()
+        dest_cache: dict[str, list[str]] = {}
+
+        def dest(emp_id):
+            if emp_id not in dest_cache:
+                dest_cache[emp_id] = _usuarios_por_rol(db, emp_id, ROLES)
+            return dest_cache[emp_id]
+
+        emitidos = 0
+
+        # 1) Contratos por vencer (usa dias_aviso_vencimiento del propio empleado)
+        empleados = db.query(Empleado).filter(
+            Empleado.activo.is_(True),
+            Empleado.fecha_fin_contrato.isnot(None),
+        ).all()
+        for emp in empleados:
+            dias = (emp.fecha_fin_contrato - hoy).days
+            aviso = emp.dias_aviso_vencimiento or 7
+            if dias > aviso:
+                continue
+            u = db.query(Usuario.nombre, Usuario.apellido).filter(
+                Usuario.id == emp.usuario_id).first()
+            nombre = (f"{u.nombre} {u.apellido}".strip() if u else "Empleado")
+            if dias < 0:
+                titulo, cuando, umbral = ("Contrato vencido",
+                    f"venció el {emp.fecha_fin_contrato.isoformat()}", "vencido")
+            else:
+                titulo, cuando, umbral = ("Contrato por vencer",
+                    f"vence el {emp.fecha_fin_contrato.isoformat()} (faltan {dias} días)",
+                    "aviso")
+            ref_key = f"contrato:{emp.id}:{emp.fecha_fin_contrato.isoformat()}:{umbral}"
+            if _emitir(db, empresa_id=emp.empresa_id, usuarios=dest(emp.empresa_id),
+                       tipo="warning", categoria="rrhh", titulo=titulo,
+                       mensaje=f"El contrato de {nombre} {cuando}.", ref_key=ref_key):
+                emitidos += 1
+
+        # 2) Calibraciones por vencer
+        for c in db.query(Calibracion).filter(Calibracion.fecha_proxima.isnot(None)).all():
+            umbral = _umbral((c.fecha_proxima - hoy).days)
+            if not umbral:
+                continue
+            eq = db.query(Equipo.nombre).filter(Equipo.id == c.equipo_id).first()
+            eqn = eq.nombre if eq else "Equipo"
+            if umbral == "vencido":
+                titulo, cuando = "Calibración vencida", f"venció el {c.fecha_proxima.isoformat()}"
+            else:
+                titulo, cuando = ("Calibración por vencer",
+                    f"vence el {c.fecha_proxima.isoformat()} (faltan {(c.fecha_proxima - hoy).days} días)")
+            ref_key = f"calib:{c.id}:{c.fecha_proxima.isoformat()}:{umbral}"
+            if _emitir(db, empresa_id=c.empresa_id, usuarios=dest(c.empresa_id),
+                       tipo="warning", categoria="calibracion", titulo=titulo,
+                       mensaje=f"Calibración de {eqn}: {cuando}.", ref_key=ref_key):
+                emitidos += 1
+
+        # 3) Cuentas por pagar (facturas de proveedor pendientes)
+        for f in db.query(FacturaProveedor).filter(
+            FacturaProveedor.estado.in_(["pendiente", "pagada_parcial"]),
+        ).all():
+            if not f.fecha_vencimiento:
+                continue
+            umbral = _umbral((f.fecha_vencimiento - hoy).days)
+            if not umbral:
+                continue
+            prov = db.query(Proveedor.razon_social).filter(Proveedor.id == f.proveedor_id).first()
+            provn = (prov.razon_social if prov else "") or "proveedor"
+            if umbral == "vencido":
+                titulo, cuando = "Cuenta por pagar vencida", f"venció el {f.fecha_vencimiento.isoformat()}"
+            else:
+                titulo, cuando = ("Cuenta por pagar próxima",
+                    f"vence el {f.fecha_vencimiento.isoformat()} (faltan {(f.fecha_vencimiento - hoy).days} días)")
+            ref_key = f"cxp:{f.id}:{f.fecha_vencimiento.isoformat()}:{umbral}"
+            if _emitir(db, empresa_id=f.empresa_id, usuarios=dest(f.empresa_id),
+                       tipo="warning", categoria="finanzas", titulo=titulo,
+                       mensaje=f"Factura {f.numero_documento} de {provn} por S/ {f.total}: {cuando}.",
+                       ref_key=ref_key):
+                emitidos += 1
+
+        # 4) Cuentas por cobrar (comprobantes de cliente pendientes) — próximas ≤7d y vencidas
+        for f in db.query(FacturaCliente).filter(
+            FacturaCliente.estado.in_(["pendiente", "cobrada_parcial"]),
+            FacturaCliente.fecha_vencimiento.isnot(None),
+        ).all():
+            dias = (f.fecha_vencimiento - hoy).days
+            if dias > 7:
+                continue
+            cli = db.query(Cliente.razon_social).filter(Cliente.id == f.cliente_id).first()
+            clin = (cli.razon_social if cli else "") or "cliente"
+            if dias < 0:
+                titulo, cuando, umbral = ("Cuenta por cobrar vencida",
+                    f"venció el {f.fecha_vencimiento.isoformat()}", "vencido")
+            else:
+                titulo, cuando, umbral = ("Cuenta por cobrar próxima",
+                    f"vence el {f.fecha_vencimiento.isoformat()} (faltan {dias} días)", "aviso")
+            ref_key = f"cxc:{f.id}:{f.fecha_vencimiento.isoformat()}:{umbral}"
+            if _emitir(db, empresa_id=f.empresa_id, usuarios=dest(f.empresa_id),
+                       tipo="warning", categoria="finanzas", titulo=titulo,
+                       mensaje=f"Comprobante {f.numero_documento} de {clin} por S/ {f.total}: {cuando}.",
+                       ref_key=ref_key):
+                emitidos += 1
+
+        db.commit()
+        print(f"[Scheduler] Alertas de vencimientos emitidas: {emitidos}")
+    except Exception as e:
+        print(f"[Scheduler] Error en alertas de vencimientos: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _alertas_prestamos_sin_devolver():
+    """Diario: préstamos en estado 'entregado' que llevan ≥3 días sin devolverse.
+    Avisa a Logística/Admin y al técnico solicitante. Umbrales 3/7/15 días."""
+    from app.models.prestamo import Prestamo
+    from app.models.empleado import Empleado
+    from app.models.proyecto_servicio import ProyectoServicio
+
+    ROLES = ["Administrador", "Logístico", "Jefe de Operaciones"]
+
+    def _bucket(dias_fuera: int):
+        if dias_fuera >= 15:
+            return "15"
+        if dias_fuera >= 7:
+            return "7"
+        if dias_fuera >= 3:
+            return "3"
+        return None
+
+    db: Session = SessionLocal()
+    try:
+        ahora = datetime.utcnow()
+        prestamos = db.query(Prestamo).filter(
+            Prestamo.estado == "entregado",
+            Prestamo.fecha_entrega.isnot(None),
+        ).all()
+        emitidos = 0
+        for p in prestamos:
+            dias_fuera = (ahora - p.fecha_entrega).days
+            umbral = _bucket(dias_fuera)
+            if not umbral:
+                continue
+
+            # Destinatarios: logística/admin + el técnico solicitante.
+            destinatarios = set(_usuarios_por_rol(db, p.empresa_id, ROLES))
+            emp = db.query(Empleado.usuario_id).filter(Empleado.id == p.solicitante_id).first()
+            if emp and emp.usuario_id:
+                destinatarios.add(emp.usuario_id)
+            if not destinatarios:
+                continue
+
+            ps = db.query(ProyectoServicio.nombre).filter(
+                ProyectoServicio.id == p.proyecto_servicio_id).first()
+            psn = (ps.nombre if ps else "") or "un servicio"
+
+            titulo = "Herramientas sin devolver"
+            mensaje = (f"Hay equipos/herramientas del servicio '{psn}' entregados hace "
+                       f"{dias_fuera} días sin registrar su devolución.")
+            ref_key = f"prestamo_devol:{p.id}:{umbral}"
+            if _emitir(db, empresa_id=p.empresa_id, usuarios=list(destinatarios),
+                       tipo="warning", categoria="prestamos", titulo=titulo,
+                       mensaje=mensaje, ref_key=ref_key):
+                emitidos += 1
+
+        db.commit()
+        print(f"[Scheduler] Alertas de préstamos sin devolver: {emitidos}")
+    except Exception as e:
+        print(f"[Scheduler] Error en alertas de préstamos: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _alertas_tardanza():
+    """Cada 15 min (mañana): empleados con turno activo que ya pasaron su hora
+    de entrada + tolerancia y aún no marcaron entrada hoy. Avisa al empleado y a
+    sus supervisores. Idempotente por (empleado, fecha)."""
+    from app.models.turno import Turno, TurnoEmpleado
+    from app.models.empleado import Empleado
+    from app.models.registro_asistencia import RegistroAsistencia
+    from app.models.usuario import Usuario
+    from sqlalchemy import cast, Date as SaDate, or_
+    from zoneinfo import ZoneInfo
+
+    ROLES_SUP = ["Administrador", "Jefe de Operaciones"]
+
+    db: Session = SessionLocal()
+    try:
+        ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        hoy = ahora.date()
+
+        # Empleados que ya marcaron entrada hoy (para excluirlos)
+        con_entrada = {
+            r.empleado_id
+            for r in db.query(RegistroAsistencia.empleado_id).filter(
+                RegistroAsistencia.tipo == "entrada",
+                cast(RegistroAsistencia.fecha_hora, SaDate) == hoy,
+            ).all()
+        }
+
+        # Turnos activos vigentes hoy
+        asignaciones = db.query(TurnoEmpleado).filter(
+            TurnoEmpleado.activo.is_(True),
+            TurnoEmpleado.fecha_desde <= hoy,
+            or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= hoy),
+        ).all()
+
+        dest_cache: dict[str, list[str]] = {}
+        emitidos = 0
+        for te in asignaciones:
+            if te.empleado_id in con_entrada:
+                continue
+            turno = db.query(Turno).filter(Turno.id == te.turno_id, Turno.activo.is_(True)).first()
+            if not turno:
+                continue
+            tol = turno.tolerancia_minutos or 5
+            limite = datetime.combine(hoy, turno.hora_entrada) + timedelta(minutes=tol)
+            # Ventana: desde que vence la tolerancia hasta 3h después (evita avisar todo el día)
+            if not (limite <= ahora <= limite + timedelta(hours=3)):
+                continue
+
+            emp = db.query(Empleado).filter(Empleado.id == te.empleado_id, Empleado.activo.is_(True)).first()
+            if not emp:
+                continue
+
+            if emp.empresa_id not in dest_cache:
+                dest_cache[emp.empresa_id] = _usuarios_por_rol(db, emp.empresa_id, ROLES_SUP)
+            destinatarios = set(dest_cache[emp.empresa_id])
+            if emp.usuario_id:
+                destinatarios.add(emp.usuario_id)
+            if not destinatarios:
+                continue
+
+            u = db.query(Usuario.nombre, Usuario.apellido).filter(Usuario.id == emp.usuario_id).first()
+            nombre = (f"{u.nombre} {u.apellido}".strip() if u else "Empleado")
+            hora_txt = turno.hora_entrada.strftime("%H:%M")
+            ref_key = f"tardanza:{emp.id}:{hoy.isoformat()}"
+            # Mensaje distinto para el propio empleado vs supervisores: usamos uno
+            # general y emitimos a todos con la misma clave de idempotencia.
+            titulo = "Entrada no registrada"
+            mensaje = (f"{nombre} no ha marcado su entrada (turno {hora_txt}). "
+                       f"Si ya estás en planta, registra tu asistencia ahora.")
+            if _emitir(db, empresa_id=emp.empresa_id, usuarios=list(destinatarios),
+                       tipo="warning", categoria="asistencia",
+                       titulo=titulo, mensaje=mensaje, ref_key=ref_key):
+                emitidos += 1
+
+        db.commit()
+        if emitidos:
+            print(f"[Scheduler] Alertas de tardanza emitidas: {emitidos}")
+    except Exception as e:
+        print(f"[Scheduler] Error en alertas de tardanza: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def iniciar_scheduler():
     """Registra las tareas y arranca el scheduler. Llamar desde main.py."""
     # Recordatorio diario a las 08:00 AM
@@ -426,9 +752,31 @@ def iniciar_scheduler():
         id="aviso_fin_almuerzo",
         replace_existing=True
     )
+    # Vencimientos (contratos, calibraciones, CXP, CXC) — 08:30 AM
+    scheduler.add_job(
+        func=_alertas_vencimientos,
+        trigger=CronTrigger(hour=8, minute=30),
+        id="alertas_vencimientos",
+        replace_existing=True
+    )
+    # Préstamos sin devolver — 08:45 AM
+    scheduler.add_job(
+        func=_alertas_prestamos_sin_devolver,
+        trigger=CronTrigger(hour=8, minute=45),
+        id="alertas_prestamos_devol",
+        replace_existing=True
+    )
+    # Tardanza / entrada no registrada — cada 15 min de 6 a 11 AM
+    scheduler.add_job(
+        func=_alertas_tardanza,
+        trigger=CronTrigger(hour="6-11", minute="*/15"),
+        id="alertas_tardanza",
+        replace_existing=True
+    )
     scheduler.start()
-    print("⏰ Scheduler iniciado → recordatorios 08:00 + alertas mantenimiento 08:15 "
-          "+ aviso pre-almuerzo 11:45 + aviso fin almuerzo cada 5 min")
+    print("⏰ Scheduler iniciado → calendario 08:00 + mantenimiento 08:15 + "
+          "vencimientos 08:30 + préstamos 08:45 + pre-almuerzo 11:45 + "
+          "fin almuerzo cada 5 min")
 def detener_scheduler():
     """Detiene el scheduler al cerrar la app."""
     if scheduler.running:

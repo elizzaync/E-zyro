@@ -21,6 +21,7 @@ from ..db.database import get_db
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.vacaciones import ConfigVacaciones, SolicitudVacaciones
+from ..services.fcm_service import notificar_usuario
 from ..schemas.vacaciones import (
     ConfigIn, ConfigOut, SaldoOut, SolicitudIn, SolicitudOut,
 )
@@ -259,6 +260,29 @@ def _resolver(db: Session, payload: dict, sol_id: str, nuevo_estado: str) -> Sol
     s.resuelto_por_id = payload.get("id")
     s.fecha_resolucion = datetime.utcnow()
     db.commit()
+
+    # Notificar al solicitante el resultado de su solicitud.
+    try:
+        emp = db.query(Empleado).filter(Empleado.id == s.empleado_id).first()
+        if emp and emp.usuario_id:
+            if nuevo_estado == "aprobada":
+                titulo = "Vacaciones aprobadas"
+                mensaje = (f"Tu solicitud de {s.dias} día(s) "
+                           f"({s.fecha_inicio.isoformat()} al {s.fecha_fin.isoformat()}) fue aprobada.")
+            else:
+                titulo = "Vacaciones rechazadas"
+                mensaje = (f"Tu solicitud de {s.dias} día(s) "
+                           f"({s.fecha_inicio.isoformat()} al {s.fecha_fin.isoformat()}) fue rechazada.")
+            notificar_usuario(
+                db, empresa_id=empresa_id, usuario_id=emp.usuario_id,
+                titulo=titulo, mensaje=mensaje,
+                tipo="recordatorio", categoria="vacaciones",
+                referencia_tabla=f"vacaciones:{s.id}",
+            )
+            db.commit()
+    except Exception:
+        db.rollback()
+
     return _sol_out(db, s)
 
 

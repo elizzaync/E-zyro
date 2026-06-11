@@ -464,4 +464,25 @@ def crear_actividad(
 
     db.commit()
     db.refresh(a)
+
+    # Si responde alguien distinto del reportante, avisarle.
+    if str(t.reportado_por) != str(usuario_id):
+        try:
+            from ..services.fcm_service import notificar_usuario
+            if es_solucion:
+                titulo = f"Solución a tu ticket {t.codigo}"
+                mensaje = f"El equipo de TI registró una solución a tu ticket: {t.titulo}."
+            else:
+                titulo = f"Respuesta a tu ticket {t.codigo}"
+                mensaje = f"Hay una nueva respuesta en tu ticket: {t.titulo}."
+            notificar_usuario(
+                db, empresa_id=empresa_id, usuario_id=str(t.reportado_por),
+                titulo=titulo, mensaje=mensaje,
+                tipo="info", categoria="soporte",
+                referencia_id=str(t.id), referencia_tabla="ticket_soporte",
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+
     return _act_out(db, a)

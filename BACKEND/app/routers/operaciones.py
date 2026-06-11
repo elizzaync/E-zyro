@@ -820,6 +820,33 @@ def _motivos_inicio(db: Session, servicio_id: str) -> list[str]:
     return motivos
 
 
+def _notificar_cambio_estado_servicio(db: Session, ps: ProyectoServicio, nuevo: str) -> None:
+    """Notifica a los miembros del proyecto el cierre/cancelación del servicio."""
+    from ..services.fcm_service import notificar_usuario
+    miembros = (
+        db.query(Empleado.usuario_id)
+        .join(ProyectoMiembro, ProyectoMiembro.empleado_id == Empleado.id)
+        .filter(ProyectoMiembro.proyecto_id == str(ps.proyecto_id),
+                ProyectoMiembro.activo.is_(True),
+                Empleado.usuario_id.isnot(None))
+        .distinct()
+        .all()
+    )
+    nombre_srv = ps.nombre or "El servicio"
+    if nuevo == "Completado":
+        titulo, mensaje = "Servicio completado", f"{nombre_srv} fue marcado como completado."
+    else:
+        titulo, mensaje = "Servicio cancelado", f"{nombre_srv} fue cancelado."
+    for (uid,) in miembros:
+        notificar_usuario(
+            db, empresa_id=ps.empresa_id, usuario_id=uid,
+            titulo=titulo, mensaje=mensaje,
+            tipo="servicio", categoria="servicio",
+            referencia_id=str(ps.id), referencia_tabla="proyecto_servicio",
+        )
+    db.commit()
+
+
 @router.patch("/servicio/{servicio_id}/estado")
 def actualizar_estado_servicio(
     servicio_id: str,
@@ -887,6 +914,14 @@ def actualizar_estado_servicio(
     ps.estado     = nuevo
     ps.updated_at = datetime.utcnow()
     db.commit()
+
+    # Avisar a los miembros del servicio cuando se cierra o cancela.
+    if estado_actual != nuevo and nuevo in ("Completado", "Cancelado"):
+        try:
+            _notificar_cambio_estado_servicio(db, ps, nuevo)
+        except Exception:
+            pass
+
     return {"ok": True, "estado": nuevo}
 
 
@@ -3235,6 +3270,8 @@ def actualizar_servicio(
         ps.lider_id = lider_id
 
     # Técnico Líder (opcional)
+    _resp_anterior = ps.responsable_id
+    _resp_nuevo = None
     if body.responsable_id is not None:
         responsable_id = (body.responsable_id or "").strip() or None
         if responsable_id:
@@ -3244,6 +3281,9 @@ def actualizar_servicio(
             if not tecnico:
                 raise HTTPException(status_code=404, detail="Técnico líder no encontrado.")
         ps.responsable_id = responsable_id
+        # Notificar solo si cambia y se asigna a alguien (no al desasignar).
+        if responsable_id and str(responsable_id) != str(_resp_anterior or ""):
+            _resp_nuevo = responsable_id
 
     # Detectar si cambian campos que afectan la vinculación de equipos
     _relink_trigger = any([
@@ -3279,6 +3319,24 @@ def actualizar_servicio(
             _vincular_equipos_al_servicio(db, ps, empresa_id, _proyecto_upd)
 
     db.commit()
+
+    # Avisar al técnico recién asignado como responsable del servicio.
+    if _resp_nuevo:
+        try:
+            from ..services.fcm_service import notificar_usuario
+            emp = db.query(Empleado.usuario_id).filter(Empleado.id == _resp_nuevo).first()
+            if emp and emp.usuario_id:
+                notificar_usuario(
+                    db, empresa_id=empresa_id, usuario_id=emp.usuario_id,
+                    titulo="Te asignaron un servicio",
+                    mensaje=f"Eres el responsable del servicio '{ps.nombre or 'servicio'}'.",
+                    tipo="servicio", categoria="servicio",
+                    referencia_id=str(ps.id), referencia_tabla="proyecto_servicio",
+                )
+                db.commit()
+        except Exception:
+            db.rollback()
+
     return {"ok": True}
 
 

@@ -23,6 +23,7 @@ from ..core.permisos import es_tecnico, es_jefe_operaciones, exigir_no_roles_ope
 from ..core.audit_context import get_audit_context
 from ..db.database import get_db
 from ..services.firma_seguridad import registrar_firma, verificar_evento
+from ..services.fcm_service import enviar_push_a_usuario
 from ..models.firma_evento import FirmaEvento
 
 from ..models.material import Material, Stock
@@ -1837,6 +1838,15 @@ def _notificar_solicitante(db: Session, req: Requerimiento, empresa_id: str, tit
             referencia_tabla="requerimiento", referencia_id=str(req.id),
         ))
         db.commit()
+        # Push al solicitante (además de la campana in-app).
+        try:
+            enviar_push_a_usuario(
+                usuario_id=emp.usuario_id, titulo=titulo, mensaje=mensaje, db=db,
+                tipo="info", categoria="logistica",
+                referencia_id=str(req.id), referencia_tabla="requerimiento",
+            )
+        except Exception:
+            pass
     except Exception:
         db.rollback()
 

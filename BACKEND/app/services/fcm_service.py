@@ -2,6 +2,8 @@
 import logging
 import os
 import json
+import uuid as _uuid
+from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, messaging
 from sqlalchemy.orm import Session
@@ -146,6 +148,55 @@ def enviar_push_a_usuario(
     except Exception as e:
         logger.error("Error general en FCM: %s", type(e).__name__)
         return False
+
+
+# ── Helper para routers: persistir in-app + enviar push ─────────────────────────
+def notificar_usuario(
+    db: Session,
+    *,
+    empresa_id: str,
+    usuario_id: str,
+    titulo: str,
+    mensaje: str,
+    tipo: str = "general",
+    categoria: str = "",
+    referencia_id: str = "",
+    referencia_tabla: str = "",
+) -> bool:
+    """Crea la fila Notificacion (campana in-app) y dispara el push FCM.
+    No bloquea el flujo del router si algo falla. Devuelve True si el push salió.
+
+    Nota: referencia_id de la tabla notificacion es uuid → se deja NULL; el
+    contexto de deep-link viaja en referencia_tabla y en el data payload del push.
+    """
+    from app.models.notificacion import Notificacion
+    fcm_ok = False
+    try:
+        n = Notificacion(
+            id=str(_uuid.uuid4()),
+            empresa_id=empresa_id,
+            usuario_id=usuario_id,
+            tipo=tipo,
+            categoria=categoria or None,
+            titulo=titulo,
+            mensaje=mensaje,
+            leido=False,
+            enviado=False,
+            fecha_envio=datetime.utcnow(),
+            referencia_tabla=referencia_tabla or None,
+            referencia_id=None,
+        )
+        db.add(n)
+        db.flush()
+        fcm_ok = enviar_push_a_usuario(
+            usuario_id=usuario_id, titulo=titulo, mensaje=mensaje, db=db,
+            tipo=tipo, categoria=categoria,
+            referencia_id=referencia_id or "", referencia_tabla=referencia_tabla or "",
+        )
+        n.enviado = fcm_ok
+    except Exception as e:
+        logger.error("notificar_usuario falló: %s", type(e).__name__)
+    return fcm_ok
 
 
 # ── Notificación de asignación de servicio ────────────────────────────────────
