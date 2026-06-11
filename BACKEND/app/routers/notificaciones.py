@@ -294,7 +294,9 @@ def inyectar_notificacion(
         titulo=body.titulo,
         mensaje=body.mensaje,
         tipo=body.tipo,
+        categoria=body.categoria or "",
         referencia_id=body.referencia_id or nueva.id,
+        referencia_tabla=body.referencia_tabla or "",
         db=db,
     )
 

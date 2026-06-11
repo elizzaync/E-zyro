@@ -32,6 +32,23 @@ def _inicializar_firebase():
 _inicializar_firebase()
 
 
+# ── Resolución de canal Android por tipo/categoría ──────────────────────────────
+# Debe coincidir con los canales declarados en el cliente Flutter
+# (NotificationService._todos).
+def _canal_android(tipo: str, categoria: str) -> str:
+    t = (tipo or "").lower()
+    c = (categoria or "").lower()
+    if c == "almuerzo":
+        return "esystemtic_almuerzo"
+    if t == "warning" or c == "mantenimiento":
+        return "esystemtic_alertas"
+    if t.startswith("comunicado"):
+        return "esystemtic_comunicados"
+    if t == "servicio" or t.startswith("asignacion"):
+        return "esystemtic_servicios"
+    return "esystemtic_general"
+
+
 # ── Función genérica de envío ──────────────────────────────────────────────────
 def enviar_push_a_usuario(
     usuario_id: str,
@@ -41,12 +58,15 @@ def enviar_push_a_usuario(
     tipo: str = "general",
     referencia_id: str = "",
     referencia_tabla: str = "",
+    categoria: str = "",
 ) -> bool:
     """
-    Busca los tokens activos del usuario y envía una notificación push.
+    Busca los tokens activos del usuario y envía una notificación push a TODOS
+    sus dispositivos en una sola llamada multicast.
 
     Parámetros de data para el cliente Flutter:
-      tipo            → categoria de la notificación (general|comunicado|servicio|recordatorio)
+      tipo            → tipo de la notificación (general|comunicado|servicio|recordatorio|warning)
+      categoria       → subcategoría (almuerzo|mantenimiento|...) — elige el canal
       referencia_id   → UUID del objeto relacionado (opcional)
       referencia_tabla→ nombre de la tabla relacionada (opcional)
 
@@ -65,51 +85,63 @@ def enviar_push_a_usuario(
         # Payload de datos que Flutter recibe al tocar la notificación
         data_payload = {
             "tipo": tipo,
+            "categoria": categoria or "",
             "ref_id": referencia_id or "",
             "ref_tabla": referencia_tabla or "",
         }
 
-        enviados = 0
-        for disp in dispositivos:
-            try:
-                message = messaging.Message(
-                    notification=messaging.Notification(
-                        title=titulo,
-                        body=mensaje,
-                    ),
-                    data=data_payload,
-                    token=disp.token_push,
-                    # Android: prioridad alta para que llegue en background
-                    android=messaging.AndroidConfig(
-                        priority="high",
-                        notification=messaging.AndroidNotification(
-                            channel_id="esystemtic_general",
-                            sound="default",
-                        ),
-                    ),
-                    # iOS: sonido y badge
-                    apns=messaging.APNSConfig(
-                        payload=messaging.APNSPayload(
-                            aps=messaging.Aps(
-                                sound="default",
-                                badge=1,
-                            )
-                        )
-                    ),
-                )
-                messaging.send(message)
-                logger.info("Push enviado a %s.", disp.plataforma)
-                enviados += 1
+        canal = _canal_android(tipo, categoria)
+        # tag/collapse: avisos del mismo asunto se reemplazan en vez de apilarse.
+        tag = (f"{referencia_tabla}:{referencia_id}"
+               if referencia_tabla else (categoria or tipo))[:64]
 
-            except messaging.UnregisteredError:
-                logger.warning("Token inválido, desactivando.")
-                disp.activo = False
-                db.commit()
+        tokens = [d.token_push for d in dispositivos]
+        multicast = messaging.MulticastMessage(
+            notification=messaging.Notification(title=titulo, body=mensaje),
+            data=data_payload,
+            tokens=tokens,
+            android=messaging.AndroidConfig(
+                priority="high",
+                collapse_key=tag,
+                notification=messaging.AndroidNotification(
+                    channel_id=canal,
+                    sound="default",
+                    tag=tag,
+                ),
+            ),
+            apns=messaging.APNSConfig(
+                headers={"apns-collapse-id": tag},
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        sound="default",
+                        badge=1,
+                        thread_id=tag,
+                    )
+                ),
+            ),
+        )
 
-            except Exception as e:
-                logger.error("Error enviando push: %s", type(e).__name__)
+        resp = messaging.send_each_for_multicast(multicast)
 
-        return enviados > 0
+        # Desactivar tokens que Firebase reporta como inválidos.
+        hubo_invalidos = False
+        for idx, r in enumerate(resp.responses):
+            if r.success:
+                continue
+            exc = r.exception
+            if isinstance(exc, (messaging.UnregisteredError,
+                                messaging.SenderIdMismatchError)):
+                dispositivos[idx].activo = False
+                hubo_invalidos = True
+            else:
+                logger.error("Error enviando push: %s",
+                             type(exc).__name__ if exc else "desconocido")
+        if hubo_invalidos:
+            db.commit()
+
+        logger.info("Push multicast: %d/%d entregados.",
+                    resp.success_count, len(tokens))
+        return resp.success_count > 0
 
     except Exception as e:
         logger.error("Error general en FCM: %s", type(e).__name__)

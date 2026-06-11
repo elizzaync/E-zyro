@@ -178,7 +178,9 @@ def _alertas_mantenimiento_equipos():
                     referencia_tabla=ref_tabla, referencia_id=ref_id,
                 ))
                 try:
-                    enviar_push_a_usuario(usuario_id=uid, titulo=titulo, mensaje=mensaje, db=db)
+                    enviar_push_a_usuario(usuario_id=uid, titulo=titulo, mensaje=mensaje, db=db,
+                                          tipo="warning", categoria="mantenimiento",
+                                          referencia_tabla=ref_tabla, referencia_id=ref_id)
                 except Exception:
                     pass
             enviados += 1
@@ -267,7 +269,7 @@ def _aviso_pre_almuerzo():
             try:
                 enviar_push_a_usuario(usuario_id=usuario.id, titulo=titulo,
                                       mensaje=mensaje, db=db,
-                                      tipo="recordatorio",
+                                      tipo="recordatorio", categoria="almuerzo",
                                       referencia_tabla=ref_tabla, referencia_id=ref_id)
             except Exception:
                 pass
@@ -378,7 +380,7 @@ def _aviso_fin_almuerzo():
             try:
                 enviar_push_a_usuario(usuario_id=usuario.id, titulo=titulo,
                                       mensaje=mensaje, db=db,
-                                      tipo="recordatorio",
+                                      tipo="recordatorio", categoria="almuerzo",
                                       referencia_tabla=ref_tabla, referencia_id=ref_id)
             except Exception:
                 pass
