@@ -879,6 +879,10 @@ def _run_migrations():
         # ── Soporte interno de TI (tickets) ──────────────────────────────────
         sembrar_permisos(conn, "soporte", ["ver", "gestionar"],
                          descripcion_base="Soporte TI:")
+        # ── Asistencia: control diario + configuración de turnos/excepciones ──
+        #   `configurar` habilita crear turnos y asignar excepciones de horario.
+        sembrar_permisos(conn, "asistencia", ["ver", "validar", "registrar", "configurar"],
+                         descripcion_base="Asistencia:")
         # ── Finanzas · Fase 1 — Contabilidad / Libro Mayor ───────────────────
         sembrar_permisos(conn, "contabilidad",
                          ["ver", "crear_asiento", "gestionar_cuentas",

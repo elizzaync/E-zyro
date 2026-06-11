@@ -36,7 +36,7 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "comunicados:ver", "comunicados:enviar",
         "proyectos:ver", "proyectos:crear", "proyectos:editar",
         "equipo_intervenido:ver", "equipo_intervenido:crear", "equipo_intervenido:editar",
-        "asistencia:ver", "asistencia:validar",
+        "asistencia:ver", "asistencia:validar", "asistencia:configurar",
         "requerimientos:ver", "requerimientos:aprobar",
         "correctivo:ver", "correctivo:crear", "correctivo:editar",
         "correctivo:aprobar", "correctivo:finalizar",

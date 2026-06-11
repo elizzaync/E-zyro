@@ -657,6 +657,7 @@ def historial(
 _DEF_ENTRADA          = time(8, 0)
 _DEF_SALIDA           = time(17, 0)
 _DEF_ALMUERZO_MIN     = 60
+_DEF_TOLERANCIA_MIN   = 5
 # Horas netas exigidas por defecto = jornada - almuerzo = 9 h - 1 h = 8 h.
 
 
@@ -758,10 +759,12 @@ def control_diario(
             t_entrada = turno.hora_entrada
             t_salida  = turno.hora_salida
             t_almuerzo = turno.duracion_almuerzo_minutos or 0
+            t_tolerancia = turno.tolerancia_minutos or 0
             turno_nombre = turno.nombre
         else:
             t_entrada, t_salida = _DEF_ENTRADA, _DEF_SALIDA
             t_almuerzo = _DEF_ALMUERZO_MIN
+            t_tolerancia = _DEF_TOLERANCIA_MIN
             turno_nombre = "Horario normal"
 
         minutos_requeridos = _min_entre(t_entrada, t_salida) - t_almuerzo
@@ -780,6 +783,20 @@ def control_diario(
         if entrada and salida:
             bruto = int((salida.fecha_hora - entrada.fecha_hora).total_seconds() // 60)
             minutos_trabajados = max(bruto - (minutos_almuerzo or 0), 0)
+
+        # Puntualidad vs horario designado (con tolerancia del turno):
+        #  - Tardanza: marcó entrada después de hora_entrada + tolerancia.
+        #  - Salida temprana: marcó salida antes de hora_salida (con tolerancia).
+        minutos_tarde = 0
+        llego_tarde = False
+        if entrada:
+            minutos_tarde = max(_min_entre(t_entrada, entrada.fecha_hora.time()), 0)
+            llego_tarde = minutos_tarde > t_tolerancia
+        minutos_antes_salida = 0
+        salio_temprano = False
+        if salida:
+            minutos_antes_salida = max(_min_entre(salida.fecha_hora.time(), t_salida), 0)
+            salio_temprano = minutos_antes_salida > t_tolerancia
 
         # Estado y cumplimiento
         if not entrada:
@@ -804,6 +821,8 @@ def control_diario(
             "tipo":                e.tipo or "",
             "turno_nombre":        turno_nombre,
             "es_excepcion":        turno is not None,
+            "hora_entrada_turno":  t_entrada.strftime("%H:%M"),
+            "hora_salida_turno":   t_salida.strftime("%H:%M"),
             "entrada_hora":        _hhmm(entrada),
             "salida_hora":         _hhmm(salida),
             "inicio_almuerzo_hora": _hhmm(ini_alm),
@@ -812,6 +831,10 @@ def control_diario(
             "minutos_trabajados":  minutos_trabajados,
             "minutos_requeridos":  minutos_requeridos,
             "horas_requeridas":    round(minutos_requeridos / 60, 2),
+            "llego_tarde":         llego_tarde,
+            "minutos_tarde":       minutos_tarde,
+            "salio_temprano":      salio_temprano,
+            "minutos_antes_salida": minutos_antes_salida,
             "estado":              estado,
             "cumple":              cumple,
         })
@@ -890,8 +913,8 @@ def crear_turno(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Crea un turno (p. ej. 'Practicante 08:00–13:00'). Requiere asistencia:validar."""
-    exigir_permiso(db, payload, "asistencia", "validar")
+    """Crea un turno (p. ej. 'Practicante 08:00–13:00'). Requiere asistencia:configurar."""
+    exigir_permiso(db, payload, "asistencia", "configurar")
     empresa_id = payload["empresa_id"]
     turno = Turno(
         empresa_id                = empresa_id,
@@ -913,8 +936,8 @@ def asignar_turno(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Asigna un turno-excepción a un empleado con vigencia. Requiere asistencia:validar."""
-    exigir_permiso(db, payload, "asistencia", "validar")
+    """Asigna un turno-excepción a un empleado con vigencia. Requiere asistencia:configurar."""
+    exigir_permiso(db, payload, "asistencia", "configurar")
     empresa_id = payload["empresa_id"]
 
     emp = db.query(Empleado).filter(
