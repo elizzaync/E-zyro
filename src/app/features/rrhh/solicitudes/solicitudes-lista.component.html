@@ -1,0 +1,425 @@
+<div class="sol-wrapper fade-in">
+
+    <!-- ══════════════════════════════════════════════════
+         ENCABEZADO
+         ══════════════════════════════════════════════════ -->
+    <div class="sol-header">
+        <div>
+            <h1 class="page-title">Bandeja de Solicitudes</h1>
+            <p class="page-subtitle">Gestión de permisos, licencias y vacaciones del personal.</p>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         SEGMENTED CONTROL
+         ══════════════════════════════════════════════════ -->
+    <div class="segmented-wrap">
+        <div class="segmented-control">
+            <button class="seg-btn" [class.active]="activeTab === 'permisos'" (click)="setTab('permisos')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Permisos y Licencias
+                <span class="seg-count">{{ totalPermisos }}</span>
+            </button>
+            <button class="seg-btn" [class.active]="activeTab === 'vacaciones'" (click)="setTab('vacaciones')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 3v1m0 16v1M3 12h1m16 0h1M5.636 5.636l.707.707m11.314 11.314l.707.707M5.636 18.364l.707-.707m11.314-11.314l.707-.707" />
+                </svg>
+                Vacaciones
+                <span class="seg-count">{{ totalVacaciones }}</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         KPIs
+         ══════════════════════════════════════════════════ -->
+    <div class="kpi-grid">
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-blue">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="22" height="22">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Total</span>
+                <span class="kpi-value">{{ kpis.total }}</span>
+            </div>
+        </div>
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-yellow">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="22" height="22">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Pendientes</span>
+                <span class="kpi-value">{{ kpis.pendientes }}</span>
+            </div>
+        </div>
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-green">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="22" height="22">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Aprobadas</span>
+                <span class="kpi-value">{{ kpis.aprobadas }}</span>
+            </div>
+        </div>
+        <div class="kpi-card card-panel">
+            <div class="kpi-icon icon-red">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="22" height="22">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="kpi-info">
+                <span class="kpi-label">Rechazadas</span>
+                <span class="kpi-value">{{ kpis.rechazadas }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         TOOLBAR (filtros + búsqueda)
+         ══════════════════════════════════════════════════ -->
+    <div class="sol-toolbar">
+        <div class="filter-pills">
+            <button class="pill" [class.active]="filtroEstado === 'todos'" (click)="filtroEstado = 'todos'">Todos</button>
+            <button class="pill pill-yellow" [class.active]="filtroEstado === 'pendiente'" (click)="filtroEstado = 'pendiente'">
+                Pendiente
+            </button>
+            <button class="pill pill-green" [class.active]="filtroEstado === 'aprobada'" (click)="filtroEstado = 'aprobada'">
+                Aprobada
+            </button>
+            <button class="pill pill-red" [class.active]="filtroEstado === 'rechazada'" (click)="filtroEstado = 'rechazada'">
+                Rechazada
+            </button>
+        </div>
+        <div class="search-box">
+            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input type="text" [(ngModel)]="searchTerm" placeholder="Buscar empleado o tipo…" class="search-input" />
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         ESTADO CARGANDO / ERROR
+         ══════════════════════════════════════════════════ -->
+    @if (cargando) {
+    <div class="state-center card-panel">
+        <div class="spinner"></div>
+        <p>Cargando solicitudes…</p>
+    </div>
+    } @else if (error) {
+    <div class="state-center card-panel">
+        <p class="error-msg">{{ error }}</p>
+    </div>
+    } @else {
+
+    <!-- ══════════════════════════════════════════════════
+         TABLA DE SOLICITUDES
+         ══════════════════════════════════════════════════ -->
+    <div class="card-panel table-wrap">
+        @if (filteredSolicitudes.length === 0) {
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+            </div>
+            <h3>Sin solicitudes</h3>
+            <p>No hay solicitudes que coincidan con los filtros aplicados.</p>
+        </div>
+        } @else {
+        <table class="sol-table">
+            <thead>
+                <tr>
+                    <th>Solicitante</th>
+                    <th>Tipo</th>
+                    <th>Período</th>
+                    <th>Motivo</th>
+                    <th class="text-center">Estado</th>
+                    <th class="text-right">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (sol of filteredSolicitudes; track sol.id) {
+                <tr [class.row-pendiente]="sol.estado === 'pendiente'">
+                    <!-- Solicitante -->
+                    <td>
+                        <div class="emp-cell">
+                            <div class="emp-avatar">
+                                @if (sol.empleado.fotoUrl) {
+                                <img [src]="sol.empleado.fotoUrl" [alt]="sol.empleado.nombreCompleto"
+                                    class="avatar-photo" width="38" height="38" />
+                                } @else {
+                                <span>{{ sol.empleado.iniciales }}</span>
+                                }
+                            </div>
+                            <div class="emp-info">
+                                <span class="emp-name">{{ sol.empleado.nombreCompleto }}</span>
+                                <span class="emp-cargo">{{ sol.empleado.cargo }}</span>
+                            </div>
+                        </div>
+                    </td>
+
+                    <!-- Tipo -->
+                    <td>
+                        <span class="tipo-badge">{{ tipoLabel(sol.tipo) }}</span>
+                        @if (sol.dias) {
+                        <span class="dias-label">{{ diasLabel(sol.dias) }}</span>
+                        }
+                    </td>
+
+                    <!-- Período -->
+                    <td class="periodo-cell">
+                        <span class="fecha-line">{{ formatFecha(sol.fecha_inicio) }}</span>
+                        @if (sol.fecha_fin && sol.fecha_fin !== sol.fecha_inicio) {
+                        <span class="fecha-sep">→</span>
+                        <span class="fecha-line">{{ formatFecha(sol.fecha_fin) }}</span>
+                        }
+                    </td>
+
+                    <!-- Motivo -->
+                    <td class="motivo-cell">
+                        <span class="motivo-text">{{ sol.descripcion || '—' }}</span>
+                    </td>
+
+                    <!-- Estado -->
+                    <td class="text-center">
+                        @if (sol.estado === 'aprobada') {
+                        <span class="badge badge-success">Aprobada</span>
+                        } @else if (sol.estado === 'rechazada') {
+                        <span class="badge badge-danger">Rechazada</span>
+                        } @else {
+                        <span class="badge badge-warning">Pendiente</span>
+                        }
+                    </td>
+
+                    <!-- Acción -->
+                    <td class="text-right">
+                        @if (sol.estado === 'pendiente' && puedeEvaluar) {
+                        <button class="btn-revisar" (click)="abrirModal(sol)">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" width="15" height="15">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            Revisar
+                        </button>
+                        } @else if (sol.estado !== 'pendiente') {
+                        <button class="btn-ver-obs" (click)="abrirModal(sol)">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" width="15" height="15">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            Ver detalle
+                        </button>
+                        }
+                    </td>
+                </tr>
+                }
+            </tbody>
+        </table>
+        }
+    </div>
+
+    }<!-- end @else -->
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL DE EVALUACIÓN
+     ════════════════════════════════════════════════════════════════════════ -->
+@if (showModal && solicitudActual) {
+<div class="modal-backdrop-pro" (click)="cerrarModal()"></div>
+<div class="modal-eval fade-in-up" (click)="$event.stopPropagation()">
+
+    <!-- Cabecera -->
+    <div class="modal-eval-head">
+        <div class="modal-eval-title-row">
+            <div class="modal-eval-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="22" height="22">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+                </svg>
+            </div>
+            <div>
+                <h3 class="modal-eval-title">
+                    @if (solicitudActual.estado === 'pendiente') { Evaluar Solicitud }
+                    @else { Detalle de Solicitud }
+                </h3>
+                <p class="modal-eval-sub">{{ tipoLabel(solicitudActual.tipo) }} · {{ solicitudActual.empleado.nombreCompleto }}</p>
+            </div>
+        </div>
+        <button class="modal-close-btn" (click)="cerrarModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" width="20" height="20">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Cuerpo -->
+    <div class="modal-eval-body">
+
+        <!-- Perfil del solicitante -->
+        <div class="sol-profile-row">
+            <div class="sol-avatar">
+                @if (solicitudActual.empleado.fotoUrl) {
+                <img [src]="solicitudActual.empleado.fotoUrl" [alt]="solicitudActual.empleado.nombreCompleto"
+                    class="avatar-photo" width="48" height="48" />
+                } @else {
+                <span>{{ solicitudActual.empleado.iniciales }}</span>
+                }
+            </div>
+            <div>
+                <p class="sol-profile-name">{{ solicitudActual.empleado.nombreCompleto }}</p>
+                <p class="sol-profile-cargo">{{ solicitudActual.empleado.cargo }}</p>
+            </div>
+            <div class="sol-profile-estado">
+                @if (solicitudActual.estado === 'aprobada') {
+                <span class="badge badge-success">Aprobada</span>
+                } @else if (solicitudActual.estado === 'rechazada') {
+                <span class="badge badge-danger">Rechazada</span>
+                } @else {
+                <span class="badge badge-warning">Pendiente</span>
+                }
+            </div>
+        </div>
+
+        <!-- Detalles en grid -->
+        <div class="detail-grid">
+            <div class="detail-item">
+                <span class="detail-label">Tipo de solicitud</span>
+                <span class="detail-value">{{ tipoLabel(solicitudActual.tipo) }}</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-label">Período</span>
+                <span class="detail-value">{{ rangoFechas(solicitudActual) }}</span>
+            </div>
+            @if (solicitudActual.dias) {
+            <div class="detail-item">
+                <span class="detail-label">Duración</span>
+                <span class="detail-value">{{ diasLabel(solicitudActual.dias) }}</span>
+            </div>
+            }
+            <div class="detail-item">
+                <span class="detail-label">Fecha de solicitud</span>
+                <span class="detail-value">{{ formatFecha(solicitudActual.created_at) }}</span>
+            </div>
+        </div>
+
+        <!-- Motivo -->
+        @if (solicitudActual.descripcion) {
+        <div class="motivo-block">
+            <span class="detail-label">Motivo del empleado</span>
+            <p class="motivo-text-full">{{ solicitudActual.descripcion }}</p>
+        </div>
+        }
+
+        <!-- Documento adjunto -->
+        @if (solicitudActual.url_pdf) {
+        <a [href]="solicitudActual.url_pdf" target="_blank" rel="noopener" class="btn-secondary btn-doc">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            Ver documento adjunto (PDF)
+        </a>
+        }
+
+        <!-- Observación anterior (si ya fue evaluada) -->
+        @if (solicitudActual.estado !== 'pendiente' && solicitudActual.observacion) {
+        <div class="obs-anterior">
+            <span class="detail-label">Observación de RRHH</span>
+            <p class="obs-text">{{ solicitudActual.observacion }}</p>
+        </div>
+        }
+
+        <!-- ── Sección de evaluación (solo para pendientes) ── -->
+        @if (solicitudActual.estado === 'pendiente' && puedeEvaluar) {
+
+        <div class="eval-divider">
+            <span>Decisión de RRHH</span>
+        </div>
+
+        <!-- Selector de acción -->
+        <div class="eval-actions-row">
+            <button class="eval-btn eval-aprobar" [class.selected]="evalEstado === 'aprobada'"
+                (click)="seleccionarEstado('aprobada')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5" width="18" height="18">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                Aprobar Solicitud
+            </button>
+            <button class="eval-btn eval-rechazar" [class.selected]="evalEstado === 'rechazada'"
+                (click)="seleccionarEstado('rechazada')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.5" width="18" height="18">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Rechazar
+            </button>
+        </div>
+
+        <!-- Observación -->
+        <div class="form-group">
+            <label class="form-label">
+                Observación de RRHH <span class="req">*</span>
+            </label>
+            <textarea class="form-textarea" rows="3" [(ngModel)]="evalObservacion"
+                placeholder="Escribe el motivo o comentarios de la decisión…"></textarea>
+        </div>
+
+        @if (evalError) {
+        <div class="alert-error">{{ evalError }}</div>
+        }
+
+        @if (evalExito) {
+        <div class="alert-success">{{ evalExito }}</div>
+        }
+
+        }<!-- end sección evaluación -->
+
+    </div>
+
+    <!-- Pie del modal -->
+    <div class="modal-eval-footer">
+        <button class="btn-cancel" (click)="cerrarModal()" [disabled]="evalCargando">
+            Cerrar
+        </button>
+        @if (solicitudActual.estado === 'pendiente' && puedeEvaluar) {
+        <button class="btn-primary" (click)="confirmarEvaluacion()"
+            [disabled]="evalCargando || !evalEstado || !evalObservacion.trim()">
+            @if (evalCargando) { Guardando… }
+            @else if (evalEstado === 'aprobada') { Confirmar Aprobación }
+            @else if (evalEstado === 'rechazada') { Confirmar Rechazo }
+            @else { Confirmar }
+        </button>
+        }
+    </div>
+</div>
+}

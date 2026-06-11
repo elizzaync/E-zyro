@@ -24,6 +24,7 @@ import { clientPortalGuard } from './core/guards/client-portal.guard';
 import { bloquearRolesGuard } from './core/guards/roles.guard';
 import { LegajoListaComponent } from './features/rrhh/legajo/legajo-lista.component';
 import { LegajoDetalleComponent } from './features/rrhh/legajo/legajo-detalle.component';
+import { SolicitudesListaComponent } from './features/rrhh/solicitudes/solicitudes-lista.component';
 
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
 const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico de Campo', 'Jefe de Operaciones'];
@@ -70,6 +71,12 @@ export const routes: Routes = [
     path: 'rrhh/legajo/:id',
     component: LegajoDetalleComponent,
     title: 'Expediente | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'rrhh/solicitudes',
+    component: SolicitudesListaComponent,
+    title: 'Bandeja de Solicitudes | e-zyro TIC',
     canActivate: [authGuard]
   },
 

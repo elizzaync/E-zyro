@@ -1,0 +1,212 @@
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
+import { RrhhService, SolicitudLaboralDto } from '../../../core/services/rrhh.service';
+import { AuthService } from '../../../core/services/auth.service';
+
+const TIPO_LABELS: Record<string, string> = {
+  vacaciones:           'Vacaciones',
+  permiso:              'Permiso',
+  licencia:             'Licencia',
+  permiso_medico:       'Permiso médico',
+  licencia_maternidad:  'Lic. maternidad',
+  licencia_paternidad:  'Lic. paternidad',
+  justificacion:        'Justificación',
+  otro:                 'Otro',
+};
+
+@Component({
+  selector: 'app-solicitudes-lista',
+  standalone: true,
+  imports: [CommonModule, FormsModule, RouterModule],
+  templateUrl: './solicitudes-lista.component.html',
+  styleUrls: ['./solicitudes-lista.component.css']
+})
+export class SolicitudesListaComponent implements OnInit {
+
+  // ── Estado de UI ─────────────────────────────────────────────────────────
+  activeTab: 'permisos' | 'vacaciones' = 'permisos';
+  filtroEstado: 'todos' | 'pendiente' | 'aprobada' | 'rechazada' = 'todos';
+  searchTerm = '';
+  cargando = true;
+  error = '';
+
+  // ── Datos ─────────────────────────────────────────────────────────────────
+  solicitudes: SolicitudLaboralDto[] = [];
+
+  // ── Modal de evaluación ───────────────────────────────────────────────────
+  showModal = false;
+  solicitudActual: SolicitudLaboralDto | null = null;
+  evalEstado: 'aprobada' | 'rechazada' | '' = '';
+  evalObservacion = '';
+  evalCargando = false;
+  evalError = '';
+  evalExito = '';
+
+  constructor(private rrhhService: RrhhService, private authService: AuthService) {}
+
+  ngOnInit(): void {
+    this.cargar();
+  }
+
+  private cargar(): void {
+    this.cargando = true;
+    this.error = '';
+    this.rrhhService.getSolicitudes().subscribe({
+      next: (res) => {
+        this.solicitudes = res.solicitudes;
+        this.cargando = false;
+      },
+      error: () => {
+        this.error = 'No se pudo cargar la bandeja de solicitudes.';
+        this.cargando = false;
+      }
+    });
+  }
+
+  // ── Permisos ──────────────────────────────────────────────────────────────
+
+  get isAdmin(): boolean {
+    const rol = (this.authService.getUsuario()?.rol || '').trim();
+    return rol === 'Administrador' || rol === 'administrador';
+  }
+
+  get puedeEvaluar(): boolean {
+    const rol = (this.authService.getUsuario()?.rol || '').trim().toLowerCase()
+      .replace(/\s+/g, '').replace(/\xa0/g, '');
+    return !['técnicodecampo', 'clienteexterno'].includes(rol);
+  }
+
+  // ── Lógica de filtrado ────────────────────────────────────────────────────
+
+  private esVacacion(s: SolicitudLaboralDto): boolean {
+    return s.tipo.toLowerCase() === 'vacaciones';
+  }
+
+  get solicitudesPorTab(): SolicitudLaboralDto[] {
+    return this.solicitudes.filter(s =>
+      this.activeTab === 'vacaciones' ? this.esVacacion(s) : !this.esVacacion(s)
+    );
+  }
+
+  get filteredSolicitudes(): SolicitudLaboralDto[] {
+    return this.solicitudesPorTab.filter(s => {
+      const matchEstado = this.filtroEstado === 'todos' || s.estado === this.filtroEstado;
+      const term = this.searchTerm.toLowerCase();
+      const matchSearch = !term ||
+        s.empleado.nombreCompleto.toLowerCase().includes(term) ||
+        s.empleado.cargo.toLowerCase().includes(term) ||
+        s.tipo.toLowerCase().includes(term);
+      return matchEstado && matchSearch;
+    });
+  }
+
+  get kpis() {
+    const base = this.solicitudesPorTab;
+    return {
+      total:      base.length,
+      pendientes: base.filter(s => s.estado === 'pendiente').length,
+      aprobadas:  base.filter(s => s.estado === 'aprobada').length,
+      rechazadas: base.filter(s => s.estado === 'rechazada').length,
+    };
+  }
+
+  get totalPermisos(): number {
+    return this.solicitudes.filter(s => s.tipo.toLowerCase() !== 'vacaciones').length;
+  }
+
+  get totalVacaciones(): number {
+    return this.solicitudes.filter(s => s.tipo.toLowerCase() === 'vacaciones').length;
+  }
+
+  setTab(tab: 'permisos' | 'vacaciones') {
+    this.activeTab = tab;
+    this.filtroEstado = 'todos';
+    this.searchTerm = '';
+  }
+
+  // ── Formateo ──────────────────────────────────────────────────────────────
+
+  tipoLabel(tipo: string): string {
+    return TIPO_LABELS[tipo.toLowerCase()] ?? tipo;
+  }
+
+  formatFecha(iso: string | null): string {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch { return iso; }
+  }
+
+  rangoFechas(s: SolicitudLaboralDto): string {
+    if (!s.fecha_inicio) return '—';
+    const fin = s.fecha_fin ? ` → ${this.formatFecha(s.fecha_fin)}` : '';
+    return this.formatFecha(s.fecha_inicio) + fin;
+  }
+
+  diasLabel(dias: number | null): string {
+    if (dias === null || dias === undefined) return '';
+    return dias === 1 ? '1 día' : `${dias} días`;
+  }
+
+  // ── Modal de evaluación ───────────────────────────────────────────────────
+
+  abrirModal(s: SolicitudLaboralDto): void {
+    this.solicitudActual = s;
+    this.evalEstado = '';
+    this.evalObservacion = '';
+    this.evalError = '';
+    this.evalExito = '';
+    this.evalCargando = false;
+    this.showModal = true;
+  }
+
+  cerrarModal(): void {
+    this.showModal = false;
+    this.solicitudActual = null;
+  }
+
+  seleccionarEstado(e: 'aprobada' | 'rechazada'): void {
+    this.evalEstado = e;
+    this.evalError = '';
+  }
+
+  confirmarEvaluacion(): void {
+    if (!this.solicitudActual || !this.evalEstado) {
+      this.evalError = 'Selecciona una acción (Aprobar o Rechazar).';
+      return;
+    }
+    if (!this.evalObservacion.trim()) {
+      this.evalError = 'La observación es obligatoria.';
+      return;
+    }
+    this.evalCargando = true;
+    this.evalError = '';
+
+    this.rrhhService.evaluarSolicitud(
+      this.solicitudActual.id,
+      this.evalEstado,
+      this.evalObservacion.trim()
+    ).subscribe({
+      next: (res) => {
+        this.evalCargando = false;
+        this.evalExito = res.mensaje ?? 'Solicitud evaluada correctamente.';
+        const idx = this.solicitudes.findIndex(s => s.id === this.solicitudActual!.id);
+        if (idx !== -1) {
+          this.solicitudes[idx] = {
+            ...this.solicitudes[idx],
+            estado: this.evalEstado as 'aprobada' | 'rechazada',
+            observacion: this.evalObservacion.trim(),
+            fecha_aprobacion: new Date().toISOString(),
+          };
+        }
+        setTimeout(() => this.cerrarModal(), 1400);
+      },
+      error: (err) => {
+        this.evalCargando = false;
+        this.evalError = err?.error?.detail ?? 'Error al evaluar la solicitud.';
+      }
+    });
+  }
+}

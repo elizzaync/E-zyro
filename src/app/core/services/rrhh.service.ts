@@ -38,6 +38,31 @@ export interface EmpleadoInfoDto {
   fechaIngreso: string | null;
 }
 
+export interface SolicitudEmpleadoDto {
+  id: string;
+  nombreCompleto: string;
+  cargo: string;
+  area: string;
+  iniciales: string;
+  fotoUrl: string;
+}
+
+export interface SolicitudLaboralDto {
+  id: string;
+  tipo: string;
+  estado: 'pendiente' | 'aprobada' | 'rechazada';
+  descripcion: string;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  dias: number | null;
+  url_pdf: string | null;
+  observacion: string | null;
+  aprobado_por: string | null;
+  fecha_aprobacion: string | null;
+  created_at: string;
+  empleado: SolicitudEmpleadoDto;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RrhhService {
   private readonly api = environment.apiUrl;
@@ -72,5 +97,20 @@ export class RrhhService {
 
   getMiFirma(): Observable<{ firma: { id: string; url_cloudinary: string; primera_vez: boolean } | null }> {
     return this.http.get<any>(`${this.api}/rrhh/mi-firma`);
+  }
+
+  // ── Solicitudes Laborales ────────────────────────────────────────────────
+
+  getSolicitudes(params?: { categoria?: string; estado?: string }): Observable<{ solicitudes: SolicitudLaboralDto[] }> {
+    let url = `${this.api}/rrhh/solicitudes`;
+    const qs: string[] = [];
+    if (params?.categoria) qs.push(`categoria=${params.categoria}`);
+    if (params?.estado)    qs.push(`estado=${params.estado}`);
+    if (qs.length) url += '?' + qs.join('&');
+    return this.http.get<{ solicitudes: SolicitudLaboralDto[] }>(url);
+  }
+
+  evaluarSolicitud(id: string, estado: string, observacion: string): Observable<any> {
+    return this.http.put(`${this.api}/rrhh/solicitudes/${id}/evaluar`, { estado, observacion });
   }
 }
