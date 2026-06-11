@@ -109,6 +109,8 @@ class FcmFlutterService {
         Navigator.of(ctx).pushNamedAndRemoveUntil('/calendario', (_) => false);
       case 'aviso_logistica':
         Navigator.of(ctx).pushNamedAndRemoveUntil('/logistics', (_) => false);
+      case 'warning':
+        Navigator.of(ctx).pushNamedAndRemoveUntil('/operations', (_) => false);
       default:
         Navigator.of(ctx).pushNamedAndRemoveUntil('/', (_) => false);
     }

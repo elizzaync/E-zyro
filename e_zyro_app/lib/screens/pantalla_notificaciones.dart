@@ -26,17 +26,21 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
   List<NotificacionItem> _items = [];
   bool _loading = true;
   StreamSubscription<RemoteMessage>? _fcmSub;
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _init();
     _fcmSub = FcmFlutterService.messageStream.listen((_) => _load());
+    // Polling fallback para web/desktop donde FCM no está activo
+    _pollTimer = Timer.periodic(const Duration(seconds: 30), (_) => _load());
   }
 
   @override
   void dispose() {
     _fcmSub?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
@@ -166,6 +170,12 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/logistics',
+          (r) => r.isFirst,
+        );
+      case 'warning':
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/operations',
           (r) => r.isFirst,
         );
       default:
@@ -422,6 +432,8 @@ class _NotifTile extends StatelessWidget {
     'comunicado_proyecto' => Icons.announcement_rounded,
     'recordatorio' => Icons.event_note_rounded,
     'aviso_logistica' => Icons.inventory_2_rounded,
+    'warning' => Icons.warning_amber_rounded,
+    'info' => Icons.info_outline_rounded,
     _ => Icons.notifications_rounded,
   };
 
@@ -433,6 +445,8 @@ class _NotifTile extends StatelessWidget {
     'comunicado_proyecto' => const Color(0xFFF59E0B),
     'recordatorio' => const Color(0xFF8B5CF6),
     'aviso_logistica' => const Color(0xFF06B6D4),
+    'warning' => const Color(0xFFEF4444),
+    'info' => const Color(0xFF06B6D4),
     _ => const Color(0xFF8FD11B),
   };
 
