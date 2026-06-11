@@ -126,6 +126,8 @@ class ProyectoServicioListOut(BaseModel):
     fecha_programada: Optional[str]
     fecha_fin: Optional[str] = None            # fecha real de cierre, para Gantt
     estado_color: str
+    total_tareas: int = 0
+    tareas_completadas: int = 0
 
 
 class DashboardMetricaOut(BaseModel):

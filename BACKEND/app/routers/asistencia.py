@@ -4,22 +4,25 @@ from __future__ import annotations
 import base64
 import logging
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import cast, Date
+from sqlalchemy import cast, Date, or_
 from sqlalchemy.orm import Session
 
 from ..db.database import get_db
 from ..core.security import verificar_token
+from ..core.permisos import exigir_permiso
 from ..models.empleado                      import Empleado
+from ..models.usuario                        import Usuario
 from ..models.foto_biometrica               import FotoBiometrica
 from ..models.foto_asistencia               import FotoAsistencia
 from ..models.geolocalizacion_asistencia    import GeolocalizacionAsistencia
 from ..models.registro_asistencia           import RegistroAsistencia
+from ..models.turno                          import Turno, TurnoEmpleado
 
 from ..services.cloudinary_service import subir_imagen_cloudinary
 from ..services.cloudinary_paths import carpeta_biometrico, carpeta_asistencia
@@ -640,3 +643,314 @@ def historial(
         "por_pagina": por_pagina,
         "hay_mas":    total > pagina * por_pagina,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONTROL DE ASISTENCIAS (supervisión) — requiere permiso asistencia:ver
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Regla de negocio (horario normal): 08:00–17:00 con 1 h de almuerzo = 8 h netas.
+# Las EXCEPCIONES (practicantes, contratos con horario distinto) se modelan con
+# un Turno propio asignado al empleado vía TurnoEmpleado con vigencia. Si un
+# empleado no tiene turno asignado, se usa el turno por defecto de abajo.
+
+_DEF_ENTRADA          = time(8, 0)
+_DEF_SALIDA           = time(17, 0)
+_DEF_ALMUERZO_MIN     = 60
+# Horas netas exigidas por defecto = jornada - almuerzo = 9 h - 1 h = 8 h.
+
+
+def _min_entre(t1: time, t2: time) -> int:
+    """Minutos entre dos horas del mismo día (t2 - t1), nunca negativo."""
+    d = (t2.hour * 60 + t2.minute) - (t1.hour * 60 + t1.minute)
+    return d if d > 0 else 0
+
+
+def _turnos_por_empleado(db: Session, empresa_id: str, fecha: date) -> dict[str, Turno]:
+    """empleado_id → Turno vigente en `fecha` (excepciones). Sin asignación = no
+    aparece en el dict y se usa el turno por defecto."""
+    rows = (
+        db.query(TurnoEmpleado, Turno)
+        .join(Turno, Turno.id == TurnoEmpleado.turno_id)
+        .filter(
+            Turno.empresa_id == empresa_id,
+            TurnoEmpleado.activo == True,
+            Turno.activo == True,
+            TurnoEmpleado.fecha_desde <= fecha,
+            or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= fecha),
+        )
+        .all()
+    )
+    out: dict[str, Turno] = {}
+    for te, turno in rows:
+        out.setdefault(str(te.empleado_id), turno)   # primera asignación vigente gana
+    return out
+
+
+@router.get("/control-diario")
+def control_diario(
+    fecha:   Optional[str] = None,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Resumen de asistencia del día por empleado: entrada/salida/almuerzo, horas
+    trabajadas netas y cumplimiento contra el turno del empleado.
+
+    Requiere permiso `asistencia:ver`."""
+    exigir_permiso(db, payload, "asistencia", "ver")
+    empresa_id = payload["empresa_id"]
+
+    if fecha:
+        try:
+            dia = date.fromisoformat(fecha)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Fecha inválida (use YYYY-MM-DD)")
+    else:
+        dia = datetime.now(ZoneInfo("America/Lima")).date()
+
+    # 1. Empleados activos + datos de usuario
+    empleados = (
+        db.query(
+            Empleado.id.label("emp_id"),
+            Empleado.cargo.label("cargo"),
+            Empleado.tipo.label("tipo"),
+            Usuario.nombre.label("nombre"),
+            Usuario.apellido.label("apellido"),
+        )
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(Empleado.empresa_id == empresa_id, Empleado.activo == True)
+        .order_by(Usuario.nombre.asc(), Usuario.apellido.asc())
+        .all()
+    )
+
+    # 2. Turnos-excepción vigentes ese día
+    turnos = _turnos_por_empleado(db, empresa_id, dia)
+
+    # 3. Registros del día, agrupados por empleado
+    registros = (
+        db.query(RegistroAsistencia)
+        .filter(
+            RegistroAsistencia.empresa_id == empresa_id,
+            cast(RegistroAsistencia.fecha_hora, Date) == dia,
+        )
+        .order_by(RegistroAsistencia.fecha_hora.asc())
+        .all()
+    )
+    reg_por_emp: dict[str, list] = {}
+    for r in registros:
+        reg_por_emp.setdefault(str(r.empleado_id), []).append(r)
+
+    items = []
+    n_completos = n_incompletos = n_en_curso = n_ausentes = 0
+
+    for e in empleados:
+        emp_id = str(e.emp_id)
+        regs   = reg_por_emp.get(emp_id, [])
+
+        entrada = next((r for r in regs if r.tipo == "entrada"), None)
+        salida  = next((r for r in regs if r.tipo == "salida"),  None)
+        ini_alm = next((r for r in regs if r.tipo == "entrada_almuerzo"), None)
+        fin_alm = next((r for r in regs if r.tipo == "salida_almuerzo"),  None)
+
+        # Turno (excepción o por defecto)
+        turno = turnos.get(emp_id)
+        if turno:
+            t_entrada = turno.hora_entrada
+            t_salida  = turno.hora_salida
+            t_almuerzo = turno.duracion_almuerzo_minutos or 0
+            turno_nombre = turno.nombre
+        else:
+            t_entrada, t_salida = _DEF_ENTRADA, _DEF_SALIDA
+            t_almuerzo = _DEF_ALMUERZO_MIN
+            turno_nombre = "Horario normal"
+
+        minutos_requeridos = _min_entre(t_entrada, t_salida) - t_almuerzo
+        if minutos_requeridos < 0:
+            minutos_requeridos = 0
+
+        # Almuerzo realmente tomado (si marcó ambos extremos)
+        minutos_almuerzo = None
+        if ini_alm and fin_alm:
+            minutos_almuerzo = int(
+                (fin_alm.fecha_hora - ini_alm.fecha_hora).total_seconds() // 60
+            )
+
+        # Minutos trabajados netos = (salida - entrada) - almuerzo tomado
+        minutos_trabajados = None
+        if entrada and salida:
+            bruto = int((salida.fecha_hora - entrada.fecha_hora).total_seconds() // 60)
+            minutos_trabajados = max(bruto - (minutos_almuerzo or 0), 0)
+
+        # Estado y cumplimiento
+        if not entrada:
+            estado = "ausente";   n_ausentes += 1
+        elif not salida:
+            estado = "en_curso";  n_en_curso += 1
+        elif (minutos_trabajados or 0) >= minutos_requeridos:
+            estado = "completo";  n_completos += 1
+        else:
+            estado = "incompleto"; n_incompletos += 1
+
+        cumple = estado == "completo"
+
+        def _hhmm(r) -> Optional[str]:
+            return r.fecha_hora.strftime("%H:%M") if r else None
+
+        items.append({
+            "empleado_id":         emp_id,
+            "nombre":              e.nombre or "",
+            "apellido":            e.apellido or "",
+            "cargo":               e.cargo or "",
+            "tipo":                e.tipo or "",
+            "turno_nombre":        turno_nombre,
+            "es_excepcion":        turno is not None,
+            "entrada_hora":        _hhmm(entrada),
+            "salida_hora":         _hhmm(salida),
+            "inicio_almuerzo_hora": _hhmm(ini_alm),
+            "fin_almuerzo_hora":   _hhmm(fin_alm),
+            "minutos_almuerzo":    minutos_almuerzo,
+            "minutos_trabajados":  minutos_trabajados,
+            "minutos_requeridos":  minutos_requeridos,
+            "horas_requeridas":    round(minutos_requeridos / 60, 2),
+            "estado":              estado,
+            "cumple":              cumple,
+        })
+
+    return {
+        "fecha":  dia.isoformat(),
+        "resumen": {
+            "total":       len(items),
+            "completos":   n_completos,
+            "incompletos": n_incompletos,
+            "en_curso":    n_en_curso,
+            "ausentes":    n_ausentes,
+        },
+        "items": items,
+    }
+
+
+# ─── Turnos: listado, alta y asignación de excepciones ────────────────────────
+
+class TurnoCrear(BaseModel):
+    nombre:                    str
+    hora_entrada:              str            # "HH:MM"
+    hora_salida:               str            # "HH:MM"
+    duracion_almuerzo_minutos: int = 60
+    tolerancia_minutos:        int = 5
+
+
+class TurnoAsignar(BaseModel):
+    empleado_id: str
+    turno_id:    str
+    fecha_desde: Optional[str] = None         # YYYY-MM-DD; por defecto hoy
+    fecha_hasta: Optional[str] = None         # YYYY-MM-DD; None = indefinido
+
+
+def _parse_hhmm(valor: str) -> time:
+    try:
+        h, m = valor.strip().split(":")
+        return time(int(h), int(m))
+    except Exception:
+        raise HTTPException(status_code=422, detail=f"Hora inválida: {valor} (use HH:MM)")
+
+
+@router.get("/turnos")
+def listar_turnos(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Turnos de la empresa (incluye el por defecto virtual al inicio)."""
+    exigir_permiso(db, payload, "asistencia", "ver")
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(Turno)
+        .filter(Turno.empresa_id == empresa_id, Turno.activo == True)
+        .order_by(Turno.nombre.asc())
+        .all()
+    )
+    return [
+        {
+            "id":                        str(t.id),
+            "nombre":                    t.nombre,
+            "hora_entrada":              t.hora_entrada.strftime("%H:%M"),
+            "hora_salida":               t.hora_salida.strftime("%H:%M"),
+            "duracion_almuerzo_minutos": t.duracion_almuerzo_minutos or 0,
+            "tolerancia_minutos":        t.tolerancia_minutos or 0,
+            "horas_netas": round(
+                (_min_entre(t.hora_entrada, t.hora_salida) - (t.duracion_almuerzo_minutos or 0)) / 60, 2
+            ),
+        }
+        for t in rows
+    ]
+
+
+@router.post("/turnos")
+def crear_turno(
+    body:    TurnoCrear,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Crea un turno (p. ej. 'Practicante 08:00–13:00'). Requiere asistencia:validar."""
+    exigir_permiso(db, payload, "asistencia", "validar")
+    empresa_id = payload["empresa_id"]
+    turno = Turno(
+        empresa_id                = empresa_id,
+        nombre                    = body.nombre.strip(),
+        hora_entrada              = _parse_hhmm(body.hora_entrada),
+        hora_salida               = _parse_hhmm(body.hora_salida),
+        duracion_almuerzo_minutos = max(body.duracion_almuerzo_minutos, 0),
+        tolerancia_minutos        = max(body.tolerancia_minutos, 0),
+        activo                    = True,
+    )
+    db.add(turno)
+    db.commit()
+    return {"ok": True, "id": str(turno.id)}
+
+
+@router.post("/turno-empleado")
+def asignar_turno(
+    body:    TurnoAsignar,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Asigna un turno-excepción a un empleado con vigencia. Requiere asistencia:validar."""
+    exigir_permiso(db, payload, "asistencia", "validar")
+    empresa_id = payload["empresa_id"]
+
+    emp = db.query(Empleado).filter(
+        Empleado.id == body.empleado_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
+    turno = db.query(Turno).filter(
+        Turno.id == body.turno_id, Turno.empresa_id == empresa_id
+    ).first()
+    if not turno:
+        raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+    desde = date.fromisoformat(body.fecha_desde) if body.fecha_desde else date.today()
+    hasta = date.fromisoformat(body.fecha_hasta) if body.fecha_hasta else None
+
+    # Cerrar asignaciones vigentes anteriores del empleado (una excepción activa
+    # a la vez): se marca fecha_hasta = día previo y activo = False.
+    vigentes = (
+        db.query(TurnoEmpleado)
+        .filter(TurnoEmpleado.empleado_id == body.empleado_id, TurnoEmpleado.activo == True)
+        .all()
+    )
+    for v in vigentes:
+        v.activo = False
+        if v.fecha_hasta is None or v.fecha_hasta >= desde:
+            v.fecha_hasta = desde - timedelta(days=1)
+
+    asign = TurnoEmpleado(
+        empleado_id = body.empleado_id,
+        turno_id    = body.turno_id,
+        fecha_desde = desde,
+        fecha_hasta = hasta,
+        activo      = True,
+    )
+    db.add(asign)
+    db.commit()
+    return {"ok": True, "id": str(asign.id)}

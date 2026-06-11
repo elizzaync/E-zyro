@@ -19,7 +19,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Uplo
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, case
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, aliased
 
@@ -399,6 +399,26 @@ def get_servicios_proyecto(
             .all()
         )
 
+    # Avance por TAREAS: contadores (total y completadas) por servicio en un
+    # solo round-trip. Alimenta la barra de progreso de la lista.
+    svc_ids = [str(ps.id) for ps in servicios]
+    tareas_por_svc: dict[str, tuple[int, int]] = {}
+    if svc_ids:
+        cnt_rows = (
+            db.query(
+                Tarea.proyecto_servicio_id,
+                func.count(Tarea.id).label("total"),
+                func.sum(
+                    case((Tarea.estado == "completado", 1), else_=0)
+                ).label("completadas"),
+            )
+            .filter(Tarea.proyecto_servicio_id.in_(svc_ids))
+            .group_by(Tarea.proyecto_servicio_id)
+            .all()
+        )
+        for sid, total_t, comp_t in cnt_rows:
+            tareas_por_svc[str(sid)] = (int(total_t or 0), int(comp_t or 0))
+
     hoy = date.today()
     result = []
     for ps in servicios:
@@ -409,6 +429,7 @@ def get_servicios_proyecto(
         else:
             estado_color = "amarillo"
 
+        total_t, comp_t = tareas_por_svc.get(str(ps.id), (0, 0))
         result.append(ProyectoServicioListOut(
             id=str(ps.id),
             nombre=ps.nombre or "",
@@ -418,6 +439,8 @@ def get_servicios_proyecto(
             fecha_programada=ps.fecha_programada.strftime("%d %b %Y") if ps.fecha_programada else None,
             fecha_fin=ps.fecha_fin.strftime("%d %b %Y") if ps.fecha_fin else None,
             estado_color=estado_color,
+            total_tareas=total_t,
+            tareas_completadas=comp_t,
         ))
 
     return result
@@ -706,9 +729,16 @@ def get_detalle_servicio(
         for t in tareas_rows
     ]
 
-    # El avance depende SOLO de los procedimientos (pasos fijos).
-    total     = len(procedimientos)
-    completos = sum(1 for p in procedimientos if p.estado == "completado")
+    # El avance depende SOLO de las TAREAS del cronograma (no de los
+    # procedimientos, que ahora son informativos). Se cuentan TODAS las tareas
+    # del servicio, sin el filtro por técnico de arriba.
+    _tareas_avance = (
+        db.query(Tarea.estado)
+        .filter(Tarea.proyecto_servicio_id == servicio_id)
+        .all()
+    )
+    total     = len(_tareas_avance)
+    completos = sum(1 for (e,) in _tareas_avance if e == "completado")
     progreso  = round(completos / total * 100, 1) if total else 0.0
 
     # 5. Materiales (excluye borradores; soporta compras externas con material_id=NULL)
@@ -889,14 +919,17 @@ def actualizar_estado_servicio(
                 detail="Solo el Jefe de Operaciones puede finalizar o cancelar el servicio.",
             )
 
-        # 3. Finalizar requiere el 100% de las tareas completadas.
+        # 3. Finalizar requiere el 100% de las TAREAS del cronograma completadas.
+        #    El avance del servicio se rige por las Tareas (no por los
+        #    Procedimientos, que son informativos / evidencias). Un servicio sin
+        #    tareas puede cerrarse: no hay cronograma que bloquee el cierre.
         if nuevo == "Completado":
-            procs = (
-                db.query(Procedimiento)
-                .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+            tareas = (
+                db.query(Tarea.estado)
+                .filter(Tarea.proyecto_servicio_id == servicio_id)
                 .all()
             )
-            if not procs or any(p.estado != "completado" for p in procs):
+            if any(e != "completado" for (e,) in tareas):
                 raise HTTPException(
                     status_code=409,
                     detail="No puedes finalizar el servicio: faltan tareas por completar.",
@@ -2431,6 +2464,29 @@ def _empleado_es_lider_elegible(db: Session, empleado_id: str, empresa_id: str) 
     return any(_rol_es_lider(n) for (n,) in rows)
 
 
+_ROLES_ADMIN_NORM = {"superadmin", "admin", "administrador"}
+
+
+def _empleado_ids_admin(db: Session, empresa_id: str) -> set[str]:
+    """IDs de empleado cuyo usuario tiene rol Admin/SuperAdmin en la empresa.
+
+    Se usan para EXCLUIR al usuario administrador del sistema (p.ej. "Admin
+    Sistema") de las listas de asignación de equipo de un servicio: el admin
+    gestiona, no se asigna como técnico/responsable.
+    """
+    rows = (
+        db.query(Empleado.id)
+        .join(UsuarioRol, UsuarioRol.usuario_id == Empleado.usuario_id)
+        .join(Rol, Rol.id == UsuarioRol.rol_id)
+        .filter(
+            Empleado.empresa_id == empresa_id,
+            func.replace(func.lower(Rol.nombre), " ", "").in_(_ROLES_ADMIN_NORM),
+        )
+        .all()
+    )
+    return {str(r[0]) for r in rows}
+
+
 _TIPOS_DOC_OK = {"OC", "PROF", "SIN_OC"}
 
 
@@ -2518,6 +2574,7 @@ def get_responsables_servicio(
         .order_by(Usuario.nombre.asc(), Usuario.apellido.asc())
         .all()
     )
+    admin_ids = _empleado_ids_admin(db, empresa_id)
     return [
         PersonaServicioOut(
             id=str(r.emp_id),
@@ -2527,6 +2584,7 @@ def get_responsables_servicio(
             foto_url=r.foto_url or None,
         )
         for r in rows
+        if str(r.emp_id) not in admin_ids
     ]
 
 
@@ -2597,6 +2655,12 @@ def get_personal_tecnicos(
         .order_by(Usuario.nombre.asc(), Usuario.apellido.asc())
         .all()
     )
+
+    # Excluir al usuario administrador del sistema ("Admin Sistema"): gestiona,
+    # no se asigna como técnico/miembro de equipo de un servicio.
+    _admin_ids = _empleado_ids_admin(db, empresa_id)
+    if _admin_ids:
+        emp_rows = [r for r in emp_rows if str(r.emp_id) not in _admin_ids]
 
     # ─────────────────────────────────────────────────────────────────────────
     # 2. Grupos de trabajo activos
