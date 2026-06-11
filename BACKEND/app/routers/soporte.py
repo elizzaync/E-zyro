@@ -394,6 +394,22 @@ def tomar_ticket(
 
     db.commit()
     db.refresh(t)
+
+    # Avisar al reportante que su ticket está siendo atendido.
+    if not ya_era_mio and str(t.reportado_por) != str(usuario_id):
+        try:
+            from ..services.fcm_service import notificar_usuario
+            tecnico = _nombre_usuario(db, usuario_id)
+            notificar_usuario(
+                db, empresa_id=empresa_id, usuario_id=str(t.reportado_por),
+                titulo=f"Ticket {t.codigo} en proceso",
+                mensaje=f"{tecnico} tomó tu ticket '{t.titulo}' y lo está atendiendo.",
+                tipo="info", categoria="soporte",
+                referencia_id=str(t.id), referencia_tabla="ticket_soporte",
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
     return _out(db, t)
 
 
