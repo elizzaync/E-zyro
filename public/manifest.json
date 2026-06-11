@@ -1,0 +1,16 @@
+{
+  "name": "E-Zyro",
+  "short_name": "E-Zyro",
+  "description": "Sistema de gestión E-SystemTIC",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a73e8",
+  "icons": [
+    {
+      "src": "/logo.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
