@@ -1,13 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { Router } from '@angular/router';
 import { RrhhService, EmpleadoLegajoDto } from '../../../core/services/rrhh.service';
 
 @Component({
   selector: 'app-legajo-lista',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './legajo-lista.component.html',
   styleUrls: ['./legajo-lista.component.css']
 })

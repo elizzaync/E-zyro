@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { RrhhService, DocumentoDto, EmpleadoInfoDto } from '../../../core/services/rrhh.service';
 import { AuthService } from '../../../core/services/auth.service';
 
@@ -18,7 +18,7 @@ const TIPOS_DOCUMENTO = [
 @Component({
   selector: 'app-legajo-detalle',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule],
   templateUrl: './legajo-detalle.component.html',
   styleUrls: ['./legajo-detalle.component.css']
 })
@@ -71,10 +71,6 @@ export class LegajoDetalleComponent implements OnInit {
     const u = this.authService.getUsuario();
     const rol = (u?.rol || '').trim();
     return rol === 'Administrador' || rol === 'administrador';
-  }
-
-  get miUsuarioId(): string {
-    return this.authService.getUsuario()?.id ?? '';
   }
 
   get esSelf(): boolean {
