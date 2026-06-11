@@ -194,6 +194,206 @@ def _alertas_mantenimiento_equipos():
         db.close()
 
 
+def _aviso_pre_almuerzo():
+    """
+    11:45 AM Lima: notifica a todos los empleados activos que registraron
+    entrada hoy pero aún no iniciaron su almuerzo.
+    Idempotente: usa (referencia_tabla='asistencia:pre_almuerzo', referencia_id='<empleado_id>:<fecha>')
+    """
+    from app.models.empleado import Empleado
+    from app.models.registro_asistencia import RegistroAsistencia
+    from app.models.usuario import Usuario
+    from sqlalchemy import cast, Date as SaDate
+    import uuid as _uuid
+
+    db: Session = SessionLocal()
+    try:
+        hoy = date.today()
+
+        # Empleados con entrada hoy
+        con_entrada = {
+            r.empleado_id
+            for r in db.query(RegistroAsistencia.empleado_id).filter(
+                RegistroAsistencia.tipo == "entrada",
+                cast(RegistroAsistencia.fecha_hora, SaDate) == hoy,
+            ).all()
+        }
+        if not con_entrada:
+            return
+
+        # Empleados que ya iniciaron almuerzo hoy
+        ya_en_almuerzo = {
+            r.empleado_id
+            for r in db.query(RegistroAsistencia.empleado_id).filter(
+                RegistroAsistencia.tipo == "entrada_almuerzo",
+                cast(RegistroAsistencia.fecha_hora, SaDate) == hoy,
+            ).all()
+        }
+
+        pendientes = con_entrada - ya_en_almuerzo
+        if not pendientes:
+            return
+
+        enviados = 0
+        for emp_id in pendientes:
+            ref_tabla = "asistencia:pre_almuerzo"
+            ref_id    = f"{emp_id}:{hoy.isoformat()}"
+
+            # Idempotencia
+            ya = db.query(Notificacion.id).filter(
+                Notificacion.referencia_tabla == ref_tabla,
+                Notificacion.referencia_id   == ref_id,
+            ).first()
+            if ya:
+                continue
+
+            empleado = db.query(Empleado).filter(Empleado.id == emp_id, Empleado.activo.is_(True)).first()
+            if not empleado:
+                continue
+            usuario = db.query(Usuario).filter(Usuario.id == empleado.usuario_id).first()
+            if not usuario:
+                continue
+
+            titulo  = "Hora del almuerzo"
+            mensaje = "En 15 minutos comienza tu descanso de almuerzo. Prepárate para salir."
+
+            db.add(Notificacion(
+                id=str(_uuid.uuid4()), empresa_id=empleado.empresa_id,
+                usuario_id=usuario.id, tipo="recordatorio", categoria="almuerzo",
+                titulo=titulo, mensaje=mensaje, leido=False, enviado=False,
+                fecha_envio=datetime.utcnow(),
+                referencia_tabla=ref_tabla, referencia_id=ref_id,
+            ))
+            try:
+                enviar_push_a_usuario(usuario_id=usuario.id, titulo=titulo,
+                                      mensaje=mensaje, db=db,
+                                      tipo="recordatorio",
+                                      referencia_tabla=ref_tabla, referencia_id=ref_id)
+            except Exception:
+                pass
+            enviados += 1
+
+        db.commit()
+        print(f"[Scheduler] Avisos pre-almuerzo enviados: {enviados}")
+    except Exception as e:
+        print(f"[Scheduler] Error en aviso pre-almuerzo: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _aviso_fin_almuerzo():
+    """
+    Corre cada 5 min: busca empleados en almuerzo activo cuyo tiempo restante
+    sea <= 10 min y les avisa que deben volver.
+    La duración del almuerzo viene de turno.duracion_almuerzo_minutos (default 60).
+    Idempotente por (referencia_tabla='asistencia:fin_almuerzo', referencia_id=<registro.id>).
+    """
+    from app.models.empleado import Empleado
+    from app.models.registro_asistencia import RegistroAsistencia
+    from app.models.turno import Turno, TurnoEmpleado
+    from app.models.usuario import Usuario
+    from sqlalchemy import cast, Date as SaDate, or_
+    from zoneinfo import ZoneInfo
+    import uuid as _uuid
+
+    db: Session = SessionLocal()
+    try:
+        ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        hoy   = ahora.date()
+
+        # Todos los registros de inicio de almuerzo de hoy
+        en_almuerzo = db.query(RegistroAsistencia).filter(
+            RegistroAsistencia.tipo == "entrada_almuerzo",
+            cast(RegistroAsistencia.fecha_hora, SaDate) == hoy,
+        ).all()
+        if not en_almuerzo:
+            return
+
+        # Empleados que ya marcaron salida de almuerzo hoy
+        ya_salieron = {
+            r.empleado_id
+            for r in db.query(RegistroAsistencia.empleado_id).filter(
+                RegistroAsistencia.tipo == "salida_almuerzo",
+                cast(RegistroAsistencia.fecha_hora, SaDate) == hoy,
+            ).all()
+        }
+
+        enviados = 0
+        for reg in en_almuerzo:
+            if reg.empleado_id in ya_salieron:
+                continue
+
+            # Duración configurada en turno, o 60 min por defecto
+            duracion = 60
+            te = db.query(TurnoEmpleado).filter(
+                TurnoEmpleado.empleado_id == reg.empleado_id,
+                TurnoEmpleado.activo.is_(True),
+                TurnoEmpleado.fecha_desde <= hoy,
+                or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= hoy),
+            ).first()
+            if te:
+                turno = db.query(Turno).filter(Turno.id == te.turno_id).first()
+                if turno and turno.duracion_almuerzo_minutos:
+                    duracion = turno.duracion_almuerzo_minutos
+
+            fin_esperado = reg.fecha_hora + timedelta(minutes=duracion)
+            aviso_desde  = fin_esperado - timedelta(minutes=10)
+
+            # Solo avisar en la ventana [aviso_desde, fin_esperado]
+            if not (aviso_desde <= ahora <= fin_esperado):
+                continue
+
+            # Idempotencia
+            ref_tabla = "asistencia:fin_almuerzo"
+            ref_id    = reg.id
+            ya = db.query(Notificacion.id).filter(
+                Notificacion.referencia_tabla == ref_tabla,
+                Notificacion.referencia_id   == ref_id,
+            ).first()
+            if ya:
+                continue
+
+            empleado = db.query(Empleado).filter(Empleado.id == reg.empleado_id).first()
+            if not empleado:
+                continue
+            usuario = db.query(Usuario).filter(Usuario.id == empleado.usuario_id).first()
+            if not usuario:
+                continue
+
+            minutos_restantes = max(0, int((fin_esperado - ahora).total_seconds() // 60))
+            titulo  = "Fin del descanso"
+            mensaje = (
+                f"Tu descanso termina en {minutos_restantes} min. "
+                "Recuerda marcar tu regreso del almuerzo."
+            )
+
+            db.add(Notificacion(
+                id=str(_uuid.uuid4()), empresa_id=empleado.empresa_id,
+                usuario_id=usuario.id, tipo="recordatorio", categoria="almuerzo",
+                titulo=titulo, mensaje=mensaje, leido=False, enviado=False,
+                fecha_envio=datetime.utcnow(),
+                referencia_tabla=ref_tabla, referencia_id=ref_id,
+            ))
+            try:
+                enviar_push_a_usuario(usuario_id=usuario.id, titulo=titulo,
+                                      mensaje=mensaje, db=db,
+                                      tipo="recordatorio",
+                                      referencia_tabla=ref_tabla, referencia_id=ref_id)
+            except Exception:
+                pass
+            enviados += 1
+
+        db.commit()
+        if enviados:
+            print(f"[Scheduler] Avisos fin de almuerzo enviados: {enviados}")
+    except Exception as e:
+        print(f"[Scheduler] Error en aviso fin de almuerzo: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def iniciar_scheduler():
     """Registra las tareas y arranca el scheduler. Llamar desde main.py."""
     # Recordatorio diario a las 08:00 AM
@@ -210,8 +410,23 @@ def iniciar_scheduler():
         id="alertas_mantenimiento",
         replace_existing=True
     )
+    # Aviso pre-almuerzo: 11:45 AM, empleados con entrada sin almuerzo aún
+    scheduler.add_job(
+        func=_aviso_pre_almuerzo,
+        trigger=CronTrigger(hour=11, minute=45),
+        id="aviso_pre_almuerzo",
+        replace_existing=True
+    )
+    # Aviso fin de almuerzo: cada 5 min, 10 min antes de que termine el descanso
+    scheduler.add_job(
+        func=_aviso_fin_almuerzo,
+        trigger=CronTrigger(minute="*/5"),
+        id="aviso_fin_almuerzo",
+        replace_existing=True
+    )
     scheduler.start()
-    print("⏰ Scheduler iniciado → recordatorios 08:00 + alertas mantenimiento 08:15")
+    print("⏰ Scheduler iniciado → recordatorios 08:00 + alertas mantenimiento 08:15 "
+          "+ aviso pre-almuerzo 11:45 + aviso fin almuerzo cada 5 min")
 def detener_scheduler():
     """Detiene el scheduler al cerrar la app."""
     if scheduler.running:
