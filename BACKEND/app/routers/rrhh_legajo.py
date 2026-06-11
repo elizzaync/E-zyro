@@ -17,6 +17,8 @@ import uuid as _uuid
 from datetime import datetime
 
 import cloudinary.uploader as _cu
+from typing import Optional
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy import exists, and_, func
 from sqlalchemy.orm import Session
@@ -184,6 +186,58 @@ def detalle_empleado(
     }
 
 
+# ── 2b. GET /rrhh/legajo/{empleado_id}/documentos ───────────────────────────
+
+_MESES_ES = [
+    "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+]
+
+@router.get("/rrhh/legajo/{empleado_id}/documentos")
+def listar_documentos_empleado(
+    empleado_id: str,
+    db: Session = Depends(get_db),
+    payload: dict = Depends(verificar_token),
+):
+    """Lista los documentos laborales del empleado, ordenados por fecha de emisión descendente."""
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
+    docs = (
+        db.query(DocumentoLaboral)
+        .filter(
+            DocumentoLaboral.empleado_id == empleado_id,
+            DocumentoLaboral.empresa_id == empresa_id,
+        )
+        .order_by(DocumentoLaboral.fecha_emision.desc(), DocumentoLaboral.created_at.desc())
+        .all()
+    )
+
+    doc_ids = [d.id for d in docs]
+    firmado_map: dict = {}
+    if doc_ids:
+        for did, dt in (
+            db.query(DocumentoFirmado.documento_id, DocumentoFirmado.firmado_en)
+            .filter(
+                DocumentoFirmado.documento_id.in_(doc_ids),
+                DocumentoFirmado.tabla_documento == "documento_laboral",
+            )
+            .all()
+        ):
+            firmado_map[did] = dt
+
+    return {
+        "documentos": [_doc_dict(d, d.id in firmado_map, firmado_map.get(d.id)) for d in docs],
+        "total": len(docs),
+    }
+
+
 # ── 3. POST /rrhh/legajo/{empleado_id}/documento ─────────────────────────────
 
 @router.post("/rrhh/legajo/{empleado_id}/documento", status_code=201)
@@ -193,6 +247,8 @@ async def subir_documento(
     nombre: str = Form(...),
     fecha_emision: str = Form(...),
     requiere_firma: bool = Form(False),
+    mes: Optional[int] = Form(None, ge=1, le=12),
+    anio: Optional[int] = Form(None, ge=2000, le=2100),
     archivo: UploadFile = File(...),
     db: Session = Depends(get_db),
     payload: dict = Depends(verificar_token),
@@ -230,12 +286,21 @@ async def subir_documento(
     except ValueError:
         raise HTTPException(status_code=422, detail="Formato de fecha inválido. Use YYYY-MM-DD")
 
+    # Boleta Mensual: nombre y fecha se generan desde mes/anio si no vienen explícitos
+    nombre_final = nombre.strip() or nombre
+    tipo_norm = tipo.strip().lower().replace(" ", "_")
+    if tipo_norm == "boleta_mensual" and mes and anio:
+        if not nombre.strip():
+            nombre_final = f"Boleta de Pago - {_MESES_ES[mes]} {anio}"
+        from datetime import date as _date
+        fecha_dt = _date(anio, mes, 1)
+
     doc = DocumentoLaboral(
         id=str(_uuid.uuid4()),
         empleado_id=empleado_id,
         empresa_id=empresa_id,
         tipo=tipo,
-        nombre=nombre,
+        nombre=nombre_final,
         url_archivo=url,
         public_id_cloudinary=public_id,
         fecha_emision=fecha_dt,
