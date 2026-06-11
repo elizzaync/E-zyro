@@ -391,7 +391,12 @@ class _PantallaPlanosState extends State<PantallaPlanos> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _volver();
       },
-      child: Scaffold(
+      child: TopoBackground(
+        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
+        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        count: 16, amp: 9, stroke: 0.36, speed: 0.4,
+        child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           leading: const BackButton(),
@@ -409,12 +414,7 @@ class _PantallaPlanosState extends State<PantallaPlanos> {
                 child: const Icon(Icons.add),
               )
             : null,
-        body: TopoBackground(
-          c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-          c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-          base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
-          count: 16, amp: 9, stroke: 0.36, speed: 0.4,
-          child: Column(
+        body: Column(
             children: [
               _breadcrumb(),
               Expanded(

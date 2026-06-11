@@ -79,7 +79,15 @@ class _ComunicadosScreenState extends State<ComunicadosScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final noLeidos = _comunicados.where((c) => !c.leido).length;
 
-    return Scaffold(
+    return TopoBackground(
+      c1: isDark ? const Color(0xFF3D0000) : const Color(0xFF7A0000),
+      c2: isDark ? const Color(0xFF6B1A00) : const Color(0xFFB22222),
+      base: isDark ? const Color(0xFF100000) : const Color(0xFFFFF5F5),
+      count: 14,
+      amp: 8,
+      stroke: 0.35,
+      speed: 0.4,
+      child: Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         leading: const BackButton(),
@@ -126,15 +134,7 @@ class _ComunicadosScreenState extends State<ComunicadosScreen> {
             ),
         ],
       ),
-      body: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
-        count: 14,
-        amp: 8,
-        stroke: 0.35,
-        speed: 0.4,
-        child: _isLoading
+      body: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(color: _kRed),
               )
