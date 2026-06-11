@@ -55,16 +55,19 @@ def _nombre_empleado(db: Session, empleado_id: str) -> Optional[str]:
 # ── Criterios ────────────────────────────────────────────────────────────────
 @router.get("/criterios", response_model=List[CriterioOut])
 def listar_criterios(
+    tipo: Optional[str] = Query(None, description="rrhh|jefe_directo|companero"),
     incluir_inactivos: bool = Query(False),
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     qry = db.query(CriterioEvaluacion).filter(
         CriterioEvaluacion.empresa_id == payload["empresa_id"])
+    if tipo:
+        qry = qry.filter(CriterioEvaluacion.tipo == tipo)
     if not incluir_inactivos:
         qry = qry.filter(CriterioEvaluacion.activo == True)  # noqa: E712
     return [
         CriterioOut(id=str(c.id), nombre=c.nombre, descripcion=c.descripcion,
-                    peso=float(c.peso), activo=bool(c.activo))
+                    peso=float(c.peso), tipo=c.tipo, activo=bool(c.activo))
         for c in qry.order_by(CriterioEvaluacion.nombre).all()
     ]
 
@@ -74,12 +77,13 @@ def crear_criterio(body: CriterioIn, payload: dict = Depends(verificar_token), d
     exigir_permiso(db, payload, "evaluacion", "crear")
     c = CriterioEvaluacion(
         id=str(_uuid.uuid4()), empresa_id=payload["empresa_id"],
-        nombre=body.nombre, descripcion=body.descripcion, peso=body.peso, activo=True,
+        nombre=body.nombre, descripcion=body.descripcion, peso=body.peso,
+        tipo=body.tipo, activo=True,
     )
     db.add(c)
     db.commit()
     return CriterioOut(id=str(c.id), nombre=c.nombre, descripcion=c.descripcion,
-                       peso=float(c.peso), activo=True)
+                       peso=float(c.peso), tipo=c.tipo, activo=True)
 
 
 @router.put("/criterios/{crit_id}", response_model=CriterioOut)
@@ -93,9 +97,10 @@ def editar_criterio(crit_id: str, body: CriterioIn, payload: dict = Depends(veri
     c.nombre = body.nombre
     c.descripcion = body.descripcion
     c.peso = body.peso
+    c.tipo = body.tipo
     db.commit()
     return CriterioOut(id=str(c.id), nombre=c.nombre, descripcion=c.descripcion,
-                       peso=float(c.peso), activo=bool(c.activo))
+                       peso=float(c.peso), tipo=c.tipo, activo=bool(c.activo))
 
 
 @router.delete("/criterios/{crit_id}", status_code=204)
@@ -137,6 +142,7 @@ def _eval_out(db: Session, ev: Evaluacion, con_detalles: bool = True) -> Evaluac
         empleado_nombre=_nombre_empleado(db, str(ev.empleado_id)),
         evaluador_id=str(ev.evaluador_id),
         evaluador_nombre=_nombre_empleado(db, str(ev.evaluador_id)),
+        tipo=getattr(ev, "tipo", "rrhh") or "rrhh",
         periodo=ev.periodo, estado=ev.estado,
         fecha=(str(ev.fecha) if ev.fecha else None),
         promedio=promedio, detalles=detalles_out,
@@ -147,6 +153,7 @@ def _eval_out(db: Session, ev: Evaluacion, con_detalles: bool = True) -> Evaluac
 def listar(
     empleado_id: Optional[str] = Query(None),
     estado: Optional[str] = Query(None),
+    tipo: Optional[str] = Query(None),
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     qry = db.query(Evaluacion).filter(Evaluacion.empresa_id == payload["empresa_id"])
@@ -154,6 +161,8 @@ def listar(
         qry = qry.filter(Evaluacion.empleado_id == empleado_id)
     if estado:
         qry = qry.filter(Evaluacion.estado == estado)
+    if tipo:
+        qry = qry.filter(Evaluacion.tipo == tipo)
     rows = qry.order_by(Evaluacion.fecha.desc()).limit(500).all()
     return [_eval_out(db, ev, con_detalles=False) for ev in rows]
 
@@ -198,8 +207,8 @@ def crear(body: EvaluacionIn, payload: dict = Depends(verificar_token), db: Sess
         raise HTTPException(status_code=404, detail="Empleado evaluado no encontrado")
     ev = Evaluacion(
         id=str(_uuid.uuid4()), empresa_id=empresa_id, empleado_id=body.empleado_id,
-        evaluador_id=str(evaluador.id), periodo=body.periodo, estado="borrador",
-        fecha=_parse_date(body.fecha) or date.today(),
+        evaluador_id=str(evaluador.id), tipo=body.tipo, periodo=body.periodo,
+        estado="borrador", fecha=_parse_date(body.fecha) or date.today(),
     )
     db.add(ev)
     db.flush()

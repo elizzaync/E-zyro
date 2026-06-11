@@ -11,6 +11,8 @@ class CriterioEvaluacion(Base):
 
     id          = Column(String(36), primary_key=True, default=_uuid)
     empresa_id  = Column(String(36), ForeignKey("empresa.id"), nullable=False)
+    # Tipo de evaluación al que pertenece el criterio: rrhh|jefe_directo|companero
+    tipo        = Column(String(20), nullable=False, default="rrhh")
     nombre      = Column(String(150), nullable=False)
     descripcion = Column(String(255), nullable=True)
     peso        = Column(Numeric(5, 2), nullable=False)
@@ -24,6 +26,8 @@ class Evaluacion(Base):
     empresa_id   = Column(String(36), ForeignKey("empresa.id"), nullable=False)
     empleado_id  = Column(String(36), ForeignKey("empleado.id"), nullable=False)
     evaluador_id = Column(String(36), ForeignKey("empleado.id"), nullable=False)
+    # Tipo de evaluación: rrhh|jefe_directo|companero
+    tipo         = Column(String(20), nullable=False, default="rrhh")
     periodo      = Column(String(50), nullable=False)
     estado       = Column(String(20), nullable=False, default="borrador")  # borrador|enviada|completada
     fecha        = Column(Date, nullable=False)

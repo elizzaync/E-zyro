@@ -4,12 +4,21 @@ from __future__ import annotations
 from typing import List, Optional
 from pydantic import BaseModel, field_validator
 
+TIPOS_EVALUACION = ("rrhh", "jefe_directo", "companero")
+
+
+def _validar_tipo(v: str) -> str:
+    if v not in TIPOS_EVALUACION:
+        raise ValueError(f"tipo debe ser uno de {TIPOS_EVALUACION}")
+    return v
+
 
 # ── Criterios ────────────────────────────────────────────────────────────────
 class CriterioIn(BaseModel):
     nombre:      str
     descripcion: Optional[str] = None
     peso:        float = 1.0
+    tipo:        str = "rrhh"
 
     @field_validator("peso")
     @classmethod
@@ -18,12 +27,18 @@ class CriterioIn(BaseModel):
             raise ValueError("peso debe ser > 0")
         return v
 
+    @field_validator("tipo")
+    @classmethod
+    def _tipo_ok(cls, v: str) -> str:
+        return _validar_tipo(v)
+
 
 class CriterioOut(BaseModel):
     id:          str
     nombre:      str
     descripcion: Optional[str] = None
     peso:        float
+    tipo:        str = "rrhh"
     activo:      bool = True
 
 
@@ -54,8 +69,14 @@ class DetalleOut(BaseModel):
 class EvaluacionIn(BaseModel):
     empleado_id:  str
     periodo:      str
+    tipo:         str = "rrhh"
     fecha:        Optional[str] = None       # ISO; default hoy
     detalles:     List[DetalleIn] = []
+
+    @field_validator("tipo")
+    @classmethod
+    def _tipo_ok(cls, v: str) -> str:
+        return _validar_tipo(v)
 
 
 class EvaluacionOut(BaseModel):
@@ -64,6 +85,7 @@ class EvaluacionOut(BaseModel):
     empleado_nombre:  Optional[str] = None
     evaluador_id:     str
     evaluador_nombre: Optional[str] = None
+    tipo:             str = "rrhh"
     periodo:          str
     estado:           str
     fecha:            Optional[str] = None
