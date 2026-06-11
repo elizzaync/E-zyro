@@ -18,11 +18,47 @@ from sqlalchemy.orm import Session
 
 _ROLES_ADMIN = {"superadmin", "admin", "administrador"}
 
+# Nombres exactos de roles en BD (normalizados a minúsculas sin espacios extra)
+_ROL_TECNICO          = "técnicodecampo"
+_ROL_JEFE_OPERACIONES = "jefedeoperaciones"
+
+
+def _normalizar_rol(payload: dict) -> str:
+    return (payload.get("rol") or "").lower().strip().replace(" ", "").replace("\xa0", "")
+
 
 def es_admin(payload: dict) -> bool:
-    """SuperAdmin/Admin tienen permiso absoluto, sin consultar BD.
-    Normaliza espacios para reconocer "Super Admin" además de "SuperAdmin"."""
-    return (payload.get("rol") or "").lower().strip().replace(" ", "") in _ROLES_ADMIN
+    """SuperAdmin/Admin tienen permiso absoluto, sin consultar BD."""
+    return _normalizar_rol(payload) in _ROLES_ADMIN
+
+
+def es_tecnico(payload: dict) -> bool:
+    """True si el usuario tiene el rol Técnico de Campo."""
+    return _normalizar_rol(payload) == _ROL_TECNICO
+
+
+def es_jefe_operaciones(payload: dict) -> bool:
+    """True si el usuario tiene el rol Jefe de Operaciones."""
+    return _normalizar_rol(payload) == _ROL_JEFE_OPERACIONES
+
+
+def exigir_no_tecnico(payload: dict, mensaje: str = "Acción no permitida para Técnico") -> None:
+    """Lanza 403 si el usuario es Técnico de Campo."""
+    if es_tecnico(payload):
+        raise HTTPException(status_code=403, detail=mensaje)
+
+
+def exigir_solo_admin(payload: dict, mensaje: str = "Solo administradores pueden realizar esta acción") -> None:
+    """Lanza 403 si el usuario no es admin (bloquea Técnico y Jefe de Operaciones)."""
+    if not es_admin(payload):
+        raise HTTPException(status_code=403, detail=mensaje)
+
+
+def exigir_no_roles_operativos(payload: dict, mensaje: str = "Acceso no autorizado para este rol") -> None:
+    """Lanza 403 si el usuario es Técnico o Jefe de Operaciones (módulos bloqueados para ambos)."""
+    rol = _normalizar_rol(payload)
+    if rol in (_ROL_TECNICO, _ROL_JEFE_OPERACIONES):
+        raise HTTPException(status_code=403, detail=mensaje)
 
 
 def tiene_permiso(db: Session, payload: dict, modulo: str, accion: str) -> bool:

@@ -18,5 +18,6 @@ class Auditoria(Base):
     ip = Column(String(45), nullable=True)
     user_agent = Column(String(500), nullable=True)
     descripcion = Column(String(500), nullable=True)
+    justificacion = Column(String(1000), nullable=True)
     # Manejo de fecha automática
     fecha = Column(DateTime, default=datetime.utcnow, nullable=False)
