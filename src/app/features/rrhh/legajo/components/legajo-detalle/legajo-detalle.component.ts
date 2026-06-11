@@ -2,8 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { RrhhService, DocumentoDto, EmpleadoInfoDto } from '../../../core/services/rrhh.service';
-import { AuthService } from '../../../core/services/auth.service';
+import { RrhhService, DocumentoDto, EmpleadoInfoDto } from '../../../../../core/services/rrhh.service';
+import { AuthService } from '../../../../../core/services/auth.service';
 
 const TIPOS_DOCUMENTO = [
   'Contrato',
