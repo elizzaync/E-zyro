@@ -136,9 +136,9 @@ class _PantallaSoporteState extends State<PantallaSoporte> {
             style: TextStyle(fontWeight: FontWeight.w600)),
       ),
       body: TopoBackground(
-        c1: isDark ? const Color(0xFF1E1B4B) : const Color(0xFF3730A3),
-        c2: isDark ? const Color(0xFF3730A3) : const Color(0xFF6366F1),
-        base: isDark ? const Color(0xFF0B0B14) : const Color(0xFFF5F5FF),
+        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
+        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
         count: 14,
         amp: 8,
         stroke: 0.35,
