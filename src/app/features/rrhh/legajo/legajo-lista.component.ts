@@ -1,17 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
-
-export interface EmpleadoLegajo {
-  id: string;
-  nombreCompleto: string;
-  cargo: string;
-  estado: 'Activo' | 'Inactivo';
-  documentosCount: number;
-  iniciales: string;
-  ultimaActualizacion: string;
-}
+import { Router, RouterModule } from '@angular/router';
+import { RrhhService, EmpleadoLegajoDto } from '../../../core/services/rrhh.service';
 
 @Component({
   selector: 'app-legajo-lista',
@@ -21,45 +12,50 @@ export interface EmpleadoLegajo {
   styleUrls: ['./legajo-lista.component.css']
 })
 export class LegajoListaComponent implements OnInit {
-  searchTerm: string = '';
+  searchTerm = '';
   filtroEstado: 'Todos' | 'Activo' | 'Inactivo' = 'Todos';
+  empleados: EmpleadoLegajoDto[] = [];
+  cargando = true;
+  error = '';
 
-  // Mock Data extendida
-  empleados: EmpleadoLegajo[] = [
-    { id: '1', nombreCompleto: 'Carlos Mendoza', cargo: 'Jefe de Operaciones', estado: 'Activo', documentosCount: 12, iniciales: 'CM', ultimaActualizacion: 'Hoy, 09:30 AM' },
-    { id: '2', nombreCompleto: 'Lucía Díaz', cargo: 'Supervisor', estado: 'Activo', documentosCount: 8, iniciales: 'LD', ultimaActualizacion: 'Ayer' },
-    { id: '3', nombreCompleto: 'Marco Quispe', cargo: 'Técnico Mecánico', estado: 'Activo', documentosCount: 4, iniciales: 'MQ', ultimaActualizacion: 'Hace 3 días' },
-    { id: '4', nombreCompleto: 'Rosa Huanca', cargo: 'Técnico de Campo', estado: 'Activo', documentosCount: 5, iniciales: 'RH', ultimaActualizacion: 'Hace 1 sem.' },
-    { id: '5', nombreCompleto: 'Luis Vargas', cargo: 'Logístico', estado: 'Inactivo', documentosCount: 15, iniciales: 'LV', ultimaActualizacion: 'Hace 2 meses' }
-  ];
+  constructor(private rrhhService: RrhhService, private router: Router) {}
 
-  constructor() {}
+  ngOnInit(): void {
+    this.rrhhService.getEmpleados().subscribe({
+      next: (res) => {
+        this.empleados = res.empleados;
+        this.cargando = false;
+      },
+      error: () => {
+        this.error = 'No se pudo cargar el listado de empleados.';
+        this.cargando = false;
+      }
+    });
+  }
 
-  ngOnInit(): void {}
-
-  // Cálculo de KPIs en tiempo real
   get stats() {
     return {
       total: this.empleados.length,
       activos: this.empleados.filter(e => e.estado === 'Activo').length,
-      totalDocs: this.empleados.reduce((acc, curr) => acc + curr.documentosCount, 0)
+      totalDocs: this.empleados.reduce((acc, e) => acc + e.documentosCount, 0)
     };
   }
 
-  // Filtrado doble (por texto y por pestaña de estado)
-  get filteredEmpleados(): EmpleadoLegajo[] {
+  get filteredEmpleados(): EmpleadoLegajoDto[] {
     return this.empleados.filter(emp => {
       const matchName = !this.searchTerm ||
         emp.nombreCompleto.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
         emp.cargo.toLowerCase().includes(this.searchTerm.toLowerCase());
-
       const matchEstado = this.filtroEstado === 'Todos' || emp.estado === this.filtroEstado;
-
       return matchName && matchEstado;
     });
   }
 
   setFiltro(estado: 'Todos' | 'Activo' | 'Inactivo') {
     this.filtroEstado = estado;
+  }
+
+  abrirExpediente(empleado: EmpleadoLegajoDto) {
+    this.router.navigate(['/rrhh/legajo', empleado.id]);
   }
 }

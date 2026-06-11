@@ -1,0 +1,316 @@
+<div class="detalle-wrapper fade-in">
+
+    <!-- ── Estado de carga / error ── -->
+    @if (cargando) {
+    <div class="state-center">
+        <div class="spinner"></div>
+        <p>Cargando expediente…</p>
+    </div>
+    } @else if (error) {
+    <div class="state-center">
+        <p class="error-msg">{{ error }}</p>
+        <button class="btn-secondary" (click)="volver()">Volver</button>
+    </div>
+    } @else if (empleado) {
+
+    <!-- ── Cabecera ── -->
+    <div class="detalle-header">
+        <button class="btn-back" (click)="volver()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" width="18" height="18">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Legajo Digital
+        </button>
+
+        <div class="emp-hero card-panel">
+            <div class="emp-avatar-lg">
+                @if (empleado.fotoUrl) {
+                <img [src]="empleado.fotoUrl" [alt]="empleado.nombreCompleto" width="64" height="64" />
+                } @else {
+                <span>{{ empleado.iniciales }}</span>
+                }
+            </div>
+            <div class="emp-hero-info">
+                <h1 class="emp-hero-name">{{ empleado.nombreCompleto }}</h1>
+                <p class="emp-hero-sub">{{ empleado.cargo }}{{ empleado.area ? ' · ' + empleado.area : '' }}</p>
+                <span class="badge" [class.badge-active]="empleado.estado === 'Activo'"
+                    [class.badge-inactive]="empleado.estado !== 'Activo'">{{ empleado.estado }}</span>
+            </div>
+            <div class="emp-hero-meta">
+                <div class="meta-item">
+                    <span class="meta-label">Documentos</span>
+                    <span class="meta-value">{{ documentos.length }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Firmados</span>
+                    <span class="meta-value">{{ firmadosCount }}</span>
+                </div>
+                @if (empleado.fechaIngreso) {
+                <div class="meta-item">
+                    <span class="meta-label">Ingreso</span>
+                    <span class="meta-value">{{ formatearFecha(empleado.fechaIngreso) }}</span>
+                </div>
+                }
+            </div>
+            @if (isAdmin) {
+            <button class="btn-primary btn-upload" (click)="abrirUploadModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Subir Documento
+            </button>
+            }
+        </div>
+    </div>
+
+    <!-- ── Tabla de documentos ── -->
+    <div class="card-panel table-container">
+        @if (documentos.length === 0) {
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <h3>Sin documentos</h3>
+            <p>Aún no se han subido documentos para este empleado.</p>
+        </div>
+        } @else {
+        <table class="doc-table">
+            <thead>
+                <tr>
+                    <th>Tipo</th>
+                    <th>Nombre del documento</th>
+                    <th>Fecha emisión</th>
+                    <th>Subido</th>
+                    <th class="text-center">Estado firma</th>
+                    <th class="text-right">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (doc of documentos; track doc.id) {
+                <tr>
+                    <td><span class="type-badge">{{ doc.tipo }}</span></td>
+                    <td class="doc-nombre">{{ doc.nombre }}</td>
+                    <td>{{ formatearFecha(doc.fecha_emision) }}</td>
+                    <td class="text-muted">{{ formatearFecha(doc.created_at) }}</td>
+                    <td class="text-center">
+                        @if (doc.firmado) {
+                        <span class="firma-badge firma-ok">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Firmado
+                        </span>
+                        } @else {
+                        <span class="firma-badge firma-pend">Pendiente</span>
+                        }
+                    </td>
+                    <td class="text-right actions-cell">
+                        <a [href]="doc.url_archivo" target="_blank" rel="noopener" class="btn-secondary btn-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            Ver PDF
+                        </a>
+                        @if (!doc.firmado && esSelf) {
+                        <button class="btn-sign btn-sm" (click)="abrirFirmarModal(doc)">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            Firmar
+                        </button>
+                        }
+                        @if (isAdmin) {
+                        <button class="btn-danger btn-sm" (click)="pedirConfirmEliminar(doc)">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" width="14" height="14">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                        }
+                    </td>
+                </tr>
+                }
+            </tbody>
+        </table>
+        }
+    </div>
+
+    }<!-- end @else if empleado -->
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL — Subir Documento
+     ════════════════════════════════════════════════════════════════════════ -->
+@if (showUploadModal) {
+<div class="modal-backdrop" (click)="cerrarUploadModal()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+            <h2 class="modal-title">Subir Documento</h2>
+            <button class="modal-close" (click)="cerrarUploadModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-body">
+            @if (uploadError) {
+            <div class="alert-error">{{ uploadError }}</div>
+            }
+
+            <div class="form-group">
+                <label class="form-label">Tipo de documento <span class="req">*</span></label>
+                <select class="form-select" [(ngModel)]="uploadForm.tipo">
+                    <option value="" disabled>Selecciona un tipo…</option>
+                    @for (t of tiposDocumento; track t) {
+                    <option [value]="t">{{ t }}</option>
+                    }
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Nombre del documento <span class="req">*</span></label>
+                <input type="text" class="form-input" placeholder="Ej: Contrato de trabajo 2025"
+                    [(ngModel)]="uploadForm.nombre" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Fecha de emisión <span class="req">*</span></label>
+                <input type="date" class="form-input" [(ngModel)]="uploadForm.fechaEmision" />
+            </div>
+
+            <div class="form-group file-group">
+                <label class="form-label">Archivo PDF <span class="req">*</span></label>
+                <label class="file-drop">
+                    <input type="file" accept=".pdf,application/pdf" (change)="onArchivoSeleccionado($event)"
+                        class="file-input-hidden" />
+                    @if (archivoSeleccionado) {
+                    <span class="file-name">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" width="16" height="16">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {{ archivoSeleccionado.name }}
+                    </span>
+                    } @else {
+                    <span class="file-placeholder">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Haz clic o arrastra un PDF aquí (máx. 20 MB)
+                    </span>
+                    }
+                </label>
+            </div>
+
+            <label class="checkbox-row">
+                <input type="checkbox" [(ngModel)]="uploadForm.requiereFirma" />
+                <span>Requiere firma electrónica del empleado</span>
+            </label>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-secondary" (click)="cerrarUploadModal()" [disabled]="uploadCargando">Cancelar</button>
+            <button class="btn-primary" (click)="subirDocumento()" [disabled]="uploadCargando">
+                @if (uploadCargando) { Subiendo… } @else { Subir Documento }
+            </button>
+        </div>
+    </div>
+</div>
+}
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL — Firmar Documento
+     ════════════════════════════════════════════════════════════════════════ -->
+@if (showFirmarModal) {
+<div class="modal-backdrop" (click)="cerrarFirmarModal()">
+    <div class="modal-card modal-firma" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+            <h2 class="modal-title">Firma Electrónica</h2>
+            <button class="modal-close" (click)="cerrarFirmarModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" width="20" height="20">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="modal-body">
+            @if (firmarError) {
+            <div class="alert-error">{{ firmarError }}</div>
+            }
+
+            <p class="firma-doc-nombre">
+                <strong>Documento:</strong> {{ docParaFirmar?.nombre }}
+            </p>
+
+            <div class="firma-preview-wrap">
+                @if (firmaUrl) {
+                <img [src]="firmaUrl" alt="Tu firma digital" class="firma-preview" width="300" height="150" />
+                <p class="firma-preview-label">Esta es tu firma digital registrada</p>
+                } @else {
+                <div class="firma-no-firma">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="1.5" width="40" height="40">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p>No tienes una firma digital registrada.<br>Regístrala desde tu perfil.</p>
+                </div>
+                }
+            </div>
+
+            <p class="firma-disclaimer">
+                Al confirmar, tu firma digital quedará registrada en este documento con marca de tiempo y dirección IP.
+            </p>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-secondary" (click)="cerrarFirmarModal()" [disabled]="firmarCargando">Cancelar</button>
+            <button class="btn-primary" (click)="confirmarFirma()" [disabled]="firmarCargando || !firmaUrl">
+                @if (firmarCargando) { Firmando… } @else { Confirmar Firma }
+            </button>
+        </div>
+    </div>
+</div>
+}
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL — Confirmar Eliminar
+     ════════════════════════════════════════════════════════════════════════ -->
+@if (showConfirmEliminar) {
+<div class="modal-backdrop" (click)="cancelarEliminar()">
+    <div class="modal-card modal-confirm" (click)="$event.stopPropagation()">
+        <div class="modal-head">
+            <h2 class="modal-title modal-title-danger">Eliminar documento</h2>
+        </div>
+        <div class="modal-body">
+            <p>¿Seguro que deseas eliminar <strong>{{ docParaEliminar?.nombre }}</strong>? Esta acción no puede
+                deshacerse.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-secondary" (click)="cancelarEliminar()"
+                [disabled]="eliminandoCargando">Cancelar</button>
+            <button class="btn-danger-solid" (click)="confirmarEliminar()" [disabled]="eliminandoCargando">
+                @if (eliminandoCargando) { Eliminando… } @else { Sí, eliminar }
+            </button>
+        </div>
+    </div>
+</div>
+}

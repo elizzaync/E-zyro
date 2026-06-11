@@ -1,0 +1,443 @@
+/* ==========================================================
+   LEGAJO DIGITAL — DETALLE DE EMPLEADO
+   ========================================================== */
+
+.detalle-wrapper {
+  padding: 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Estados de carga / error ── */
+.state-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 20px;
+  color: var(--text-muted);
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--brand-green);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-msg { color: #ef4444; font-size: 14px; }
+
+/* ── Botón Volver ── */
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+.btn-back:hover {
+  border-color: var(--brand-green);
+  color: var(--brand-green);
+}
+
+/* ── Hero card del empleado ── */
+.emp-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px 24px;
+  flex-wrap: wrap;
+}
+.emp-avatar-lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--brand-green);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 800;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.emp-avatar-lg img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.emp-hero-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.emp-hero-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.emp-hero-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.emp-hero-meta {
+  display: flex;
+  gap: 24px;
+  flex-shrink: 0;
+}
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.meta-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.meta-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+.btn-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  width: fit-content;
+}
+.badge-active  { background: rgba(34,197,94,.1); color: #16a34a; border: 1px solid rgba(34,197,94,.2); }
+.badge-inactive{ background: var(--input-bg); color: var(--text-muted); border: 1px solid var(--border-color); }
+
+/* ── Tabla de documentos ── */
+.table-container { overflow: hidden; }
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.doc-table th,
+.doc-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+.doc-table th {
+  background: var(--input-bg);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.doc-table tbody tr { transition: background-color 0.15s; }
+.doc-table tbody tr:hover { background: var(--hover-bg); }
+.doc-table tbody tr:last-child td { border-bottom: none; }
+
+.type-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(141,198,63,.12);
+  color: var(--brand-green);
+  white-space: nowrap;
+}
+.doc-nombre { font-weight: 600; color: var(--text-main); }
+.text-muted  { color: var(--text-muted); font-size: 13px; }
+.text-center { text-align: center; }
+.text-right  { text-align: right; }
+
+.firma-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.firma-ok   { background: rgba(34,197,94,.1); color: #16a34a; }
+.firma-pend { background: rgba(234,179,8,.1);  color: #b45309; }
+
+.actions-cell {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* ── Botones de tabla ── */
+.btn-sm {
+  padding: 7px 12px;
+  font-size: 12px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.btn-sign {
+  background: rgba(141,198,63,.12);
+  color: var(--brand-green);
+  border: 1px solid rgba(141,198,63,.3);
+}
+.btn-sign:hover { background: rgba(141,198,63,.2); }
+
+.btn-danger {
+  background: rgba(239,68,68,.08);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,.2);
+}
+.btn-danger:hover { background: rgba(239,68,68,.15); }
+.btn-danger-solid {
+  background: #ef4444;
+  color: #fff;
+  border: 1px solid #ef4444;
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-danger-solid:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-danger-solid:not(:disabled):hover { opacity: 0.85; }
+
+/* ── Empty state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  background: var(--input-bg);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.empty-state h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--text-main); }
+.empty-state p  { margin: 6px 0 0; font-size: 14px; color: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════════════
+   MODALES
+   ══════════════════════════════════════════════════════════ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn .15s ease;
+  padding: 16px;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal-card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp .2s cubic-bezier(.16,1,.3,1);
+  border: 1px solid var(--border-color);
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.modal-firma  { max-width: 460px; }
+.modal-confirm{ max-width: 400px; }
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+.modal-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.modal-title-danger { color: #ef4444; }
+.modal-close {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.modal-close:hover { background: var(--hover-bg); }
+
+.modal-body {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* ── Formulario de upload ── */
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.req { color: #ef4444; }
+.form-input,
+.form-select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.form-input:focus,
+.form-select:focus {
+  outline: none;
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 3px rgba(141,198,63,.15);
+}
+
+.file-group {}
+.file-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border: 2px dashed var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.file-drop:hover { border-color: var(--brand-green); }
+.file-input-hidden { display: none; }
+.file-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brand-green);
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-main);
+  cursor: pointer;
+}
+.checkbox-row input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+
+.alert-error {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(239,68,68,.08);
+  color: #ef4444;
+  font-size: 13px;
+  border: 1px solid rgba(239,68,68,.2);
+}
+
+/* ── Firma modal ── */
+.firma-doc-nombre { font-size: 14px; color: var(--text-main); }
+.firma-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--input-bg);
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+}
+.firma-preview {
+  max-width: 300px;
+  max-height: 150px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+.firma-preview-label { font-size: 12px; color: var(--text-muted); }
+.firma-no-firma {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.firma-no-firma p { margin: 0; font-size: 13px; }
+.firma-disclaimer { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+/* ── Dark Mode ── */
+:host-context(html[data-theme="dark"]) .modal-card {
+  box-shadow: 0 24px 64px rgba(0,0,0,.6);
+}
+:host-context(html[data-theme="dark"]) .firma-ok   { color: #4ade80; }
+:host-context(html[data-theme="dark"]) .firma-pend { color: #fbbf24; }
+:host-context(html[data-theme="dark"]) .badge-active { color: #4ade80; }
