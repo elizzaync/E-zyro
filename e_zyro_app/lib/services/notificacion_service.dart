@@ -53,4 +53,37 @@ class NotificacionService {
     final r = await _client.delete('/notificaciones/eliminar-leidas');
     if (r.statusCode != 200) throw Exception('No se pudo eliminar las notificaciones leídas');
   }
+
+  /// Devuelve la lista de preferencias: [{categoria, etiqueta, activo}, ...].
+  Future<List<PreferenciaNotif>> getPreferencias() async {
+    final r = await _client.get('/notificaciones/preferencias');
+    if (r.statusCode == 200) {
+      final List raw = jsonDecode(r.body) as List;
+      return raw
+          .map((e) => PreferenciaNotif.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    if (r.statusCode == 401) throw Exception('Sesión expirada.');
+    throw Exception('Error al cargar preferencias');
+  }
+
+  /// Guarda el mapa categoria -> activo.
+  Future<void> guardarPreferencias(Map<String, bool> prefs) async {
+    final r = await _client.put('/notificaciones/preferencias', {'preferencias': prefs});
+    if (r.statusCode != 200) throw Exception('No se pudieron guardar las preferencias');
+  }
+}
+
+class PreferenciaNotif {
+  final String categoria;
+  final String etiqueta;
+  bool activo;
+
+  PreferenciaNotif({required this.categoria, required this.etiqueta, required this.activo});
+
+  factory PreferenciaNotif.fromJson(Map<String, dynamic> json) => PreferenciaNotif(
+        categoria: json['categoria'] as String? ?? '',
+        etiqueta: json['etiqueta'] as String? ?? '',
+        activo: json['activo'] as bool? ?? true,
+      );
 }

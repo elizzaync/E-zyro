@@ -122,6 +122,8 @@ class FcmFlutterService {
         Navigator.of(ctx).pushNamedAndRemoveUntil('/logistics', (_) => false);
       case 'warning':
         Navigator.of(ctx).pushNamedAndRemoveUntil('/operations', (_) => false);
+      case 'chat':
+        Navigator.of(ctx).pushNamedAndRemoveUntil('/operations', (_) => false);
       default:
         Navigator.of(ctx).pushNamedAndRemoveUntil('/', (_) => false);
     }

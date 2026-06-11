@@ -13,6 +13,7 @@ import 'pantalla_comunicados.dart';
 import 'pantalla_soporte.dart';
 import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
+import 'pantalla_preferencias_notificacion.dart';
 import 'pantalla_personal.dart';
 import 'pantalla_personal_hub.dart';
 import 'pantalla_mi_espacio.dart';
@@ -326,6 +327,16 @@ class _MoreScreenState extends State<MoreScreen> {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const PantallaSoporte()),
+                  ),
+                ),
+                _MenuItem(
+                  icon: Icons.notifications_active_outlined,
+                  label: 'Notificaciones',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PreferenciasNotificacionScreen(),
+                    ),
                   ),
                 ),
                 _MenuItem(
