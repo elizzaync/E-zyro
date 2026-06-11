@@ -309,3 +309,75 @@ def inyectar_notificacion(
         "fcm_enviado": fcm_ok,
         "destinatario_id": destinatario_id,
     }
+
+
+# ── Preferencias de notificación ────────────────────────────────────────────────
+
+class PreferenciasUpdate(BaseModel):
+    # Mapa categoria -> activo. Solo se actualizan las claves enviadas.
+    preferencias: dict[str, bool]
+
+
+@router.get("/preferencias")
+def obtener_preferencias(
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Devuelve el estado (activo) de cada categoría para el usuario.
+    Si no hay fila, aplica el default del código (todo ON salvo 'chat')."""
+    from app.models.preferencia_notificacion import PreferenciaNotificacion
+    from app.services.fcm_service import PREF_CATEGORIAS, PREF_DEFAULT
+
+    usuario_id = payload["id"]
+    filas = {
+        p.categoria: bool(p.activo)
+        for p in db.query(PreferenciaNotificacion).filter(
+            PreferenciaNotificacion.usuario_id == usuario_id
+        ).all()
+    }
+    etiquetas = {
+        "general": "General",
+        "almuerzo": "Almuerzo",
+        "alertas": "Alertas",
+        "comunicados": "Comunicados",
+        "servicios": "Servicios",
+        "chat": "Chat en vivo",
+    }
+    return [
+        {
+            "categoria": cat,
+            "etiqueta": etiquetas.get(cat, cat.capitalize()),
+            "activo": filas.get(cat, PREF_DEFAULT.get(cat, True)),
+        }
+        for cat in PREF_CATEGORIAS
+    ]
+
+
+@router.put("/preferencias")
+def actualizar_preferencias(
+    body: PreferenciasUpdate,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Upsert de las preferencias enviadas (categoria -> activo)."""
+    from app.models.preferencia_notificacion import PreferenciaNotificacion
+    from app.services.fcm_service import PREF_CATEGORIAS
+
+    usuario_id = payload["id"]
+    for cat, activo in body.preferencias.items():
+        if cat not in PREF_CATEGORIAS:
+            continue
+        fila = db.query(PreferenciaNotificacion).filter(
+            PreferenciaNotificacion.usuario_id == usuario_id,
+            PreferenciaNotificacion.categoria == cat,
+        ).first()
+        if fila:
+            fila.activo = bool(activo)
+            fila.updated_at = datetime.now(ZONA)
+        else:
+            db.add(PreferenciaNotificacion(
+                id=str(uuid.uuid4()), usuario_id=usuario_id,
+                categoria=cat, activo=bool(activo),
+            ))
+    db.commit()
+    return {"status": "success"}

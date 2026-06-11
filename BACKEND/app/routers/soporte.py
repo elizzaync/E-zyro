@@ -239,6 +239,28 @@ def crear_ticket(
     db.add(t)
     db.commit()
     db.refresh(t)
+
+    # Avisar al equipo de soporte (quienes pueden gestionar tickets).
+    try:
+        from ..services.fcm_service import notificar_usuario
+        from ..core.permisos import usuarios_con_permiso
+        soporte = usuarios_con_permiso(db, empresa_id, "soporte", "gestionar")
+        autor = _nombre_usuario(db, usuario_id)
+        titulo = f"Nuevo ticket {t.codigo}"
+        mensaje = f"{autor} reportó: {t.titulo} (prioridad {t.prioridad})."
+        for uid in soporte:
+            if str(uid) == str(usuario_id):
+                continue  # no notificar al propio autor si es de TI
+            notificar_usuario(
+                db, empresa_id=empresa_id, usuario_id=str(uid),
+                titulo=titulo, mensaje=mensaje,
+                tipo="info", categoria="soporte",
+                referencia_id=str(t.id), referencia_tabla="ticket_soporte",
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return _out(db, t)
 
 

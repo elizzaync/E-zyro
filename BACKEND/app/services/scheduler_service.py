@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.notificacion import Notificacion
 from app.services.fcm_service import enviar_push_a_usuario
+from app.core.permisos import usuarios_con_permiso
 
 
 # ── Helpers compartidos ──────────────────────────────────────────────────────
@@ -455,8 +456,6 @@ def _alertas_vencimientos():
     from app.models.proveedor import Proveedor
     from app.models.cliente import Cliente
 
-    ROLES = ["Administrador", "SuperAdmin"]
-
     def _umbral(dias: int):
         if dias < 0:
             return "vencido"
@@ -468,12 +467,14 @@ def _alertas_vencimientos():
     db: Session = SessionLocal()
     try:
         hoy = date.today()
-        dest_cache: dict[str, list[str]] = {}
+        dest_cache: dict[tuple, list[str]] = {}
 
-        def dest(emp_id):
-            if emp_id not in dest_cache:
-                dest_cache[emp_id] = _usuarios_por_rol(db, emp_id, ROLES)
-            return dest_cache[emp_id]
+        def dest(emp_id, modulo, accion):
+            """Destinatarios = quienes tienen el permiso (modulo.accion) + admins."""
+            key = (emp_id, modulo, accion)
+            if key not in dest_cache:
+                dest_cache[key] = usuarios_con_permiso(db, emp_id, modulo, accion)
+            return dest_cache[key]
 
         emitidos = 0
 
@@ -498,7 +499,8 @@ def _alertas_vencimientos():
                     f"vence el {emp.fecha_fin_contrato.isoformat()} (faltan {dias} días)",
                     "aviso")
             ref_key = f"contrato:{emp.id}:{emp.fecha_fin_contrato.isoformat()}:{umbral}"
-            if _emitir(db, empresa_id=emp.empresa_id, usuarios=dest(emp.empresa_id),
+            if _emitir(db, empresa_id=emp.empresa_id,
+                       usuarios=dest(emp.empresa_id, "empleados", "ver"),
                        tipo="warning", categoria="rrhh", titulo=titulo,
                        mensaje=f"El contrato de {nombre} {cuando}.", ref_key=ref_key):
                 emitidos += 1
@@ -516,7 +518,8 @@ def _alertas_vencimientos():
                 titulo, cuando = ("Calibración por vencer",
                     f"vence el {c.fecha_proxima.isoformat()} (faltan {(c.fecha_proxima - hoy).days} días)")
             ref_key = f"calib:{c.id}:{c.fecha_proxima.isoformat()}:{umbral}"
-            if _emitir(db, empresa_id=c.empresa_id, usuarios=dest(c.empresa_id),
+            if _emitir(db, empresa_id=c.empresa_id,
+                       usuarios=dest(c.empresa_id, "calibracion", "ver"),
                        tipo="warning", categoria="calibracion", titulo=titulo,
                        mensaje=f"Calibración de {eqn}: {cuando}.", ref_key=ref_key):
                 emitidos += 1
@@ -538,7 +541,8 @@ def _alertas_vencimientos():
                 titulo, cuando = ("Cuenta por pagar próxima",
                     f"vence el {f.fecha_vencimiento.isoformat()} (faltan {(f.fecha_vencimiento - hoy).days} días)")
             ref_key = f"cxp:{f.id}:{f.fecha_vencimiento.isoformat()}:{umbral}"
-            if _emitir(db, empresa_id=f.empresa_id, usuarios=dest(f.empresa_id),
+            if _emitir(db, empresa_id=f.empresa_id,
+                       usuarios=dest(f.empresa_id, "cxp", "ver"),
                        tipo="warning", categoria="finanzas", titulo=titulo,
                        mensaje=f"Factura {f.numero_documento} de {provn} por S/ {f.total}: {cuando}.",
                        ref_key=ref_key):
@@ -561,7 +565,8 @@ def _alertas_vencimientos():
                 titulo, cuando, umbral = ("Cuenta por cobrar próxima",
                     f"vence el {f.fecha_vencimiento.isoformat()} (faltan {dias} días)", "aviso")
             ref_key = f"cxc:{f.id}:{f.fecha_vencimiento.isoformat()}:{umbral}"
-            if _emitir(db, empresa_id=f.empresa_id, usuarios=dest(f.empresa_id),
+            if _emitir(db, empresa_id=f.empresa_id,
+                       usuarios=dest(f.empresa_id, "cxc", "ver"),
                        tipo="warning", categoria="finanzas", titulo=titulo,
                        mensaje=f"Comprobante {f.numero_documento} de {clin} por S/ {f.total}: {cuando}.",
                        ref_key=ref_key):
@@ -582,8 +587,6 @@ def _alertas_prestamos_sin_devolver():
     from app.models.prestamo import Prestamo
     from app.models.empleado import Empleado
     from app.models.proyecto_servicio import ProyectoServicio
-
-    ROLES = ["Administrador", "Logístico", "Jefe de Operaciones"]
 
     def _bucket(dias_fuera: int):
         if dias_fuera >= 15:
@@ -608,8 +611,8 @@ def _alertas_prestamos_sin_devolver():
             if not umbral:
                 continue
 
-            # Destinatarios: logística/admin + el técnico solicitante.
-            destinatarios = set(_usuarios_por_rol(db, p.empresa_id, ROLES))
+            # Destinatarios: quien gestiona inventario/logística + el técnico solicitante.
+            destinatarios = set(usuarios_con_permiso(db, p.empresa_id, "inventario", "gestionar"))
             emp = db.query(Empleado.usuario_id).filter(Empleado.id == p.solicitante_id).first()
             if emp and emp.usuario_id:
                 destinatarios.add(emp.usuario_id)
@@ -648,8 +651,6 @@ def _alertas_tardanza():
     from app.models.usuario import Usuario
     from sqlalchemy import cast, Date as SaDate, or_
     from zoneinfo import ZoneInfo
-
-    ROLES_SUP = ["Administrador", "Jefe de Operaciones"]
 
     db: Session = SessionLocal()
     try:
@@ -691,7 +692,8 @@ def _alertas_tardanza():
                 continue
 
             if emp.empresa_id not in dest_cache:
-                dest_cache[emp.empresa_id] = _usuarios_por_rol(db, emp.empresa_id, ROLES_SUP)
+                dest_cache[emp.empresa_id] = usuarios_con_permiso(
+                    db, emp.empresa_id, "asistencia", "validar")
             destinatarios = set(dest_cache[emp.empresa_id])
             if emp.usuario_id:
                 destinatarios.add(emp.usuario_id)

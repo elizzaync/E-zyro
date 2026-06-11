@@ -109,33 +109,22 @@ def _comparar(enc_base, enc_selfie) -> tuple[float, str]:
 
 
 def _notificar_marca_en_revision(db, empresa_id, empleado, tipo, resultado, motivo):
-    """Avisa a Administradores / Jefes de Operaciones que una marca de asistencia
-    requiere validación manual. Notificación única por (registro, resultado)."""
+    """Avisa a quienes pueden validar asistencia (permiso asistencia:validar) que
+    una marca requiere revisión manual."""
     from ..models.usuario import Usuario
-    from ..models.usuario_rol import UsuarioRol
-    from ..models.rol import Rol
     from ..services.fcm_service import notificar_usuario
+    from ..core.permisos import usuarios_con_permiso
 
-    ROLES = ["Administrador", "Jefe de Operaciones", "SuperAdmin"]
     # Nombre del empleado para el mensaje
     u = db.query(Usuario.nombre, Usuario.apellido).filter(
         Usuario.id == empleado.usuario_id).first()
     nombre = (f"{u.nombre} {u.apellido}".strip() if u else "Un empleado")
 
-    sup = (
-        db.query(Usuario.id)
-        .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
-        .join(Rol, Rol.id == UsuarioRol.rol_id)
-        .filter(Usuario.empresa_id == empresa_id,
-                Usuario.activo.is_(True),
-                Rol.nombre.in_(ROLES))
-        .distinct()
-        .all()
-    )
+    validadores = usuarios_con_permiso(db, empresa_id, "asistencia", "validar")
     estado_txt = "requiere revisión" if resultado == "revision_manual" else "fue rechazada"
     titulo = "Marca de asistencia por revisar"
     mensaje = f"La marca de {tipo} de {nombre} {estado_txt}. {motivo}"
-    for (uid,) in sup:
+    for uid in validadores:
         notificar_usuario(
             db, empresa_id=empresa_id, usuario_id=uid,
             titulo=titulo, mensaje=mensaje,

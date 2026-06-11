@@ -34,21 +34,61 @@ def _inicializar_firebase():
 _inicializar_firebase()
 
 
-# ── Resolución de canal Android por tipo/categoría ──────────────────────────────
-# Debe coincidir con los canales declarados en el cliente Flutter
-# (NotificationService._todos).
-def _canal_android(tipo: str, categoria: str) -> str:
+# ── Grupo de preferencia / canal por tipo+categoría ─────────────────────────────
+# Los 6 grupos coinciden con los canales Android y con las preferencias del usuario.
+PREF_CATEGORIAS = ["general", "almuerzo", "alertas", "comunicados", "servicios", "chat"]
+# Default de cada grupo cuando el usuario no tiene fila de preferencia:
+PREF_DEFAULT = {
+    "general": True, "almuerzo": True, "alertas": True,
+    "comunicados": True, "servicios": True, "chat": False,
+}
+
+
+def _grupo_preferencia(tipo: str, categoria: str) -> str:
+    """Mapea (tipo, categoria) al grupo de preferencia/canal."""
     t = (tipo or "").lower()
     c = (categoria or "").lower()
+    if c == "chat" or t == "chat":
+        return "chat"
     if c == "almuerzo":
-        return "esystemtic_almuerzo"
-    if t == "warning" or c == "mantenimiento":
-        return "esystemtic_alertas"
-    if t.startswith("comunicado"):
-        return "esystemtic_comunicados"
-    if t == "servicio" or t.startswith("asignacion"):
-        return "esystemtic_servicios"
-    return "esystemtic_general"
+        return "almuerzo"
+    if t.startswith("comunicado") or c == "comunicado":
+        return "comunicados"
+    if t == "servicio" or t.startswith("asignacion") or c == "servicio":
+        return "servicios"
+    if t == "warning" or c in ("mantenimiento", "finanzas", "rrhh",
+                               "calibracion", "asistencia", "prestamos"):
+        return "alertas"
+    return "general"
+
+
+_CANAL_POR_GRUPO = {
+    "almuerzo":    "esystemtic_almuerzo",
+    "alertas":     "esystemtic_alertas",
+    "comunicados": "esystemtic_comunicados",
+    "servicios":   "esystemtic_servicios",
+    "chat":        "esystemtic_general",
+    "general":     "esystemtic_general",
+}
+
+
+def _canal_android(tipo: str, categoria: str) -> str:
+    return _CANAL_POR_GRUPO.get(_grupo_preferencia(tipo, categoria), "esystemtic_general")
+
+
+def _push_habilitado(db: Session, usuario_id: str, grupo: str) -> bool:
+    """Consulta la preferencia del usuario para el grupo. Sin fila → default."""
+    try:
+        from app.models.preferencia_notificacion import PreferenciaNotificacion
+        pref = db.query(PreferenciaNotificacion.activo).filter(
+            PreferenciaNotificacion.usuario_id == usuario_id,
+            PreferenciaNotificacion.categoria == grupo,
+        ).first()
+        if pref is not None:
+            return bool(pref.activo)
+    except Exception:
+        pass
+    return PREF_DEFAULT.get(grupo, True)
 
 
 # ── Función genérica de envío ──────────────────────────────────────────────────
@@ -75,6 +115,12 @@ def enviar_push_a_usuario(
     Retorna True si al menos un push fue enviado correctamente.
     """
     try:
+        # Respetar la preferencia del usuario para este grupo de notificación.
+        grupo = _grupo_preferencia(tipo, categoria)
+        if not _push_habilitado(db, usuario_id, grupo):
+            logger.info("Push omitido por preferencia (%s) del usuario.", grupo)
+            return False
+
         dispositivos = db.query(DispositivoPush).filter(
             DispositivoPush.usuario_id == usuario_id,
             DispositivoPush.activo == True,

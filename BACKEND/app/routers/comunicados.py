@@ -364,6 +364,23 @@ def crear_comunicado_proyecto(
             if jefe_emp:
                 destinatarios.add(str(jefe_emp.usuario_id))
 
+        # Miembros de los grupos de trabajo asignados al proyecto.
+        try:
+            from ..models.proyecto_grupo import ProyectoGrupo
+            from ..models.grupo_trabajo import GrupoMiembro
+            grupo_rows = (
+                db.query(Empleado.usuario_id)
+                .join(GrupoMiembro, GrupoMiembro.empleado_id == Empleado.id)
+                .join(ProyectoGrupo, ProyectoGrupo.grupo_id == GrupoMiembro.grupo_id)
+                .filter(ProyectoGrupo.proyecto_id == proyecto_id,
+                        GrupoMiembro.activo == True,  # noqa: E712
+                        Empleado.usuario_id.isnot(None))
+                .all()
+            )
+            destinatarios.update(str(r.usuario_id) for r in grupo_rows)
+        except Exception:
+            pass
+
         destinatarios.discard(str(usuario_id))  # no notificar al autor
 
         for uid in destinatarios:

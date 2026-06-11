@@ -8,6 +8,7 @@ Router: WebSocket Chat en tiempo real
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 import json
 import os
@@ -142,6 +143,52 @@ def _nombre_usuario(usuario_id: str) -> str:
         db.close()
 
 
+def _notificar_push_chat(servicio_id, empresa_id, remitente_id, nombre_remitente,
+                         contenido, destinatario_id, conectados):
+    """Push de chat a los miembros del servicio que NO están conectados a la sala.
+    DM → solo el destinatario. Respeta la preferencia 'chat' (default OFF)."""
+    from ..services.fcm_service import enviar_push_a_usuario
+    from ..models.proyecto_miembro import ProyectoMiembro
+    from ..models.empleado import Empleado
+
+    db = SessionLocal()
+    try:
+        if destinatario_id:
+            destinatarios = {str(destinatario_id)}
+        else:
+            ps = db.query(ProyectoServicio).filter(ProyectoServicio.id == servicio_id).first()
+            if not ps:
+                return
+            rows = (
+                db.query(Empleado.usuario_id)
+                .join(ProyectoMiembro, ProyectoMiembro.empleado_id == Empleado.id)
+                .filter(ProyectoMiembro.proyecto_id == str(ps.proyecto_id),
+                        ProyectoMiembro.activo == True,  # noqa: E712
+                        Empleado.usuario_id.isnot(None))
+                .all()
+            )
+            destinatarios = {str(r.usuario_id) for r in rows}
+
+        destinatarios.discard(str(remitente_id))
+        destinatarios -= {str(c) for c in conectados}  # ya están viendo la sala
+        if not destinatarios:
+            return
+
+        titulo = f"💬 {nombre_remitente}"
+        cuerpo = contenido if len(contenido) <= 140 else contenido[:137] + "..."
+        for uid in destinatarios:
+            try:
+                enviar_push_a_usuario(
+                    usuario_id=uid, titulo=titulo, mensaje=cuerpo, db=db,
+                    tipo="chat", categoria="chat",
+                    referencia_id=str(servicio_id), referencia_tabla="chat_servicio",
+                )
+            except Exception:
+                pass
+    finally:
+        db.close()
+
+
 def _cargar_historial(servicio_id: str, limit: int = 50) -> list:
     """Carga los últimos `limit` mensajes del servicio, ordenados cronológicamente."""
     db = SessionLocal()
@@ -270,6 +317,17 @@ async def ws_chat(ws: WebSocket, servicio_id: str, token: str = ""):
                 )
             else:
                 await manager.broadcast_servicio(servicio_id, out_payload)
+
+            # Push a quienes NO están conectados a la sala (en hilo aparte para
+            # no bloquear el event loop del WebSocket).
+            conectados = list(manager._activas.get(servicio_id, {}).keys())
+            try:
+                asyncio.get_event_loop().run_in_executor(
+                    None, _notificar_push_chat, servicio_id, empresa_id, usuario_id,
+                    nombre, contenido, destinatario_id, conectados,
+                )
+            except Exception:
+                pass
 
     except WebSocketDisconnect:
         manager.desconectar(ws, servicio_id, usuario_id)
