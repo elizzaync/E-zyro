@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#00C853</color>
+    <!-- Acento de marca aplicado al ícono/título de las notificaciones -->
+    <color name="notification_accent">#8FD11B</color>
 </resources>

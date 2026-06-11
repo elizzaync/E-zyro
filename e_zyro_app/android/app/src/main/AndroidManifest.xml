@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="e_zyro_app"
+        android:label="E-Zyro"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
@@ -39,6 +39,14 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="esystemtic_general" />
+        <!-- Ícono monocromático para la barra de estado (evita el cuadro gris) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_ezyro" />
+        <!-- Color de acento de marca aplicado al ícono/título del push -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_accent" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

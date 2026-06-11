@@ -84,9 +84,20 @@ class FcmFlutterService {
     _messageController.add(message);
     final n = message.notification;
     if (n == null) return;
+    final tipo = message.data['tipo'] as String?;
+    final categoria = message.data['categoria'] as String?;
+    final refTabla = message.data['ref_tabla'] as String?;
+    final refId = message.data['ref_id'] as String?;
+    // tag: agrupa por asunto para que avisos del mismo origen se reemplacen.
+    final tag = (refTabla != null && refTabla.isNotEmpty)
+        ? '$refTabla:${refId ?? ''}'
+        : (categoria ?? tipo);
     await NotificationService.show(
-      title: n.title ?? 'E-System TIC',
+      title: n.title ?? 'E-Zyro',
       body: n.body ?? '',
+      tipo: tipo,
+      categoria: categoria,
+      tag: tag,
     );
   }
 
