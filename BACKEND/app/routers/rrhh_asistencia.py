@@ -3,8 +3,10 @@ HU-30 Fase 3 — Asistencia: Motor de Cálculo + Advertencias + Detalle Diario +
 
 Endpoints:
   GET  /rrhh/asistencia/resumen                    resumen semanal por empleado (paginado)
-  GET  /rrhh/asistencia/{empleado_id}/detalle       detalle diario de registros
+  GET  /rrhh/asistencia/diario                     vista diaria: todos los empleados para una fecha
+  GET  /rrhh/asistencia/{empleado_id}/detalle       detalle diario de registros de un empleado
   POST /rrhh/asistencia/{empleado_id}/advertencia   emite memorándum de advertencia
+  GET  /rrhh/asistencia/reportes/global             reporte global todos empleados (xlsx/pdf)
   GET  /rrhh/asistencia/reportes/semanal            exporta reporte semanal (xlsx/pdf)
   GET  /rrhh/asistencia/reportes/mensual            exporta reporte mensual
   GET  /rrhh/asistencia/reportes/tardanzas          exporta incidencias de tardanzas/faltas
@@ -251,6 +253,127 @@ def resumen_asistencia(
             "fecha_fin":    fin.isoformat(),
             "meta_horas":   meta_horas,
         },
+        "empleados":     pagina,
+        "total":         total,
+        "page":          page,
+        "limit":         limit,
+        "total_paginas": max(1, -(-total // limit)),
+    }
+
+
+# ── 1b. GET /rrhh/asistencia/diario ─────────────────────────────────────────
+# NOTA: este endpoint DEBE definirse ANTES de /{empleado_id}/detalle para que
+#       FastAPI no interprete "diario" como un empleado_id.
+
+@router.get("/rrhh/asistencia/diario")
+def asistencia_diaria(
+    fecha:   date = Query(...),
+    page:    int  = Query(1,  ge=1),
+    limit:   int  = Query(10, ge=1, le=100),
+    db:      Session = Depends(get_db),
+    payload: dict    = Depends(verificar_token),
+):
+    """Vista diaria: todos los empleados activos para la fecha indicada."""
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+
+    fecha_dt_ini = datetime(fecha.year, fecha.month, fecha.day, 0,  0,  0)
+    fecha_dt_fin = datetime(fecha.year, fecha.month, fecha.day, 23, 59, 59)
+
+    empleados_q = (
+        db.query(Empleado, Usuario)
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(Empleado.empresa_id == empresa_id, Empleado.activo == True)
+        .order_by(Usuario.nombre, Usuario.apellido)
+        .all()
+    )
+    total = len(empleados_q)
+
+    registros = (
+        db.query(RegistroAsistencia)
+        .filter(
+            RegistroAsistencia.empresa_id == empresa_id,
+            RegistroAsistencia.fecha_hora >= fecha_dt_ini,
+            RegistroAsistencia.fecha_hora <= fecha_dt_fin,
+        )
+        .all()
+    )
+
+    reg_ids = [r.id for r in registros]
+    geos: dict[str, GeolocalizacionAsistencia] = {}
+    if reg_ids:
+        for g in db.query(GeolocalizacionAsistencia).filter(
+            GeolocalizacionAsistencia.registro_id.in_(reg_ids)
+        ).all():
+            geos[g.registro_id] = g
+
+    regs_por_emp: dict[str, list] = {}
+    for r in registros:
+        regs_por_emp.setdefault(r.empleado_id, []).append(r)
+
+    es_lab = fecha.weekday() < 6  # Lun-Sáb
+
+    def _geo(reg):
+        if not reg:
+            return None
+        g = geos.get(reg.id)
+        if not g:
+            return None
+        return {"lat": float(g.latitud), "lng": float(g.longitud),
+                "precision": float(g.precision_m) if g.precision_m else None}
+
+    def _lat(reg):
+        g = geos.get(reg.id) if reg else None
+        return float(g.latitud) if g else None
+
+    def _lng(reg):
+        g = geos.get(reg.id) if reg else None
+        return float(g.longitud) if g else None
+
+    filas = []
+    for emp, usr in empleados_q:
+        regs = regs_por_emp.get(emp.id, [])
+
+        entrada  = next((r for r in regs if r.tipo == "entrada"),          None)
+        salida   = next((r for r in regs if r.tipo == "salida"),           None)
+        ini_alm  = next((r for r in regs if r.tipo == "entrada_almuerzo"), None)
+        fin_alm  = next((r for r in regs if r.tipo == "salida_almuerzo"),  None)
+
+        horas  = _horas_dia(regs)
+        estado = _estado_dia(regs, horas, es_lab)
+
+        nombre    = f"{usr.nombre} {usr.apellido}".strip()
+        iniciales = (
+            (usr.nombre[0]   if usr.nombre   else "") +
+            (usr.apellido[0] if usr.apellido else "")
+        ).upper() or "?"
+
+        filas.append({
+            "empleado_id":     emp.id,
+            "nombreCompleto":  nombre,
+            "cargo":           emp.cargo or "",
+            "area":            emp.area  or "",
+            "iniciales":       iniciales,
+            "fotoUrl":         usr.foto_url or "",
+            "hora_ingreso":    entrada.fecha_hora.strftime("%H:%M") if entrada  else None,
+            "hora_salida":     salida.fecha_hora.strftime("%H:%M")  if salida   else None,
+            "almuerzo_inicio": ini_alm.fecha_hora.strftime("%H:%M") if ini_alm  else None,
+            "almuerzo_fin":    fin_alm.fecha_hora.strftime("%H:%M") if fin_alm  else None,
+            "horas_trabajadas": round(horas, 2),
+            "lat_ingreso":     _lat(entrada),
+            "lng_ingreso":     _lng(entrada),
+            "lat_salida":      _lat(salida),
+            "lng_salida":      _lng(salida),
+            "geo_ingreso":     _geo(entrada),
+            "geo_salida":      _geo(salida),
+            "estado":          estado,
+        })
+
+    offset = (page - 1) * limit
+    pagina = filas[offset: offset + limit]
+
+    return {
+        "fecha":         fecha.isoformat(),
         "empleados":     pagina,
         "total":         total,
         "page":          page,
@@ -639,6 +762,43 @@ def _export_response(buf: io.BytesIO, fmt: str, filename: str):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}.xlsx"'},
     )
+
+
+# ── Reporte Global (todos los empleados, rango libre) ────────────────────────
+
+@router.get("/rrhh/asistencia/reportes/global")
+def reporte_global(
+    fecha_inicio: date = Query(...),
+    fecha_fin:    date = Query(...),
+    fmt:          str  = Query("xlsx", regex="^(xlsx|pdf)$"),
+    db:           Session = Depends(get_db),
+    payload:      dict    = Depends(verificar_token),
+):
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+
+    if fecha_fin < fecha_inicio:
+        raise HTTPException(400, "fecha_fin debe ser >= fecha_inicio")
+
+    filas, meta = _build_resumen_full(db, empresa_id, fecha_inicio, fecha_fin)
+    titulo    = f"Reporte Global — {fecha_inicio.strftime('%d/%m/%Y')} al {fecha_fin.strftime('%d/%m/%Y')}"
+    subtitulo = f"Meta: {meta:.0f} horas | Total empleados: {len(filas)}"
+    encabezados = ["Empleado", "Cargo", "Área",
+                   "H. Reales", "H. Justificadas", "H. Total",
+                   "H. Faltantes", "% Cumpl.", "Faltas", "Tardanzas",
+                   "Prom. Diario (h)"]
+    dias_lab_count = len(_dias_laborables(fecha_inicio, fecha_fin)) or 1
+    datos = [
+        [r["nombre"], r["cargo"], r["area"],
+         r["horas_reales"], r["horas_justificadas"], r["horas_total"],
+         r["horas_faltantes"], f"{r['porcentaje']}%", r["faltas"], r["tardanzas"],
+         round(r["horas_total"] / dias_lab_count, 2)]
+        for r in filas
+    ]
+
+    buf = _xlsx_stream(titulo, encabezados, datos) if fmt == "xlsx" else \
+          _pdf_stream(titulo, encabezados, datos, subtitulo)
+    return _export_response(buf, fmt, f"reporte_global_{fecha_inicio.isoformat()}")
 
 
 # ── Reporte Semanal ───────────────────────────────────────────────────────────
