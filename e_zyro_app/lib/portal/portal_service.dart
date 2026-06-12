@@ -95,6 +95,13 @@ class PortalService {
             PortalPerfil.fromJson(jsonDecode(r.body) as Map<String, dynamic>),
       );
 
+  // GET /portal-cliente/analytics/ejecutivo → dashboard ejecutivo (datos reales).
+  Future<ApiResult<PortalAnalytics>> getAnalyticsEjecutivo() => _run(
+        () => _client.get('/portal-cliente/analytics/ejecutivo'),
+        (r) => PortalAnalytics.fromJson(
+            jsonDecode(r.body) as Map<String, dynamic>),
+      );
+
   // POST /portal-cliente/cambiar-password → cambia la contraseña del usuario.
   // El backend responde 401 cuando la contraseña actual no coincide; como
   // ApiClient.post lanza en 401 y _run lo clasifica como auth genérico, aquí

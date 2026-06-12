@@ -465,3 +465,175 @@ class PortalPerfil {
         empresaEmail: _sn(json['empresaEmail']),
       );
 }
+
+// ── GET /portal-cliente/analytics/ejecutivo ──────────────────────────────────
+// Dashboard ejecutivo con SOLO datos reales (sin deltas/sparklines ni SLA: el
+// backend no los inventa). Cada lista puede venir vacía para un cliente sin
+// datos en esa dimensión (p. ej. sin garantías o sin inspecciones ITSE).
+
+class AnalyticsResumen {
+  final int totalEquipos;
+  final int equiposCompletados;
+  final int equiposEnProceso;
+  final int equiposPendientes;
+  final int equiposCriticos; // mantenimiento vencido
+  final int proximos30d;
+  final int proximos90d;
+  final int serviciosTotal;
+  final int serviciosCompletados;
+  final int serviciosEnProceso;
+  final int conformidadesPendientes;
+  final int garantiasPorVencer;
+
+  const AnalyticsResumen({
+    this.totalEquipos = 0,
+    this.equiposCompletados = 0,
+    this.equiposEnProceso = 0,
+    this.equiposPendientes = 0,
+    this.equiposCriticos = 0,
+    this.proximos30d = 0,
+    this.proximos90d = 0,
+    this.serviciosTotal = 0,
+    this.serviciosCompletados = 0,
+    this.serviciosEnProceso = 0,
+    this.conformidadesPendientes = 0,
+    this.garantiasPorVencer = 0,
+  });
+
+  factory AnalyticsResumen.fromJson(Map<String, dynamic> j) => AnalyticsResumen(
+        totalEquipos: _i(j['total_equipos']),
+        equiposCompletados: _i(j['equipos_completados']),
+        equiposEnProceso: _i(j['equipos_en_proceso']),
+        equiposPendientes: _i(j['equipos_pendientes']),
+        equiposCriticos: _i(j['equipos_criticos']),
+        proximos30d: _i(j['proximos_30d']),
+        proximos90d: _i(j['proximos_90d']),
+        serviciosTotal: _i(j['servicios_total']),
+        serviciosCompletados: _i(j['servicios_completados']),
+        serviciosEnProceso: _i(j['servicios_en_proceso']),
+        conformidadesPendientes: _i(j['conformidades_pendientes']),
+        garantiasPorVencer: _i(j['garantias_por_vencer']),
+      );
+}
+
+class AnalyticsConteo {
+  final String etiqueta;
+  final int cantidad;
+  const AnalyticsConteo(this.etiqueta, this.cantidad);
+  factory AnalyticsConteo.fromJson(Map<String, dynamic> j) => AnalyticsConteo(
+        _s(j['estado'] ?? j['mes']),
+        _i(j['cantidad']),
+      );
+}
+
+class AnalyticsSede {
+  final String sede;
+  final String? region;
+  final int cantidad;
+  const AnalyticsSede({required this.sede, this.region, this.cantidad = 0});
+  factory AnalyticsSede.fromJson(Map<String, dynamic> j) => AnalyticsSede(
+        sede: _s(j['sede']),
+        region: _sn(j['region']),
+        cantidad: _i(j['cantidad']),
+      );
+}
+
+class AnalyticsVentana {
+  final int vencidos;
+  final int en30d;
+  final int en90d;
+  final int mas90d;
+  final int sinFecha;
+  const AnalyticsVentana({
+    this.vencidos = 0,
+    this.en30d = 0,
+    this.en90d = 0,
+    this.mas90d = 0,
+    this.sinFecha = 0,
+  });
+  factory AnalyticsVentana.fromJson(Map<String, dynamic> j) => AnalyticsVentana(
+        vencidos: _i(j['vencidos']),
+        en30d: _i(j['en_30d']),
+        en90d: _i(j['en_90d']),
+        mas90d: _i(j['mas_90d']),
+        sinFecha: _i(j['sin_fecha']),
+      );
+}
+
+class AnalyticsLineaMes {
+  final String mes; // 'YYYY-MM'
+  final int programados;
+  final int completados;
+  const AnalyticsLineaMes(this.mes, this.programados, this.completados);
+  factory AnalyticsLineaMes.fromJson(Map<String, dynamic> j) =>
+      AnalyticsLineaMes(_s(j['mes']), _i(j['programados']), _i(j['completados']));
+}
+
+class AnalyticsGarantia {
+  final String razonSocial;
+  final String? vigencia; // ISO | null
+  final bool vencida;
+  final bool tienePdf;
+  const AnalyticsGarantia({
+    this.razonSocial = '',
+    this.vigencia,
+    this.vencida = false,
+    this.tienePdf = false,
+  });
+  factory AnalyticsGarantia.fromJson(Map<String, dynamic> j) => AnalyticsGarantia(
+        razonSocial: _s(j['razon_social']),
+        vigencia: _sn(j['vigencia']),
+        vencida: j['vencida'] == true,
+        tienePdf: j['tiene_pdf'] == true,
+      );
+}
+
+class AnalyticsDia {
+  final String fecha; // 'YYYY-MM-DD'
+  final int cantidad;
+  const AnalyticsDia(this.fecha, this.cantidad);
+  factory AnalyticsDia.fromJson(Map<String, dynamic> j) =>
+      AnalyticsDia(_s(j['fecha']), _i(j['cantidad']));
+}
+
+/// Respuesta completa de GET /portal-cliente/analytics/ejecutivo.
+class PortalAnalytics {
+  final AnalyticsResumen resumen;
+  final List<AnalyticsConteo> parqueIntervencion;
+  final AnalyticsVentana ventana;
+  final List<AnalyticsSede> porSede;
+  final List<AnalyticsConteo> serviciosEstado;
+  final List<AnalyticsLineaMes> linea12Meses;
+  final List<AnalyticsGarantia> garantias;
+  final List<AnalyticsDia> inspeccionesCalendario;
+  final List<AnalyticsConteo> itse;
+
+  const PortalAnalytics({
+    this.resumen = const AnalyticsResumen(),
+    this.parqueIntervencion = const [],
+    this.ventana = const AnalyticsVentana(),
+    this.porSede = const [],
+    this.serviciosEstado = const [],
+    this.linea12Meses = const [],
+    this.garantias = const [],
+    this.inspeccionesCalendario = const [],
+    this.itse = const [],
+  });
+
+  factory PortalAnalytics.fromJson(Map<String, dynamic> j) => PortalAnalytics(
+        resumen: AnalyticsResumen.fromJson(
+            (j['resumen'] as Map<String, dynamic>?) ?? const {}),
+        parqueIntervencion:
+            _lista(j['parque_intervencion'], AnalyticsConteo.fromJson),
+        ventana: AnalyticsVentana.fromJson(
+            (j['mantenimientos_ventana'] as Map<String, dynamic>?) ?? const {}),
+        porSede: _lista(j['por_sede'], AnalyticsSede.fromJson),
+        serviciosEstado:
+            _lista(j['servicios_estado'], AnalyticsConteo.fromJson),
+        linea12Meses: _lista(j['linea_12_meses'], AnalyticsLineaMes.fromJson),
+        garantias: _lista(j['garantias'], AnalyticsGarantia.fromJson),
+        inspeccionesCalendario:
+            _lista(j['inspecciones_calendario'], AnalyticsDia.fromJson),
+        itse: _lista(j['itse'], AnalyticsConteo.fromJson),
+      );
+}
