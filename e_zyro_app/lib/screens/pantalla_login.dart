@@ -10,6 +10,7 @@ import '../services/biometric_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_notifiers.dart';
+import '../utils/app_session.dart';
 import '../widgets/e_system_painters.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_recuperacion_password.dart';
@@ -173,13 +174,13 @@ class _LoginScreenState extends State<LoginScreen>
       await _authService!.refreshToken();
       if (!mounted) return;
       _initFcm();
-      Navigator.pushReplacementNamed(context, '/');
+      Navigator.pushReplacementNamed(context, AppSession.i.rutaHome);
     } catch (_) {
       if (!mounted) return;
       if (tokenValido) {
         // Sin red pero JWT aún vigente → entrar directamente
         _initFcm();
-        Navigator.pushReplacementNamed(context, '/');
+        Navigator.pushReplacementNamed(context, AppSession.i.rutaHome);
       } else {
         // Token realmente expirado — necesita conexión para renovarlo
         await _authService!.logout();
@@ -224,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen>
         _showBiometricSetupSheet();
       } else {
         _initFcm();
-        Navigator.pushReplacementNamed(context, '/');
+        Navigator.pushReplacementNamed(context, AppSession.i.rutaHome);
       }
     } catch (e) {
       if (!mounted) return;
@@ -263,9 +264,9 @@ class _LoginScreenState extends State<LoginScreen>
       builder: (_) => _BiometricPolicySheet(
         onAccepted: () async {
           await _bioService?.enable();
-          if (mounted) { _initFcm(); Navigator.pushReplacementNamed(context, '/'); }
+          if (mounted) { _initFcm(); Navigator.pushReplacementNamed(context, AppSession.i.rutaHome); }
         },
-        onDeclined: () { _initFcm(); Navigator.pushReplacementNamed(context, '/'); },
+        onDeclined: () { _initFcm(); Navigator.pushReplacementNamed(context, AppSession.i.rutaHome); },
       ),
     );
   }

@@ -109,7 +109,8 @@ class _SplashScreenState extends State<SplashScreen>
       );
     }
 
-    Navigator.pushReplacementNamed(context, irHome ? '/' : '/login');
+    Navigator.pushReplacementNamed(
+        context, irHome ? AppSession.i.rutaHome : '/login');
   }
 
   @override

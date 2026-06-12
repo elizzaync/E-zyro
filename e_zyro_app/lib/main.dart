@@ -30,6 +30,7 @@ import 'services/fcm_flutter_service.dart';
 import 'screens/pantalla_historial_equipo.dart';
 import 'screens/pantalla_auditoria.dart';
 import 'screens/pantalla_mantenimientos.dart';
+import 'portal/pantalla_portal_shell.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -232,6 +233,7 @@ class ESystemApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/recovery': (context) => const PasswordRecoveryScreen(),
         '/': (context) => const MainShell(),
+        '/portal': (context) => const PortalShell(),
         '/home': (context) => const MainShell(initialIndex: 0),
         '/operations': (context) => const MainShell(initialIndex: 1),
         '/logistics': (context) => const MainShell(initialIndex: 2),
@@ -350,6 +352,12 @@ class _MainShellState extends State<MainShell> {
   Future<void> _cargarPermisos() async {
     await AppSession.load();
     if (!mounted) return;
+    // Cuentas del Portal Cliente nunca ven el shell interno: cualquier vía de
+    // entrada a '/' (atajos offline, deep links, push) se redirige al portal.
+    if (AppSession.i.esClienteExterno) {
+      Navigator.pushNamedAndRemoveUntil(context, '/portal', (r) => false);
+      return;
+    }
     final canLog = AppSession.i.canGestInventario;
     final canPer = AppSession.i.canVerPersonal;
     setState(() {

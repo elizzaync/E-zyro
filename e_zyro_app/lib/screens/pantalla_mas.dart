@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
+import 'pantalla_accesos_portal.dart';
 import 'pantalla_auditoria.dart';
 import 'pantalla_auditoria_general.dart';
 import 'pantalla_mantenimientos.dart';
@@ -42,6 +43,7 @@ class _MoreScreenState extends State<MoreScreen> {
   String _userRol = '';
   String _fotoUrl = '';
   bool _puedeVerAuditoria = false;
+  bool _esAdmin = false;
   bool _esSuperAdmin = false;
   bool _puedeVerMantenimiento = false;
   bool _puedeVerPersonal = false;
@@ -71,6 +73,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _userRol  = prefs.getString('user_rol') ?? '';
         _fotoUrl  = prefs.getString('user_foto_url') ?? '';
         _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
+        _esAdmin             = AppSession.i.isAdmin;
         _esSuperAdmin        = AppSession.i.esSuperAdmin;
         _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
@@ -412,6 +415,16 @@ class _MoreScreenState extends State<MoreScreen> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const PantallaPersonal()),
+                      ),
+                    ),
+                  if (_esAdmin)
+                    _MenuItem(
+                      icon: Icons.business_center_outlined,
+                      label: 'Accesos Portal Cliente',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaAccesosPortal()),
                       ),
                     ),
                   if (_puedeVerAuditoria)

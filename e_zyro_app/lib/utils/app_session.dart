@@ -36,6 +36,13 @@ class AppSession {
   /// Normaliza espacios para reconocer "Super Admin" además de "SuperAdmin".
   bool get esSuperAdmin => _rol.replaceAll(' ', '') == 'superadmin';
 
+  /// Usuario del Portal Cliente (empresas externas): nunca debe ver el
+  /// sistema interno — el login/splash lo enruta a '/portal'.
+  bool get esClienteExterno => _rol.replaceAll(' ', '') == 'clienteexterno';
+
+  /// Ruta home según el tipo de cuenta. Única fuente para login/splash.
+  String get rutaHome => esClienteExterno ? '/portal' : '/';
+
   /// true si es admin O tiene el permiso específico en su lista.
   /// Comparación insensible a mayúsculas/acentos de formato: el backend emite
   /// los permisos en minúsculas con formato `modulo:accion`.
