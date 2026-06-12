@@ -434,6 +434,9 @@ class PortalPerfil {
   final String? rol;
   final String? empresaEmail;
 
+  /// Cuenta portal con contraseña temporal pendiente de cambio (1er ingreso).
+  final bool debeCambiarPassword;
+
   PortalPerfil({
     required this.id,
     required this.nombre,
@@ -446,6 +449,7 @@ class PortalPerfil {
     this.ruc,
     this.rol,
     this.empresaEmail,
+    this.debeCambiarPassword = false,
   });
 
   String get nombreCompleto =>
@@ -463,6 +467,7 @@ class PortalPerfil {
         ruc: _sn(json['ruc']),
         rol: _sn(json['rol']),
         empresaEmail: _sn(json['empresaEmail']),
+        debeCambiarPassword: json['debeCambiarPassword'] == true,
       );
 }
 

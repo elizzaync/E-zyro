@@ -51,7 +51,36 @@ class _PortalShellState extends State<PortalShell> {
     if (svc == null || _perfil != null) return;
     final r = await svc.getPerfil();
     if (!mounted) return;
-    if (r.ok && r.data != null) setState(() => _perfil = r.data);
+    if (r.ok && r.data != null) {
+      setState(() => _perfil = r.data);
+      // Primer ingreso con contraseña temporal: forzar el cambio.
+      if (r.data!.debeCambiarPassword) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _forzarCambioPassword();
+        });
+      }
+    }
+  }
+
+  /// Diálogo bloqueante de cambio de contraseña (no cancelable) para cuentas
+  /// portal que aún usan la contraseña temporal generada por el admin.
+  Future<void> _forzarCambioPassword() async {
+    final svc = _svc;
+    if (svc == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DialogoCambiarPassword(servicio: svc, obligatorio: true),
+    );
+    if (ok == true && mounted) {
+      final r = await svc.getPerfil(); // refresca el flag (ya en false)
+      if (mounted && r.ok && r.data != null) setState(() => _perfil = r.data);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Contraseña actualizada')),
+        );
+      }
+    }
   }
 
   // ── Menú (perfil / cambiar contraseña / cerrar sesión) ────────────────────
@@ -865,8 +894,14 @@ class _ListaVacia extends StatelessWidget {
 // ── Diálogo "Cambiar contraseña" ──────────────────────────────────────────────
 
 class _DialogoCambiarPassword extends StatefulWidget {
-  const _DialogoCambiarPassword({required this.servicio});
+  const _DialogoCambiarPassword({
+    required this.servicio,
+    this.obligatorio = false,
+  });
   final PortalService servicio;
+
+  /// Primer ingreso con contraseña temporal: no se puede cancelar ni cerrar.
+  final bool obligatorio;
 
   @override
   State<_DialogoCambiarPassword> createState() =>
@@ -955,14 +990,28 @@ class _DialogoCambiarPasswordState extends State<_DialogoCambiarPassword> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Cambiar contraseña',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _campo(
+    return PopScope(
+      canPop: !widget.obligatorio,
+      child: AlertDialog(
+        title: Text(widget.obligatorio ? 'Cambia tu contraseña' : 'Cambiar contraseña',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.obligatorio)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Text(
+                    'Por seguridad, cambia tu contraseña temporal antes de '
+                    'continuar. Usa la temporal como "contraseña actual".',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              _campo(
               controller: _actualCtrl,
               etiqueta: 'Contraseña actual',
               visible: _verActual,
@@ -996,22 +1045,24 @@ class _DialogoCambiarPasswordState extends State<_DialogoCambiarPassword> {
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _enviando ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: _enviando ? null : _enviar,
-          child: _enviando
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Guardar'),
-        ),
-      ],
+        actions: [
+          if (!widget.obligatorio)
+            TextButton(
+              onPressed: _enviando ? null : () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+          FilledButton(
+            onPressed: _enviando ? null : _enviar,
+            child: _enviando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Guardar'),
+          ),
+        ],
+      ),
     );
   }
 }
