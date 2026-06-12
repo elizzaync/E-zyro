@@ -29,15 +29,6 @@
       </div>
     }
 
-    <!-- ── ESTADO: GPS ── -->
-    @if (paso === 'gps') {
-      <div class="estado-card estado-neutral">
-        <div class="spinner-ring"></div>
-        <p class="estado-texto">Obteniendo ubicación GPS...</p>
-        <p class="estado-subtexto">Si se demora, acepta el permiso de ubicación en tu navegador.</p>
-      </div>
-    }
-
     <!-- ── ESTADO: MARCANDO ── -->
     @if (paso === 'marcando') {
       <div class="estado-card estado-neutral">
@@ -58,12 +49,16 @@
           {{ ultimoTipo === 'entrada' ? '¡Entrada registrada!' : '¡Salida registrada!' }}
         </p>
         <p class="estado-hora-marcada">{{ ultimaMarca }}</p>
-        <div class="gps-badge" [class.gps-ok]="gpsCapturado" [class.gps-off]="!gpsCapturado">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/><path stroke-linecap="round" d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
-          </svg>
-          {{ gpsCapturado ? 'Ubicación registrada' : 'Sin GPS' }}
-        </div>
+
+        @if (gpsInfo) {
+          <div class="ubicacion-exito">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            {{ gpsInfo.direccion }}
+          </div>
+        }
         <p class="estado-subtexto">Actualizando estado...</p>
       </div>
     }
@@ -96,6 +91,52 @@
 
     <!-- ── ESTADO PRINCIPAL: LISTO ── -->
     @if (paso === 'listo' && estado) {
+
+      <!-- TARJETA GPS / UBICACIÓN -->
+      <div class="ubicacion-card" [class.ubicacion-card--ok]="gpsEstado === 'ok'" [class.ubicacion-card--denegado]="gpsEstado === 'denegado'">
+        <div class="ubicacion-icono">
+          @if (gpsEstado === 'solicitando') {
+            <div class="spinner-ring spinner-ring--sm"></div>
+          }
+          @if (gpsEstado === 'ok') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          }
+          @if (gpsEstado === 'denegado' || gpsEstado === 'sin_soporte') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            </svg>
+          }
+        </div>
+
+        <div class="ubicacion-info">
+          @if (gpsEstado === 'solicitando') {
+            <span class="ubicacion-label">Obteniendo ubicación...</span>
+            <span class="ubicacion-sub">Acepta el permiso de ubicación en tu navegador</span>
+          }
+          @if (gpsEstado === 'ok' && gpsInfo) {
+            <span class="ubicacion-label">{{ gpsInfo.direccion }}</span>
+            <span class="ubicacion-sub">±{{ gpsInfo.precision | number:'1.0-0' }} m · {{ gpsInfo.lat | number:'1.5-5' }}, {{ gpsInfo.lon | number:'1.5-5' }}</span>
+          }
+          @if (gpsEstado === 'denegado') {
+            <span class="ubicacion-label">Ubicación no disponible</span>
+            <span class="ubicacion-sub">La asistencia se registrará sin coordenadas</span>
+          }
+          @if (gpsEstado === 'sin_soporte') {
+            <span class="ubicacion-label">GPS no soportado en este dispositivo</span>
+          }
+        </div>
+
+        @if (gpsEstado === 'denegado') {
+          <button class="btn-gps-reintentar" (click)="reintentarGps()" title="Reintentar GPS">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </button>
+        }
+      </div>
 
       <!-- Resumen del día -->
       <div class="resumen-grid">

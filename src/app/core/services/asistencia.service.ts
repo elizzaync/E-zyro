@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 export interface EstadoHoyDto {
@@ -52,5 +53,21 @@ export class AsistenciaService {
         precision_m: coords.precision,
       }),
     });
+  }
+
+  reverseGeocode(lat: number, lon: number): Observable<string> {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=es`;
+    return this.http.get<any>(url).pipe(
+      map((r) => {
+        const a = r?.address ?? {};
+        const partes = [
+          a.road ?? a.pedestrian ?? a.footway,
+          a.suburb ?? a.neighbourhood ?? a.city_district ?? a.quarter,
+          a.city   ?? a.town ?? a.village ?? a.municipality,
+        ].filter(Boolean);
+        return partes.length ? partes.join(', ') : `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      }),
+      catchError(() => of(`${lat.toFixed(5)}, ${lon.toFixed(5)}`))
+    );
   }
 }
