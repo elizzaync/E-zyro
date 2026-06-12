@@ -724,6 +724,86 @@ def _alertas_tardanza():
         db.close()
 
 
+def _aviso_pre_horario():
+    """Cada 5 min (madrugada–noche): avisa a cada empleado activo 15 min antes
+    de su hora de entrada. La hora sale del turno-excepción vigente hoy; si no
+    tiene asignación, se usa el horario normal (08:00). No avisa si el empleado
+    ya marcó entrada hoy. Idempotente por (empleado, fecha)."""
+    from app.models.turno import Turno, TurnoEmpleado
+    from app.models.empleado import Empleado
+    from app.models.registro_asistencia import RegistroAsistencia
+    from sqlalchemy import cast, Date as SaDate, or_
+    from zoneinfo import ZoneInfo
+
+    DEF_ENTRADA = time(8, 0)
+    ANTICIPACION_MIN = 15
+
+    db: Session = SessionLocal()
+    try:
+        ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        hoy = ahora.date()
+
+        empleados = db.query(Empleado).filter(Empleado.activo.is_(True)).all()
+        if not empleados:
+            return
+
+        # Turno-excepción vigente hoy por empleado (primera asignación gana).
+        asignaciones = (
+            db.query(TurnoEmpleado, Turno)
+            .join(Turno, Turno.id == TurnoEmpleado.turno_id)
+            .filter(
+                TurnoEmpleado.activo.is_(True),
+                Turno.activo.is_(True),
+                TurnoEmpleado.fecha_desde <= hoy,
+                or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= hoy),
+            )
+            .all()
+        )
+        turno_por_emp: dict = {}
+        for te, turno in asignaciones:
+            turno_por_emp.setdefault(te.empleado_id, turno)
+
+        # Empleados que ya marcaron entrada hoy → no se les recuerda.
+        con_entrada = {
+            r.empleado_id
+            for r in db.query(RegistroAsistencia.empleado_id).filter(
+                RegistroAsistencia.tipo == "entrada",
+                cast(RegistroAsistencia.fecha_hora, SaDate) == hoy,
+            ).all()
+        }
+
+        emitidos = 0
+        for emp in empleados:
+            if emp.id in con_entrada or not emp.usuario_id:
+                continue
+            turno = turno_por_emp.get(emp.id)
+            hora_entrada = turno.hora_entrada if turno else DEF_ENTRADA
+            inicio   = datetime.combine(hoy, hora_entrada)
+            objetivo = inicio - timedelta(minutes=ANTICIPACION_MIN)
+            # Ventana: desde 15 min antes hasta la hora de entrada (un solo aviso).
+            if not (objetivo <= ahora < inicio):
+                continue
+
+            hora_txt = hora_entrada.strftime("%H:%M")
+            titulo  = "Tu jornada está por empezar"
+            mensaje = (f"En {ANTICIPACION_MIN} minutos comienza tu horario ({hora_txt}). "
+                       "Prepárate para marcar tu entrada.")
+            ref_key = f"pre_horario:{emp.id}:{hoy.isoformat()}"
+            if _emitir(db, empresa_id=emp.empresa_id, usuarios=[emp.usuario_id],
+                       tipo="recordatorio", categoria="asistencia",
+                       titulo=titulo, mensaje=mensaje, ref_key=ref_key):
+                emitidos += 1
+
+        db.commit()
+        if emitidos:
+            print(f"[Scheduler] Avisos pre-horario enviados: {emitidos}")
+    except Exception as e:
+        print(f"[Scheduler] Error en aviso pre-horario: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def iniciar_scheduler():
     """Registra las tareas y arranca el scheduler. Llamar desde main.py."""
     # Recordatorio diario a las 08:00 AM
@@ -775,10 +855,17 @@ def iniciar_scheduler():
         id="alertas_tardanza",
         replace_existing=True
     )
+    # Recordatorio 15 min antes del horario de entrada — cada 5 min de 4 a 21 h
+    scheduler.add_job(
+        func=_aviso_pre_horario,
+        trigger=CronTrigger(hour="4-21", minute="*/5"),
+        id="aviso_pre_horario",
+        replace_existing=True
+    )
     scheduler.start()
     print("⏰ Scheduler iniciado → calendario 08:00 + mantenimiento 08:15 + "
-          "vencimientos 08:30 + préstamos 08:45 + pre-almuerzo 11:45 + "
-          "fin almuerzo cada 5 min")
+          "vencimientos 08:30 + préstamos 08:45 + pre-horario cada 5 min (4-21h) + "
+          "pre-almuerzo 11:45 + fin almuerzo cada 5 min")
 def detener_scheduler():
     """Detiene el scheduler al cerrar la app."""
     if scheduler.running:

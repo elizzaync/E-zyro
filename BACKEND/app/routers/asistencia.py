@@ -688,27 +688,9 @@ def _turnos_por_empleado(db: Session, empresa_id: str, fecha: date) -> dict[str,
     return out
 
 
-@router.get("/control-diario")
-def control_diario(
-    fecha:   Optional[str] = None,
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
-):
-    """Resumen de asistencia del día por empleado: entrada/salida/almuerzo, horas
-    trabajadas netas y cumplimiento contra el turno del empleado.
-
-    Requiere permiso `asistencia:ver`."""
-    exigir_permiso(db, payload, "asistencia", "ver")
-    empresa_id = payload["empresa_id"]
-
-    if fecha:
-        try:
-            dia = date.fromisoformat(fecha)
-        except ValueError:
-            raise HTTPException(status_code=422, detail="Fecha inválida (use YYYY-MM-DD)")
-    else:
-        dia = datetime.now(ZoneInfo("America/Lima")).date()
-
+def _resumen_dia(db: Session, empresa_id: str, dia: date) -> dict:
+    """Resumen de asistencia de un día (items por empleado + contadores).
+    Lógica compartida por /control-diario y /export."""
     # 1. Empleados activos + datos de usuario
     empleados = (
         db.query(
@@ -850,6 +832,186 @@ def control_diario(
         },
         "items": items,
     }
+
+
+@router.get("/control-diario")
+def control_diario(
+    fecha:   Optional[str] = None,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Resumen de asistencia del día por empleado: entrada/salida/almuerzo, horas
+    trabajadas netas y cumplimiento contra el turno del empleado.
+
+    Requiere permiso `asistencia:ver`."""
+    exigir_permiso(db, payload, "asistencia", "ver")
+    empresa_id = payload["empresa_id"]
+
+    if fecha:
+        try:
+            dia = date.fromisoformat(fecha)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Fecha inválida (use YYYY-MM-DD)")
+    else:
+        dia = datetime.now(ZoneInfo("America/Lima")).date()
+
+    return _resumen_dia(db, empresa_id, dia)
+
+
+# ─── Exportación de asistencias (día / semana / mes) ──────────────────────────
+
+# Columnas del reporte tabular (orden de salida).
+_EXPORT_COLS: list[tuple[str, str]] = [
+    ("fecha",                "Fecha"),
+    ("nombre",               "Nombre"),
+    ("apellido",             "Apellido"),
+    ("cargo",                "Cargo"),
+    ("turno_nombre",         "Turno"),
+    ("es_excepcion",         "Es excepción"),
+    ("hora_entrada_turno",   "Entrada turno"),
+    ("hora_salida_turno",    "Salida turno"),
+    ("entrada_hora",         "Entrada real"),
+    ("salida_hora",          "Salida real"),
+    ("inicio_almuerzo_hora", "Inicio almuerzo"),
+    ("fin_almuerzo_hora",    "Fin almuerzo"),
+    ("minutos_almuerzo",     "Min. almuerzo"),
+    ("minutos_trabajados",   "Min. trabajados"),
+    ("horas_requeridas",     "Horas requeridas"),
+    ("minutos_tarde",        "Min. tarde"),
+    ("llego_tarde",          "Llegó tarde"),
+    ("minutos_antes_salida", "Min. antes de salir"),
+    ("salio_temprano",       "Salió temprano"),
+    ("estado",               "Estado"),
+    ("cumple",               "Cumple"),
+]
+
+
+def _rango_export(periodo: str, fecha: Optional[str]) -> tuple[date, date]:
+    """Devuelve (desde, hasta) inclusivos según periodo y fecha ancla.
+    periodo: dia | semana | mes. fecha ancla por defecto = hoy (America/Lima)."""
+    if fecha:
+        try:
+            ancla = date.fromisoformat(fecha)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Fecha inválida (use YYYY-MM-DD)")
+    else:
+        ancla = datetime.now(ZoneInfo("America/Lima")).date()
+
+    if periodo == "dia":
+        return ancla, ancla
+    if periodo == "semana":
+        # Semana ISO: lunes a domingo que contiene la fecha ancla.
+        lunes = ancla - timedelta(days=ancla.weekday())
+        return lunes, lunes + timedelta(days=6)
+    if periodo == "mes":
+        primero = ancla.replace(day=1)
+        if primero.month == 12:
+            sig = primero.replace(year=primero.year + 1, month=1)
+        else:
+            sig = primero.replace(month=primero.month + 1)
+        return primero, sig - timedelta(days=1)
+    raise HTTPException(status_code=422, detail="periodo inválido (use dia|semana|mes)")
+
+
+def _fmt_celda(col: str, valor) -> str:
+    """Normaliza un valor para CSV/Excel (bool → Sí/No, None → '')."""
+    if valor is None:
+        return ""
+    if isinstance(valor, bool):
+        return "Sí" if valor else "No"
+    return str(valor)
+
+
+def _filas_export(db: Session, empresa_id: str, desde: date, hasta: date) -> list[dict]:
+    """Aplana los items de cada día del rango en filas con columna 'fecha'."""
+    filas: list[dict] = []
+    dia = desde
+    while dia <= hasta:
+        resumen = _resumen_dia(db, empresa_id, dia)
+        for it in resumen["items"]:
+            fila = dict(it)
+            fila["fecha"] = dia.isoformat()
+            filas.append(fila)
+        dia += timedelta(days=1)
+    return filas
+
+
+@router.get("/export")
+def exportar_asistencias(
+    periodo: str           = "dia",            # dia | semana | mes
+    formato: str           = "csv",            # csv | xlsx
+    fecha:   Optional[str] = None,             # fecha ancla YYYY-MM-DD
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Descarga el detalle de asistencias del día, la semana o el mes.
+
+    - `periodo`: dia | semana | mes (rango calculado desde `fecha` ancla, o hoy).
+    - `formato`: csv | xlsx.
+
+    Requiere permiso `asistencia:ver`."""
+    from fastapi.responses import StreamingResponse
+
+    exigir_permiso(db, payload, "asistencia", "ver")
+    empresa_id = payload["empresa_id"]
+
+    periodo = (periodo or "dia").lower()
+    formato = (formato or "csv").lower()
+    if formato not in ("csv", "xlsx"):
+        raise HTTPException(status_code=422, detail="formato inválido (use csv|xlsx)")
+
+    desde, hasta = _rango_export(periodo, fecha)
+    filas = _filas_export(db, empresa_id, desde, hasta)
+
+    base = f"asistencias_{periodo}_{desde.isoformat()}"
+    if desde != hasta:
+        base += f"_a_{hasta.isoformat()}"
+
+    if formato == "csv":
+        import csv, io
+        buf = io.StringIO()
+        buf.write("﻿")  # BOM para que Excel detecte UTF-8 (acentos)
+        w = csv.writer(buf, delimiter=";")
+        w.writerow([titulo for _, titulo in _EXPORT_COLS])
+        for f in filas:
+            w.writerow([_fmt_celda(c, f.get(c)) for c, _ in _EXPORT_COLS])
+        data = buf.getvalue().encode("utf-8")
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{base}.csv"'},
+        )
+
+    # xlsx
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Asistencias"
+    encabezado_fill = PatternFill("solid", fgColor="1F4E78")
+    encabezado_font = Font(color="FFFFFF", bold=True)
+    ws.append([titulo for _, titulo in _EXPORT_COLS])
+    for celda in ws[1]:
+        celda.fill = encabezado_fill
+        celda.font = encabezado_font
+        celda.alignment = Alignment(horizontal="center")
+    for f in filas:
+        ws.append([_fmt_celda(c, f.get(c)) for c, _ in _EXPORT_COLS])
+    # Ancho de columnas aproximado al encabezado.
+    for idx, (_, titulo) in enumerate(_EXPORT_COLS, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = max(12, len(titulo) + 2)
+    ws.freeze_panes = "A2"
+
+    out = io.BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return StreamingResponse(
+        out,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{base}.xlsx"'},
+    )
 
 
 # ─── Turnos: listado, alta y asignación de excepciones ────────────────────────
