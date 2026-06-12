@@ -548,3 +548,6 @@
 :host-context(html[data-theme="dark"]) .tipo-const   { background: rgba(14,165,233,.15); color: #7dd3fc; }
 :host-context(html[data-theme="dark"]) .tipo-acta    { background: rgba(168,85,247,.15); color: #d8b4fe; }
 :host-context(html[data-theme="dark"]) .boleta-preview { background: rgba(99,102,241,.1); border-color: rgba(99,102,241,.25); color: #a5b4fc; }
+
+/* Responsive: campos a 1 columna en móvil */
+@media (max-width: 560px) { .form-row-2 { grid-template-columns: 1fr !important; } }

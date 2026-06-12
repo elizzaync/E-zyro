@@ -714,3 +714,6 @@
   transition: transform .2s;
 }
 .toggle-on .toggle-thumb { transform: translateX(18px); }
+
+/* Responsive: campos a 1 columna en móvil */
+@media (max-width: 560px) { .fields-grid-3, .fields-grid-2 { grid-template-columns: 1fr !important; } }

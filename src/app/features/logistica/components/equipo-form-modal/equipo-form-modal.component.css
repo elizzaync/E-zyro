@@ -130,3 +130,8 @@
   .mant-grid { grid-template-columns: 1fr; }
 }
 
+
+/* Responsive: formularios a 1 columna en móvil */
+@media (max-width: 560px) {
+  .mant-grid, .lf-grid { grid-template-columns: 1fr !important; }
+}

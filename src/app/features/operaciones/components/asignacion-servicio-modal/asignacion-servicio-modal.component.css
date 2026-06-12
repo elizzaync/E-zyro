@@ -1149,3 +1149,6 @@
 .asm-confirm-actions .btn-cancel,
 .asm-confirm-actions .btn-primary { flex: 1; justify-content: center; }
 
+
+/* Responsive: meta a 1 columna en móvil */
+@media (max-width: 560px) { .sic-meta-grid { grid-template-columns: 1fr !important; } }

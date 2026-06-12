@@ -140,3 +140,8 @@
 /* ══ FADE IN ════════════════════════════════════════════════════════ */
 .fade-in { animation: fadeIn .25s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+/* Responsive: formularios a 1 columna en móvil */
+@media (max-width: 560px) {
+  .form-row { grid-template-columns: 1fr !important; }
+}

@@ -65,3 +65,5 @@
     background: rgba(141, 198, 63, 0.06);
 }
 .ver-todas-btn:hover svg { transform: translateY(2px); }
+/* Responsive: ayuda a una columna en móvil */
+@media (max-width: 768px) { .help-grid { grid-template-columns: 1fr; } }

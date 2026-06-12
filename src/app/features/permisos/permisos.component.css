@@ -132,3 +132,5 @@
 :host-context([data-theme="dark"]) .pdf-loading-spinner {
   border-color: #334155;
 }
+/* Responsive: vista dividida apila en móvil */
+@media (max-width: 860px) { .split-view { grid-template-columns: 1fr; } }

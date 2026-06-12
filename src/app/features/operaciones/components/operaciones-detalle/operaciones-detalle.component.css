@@ -2387,3 +2387,7 @@
 :host-context([data-theme="dark"]) .ei-nav-btn:hover { border-color: #91d337; }
 :host-context([data-theme="dark"]) .ei-codigo  { background: #1e293b; }
 :host-context([data-theme="dark"]) .ei-btn-no  { border-color: #334155; }
+/* Responsive: formularios a 1 columna en móvil */
+@media (max-width: 560px) {
+  .form-row-2, .salida-meta { grid-template-columns: 1fr !important; }
+}

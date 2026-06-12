@@ -615,3 +615,6 @@
 :host-context(html[data-theme="dark"]) .sol-table tbody tr.row-pendiente {
   border-left-color: #f59e0b;
 }
+
+/* Responsive: detalle a 1 columna en móvil */
+@media (max-width: 560px) { .detail-grid { grid-template-columns: 1fr !important; } }

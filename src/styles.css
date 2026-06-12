@@ -8,6 +8,36 @@ html, body {
 }
 
 /* =======================================================
+   BASE RESPONSIVE GLOBAL
+   Reglas que aplican a TODA la app para que el contenido
+   "cubra correctamente" y nunca genere scroll horizontal en
+   celular, sin necesidad de tocar cada componente.
+   ======================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;            /* mata el scroll horizontal en móvil */
+  -webkit-text-size-adjust: 100%; /* iOS: no auto-zoom de texto */
+}
+
+/* Multimedia nunca desborda su contenedor */
+img, picture, video, canvas, svg, iframe {
+  max-width: 100%;
+  height: auto;
+}
+canvas { height: 100%; } /* el fondo de partículas necesita alto completo */
+
+/* Texto e inputs largos hacen wrap en lugar de empujar el layout */
+input, button, textarea, select { font: inherit; }
+h1, h2, h3, h4, p, span, a, button, label { overflow-wrap: break-word; }
+
+/* Las tablas anchas se vuelven scrollables en su propio contenedor:
+   envolver una <table> con <div class="table-responsive"> */
+.table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* =======================================================
    CAPA DE FONDO DE PARTÍCULAS (public/background.js)
    El canvas es position:fixed con z-index:-1 y pointer-events:none:
    queda SIEMPRE detrás de navbar, cards y modales.
@@ -55,6 +85,38 @@ app-root {
   --radius-lg:        16px;
   --radius-xl:        20px;
   --font-base:        'Inter', 'Segoe UI', Roboto, sans-serif;
+
+  /* ── Sistema responsive (breakpoints de referencia) ──
+     CSS no permite var() dentro de @media, así que estos valores son la
+     CONVENCIÓN del proyecto. Usar siempre estos cortes en los @media:
+       --bp-xs: 480px   (móvil pequeño)
+       --bp-sm: 640px   (móvil)
+       --bp-md: 768px   (tablet vertical)
+       --bp-lg: 1024px  (tablet horizontal / laptop pequeña)
+       --bp-xl: 1280px  (desktop) */
+  --bp-xs: 480px;
+  --bp-sm: 640px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+
+  /* ── Espaciado fluido (se reduce en pantallas chicas vía media abajo) ── */
+  --space-page-x: 32px;   /* padding horizontal de las páginas */
+  --space-page-y: 40px;   /* padding vertical de las páginas */
+  --space-gap:    24px;   /* gap estándar entre tarjetas/grids */
+  --nav-height:   72px;   /* altura del navbar (también en tablet) */
+  --container-max: 1600px;
+}
+
+/* Espaciado fluido: se compacta progresivamente en móvil/tablet */
+@media (max-width: 1024px) {
+  :root { --space-page-x: 24px; --space-page-y: 28px; --space-gap: 18px; }
+}
+@media (max-width: 640px) {
+  :root { --space-page-x: 16px; --space-page-y: 20px; --space-gap: 14px; --nav-height: 60px; }
+}
+@media (max-width: 480px) {
+  :root { --space-page-x: 12px; --space-page-y: 16px; }
 }
 
 /* 2. TEMA OSCURO AUTOMÁTICO (Solo si NO has forzado el claro) */
@@ -98,6 +160,21 @@ app-root {
   --shadow-panel:    0 4px 20px rgba(0,0,0,.3);
   --shadow-modal:    0 20px 60px rgba(0,0,0,.5);
 }
+/* =======================================================
+   AISLAMIENTO DEL CONTENIDO DE PÁGINA
+   `main` crea su PROPIO contexto de apilamiento (isolation: isolate)
+   en z-index:0. Así, todos los z-index internos de las páginas
+   (calendario z-50, operaciones z-900/999, etc.) quedan ENCERRADOS
+   dentro de esta capa y NUNCA pueden subir por encima del navbar
+   (z-index:1000), cuyos dropdowns —perfil, Logística, RRHH, tema—
+   deben estar siempre al frente y ser clickeables.
+   ======================================================= */
+main {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}
+
 /* =======================================================
    PORTAL CLIENTE — modo de visualización restringida
    ======================================================= */

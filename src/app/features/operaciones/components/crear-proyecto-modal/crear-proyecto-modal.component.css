@@ -557,3 +557,6 @@
   .footer-actions { justify-content: stretch; }
   .footer-actions > * { flex: 1; justify-content: center; }
 }
+
+/* Responsive: campos a 1 columna en móvil */
+@media (max-width: 560px) { .form-row, .form-row-2, [class*="grid-2"] { grid-template-columns: 1fr !important; } }

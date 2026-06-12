@@ -151,3 +151,5 @@
   .layout-grid { grid-template-columns: 1fr; } /* Pasa a 1 sola columna en pantallas medianas */
   .tabs-container { width: 100%; overflow-x: auto; white-space: nowrap; }
 }
+/* Responsive: panel lateral apila bajo el contenido en tablet/móvil */
+@media (max-width: 900px) { .layout-grid { grid-template-columns: 1fr; } }

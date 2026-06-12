@@ -306,3 +306,10 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
 :host-context(html[data-theme="dark"]) .firma-preview-wrapper { background: rgba(145, 211, 55, 0.08); }
 :host-context(html[data-theme="dark"]) .firma-preview-img { background: #ffffff; }
 :host-context(html[data-theme="dark"]) .firma-guardada-img { background: #ffffff; border-color: #4b6071; }
+/* Responsive: formularios a 1 columna en móvil */
+@media (max-width: 560px) {
+  .permiso-form-grid, form .grid, .pf-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Responsive: formulario a 1 columna en móvil */
+@media (max-width: 560px) { .form-row { grid-template-columns: 1fr !important; } }

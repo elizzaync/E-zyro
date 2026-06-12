@@ -4,8 +4,12 @@
 .top-navbar {
   display: flex; align-items: center; justify-content: space-between;
   height: 72px; padding: 0 24px;
-  /* siempre por encima del canvas de partículas (z-index:-1) */
-  position: relative; z-index: 10;
+  /* z-index alto: el navbar y sus dropdowns (perfil, Logística, RRHH) deben
+     quedar SIEMPRE por encima del contenido de página, que tiene z-index
+     propios (calendario z-50, operaciones z-900/999, etc.). A 1000 gana a
+     todo ese contenido pero queda por debajo de los modales full-screen
+     (z-2000/9000) y empata con los de z-1000, que ganan por orden del DOM. */
+  position: relative; z-index: 1000;
   background-color: var(--card-bg); border-bottom: 1px solid var(--border-color);
   font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
   transition: background-color 0.4s ease, border-color 0.4s ease;
@@ -372,3 +376,77 @@ html[data-theme="dark"] .logout-btn:hover { background-color: rgba(239, 68, 68, 
 .portal-badge svg { flex-shrink: 0; }
 
 .portal-actions { gap: 0; }
+/* =======================================================
+   RESPONSIVE — NAVBAR MÓVIL / TABLET
+   Hamburguesa + drawer deslizante. Desktop intacto.
+   ======================================================= */
+.nav-hamburger { display: none; }  /* oculta en desktop */
+
+@media (max-width: 1024px) {
+  .top-navbar { height: var(--nav-height, 64px); padding: 0 14px; gap: 8px; }
+
+  /* Hamburguesa visible */
+  .nav-hamburger {
+    display: inline-flex; flex-direction: column; justify-content: center; gap: 5px;
+    width: 42px; height: 42px; border: none; background: transparent; cursor: pointer;
+    border-radius: 10px; flex-shrink: 0; padding: 0 10px;
+  }
+  .nav-hamburger:hover { background: var(--hover-bg); }
+  .nav-hamburger span {
+    display: block; height: 2.5px; width: 22px; border-radius: 2px; background: var(--text-main);
+    transition: transform .25s ease, opacity .2s ease;
+  }
+  .nav-hamburger.active span:nth-child(1) { transform: translateY(7.5px) rotate(45deg); }
+  .nav-hamburger.active span:nth-child(2) { opacity: 0; }
+  .nav-hamburger.active span:nth-child(3) { transform: translateY(-7.5px) rotate(-45deg); }
+
+  .navbar-actions { margin-left: auto; gap: 8px; }
+  .brand-subtitle { display: none; }   /* ahorra espacio en la barra */
+  .profile-info  { display: none; }    /* en móvil solo el avatar */
+
+  /* Backdrop oscuro debajo del drawer */
+  .mobile-nav-backdrop {
+    position: fixed; inset: var(--nav-height, 64px) 0 0 0; z-index: 150;
+    background: rgba(15, 23, 42, .45);
+  }
+
+  /* navbar-links -> drawer deslizante desde la barra */
+  .navbar-links {
+    position: fixed; top: var(--nav-height, 64px); left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 4px;
+    background: var(--card-bg); border-bottom: 1px solid var(--border-color);
+    padding: 12px; max-height: calc(100dvh - var(--nav-height, 64px)); overflow-y: auto;
+    z-index: 160; box-shadow: 0 16px 40px var(--shadow-color);
+    transform: translateY(-12px); opacity: 0; pointer-events: none;
+    transition: transform .2s ease, opacity .2s ease;
+  }
+  .navbar-links.mobile-open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+
+  .nav-item { width: 100%; border-radius: 12px; padding: 12px 14px; font-size: 15px; }
+  .nav-item.active::after { display: none; }
+
+  /* Dropdowns (Logística/RRHH) en línea dentro del drawer */
+  .nav-dropdown { width: 100%; }
+  .nav-submenu {
+    position: static; transform: none; min-width: 0; width: 100%;
+    background: transparent; border: none; border-radius: 0; box-shadow: none;
+    padding: 2px 0 6px 14px; animation: none;
+  }
+  .nav-submenu::before { display: none; }
+  .nav-submenu-backdrop { display: none; }
+  .portal-badge { align-self: flex-start; margin-top: 4px; }
+
+  /* Paneles flotantes que no deben desbordar la pantalla */
+  .dropdown-menu { width: min(280px, calc(100vw - 20px)); }
+  .notif-panel   { width: min(320px, calc(100vw - 20px)); }
+
+  /* Modal de perfil: una sola columna en móvil */
+  .form-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .brand-title { font-size: 14px; }
+  .logo-box { width: 34px; height: 34px; font-size: 17px; border-radius: 9px; }
+  .navbar-brand { gap: 8px; }
+  .profile-avatar { width: 32px; height: 32px; }
+}

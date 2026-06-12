@@ -75,6 +75,8 @@ get enRRHH(): boolean {
   isMenuOpen = false;
   logisticaOpen = false;
   rrhhOpen = false;
+  /** Drawer de navegación en móvil/tablet (hamburguesa) */
+  mobileNavOpen = false;
   showProfileModal = false;
   isEditingProfile = false;
   permisosUsuario: string[] = [];
@@ -157,6 +159,19 @@ get enRRHH(): boolean {
 
   toggleMenu() { this.isMenuOpen = !this.isMenuOpen; }
   cerrarMenu() { this.isMenuOpen = false; }
+
+  /** Hamburguesa: abre/cierra el drawer de navegación en móvil. */
+  toggleMobileNav() {
+    this.mobileNavOpen = !this.mobileNavOpen;
+    this.isMenuOpen = false;
+    if (!this.mobileNavOpen) { this.logisticaOpen = false; this.rrhhOpen = false; }
+  }
+  /** Cierra el drawer móvil (al elegir una opción o tocar fuera). */
+  cerrarMobileNav() {
+    this.mobileNavOpen = false;
+    this.logisticaOpen = false;
+    this.rrhhOpen = false;
+  }
 
   toggleNotifPanel() {
     this.showNotifPanel = !this.showNotifPanel;
@@ -250,11 +265,17 @@ get enRRHH(): boolean {
         }
       },
       error: (err) => {
-        // El portal cliente no tiene acceso al perfil interno — suprimir el toast
-        if (!this.isClienteExterno) {
-          console.error(err);
-          this.toastService.mostrar('Error al conectar con el servidor', 'error');
-        }
+        console.error(err);
+        // El portal cliente no tiene acceso al perfil interno — suprimir el toast.
+        if (this.isClienteExterno) return;
+
+        // Error transitorio (status 0 = red/cold-start de Railway, ya reintentado
+        // por el interceptor): el login SÍ tuvo éxito y los datos básicos ya están
+        // en localStorage, así que no alarmamos. El perfil se recargará al navegar.
+        if (!err || err.status === 0) return;
+
+        // Solo mostramos la alerta ante un error real del servidor.
+        this.toastService.mostrar('Error al conectar con el servidor', 'error');
       }
     });
   }

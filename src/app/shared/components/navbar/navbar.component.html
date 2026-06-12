@@ -1,4 +1,10 @@
 <nav class="top-navbar">
+    <!-- Hamburguesa: solo visible en móvil/tablet (CSS) -->
+    <button class="nav-hamburger" (click)="toggleMobileNav()" [class.active]="mobileNavOpen"
+        aria-label="Menú de navegación">
+        <span></span><span></span><span></span>
+    </button>
+
     <div class="navbar-brand">
         <div class="logo-box">
             <span>E</span>
@@ -9,9 +15,13 @@
         </div>
     </div>
 
+    @if (mobileNavOpen) {
+    <div class="mobile-nav-backdrop" (click)="cerrarMobileNav()"></div>
+    }
+
     @if (!isClienteExterno) {
-    <div class="navbar-links">
-        <a routerLink="/home" routerLinkActive="active" class="nav-item">
+    <div class="navbar-links" [class.mobile-open]="mobileNavOpen">
+        <a routerLink="/home" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -19,7 +29,7 @@
             </svg>
             <span>Inicio</span>
         </a>
-        <a routerLink="/operaciones" routerLinkActive="active" class="nav-item">
+        <a routerLink="/operaciones" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -30,7 +40,7 @@
         </a>
         <div class="nav-dropdown">
             @if (logisticaOpen) {
-            <div class="nav-submenu-backdrop" (click)="logisticaOpen = false"></div>
+            <div class="nav-submenu-backdrop" (click)="logisticaOpen = false; cerrarMobileNav()"></div>
             }
             <a href="javascript:void(0)" class="nav-item" [class.active]="logisticaOpen || enLogistica"
                 (click)="logisticaOpen = !logisticaOpen; rrhhOpen = false">
@@ -48,7 +58,7 @@
             @if (logisticaOpen) {
             <div class="nav-submenu">
                 <a routerLink="/logistica" routerLinkActive="active" class="nav-subitem"
-                    [routerLinkActiveOptions]="{ exact: true }" (click)="logisticaOpen = false">
+                    [routerLinkActiveOptions]="{ exact: true }" (click)="logisticaOpen = false; cerrarMobileNav()">
                     <span class="nav-subitem-ic">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -64,7 +74,7 @@
                 </a>
                 @if (puedeVerLogisticaAvanzada) {
                 <a routerLink="/logistica/requerimientos" routerLinkActive="active" class="nav-subitem"
-                    (click)="logisticaOpen = false">
+                    (click)="logisticaOpen = false; cerrarMobileNav()">
                     <span class="nav-subitem-ic">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -78,7 +88,7 @@
                     </div>
                 </a>
                 <a routerLink="/logistica/compras" routerLinkActive="active" class="nav-subitem"
-                    (click)="logisticaOpen = false">
+                    (click)="logisticaOpen = false; cerrarMobileNav()">
                     <span class="nav-subitem-ic">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -100,7 +110,7 @@
         @if (puedeAdministrarRRHH) {
         <div class="nav-dropdown">
             @if (rrhhOpen) {
-            <div class="nav-submenu-backdrop" (click)="rrhhOpen = false"></div>
+            <div class="nav-submenu-backdrop" (click)="rrhhOpen = false; cerrarMobileNav()"></div>
             }
             <a href="javascript:void(0)" class="nav-item" [class.active]="rrhhOpen || enRRHH"
                 (click)="rrhhOpen = !rrhhOpen; logisticaOpen = false">
@@ -118,7 +128,7 @@
 
             @if (rrhhOpen) {
             <div class="nav-submenu">
-                <a routerLink="/rrhh/legajo" routerLinkActive="active" class="nav-subitem" (click)="rrhhOpen = false">
+                <a routerLink="/rrhh/legajo" routerLinkActive="active" class="nav-subitem" (click)="rrhhOpen = false; cerrarMobileNav()">
                     <span class="nav-subitem-ic">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -133,7 +143,7 @@
                 </a>
 
                 <a routerLink="/rrhh/asistencia" routerLinkActive="active" class="nav-subitem"
-                    (click)="rrhhOpen = false">
+                    (click)="rrhhOpen = false; cerrarMobileNav()">
                     <span class="nav-subitem-ic">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -148,7 +158,7 @@
                 </a>
 
                 <a routerLink="/rrhh/solicitudes" routerLinkActive="active" class="nav-subitem"
-                    (click)="rrhhOpen = false">
+                    (click)="rrhhOpen = false; cerrarMobileNav()">
                     <span class="nav-subitem-ic">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
@@ -165,7 +175,7 @@
         </div>
         }
 
-        <a routerLink="/personal" routerLinkActive="active" class="nav-item">
+        <a routerLink="/personal" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -174,7 +184,7 @@
             <span>Personal</span>
         </a>
 
-        <a routerLink="/mas" routerLinkActive="active" class="nav-item">
+        <a routerLink="/mas" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -187,8 +197,8 @@
     }
 
     @if (isClienteExterno) {
-    <div class="navbar-links">
-        <a routerLink="/portal-cliente/dashboard" routerLinkActive="active" class="nav-item">
+    <div class="navbar-links" [class.mobile-open]="mobileNavOpen">
+        <a routerLink="/portal-cliente/dashboard" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -196,7 +206,7 @@
             </svg>
             <span>Dashboard</span>
         </a>
-        <a routerLink="/portal-cliente/proyectos" routerLinkActive="active" class="nav-item">
+        <a routerLink="/portal-cliente/proyectos" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"
@@ -204,7 +214,7 @@
             </svg>
             <span>Proyectos</span>
         </a>
-        <a routerLink="/portal-cliente/documentos" routerLinkActive="active" class="nav-item">
+        <a routerLink="/portal-cliente/documentos" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round"

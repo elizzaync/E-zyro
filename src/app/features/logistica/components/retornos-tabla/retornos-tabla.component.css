@@ -30,7 +30,7 @@
 .ret-empty span { font-size: .85rem; }
 
 /* ─── Tabla ─── */
-.ret-table-wrap { background: var(--card-bg,#fff); border: 1px solid var(--border-color,#e7eae6); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+.ret-table-wrap { background: var(--card-bg,#fff); border: 1px solid var(--border-color,#e7eae6); border-radius: 12px; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
 .ret-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
 .ret-table thead tr { background: var(--bg-color,#f8fafc); border-bottom: 2px solid var(--border-color,#e7eae6); }
 .ret-table th { padding: .72rem 1rem; text-align: left; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted,#64748b); white-space: nowrap; }

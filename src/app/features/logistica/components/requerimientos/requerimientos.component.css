@@ -584,3 +584,8 @@
   .rm-modal { max-width: none; max-height: none; box-shadow: none; border-radius: 0; }
   .rm-comprobante-scroll { overflow: visible; }
 }
+
+/* Responsive: formularios a 1 columna en móvil */
+@media (max-width: 560px) {
+  .comp-grid2 { grid-template-columns: 1fr !important; }
+}
