@@ -518,6 +518,188 @@ def portal_kpis(
     }
 
 
+# ── 5b. Analytics ejecutivo (Dashboard) ──────────────────────────────────────
+# Sirve TODO el dashboard en una respuesta. Política: SOLO datos reales — sin
+# deltas/sparklines (requieren snapshot_kpi_diario, inexistente) ni SLA/tiempo
+# de respuesta (requieren tabla `correctivo`, inexistente en prod). Cada sección
+# se calcula a partir de columnas verificadas como pobladas contra producción.
+
+# Servicios del cliente: ps -> proyecto -> cliente. Estados en BD están
+# capitalizados ('Completado'/'En_Proceso'/'Pendiente'): se normalizan con lower().
+_PS_BASE_FROM = """
+    FROM proyecto_servicio ps
+    JOIN proyecto p ON p.id = ps.proyecto_id
+    WHERE ps.empresa_id::text = :eid AND p.cliente_id::text = :cid
+"""
+
+
+@router.get("/analytics/ejecutivo")
+def portal_analytics_ejecutivo(
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> dict[str, Any]:
+    empresa_id, cliente_id = _ctx(payload)
+    params = {"eid": empresa_id, "cid": cliente_id}
+
+    # ── Resumen de equipos (parque) ──────────────────────────────────────────
+    total_eq = db.execute(text(f"SELECT COUNT(*) {_EI_BASE_WHERE}"), params).scalar() or 0
+
+    parque_rows = db.execute(text(f"""
+        SELECT COALESCE(ei.estado_intervencion, 'pendiente') AS est, COUNT(*)
+        {_EI_BASE_WHERE}
+        GROUP BY 1
+    """), params).fetchall()
+    parque = {r[0]: int(r[1]) for r in parque_rows}
+
+    # Ventanas de próximo mantenimiento (criticidad)
+    vent = db.execute(text(f"""
+        SELECT
+          COUNT(*) FILTER (WHERE ei.proximo_mantenimiento < CURRENT_DATE)                                   AS vencidos,
+          COUNT(*) FILTER (WHERE ei.proximo_mantenimiento BETWEEN CURRENT_DATE AND CURRENT_DATE + 30)        AS en_30d,
+          COUNT(*) FILTER (WHERE ei.proximo_mantenimiento >  CURRENT_DATE + 30
+                             AND ei.proximo_mantenimiento <= CURRENT_DATE + 90)                              AS en_90d,
+          COUNT(*) FILTER (WHERE ei.proximo_mantenimiento >  CURRENT_DATE + 90)                              AS mas_90d,
+          COUNT(*) FILTER (WHERE ei.proximo_mantenimiento IS NULL)                                           AS sin_fecha
+        {_EI_BASE_WHERE}
+    """), params).fetchone()
+
+    # ── Distribución por sede (ubicación) ────────────────────────────────────
+    sede_rows = db.execute(text(f"""
+        SELECT COALESCE(u.nombre, 'Sin asignar') AS sede, u.region, COUNT(*) AS n
+        FROM equipo_intervenido ei
+        LEFT JOIN proyecto  p ON p.id = ei.proyecto_id
+        LEFT JOIN ubicacion u ON u.id = ei.ubicacion_id
+        WHERE ei.empresa_id::text = :eid AND ei.activo = true
+          AND (ei.cliente_id::text = :cid
+               OR (ei.proyecto_id IS NOT NULL AND p.cliente_id::text = :cid))
+        GROUP BY u.nombre, u.region
+        ORDER BY n DESC
+    """), params).fetchall()
+
+    # ── Servicios ────────────────────────────────────────────────────────────
+    serv_rows = db.execute(text(f"""
+        SELECT LOWER(COALESCE(ps.estado, 'pendiente')) AS est, COUNT(*) {_PS_BASE_FROM}
+        GROUP BY 1
+    """), params).fetchall()
+    serv = {r[0]: int(r[1]) for r in serv_rows}
+    serv_total = sum(serv.values())
+
+    # Conformidades: 'En Espera' o NULL = pendiente
+    conf_pend = db.execute(text(f"""
+        SELECT COUNT(*) {_PS_BASE_FROM}
+          AND (ps.nro_conformidad IS NULL OR TRIM(ps.nro_conformidad) = ''
+               OR LOWER(ps.nro_conformidad) LIKE 'en espera%')
+    """), params).scalar() or 0
+
+    # ── Línea 12 meses: programados (fecha_programada) vs completados (fecha_fin) ─
+    linea_rows = db.execute(text(f"""
+        WITH meses AS (
+          SELECT to_char(date_trunc('month', CURRENT_DATE) - (n || ' month')::interval, 'YYYY-MM') AS mes
+          FROM generate_series(11, 0, -1) AS n
+        )
+        SELECT m.mes,
+          (SELECT COUNT(*) {_PS_BASE_FROM}
+             AND to_char(ps.fecha_programada, 'YYYY-MM') = m.mes)                       AS programados,
+          (SELECT COUNT(*) {_PS_BASE_FROM}
+             AND LOWER(ps.estado) = 'completado'
+             AND to_char(ps.fecha_fin, 'YYYY-MM') = m.mes)                              AS completados
+        FROM meses m
+        ORDER BY m.mes
+    """), params).fetchall()
+
+    # ── Garantías por vencer (vigencia en ±, vía servicio del cliente) ───────
+    gar_rows = db.execute(text("""
+        SELECT cg.razon_social, cg.vigencia_garantia,
+               (cg.documento_pdf_url IS NOT NULL) AS tiene_pdf
+        FROM carta_garantia cg
+        JOIN proyecto_servicio ps ON ps.id = cg.servicio_id
+        JOIN proyecto p ON p.id = ps.proyecto_id
+        WHERE cg.empresa_id::text = :eid AND p.cliente_id::text = :cid
+          AND cg.vigencia_garantia IS NOT NULL
+        ORDER BY cg.vigencia_garantia ASC
+        LIMIT 50
+    """), params).fetchall()
+
+    # ── Inspecciones (heatmap por día de fecha_inicio) ───────────────────────
+    insp_rows = db.execute(text("""
+        SELECT to_char(hi.fecha_inicio, 'YYYY-MM-DD') AS dia, COUNT(*)
+        FROM historial_inspeccion hi
+        JOIN equipo_intervenido ei ON ei.id = hi.equipo_intervenido_id
+        LEFT JOIN proyecto p ON p.id = ei.proyecto_id
+        WHERE hi.empresa_id::text = :eid AND hi.fecha_inicio IS NOT NULL
+          AND (ei.cliente_id::text = :cid
+               OR (ei.proyecto_id IS NOT NULL AND p.cliente_id::text = :cid))
+        GROUP BY 1 ORDER BY 1 DESC LIMIT 120
+    """), params).fetchall()
+
+    # ── ITSE (distribución por estado) ───────────────────────────────────────
+    itse_rows = db.execute(text("""
+        SELECT LOWER(COALESCE(estado, 'borrador')) AS est, COUNT(*)
+        FROM inspeccion_itse
+        WHERE empresa_id::text = :eid AND cliente_id::text = :cid
+        GROUP BY 1
+    """), params).fetchall()
+
+    hoy = date.today()
+    garantias = [
+        {
+            "razon_social": r[0],
+            "vigencia":     r[1].isoformat() if r[1] else None,
+            "vencida":      bool(r[1] and r[1] < hoy),
+            "tiene_pdf":    bool(r[2]),
+        }
+        for r in gar_rows
+    ]
+    # Vigentes aún (no vencidas) = "por vencer / activas"
+    gar_por_vencer = sum(1 for g in garantias if g["vigencia"] and not g["vencida"])
+
+    return {
+        "generado": datetime.utcnow().isoformat() + "Z",
+        "nota": "Solo datos reales; sin deltas/tendencias ni SLA (requieren histórico y módulo correctivo no disponibles).",
+        "resumen": {
+            "total_equipos":            int(total_eq),
+            "equipos_completados":      parque.get("completado", 0),
+            "equipos_en_proceso":       parque.get("en_proceso", 0),
+            "equipos_pendientes":       parque.get("pendiente", 0),
+            "equipos_criticos":         int(vent[0] or 0),          # vencidos
+            "proximos_30d":             int(vent[1] or 0),
+            "proximos_90d":             int(vent[1] or 0) + int(vent[2] or 0),
+            "servicios_total":          serv_total,
+            "servicios_completados":    serv.get("completado", 0),
+            "servicios_en_proceso":     serv.get("en_proceso", 0),
+            "conformidades_pendientes": int(conf_pend),
+            "garantias_por_vencer":     gar_por_vencer,
+        },
+        "parque_intervencion": [
+            {"estado": k, "cantidad": v} for k, v in sorted(parque.items())
+        ],
+        "mantenimientos_ventana": {
+            "vencidos":  int(vent[0] or 0),
+            "en_30d":    int(vent[1] or 0),
+            "en_90d":    int(vent[2] or 0),
+            "mas_90d":   int(vent[3] or 0),
+            "sin_fecha": int(vent[4] or 0),
+        },
+        "por_sede": [
+            {"sede": r[0], "region": r[1], "cantidad": int(r[2])} for r in sede_rows
+        ],
+        "servicios_estado": [
+            {"estado": k, "cantidad": v} for k, v in sorted(serv.items())
+        ],
+        "linea_12_meses": [
+            {"mes": r[0], "programados": int(r[1]), "completados": int(r[2])}
+            for r in linea_rows
+        ],
+        "garantias": garantias,
+        "inspecciones_calendario": [
+            {"fecha": r[0], "cantidad": int(r[1])} for r in insp_rows
+        ],
+        "itse": [
+            {"estado": r[0], "cantidad": int(r[1])} for r in itse_rows
+        ],
+    }
+
+
 # ── 6. Historial de mantenimientos (tabla detallada) ─────────────────────────
 # Cada fila = un evento (equipo × servicio). La clave `id` es
 # historial_mantenimiento.id, no equipo_intervenido.id, para que
