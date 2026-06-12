@@ -45,6 +45,7 @@ class AuditoriaOut(BaseModel):
     modulo: Optional[str]
     descripcion: Optional[str]
     ip: Optional[str]
+    user_agent: Optional[str] = None
     fecha: str
     datos_anteriores: Optional[Dict[str, Any]] = None
     datos_nuevos: Optional[Dict[str, Any]] = None
@@ -83,6 +84,7 @@ def listar_auditoria(
     fecha_desde: Optional[str]     = Query(None),
     fecha_hasta: Optional[str]     = Query(None),
     usuario_id: Optional[str]      = Query(None),
+    buscar_usuario: Optional[str]  = Query(None, description="Buscar por nombre/apellido del actor"),
     page: int                      = Query(1, ge=1),
     page_size: int                 = Query(50, ge=1, le=100),
     payload: dict                  = Depends(verificar_token),
@@ -111,6 +113,20 @@ def listar_auditoria(
         uid = _to_uuid(usuario_id)
         if uid:
             query = query.filter(Auditoria.usuario_id == uid)
+    if buscar_usuario and buscar_usuario.strip():
+        term = f"%{buscar_usuario.strip()}%"
+        ids = [
+            row[0]
+            for row in db.query(Usuario.id)
+            .filter(
+                Usuario.empresa_id == emp_uuid,
+                (Usuario.nombre.ilike(term)) | (Usuario.apellido.ilike(term)),
+            )
+            .all()
+        ]
+        if not ids:
+            return []
+        query = query.filter(Auditoria.usuario_id.in_(ids))
     if fecha_desde:
         try:
             query = query.filter(Auditoria.fecha >= datetime.strptime(fecha_desde, "%Y-%m-%d"))
@@ -151,6 +167,7 @@ def listar_auditoria(
             modulo=str(a.modulo) if a.modulo else None,
             descripcion=str(a.descripcion) if a.descripcion else None,
             ip=str(a.ip) if a.ip else None,
+            user_agent=str(a.user_agent) if a.user_agent else None,
             fecha=fmt_lima(a.fecha, "%d/%m/%Y %H:%M:%S"),
             datos_anteriores=a.datos_anteriores,
             datos_nuevos=a.datos_nuevos,
