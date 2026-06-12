@@ -9,6 +9,8 @@ from datetime import datetime, date
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from passlib.context import CryptContext
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -16,6 +18,8 @@ from app.db.database import get_db
 from app.core.security import verificar_token
 
 router = APIRouter(prefix="/portal-cliente", tags=["Portal Cliente"])
+
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ── Dependencia de seguridad ──────────────────────────────────────────────────
@@ -938,7 +942,47 @@ def portal_mantenimiento_detalles(
     }
 
 
-# ── 8. Perfil del usuario portal ─────────────────────────────────────────────
+# ── 8. Cambio de contraseña ──────────────────────────────────────────────────
+# Necesario porque los usuarios portal nacen con contraseña temporal y su email
+# es sintético (@portal.e-zyro): la recuperación por correo no les sirve.
+
+class CambioPasswordBody(BaseModel):
+    password_actual: str
+    password_nueva: str
+
+
+@router.post("/cambiar-password")
+def portal_cambiar_password(
+    body: CambioPasswordBody,
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> dict[str, Any]:
+    if len(body.password_nueva) < 8:
+        raise HTTPException(
+            status_code=422,
+            detail="La nueva contraseña debe tener al menos 8 caracteres.",
+        )
+    if body.password_nueva == body.password_actual:
+        raise HTTPException(
+            status_code=422,
+            detail="La nueva contraseña debe ser distinta de la actual.",
+        )
+
+    usuario_id = str(payload.get("id"))
+    row = db.execute(text(
+        "SELECT password_hash FROM usuario WHERE id::text = :uid AND activo = true"
+    ), {"uid": usuario_id}).fetchone()
+    if not row or not _pwd.verify(body.password_actual, row[0]):
+        raise HTTPException(status_code=401, detail="La contraseña actual no es correcta.")
+
+    db.execute(text(
+        "UPDATE usuario SET password_hash = :pwd WHERE id::text = :uid"
+    ), {"pwd": _pwd.hash(body.password_nueva), "uid": usuario_id})
+    db.commit()
+    return {"ok": True}
+
+
+# ── 9. Perfil del usuario portal ─────────────────────────────────────────────
 
 @router.get("/perfil")
 def portal_perfil(
