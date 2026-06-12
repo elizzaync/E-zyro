@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api_client.dart';
 import '../core/api_result.dart';
 import '../services/auth_service.dart';
+import 'pantalla_portal_analytics.dart';
 import 'pantalla_portal_proyecto.dart';
 import 'portal_estilos.dart';
 import 'portal_models.dart';
@@ -129,6 +130,19 @@ class _PortalShellState extends State<PortalShell> {
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         actions: [
+          if (_svc != null)
+            IconButton(
+              icon: const Icon(Icons.insights_outlined),
+              tooltip: 'Dashboard ejecutivo',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => PantallaPortalAnalytics(
+                    servicio: _svc!,
+                    empresa: _perfil?.empresa ?? '',
+                  ),
+                ),
+              ),
+            ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.account_circle_outlined),
             tooltip: 'Cuenta',
