@@ -88,6 +88,85 @@ abstract final class PortalTipografia {
       );
 }
 
+/// Tema "Ejecutivo Oscuro" aplicado a TODO el Portal Empresa (tabs + detalle
+/// + dashboard) para un look coherente. Construido sobre la paleta
+/// [PortalColores]; se envuelve en los puntos de navegación del portal sin
+/// afectar al resto de la app (que sigue en tema claro).
+ThemeData portalTemaOscuro() {
+  final base = ThemeData.dark(useMaterial3: true);
+  final scheme = ColorScheme.fromSeed(
+    seedColor: PortalColores.lima,
+    brightness: Brightness.dark,
+  ).copyWith(
+    primary: PortalColores.lima,
+    onPrimary: PortalColores.fondo,
+    secondary: PortalColores.cian,
+    surface: PortalColores.fondo,
+    onSurface: PortalColores.textoPrimario,
+    onSurfaceVariant: PortalColores.textoSecundario,
+    surfaceContainerLowest: PortalColores.fondo,
+    surfaceContainerLow: PortalColores.superficie,
+    surfaceContainer: PortalColores.superficie,
+    surfaceContainerHigh: PortalColores.superficie,
+    surfaceContainerHighest: PortalColores.superficie,
+    outline: PortalColores.bordeCard,
+    error: PortalColores.coral,
+  );
+
+  return base.copyWith(
+    colorScheme: scheme,
+    scaffoldBackgroundColor: PortalColores.fondo,
+    canvasColor: PortalColores.fondo,
+    cardColor: PortalColores.superficie,
+    dividerColor: PortalColores.divisor,
+    cardTheme: const CardThemeData(
+      color: PortalColores.superficie,
+      surfaceTintColor: PortalColores.transparente,
+      elevation: 0,
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: PortalColores.fondo,
+      foregroundColor: PortalColores.textoPrimario,
+      surfaceTintColor: PortalColores.transparente,
+      elevation: 0,
+      titleTextStyle: PortalTipografia.titulo(tamano: 16),
+    ),
+    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      backgroundColor: PortalColores.superficie,
+      selectedItemColor: PortalColores.lima,
+      unselectedItemColor: PortalColores.textoSecundario,
+      type: BottomNavigationBarType.fixed,
+      elevation: 0,
+    ),
+    dialogTheme: const DialogThemeData(
+      backgroundColor: PortalColores.superficie,
+      surfaceTintColor: PortalColores.transparente,
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: PortalColores.superficie,
+      surfaceTintColor: PortalColores.transparente,
+    ),
+    popupMenuTheme: const PopupMenuThemeData(
+      color: PortalColores.superficie,
+      surfaceTintColor: PortalColores.transparente,
+    ),
+    listTileTheme: const ListTileThemeData(
+      iconColor: PortalColores.textoSecundario,
+      textColor: PortalColores.textoPrimario,
+    ),
+    snackBarTheme: const SnackBarThemeData(
+      backgroundColor: PortalColores.tooltipFondo,
+      contentTextStyle: TextStyle(color: PortalColores.textoPrimario),
+    ),
+    progressIndicatorTheme:
+        const ProgressIndicatorThemeData(color: PortalColores.lima),
+    inputDecorationTheme: const InputDecorationTheme(
+      filled: true,
+      fillColor: PortalColores.fondo,
+    ),
+  );
+}
+
 /// Decoraciones y widgets utilitarios del portal.
 abstract final class PortalDecoraciones {
   /// Decoración estándar de card: radio 20, borde sutil y sombra suave.

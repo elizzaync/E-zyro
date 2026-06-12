@@ -31,6 +31,7 @@ import 'screens/pantalla_historial_equipo.dart';
 import 'screens/pantalla_auditoria.dart';
 import 'screens/pantalla_mantenimientos.dart';
 import 'portal/pantalla_portal_shell.dart';
+import 'portal/portal_design.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -233,7 +234,8 @@ class ESystemApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/recovery': (context) => const PasswordRecoveryScreen(),
         '/': (context) => const MainShell(),
-        '/portal': (context) => const PortalShell(),
+        '/portal': (context) =>
+            Theme(data: portalTemaOscuro(), child: const PortalShell()),
         '/home': (context) => const MainShell(initialIndex: 0),
         '/operations': (context) => const MainShell(initialIndex: 1),
         '/logistics': (context) => const MainShell(initialIndex: 2),

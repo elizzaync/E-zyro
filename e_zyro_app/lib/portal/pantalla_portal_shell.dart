@@ -6,6 +6,7 @@ import '../core/api_result.dart';
 import '../services/auth_service.dart';
 import 'pantalla_portal_analytics.dart';
 import 'pantalla_portal_proyecto.dart';
+import 'portal_design.dart';
 import 'portal_estilos.dart';
 import 'portal_models.dart';
 import 'portal_service.dart';
@@ -410,9 +411,12 @@ class _PortalShellState extends State<PortalShell> {
             borderRadius: BorderRadius.circular(12),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
-                builder: (_) => PortalProyectoDetalleScreen(
-                  proyectoId: p.id,
-                  nombre: p.nombreProyecto,
+                builder: (_) => Theme(
+                  data: portalTemaOscuro(),
+                  child: PortalProyectoDetalleScreen(
+                    proyectoId: p.id,
+                    nombre: p.nombreProyecto,
+                  ),
                 ),
               ),
             ),
