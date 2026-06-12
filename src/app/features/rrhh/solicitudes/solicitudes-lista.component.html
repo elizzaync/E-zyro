@@ -98,14 +98,14 @@
          ══════════════════════════════════════════════════ -->
     <div class="sol-toolbar">
         <div class="filter-pills">
-            <button class="pill" [class.active]="filtroEstado === 'todos'" (click)="filtroEstado = 'todos'">Todos</button>
-            <button class="pill pill-yellow" [class.active]="filtroEstado === 'pendiente'" (click)="filtroEstado = 'pendiente'">
+            <button class="pill" [class.active]="filtroEstado === 'todos'" (click)="filtroEstado = 'todos'; onFiltroChange()">Todos</button>
+            <button class="pill pill-yellow" [class.active]="filtroEstado === 'pendiente'" (click)="filtroEstado = 'pendiente'; onFiltroChange()">
                 Pendiente
             </button>
-            <button class="pill pill-green" [class.active]="filtroEstado === 'aprobada'" (click)="filtroEstado = 'aprobada'">
+            <button class="pill pill-green" [class.active]="filtroEstado === 'aprobada'" (click)="filtroEstado = 'aprobada'; onFiltroChange()">
                 Aprobada
             </button>
-            <button class="pill pill-red" [class.active]="filtroEstado === 'rechazada'" (click)="filtroEstado = 'rechazada'">
+            <button class="pill pill-red" [class.active]="filtroEstado === 'rechazada'" (click)="filtroEstado = 'rechazada'; onFiltroChange()">
                 Rechazada
             </button>
         </div>
@@ -114,7 +114,7 @@
                 stroke="currentColor" stroke-width="2" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input type="text" [(ngModel)]="searchTerm" placeholder="Buscar empleado o tipo…" class="search-input" />
+            <input type="text" [(ngModel)]="searchTerm" (ngModelChange)="onFiltroChange()" placeholder="Buscar empleado o tipo…" class="search-input" />
         </div>
     </div>
 
@@ -136,7 +136,7 @@
          TABLA DE SOLICITUDES
          ══════════════════════════════════════════════════ -->
     <div class="card-panel table-wrap">
-        @if (filteredSolicitudes.length === 0) {
+        @if (paginatedSolicitudes.length === 0) {
         <div class="empty-state">
             <div class="empty-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
@@ -160,7 +160,7 @@
                 </tr>
             </thead>
             <tbody>
-                @for (sol of filteredSolicitudes; track sol.id) {
+                @for (sol of paginatedSolicitudes; track sol.id) {
                 <tr [class.row-pendiente]="sol.estado === 'pendiente'">
                     <!-- Solicitante -->
                     <td>
@@ -241,6 +241,26 @@
                 }
             </tbody>
         </table>
+        @if (solTotalPaginas > 1) {
+          <div class="sol-pagination-footer">
+            <span class="pagination-info">
+              Mostrando {{ solRangoInfo.desde }}–{{ solRangoInfo.hasta }} de {{ solRangoInfo.total }} solicitudes
+            </span>
+            <div class="pagination-controls">
+              <button class="btn-pag" [disabled]="solPage === 1" (click)="irPaginaSol(solPage - 1)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                Anterior
+              </button>
+              @for (p of solPaginasBotones; track p) {
+                <button class="btn-pag-num" [class.active]="p === solPage" (click)="irPaginaSol(p)">{{ p }}</button>
+              }
+              <button class="btn-pag" [disabled]="solPage === solTotalPaginas" (click)="irPaginaSol(solPage + 1)">
+                Siguiente
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          </div>
+        }
         }
     </div>
 

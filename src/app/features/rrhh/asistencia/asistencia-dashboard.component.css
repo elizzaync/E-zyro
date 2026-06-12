@@ -917,6 +917,112 @@
   .btn-detalle.active { background: #22c55e; border-color: #22c55e; color: #fff; }
 }
 
+/* ══════════════════════════════════════════════════════════
+   TAB BAR
+   ══════════════════════════════════════════════════════════ */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 4px;
+  width: fit-content;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 18px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn:hover { background: var(--hover-bg, #f1f5f9); color: var(--text-main, #1e293b); }
+.tab-btn.active {
+  background: var(--brand-green, #22c55e);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(34,197,94,.3);
+}
+
+/* ══════════════════════════════════════════════════════════
+   VISTA DIARIA — toolbar y tabla
+   ══════════════════════════════════════════════════════════ */
+.diaria-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.diaria-date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.diaria-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.diaria-date-input {
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--input-bg, #f1f5f9);
+  color: var(--text-main, #1e293b);
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.diaria-date-input:focus { outline: none; border-color: var(--brand-green, #22c55e); }
+
+.diaria-label-full {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main, #1e293b);
+  text-transform: capitalize;
+}
+
+.coord-th { font-size: 0.7rem !important; min-width: 90px; }
+.coord-td { white-space: nowrap; }
+.coord-val {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #64748b);
+}
+
+.diaria-table .emp-cell .emp-avatar { width: 32px; height: 32px; font-size: 0.72rem; }
+
+/* ══════════════════════════════════════════════════════════
+   DARK MODE — tab bar + diaria
+   ══════════════════════════════════════════════════════════ */
+:host-context(html[data-theme="dark"]) {
+  .tab-bar { background: #0f172a; border-color: #1e293b; }
+  .tab-btn { color: #94a3b8; }
+  .tab-btn:hover { background: #1e293b; color: #f1f5f9; }
+  .tab-btn.active { background: #22c55e; color: #fff; }
+
+  .diaria-toolbar  { border-color: #1e293b; }
+  .diaria-label    { color: #94a3b8; }
+  .diaria-label-full { color: #f1f5f9; }
+  .diaria-date-input { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+  .coord-val { color: #64748b; }
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
     .kpi-grid  { grid-template-columns: repeat(2, 1fr); }

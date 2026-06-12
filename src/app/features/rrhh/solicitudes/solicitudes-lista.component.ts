@@ -32,6 +32,10 @@ export class SolicitudesListaComponent implements OnInit {
   cargando = true;
   error = '';
 
+  // ── Paginación cliente ────────────────────────────────────────────────────
+  readonly PER_PAGE_SOL = 10;
+  solPage = 1;
+
   // ── Datos ─────────────────────────────────────────────────────────────────
   solicitudes: SolicitudLaboralDto[] = [];
 
@@ -90,6 +94,8 @@ export class SolicitudesListaComponent implements OnInit {
     );
   }
 
+  onFiltroChange(): void { this.solPage = 1; }
+
   get filteredSolicitudes(): SolicitudLaboralDto[] {
     return this.solicitudesPorTab.filter(s => {
       const matchEstado = this.filtroEstado === 'todos' || s.estado === this.filtroEstado;
@@ -120,10 +126,39 @@ export class SolicitudesListaComponent implements OnInit {
     return this.solicitudes.filter(s => s.tipo.toLowerCase() === 'vacaciones').length;
   }
 
+  get paginatedSolicitudes(): SolicitudLaboralDto[] {
+    const start = (this.solPage - 1) * this.PER_PAGE_SOL;
+    return this.filteredSolicitudes.slice(start, start + this.PER_PAGE_SOL);
+  }
+
+  get solTotalPaginas(): number {
+    return Math.max(1, Math.ceil(this.filteredSolicitudes.length / this.PER_PAGE_SOL));
+  }
+
+  get solRangoInfo() {
+    const desde = (this.solPage - 1) * this.PER_PAGE_SOL + 1;
+    const hasta = Math.min(this.solPage * this.PER_PAGE_SOL, this.filteredSolicitudes.length);
+    return { desde, hasta, total: this.filteredSolicitudes.length };
+  }
+
+  get solPaginasBotones(): number[] {
+    const pages: number[] = [];
+    for (let i = Math.max(1, this.solPage - 2); i <= Math.min(this.solTotalPaginas, this.solPage + 2); i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  irPaginaSol(p: number): void {
+    if (p < 1 || p > this.solTotalPaginas) return;
+    this.solPage = p;
+  }
+
   setTab(tab: 'permisos' | 'vacaciones') {
     this.activeTab = tab;
     this.filtroEstado = 'todos';
     this.searchTerm = '';
+    this.solPage = 1;
   }
 
   // ── Formateo ──────────────────────────────────────────────────────────────

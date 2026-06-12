@@ -115,6 +115,36 @@ export interface DetalleDiaDto {
   geo_salida: GeoDto | null;
 }
 
+export interface AsistenciaDiariaItemDto {
+  empleado_id: string;
+  nombreCompleto: string;
+  cargo: string;
+  area: string;
+  iniciales: string;
+  fotoUrl: string;
+  hora_ingreso: string | null;
+  hora_salida: string | null;
+  almuerzo_inicio: string | null;
+  almuerzo_fin: string | null;
+  horas_trabajadas: number;
+  lat_ingreso: number | null;
+  lng_ingreso: number | null;
+  lat_salida: number | null;
+  lng_salida: number | null;
+  geo_ingreso: GeoDto | null;
+  geo_salida: GeoDto | null;
+  estado: string;
+}
+
+export interface PaginatedDiaria {
+  fecha: string;
+  empleados: AsistenciaDiariaItemDto[];
+  total: number;
+  page: number;
+  limit: number;
+  total_paginas: number;
+}
+
 export interface PaginatedEmpleados {
   empleados: EmpleadoLegajoDto[];
   total: number;
@@ -214,6 +244,18 @@ export class RrhhService {
   }
 
   // ── Asistencia ───────────────────────────────────────────────────────────
+
+  getAsistenciaDiaria(fecha: string, page = 1, limit = 10): Observable<PaginatedDiaria> {
+    return this.http.get<PaginatedDiaria>(
+      `${this.api}/rrhh/asistencia/diario?fecha=${fecha}&page=${page}&limit=${limit}`
+    );
+  }
+
+  getTodosEmpleados(): Observable<PaginatedEmpleados> {
+    return this.http.get<PaginatedEmpleados>(
+      `${this.api}/rrhh/legajo/empleados?page=1&limit=500`
+    );
+  }
 
   getResumenAsistencia(params?: {
     fecha_inicio?: string;
