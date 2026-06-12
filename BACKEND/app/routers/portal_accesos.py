@@ -199,10 +199,11 @@ def crear_acceso(
     db.execute(text("""
         INSERT INTO usuario
             (id, empresa_id, nombre, apellido, username, email,
-             password_hash, activo, email_verificado, created_at)
+             password_hash, activo, email_verificado, debe_cambiar_password,
+             created_at)
         VALUES
             (:id, :eid, 'Portal', :apellido, :uname, :email,
-             :pwd, true, true, now())
+             :pwd, true, true, true, now())
     """), {
         "id": usuario_id, "eid": empresa_id,
         "apellido": (cliente[1] or "Cliente")[:80],
@@ -248,7 +249,8 @@ def reset_password(
 
     password = _password_temporal()
     db.execute(text("""
-        UPDATE usuario SET password_hash = :pwd, activo = true
+        UPDATE usuario SET password_hash = :pwd, activo = true,
+                           debe_cambiar_password = true
         WHERE id::text = :uid
     """), {"pwd": _pwd.hash(password), "uid": acceso[0]})
 

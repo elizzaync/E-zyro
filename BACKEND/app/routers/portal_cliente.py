@@ -1158,7 +1158,8 @@ def portal_cambiar_password(
         raise HTTPException(status_code=401, detail="La contraseña actual no es correcta.")
 
     db.execute(text(
-        "UPDATE usuario SET password_hash = :pwd WHERE id::text = :uid"
+        "UPDATE usuario SET password_hash = :pwd, debe_cambiar_password = false "
+        "WHERE id::text = :uid"
     ), {"pwd": _pwd.hash(body.password_nueva), "uid": usuario_id})
     db.commit()
     return {"ok": True}
@@ -1181,7 +1182,8 @@ def portal_perfil(
             COALESCE(u.foto_url, '')    AS foto_url,
             u.created_at,
             e.razon_social, e.ruc,
-            COALESCE(e.email_contacto, '') AS empresa_email
+            COALESCE(e.email_contacto, '') AS empresa_email,
+            COALESCE(u.debe_cambiar_password, false) AS debe_cambiar_password
         FROM usuario u
         JOIN empresa e ON e.id = u.empresa_id
         WHERE u.id = :uid AND u.empresa_id = :eid
@@ -1209,4 +1211,5 @@ def portal_perfil(
         "ruc":           row[8] or "",
         "rol":           payload.get("rol", "ClienteExterno"),
         "empresaEmail":  row[9],
+        "debeCambiarPassword": bool(row[10]),
     }
