@@ -2,8 +2,9 @@
 HU-30 Fase 1 — Legajo Digital y Firma Electrónica
 
 Endpoints:
-  GET  /rrhh/legajo/empleados                 lista empleados + conteo de docs
+  GET  /rrhh/legajo/empleados                 lista empleados + conteo de docs (paginado)
   GET  /rrhh/legajo/{empleado_id}             detalle empleado + documentos
+  GET  /rrhh/legajo/{empleado_id}/documentos  solo documentos (paginado)
   POST /rrhh/legajo/{empleado_id}/documento   subir PDF (admin)
   DELETE /rrhh/documento/{doc_id}             eliminar doc (admin)
   POST /rrhh/documento/{doc_id}/firmar        empleado firma su doc
@@ -15,11 +16,10 @@ from __future__ import annotations
 import io
 import uuid as _uuid
 from datetime import datetime
-
-import cloudinary.uploader as _cu
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+import cloudinary.uploader as _cu
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy import exists, and_, func
 from sqlalchemy.orm import Session
 
@@ -37,6 +37,9 @@ from app.services.fcm_service import notificar_usuario
 router = APIRouter(tags=["RRHH · Legajo"])
 
 _MAX_BYTES = 20 * 1024 * 1024  # 20 MB
+
+# Tipos que requieren firma automáticamente
+_TIPOS_CON_FIRMA = {"contrato"}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,10 +60,19 @@ def _empusr_dict(emp: Empleado, usr: Usuario, docs_count: int, ultima_fecha) -> 
         "iniciales": iniciales,
         "fotoUrl": usr.foto_url or "",
         "ultimaActualizacion": ultima_fecha.strftime("%d/%m/%Y") if ultima_fecha else "—",
+        "fechaIngreso": emp.fecha_ingreso.isoformat() if emp.fecha_ingreso else None,
     }
 
 
 def _doc_dict(doc: DocumentoLaboral, firmado: bool, firmado_en) -> dict:
+    # firma_estado derivado: solo aplica para docs que requieren firma
+    if not doc.requiere_firma:
+        firma_estado = "no_aplica"
+    elif firmado:
+        firma_estado = "firmado"
+    else:
+        firma_estado = "pendiente"
+
     return {
         "id": doc.id,
         "tipo": doc.tipo,
@@ -68,6 +80,8 @@ def _doc_dict(doc: DocumentoLaboral, firmado: bool, firmado_en) -> dict:
         "url_archivo": doc.url_archivo or "",
         "fecha_emision": doc.fecha_emision.isoformat() if doc.fecha_emision else None,
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "requiere_firma": doc.requiere_firma,
+        "firma_estado": firma_estado,
         "firmado": firmado,
         "firmado_en": firmado_en.isoformat() if firmado_en else None,
     }
@@ -77,16 +91,27 @@ def _doc_dict(doc: DocumentoLaboral, firmado: bool, firmado_en) -> dict:
 
 @router.get("/rrhh/legajo/empleados")
 def listar_empleados(
+    page:  int = Query(1,  ge=1),
+    limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
     payload: dict = Depends(verificar_token),
 ):
     exigir_no_tecnico(payload)
     empresa_id = payload["empresa_id"]
 
+    total_q = (
+        db.query(func.count(Empleado.id))
+        .filter(Empleado.empresa_id == empresa_id)
+        .scalar()
+    )
+
     rows = (
         db.query(Empleado, Usuario)
         .join(Usuario, Usuario.id == Empleado.usuario_id)
         .filter(Empleado.empresa_id == empresa_id)
+        .order_by(Usuario.nombre, Usuario.apellido)
+        .offset((page - 1) * limit)
+        .limit(limit)
         .all()
     )
 
@@ -113,7 +138,11 @@ def listar_empleados(
         "empleados": [
             _empusr_dict(emp, usr, counts.get(emp.id, 0), last_dates.get(emp.id))
             for emp, usr in rows
-        ]
+        ],
+        "total": total_q,
+        "page": page,
+        "limit": limit,
+        "total_paginas": max(1, -(-total_q // limit)),  # ceil division
     }
 
 
@@ -167,6 +196,13 @@ def detalle_empleado(
         (usr.apellido[0] if usr.apellido else "")
     ).upper() or "?"
 
+    contratos_count = sum(1 for d in docs if d.tipo.strip().lower() == "contrato")
+    firmados_count  = len(firmado_map)
+    pendientes_count = sum(
+        1 for d in docs
+        if d.requiere_firma and d.id not in firmado_map
+    )
+
     return {
         "empleado": {
             "id": emp.id,
@@ -183,6 +219,12 @@ def detalle_empleado(
             _doc_dict(d, d.id in firmado_map, firmado_map.get(d.id))
             for d in docs
         ],
+        "stats": {
+            "total":    len(docs),
+            "contratos": contratos_count,
+            "firmados": firmados_count,
+            "pendientes_firma": pendientes_count,
+        },
     }
 
 
@@ -196,10 +238,10 @@ _MESES_ES = [
 @router.get("/rrhh/legajo/{empleado_id}/documentos")
 def listar_documentos_empleado(
     empleado_id: str,
+    categoria: Optional[str] = Query(None, description="Filtrar por categoría: contratos|certificaciones|otros"),
     db: Session = Depends(get_db),
     payload: dict = Depends(verificar_token),
 ):
-    """Lista los documentos laborales del empleado, ordenados por fecha de emisión descendente."""
     exigir_no_tecnico(payload)
     empresa_id = payload["empresa_id"]
 
@@ -209,15 +251,25 @@ def listar_documentos_empleado(
     if not emp:
         raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-    docs = (
+    q = (
         db.query(DocumentoLaboral)
         .filter(
             DocumentoLaboral.empleado_id == empleado_id,
             DocumentoLaboral.empresa_id == empresa_id,
         )
         .order_by(DocumentoLaboral.fecha_emision.desc(), DocumentoLaboral.created_at.desc())
-        .all()
     )
+
+    docs = q.all()
+
+    # Filtrar por categoría en Python (tipos son texto libre)
+    if categoria == "contratos":
+        docs = [d for d in docs if d.tipo.strip().lower() == "contrato"]
+    elif categoria == "certificaciones":
+        docs = [d for d in docs if d.tipo.strip().lower() in ("certificado", "constancia")]
+    elif categoria == "otros":
+        docs = [d for d in docs if d.tipo.strip().lower() not in (
+            "contrato", "certificado", "constancia")]
 
     doc_ids = [d.id for d in docs]
     firmado_map: dict = {}
@@ -286,7 +338,6 @@ async def subir_documento(
     except ValueError:
         raise HTTPException(status_code=422, detail="Formato de fecha inválido. Use YYYY-MM-DD")
 
-    # Boleta Mensual: nombre y fecha se generan desde mes/anio si no vienen explícitos
     nombre_final = nombre.strip() or nombre
     tipo_norm = tipo.strip().lower().replace(" ", "_")
     if tipo_norm == "boleta_mensual" and mes and anio:
@@ -294,6 +345,10 @@ async def subir_documento(
             nombre_final = f"Boleta de Pago - {_MESES_ES[mes]} {anio}"
         from datetime import date as _date
         fecha_dt = _date(anio, mes, 1)
+
+    # Contratos siempre requieren firma, sin importar el valor enviado
+    es_contrato = tipo.strip().lower() == "contrato"
+    firma_requerida = es_contrato or requiere_firma
 
     doc = DocumentoLaboral(
         id=str(_uuid.uuid4()),
@@ -304,18 +359,27 @@ async def subir_documento(
         url_archivo=url,
         public_id_cloudinary=public_id,
         fecha_emision=fecha_dt,
+        requiere_firma=firma_requerida,
         created_at=datetime.utcnow(),
     )
     db.add(doc)
     db.flush()
 
-    if requiere_firma:
+    if firma_requerida:
+        if es_contrato:
+            msg = (
+                f"Tienes un contrato pendiente de firma: «{nombre_final}». "
+                "Por favor revisa tu expediente."
+            )
+        else:
+            msg = f"El documento «{nombre_final}» está disponible para tu firma electrónica."
+
         notificar_usuario(
             db,
             empresa_id=empresa_id,
             usuario_id=emp.usuario_id,
-            titulo="Documento pendiente de firma",
-            mensaje=f"El documento «{nombre}» está disponible para tu firma electrónica.",
+            titulo="Contrato pendiente de firma" if es_contrato else "Documento pendiente de firma",
+            mensaje=msg,
             tipo="firma_documento",
             categoria="firma_documento",
             referencia_id=None,
@@ -323,7 +387,12 @@ async def subir_documento(
         )
 
     db.commit()
-    return {"id": doc.id, "url_archivo": url, "mensaje": "Documento subido con éxito"}
+    return {
+        "id": doc.id,
+        "url_archivo": url,
+        "requiere_firma": firma_requerida,
+        "mensaje": "Documento subido con éxito",
+    }
 
 
 # ── 4. DELETE /rrhh/documento/{doc_id} ───────────────────────────────────────
@@ -376,6 +445,9 @@ def firmar_documento(
     ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    if not doc.requiere_firma:
+        raise HTTPException(status_code=422, detail="Este documento no requiere firma")
 
     emp = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
@@ -445,13 +517,7 @@ def mis_documentos_pendientes(
         .filter(
             DocumentoLaboral.empleado_id == emp.id,
             DocumentoLaboral.empresa_id == empresa_id,
-            exists().where(
-                and_(
-                    Notificacion.usuario_id == usuario_id,
-                    Notificacion.referencia_tabla == DocumentoLaboral.id,
-                    Notificacion.leido == False,
-                )
-            ),
+            DocumentoLaboral.requiere_firma == True,
             ~exists().where(
                 and_(
                     DocumentoFirmado.documento_id == DocumentoLaboral.id,
