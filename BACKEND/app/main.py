@@ -38,6 +38,7 @@ from app.routers import equipos_intervenidos as equipos_intervenidos_router
 from app.routers import activo_cliente    as activo_cliente_router
 from app.routers import soporte           as soporte_router
 from app.routers import portal_cliente    as portal_cliente_router
+from app.routers import portal_accesos    as portal_accesos_router
 from app.routers import analitica         as analitica_router
 from app.routers import planos            as planos_router
 from app.routers import personal          as personal_router
@@ -1744,6 +1745,7 @@ app.include_router(rrhh_solicitudes_router.router)
 app.include_router(rrhh_asistencia_router.router)
 app.include_router(soporte_router.router)
 app.include_router(portal_cliente_router.router)
+app.include_router(portal_accesos_router.router)
 # ── Módulo de Finanzas / ERP contable ──
 app.include_router(contabilidad_router.router)
 app.include_router(controlling_router.router)

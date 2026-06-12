@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
-from fastapi import HTTPException, Security, status
+from fastapi import HTTPException, Request, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -24,7 +24,14 @@ def es_superadmin(payload: dict) -> bool:
     return rol in _ROLES_ADMIN
 
 
-def verificar_token(credentials: HTTPAuthorizationCredentials = Security(security)):
+# Prefijos accesibles para cuentas del Portal Cliente (rol ClienteExterno).
+# Sin este candado, el usuario portal (que vive dentro de la empresa operadora)
+# podría leer endpoints internos que solo exigen token: la mayoría de los GET
+# no llaman tiene_permiso/exigir_*.
+_PREFIJOS_PORTAL = ("/portal-cliente", "/auth")
+
+
+def verificar_token(request: Request, credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
     try:
         # Intentamos descifrar el token usando tu llave secreta
@@ -35,6 +42,13 @@ def verificar_token(credentials: HTTPAuthorizationCredentials = Security(securit
 
         if usuario_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
+
+        rol = (payload.get("rol") or "").lower().strip().replace(" ", "")
+        if rol == "clienteexterno" and not request.url.path.startswith(_PREFIJOS_PORTAL):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso restringido al Portal Cliente.",
+            )
         # Devolvemos los datos del usuario si todo está bien
         return payload
     except JWTError:
