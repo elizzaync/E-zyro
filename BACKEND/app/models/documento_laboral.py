@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Date, DateTime, ForeignKey
+from sqlalchemy import Column, String, Date, DateTime, ForeignKey, Boolean
 from app.db.database import Base
 
 def generate_uuid():
@@ -17,4 +17,5 @@ class DocumentoLaboral(Base):
     url_archivo          = Column(String(500), nullable=True)
     public_id_cloudinary = Column(String(255), nullable=True)
     fecha_emision        = Column(Date, nullable=False)
+    requiere_firma       = Column(Boolean, nullable=False, default=False)
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)

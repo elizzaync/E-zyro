@@ -1210,6 +1210,18 @@ def _run_migrations():
             END $$;
         """))
 
+        # ── RRHH · Legajo Digital: requiere_firma en documento_laboral ──────────
+        conn.execute(text(
+            "ALTER TABLE documento_laboral "
+            "ADD COLUMN IF NOT EXISTS requiere_firma BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+        # Contratos existentes son los únicos que requieren firma
+        conn.execute(text(
+            "UPDATE documento_laboral SET requiere_firma = TRUE "
+            "WHERE LOWER(TRIM(tipo)) = 'contrato' AND requiere_firma = FALSE"
+        ))
+        conn.commit()
+
         # ── HU-15 LOGÍSTICA 2026-05-27 ───────────────────────────────────────
         # Material: precio referencial
         conn.execute(text(
