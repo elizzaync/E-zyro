@@ -94,4 +94,26 @@ class PortalService {
         (r) =>
             PortalPerfil.fromJson(jsonDecode(r.body) as Map<String, dynamic>),
       );
+
+  // POST /portal-cliente/cambiar-password → cambia la contraseña del usuario.
+  // El backend responde 401 cuando la contraseña actual no coincide; como
+  // ApiClient.post lanza en 401 y _run lo clasifica como auth genérico, aquí
+  // se re-etiqueta con el mensaje específico de este endpoint.
+  Future<ApiResult<bool>> cambiarPassword({
+    required String passwordActual,
+    required String passwordNueva,
+  }) async {
+    final r = await _run(
+      () => _client.post('/portal-cliente/cambiar-password', {
+        'password_actual': passwordActual,
+        'password_nueva': passwordNueva,
+      }),
+      (r) => true,
+    );
+    if (!r.ok && r.error?.kind == ApiErrorKind.auth && r.error?.detail == null) {
+      return const ApiResult.fail(
+          ApiError(ApiErrorKind.auth, 'La contraseña actual no es correcta.'));
+    }
+    return r;
+  }
 }

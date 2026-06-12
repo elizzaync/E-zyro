@@ -53,7 +53,7 @@ class _PortalShellState extends State<PortalShell> {
     if (r.ok && r.data != null) setState(() => _perfil = r.data);
   }
 
-  // ── Menú (perfil / cerrar sesión) ──────────────────────────────────────────
+  // ── Menú (perfil / cambiar contraseña / cerrar sesión) ────────────────────
 
   Future<void> _mostrarPerfil() async {
     final messenger = ScaffoldMessenger.of(context);
@@ -77,6 +77,20 @@ class _PortalShellState extends State<PortalShell> {
       ),
       builder: (ctx) => _HojaPerfil(perfil: p),
     );
+  }
+
+  Future<void> _cambiarPassword() async {
+    final svc = _svc;
+    if (svc == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DialogoCambiarPassword(servicio: svc),
+    );
+    if (ok == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contraseña actualizada')),
+      );
+    }
   }
 
   Future<void> _cerrarSesion() async {
@@ -121,6 +135,8 @@ class _PortalShellState extends State<PortalShell> {
             onSelected: (v) {
               if (v == 'perfil') {
                 _mostrarPerfil();
+              } else if (v == 'password') {
+                _cambiarPassword();
               } else if (v == 'salir') {
                 _cerrarSesion();
               }
@@ -133,6 +149,15 @@ class _PortalShellState extends State<PortalShell> {
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.person_outline),
                   title: Text('Mi perfil'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'password',
+                child: ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.lock_outline),
+                  title: Text('Cambiar contraseña'),
                 ),
               ),
               PopupMenuItem(
@@ -817,6 +842,160 @@ class _ListaVacia extends StatelessWidget {
             mensaje,
             style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Diálogo "Cambiar contraseña" ──────────────────────────────────────────────
+
+class _DialogoCambiarPassword extends StatefulWidget {
+  const _DialogoCambiarPassword({required this.servicio});
+  final PortalService servicio;
+
+  @override
+  State<_DialogoCambiarPassword> createState() =>
+      _DialogoCambiarPasswordState();
+}
+
+class _DialogoCambiarPasswordState extends State<_DialogoCambiarPassword> {
+  final _actualCtrl = TextEditingController();
+  final _nuevaCtrl = TextEditingController();
+  final _confirmarCtrl = TextEditingController();
+  bool _verActual = false;
+  bool _verNueva = false;
+  bool _verConfirmar = false;
+  bool _enviando = false;
+  String _error = '';
+
+  @override
+  void dispose() {
+    _actualCtrl.dispose();
+    _nuevaCtrl.dispose();
+    _confirmarCtrl.dispose();
+    super.dispose();
+  }
+
+  Widget _campo({
+    required TextEditingController controller,
+    required String etiqueta,
+    required bool visible,
+    required VoidCallback alternar,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: !visible,
+      autocorrect: false,
+      enableSuggestions: false,
+      enabled: !_enviando,
+      decoration: InputDecoration(
+        labelText: etiqueta,
+        prefixIcon: const Icon(Icons.lock_outline, size: 20),
+        suffixIcon: IconButton(
+          icon: Icon(
+            visible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            size: 20,
+          ),
+          tooltip: visible ? 'Ocultar' : 'Mostrar',
+          onPressed: alternar,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _enviar() async {
+    final actual = _actualCtrl.text;
+    final nueva = _nuevaCtrl.text;
+    if (actual.isEmpty) {
+      setState(() => _error = 'Ingresa tu contraseña actual.');
+      return;
+    }
+    if (nueva.length < 8) {
+      setState(() =>
+          _error = 'La nueva contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+    if (nueva != _confirmarCtrl.text) {
+      setState(() => _error = 'La confirmación no coincide.');
+      return;
+    }
+    setState(() {
+      _enviando = true;
+      _error = '';
+    });
+    final r = await widget.servicio
+        .cambiarPassword(passwordActual: actual, passwordNueva: nueva);
+    if (!mounted) return;
+    if (r.ok) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _enviando = false;
+        _error = r.errorMessage.isEmpty
+            ? 'No se pudo cambiar la contraseña.'
+            : r.errorMessage;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar contraseña',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _campo(
+              controller: _actualCtrl,
+              etiqueta: 'Contraseña actual',
+              visible: _verActual,
+              alternar: () => setState(() => _verActual = !_verActual),
+            ),
+            const SizedBox(height: 12),
+            _campo(
+              controller: _nuevaCtrl,
+              etiqueta: 'Nueva contraseña',
+              visible: _verNueva,
+              alternar: () => setState(() => _verNueva = !_verNueva),
+            ),
+            const SizedBox(height: 12),
+            _campo(
+              controller: _confirmarCtrl,
+              etiqueta: 'Confirmar nueva contraseña',
+              visible: _verConfirmar,
+              alternar: () => setState(() => _verConfirmar = !_verConfirmar),
+            ),
+            if (_error.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _error,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _enviando ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _enviando ? null : _enviar,
+          child: _enviando
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
         ),
       ],
     );
