@@ -1,8 +1,5 @@
 <div class="detalle-wrapper fade-in">
 
-    <!-- ══════════════════════════════════════════════════
-         CARGA / ERROR
-         ══════════════════════════════════════════════════ -->
     @if (cargando) {
     <div class="state-center">
         <div class="spinner"></div>
@@ -15,9 +12,7 @@
     </div>
     } @else if (empleado) {
 
-    <!-- ══════════════════════════════════════════════════
-         BOTÓN VOLVER
-         ══════════════════════════════════════════════════ -->
+    <!-- ── BOTÓN VOLVER ── -->
     <button class="btn-back" (click)="volver()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -25,76 +20,118 @@
         Legajo Digital
     </button>
 
-    <!-- ══════════════════════════════════════════════════
-         HERO — INFORMACIÓN DEL EMPLEADO
-         ══════════════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════
+         HERO — PERFIL DEL EMPLEADO
+         ══════════════════════════════════════════ -->
     <div class="emp-hero card-panel">
-        <!-- Avatar -->
-        <div class="emp-avatar-lg">
+        <!-- Avatar grande -->
+        <div class="emp-avatar-wrap">
             @if (empleado.fotoUrl) {
-            <img [src]="empleado.fotoUrl" [alt]="empleado.nombreCompleto" width="64" height="64" />
+            <img [src]="empleado.fotoUrl" [alt]="empleado.nombreCompleto" class="emp-avatar-img" />
             } @else {
-            <span>{{ empleado.iniciales }}</span>
+            <div class="emp-avatar-initials">{{ empleado.iniciales }}</div>
             }
+            <span class="hero-status-dot" [class.active]="empleado.estado === 'Activo'"></span>
         </div>
 
-        <!-- Nombre + cargo -->
-        <div class="emp-hero-info">
+        <!-- Nombre + cargo + estado -->
+        <div class="emp-hero-main">
             <h1 class="emp-hero-name">{{ empleado.nombreCompleto }}</h1>
-            <p class="emp-hero-sub">
-                {{ empleado.cargo }}{{ empleado.area ? ' · ' + empleado.area : '' }}
+            <p class="emp-hero-cargo">
+                {{ empleado.cargo }}
+                @if (empleado.area) { <span class="hero-area-sep">·</span> {{ empleado.area }} }
             </p>
-            <span class="badge"
-                [class.badge-active]="empleado.estado === 'Activo'"
-                [class.badge-inactive]="empleado.estado !== 'Activo'">
+            <span class="hero-badge" [class.hero-badge-active]="empleado.estado === 'Activo'"
+                [class.hero-badge-inactive]="empleado.estado !== 'Activo'">
                 {{ empleado.estado }}
             </span>
         </div>
 
-        <!-- Meta stats -->
-        <div class="emp-hero-meta">
-            <div class="meta-item">
-                <span class="meta-label">Documentos</span>
-                <span class="meta-value">{{ documentos.length }}</span>
+        <!-- KPI cards de resumen -->
+        <div class="hero-kpis">
+            <div class="hero-kpi">
+                <span class="hero-kpi-val">{{ stats.total }}</span>
+                <span class="hero-kpi-lbl">Documentos</span>
             </div>
-            <div class="meta-item">
-                <span class="meta-label">Firmados</span>
-                <span class="meta-value">{{ firmadosCount }}</span>
+            <div class="hero-kpi">
+                <span class="hero-kpi-val hero-kpi-green">{{ stats.firmados }}</span>
+                <span class="hero-kpi-lbl">Firmados</span>
+            </div>
+            <div class="hero-kpi">
+                <span class="hero-kpi-val" [class.hero-kpi-orange]="stats.pendientes_firma > 0">
+                    {{ stats.pendientes_firma }}
+                </span>
+                <span class="hero-kpi-lbl">Pend. firma</span>
             </div>
             @if (empleado.fechaIngreso) {
-            <div class="meta-item">
-                <span class="meta-label">Ingreso</span>
-                <span class="meta-value meta-fecha">{{ formatearFecha(empleado.fechaIngreso) }}</span>
+            <div class="hero-kpi">
+                <span class="hero-kpi-val hero-kpi-sm">{{ formatearFecha(empleado.fechaIngreso) }}</span>
+                <span class="hero-kpi-lbl">Fecha ingreso</span>
             </div>
             }
         </div>
 
-        <!-- Botón subir -->
+        <!-- Botón subir (solo admin) -->
         @if (isAdmin) {
-        <button class="btn-primary btn-upload" (click)="abrirUploadModal()">
+        <button class="btn-primary btn-upload-hero" (click)="abrirUploadModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
             + Subir Documento
         </button>
         }
     </div>
 
-    <!-- ══════════════════════════════════════════════════
-         TABLA PAGINADA
-         ══════════════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════════
+         FILTROS DE CATEGORÍA
+         ══════════════════════════════════════════ -->
+    <div class="cat-filter-bar">
+        <button class="cat-btn" [class.active]="categoriaFiltro === 'todos'" (click)="setCategoriaFiltro('todos')">
+            Todos <span class="cat-count">{{ stats.total }}</span>
+        </button>
+        <button class="cat-btn" [class.active]="categoriaFiltro === 'contratos'" (click)="setCategoriaFiltro('contratos')">
+            Contratos <span class="cat-count">{{ stats.contratos }}</span>
+        </button>
+        <button class="cat-btn" [class.active]="categoriaFiltro === 'certificaciones'" (click)="setCategoriaFiltro('certificaciones')">
+            Certificaciones
+        </button>
+        <button class="cat-btn" [class.active]="categoriaFiltro === 'otros'" (click)="setCategoriaFiltro('otros')">
+            Otros
+        </button>
+    </div>
+
+    <!-- ══════════════════════════════════════════
+         TABLA DE DOCUMENTOS
+         ══════════════════════════════════════════ -->
     <div class="card-panel table-container">
         @if (documentos.length === 0) {
+        <!-- Estado vacío — sin documentos en absoluto -->
         <div class="empty-state">
-            <div class="empty-icon">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <div class="empty-icon-wrap">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round"
                         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
             </div>
             <h3>Sin documentos</h3>
             <p>Aún no se han subido documentos para este empleado.</p>
+            @if (isAdmin) {
+            <button class="btn-primary btn-sm" (click)="abrirUploadModal()">
+                + Subir primer documento
+            </button>
+            }
+        </div>
+        } @else if (documentosFiltrados.length === 0) {
+        <!-- Estado vacío — sin resultados para el filtro -->
+        <div class="empty-state">
+            <div class="empty-icon-wrap">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+            </div>
+            <h3>Sin resultados</h3>
+            <p>No hay documentos en la categoría seleccionada.</p>
         </div>
         } @else {
 
@@ -105,7 +142,7 @@
                     <th>Nombre del documento</th>
                     <th>Fecha emisión</th>
                     <th>Subido</th>
-                    <th class="text-center">Firma</th>
+                    <th class="text-center">Estado Firma</th>
                     <th class="text-right">Acciones</th>
                 </tr>
             </thead>
@@ -119,33 +156,39 @@
                     <td>{{ formatearFecha(doc.fecha_emision) }}</td>
                     <td class="text-muted">{{ formatearFecha(doc.created_at) }}</td>
                     <td class="text-center">
-                        @if (doc.firmado) {
+                        @if (doc.firma_estado === 'firmado') {
                         <span class="firma-badge firma-ok">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2.5">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
                             Firmado
                         </span>
+                        } @else if (doc.firma_estado === 'pendiente') {
+                        <span class="firma-badge firma-pend">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            Pendiente
+                        </span>
                         } @else {
-                        <span class="firma-badge firma-pend">Pendiente</span>
+                        <span class="firma-badge firma-na">—</span>
                         }
                     </td>
                     <td class="text-right">
                         <div class="actions-cell">
-                            <a [href]="doc.url_archivo" target="_blank" rel="noopener"
-                                class="btn-secondary btn-sm">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
+                            @if (doc.url_archivo) {
+                            <a [href]="doc.url_archivo" target="_blank" rel="noopener" class="btn-secondary btn-sm">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                                 </svg>
                                 Ver PDF
                             </a>
-                            @if (!doc.firmado && esSelf) {
+                            }
+                            @if (doc.firma_estado === 'pendiente' && esSelf) {
                             <button class="btn-sign btn-sm" (click)="abrirFirmarModal(doc)">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
@@ -153,10 +196,8 @@
                             </button>
                             }
                             @if (isAdmin) {
-                            <button class="btn-delete btn-sm" (click)="pedirConfirmEliminar(doc)"
-                                title="Eliminar">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2">
+                            <button class="btn-delete btn-sm" (click)="pedirConfirmEliminar(doc)" title="Eliminar">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round"
                                         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
@@ -172,41 +213,37 @@
         <!-- ── PAGINACIÓN ── -->
         <div class="pagination-footer">
             <span class="pagination-info">
-                @if (rangoMostrando.total === 0) {
-                Sin resultados
-                } @else {
-                Mostrando {{ rangoMostrando.desde }} a {{ rangoMostrando.hasta }}
-                de {{ rangoMostrando.total }} documentos
-                }
+                @if (rangoMostrando.total === 0) { Sin resultados }
+                @else { Mostrando {{ rangoMostrando.desde }}–{{ rangoMostrando.hasta }} de {{ rangoMostrando.total }} documentos }
             </span>
             <div class="pagination-controls">
                 <button class="btn-pag" (click)="paginaAnterior()" [disabled]="currentPage === 1">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="15 18 9 12 15 6" />
                     </svg>
                     Anterior
                 </button>
-                <span class="pag-info-mid">{{ currentPage }} / {{ totalPaginas }}</span>
+                @for (p of paginasBotones; track p) {
+                <button class="btn-pag-num" [class.active]="p === currentPage" (click)="irPagina(p)">{{ p }}</button>
+                }
                 <button class="btn-pag" (click)="paginaSiguiente()" [disabled]="currentPage === totalPaginas">
                     Siguiente
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="9 18 15 12 9 6" />
                     </svg>
                 </button>
             </div>
         </div>
 
-        }<!-- end @else documentos -->
+        }
     </div>
 
-    }<!-- end @else if empleado -->
+    }<!-- fin @else if empleado -->
 </div>
 
-<!-- ════════════════════════════════════════════════════════════════════════
+<!-- ════════════════════════════════════════════════════════
      MODAL — Subir Documento
-     ════════════════════════════════════════════════════════════════════════ -->
+     ════════════════════════════════════════════════════════ -->
 @if (showUploadModal) {
 <div class="modal-backdrop-pro" (click)="cerrarUploadModal()"></div>
 <div class="modal-card fade-in-up" (click)="$event.stopPropagation()">
@@ -227,7 +264,7 @@
         <!-- Tipo -->
         <div class="form-group">
             <label class="form-label">Tipo de documento <span class="req">*</span></label>
-            <select class="form-select" [(ngModel)]="uploadForm.tipo">
+            <select class="form-select" [(ngModel)]="uploadForm.tipo" (change)="onTipoChange()">
                 <option value="" disabled>Selecciona un tipo…</option>
                 @for (t of tiposDocumento; track t) {
                 <option [value]="t">{{ t }}</option>
@@ -235,7 +272,18 @@
             </select>
         </div>
 
-        <!-- Boleta Mensual: Mes + Año dinámicos -->
+        <!-- Aviso especial para Contratos -->
+        @if (esContratoSeleccionado) {
+        <div class="contrato-aviso">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            <span>Este documento es un <strong>Contrato</strong>: requerirá firma electrónica del empleado automáticamente. Se enviará una notificación al empleado.</span>
+        </div>
+        }
+
+        <!-- Boleta: Mes + Año -->
         @if (esBoletaSeleccionada) {
         <div class="form-row-2">
             <div class="form-group">
@@ -259,14 +307,12 @@
         @if (nombreBoleta) {
         <div class="boleta-preview">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Se registrará como: <strong>{{ nombreBoleta }}</strong>
         </div>
         }
         } @else {
-        <!-- Nombre libre para otros tipos -->
         <div class="form-group">
             <label class="form-label">Nombre del documento <span class="req">*</span></label>
             <input type="text" class="form-input" placeholder="Ej: Contrato de trabajo 2025"
@@ -278,7 +324,7 @@
         </div>
         }
 
-        <!-- Archivo PDF -->
+        <!-- Archivo -->
         <div class="form-group file-group">
             <label class="form-label">Archivo PDF <span class="req">*</span></label>
             <label class="file-drop">
@@ -286,19 +332,15 @@
                     (change)="onArchivoSeleccionado($event)" class="file-input-hidden" />
                 @if (archivoSeleccionado) {
                 <span class="file-name">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     {{ archivoSeleccionado.name }}
                 </span>
                 } @else {
                 <span class="file-placeholder">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                     Haz clic o arrastra un PDF (máx. 20 MB)
                 </span>
@@ -306,16 +348,17 @@
             </label>
         </div>
 
+        <!-- Requiere firma (solo si no es Contrato, que lo fuerza automáticamente) -->
+        @if (!esContratoSeleccionado) {
         <label class="checkbox-row">
             <input type="checkbox" [(ngModel)]="uploadForm.requiereFirma" />
             <span>Requiere firma electrónica del empleado</span>
         </label>
+        }
     </div>
 
     <div class="modal-footer">
-        <button class="btn-secondary" (click)="cerrarUploadModal()" [disabled]="uploadCargando">
-            Cancelar
-        </button>
+        <button class="btn-secondary" (click)="cerrarUploadModal()" [disabled]="uploadCargando">Cancelar</button>
         <button class="btn-primary" (click)="subirDocumento()" [disabled]="uploadCargando">
             @if (uploadCargando) { Subiendo… } @else { Subir Documento }
         </button>
@@ -323,9 +366,9 @@
 </div>
 }
 
-<!-- ════════════════════════════════════════════════════════════════════════
+<!-- ════════════════════════════════════════════════════════
      MODAL — Firmar Documento
-     ════════════════════════════════════════════════════════════════════════ -->
+     ════════════════════════════════════════════════════════ -->
 @if (showFirmarModal) {
 <div class="modal-backdrop-pro" (click)="cerrarFirmarModal()"></div>
 <div class="modal-card modal-firma fade-in-up" (click)="$event.stopPropagation()">
@@ -338,9 +381,7 @@
         </button>
     </div>
     <div class="modal-body">
-        @if (firmarError) {
-        <div class="alert-error">{{ firmarError }}</div>
-        }
+        @if (firmarError) { <div class="alert-error">{{ firmarError }}</div> }
         <p class="firma-doc-nombre"><strong>Documento:</strong> {{ docParaFirmar?.nombre }}</p>
         <div class="firma-preview-wrap">
             @if (firmaUrl) {
@@ -369,9 +410,9 @@
 </div>
 }
 
-<!-- ════════════════════════════════════════════════════════════════════════
+<!-- ════════════════════════════════════════════════════════
      MODAL — Confirmar Eliminar
-     ════════════════════════════════════════════════════════════════════════ -->
+     ════════════════════════════════════════════════════════ -->
 @if (showConfirmEliminar) {
 <div class="modal-backdrop-pro" (click)="cancelarEliminar()"></div>
 <div class="modal-card modal-confirm fade-in-up" (click)="$event.stopPropagation()">
@@ -383,8 +424,7 @@
             Esta acción no puede deshacerse.</p>
     </div>
     <div class="modal-footer">
-        <button class="btn-secondary" (click)="cancelarEliminar()"
-            [disabled]="eliminandoCargando">Cancelar</button>
+        <button class="btn-secondary" (click)="cancelarEliminar()" [disabled]="eliminandoCargando">Cancelar</button>
         <button class="btn-danger-solid" (click)="confirmarEliminar()" [disabled]="eliminandoCargando">
             @if (eliminandoCargando) { Eliminando… } @else { Sí, eliminar }
         </button>

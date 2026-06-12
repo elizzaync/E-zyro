@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { RrhhService, DocumentoDto, EmpleadoInfoDto } from '../../../../../core/services/rrhh.service';
+import { RrhhService, DocumentoDto, EmpleadoInfoDto, LegajoStatsDto } from '../../../../../core/services/rrhh.service';
 import { AuthService } from '../../../../../core/services/auth.service';
 
 const TIPOS_DOCUMENTO = [
@@ -25,6 +25,8 @@ const MESES_ES = [
   { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
 ];
 
+type CatFiltro = 'todos' | 'contratos' | 'certificaciones' | 'otros';
+
 @Component({
   selector: 'app-legajo-detalle',
   standalone: true,
@@ -36,42 +38,73 @@ export class LegajoDetalleComponent implements OnInit {
 
   empleadoId = '';
   empleado: EmpleadoInfoDto | null = null;
-  documentos: DocumentoDto[] = [];
-  cargando  = true;
-  error     = '';
+  documentos: DocumentoDto[]       = [];
+  stats: LegajoStatsDto            = { total: 0, contratos: 0, firmados: 0, pendientes_firma: 0 };
+  cargando = true;
+  error    = '';
 
   tiposDocumento = TIPOS_DOCUMENTO;
   mesesEs        = MESES_ES;
 
-  // ── Paginación ────────────────────────────────────────────────────────────
+  // ── Filtro de categoría ────────────────────────────────────────────────
+  categoriaFiltro: CatFiltro = 'todos';
+
+  // ── Paginación ────────────────────────────────────────────────────────
   currentPage  = 1;
   itemsPerPage = 10;
 
+  get documentosFiltrados(): DocumentoDto[] {
+    switch (this.categoriaFiltro) {
+      case 'contratos':
+        return this.documentos.filter(d => d.tipo.toLowerCase() === 'contrato');
+      case 'certificaciones':
+        return this.documentos.filter(d =>
+          ['certificado', 'constancia'].includes(d.tipo.toLowerCase()));
+      case 'otros':
+        return this.documentos.filter(d =>
+          !['contrato', 'certificado', 'constancia'].includes(d.tipo.toLowerCase()));
+      default:
+        return this.documentos;
+    }
+  }
+
   get paginatedDocumentos(): DocumentoDto[] {
     const start = (this.currentPage - 1) * this.itemsPerPage;
-    return this.documentos.slice(start, start + this.itemsPerPage);
+    return this.documentosFiltrados.slice(start, start + this.itemsPerPage);
   }
 
   get totalPaginas(): number {
-    return Math.max(1, Math.ceil(this.documentos.length / this.itemsPerPage));
+    return Math.max(1, Math.ceil(this.documentosFiltrados.length / this.itemsPerPage));
   }
 
   get rangoMostrando(): { desde: number; hasta: number; total: number } {
-    if (this.documentos.length === 0) return { desde: 0, hasta: 0, total: 0 };
+    const total = this.documentosFiltrados.length;
+    if (total === 0) return { desde: 0, hasta: 0, total: 0 };
     const desde = (this.currentPage - 1) * this.itemsPerPage + 1;
-    const hasta = Math.min(this.currentPage * this.itemsPerPage, this.documentos.length);
-    return { desde, hasta, total: this.documentos.length };
+    const hasta = Math.min(this.currentPage * this.itemsPerPage, total);
+    return { desde, hasta, total };
   }
 
-  paginaSiguiente(): void {
-    if (this.currentPage < this.totalPaginas) this.currentPage++;
+  get paginasBotones(): number[] {
+    const total = this.totalPaginas;
+    const cur   = this.currentPage;
+    const pages: number[] = [];
+    for (let i = Math.max(1, cur - 2); i <= Math.min(total, cur + 2); i++) pages.push(i);
+    return pages;
   }
 
-  paginaAnterior(): void {
-    if (this.currentPage > 1) this.currentPage--;
+  setCategoriaFiltro(cat: CatFiltro): void {
+    this.categoriaFiltro = cat;
+    this.currentPage = 1;
   }
 
-  // ── Upload modal ──────────────────────────────────────────────────────────
+  paginaSiguiente(): void { if (this.currentPage < this.totalPaginas) this.currentPage++; }
+  paginaAnterior(): void  { if (this.currentPage > 1) this.currentPage--; }
+  irPagina(p: number): void {
+    if (p >= 1 && p <= this.totalPaginas) this.currentPage = p;
+  }
+
+  // ── Upload modal ──────────────────────────────────────────────────────
   showUploadModal = false;
   uploadCargando  = false;
   uploadError     = '';
@@ -89,6 +122,10 @@ export class LegajoDetalleComponent implements OnInit {
     return this.uploadForm.tipo === 'Boleta Mensual';
   }
 
+  get esContratoSeleccionado(): boolean {
+    return this.uploadForm.tipo === 'Contrato';
+  }
+
   get aniosDisponibles(): number[] {
     const anio = new Date().getFullYear();
     return Array.from({ length: 6 }, (_, i) => anio - 4 + i).reverse();
@@ -100,14 +137,14 @@ export class LegajoDetalleComponent implements OnInit {
     return mes ? `Boleta de Pago - ${mes.label} ${this.uploadForm.anio}` : '';
   }
 
-  // ── Firma modal ───────────────────────────────────────────────────────────
+  // ── Firma modal ───────────────────────────────────────────────────────
   showFirmarModal = false;
   firmarCargando  = false;
   firmarError     = '';
   docParaFirmar: DocumentoDto | null = null;
   firmaUrl: string | null = null;
 
-  // ── Confirm delete ────────────────────────────────────────────────────────
+  // ── Confirm delete ────────────────────────────────────────────────────
   showConfirmEliminar = false;
   docParaEliminar: DocumentoDto | null = null;
   eliminandoCargando  = false;
@@ -135,22 +172,22 @@ export class LegajoDetalleComponent implements OnInit {
     return !!u && u.id === this.empleado.usuarioId;
   }
 
-  get firmadosCount(): number {
-    return this.documentos.filter(d => d.firmado).length;
-  }
+  get firmadosCount(): number  { return this.stats.firmados; }
+  get pendientesCount(): number { return this.stats.pendientes_firma; }
 
-  // ── Carga ─────────────────────────────────────────────────────────────────
+  // ── Carga ─────────────────────────────────────────────────────────────
 
   private cargarDetalle(): void {
     this.cargando = true;
     this.rrhhService.getEmpleadoDetalle(this.empleadoId).subscribe({
       next: (res) => {
-        this.empleado  = res.empleado;
+        this.empleado   = res.empleado;
         this.documentos = res.documentos;
-        this.cargando  = false;
+        this.stats      = res.stats;
+        this.cargando   = false;
       },
       error: () => {
-        this.error    = 'No se pudo cargar el expediente del empleado.';
+        this.error   = 'No se pudo cargar el expediente del empleado.';
         this.cargando = false;
       },
     });
@@ -159,7 +196,13 @@ export class LegajoDetalleComponent implements OnInit {
   private recargarDocumentos(): void {
     this.rrhhService.getDocumentosEmpleado(this.empleadoId).subscribe({
       next: (res) => {
-        this.documentos = res.documentos;
+        this.documentos  = res.documentos;
+        this.stats = {
+          total: res.total,
+          contratos: res.documentos.filter(d => d.tipo.toLowerCase() === 'contrato').length,
+          firmados: res.documentos.filter(d => d.firmado).length,
+          pendientes_firma: res.documentos.filter(d => d.firma_estado === 'pendiente').length,
+        };
         this.currentPage = 1;
       },
       error: () => {},
@@ -170,7 +213,7 @@ export class LegajoDetalleComponent implements OnInit {
     this.router.navigate(['/rrhh/legajo']);
   }
 
-  // ── Upload ────────────────────────────────────────────────────────────────
+  // ── Upload ────────────────────────────────────────────────────────────
 
   abrirUploadModal(): void {
     this.uploadForm = {
@@ -180,6 +223,13 @@ export class LegajoDetalleComponent implements OnInit {
     this.archivoSeleccionado = null;
     this.uploadError = '';
     this.showUploadModal = true;
+  }
+
+  onTipoChange(): void {
+    // Contratos siempre requieren firma
+    if (this.esContratoSeleccionado) {
+      this.uploadForm.requiereFirma = true;
+    }
   }
 
   cerrarUploadModal(): void { this.showUploadModal = false; }
@@ -217,7 +267,6 @@ export class LegajoDetalleComponent implements OnInit {
       }
       const mes = MESES_ES.find(m => m.value === this.uploadForm.mes)!;
       nombreFinal = `Boleta de Pago - ${mes.label} ${this.uploadForm.anio}`;
-      // Fecha = primer día del mes seleccionado
       fechaFinal  = `${this.uploadForm.anio}-${String(this.uploadForm.mes).padStart(2, '0')}-01`;
     } else {
       if (!nombreFinal.trim()) {
@@ -242,7 +291,7 @@ export class LegajoDetalleComponent implements OnInit {
     form.append('tipo',          this.uploadForm.tipo);
     form.append('nombre',        nombreFinal);
     form.append('fecha_emision', fechaFinal);
-    form.append('requiere_firma', String(this.uploadForm.requiereFirma));
+    form.append('requiere_firma', String(this.uploadForm.requiereFirma || this.esContratoSeleccionado));
     form.append('archivo',       this.archivoSeleccionado);
     if (this.esBoletaSeleccionada) {
       form.append('mes',  String(this.uploadForm.mes));
@@ -262,7 +311,7 @@ export class LegajoDetalleComponent implements OnInit {
     });
   }
 
-  // ── Firma ─────────────────────────────────────────────────────────────────
+  // ── Firma ─────────────────────────────────────────────────────────────
 
   abrirFirmarModal(doc: DocumentoDto): void {
     this.docParaFirmar = doc;
@@ -298,7 +347,7 @@ export class LegajoDetalleComponent implements OnInit {
     });
   }
 
-  // ── Eliminar ──────────────────────────────────────────────────────────────
+  // ── Eliminar ──────────────────────────────────────────────────────────
 
   pedirConfirmEliminar(doc: DocumentoDto): void {
     this.docParaEliminar     = doc;
@@ -326,7 +375,7 @@ export class LegajoDetalleComponent implements OnInit {
     });
   }
 
-  // ── Utilidades ────────────────────────────────────────────────────────────
+  // ── Utilidades ────────────────────────────────────────────────────────
 
   tipoClase(tipo: string): string {
     const map: Record<string, string> = {

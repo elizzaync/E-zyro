@@ -13,6 +13,7 @@ export interface EmpleadoLegajoDto {
   iniciales: string;
   fotoUrl: string;
   ultimaActualizacion: string;
+  fechaIngreso: string | null;
 }
 
 export interface DocumentoDto {
@@ -22,6 +23,8 @@ export interface DocumentoDto {
   url_archivo: string;
   fecha_emision: string | null;
   created_at: string | null;
+  requiere_firma: boolean;
+  firma_estado: 'pendiente' | 'firmado' | 'no_aplica';
   firmado: boolean;
   firmado_en: string | null;
 }
@@ -36,6 +39,13 @@ export interface EmpleadoInfoDto {
   fotoUrl: string;
   iniciales: string;
   fechaIngreso: string | null;
+}
+
+export interface LegajoStatsDto {
+  total: number;
+  contratos: number;
+  firmados: number;
+  pendientes_firma: number;
 }
 
 export interface SolicitudEmpleadoDto {
@@ -85,29 +95,90 @@ export interface ResumenEmpleadoDto {
   advertencias: number;
 }
 
+export interface GeoDto {
+  lat: number;
+  lng: number;
+  precision: number | null;
+}
+
+export interface DetalleDiaDto {
+  fecha: string;
+  dia_nombre: string;
+  hora_ingreso: string | null;
+  hora_salida: string | null;
+  almuerzo_inicio: string | null;
+  almuerzo_fin: string | null;
+  almuerzo_dur: string | null;
+  horas_trabajadas: number;
+  estado: string;
+  geo_ingreso: GeoDto | null;
+  geo_salida: GeoDto | null;
+}
+
+export interface PaginatedEmpleados {
+  empleados: EmpleadoLegajoDto[];
+  total: number;
+  page: number;
+  limit: number;
+  total_paginas: number;
+}
+
+export interface PaginatedResumen {
+  periodo: PeriodoDto;
+  empleados: ResumenEmpleadoDto[];
+  total: number;
+  page: number;
+  limit: number;
+  total_paginas: number;
+}
+
+export interface DetalleDiarioResponse {
+  empleado_id: string;
+  periodo: { fecha_inicio: string; fecha_fin: string };
+  dias: DetalleDiaDto[];
+  total: number;
+  page: number;
+  limit: number;
+  total_paginas: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RrhhService {
   private readonly api = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
-  getEmpleados(): Observable<{ empleados: EmpleadoLegajoDto[] }> {
-    return this.http.get<{ empleados: EmpleadoLegajoDto[] }>(`${this.api}/rrhh/legajo/empleados`);
-  }
+  // ── Legajo ───────────────────────────────────────────────────────────────
 
-  getEmpleadoDetalle(empleadoId: string): Observable<{ empleado: EmpleadoInfoDto; documentos: DocumentoDto[] }> {
-    return this.http.get<{ empleado: EmpleadoInfoDto; documentos: DocumentoDto[] }>(
-      `${this.api}/rrhh/legajo/${empleadoId}`
+  getEmpleados(page = 1, limit = 10): Observable<PaginatedEmpleados> {
+    return this.http.get<PaginatedEmpleados>(
+      `${this.api}/rrhh/legajo/empleados?page=${page}&limit=${limit}`
     );
   }
 
-  getDocumentosEmpleado(empleadoId: string): Observable<{ documentos: DocumentoDto[]; total: number }> {
-    return this.http.get<{ documentos: DocumentoDto[]; total: number }>(
-      `${this.api}/rrhh/legajo/${empleadoId}/documentos`
-    );
+  getEmpleadoDetalle(empleadoId: string): Observable<{
+    empleado: EmpleadoInfoDto;
+    documentos: DocumentoDto[];
+    stats: LegajoStatsDto;
+  }> {
+    return this.http.get<any>(`${this.api}/rrhh/legajo/${empleadoId}`);
   }
 
-  subirDocumento(empleadoId: string, form: FormData): Observable<{ id: string; url_archivo: string; mensaje: string }> {
+  getDocumentosEmpleado(
+    empleadoId: string,
+    categoria?: string
+  ): Observable<{ documentos: DocumentoDto[]; total: number }> {
+    let url = `${this.api}/rrhh/legajo/${empleadoId}/documentos`;
+    if (categoria) url += `?categoria=${categoria}`;
+    return this.http.get<any>(url);
+  }
+
+  subirDocumento(empleadoId: string, form: FormData): Observable<{
+    id: string;
+    url_archivo: string;
+    requiere_firma: boolean;
+    mensaje: string;
+  }> {
     return this.http.post<any>(`${this.api}/rrhh/legajo/${empleadoId}/documento`, form);
   }
 
@@ -144,15 +215,53 @@ export class RrhhService {
 
   // ── Asistencia ───────────────────────────────────────────────────────────
 
-  getResumenAsistencia(params?: { fecha_inicio?: string; fecha_fin?: string }): Observable<{ periodo: PeriodoDto; empleados: ResumenEmpleadoDto[] }> {
+  getResumenAsistencia(params?: {
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    page?: number;
+    limit?: number;
+  }): Observable<PaginatedResumen> {
     const qs: string[] = [];
     if (params?.fecha_inicio) qs.push(`fecha_inicio=${params.fecha_inicio}`);
     if (params?.fecha_fin)    qs.push(`fecha_fin=${params.fecha_fin}`);
+    if (params?.page)         qs.push(`page=${params.page}`);
+    if (params?.limit)        qs.push(`limit=${params.limit}`);
     const url = `${this.api}/rrhh/asistencia/resumen` + (qs.length ? '?' + qs.join('&') : '');
-    return this.http.get<{ periodo: PeriodoDto; empleados: ResumenEmpleadoDto[] }>(url);
+    return this.http.get<PaginatedResumen>(url);
   }
 
-  emitirAdvertencia(empleadoId: string): Observable<{ id: string; mensaje: string; numero_advertencia: number; advertencias_restantes: number }> {
+  getDetalleDiario(empleadoId: string, params?: {
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    page?: number;
+    limit?: number;
+  }): Observable<DetalleDiarioResponse> {
+    const qs: string[] = [];
+    if (params?.fecha_inicio) qs.push(`fecha_inicio=${params.fecha_inicio}`);
+    if (params?.fecha_fin)    qs.push(`fecha_fin=${params.fecha_fin}`);
+    if (params?.page)         qs.push(`page=${params.page}`);
+    if (params?.limit)        qs.push(`limit=${params.limit}`);
+    const url = `${this.api}/rrhh/asistencia/${empleadoId}/detalle` + (qs.length ? '?' + qs.join('&') : '');
+    return this.http.get<DetalleDiarioResponse>(url);
+  }
+
+  emitirAdvertencia(empleadoId: string): Observable<{
+    id: string;
+    mensaje: string;
+    numero_advertencia: number;
+    advertencias_restantes: number;
+  }> {
     return this.http.post<any>(`${this.api}/rrhh/asistencia/${empleadoId}/advertencia`, {});
+  }
+
+  // ── Reportes ─────────────────────────────────────────────────────────────
+
+  descargarReporte(tipo: string, params: Record<string, string>): Observable<Blob> {
+    const qs = Object.entries(params)
+      .filter(([, v]) => v !== undefined && v !== '')
+      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+      .join('&');
+    const url = `${this.api}/rrhh/asistencia/reportes/${tipo}${qs ? '?' + qs : ''}`;
+    return this.http.get(url, { responseType: 'blob' });
   }
 }

@@ -8,8 +8,6 @@
             <h1 class="page-title">Asistencia y Planillas</h1>
             <p class="page-subtitle">Seguimiento de horas semanales · jornada 48h (Lun–Sáb)</p>
         </div>
-
-        <!-- Navegación de semana -->
         <div class="period-nav">
             <button class="nav-btn" (click)="irSemanaAnterior()" title="Semana anterior">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -41,32 +39,22 @@
                 <span class="kpi-value">{{ kpis.total }}</span>
             </div>
         </div>
-
         <div class="kpi-card card-panel">
             <div class="kpi-icon icon-green">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </div>
-            <div class="kpi-info">
-                <span class="kpi-label">Al día</span>
-                <span class="kpi-value">{{ kpis.alDia }}</span>
-            </div>
+            <div class="kpi-info"><span class="kpi-label">Al día</span><span class="kpi-value">{{ kpis.alDia }}</span></div>
         </div>
-
         <div class="kpi-card card-panel">
             <div class="kpi-icon icon-red">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </div>
-            <div class="kpi-info">
-                <span class="kpi-label">Con faltas</span>
-                <span class="kpi-value">{{ kpis.conFaltas }}</span>
-            </div>
+            <div class="kpi-info"><span class="kpi-label">Con faltas</span><span class="kpi-value">{{ kpis.conFaltas }}</span></div>
         </div>
-
         <div class="kpi-card card-panel">
             <div class="kpi-icon icon-yellow">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -74,11 +62,177 @@
                         d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
             </div>
-            <div class="kpi-info">
-                <span class="kpi-label">Con advertencias</span>
-                <span class="kpi-value">{{ kpis.conAdvertencias }}</span>
-            </div>
+            <div class="kpi-info"><span class="kpi-label">Con advertencias</span><span class="kpi-value">{{ kpis.conAdvertencias }}</span></div>
         </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         SECCIÓN REPORTES
+         ══════════════════════════════════════════════════ -->
+    <div class="reportes-section card-panel">
+        <div class="reportes-header" (click)="showReportes = !showReportes" role="button" tabindex="0"
+            (keydown.enter)="showReportes = !showReportes">
+            <div class="reportes-title-row">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h2 class="reportes-title">Reportes y Exportación</h2>
+            </div>
+            <svg class="chevron-icon" [class.open]="showReportes" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9" />
+            </svg>
+        </div>
+
+        @if (showReportes) {
+        <div class="reportes-grid">
+
+            <!-- Semanal -->
+            <div class="reporte-card">
+                <div class="reporte-icon icon-blue">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                </div>
+                <div class="reporte-info">
+                    <span class="reporte-nombre">Semanal</span>
+                    <span class="reporte-desc">Horas por empleado · semana actual</span>
+                </div>
+                <div class="reporte-btns">
+                    <button class="btn-export excel" (click)="descargar('semanal','xlsx')" [disabled]="reporteEnCurso('semanal')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Excel
+                    </button>
+                    <button class="btn-export pdf" (click)="descargar('semanal','pdf')" [disabled]="reporteEnCurso('semanal')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mensual -->
+            <div class="reporte-card">
+                <div class="reporte-icon icon-purple">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                </div>
+                <div class="reporte-info">
+                    <span class="reporte-nombre">Mensual</span>
+                    <span class="reporte-desc">Consolidado del mes en curso</span>
+                </div>
+                <div class="reporte-btns">
+                    <button class="btn-export excel" (click)="descargar('mensual','xlsx')" [disabled]="reporteEnCurso('mensual')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Excel
+                    </button>
+                    <button class="btn-export pdf" (click)="descargar('mensual','pdf')" [disabled]="reporteEnCurso('mensual')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tardanzas / Faltas -->
+            <div class="reporte-card">
+                <div class="reporte-icon icon-red">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                    </svg>
+                </div>
+                <div class="reporte-info">
+                    <span class="reporte-nombre">Tardanzas y Faltas</span>
+                    <span class="reporte-desc">Incidencias del período seleccionado</span>
+                </div>
+                <div class="reporte-btns">
+                    <button class="btn-export excel" (click)="descargar('tardanzas','xlsx')" [disabled]="reporteEnCurso('tardanzas')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Excel
+                    </button>
+                    <button class="btn-export pdf" (click)="descargar('tardanzas','pdf')" [disabled]="reporteEnCurso('tardanzas')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Individual -->
+            <div class="reporte-card reporte-card-wide">
+                <div class="reporte-icon icon-green">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                </div>
+                <div class="reporte-info">
+                    <span class="reporte-nombre">Individual por Empleado</span>
+                    <span class="reporte-desc">Historial completo de asistencia</span>
+                    <input type="text" class="reporte-input" placeholder="ID o nombre del empleado…"
+                        [(ngModel)]="reporteEmpleadoId" />
+                </div>
+                <div class="reporte-btns">
+                    <button class="btn-export excel" (click)="descargar('individual','xlsx')"
+                        [disabled]="reporteEnCurso('individual') || !reporteEmpleadoId">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Excel
+                    </button>
+                    <button class="btn-export pdf" (click)="descargar('individual','pdf')"
+                        [disabled]="reporteEnCurso('individual') || !reporteEmpleadoId">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Horas Extra -->
+            <div class="reporte-card">
+                <div class="reporte-icon icon-yellow">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div class="reporte-info">
+                    <span class="reporte-nombre">Horas Extra</span>
+                    <span class="reporte-desc">Personal con horas sobre la meta</span>
+                </div>
+                <div class="reporte-btns">
+                    <button class="btn-export excel" (click)="descargar('horas-extra','xlsx')" [disabled]="reporteEnCurso('horas-extra')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Excel
+                    </button>
+                    <button class="btn-export pdf" (click)="descargar('horas-extra','pdf')" [disabled]="reporteEnCurso('horas-extra')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        PDF
+                    </button>
+                </div>
+            </div>
+
+        </div>
+        }
     </div>
 
     <!-- ══════════════════════════════════════════════════
@@ -134,25 +288,21 @@
                     <th class="text-center">Justificadas</th>
                     <th class="text-center">Estado</th>
                     <th class="text-center">Advertencias</th>
-                    @if (puedeEmitir) {
-                    <th class="text-right">Acción</th>
-                    }
+                    @if (puedeEmitir) { <th class="text-right">Acción</th> }
+                    <th class="text-center">Detalle</th>
                 </tr>
             </thead>
             <tbody>
                 @for (emp of filteredEmpleados; track emp.id) {
-                <tr [class.row-falta]="emp.horas_faltantes > 0">
-
+                <tr [class.row-falta]="emp.horas_faltantes > 0"
+                    [class.row-expanded]="empleadoDetalle?.id === emp.id">
                     <!-- Empleado -->
                     <td>
                         <div class="emp-cell">
                             <div class="emp-avatar">
                                 @if (emp.fotoUrl) {
-                                <img [src]="emp.fotoUrl" [alt]="emp.nombreCompleto"
-                                    class="avatar-photo" width="38" height="38" />
-                                } @else {
-                                <span>{{ emp.iniciales }}</span>
-                                }
+                                <img [src]="emp.fotoUrl" [alt]="emp.nombreCompleto" class="avatar-photo" width="38" height="38" />
+                                } @else { <span>{{ emp.iniciales }}</span> }
                             </div>
                             <div class="emp-info">
                                 <span class="emp-name">{{ emp.nombreCompleto }}</span>
@@ -160,59 +310,37 @@
                             </div>
                         </div>
                     </td>
-
                     <!-- Progreso -->
                     <td class="progress-cell">
                         <div class="progress-row">
                             <div class="progress-track">
-                                <div class="progress-fill"
-                                    [class]="barraClase(emp)"
-                                    [style.width.%]="barraAncho(emp)">
-                                </div>
+                                <div class="progress-fill" [class]="barraClase(emp)" [style.width.%]="barraAncho(emp)"></div>
                             </div>
-                            <span class="progress-label">
-                                {{ emp.horas_total.toFixed(1) }}h / {{ emp.meta_horas }}h
-                            </span>
+                            <span class="progress-label">{{ emp.horas_total.toFixed(1) }}h / {{ emp.meta_horas }}h</span>
                         </div>
                     </td>
-
                     <!-- Horas reales -->
-                    <td class="text-center">
-                        <span class="hrs-num">{{ emp.horas_reales.toFixed(1) }}h</span>
-                    </td>
-
+                    <td class="text-center"><span class="hrs-num">{{ emp.horas_reales.toFixed(1) }}h</span></td>
                     <!-- Justificadas -->
                     <td class="text-center">
                         @if (emp.horas_justificadas > 0) {
                         <span class="badge-justif">+{{ emp.horas_justificadas.toFixed(0) }}h</span>
-                        } @else {
-                        <span class="hrs-cero">—</span>
-                        }
+                        } @else { <span class="hrs-cero">—</span> }
                     </td>
-
                     <!-- Estado -->
-                    <td class="text-center">
-                        <span class="badge" [class]="estadoClase(emp)">{{ estadoLabel(emp) }}</span>
-                    </td>
-
+                    <td class="text-center"><span class="badge" [class]="estadoClase(emp)">{{ estadoLabel(emp) }}</span></td>
                     <!-- Advertencias -->
                     <td class="text-center">
                         @if (emp.advertencias > 0) {
-                        <span class="adv-badge" [class]="advClase(emp.advertencias)">
-                            {{ emp.advertencias }}/3
-                        </span>
-                        } @else {
-                        <span class="adv-ninguna">—</span>
-                        }
+                        <span class="adv-badge" [class]="advClase(emp.advertencias)">{{ emp.advertencias }}/3</span>
+                        } @else { <span class="adv-ninguna">—</span> }
                     </td>
-
-                    <!-- Acción -->
+                    <!-- Acción advertencia -->
                     @if (puedeEmitir) {
                     <td class="text-right">
                         @if (emp.horas_faltantes > 0 && emp.advertencias < 3) {
                         <button class="btn-advertir" (click)="abrirModalAdv(emp)">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2.5">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
@@ -223,25 +351,218 @@
                         }
                     </td>
                     }
-
+                    <!-- Ver detalle -->
+                    <td class="text-center">
+                        <button class="btn-detalle" (click)="abrirDetalle(emp)"
+                            [class.active]="empleadoDetalle?.id === emp.id" title="Ver detalle diario">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                        </button>
+                    </td>
                 </tr>
                 }
             </tbody>
         </table>
+
+        <!-- ── PAGINACIÓN TABLA PRINCIPAL ── -->
+        @if (totalPaginas > 1) {
+        <div class="pagination-footer">
+            <span class="pagination-info">
+                Mostrando {{ rangoMostrando.desde }}–{{ rangoMostrando.hasta }} de {{ rangoMostrando.total }} empleados
+            </span>
+            <div class="pagination-controls">
+                <button class="btn-pag" (click)="irPagina(currentPage - 1)" [disabled]="currentPage === 1">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Anterior
+                </button>
+                @for (p of paginasBotones; track p) {
+                <button class="btn-pag-num" [class.active]="p === currentPage" (click)="irPagina(p)">{{ p }}</button>
+                }
+                <button class="btn-pag" (click)="irPagina(currentPage + 1)" [disabled]="currentPage === totalPaginas">
+                    Siguiente
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        }
         }
     </div>
+
+    <!-- ══════════════════════════════════════════════════
+         PANEL DETALLE DIARIO
+         ══════════════════════════════════════════════════ -->
+    @if (empleadoDetalle) {
+    <div class="detalle-panel card-panel fade-in">
+        <div class="detalle-panel-header">
+            <div class="detalle-panel-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <h3>Detalle diario — <span class="detalle-emp-nombre">{{ empleadoDetalle.nombreCompleto }}</span></h3>
+            </div>
+            <button class="btn-close-detalle" (click)="empleadoDetalle = null">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        @if (detalleLoading) {
+        <div class="detalle-loading"><div class="spinner-sm"></div><span>Cargando días…</span></div>
+        } @else if (detalleError) {
+        <p class="error-msg" style="padding:16px 20px">{{ detalleError }}</p>
+        } @else if (detalleDias.length === 0) {
+        <div class="empty-state" style="padding:40px 20px"><p>Sin registros en este período.</p></div>
+        } @else {
+
+        <div class="detalle-table-wrap">
+            <table class="detalle-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Ingreso</th>
+                        <th>Salida</th>
+                        <th>Almuerzo</th>
+                        <th class="text-center">Horas</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Ubicación</th>
+                        <th class="text-center">Mapa</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (dia of detalleDias; track dia.fecha) {
+                    <tr>
+                        <td>
+                            <div class="dia-fecha">
+                                <span class="dia-dia">{{ dia.dia_nombre }}</span>
+                                <span class="dia-fecha-num">{{ dia.fecha }}</span>
+                            </div>
+                        </td>
+                        <td class="hora-cell">{{ formatHora(dia.hora_ingreso) }}</td>
+                        <td class="hora-cell">{{ formatHora(dia.hora_salida) }}</td>
+                        <td class="hora-cell almuerzo-cell">
+                            @if (dia.almuerzo_inicio) {
+                            <span>{{ dia.almuerzo_inicio }}</span>
+                            <span class="almuerzo-sep">–</span>
+                            <span>{{ dia.almuerzo_fin ?? '?' }}</span>
+                            } @else { <span class="text-muted">—</span> }
+                        </td>
+                        <td class="text-center">
+                            <span class="hrs-badge">{{ formatHoras(dia.horas_trabajadas) }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="estado-badge" [class]="estadoDiaClase(dia.estado)">{{ dia.estado }}</span>
+                        </td>
+                        <td class="text-center">
+                            @if (dia.geo_ingreso) {
+                            <span class="geo-chip geo-ok" title="Lat {{ dia.geo_ingreso.lat }}, Lng {{ dia.geo_ingreso.lng }}">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                                </svg>
+                                GPS
+                            </span>
+                            } @else { <span class="geo-chip geo-none">—</span> }
+                        </td>
+                        <td class="text-center">
+                            @if (dia.geo_ingreso || dia.geo_salida) {
+                            <button class="btn-mapa" (click)="abrirMapa(dia)" title="Ver en mapa">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                                    <line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" />
+                                </svg>
+                                Mapa
+                            </button>
+                            } @else { <span class="text-muted">—</span> }
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginación detalle -->
+        @if (detalleTotalPag > 1) {
+        <div class="pagination-footer">
+            <span class="pagination-info">
+                Mostrando {{ (detallePage - 1) * DETALLE_PER_PAGE + 1 }}–{{ minVal(detallePage * DETALLE_PER_PAGE, detalleTotalDias) }} de {{ detalleTotalDias }} días
+            </span>
+            <div class="pagination-controls">
+                <button class="btn-pag" (click)="irPaginaDetalle(detallePage - 1)" [disabled]="detallePage === 1">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                    Anterior
+                </button>
+                @for (p of paginasDetalleBtn; track p) {
+                <button class="btn-pag-num" [class.active]="p === detallePage" (click)="irPaginaDetalle(p)">{{ p }}</button>
+                }
+                <button class="btn-pag" (click)="irPaginaDetalle(detallePage + 1)" [disabled]="detallePage === detalleTotalPag">
+                    Siguiente
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+        }
+
+        }
+    </div>
+    }
 
     }<!-- end @else -->
 </div>
 
-<!-- ════════════════════════════════════════════════════════════════════════
-     MODAL DE CONFIRMACIÓN — ADVERTENCIA
-     ════════════════════════════════════════════════════════════════════════ -->
+<!-- ════════════════════════════════════════════════════════
+     MODAL MAPA
+     ════════════════════════════════════════════════════════ -->
+@if (showMapModal && mapDia) {
+<div class="modal-backdrop-pro" (click)="cerrarMapa()"></div>
+<div class="modal-map fade-in-up" (click)="$event.stopPropagation()">
+    <div class="modal-map-head">
+        <h3 class="modal-map-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                <line x1="8" y1="2" x2="8" y2="18" /><line x1="16" y1="6" x2="16" y2="22" />
+            </svg>
+            Ubicación — {{ mapDia.fecha }} {{ mapDia.dia_nombre }}
+        </h3>
+        <button class="modal-close-btn" (click)="cerrarMapa()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+    <div class="map-leyenda">
+        <span class="leyenda-item leyenda-green">
+            <span class="leyenda-dot"></span> Ingreso
+        </span>
+        @if (mapDia.geo_salida) {
+        <span class="leyenda-item leyenda-red">
+            <span class="leyenda-dot"></span> Salida
+        </span>
+        }
+    </div>
+    <div id="leaflet-map-container" class="leaflet-map-box"></div>
+    @if (!mapDia.geo_ingreso && !mapDia.geo_salida) {
+    <p class="map-sin-gps">Sin datos de geolocalización para este día.</p>
+    }
+</div>
+}
+
+<!-- ════════════════════════════════════════════════════════
+     MODAL ADVERTENCIA
+     ════════════════════════════════════════════════════════ -->
 @if (showModalAdv && empleadoSeleccionado) {
 <div class="modal-backdrop-pro" (click)="cerrarModalAdv()"></div>
 <div class="modal-adv fade-in-up" (click)="$event.stopPropagation()">
-
-    <!-- Cabecera -->
     <div class="modal-adv-head">
         <div class="modal-adv-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -259,24 +580,19 @@
             </svg>
         </button>
     </div>
-
-    <!-- Cuerpo -->
     <div class="modal-adv-body">
         <div class="adv-emp-row">
             <div class="sol-avatar">
                 @if (empleadoSeleccionado.fotoUrl) {
                 <img [src]="empleadoSeleccionado.fotoUrl" [alt]="empleadoSeleccionado.nombreCompleto"
                     class="avatar-photo" width="48" height="48" />
-                } @else {
-                <span>{{ empleadoSeleccionado.iniciales }}</span>
-                }
+                } @else { <span>{{ empleadoSeleccionado.iniciales }}</span> }
             </div>
             <div>
                 <p class="adv-emp-name">{{ empleadoSeleccionado.nombreCompleto }}</p>
                 <p class="adv-emp-cargo">{{ empleadoSeleccionado.cargo }}</p>
             </div>
         </div>
-
         <div class="adv-detail-grid">
             <div class="adv-detail-item">
                 <span class="adv-detail-label">Horas faltantes</span>
@@ -295,34 +611,20 @@
                 <span class="adv-detail-val">{{ labelSemana }}</span>
             </div>
         </div>
-
         <div class="adv-aviso">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" />
                 <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             Se generará un <strong>Memorándum de Advertencia</strong> registrado en el legajo del empleado.
-            Esta acción queda como evidencia formal.
         </div>
-
-        @if (advError) {
-        <div class="alert-error">{{ advError }}</div>
-        }
-        @if (advExito) {
-        <div class="alert-success">{{ advExito }}</div>
-        }
+        @if (advError) { <div class="alert-error">{{ advError }}</div> }
+        @if (advExito) { <div class="alert-success">{{ advExito }}</div> }
     </div>
-
-    <!-- Pie -->
     <div class="modal-adv-footer">
-        <button class="btn-cancel" (click)="cerrarModalAdv()" [disabled]="advCargando">
-            Cancelar
-        </button>
-        <button class="btn-danger" (click)="confirmarAdvertencia()"
-            [disabled]="advCargando || !!advExito">
-            @if (advCargando) { Emitiendo… }
-            @else { Confirmar y Emitir }
+        <button class="btn-cancel" (click)="cerrarModalAdv()" [disabled]="advCargando">Cancelar</button>
+        <button class="btn-danger" (click)="confirmarAdvertencia()" [disabled]="advCargando || !!advExito">
+            @if (advCargando) { Emitiendo… } @else { Confirmar y Emitir }
         </button>
     </div>
 </div>
