@@ -38,11 +38,19 @@ export class AsistenciaService {
     return this.http.get<EstadoHoyDto>(`${this.api}/asistencia/estado-hoy`);
   }
 
-  marcar(tipo: 'entrada' | 'salida'): Observable<MarcarResponse> {
+  marcar(
+    tipo: 'entrada' | 'salida',
+    coords?: { lat: number; lon: number; precision: number }
+  ): Observable<MarcarResponse> {
     const uuidCliente = crypto.randomUUID();
     return this.http.post<MarcarResponse>(`${this.api}/asistencia/marcar`, {
       tipo,
       uuid_cliente: uuidCliente,
+      ...(coords && {
+        latitud:     coords.lat,
+        longitud:    coords.lon,
+        precision_m: coords.precision,
+      }),
     });
   }
 }

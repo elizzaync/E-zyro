@@ -29,6 +29,15 @@
       </div>
     }
 
+    <!-- ── ESTADO: GPS ── -->
+    @if (paso === 'gps') {
+      <div class="estado-card estado-neutral">
+        <div class="spinner-ring"></div>
+        <p class="estado-texto">Obteniendo ubicación GPS...</p>
+        <p class="estado-subtexto">Si se demora, acepta el permiso de ubicación en tu navegador.</p>
+      </div>
+    }
+
     <!-- ── ESTADO: MARCANDO ── -->
     @if (paso === 'marcando') {
       <div class="estado-card estado-neutral">
@@ -49,6 +58,12 @@
           {{ ultimoTipo === 'entrada' ? '¡Entrada registrada!' : '¡Salida registrada!' }}
         </p>
         <p class="estado-hora-marcada">{{ ultimaMarca }}</p>
+        <div class="gps-badge" [class.gps-ok]="gpsCapturado" [class.gps-off]="!gpsCapturado">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><path stroke-linecap="round" d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
+          </svg>
+          {{ gpsCapturado ? 'Ubicación registrada' : 'Sin GPS' }}
+        </div>
         <p class="estado-subtexto">Actualizando estado...</p>
       </div>
     }

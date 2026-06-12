@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { AsistenciaService, EstadoHoyDto } from '../../core/services/asistencia.service';
 
-type Paso = 'cargando' | 'listo' | 'marcando' | 'exito' | 'error_empleado' | 'error';
+type Paso = 'cargando' | 'listo' | 'gps' | 'marcando' | 'exito' | 'error_empleado' | 'error';
 
 @Component({
   selector: 'app-asistencia',
@@ -18,6 +18,7 @@ export class AsistenciaComponent implements OnInit, OnDestroy {
   estado: EstadoHoyDto | null = null;
   ultimaMarca: string | null = null;
   ultimoTipo: string | null = null;
+  gpsCapturado = false;
   errorMsg = '';
 
   horaActual = '';
@@ -78,8 +79,38 @@ export class AsistenciaComponent implements OnInit, OnDestroy {
     const tipo = this.accionPendiente;
     if (!tipo) return;
 
+    this.paso = 'gps';
+
+    if (!navigator.geolocation) {
+      this.enviarMarca(tipo, undefined);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          lat:       pos.coords.latitude,
+          lon:       pos.coords.longitude,
+          precision: pos.coords.accuracy,
+        };
+        this.gpsCapturado = true;
+        this.enviarMarca(tipo, coords);
+      },
+      () => {
+        // GPS denegado o error — marcar igual sin coordenadas
+        this.gpsCapturado = false;
+        this.enviarMarca(tipo, undefined);
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+    );
+  }
+
+  private enviarMarca(
+    tipo: 'entrada' | 'salida',
+    coords?: { lat: number; lon: number; precision: number }
+  ): void {
     this.paso = 'marcando';
-    this.svc.marcar(tipo).subscribe({
+    this.svc.marcar(tipo, coords).subscribe({
       next: (res) => {
         const hora = new Date(res.timestamp).toLocaleTimeString('es-PE', {
           hour: '2-digit', minute: '2-digit', hour12: false,
