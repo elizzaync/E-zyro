@@ -15,6 +15,7 @@ class AuditoriaService {
     String? fechaDesde,
     String? fechaHasta,
     String? usuarioId,
+    String? buscarUsuario,
     int page = 1,
     int pageSize = 50,
   }) async {
@@ -28,6 +29,9 @@ class AuditoriaService {
     if (fechaDesde != null) params.add('fecha_desde=$fechaDesde');
     if (fechaHasta != null) params.add('fecha_hasta=$fechaHasta');
     if (usuarioId != null) params.add('usuario_id=$usuarioId');
+    if (buscarUsuario != null && buscarUsuario.isNotEmpty) {
+      params.add('buscar_usuario=${Uri.encodeComponent(buscarUsuario)}');
+    }
 
     final path = '/auditoria${params.isEmpty ? '' : '?${params.join('&')}'}';
     // Deja que la excepción de sesión expirada se propague al caller

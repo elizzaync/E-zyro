@@ -8,6 +8,7 @@ class AuditoriaItem {
   final String? modulo;
   final String? descripcion;
   final String? ip;
+  final String? userAgent;
   final String fecha;
   final Map<String, dynamic>? datosAnteriores;
   final Map<String, dynamic>? datosNuevos;
@@ -22,6 +23,7 @@ class AuditoriaItem {
     this.modulo,
     this.descripcion,
     this.ip,
+    this.userAgent,
     required this.fecha,
     this.datosAnteriores,
     this.datosNuevos,
@@ -37,6 +39,7 @@ class AuditoriaItem {
         modulo:           j['modulo'] as String?,
         descripcion:      j['descripcion'] as String?,
         ip:               j['ip'] as String?,
+        userAgent:        j['user_agent'] as String?,
         fecha:            j['fecha'] as String? ?? '',
         datosAnteriores:  j['datos_anteriores'] != null
             ? Map<String, dynamic>.from(j['datos_anteriores'] as Map)
