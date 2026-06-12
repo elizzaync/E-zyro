@@ -16,6 +16,7 @@ Endpoints:
 from __future__ import annotations
 
 import io
+import re as _re
 import uuid as _uuid
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -33,6 +34,7 @@ from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.documento_laboral import DocumentoLaboral
 from app.models.empleado import Empleado
 from app.models.usuario import Usuario
+from app.models.area import Area
 
 router = APIRouter(tags=["RRHH · Asistencia"])
 
@@ -41,6 +43,23 @@ META_HORAS_SEM   = 48.0
 MAX_ADVERTENCIAS = 3
 TIPO_MEMO        = "memorandum"
 NOMBRE_MEMO      = "Memorándum de Advertencia por Faltas/Tardanzas"
+
+# ── UUID/Área helpers ─────────────────────────────────────────────────────────
+_UUID_RE = _re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    _re.IGNORECASE
+)
+
+def _area_cache(db: Session, empresa_id: str) -> dict:
+    """Carga todas las áreas de la empresa: {id → nombre}."""
+    return {a.id: a.nombre for a in db.query(Area).filter(Area.empresa_id == empresa_id).all()}
+
+def _resolve_area(val, cache: dict) -> str:
+    """Resuelve emp.area: si es UUID lo convierte al nombre real, si es texto lo devuelve tal cual."""
+    if not val:
+        return ""
+    s = str(val).strip()
+    return cache.get(s, "") if _UUID_RE.match(s) else s
 
 # Hora tolerada de entrada (tardanza = después de las 8:00 + 10 min)
 _HORA_ENTRADA = 8   # 08:00
@@ -190,6 +209,7 @@ def resumen_asistencia(
     for sol in todas_solicitudes:
         solis_por_emp.setdefault(sol.empleado_id, []).append(sol)
 
+    area_nombres = _area_cache(db, empresa_id)
     resultado = []
 
     for emp, usr in empleados:
@@ -228,7 +248,7 @@ def resumen_asistencia(
             "id":                 emp.id,
             "nombreCompleto":     nombre,
             "cargo":              emp.cargo,
-            "area":               emp.area or "",
+            "area":               _resolve_area(emp.area, area_nombres),
             "iniciales":          iniciales,
             "fotoUrl":            usr.foto_url or "",
             "horas_reales":       round(horas_reales,       2),
@@ -288,6 +308,7 @@ def asistencia_diaria(
         .all()
     )
     total = len(empleados_q)
+    area_nombres = _area_cache(db, empresa_id)
 
     registros = (
         db.query(RegistroAsistencia)
@@ -352,7 +373,7 @@ def asistencia_diaria(
             "empleado_id":     emp.id,
             "nombreCompleto":  nombre,
             "cargo":           emp.cargo or "",
-            "area":            emp.area  or "",
+            "area":            _resolve_area(emp.area, area_nombres),
             "iniciales":       iniciales,
             "fotoUrl":         usr.foto_url or "",
             "hora_ingreso":    entrada.fecha_hora.strftime("%H:%M") if entrada  else None,
@@ -609,6 +630,7 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
     for s in todas_solicitudes:
         solis_por_emp.setdefault(s.empleado_id, []).append(s)
 
+    area_nombres = _area_cache(db, empresa_id)
     filas = []
     for emp, usr in empleados:
         regs  = regs_por_emp.get(emp.id,  [])
@@ -645,7 +667,7 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
         filas.append({
             "nombre":             f"{usr.nombre} {usr.apellido}".strip(),
             "cargo":              emp.cargo or "",
-            "area":               emp.area or "",
+            "area":               _resolve_area(emp.area, area_nombres),
             "horas_reales":       round(horas_reales, 2),
             "horas_justificadas": round(horas_justificadas, 2),
             "horas_total":        round(horas_total, 2),
