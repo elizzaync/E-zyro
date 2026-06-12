@@ -976,6 +976,7 @@ def reporte_individual(
 
 
 # ── Reporte Horas Extra ───────────────────────────────────────────────────────
+# Basado en solicitudes de permanencia_extra APROBADAS con >= 1 hora (campo dias).
 
 @router.get("/rrhh/asistencia/reportes/horas-extra")
 def reporte_horas_extra(
@@ -992,18 +993,41 @@ def reporte_horas_extra(
     inicio = fecha_inicio or _lunes_semana(hoy)
     fin    = fecha_fin    or _sabado_semana(hoy)
 
-    filas, _ = _build_resumen_full(db, empresa_id, inicio, fin)
-    con_extra = [r for r in filas if r["horas_extra"] > 0]
-    titulo = f"Horas Extra — {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}"
-    encabezados = ["Empleado", "Cargo", "Área", "H. Total", "H. Extra (>48h)"]
+    rows = (
+        db.query(SolicitudLaboral, Empleado, Usuario)
+        .join(Empleado, SolicitudLaboral.empleado_id == Empleado.id)
+        .join(Usuario,  Empleado.usuario_id == Usuario.id)
+        .filter(
+            SolicitudLaboral.empresa_id    == empresa_id,
+            SolicitudLaboral.tipo          == "permanencia_extra",
+            SolicitudLaboral.estado        == "aprobada",
+            SolicitudLaboral.dias          >= 1,
+            SolicitudLaboral.fecha_inicio  >= inicio,
+            SolicitudLaboral.fecha_inicio  <= fin,
+        )
+        .order_by(SolicitudLaboral.fecha_inicio)
+        .all()
+    )
+
+    titulo = f"Horas Extra Aprobadas — {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}"
+    encabezados = ["Empleado", "Cargo", "Área", "Fecha", "Horas Aprobadas", "Ref. Solicitud", "Estado"]
     datos = [
-        [r["nombre"], r["cargo"], r["area"], r["horas_total"], r["horas_extra"]]
-        for r in sorted(con_extra, key=lambda x: -x["horas_extra"])
+        [
+            f"{usr.nombre} {usr.apellido}".strip(),
+            emp.cargo or "",
+            emp.area  or "",
+            sol.fecha_inicio.strftime("%d/%m/%Y"),
+            sol.dias,
+            str(sol.id)[:8].upper(),
+            sol.estado.capitalize(),
+        ]
+        for sol, emp, usr in rows
     ]
 
+    subtitulo = f"Solicitudes de Permanencia Extra aprobadas del {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}"
     if fmt == "xlsx":
         buf = _xlsx_stream(titulo, encabezados, datos)
     else:
-        buf = _pdf_stream(titulo, encabezados, datos)
+        buf = _pdf_stream(titulo, encabezados, datos, subtitulo)
 
     return _export_response(buf, fmt, f"horas_extra_{inicio.isoformat()}")
