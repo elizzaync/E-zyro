@@ -4,6 +4,7 @@ import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 class PantallaCuentasCobrar extends StatefulWidget {
   const PantallaCuentasCobrar({super.key});
@@ -171,6 +172,7 @@ class _State extends State<PantallaCuentasCobrar>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cuentas por Cobrar'),
+        actions: [accionConmutadorFinanzas(context, actual: FinId.cxc)],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [

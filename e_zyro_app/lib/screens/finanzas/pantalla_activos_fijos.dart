@@ -5,6 +5,7 @@ import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Activos fijos: catálogo, alta y proceso mensual de depreciación.
 class PantallaActivosFijos extends StatefulWidget {
@@ -53,6 +54,7 @@ class _PantallaActivosFijosState extends State<PantallaActivosFijos> {
       appBar: AppBar(
         title: const Text('Activos fijos', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          accionConmutadorFinanzas(context, actual: FinId.activosFijos),
           if (puedeGestionar)
             IconButton(
               tooltip: 'Procesar depreciación del mes',

@@ -3,6 +3,7 @@ import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 class PantallaPlanilla extends StatefulWidget {
   const PantallaPlanilla({super.key});
@@ -194,6 +195,7 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
     return Scaffold(
       appBar: AppBar(
         title: const Text('Planilla'),
+        actions: [accionConmutadorFinanzas(context, actual: FinId.planilla)],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [Tab(text: 'Planillas'), Tab(text: 'Conceptos')],

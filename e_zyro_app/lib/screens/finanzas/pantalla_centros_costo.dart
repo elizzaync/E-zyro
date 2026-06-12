@@ -5,6 +5,7 @@ import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Controlling: catálogo de centros de costo, costo real y comparativo
 /// presupuesto vs. real (calculados en vivo sobre el libro mayor).
@@ -54,6 +55,7 @@ class _PantallaCentrosCostoState extends State<PantallaCentrosCosto> {
       appBar: AppBar(
         title: const Text('Centros de costo', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          accionConmutadorFinanzas(context, actual: FinId.centrosCosto),
           IconButton(
             tooltip: _soloActivos ? 'Mostrar todos' : 'Solo activos',
             icon: Icon(_soloActivos ? Icons.visibility_outlined : Icons.visibility_off_outlined),

@@ -7,6 +7,7 @@ import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/ui_insets.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Conciliación bancaria: cuentas de la empresa y, al entrar, el extracto vs.
 /// los libros. Cada movimiento del extracto se concilia 1-a-1 contra un asiento
@@ -52,7 +53,10 @@ class _State extends State<PantallaConciliacionBancaria> {
   Widget build(BuildContext context) {
     final canGestionar = AppSession.i.canGestionarConciliacionBancaria;
     return Scaffold(
-      appBar: AppBar(title: const Text('Conciliación bancaria')),
+      appBar: AppBar(
+        title: const Text('Conciliación bancaria'),
+        actions: [accionConmutadorFinanzas(context, actual: FinId.conciliacion)],
+      ),
       floatingActionButton: canGestionar
           ? FloatingActionButton.extended(
               onPressed: _abrirFormCuenta,

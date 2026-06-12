@@ -5,6 +5,7 @@ import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Plan de cuentas (PCGE) + balance de comprobación del periodo.
 class PantallaPlanCuentas extends StatefulWidget {
@@ -102,7 +103,9 @@ class _PantallaPlanCuentasState extends State<PantallaPlanCuentas> {
               Tab(text: 'Periodos'),
               Tab(text: 'Asientos'),
             ]),
-            actions: [IconButton(onPressed: () async {
+            actions: [
+              accionConmutadorFinanzas(context, actual: FinId.planCuentas),
+              IconButton(onPressed: () async {
               await _cargar();
               await _cargarPeriodos();
               await _cargarAsientos();

@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/control_asistencia_models.dart';
@@ -74,6 +77,11 @@ class _PantallaControlAsistenciasState
       appBar: AppBar(
         title: const Text('Control de Asistencias'),
         actions: [
+          IconButton(
+            tooltip: 'Descargar asistencias',
+            icon: const Icon(Icons.download_outlined),
+            onPressed: _cargando ? null : _abrirDescarga,
+          ),
           IconButton(
             tooltip: 'Elegir fecha',
             icon: const Icon(Icons.calendar_today_outlined),
@@ -388,6 +396,23 @@ class _PantallaControlAsistenciasState
     return '${ini ?? '—'} - ${fin ?? '—'}';
   }
 
+  // ── Descarga de asistencias (día / semana / mes) ────────────────────────────
+  Future<void> _abrirDescarga() async {
+    if (_svc == null) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _SheetDescarga(
+        svc: _svc!,
+        fechaAncla: _fechaIso,
+      ),
+    );
+  }
+
   // ── Asignar turno-excepción ─────────────────────────────────────────────────
   Future<void> _abrirAsignarTurno(ControlItem it) async {
     final svc = _svc;
@@ -645,6 +670,148 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
         decoration: InputDecoration(labelText: label),
         child: Text(
             '${valor.hour.toString().padLeft(2, '0')}:${valor.minute.toString().padLeft(2, '0')}'),
+      ),
+    );
+  }
+}
+
+// ── Bottom sheet: descargar asistencias (día / semana / mes) ───────────────────
+class _SheetDescarga extends StatefulWidget {
+  final AsistenciaService svc;
+  final String fechaAncla; // YYYY-MM-DD seleccionada en el tablero
+
+  const _SheetDescarga({required this.svc, required this.fechaAncla});
+
+  @override
+  State<_SheetDescarga> createState() => _SheetDescargaState();
+}
+
+class _SheetDescargaState extends State<_SheetDescarga> {
+  static const _green = Color(0xFF8FD11B);
+  static const _danger = Color(0xFFE53935);
+
+  String _periodo = 'dia'; // dia | semana | mes
+  String _formato = 'xlsx'; // xlsx | csv
+  bool _descargando = false;
+
+  Future<void> _descargar() async {
+    setState(() => _descargando = true);
+    final bytes = await widget.svc.descargarAsistencias(
+      periodo: _periodo,
+      formato: _formato,
+      fecha: widget.fechaAncla,
+    );
+    if (!mounted) return;
+
+    if (bytes == null) {
+      setState(() => _descargando = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se pudo generar la descarga'),
+        backgroundColor: _danger,
+      ));
+      return;
+    }
+
+    final nombre = 'asistencias_${_periodo}_${widget.fechaAncla}.$_formato';
+    try {
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Guardar asistencias',
+        fileName: nombre,
+        bytes: Uint8List.fromList(bytes),
+      );
+      if (!mounted) return;
+      setState(() => _descargando = false);
+      if (path == null) return; // cancelado
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Descargado: $nombre',
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: _green,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _descargando = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se pudo guardar el archivo'),
+        backgroundColor: _danger,
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Descargar asistencias',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text(
+            'Rango basado en la fecha ${widget.fechaAncla}. La semana abarca '
+            'lunes a domingo; el mes, el mes calendario completo.',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+          const Text('Periodo',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'dia', label: Text('Día')),
+              ButtonSegment(value: 'semana', label: Text('Semana')),
+              ButtonSegment(value: 'mes', label: Text('Mes')),
+            ],
+            selected: {_periodo},
+            onSelectionChanged: (s) => setState(() => _periodo = s.first),
+          ),
+          const SizedBox(height: 16),
+          const Text('Formato',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                  value: 'xlsx',
+                  label: Text('Excel'),
+                  icon: Icon(Icons.grid_on, size: 16)),
+              ButtonSegment(
+                  value: 'csv',
+                  label: Text('CSV'),
+                  icon: Icon(Icons.description_outlined, size: 16)),
+            ],
+            selected: {_formato},
+            onSelectionChanged: (s) => setState(() => _formato = s.first),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _descargando ? null : _descargar,
+              icon: _descargando
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.download),
+              label: Text(_descargando ? 'Generando…' : 'Descargar'),
+            ),
+          ),
+        ],
       ),
     );
   }

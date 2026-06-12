@@ -5,6 +5,7 @@ import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Tributario / IGV: registro de compras y de ventas del periodo.
 class PantallaTributario extends StatefulWidget {
@@ -79,6 +80,7 @@ class _PantallaTributarioState extends State<PantallaTributario> {
           title: const Text('Tributario / IGV', style: TextStyle(fontWeight: FontWeight.bold)),
           bottom: const TabBar(tabs: [Tab(text: 'Compras'), Tab(text: 'Ventas'), Tab(text: 'Configuración')]),
           actions: [
+            accionConmutadorFinanzas(context, actual: FinId.tributario),
             IconButton(
               tooltip: 'Periodo',
               icon: const Icon(Icons.edit_calendar),

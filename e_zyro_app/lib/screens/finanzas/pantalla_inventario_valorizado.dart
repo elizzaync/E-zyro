@@ -10,6 +10,7 @@ import '../../services/requerimiento_service.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Inventario valorizado: kardex (saldo valorizado por material/almacén),
 /// costo promedio vigente y registro de movimientos (ingreso/salida) que
@@ -77,6 +78,7 @@ class _PantallaInventarioValorizadoState extends State<PantallaInventarioValoriz
           title: const Text('Inventario valorizado', style: TextStyle(fontWeight: FontWeight.bold)),
           bottom: const TabBar(tabs: [Tab(text: 'Kardex'), Tab(text: 'Costo promedio')]),
           actions: [
+            accionConmutadorFinanzas(context, actual: FinId.inventario),
             IconButton(
               tooltip: 'Filtrar por almacén',
               icon: const Icon(Icons.warehouse_outlined),

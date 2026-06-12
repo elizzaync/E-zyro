@@ -4,6 +4,7 @@ import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/ui_insets.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Caja Chica: lista de cajas operativas y, al entrar, sus movimientos.
 /// Cada movimiento genera su asiento contable automático en el backend.
@@ -48,7 +49,10 @@ class _State extends State<PantallaCajaChica> {
   Widget build(BuildContext context) {
     final canGestionar = AppSession.i.canGestionarCajaChica;
     return Scaffold(
-      appBar: AppBar(title: const Text('Caja Chica')),
+      appBar: AppBar(
+        title: const Text('Caja Chica'),
+        actions: [accionConmutadorFinanzas(context, actual: FinId.cajaChica)],
+      ),
       floatingActionButton: canGestionar
           ? FloatingActionButton.extended(
               onPressed: _abrirFormCaja,

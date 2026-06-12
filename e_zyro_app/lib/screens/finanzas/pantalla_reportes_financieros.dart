@@ -4,6 +4,7 @@ import '../../models/finanzas_models.dart';
 import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import 'finanzas_comun.dart';
+import 'finanzas_navegacion.dart';
 
 /// Reportes financieros: balance general y estado de resultados, calculados en
 /// vivo sobre el libro mayor.
@@ -112,6 +113,7 @@ class _PantallaReportesFinancierosState extends State<PantallaReportesFinanciero
             Tab(text: 'Libro mayor'),
           ]),
           actions: [
+            accionConmutadorFinanzas(context, actual: FinId.reportes),
             IconButton(
               tooltip: 'Fecha de corte',
               icon: const Icon(Icons.event),

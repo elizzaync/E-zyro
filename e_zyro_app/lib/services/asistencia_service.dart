@@ -607,6 +607,30 @@ class AsistenciaService {
     return null;
   }
 
+  /// Descarga el detalle de asistencias (día/semana/mes) en CSV o Excel.
+  /// [periodo]: 'dia' | 'semana' | 'mes'. [formato]: 'csv' | 'xlsx'.
+  /// [fecha] (YYYY-MM-DD) es la fecha ancla del rango (por defecto, hoy en el
+  /// servidor). Devuelve los bytes del archivo o null si falla.
+  Future<List<int>?> descargarAsistencias({
+    required String periodo,
+    required String formato,
+    String? fecha,
+  }) async {
+    try {
+      final q = StringBuffer('?periodo=$periodo&formato=$formato');
+      if (fecha != null && fecha.isNotEmpty) q.write('&fecha=$fecha');
+      final r = await _client.get('/asistencia/export$q',
+          timeout: const Duration(seconds: 60));
+      if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
+        return r.bodyBytes;
+      }
+      debugPrint('[AsistenciaService] descargarAsistencias HTTP ${r.statusCode}');
+    } catch (e) {
+      debugPrint('[AsistenciaService] descargarAsistencias error: $e');
+    }
+    return null;
+  }
+
   /// Turnos de la empresa (para asignar excepciones de horario).
   Future<List<TurnoItem>> getTurnos() async {
     try {
