@@ -93,9 +93,12 @@
     @if (paso === 'listo' && estado) {
 
       <!-- TARJETA GPS / UBICACIÓN -->
-      <div class="ubicacion-card" [class.ubicacion-card--ok]="gpsEstado === 'ok'" [class.ubicacion-card--denegado]="gpsEstado === 'denegado'">
+      <div class="ubicacion-card"
+        [class.ubicacion-card--ok]="gpsEstado === 'ok'"
+        [class.ubicacion-card--refinando]="gpsEstado === 'refinando'"
+        [class.ubicacion-card--denegado]="gpsEstado === 'denegado'">
         <div class="ubicacion-icono">
-          @if (gpsEstado === 'solicitando') {
+          @if (gpsEstado === 'solicitando' || gpsEstado === 'refinando') {
             <div class="spinner-ring spinner-ring--sm"></div>
           }
           @if (gpsEstado === 'ok') {
@@ -116,9 +119,17 @@
             <span class="ubicacion-label">Obteniendo ubicación...</span>
             <span class="ubicacion-sub">Acepta el permiso de ubicación en tu navegador</span>
           }
+          @if (gpsEstado === 'refinando' && gpsInfo) {
+            <span class="ubicacion-label">{{ gpsInfo.direccion }}</span>
+            <span class="ubicacion-sub ubicacion-refinando">
+              Refinando precisión... ±{{ gpsInfo.precision | number:'1.0-0' }} m
+            </span>
+          }
           @if (gpsEstado === 'ok' && gpsInfo) {
             <span class="ubicacion-label">{{ gpsInfo.direccion }}</span>
-            <span class="ubicacion-sub">±{{ gpsInfo.precision | number:'1.0-0' }} m · {{ gpsInfo.lat | number:'1.5-5' }}, {{ gpsInfo.lon | number:'1.5-5' }}</span>
+            <span class="ubicacion-sub" [class]="gpsPrecisionClase">
+              ±{{ gpsInfo.precision | number:'1.0-0' }} m · {{ gpsInfo.lat | number:'1.5-5' }}, {{ gpsInfo.lon | number:'1.5-5' }}
+            </span>
           }
           @if (gpsEstado === 'denegado') {
             <span class="ubicacion-label">Ubicación no disponible</span>
