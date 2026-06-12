@@ -29,8 +29,8 @@ yarn-error.log
 !.vscode/mcp.json
 .history/*
 
-# Environment files with secrets — NEVER commit these
-src/environments/*
+# Environment files with secrets — solo excluye development (tiene URLs locales)
+src/environments/environment.development.ts
 
 # Miscellaneous
 /.angular/cache

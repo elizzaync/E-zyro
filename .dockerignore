@@ -3,4 +3,4 @@ dist
 .angular
 .git
 .vscode
-src/environments
+src/environments/environment.development.ts
