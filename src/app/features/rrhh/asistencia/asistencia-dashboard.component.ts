@@ -298,6 +298,12 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   formatHoras(n: number): string { return n > 0 ? `${n.toFixed(1)}h` : '—'; }
   formatCoord(v: number | null): string { return v !== null ? v.toFixed(5) : '—'; }
 
+  private _uuidRx = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  safeArea(s: string): string {
+    if (!s || this._uuidRx.test(s.trim())) return '';
+    return ` · ${s}`;
+  }
+
   // ── Modal advertencia ──────────────────────────────────────────────────────
 
   abrirModalAdv(emp: ResumenEmpleadoDto): void {

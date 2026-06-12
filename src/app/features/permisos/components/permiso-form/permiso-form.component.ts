@@ -9,7 +9,6 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { ToastService } from '../../../../core/services/toast.service';
-import { AlertComponent } from '../../../../shared/components/login/alert.component';
 
 // 👇 INTERFAZ CORREGIDA: Se agregaron los campos faltantes para evitar errores de tipado
 export interface PreviewData {
@@ -44,7 +43,7 @@ export const TIPOS_PERMISO = [
 @Component({
   selector: 'app-permiso-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, AlertComponent],
+  imports: [CommonModule, ReactiveFormsModule],
   templateUrl: './permiso-form.component.html',
   styleUrls: ['./permiso-form.component.css']
 })

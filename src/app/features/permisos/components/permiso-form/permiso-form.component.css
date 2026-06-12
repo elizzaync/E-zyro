@@ -96,6 +96,38 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
 /* ── ALERT & HORAS BADGE ─────────────────────────────────────── */
 .alert-wrapper { margin-bottom: 18px; }
 
+.vacaciones-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1.5px solid rgba(239, 68, 68, 0.25);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 2px 0 20px;
+}
+.block-alert-icon {
+  color: #ef4444;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: flex;
+}
+.block-alert-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.block-alert-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #dc2626;
+}
+.block-alert-msg {
+  font-size: 12.5px;
+  color: #b91c1c;
+  line-height: 1.5;
+}
+
 .horas-badge {
   display: inline-flex;
   align-items: center;
@@ -168,29 +200,63 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
 }
 
 /* CANVAS DE DIBUJO CON PULSO */
-.canvas-wrapper { display: flex; flex-direction: column; gap: 8px; }
+.canvas-wrapper { display: flex; flex-direction: column; gap: 0; }
+
+.canvas-area {
+  position: relative;
+  border: 1.5px solid var(--border-color, #cbd5e1);
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+  background: #ffffff;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.canvas-area:hover {
+  border-color: var(--brand-green, #91d337);
+  box-shadow: 0 0 15px rgba(145, 211, 55, 0.15);
+}
 
 .firma-canvas {
-  width: 100%; height: 110px; display: block;
-  border: 1.5px solid var(--border-color, #cbd5e1);
-  border-radius: 8px;
-  background: #ffffff;
+  width: 100%; height: 120px; display: block;
+  background: transparent;
   cursor: crosshair; touch-action: none;
-  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  position: relative; z-index: 1;
 }
 
-.firma-canvas:hover {
-  border-color: var(--brand-green, #91d337);
-  box-shadow: 0 0 15px rgba(145, 211, 55, 0.15), inset 0 1px 4px rgba(0, 0, 0, 0.02);
+.canvas-overlay-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  color: var(--text-muted, #94a3b8);
+  user-select: none;
+}
+.canvas-overlay-hint span {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
 }
 
-.canvas-hint { margin: 0; font-size: 11.5px; color: var(--text-muted, #94a3b8); text-align: center; }
+.canvas-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  background: var(--page-bg, #f8fafc);
+  border: 1.5px solid var(--border-color, #cbd5e1);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+}
+
+.canvas-hint { margin: 0; font-size: 11.5px; color: var(--text-muted, #94a3b8); }
 
 .btn-limpiar {
-  align-self: flex-start; display: flex; align-items: center; gap: 5px;
-  padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border-color, #cbd5e1);
-  background: transparent; font-size: 12px; font-weight: 600; color: var(--text-muted, #64748b);
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border-color, #e2e8f0);
+  background: transparent; font-size: 11.5px; font-weight: 600; color: var(--text-muted, #94a3b8);
   cursor: pointer; transition: all 0.2s;
 }
 .btn-limpiar:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; transform: translateY(-1px); }
@@ -294,7 +360,9 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
 :host-context(html[data-theme="dark"]) .panel-title { color: var(--text-main); }
 :host-context(html[data-theme="dark"]) .form-input { background: var(--page-bg); border-color: var(--border-color); color: var(--text-main); }
 :host-context(html[data-theme="dark"]) .form-input:focus { background: var(--card-bg); box-shadow: 0 0 0 4px rgba(145, 211, 55, 0.1), 0 2px 4px rgba(0,0,0,0.2) inset; }
-:host-context(html[data-theme="dark"]) .firma-canvas { background: #ffffff; border-color: #4b6071; }
+:host-context(html[data-theme="dark"]) .canvas-area { background: #ffffff; border-color: #4b6071; }
+:host-context(html[data-theme="dark"]) .canvas-footer { background: var(--page-bg); border-color: #4b6071; }
+:host-context(html[data-theme="dark"]) .firma-canvas { background: transparent; }
 :host-context(html[data-theme="dark"]) .firma-tabs { background: var(--page-bg); border-color: var(--border-color); }
 :host-context(html[data-theme="dark"]) .firma-tab.active { background: var(--card-bg); }
 :host-context(html[data-theme="dark"]) .file-upload-area { background: var(--page-bg); border-color: var(--border-color); }
@@ -303,6 +371,9 @@ select.form-input { appearance: none; padding-right: 36px; cursor: pointer; }
 :host-context(html[data-theme="dark"]) .btn-primary.btn-blocked,
 :host-context(html[data-theme="dark"]) .btn-primary:disabled { background: #1e293b; color: #475569; }
 :host-context(html[data-theme="dark"]) .horas-badge { color: var(--brand-green); }
+:host-context(html[data-theme="dark"]) .vacaciones-block { background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); }
+:host-context(html[data-theme="dark"]) .block-alert-title { color: #f87171; }
+:host-context(html[data-theme="dark"]) .block-alert-msg { color: #fca5a5; }
 :host-context(html[data-theme="dark"]) .firma-preview-wrapper { background: rgba(145, 211, 55, 0.08); }
 :host-context(html[data-theme="dark"]) .firma-preview-img { background: #ffffff; }
 :host-context(html[data-theme="dark"]) .firma-guardada-img { background: #ffffff; border-color: #4b6071; }

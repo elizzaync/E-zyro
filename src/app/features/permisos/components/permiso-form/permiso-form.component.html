@@ -17,10 +17,17 @@
 
     <!-- BLOQUEO: VACACIONES SIN AÑO DE SERVICIO -->
     @if (bloqueVacaciones) {
-      <div class="alert-wrapper">
-        <app-alert type="error"
-          message="No cuentas con el año de servicio requerido para solicitar vacaciones. Tu ingreso registrado es menor a 12 meses.">
-        </app-alert>
+      <div class="alert-wrapper vacaciones-block">
+        <div class="block-alert-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div class="block-alert-body">
+          <span class="block-alert-title">Solicitud bloqueada</span>
+          <span class="block-alert-msg">No cuentas con el año de servicio requerido para solicitar vacaciones. Tu ingreso registrado es menor a 12 meses.</span>
+        </div>
       </div>
     }
 
@@ -164,19 +171,29 @@
         <!-- MODO: DIBUJAR -->
         @if (firmaMode === 'draw') {
           <div class="canvas-wrapper">
-            <canvas #firmaCanvas class="firma-canvas"
-              (mousedown)="onMouseDown($event)"
-              (mousemove)="onMouseMove($event)"
-              (mouseup)="onMouseUp()"
-              (mouseleave)="onMouseUp()">
-            </canvas>
-            <p class="canvas-hint">Dibuja tu firma en el área de arriba</p>
-            <button type="button" class="btn-limpiar" (click)="limpiarFirma()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-              Limpiar
-            </button>
+            <div class="canvas-area">
+              <canvas #firmaCanvas class="firma-canvas"
+                (mousedown)="onMouseDown($event)"
+                (mousemove)="onMouseMove($event)"
+                (mouseup)="onMouseUp()"
+                (mouseleave)="onMouseUp()">
+              </canvas>
+              <div class="canvas-overlay-hint">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+                  <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                </svg>
+                <span>Dibuja aquí tu firma</span>
+              </div>
+            </div>
+            <div class="canvas-footer">
+              <span class="canvas-hint">Usa el mouse o trackpad para firmar</span>
+              <button type="button" class="btn-limpiar" (click)="limpiarFirma()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                </svg>
+                Limpiar
+              </button>
+            </div>
           </div>
         }
 
