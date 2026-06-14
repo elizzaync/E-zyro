@@ -15,6 +15,13 @@ from app.services.fcm_service import enviar_push_a_usuario
 from app.core.permisos import usuarios_con_permiso
 
 
+# ── Días laborables ──────────────────────────────────────────────────────────
+def _es_dia_laborable(d: date) -> bool:
+    """Días de trabajo: lunes a sábado (excluye domingo).
+    weekday(): lun=0 … sáb=5 … dom=6. Misma convención que los reportes."""
+    return d.weekday() < 6
+
+
 # ── Helpers compartidos ──────────────────────────────────────────────────────
 def _usuarios_por_rol(db, empresa_id, roles):
     """IDs de usuarios activos de la empresa que tengan alguno de los roles."""
@@ -259,6 +266,8 @@ def _aviso_pre_almuerzo():
     db: Session = SessionLocal()
     try:
         hoy = date.today()
+        if not _es_dia_laborable(hoy):
+            return  # domingo: no se notifica asistencia
 
         # Empleados con entrada hoy
         con_entrada = {
@@ -351,6 +360,8 @@ def _aviso_fin_almuerzo():
     try:
         ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
         hoy   = ahora.date()
+        if not _es_dia_laborable(hoy):
+            return  # domingo: no se notifica asistencia
 
         # Todos los registros de inicio de almuerzo de hoy
         en_almuerzo = db.query(RegistroAsistencia).filter(
@@ -656,6 +667,8 @@ def _alertas_tardanza():
     try:
         ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
         hoy = ahora.date()
+        if not _es_dia_laborable(hoy):
+            return  # domingo: no se notifica asistencia
 
         # Empleados que ya marcaron entrada hoy (para excluirlos)
         con_entrada = {
@@ -742,6 +755,8 @@ def _aviso_pre_horario():
     try:
         ahora = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
         hoy = ahora.date()
+        if not _es_dia_laborable(hoy):
+            return  # domingo: no se notifica asistencia
 
         empleados = db.query(Empleado).filter(Empleado.activo.is_(True)).all()
         if not empleados:
