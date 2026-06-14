@@ -273,8 +273,31 @@ def marcar_leido_proyecto(
 @router.post("/{comunicado_id}/leer")
 def marcar_leido_legacy(
     comunicado_id: str,
-    payload: dict = Depends(verificar_token),
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
 ):
+    # Persiste la marca de leído en ComunicadoLeido (antes era un no-op: por eso
+    # el comunicado volvía a aparecer como no leído al recargar la lista).
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    empleado = _get_empleado(db, usuario_id, empresa_id)
+    if not empleado:
+        return {"ok": True, "comunicado_id": comunicado_id}
+
+    existe = db.query(ComunicadoLeido).filter(
+        ComunicadoLeido.comunicado_id == comunicado_id,
+        ComunicadoLeido.empleado_id   == empleado.id,
+    ).first()
+
+    if not existe:
+        db.add(ComunicadoLeido(
+            comunicado_id=comunicado_id,
+            empleado_id=empleado.id,
+            leido_at=datetime.utcnow(),
+        ))
+        db.commit()
+
     return {"ok": True, "comunicado_id": comunicado_id}
 
 
