@@ -86,3 +86,26 @@ class BoletaPagoDetalle(Base):
     boleta_id   = Column(String(36), ForeignKey("boleta_pago.id"), nullable=False)
     concepto_id = Column(String(36), ForeignKey("concepto_remunerativo.id"), nullable=False)
     monto       = Column(Numeric(14, 2), nullable=False)
+
+
+class EmpleadoConcepto(Base):
+    """Monto de un concepto remunerativo asignado a un empleado concreto.
+
+    Permite que cada empleado tenga importes distintos (sueldos diferentes).
+    Si no existe asignación para (empleado, concepto), el cálculo cae al
+    `monto_referencial` del catálogo. Un monto 0 SÍ es válido (anula ese
+    concepto para esa persona); para volver al referencial se elimina la fila.
+    """
+    __tablename__ = "empleado_concepto"
+
+    id          = Column(String(36), primary_key=True, default=_uuid)
+    empresa_id  = Column(String(36), ForeignKey("empresa.id"), nullable=False)
+    empleado_id = Column(String(36), ForeignKey("empleado.id"), nullable=False)
+    concepto_id = Column(String(36), ForeignKey("concepto_remunerativo.id"), nullable=False)
+    monto       = Column(Numeric(14, 2), nullable=False)
+    created_at  = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at  = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("empleado_id", "concepto_id", name="uq_empleado_concepto"),
+    )

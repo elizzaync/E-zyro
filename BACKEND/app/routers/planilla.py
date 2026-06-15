@@ -16,12 +16,14 @@ from ..core.security import verificar_token
 from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.empleado import Empleado
+from ..models.usuario import Usuario
 from ..models.contabilidad import PeriodoContable
 from ..models.planilla import (
-    ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle,
+    ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle, EmpleadoConcepto,
 )
 from ..schemas.planilla import (
     ConceptoCreate, ConceptoOut, PlanillaOut, BoletaOut, BoletaDetalleOut,
+    EmpleadoPlanillaOut, AsignacionOut, AsignacionItem,
 )
 from ..services import planilla_service as planilla_svc
 
@@ -111,6 +113,85 @@ def calcular(
     return _planilla_out(planilla_svc.calcular_planilla(db, payload["empresa_id"], p.id))
 
 
+# ── Sueldos por empleado (asignación de montos por concepto) ──────────────────
+# IMPORTANTE: rutas estáticas declaradas ANTES de "/{planilla_id}" para que no
+# sean capturadas por el parámetro de ruta.
+@router.get("/empleados", response_model=List[EmpleadoPlanillaOut])
+def listar_empleados_planilla(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "planilla", "ver")
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(Empleado, Usuario)
+        .outerjoin(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(Empleado.empresa_id == empresa_id, Empleado.activo.is_(True))
+        .order_by(Usuario.nombre)
+        .all()
+    )
+    return [EmpleadoPlanillaOut(
+        id=str(e.id),
+        nombre=(f"{u.nombre} {u.apellido}".strip() if u else None),
+        cargo=e.cargo,
+    ) for e, u in rows]
+
+
+@router.get("/asignaciones", response_model=List[AsignacionOut])
+def listar_asignaciones(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "planilla", "ver")
+    filas = db.query(EmpleadoConcepto).filter(
+        EmpleadoConcepto.empresa_id == payload["empresa_id"]).all()
+    return [AsignacionOut(
+        empleado_id=str(a.empleado_id), concepto_id=str(a.concepto_id), monto=a.monto,
+    ) for a in filas]
+
+
+@router.put("/empleados/{empleado_id}/asignaciones", response_model=List[AsignacionOut])
+def guardar_asignaciones(
+    empleado_id: str,
+    items: List[AsignacionItem],
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Upsert de montos por concepto para un empleado. monto None elimina el
+    override (el concepto vuelve a usar su monto_referencial)."""
+    exigir_permiso(db, payload, "planilla", "calcular")
+    empresa_id = payload["empresa_id"]
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado.")
+
+    for it in items:
+        existe = db.query(EmpleadoConcepto).filter(
+            EmpleadoConcepto.empleado_id == empleado_id,
+            EmpleadoConcepto.concepto_id == it.concepto_id).first()
+        if it.monto is None:
+            if existe:
+                db.delete(existe)
+            continue
+        if existe:
+            existe.monto = it.monto
+        else:
+            # valida que el concepto exista en la empresa
+            c = db.query(ConceptoRemunerativo).filter(
+                ConceptoRemunerativo.id == it.concepto_id,
+                ConceptoRemunerativo.empresa_id == empresa_id).first()
+            if not c:
+                raise HTTPException(status_code=404, detail=f"Concepto {it.concepto_id} no encontrado.")
+            db.add(EmpleadoConcepto(
+                empresa_id=empresa_id, empleado_id=empleado_id,
+                concepto_id=it.concepto_id, monto=it.monto))
+    db.commit()
+
+    filas = db.query(EmpleadoConcepto).filter(
+        EmpleadoConcepto.empleado_id == empleado_id).all()
+    return [AsignacionOut(
+        empleado_id=str(a.empleado_id), concepto_id=str(a.concepto_id), monto=a.monto,
+    ) for a in filas]
+
+
 @router.get("/{planilla_id}", response_model=PlanillaOut)
 def obtener(
     planilla_id: str,
@@ -153,14 +234,36 @@ def listar_boletas(
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     exigir_permiso(db, payload, "planilla", "ver")
-    planilla_svc.get_planilla(db, payload["empresa_id"], planilla_id)  # valida pertenencia
+    empresa_id = payload["empresa_id"]
+    planilla_svc.get_planilla(db, empresa_id, planilla_id)  # valida pertenencia
     boletas = db.query(BoletaPago).filter(BoletaPago.planilla_id == planilla_id).all()
+
+    # Mapas nombre por empleado y por concepto (evita N+1).
+    nombres_emp = {
+        str(e.id): f"{u.nombre} {u.apellido}".strip() if u else None
+        for e, u in db.query(Empleado, Usuario)
+        .outerjoin(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(Empleado.empresa_id == empresa_id).all()
+    }
+    conceptos = {
+        str(c.id): (c.nombre, c.codigo)
+        for c in db.query(ConceptoRemunerativo).filter(
+            ConceptoRemunerativo.empresa_id == empresa_id).all()
+    }
+
     salida = []
     for b in boletas:
         detalles = db.query(BoletaPagoDetalle).filter(BoletaPagoDetalle.boleta_id == b.id).all()
         salida.append(BoletaOut(
-            id=str(b.id), empleado_id=str(b.empleado_id), total_ingresos=b.total_ingresos,
+            id=str(b.id), empleado_id=str(b.empleado_id),
+            empleado_nombre=nombres_emp.get(str(b.empleado_id)),
+            total_ingresos=b.total_ingresos,
             total_descuentos=b.total_descuentos, total_aportes=b.total_aportes, total_neto=b.total_neto,
-            detalles=[BoletaDetalleOut(concepto_id=str(d.concepto_id), monto=d.monto) for d in detalles],
+            detalles=[BoletaDetalleOut(
+                concepto_id=str(d.concepto_id),
+                concepto_nombre=conceptos.get(str(d.concepto_id), (None, None))[0],
+                concepto_codigo=conceptos.get(str(d.concepto_id), (None, None))[1],
+                monto=d.monto,
+            ) for d in detalles],
         ))
     return salida

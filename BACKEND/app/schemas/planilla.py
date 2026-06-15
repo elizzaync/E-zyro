@@ -50,14 +50,37 @@ class PlanillaOut(BaseModel):
 
 class BoletaDetalleOut(BaseModel):
     concepto_id: str
+    concepto_nombre: Optional[str] = None
+    concepto_codigo: Optional[str] = None
     monto: Decimal
 
 
 class BoletaOut(BaseModel):
     id: str
     empleado_id: str
+    empleado_nombre: Optional[str] = None
     total_ingresos: Decimal
     total_descuentos: Decimal
     total_aportes: Decimal
     total_neto: Decimal
     detalles: List[BoletaDetalleOut]
+
+
+# ── Sueldos por empleado (asignación de montos por concepto) ──────────────────
+class EmpleadoPlanillaOut(BaseModel):
+    """Empleado activo, para asignarle montos por concepto en Planilla."""
+    id: str
+    nombre: Optional[str] = None
+    cargo: Optional[str] = None
+
+
+class AsignacionOut(BaseModel):
+    empleado_id: str
+    concepto_id: str
+    monto: Decimal
+
+
+class AsignacionItem(BaseModel):
+    """Una asignación a guardar. monto None elimina el override (vuelve al referencial)."""
+    concepto_id: str
+    monto: Optional[Decimal] = None

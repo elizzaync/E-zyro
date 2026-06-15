@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.models.contabilidad import CuentaContable, PeriodoContable
 from app.models.empleado import Empleado
 from app.models.planilla import (
-    ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle,
+    ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle, EmpleadoConcepto,
 )
 from app.services import contabilizacion_service as contab
 from app.services.contabilizacion_service import LineaAsiento
@@ -94,6 +94,14 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
     if not empleados:
         raise HTTPException(status_code=422, detail="No hay empleados activos para procesar.")
 
+    # Montos asignados por empleado (sueldos individuales). Si no hay asignación
+    # para (empleado, concepto), se usa el monto_referencial del catálogo.
+    overrides = {
+        (a.empleado_id, a.concepto_id): a.monto
+        for a in db.query(EmpleadoConcepto).filter(
+            EmpleadoConcepto.empresa_id == empresa_id).all()
+    }
+
     planilla = Planilla(
         empresa_id=empresa_id, periodo_id=periodo_id, fecha_proceso=date.today(),
         estado="calculada", total_ingresos=CERO, total_descuentos=CERO,
@@ -107,7 +115,8 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
         b_ing = b_desc = b_apo = CERO
         detalles = []
         for c in conceptos:
-            monto = _d(c.monto_referencial)
+            asignado = overrides.get((emp.id, c.id))
+            monto = _d(asignado if asignado is not None else c.monto_referencial)
             if monto <= CERO:
                 continue
             detalles.append((c.id, monto))
