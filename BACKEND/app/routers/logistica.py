@@ -4345,7 +4345,9 @@ def get_servicios_global(
                 ps.ProyectoServicio.fecha_fin.strftime("%d %b %Y")
                 if ps.ProyectoServicio.fecha_fin else None
             ),
-            "descripcion": ps.ProyectoServicio.descripcion,
+            "descripcion":            ps.ProyectoServicio.descripcion,
+            "tipo_documento_cliente": ps.ProyectoServicio.tipo_documento_cliente or "SIN_OC",
+            "nro_documento":          ps.ProyectoServicio.nro_documento or None,
         }
         for ps in rows
     ]
