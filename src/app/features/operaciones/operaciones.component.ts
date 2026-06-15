@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { OperacionesService } from '../../core/services/operaciones.service';
 import { ToastService } from '../../core/services/toast.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -58,7 +58,13 @@ export class OperacionesComponent implements OnInit {
   cpmMode: 'crear' | 'editar' = 'crear';
   cpmProyectoId: string | null = null;
 
-  ngOnInit(): void { this.cargarProyectos(); }
+  ngOnInit(): void {
+    if (!this.isTecnico && !this.isJefeOperaciones) {
+      this.router.navigate(['/operaciones/servicios'], { replaceUrl: true });
+      return;
+    }
+    this.cargarProyectos();
+  }
 
   cargarProyectos(): void {
     this.isLoading = true;

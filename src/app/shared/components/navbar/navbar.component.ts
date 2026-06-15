@@ -73,6 +73,7 @@ get enRRHH(): boolean {
     return this.router.url.startsWith('/rrhh');
   }
   isMenuOpen = false;
+  operacionesOpen = false;
   logisticaOpen = false;
   rrhhOpen = false;
   /** Drawer de navegación en móvil/tablet (hamburguesa) */
@@ -130,6 +131,17 @@ get enRRHH(): boolean {
     return this.router.url.startsWith('/logistica');
   }
 
+  /** True cuando la ruta actual pertenece al módulo de Operaciones. */
+  get enOperaciones(): boolean {
+    return this.router.url.startsWith('/operaciones');
+  }
+
+  /** Admins y otros roles no operativos ven la vista tabla de Operaciones. */
+  get esVistaTablaOperaciones(): boolean {
+    const rol = (this.usuarioActual.rol || '').trim();
+    return rol !== 'Técnico de Campo' && rol !== 'Jefe de Operaciones' && rol !== 'ClienteExterno' && rol !== '...';
+  }
+
   private notiInitialized = false;
 
   ngOnInit(): void {
@@ -164,11 +176,12 @@ get enRRHH(): boolean {
   toggleMobileNav() {
     this.mobileNavOpen = !this.mobileNavOpen;
     this.isMenuOpen = false;
-    if (!this.mobileNavOpen) { this.logisticaOpen = false; this.rrhhOpen = false; }
+    if (!this.mobileNavOpen) { this.operacionesOpen = false; this.logisticaOpen = false; this.rrhhOpen = false; }
   }
   /** Cierra el drawer móvil (al elegir una opción o tocar fuera). */
   cerrarMobileNav() {
     this.mobileNavOpen = false;
+    this.operacionesOpen = false;
     this.logisticaOpen = false;
     this.rrhhOpen = false;
   }

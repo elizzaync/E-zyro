@@ -5,13 +5,13 @@ import { Router } from '@angular/router';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
-import { CrearProyectoModalComponent } from '../../../operaciones/components/crear-proyecto-modal/crear-proyecto-modal.component';
+import { CrearProyectoServicioModalComponent } from '../../../operaciones/components/crear-proyecto-servicio-modal/crear-proyecto-servicio-modal.component';
 import { ToastService } from '../../../../core/services/toast.service';
 
 @Component({
   selector: 'app-logistica-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, CrearProyectoModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, CrearProyectoServicioModalComponent],
   templateUrl: './logistica-servicios.component.html',
   styleUrls: ['./logistica-servicios.component.css'],
 })
@@ -99,10 +99,10 @@ export class LogisticaServiciosComponent implements OnInit {
 
   abrirCrearProyecto(): void { this.showCrearProyectoModal = true; }
 
-  onCrearProyectoClosed(result: { guardado: boolean; proyectoId?: string }): void {
+  onCrearClosed(result: { guardado: boolean; proyectoId?: string; servicioId?: string }): void {
     this.showCrearProyectoModal = false;
     if (result.guardado) {
-      this.toast.mostrar('Proyecto creado. Ahora agrega los servicios.', 'success');
+      this.toast.mostrar('Proyecto y servicio creados exitosamente', 'success');
       if (result.proyectoId) {
         this.router.navigate(['/operaciones/proyecto', result.proyectoId]);
       } else {

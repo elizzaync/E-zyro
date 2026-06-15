@@ -1,0 +1,280 @@
+<div class="cpsm-overlay" (click)="cerrar()">
+  <div class="cpsm-container" (click)="$event.stopPropagation()">
+
+    <!-- ═══ HEADER ═══ -->
+    <header class="cpsm-header">
+      <div class="cpsm-header-left">
+        <div class="cpsm-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="cpsm-title">Nuevo Proyecto + Servicio</h2>
+          <p class="cpsm-subtitle">{{ paso === 1 ? 'Paso 1 de 2 · Datos del proyecto' : 'Paso 2 de 2 · Datos del servicio' }}</p>
+        </div>
+      </div>
+      <button class="cpsm-close" type="button" (click)="cerrar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- ═══ WIZARD STEPS ═══ -->
+    <nav class="cpsm-steps">
+      <button class="cpsm-step" [class.active]="paso === 1" [class.done]="paso > 1" (click)="paso > 1 && (paso = 1)" type="button">
+        <span class="step-bubble">
+          @if (paso > 1) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          } @else { 1 }
+        </span>
+        <span class="step-label">Proyecto</span>
+      </button>
+      <span class="step-line" [class.filled]="paso >= 2"></span>
+      <button class="cpsm-step" [class.active]="paso === 2" type="button">
+        <span class="step-bubble">2</span>
+        <span class="step-label">Servicio</span>
+      </button>
+    </nav>
+
+    <!-- ═══ BODY ═══ -->
+    <div class="cpsm-body">
+
+      <!-- ─── PASO 1: PROYECTO ─── -->
+      @if (paso === 1) {
+      <div class="cpsm-section fade-in-section" [formGroup]="fProyecto">
+
+        <div class="field-group">
+          <label class="field-label">Nombre del Proyecto *</label>
+          <input type="text" class="field-input" formControlName="nombre_proyecto"
+            placeholder="Ej: Mantenimiento preventivo planta norte 2025"
+            [class.invalid]="ctrl1('nombre_proyecto')?.invalid && ctrl1('nombre_proyecto')?.touched">
+          @if (ctrl1('nombre_proyecto')?.invalid && ctrl1('nombre_proyecto')?.touched) {
+            <span class="field-error">Nombre requerido (máx. 200 caracteres).</span>
+          }
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Cliente *</label>
+          @if (cargandoClientes) {
+            <div class="field-loading"><app-spinner></app-spinner><span>Cargando clientes…</span></div>
+          } @else {
+            <select class="field-select" formControlName="cliente_id"
+              [class.invalid]="ctrl1('cliente_id')?.invalid && ctrl1('cliente_id')?.touched">
+              <option value="" disabled>— Seleccionar cliente —</option>
+              @for (c of clientes; track c.id) {
+                <option [value]="c.id">{{ c.razon_social }}{{ c.ruc ? ' · ' + c.ruc : '' }}</option>
+              }
+            </select>
+          }
+          @if (ctrl1('cliente_id')?.invalid && ctrl1('cliente_id')?.touched) {
+            <span class="field-error">Selecciona un cliente.</span>
+          }
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">
+            N° Orden de Trabajo
+            <span class="label-auto">automática</span>
+          </label>
+          <input type="text" class="field-input field-input--readonly" formControlName="orden_trabajo"
+            readonly placeholder="Se asignará al guardar">
+        </div>
+
+        <div class="fields-grid-2">
+          <div class="field-group">
+            <label class="field-label">Estado</label>
+            <select class="field-select" formControlName="estado">
+              @for (e of estadosProyecto; track e) {
+                <option [value]="e">{{ estadoLabel(e) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Fecha de Inicio</label>
+            <input type="date" class="field-input" formControlName="fecha_inicio">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Fecha Fin Estimada</label>
+            <input type="date" class="field-input" formControlName="fecha_fin_estimada">
+          </div>
+        </div>
+
+      </div>
+      }
+
+      <!-- ─── PASO 2: SERVICIO ─── -->
+      @if (paso === 2) {
+      <div class="cpsm-section fade-in-section" [formGroup]="fServicio">
+
+        <div class="field-group">
+          <label class="field-label">Nombre del Servicio *</label>
+          <input type="text" class="field-input" formControlName="nombre"
+            placeholder="Ej: Servicio de inspección zona norte"
+            [class.invalid]="ctrl2('nombre')?.invalid && ctrl2('nombre')?.touched">
+          @if (ctrl2('nombre')?.invalid && ctrl2('nombre')?.touched) {
+            <span class="field-error">Nombre requerido.</span>
+          }
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Tipo de Servicio (Catálogo) *</label>
+          @if (cargandoCatalogo) {
+            <div class="field-loading"><app-spinner></app-spinner><span>Cargando catálogo…</span></div>
+          } @else {
+            <select class="field-select" formControlName="catalogo_servicio_id"
+              [class.invalid]="ctrl2('catalogo_servicio_id')?.invalid && ctrl2('catalogo_servicio_id')?.touched">
+              <option value="" disabled>— Seleccionar tipo de servicio —</option>
+              @for (c of catalogo; track c.id) {
+                <option [value]="c.id">{{ c.nombre }}</option>
+              }
+            </select>
+          }
+          @if (ctrl2('catalogo_servicio_id')?.invalid && ctrl2('catalogo_servicio_id')?.touched) {
+            <span class="field-error">Selecciona el tipo de servicio.</span>
+          }
+        </div>
+
+        <div class="fields-grid-2">
+          <div class="field-group">
+            <label class="field-label">Líder del Servicio</label>
+            @if (cargandoLideres) {
+              <div class="field-loading"><app-spinner></app-spinner></div>
+            } @else {
+              <select class="field-select" formControlName="lider_id">
+                <option value="">— Sin líder asignado —</option>
+                @for (l of lideres; track l.id) {
+                  <option [value]="l.id">{{ l.nombre }} {{ l.apellido }}</option>
+                }
+              </select>
+            }
+          </div>
+          <div class="field-group">
+            <label class="field-label">Fecha Programada</label>
+            <input type="date" class="field-input" formControlName="fecha_programada">
+          </div>
+        </div>
+
+        <!-- Ubicación -->
+        <div class="field-group">
+          <label class="field-label">Ubicación</label>
+          <div class="geo-dropdown" (click)="toggleUbicDrop()">
+            <div class="geo-selected">
+              <span class="geo-sel-label">{{ ubicSelLabel || 'Sin ubicación' }}</span>
+              @if (ubicSelLabel) {
+                <button type="button" class="geo-clear" (click)="$event.stopPropagation(); limpiarUbic()">✕</button>
+              }
+              <svg class="geo-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+            @if (showUbicDrop) {
+            <div class="geo-drop-panel" (click)="$event.stopPropagation()">
+              <input class="geo-search" [(ngModel)]="ubicSearch" [ngModelOptions]="{standalone:true}" placeholder="Buscar ubicación..." (click)="$event.stopPropagation()">
+              @for (u of ubicFiltradas; track u.id) {
+                <div class="geo-option" (click)="selUbic(u)">{{ u.nombre }}</div>
+              }
+              @if (ubicFiltradas.length === 0) { <div class="geo-empty">Sin resultados</div> }
+            </div>
+            }
+          </div>
+        </div>
+
+        <!-- Zona -->
+        @if (fServicio.get('ubicacion_id')?.value) {
+        <div class="field-group">
+          <label class="field-label">Zona</label>
+          <div class="geo-dropdown" (click)="toggleZonaDrop()">
+            <div class="geo-selected">
+              <span class="geo-sel-label">{{ zonaSelLabel || 'Sin zona' }}</span>
+              @if (zonaSelLabel) {
+                <button type="button" class="geo-clear" (click)="$event.stopPropagation(); limpiarZona()">✕</button>
+              }
+              <svg class="geo-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
+            @if (showZonaDrop) {
+            <div class="geo-drop-panel" (click)="$event.stopPropagation()">
+              @if (cargandoZonas) { <div class="geo-empty"><app-spinner></app-spinner></div> }
+              @else {
+                <input class="geo-search" [(ngModel)]="zonaSearch" [ngModelOptions]="{standalone:true}" placeholder="Buscar zona..." (click)="$event.stopPropagation()">
+                @for (z of zonasFiltradas; track z.id) {
+                  <div class="geo-option" (click)="selZona(z)">{{ z.nombre }}</div>
+                }
+                @if (zonasFiltradas.length === 0) { <div class="geo-empty">Sin zonas</div> }
+              }
+            </div>
+            }
+          </div>
+        </div>
+        }
+
+        <!-- Tipo documento -->
+        <div class="fields-grid-2">
+          <div class="field-group">
+            <label class="field-label">Tipo de Documento</label>
+            <select class="field-select" formControlName="tipo_documento_cliente">
+              @for (t of tiposDoc; track t.value) {
+                <option [value]="t.value">{{ t.label }}</option>
+              }
+            </select>
+          </div>
+          @if (ctrl2('tipo_documento_cliente')?.value !== 'SIN_OC') {
+          <div class="field-group">
+            <label class="field-label">N° Documento</label>
+            <input type="text" class="field-input" formControlName="nro_documento" placeholder="Ej: OC-4500620238">
+          </div>
+          }
+        </div>
+
+      </div>
+      }
+
+    </div><!-- /cpsm-body -->
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="cpsm-footer">
+      @if (errorMsg) {
+      <div class="footer-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        {{ errorMsg }}
+      </div>
+      }
+      <div class="footer-actions">
+        <button class="btn-cancel" type="button" (click)="cerrar()">Cancelar</button>
+
+        @if (paso === 2) {
+        <button class="btn-secondary" type="button" (click)="anterior()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Anterior
+        </button>
+        }
+
+        @if (paso === 1) {
+        <button class="btn-primary" type="button" (click)="siguiente()">
+          Siguiente
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        } @else {
+        <button class="btn-save" type="button" [disabled]="guardando" (click)="guardar()">
+          @if (guardando) { <app-spinner></app-spinner> Guardando… }
+          @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+            </svg>
+            Crear Proyecto + Servicio
+          }
+        </button>
+        }
+      </div>
+    </footer>
+
+  </div>
+</div>

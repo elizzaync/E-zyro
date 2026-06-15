@@ -155,13 +155,13 @@ export const routes: Routes = [
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
   },
   {
-    path: 'logistica/servicios',
+    path: 'operaciones/servicios',
     component: LogisticaServiciosComponent,
     title: 'Servicios | e-zyro TIC',
     canActivate: [authGuard]
   },
   {
-    path: 'logistica/mantenimiento',
+    path: 'operaciones/mantenimiento',
     component: LogisticaMantenimientoComponent,
     title: 'Mantenimiento de Equipos | e-zyro TIC',
     canActivate: [authGuard]
