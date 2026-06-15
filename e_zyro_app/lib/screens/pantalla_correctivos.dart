@@ -12,7 +12,9 @@ import '../utils/app_session.dart';
 /// El alta se hace desde el detalle de un servicio (servicio_id requerido).
 class PantallaCorrectivos extends StatefulWidget {
   final String? servicioId;
-  const PantallaCorrectivos({super.key, this.servicioId});
+  /// Cuando va embebida en una pestaña, se oculta su AppBar propia.
+  final bool showAppBar;
+  const PantallaCorrectivos({super.key, this.servicioId, this.showAppBar = true});
 
   @override
   State<PantallaCorrectivos> createState() => _PantallaCorrectivosState();
@@ -169,10 +171,13 @@ class _PantallaCorrectivosState extends State<PantallaCorrectivos> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Garantías / Correctivos', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              title: const Text('Garantías / Correctivos',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
+            )
+          : null,
       floatingActionButton: AppSession.i.canCrearCorrectivo
           ? FloatingActionButton.extended(
               onPressed: _nuevoCorrectivo, icon: const Icon(Icons.add), label: const Text('Nuevo'),

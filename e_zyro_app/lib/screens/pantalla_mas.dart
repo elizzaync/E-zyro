@@ -20,7 +20,7 @@ import 'pantalla_personal_hub.dart';
 import 'pantalla_mi_espacio.dart';
 import 'pantalla_galeria.dart';
 import 'pantalla_calibraciones.dart';
-import 'pantalla_correctivos.dart';
+import 'pantalla_garantias_correctivos.dart';
 import 'pantalla_itse.dart';
 import 'pantalla_catalogos.dart';
 import 'pantalla_plantillas_procedimiento.dart';
@@ -448,10 +448,11 @@ class _MoreScreenState extends State<MoreScreen> {
                     ),
                   if (_canCorrectivo)
                     _MenuItem(
-                      icon: Icons.build_outlined,
+                      icon: Icons.workspace_premium_outlined,
                       label: 'Garantías / Correctivos',
                       onTap: () => Navigator.push(
-                        context, MaterialPageRoute(builder: (_) => const PantallaCorrectivos())),
+                        context, MaterialPageRoute(
+                            builder: (_) => const PantallaGarantiasCorrectivos())),
                     ),
                   if (_canItse)
                     _MenuItem(
