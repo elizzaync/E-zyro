@@ -359,13 +359,14 @@
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, calc(-50% + 36px));
+  transform: translate(-50%, -50%);
+  margin-top: 36px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 18px;
   width: 90%;
   max-width: 580px;
-  max-height: calc(100vh - 148px);
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
   z-index: 999999;
   box-shadow: var(--shadow-modal);
