@@ -630,14 +630,36 @@ def crear_material(
     db.add(mat)
     db.flush()
 
+    cant_ini = max(0, int(body.cantidad))
     db.add(Stock(
         material_id    = mat.id,
         empresa_id     = empresa_id,
         almacen_id     = alm.id,
-        cantidad       = max(0, int(body.cantidad)),
+        cantidad       = cant_ini,
         cantidad_minima= max(0, int(body.stockMinimo)),
         updated_at     = datetime.utcnow(),
     ))
+
+    # Stock inicial = entrada valorizada (movimiento + asiento), para que quede
+    # en el historial y en el inventario valorizado, no como stock "fantasma".
+    if cant_ini > 0:
+        emp = db.query(Empleado).filter(
+            Empleado.usuario_id == payload.get("id"),
+            Empleado.empresa_id == empresa_id).first()
+        _mov = MovimientoInventario(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            material_id=mat.id, almacen_id=alm.id,
+            tipo="entrada", cantidad=cant_ini,
+            referencia_id=mat.id, referencia_tipo="alta_material",
+            responsable_id=str(emp.id) if emp else None,
+            motivo="Stock inicial al crear material",
+            fecha=datetime.utcnow(),
+        )
+        db.add(_mov)
+        db.flush()
+        costeo.valorizar_movimiento(
+            db, _mov, costo_unitario=body.precio,
+            creado_por_id=str(emp.id) if emp else None)
 
     db.commit()
     return _material_out(db, mat, empresa_id)
@@ -3229,6 +3251,45 @@ def ajustar_stock(
     costeo.valorizar_movimiento(db, _mov, creado_por_id=emp.id if emp else None)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/inventario/reposicion")
+def alertas_reposicion(
+    almacen: str = Query("", description="filtrar por almacén"),
+    payload: dict = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Materiales en o por debajo de su stock mínimo, por almacén — para reponer.
+    Solo considera filas con stock_minimo > 0 (mínimo configurado)."""
+    empresa_id = payload["empresa_id"]
+    q = (
+        db.query(Stock, Material, Almacen)
+        .join(Material, Material.id == Stock.material_id)
+        .join(Almacen, Almacen.id == Stock.almacen_id)
+        .filter(
+            Stock.empresa_id == empresa_id,
+            Stock.cantidad_minima > 0,
+            Stock.cantidad <= Stock.cantidad_minima,
+            Material.activo.is_(True),
+        )
+    )
+    if almacen:
+        q = q.filter(Stock.almacen_id == almacen)
+    filas = q.order_by((Stock.cantidad_minima - Stock.cantidad).desc()).all()
+    return [
+        {
+            "material_id": str(s.material_id),
+            "material_nombre": m.nombre,
+            "material_codigo": m.codigo,
+            "almacen_id": str(s.almacen_id),
+            "almacen_nombre": a.nombre,
+            "unidad": m.unidad,
+            "cantidad": int(s.cantidad or 0),
+            "stock_minimo": int(s.cantidad_minima or 0),
+            "faltante": max(0, int(s.cantidad_minima or 0) - int(s.cantidad or 0)),
+        }
+        for s, m, a in filas
+    ]
 
 
 @router.get("/inventario/movimientos")
