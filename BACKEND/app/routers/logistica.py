@@ -3234,11 +3234,13 @@ def ajustar_stock(
     """
     Ajuste manual de stock — solo log/admin.
 
-    Body: { material_id, tipo, cantidad, motivo?, almacen_id? }
+    Body: { material_id, tipo, cantidad, motivo?, almacen_id?, costo_unitario? }
       * tipo='entrada': suma cantidad al stock del almacén
       * tipo='salida' : resta cantidad; falla 422 si dejaría negativo
       * tipo='ajuste' : fija la cantidad exacta del almacén (sobreescribe)
-    Registra siempre un MovimientoInventario.
+    Registra siempre un MovimientoInventario. En 'entrada', `costo_unitario`
+    (opcional) es el costo al que entra ese stock: alimenta el costo promedio /
+    kardex y refresca el precio del material. Si no se envía, se usa material.precio.
     """
     _autorizar_logistica(payload)
     empresa_id = payload["empresa_id"]
@@ -3252,6 +3254,11 @@ def ajustar_stock(
         cantidad = int(body.get("cantidad") or 0)
     except (TypeError, ValueError):
         cantidad = 0
+    _costo_raw = body.get("costo_unitario")
+    try:
+        costo_unitario = float(_costo_raw) if _costo_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        costo_unitario = None
 
     if not material_id or tipo not in ("entrada", "salida", "ajuste"):
         raise HTTPException(status_code=422, detail="material_id y tipo (entrada|salida|ajuste) son requeridos")
@@ -3321,10 +3328,17 @@ def ajustar_stock(
         responsable_id=emp.id if emp else None,
         fecha=datetime.utcnow(),
     )
+    # En una entrada con costo explícito, refresca el precio del material
+    # (mismo criterio que el ingreso por compra) para reportes y respaldos.
+    if tipo == "entrada" and costo_unitario is not None and costo_unitario > 0:
+        mat.precio = costo_unitario
+
     db.add(_mov)
     db.flush()
     # Valoriza solo entrada/salida; el tipo 'ajuste' (stock absoluto) queda neutro.
-    costeo.valorizar_movimiento(db, _mov, creado_por_id=emp.id if emp else None)
+    # En entrada usa el costo enviado; si no, cae a material.precio.
+    costeo.valorizar_movimiento(
+        db, _mov, costo_unitario=costo_unitario, creado_por_id=emp.id if emp else None)
     db.commit()
     return {"ok": True}
 
