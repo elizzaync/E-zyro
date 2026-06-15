@@ -113,6 +113,7 @@
           <th>Proyecto / OT</th>
           <th>Cliente</th>
           <th>Estado</th>
+          <th>OC / Documento</th>
           <th>Fecha Programada</th>
           <th>Fecha Fin</th>
           <th></th>
@@ -134,6 +135,14 @@
           <td class="cliente-cell">{{ s.cliente }}</td>
           <td>
             <span class="estado-badge" [class]="estadoClass(s.estado)">{{ estadoLabel(s.estado) }}</span>
+          </td>
+          <td class="oc-cell">
+            @if (s.nro_documento) {
+              <span class="oc-tipo">{{ s.tipo_documento_cliente === 'OC' ? 'OC' : s.tipo_documento_cliente === 'PROF' ? 'PROF' : '' }}</span>
+              <span class="oc-nro">{{ s.nro_documento }}</span>
+            } @else {
+              <span class="muted-dash">—</span>
+            }
           </td>
           <td class="fecha-cell">{{ s.fecha_programada || '—' }}</td>
           <td class="fecha-cell">{{ s.fecha_fin || '—' }}</td>
