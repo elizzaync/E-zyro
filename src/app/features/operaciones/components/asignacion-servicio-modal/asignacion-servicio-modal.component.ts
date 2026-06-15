@@ -11,6 +11,7 @@ import { OperacionesService } from '../../../../core/services/operaciones.servic
 import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { JustificacionModalComponent } from '../../../../shared/components/justificacion-modal/justificacion-modal.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ export interface CruceState {
 @Component({
   selector: 'app-asignacion-servicio-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, JustificacionModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, JustificacionModalComponent, AppModalComponent],
   templateUrl: './asignacion-servicio-modal.component.html',
   styleUrls: ['./asignacion-servicio-modal.component.css']
 })
@@ -159,7 +160,6 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   // ─────────────────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    document.body.style.overflow = 'hidden';
     this._cargarUsuario();
     this._initForm();
     this._cargarTecnicos();
@@ -170,7 +170,6 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    document.body.style.overflow = '';
   }
 
   @HostListener('document:keydown.escape')

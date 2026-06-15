@@ -1,36 +1,21 @@
 <!-- ═══════════════════════════════════════════════════════════════
-     OVERLAY + MODAL — HU-13: Asignación de Personal y Avisos
+     HU-13: Asignación de Personal y Avisos
 ═══════════════════════════════════════════════════════════════ -->
-<div class="asm-overlay" (click)="cerrar()" role="dialog" aria-modal="true" aria-label="Configurar servicio">
+<app-modal
+  [open]="true"
+  [title]="mode === 'crear' ? 'Configurar Servicio' : 'Editar Asignación'"
+  subtitle="HU-13 · Asignación de Personal y Cronograma de Tareas"
+  maxWidth="780px"
+  iconBg="var(--asm-accent-dim, rgba(145,211,55,.14))"
+  iconColor="var(--asm-accent, #5a8a20)"
+  (closeModal)="cerrar()">
 
-  <div class="asm-container" (click)="$event.stopPropagation()">
-
-    <!-- ══════════════ HEADER ══════════════ -->
-    <header class="asm-header">
-      <div class="asm-header-left">
-        <div class="asm-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-        </div>
-        <div>
-          <h2 class="asm-title">
-            {{ mode === 'crear' ? 'Configurar Servicio' : 'Editar Asignación' }}
-          </h2>
-          <p class="asm-subtitle">HU-13 · Asignación de Personal y Cronograma de Tareas</p>
-        </div>
-      </div>
-
-      <button class="asm-close-btn" (click)="cerrar()" aria-label="Cerrar modal">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+    <circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
 
     <!-- ══════════════ WIZARD STEPS ══════════════ -->
     <nav class="asm-steps">
@@ -684,8 +669,7 @@
 
     </footer>
 
-  </div><!-- /asm-container -->
-</div><!-- /asm-overlay -->
+</app-modal>
 
 <!-- ═══════════════════════════════════════════════════════════════
      HU-13 · Confirmación: técnico ya pertenece a un grupo activo
