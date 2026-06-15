@@ -80,6 +80,26 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
     if existe:
         raise HTTPException(status_code=409, detail="Ya existe una planilla vigente para ese periodo.")
 
+    # Las planillas ANULADAS no bloquean por negocio, pero sí ocupan el cupo de
+    # la restricción única (empresa_id, periodo_id). Como anular solo procede
+    # desde 'calculada' (sin asientos contables), son desechables: se eliminan
+    # con sus boletas para liberar el periodo y permitir recalcular.
+    anuladas = db.query(Planilla).filter(
+        Planilla.empresa_id == empresa_id,
+        Planilla.periodo_id == periodo_id,
+        Planilla.estado == "anulada",
+    ).all()
+    for pa in anuladas:
+        boletas_ids = [b.id for b in db.query(BoletaPago).filter(
+            BoletaPago.planilla_id == pa.id).all()]
+        if boletas_ids:
+            db.query(BoletaPagoDetalle).filter(
+                BoletaPagoDetalle.boleta_id.in_(boletas_ids)).delete(synchronize_session=False)
+            db.query(BoletaPago).filter(
+                BoletaPago.planilla_id == pa.id).delete(synchronize_session=False)
+        db.delete(pa)
+    db.flush()
+
     conceptos = (
         db.query(ConceptoRemunerativo)
         .filter(ConceptoRemunerativo.empresa_id == empresa_id,
