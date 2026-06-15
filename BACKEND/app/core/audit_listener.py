@@ -11,7 +11,7 @@ cuando este módulo es importado.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, time
 from decimal import Decimal
 from typing import Any
 
@@ -72,9 +72,9 @@ _MODULO: dict[str, str] = {
 
 def _coerce(val: Any) -> Any:
     """Convierte tipos no nativos de JSON a sus equivalentes seguros."""
-    if isinstance(val, uuid.UUID):          return str(val)
-    if isinstance(val, (datetime, date)):   return val.isoformat()
-    if isinstance(val, Decimal):            return float(val)
+    if isinstance(val, uuid.UUID):              return str(val)
+    if isinstance(val, (datetime, date, time)): return val.isoformat()
+    if isinstance(val, Decimal):                return float(val)
     return val
 
 
