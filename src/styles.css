@@ -180,6 +180,10 @@ main:has(.modal-backdrop-pro) {
   isolation: auto;
   z-index: 1001;
 }
+/* Bloquea el scroll de la página entera mientras haya un modal activo */
+html:has(.modal-backdrop-pro) {
+  overflow: hidden;
+}
 
 /* =======================================================
    PORTAL CLIENTE — modo de visualización restringida

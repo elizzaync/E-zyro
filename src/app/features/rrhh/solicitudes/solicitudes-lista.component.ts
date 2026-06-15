@@ -188,7 +188,6 @@ export class SolicitudesListaComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
   }
 
   // ── Modal de evaluación ───────────────────────────────────────────────────

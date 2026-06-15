@@ -19,15 +19,12 @@ export class AppModalComponent implements OnChanges, OnDestroy {
 
   ngOnChanges(c: SimpleChanges): void {
     if ('open' in c) {
-      const val = this.open ? 'hidden' : '';
-      document.body.style.overflow = val;
-      document.documentElement.style.overflow = val;
+      document.body.style.overflow = this.open ? 'hidden' : '';
     }
   }
 
   ngOnDestroy(): void {
     document.body.style.overflow = '';
-    document.documentElement.style.overflow = '';
   }
 
   close(): void {
