@@ -1,5 +1,6 @@
 import 'dart:convert';
 import '../core/api_client.dart';
+import '../utils/json_async.dart';
 import '../models/prestamo_models.dart';
 
 class PrestamoService {
@@ -19,7 +20,7 @@ class PrestamoService {
           : '?${params.entries.map((e) => '${e.key}=${Uri.encodeComponent(e.value)}').join('&')}';
       final r = await _client.get('/prestamos/equipos-catalogo$query');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => EquipoCatalogo.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -34,7 +35,7 @@ class PrestamoService {
     try {
       final r = await _client.get('/prestamos/servicio/$servicioId');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => Prestamo.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -47,7 +48,7 @@ class PrestamoService {
     try {
       final r = await _client.get('/prestamos/servicio/$servicioId/avisos');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => PrestamoAviso.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -108,7 +109,7 @@ class PrestamoService {
     try {
       final r = await _client.get('/prestamos?estado=${Uri.encodeComponent(estado)}');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => Prestamo.fromJson(e as Map<String, dynamic>))
             .toList();

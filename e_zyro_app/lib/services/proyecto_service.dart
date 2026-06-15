@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../utils/json_async.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -171,7 +172,7 @@ class ProyectoService {
       );
       if (r.statusCode == 200) {
         await _cache.put(_kServicios(proyectoId), r.body);
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => ServicioItem.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -251,7 +252,7 @@ class ProyectoService {
     try {
       final r = await _client.get('/operaciones/plantillas-procedimiento');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list.cast<Map<String, dynamic>>();
       }
     } catch (_) {}
@@ -445,7 +446,7 @@ class ProyectoService {
         '/operaciones/materiales/buscar?q=${Uri.encodeComponent(q.trim())}',
       );
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => MaterialBusqueda.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -622,7 +623,7 @@ class ProyectoService {
     try {
       final r = await _client.get('/operaciones/servicio/$servicioId/notas');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => NotaServicio.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -726,7 +727,7 @@ class ProyectoService {
     try {
       final r = await _client.get('/operaciones/clientes');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => ClienteBasico.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -740,7 +741,7 @@ class ProyectoService {
     try {
       final r = await _client.get('/operaciones/catalogo-servicios');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => CatalogoServicio.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -763,7 +764,7 @@ class ProyectoService {
     try {
       final r = await _client.get(path);
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => PersonaServicio.fromJson(e as Map<String, dynamic>))
             .toList();

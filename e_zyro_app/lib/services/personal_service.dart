@@ -1,5 +1,6 @@
 import 'dart:convert';
 import '../core/api_client.dart';
+import '../utils/json_async.dart';
 import '../core/api_result.dart';
 import '../models/personal_models.dart';
 
@@ -15,7 +16,7 @@ class PersonalService {
       if (q != null && q.trim().isNotEmpty) params.add('q=${Uri.encodeQueryComponent(q.trim())}');
       final r = await _client.get('/personal?${params.join('&')}');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List;
+        final list = (await decodeJson(r.body)) as List;
         return ApiResult.ok(list.map((e) => Empleado.fromJson(e as Map<String, dynamic>)).toList());
       }
       return ApiResult.fail(ApiError.fromResponse(r));

@@ -83,24 +83,37 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(milliseconds: 2800));
-    if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
-    await AuthService.restoreTokenIfNeeded(prefs);
-    await AppSession.load();
-    final bioEnabled  = prefs.getBool('biometric_enabled') ?? false;
-    final auth        = AuthService(ApiClient(prefs), prefs);
-    // Validar el JWT localmente (sin red): expirado → login para renovar.
-    final tokenValido = auth.isStoredTokenValid();
-    // Autosanar rol+permisos desde el servidor (best-effort, no bloquea si offline).
-    if (tokenValido) {
-      await auth.refrescarSesion();
+
+    // Trabajo de sesión EN PARALELO con la animación de marca. Antes eran
+    // 2800 ms muertos y recién después el trabajo en serie; ahora el tiempo
+    // total ≈ max(1.4 s de animación, trabajo de sesión).
+    Future<bool> prepararSesion() async {
+      await AuthService.restoreTokenIfNeeded(prefs);
+      await AppSession.load();
+      final auth = AuthService(ApiClient(prefs), prefs);
+      // Validar el JWT localmente (sin red): expirado → login para renovar.
+      final tokenValido = auth.isStoredTokenValid();
+      // Autosanar rol+permisos desde el servidor (best-effort, no bloquea offline).
+      if (tokenValido) {
+        await auth.refrescarSesion();
+      }
+      return tokenValido;
     }
+
+    final preparar = prepararSesion();
+    await Future.wait<void>([
+      preparar.then((_) {}),
+      Future<void>.delayed(const Duration(milliseconds: 1400)),
+    ]);
+    final tokenValido = await preparar;
+    if (!mounted) return;
+
+    final bioEnabled = prefs.getBool('biometric_enabled') ?? false;
     // Con biométrico vamos a /login para desbloquear con huella (que ya maneja
     // el caso offline). Sin biométrico, entramos directo si el token sigue
     // vigente, incluso sin internet.
     final irHome = !bioEnabled && tokenValido;
-    if (!mounted) return;
 
     if (irHome) {
       FcmFlutterService.initialize(

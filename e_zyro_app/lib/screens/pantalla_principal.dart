@@ -84,10 +84,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadData() async {
     if (_dashboardService == null) return;
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
+
+    // ── 1) Cache-first: pintar lo cacheado al instante (sin spinner) ──────────
+    bool teniaCache = false;
+    try {
+      final cachedResumen   = await _dashboardService!.getResumenCacheOnly();
+      final cachedServicios = await _dashboardService!.getProximosServiciosCacheOnly();
+      teniaCache = cachedResumen != null || cachedServicios.isNotEmpty;
+      if (mounted && teniaCache) {
+        setState(() {
+          if (cachedResumen != null) _resumen = cachedResumen;
+          _servicios = cachedServicios;
+          _isLoading = false; // ya hay datos que mostrar
+          _hasError = false;
+        });
+      }
+    } catch (_) {/* sin caché: seguimos con el spinner normal */}
+
+    // Solo mostramos spinner si NO había nada cacheado que pintar.
+    if (mounted && !teniaCache) {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
+    }
+
+    // ── 2) Refrescar desde la red en segundo plano ───────────────────────────
     try {
       late DashboardResumen resumen;
       late List<ProximoServicio> servicios;
@@ -106,6 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _servicios = servicios;
         _unreadCount = unread;
         _isLoading = false;
+        _hasError = false;
       });
     } catch (e) {
       if (!mounted) return;
@@ -113,9 +136,10 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.pushReplacementNamed(context, '/login');
         return;
       }
+      // Si ya estábamos mostrando caché, no rompemos la vista con un error.
       setState(() {
         _isLoading = false;
-        _hasError = true;
+        _hasError = !teniaCache;
       });
     }
   }

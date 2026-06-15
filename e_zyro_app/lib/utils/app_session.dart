@@ -91,6 +91,11 @@ class AppSession {
   bool get canCrearEquipoIntervenido  => hasPerm('equipo_intervenido:crear');
   bool get canEditarEquipoIntervenido => hasPerm('equipo_intervenido:editar');
   bool get canEliminarEquipoIntervenido => hasPerm('equipo_intervenido:eliminar');
+  // Documentos de cumplimiento / SST (homologaciones, ATS, PETAR)
+  bool get canVerDocumentosSst      => hasPerm('documentos_sst:ver');
+  bool get canCrearDocumentosSst    => hasPerm('documentos_sst:crear');
+  bool get canEditarDocumentosSst   => hasPerm('documentos_sst:editar');
+  bool get canEliminarDocumentosSst => hasPerm('documentos_sst:eliminar');
 
   // ── Finanzas / ERP contable ───────────────────────────────────────────────
   // Visibilidad del módulo: cualquier permiso de finanzas concede la entrada.

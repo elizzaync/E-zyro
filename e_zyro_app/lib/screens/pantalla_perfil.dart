@@ -309,6 +309,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                         ? CachedNetworkImage(
                             imageUrl: _fotoUrl,
                             fit: BoxFit.cover,
+                            memCacheWidth: 300,
                             errorWidget: (context, error, _) => Center(
                               child: Text(
                                 _initials,

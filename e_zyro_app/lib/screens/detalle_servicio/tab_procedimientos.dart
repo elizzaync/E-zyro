@@ -349,6 +349,7 @@ class _EvidenciaThumb extends StatelessWidget {
           width: 64,
           height: 64,
           fit: BoxFit.cover,
+          memCacheWidth: 200,
           errorWidget: (_, _, _) => Container(
             width: 64,
             height: 64,

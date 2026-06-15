@@ -1,12 +1,10 @@
-import 'dart:typed_data';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../models/control_asistencia_models.dart';
 import '../services/asistencia_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
+import '../utils/descarga_archivo.dart';
 
 /// Tablero de supervisión de asistencias diarias (permiso asistencia:ver).
 /// Muestra, por empleado: entrada/salida, almuerzo, horas netas trabajadas y
@@ -714,10 +712,10 @@ class _SheetDescargaState extends State<_SheetDescarga> {
 
     final nombre = 'asistencias_${_periodo}_${widget.fechaAncla}.$_formato';
     try {
-      final path = await FilePicker.platform.saveFile(
+      final path = await guardarArchivo(
         dialogTitle: 'Guardar asistencias',
         fileName: nombre,
-        bytes: Uint8List.fromList(bytes),
+        bytes: bytes,
       );
       if (!mounted) return;
       setState(() => _descargando = false);

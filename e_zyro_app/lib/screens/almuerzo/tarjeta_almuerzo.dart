@@ -29,7 +29,6 @@ class _TarjetaAlmuerzoState extends State<TarjetaAlmuerzo> {
   EstadoHoy _estado = EstadoHoy.empty();
   bool _cargando = true;
   bool _marcando = false;
-  Timer? _cron;
 
   @override
   void initState() {
@@ -39,7 +38,6 @@ class _TarjetaAlmuerzoState extends State<TarjetaAlmuerzo> {
 
   @override
   void dispose() {
-    _cron?.cancel();
     super.dispose();
   }
 
@@ -56,16 +54,6 @@ class _TarjetaAlmuerzoState extends State<TarjetaAlmuerzo> {
       _estado = e;
       _cargando = false;
     });
-    _gestionarCronometro();
-  }
-
-  void _gestionarCronometro() {
-    _cron?.cancel();
-    if (_estado.enAlmuerzo) {
-      _cron = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
-      });
-    }
   }
 
   // ── Captura de GPS (best-effort: si falla, marca sin coordenadas) ──────────
@@ -152,18 +140,6 @@ class _TarjetaAlmuerzoState extends State<TarjetaAlmuerzo> {
     ));
   }
 
-  String _cronTexto() {
-    final iso = _estado.inicioAlmuerzoIso;
-    if (iso == null) return '00:00';
-    final ini = DateTime.tryParse(iso);
-    if (ini == null) return '00:00';
-    final d = DateTime.now().difference(ini);
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    final h = d.inHours;
-    return h > 0 ? '${h}h ${m}m' : '$m:$s';
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -242,9 +218,7 @@ class _TarjetaAlmuerzoState extends State<TarjetaAlmuerzo> {
                 const Text('En almuerzo',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 const Spacer(),
-                Text(_cronTexto(),
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w700, color: _amber)),
+                _CronometroAlmuerzo(inicioIso: _estado.inicioAlmuerzoIso),
               ],
             ),
             const SizedBox(height: 2),
@@ -313,6 +287,57 @@ class _TarjetaAlmuerzoState extends State<TarjetaAlmuerzo> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
+    );
+  }
+}
+
+/// Cronómetro del almuerzo en curso. Tiene su propio Timer de 1 s y se repinta
+/// AISLADO: así el tick por segundo no reconstruye toda la TarjetaAlmuerzo
+/// (que vive en el Home, siempre visible), solo este texto.
+class _CronometroAlmuerzo extends StatefulWidget {
+  final String? inicioIso;
+  const _CronometroAlmuerzo({required this.inicioIso});
+
+  @override
+  State<_CronometroAlmuerzo> createState() => _CronometroAlmuerzoState();
+}
+
+class _CronometroAlmuerzoState extends State<_CronometroAlmuerzo> {
+  static const _amber = Color(0xFFF59E0B);
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _texto() {
+    final iso = widget.inicioIso;
+    if (iso == null) return '00:00';
+    final ini = DateTime.tryParse(iso);
+    if (ini == null) return '00:00';
+    final d = DateTime.now().difference(ini);
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final h = d.inHours;
+    return h > 0 ? '${h}h ${m}m' : '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _texto(),
+      style: const TextStyle(
+          fontSize: 15, fontWeight: FontWeight.w700, color: _amber),
     );
   }
 }

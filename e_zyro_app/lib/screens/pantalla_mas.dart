@@ -30,6 +30,7 @@ import 'pantalla_control_asistencias.dart';
 import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
 import 'finanzas/pantalla_manual_finanzas.dart';
+import 'pantalla_documentos_sst.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -57,6 +58,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _canGaleria = false;
   bool _canEquipoIntervenido = false;
   bool _canFinanzas = false;
+  bool _canDocumentosSst = false;
 
   @override
   void initState() {
@@ -86,6 +88,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _canGaleria      = AppSession.i.canVerGaleria;
         _canEquipoIntervenido = AppSession.i.canVerEquipoIntervenido;
         _canFinanzas = AppSession.i.canVerFinanzas;
+        _canDocumentosSst = AppSession.i.canVerDocumentosSst;
       });
     }
   }
@@ -253,40 +256,8 @@ class _MoreScreenState extends State<MoreScreen> {
                 children: [
                   const SizedBox(height: 4),
 
-            // ── Apariencia ─────────────────────────────────────────────
-            _buildSectionTitle('Apariencia'),
-            const SizedBox(height: 10),
-            _buildCard(
-              surface: surface,
-              child: ValueListenableBuilder<ThemeMode>(
-                valueListenable: themeNotifier,
-                builder: (_, mode, _) => SwitchListTile(
-                  secondary: Icon(
-                    mode == ThemeMode.dark
-                        ? Icons.dark_mode_outlined
-                        : Icons.light_mode_outlined,
-                    size: 22,
-                  ),
-                  title: const Text(
-                    'Modo Oscuro',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                  value: mode == ThemeMode.dark,
-                  activeThumbColor: const Color(0xFF8FD11B),
-                  onChanged: (val) async {
-                    themeNotifier.value = val
-                        ? ThemeMode.dark
-                        : ThemeMode.light;
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('dark_mode', val);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // ── Cuenta ─────────────────────────────────────────────────
-            _buildSectionTitle('Cuenta'),
+            // ── 1. Mi cuenta (siempre) ─────────────────────────────────
+            _buildSectionTitle('Mi cuenta'),
             const SizedBox(height: 10),
             _buildMenuGroup(
               surface: surface,
@@ -304,35 +275,15 @@ class _MoreScreenState extends State<MoreScreen> {
                   label: 'Mi Perfil',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const EditProfileScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const EditProfileScreen()),
                   ),
                 ),
                 _MenuItem(
-                  icon: Icons.campaign_outlined,
-                  label: 'Comunicados',
+                  icon: Icons.devices_other_outlined,
+                  label: 'Mis conexiones',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const ComunicadosScreen(),
-                    ),
-                  ),
-                ),
-                _MenuItem(
-                  icon: Icons.article_outlined,
-                  label: 'Trámites y Permisos',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PantallaTramites()),
-                  ),
-                ),
-                _MenuItem(
-                  icon: Icons.support_agent_outlined,
-                  label: 'Soporte TI',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PantallaSoporte()),
+                    MaterialPageRoute(builder: (_) => const PantallaMisSesiones()),
                   ),
                 ),
                 _MenuItem(
@@ -345,25 +296,37 @@ class _MoreScreenState extends State<MoreScreen> {
                     ),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // ── 2. Trabajo (siempre) ───────────────────────────────────
+            _buildSectionTitle('Trabajo'),
+            const SizedBox(height: 10),
+            _buildMenuGroup(
+              surface: surface,
+              items: [
                 _MenuItem(
-                  icon: Icons.devices_other_outlined,
-                  label: 'Mis conexiones',
+                  icon: Icons.campaign_outlined,
+                  label: 'Comunicados',
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const PantallaMisSesiones()),
+                    MaterialPageRoute(builder: (_) => const ComunicadosScreen()),
                   ),
                 ),
                 _MenuItem(
-                  icon: Icons.settings_outlined,
-                  label: 'Configuración',
-                  onTap: () => _showInfoDialog(
-                    'Configuración',
-                    'Las opciones de configuración avanzada estarán disponibles próximamente.',
+                  icon: Icons.article_outlined,
+                  label: 'Trámites y Permisos',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaTramites()),
                   ),
                 ),
               ],
             ),
-            if (_puedeVerAuditoria || _puedeVerMantenimiento || _puedeVerPersonal || _puedeVerDashboards || _puedeVerControlAsistencias) ...[
+
+            // ── 3. Administración (según permisos) ──────────────────────
+            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _puedeVerMantenimiento || _esAdmin || _puedeVerAuditoria || _esSuperAdmin) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
@@ -372,12 +335,30 @@ class _MoreScreenState extends State<MoreScreen> {
                 items: [
                   if (_puedeVerControlAsistencias)
                     _MenuItem(
-                      icon: Icons.fact_check_outlined,
+                      icon: Icons.how_to_reg_outlined,
                       label: 'Control de Asistencias',
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                             builder: (_) => const PantallaControlAsistencias()),
+                      ),
+                    ),
+                  if (_puedeVerPersonal)
+                    _MenuItem(
+                      icon: Icons.badge_outlined,
+                      label: 'Personal / RR.HH.',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PantallaPersonalHub()),
+                      ),
+                    ),
+                  if (_puedeVerPersonal)
+                    _MenuItem(
+                      icon: Icons.phonelink_lock_outlined,
+                      label: 'Sesiones de personal',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PantallaPersonal()),
                       ),
                     ),
                   if (_puedeVerDashboards)
@@ -397,24 +378,6 @@ class _MoreScreenState extends State<MoreScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (_) => const PantallaMantenimientos()),
-                      ),
-                    ),
-                  if (_puedeVerPersonal)
-                    _MenuItem(
-                      icon: Icons.badge_outlined,
-                      label: 'Personal / RR.HH.',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PantallaPersonalHub()),
-                      ),
-                    ),
-                  if (_puedeVerPersonal)
-                    _MenuItem(
-                      icon: Icons.devices_other_outlined,
-                      label: 'Sesiones de personal',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PantallaPersonal()),
                       ),
                     ),
                   if (_esAdmin)
@@ -450,12 +413,12 @@ class _MoreScreenState extends State<MoreScreen> {
                 ],
               ),
             ],
-            const SizedBox(height: 20),
 
-            // ── Módulos operativos (plan migración ERP) ────────────────
+            // ── 4. Módulos operativos (plan migración ERP) ─────────────
             // Cada módulo se muestra solo si el rol tiene su permiso :ver (admin: todos).
-            if (_canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canEquipoIntervenido || _canFinanzas) ...[
-              _buildSectionTitle('Módulos'),
+            if (_canFinanzas || _canEquipoIntervenido || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canDocumentosSst) ...[
+              const SizedBox(height: 20),
+              _buildSectionTitle('Módulos operativos'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
@@ -512,12 +475,20 @@ class _MoreScreenState extends State<MoreScreen> {
                         context, MaterialPageRoute(
                             builder: (_) => const PantallaPlantillasProcedimiento())),
                     ),
+                  if (_canDocumentosSst)
+                    _MenuItem(
+                      icon: Icons.verified_outlined,
+                      label: 'Documentos SST',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(
+                            builder: (_) => const PantallaDocumentosSst())),
+                    ),
                 ],
               ),
-              const SizedBox(height: 20),
             ],
+            const SizedBox(height: 20),
 
-            // ── Recursos ───────────────────────────────────────────────
+            // ── 5. Recursos (siempre) ──────────────────────────────────
             _buildSectionTitle('Recursos'),
             const SizedBox(height: 10),
             _buildMenuGroup(
@@ -544,6 +515,70 @@ class _MoreScreenState extends State<MoreScreen> {
                   icon: Icons.description_outlined,
                   label: 'Documentación',
                   onTap: _abrirDocumentacion,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // ── 6. Preferencias (siempre) ──────────────────────────────
+            _buildSectionTitle('Preferencias'),
+            const SizedBox(height: 10),
+            _buildCard(
+              surface: surface,
+              child: ValueListenableBuilder<ThemeMode>(
+                valueListenable: themeNotifier,
+                builder: (_, mode, _) => SwitchListTile(
+                  secondary: Icon(
+                    mode == ThemeMode.dark
+                        ? Icons.dark_mode_outlined
+                        : Icons.light_mode_outlined,
+                    size: 22,
+                  ),
+                  title: const Text(
+                    'Modo Oscuro',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  value: mode == ThemeMode.dark,
+                  activeThumbColor: const Color(0xFF8FD11B),
+                  onChanged: (val) async {
+                    themeNotifier.value = val
+                        ? ThemeMode.dark
+                        : ThemeMode.light;
+                    final prefs = await SharedPreferences.getInstance();
+                    await prefs.setBool('dark_mode', val);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildMenuGroup(
+              surface: surface,
+              items: [
+                _MenuItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Configuración',
+                  onTap: () => _showInfoDialog(
+                    'Configuración',
+                    'Las opciones de configuración avanzada estarán disponibles próximamente.',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // ── 7. Ayuda y soporte (siempre) ───────────────────────────
+            _buildSectionTitle('Ayuda y soporte'),
+            const SizedBox(height: 10),
+            _buildMenuGroup(
+              surface: surface,
+              items: [
+                _MenuItem(
+                  icon: Icons.support_agent_outlined,
+                  label: 'Soporte TI',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaSoporte()),
+                  ),
                 ),
                 _MenuItem(
                   icon: Icons.help_outline,
@@ -676,6 +711,7 @@ class _MoreScreenState extends State<MoreScreen> {
                         ? CachedNetworkImage(
                             imageUrl: _fotoUrl,
                             fit: BoxFit.cover,
+                            memCacheWidth: 200,
                             errorWidget: (context2, err, stack) => _avatarFallback(),
                           )
                         : _avatarFallback(),

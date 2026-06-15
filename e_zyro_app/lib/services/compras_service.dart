@@ -1,5 +1,6 @@
 import 'dart:convert';
 import '../core/api_client.dart';
+import '../utils/json_async.dart';
 import '../core/api_result.dart';
 import '../models/compras_models.dart';
 import '../models/requerimiento_models.dart' show AlmacenItem;
@@ -13,7 +14,7 @@ class ComprasService {
     try {
       final r = await _client.get('/logistica/almacenes');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => AlmacenItem.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -171,7 +172,7 @@ class ComprasService {
     try {
       final r = await _client.get('/logistica/proveedores');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => Proveedor.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -216,7 +217,7 @@ class ComprasService {
           : '';
       final r = await _client.get('/compras/ordenes$query');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
+        final list = (await decodeJson(r.body)) as List? ?? [];
         return list
             .map((e) => OrdenCompra.fromJson(e as Map<String, dynamic>))
             .toList();

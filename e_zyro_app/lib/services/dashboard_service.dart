@@ -67,6 +67,35 @@ class DashboardService {
     return [];
   }
 
+  /// Cache-first: lee el resumen cacheado SIN tocar la red (para pintar al
+  /// instante). Devuelve null si no hay caché. Luego se llama a [getResumen]
+  /// para refrescar en segundo plano.
+  Future<DashboardResumen?> getResumenCacheOnly() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_resumenCacheKey);
+    if (cached == null) return null;
+    try {
+      return DashboardResumen.fromJson(jsonDecode(cached) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Cache-first: lee los próximos servicios cacheados SIN tocar la red.
+  Future<List<ProximoServicio>> getProximosServiciosCacheOnly() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString(_serviciosCacheKey);
+    if (cached == null) return [];
+    try {
+      final data = jsonDecode(cached) as List;
+      return data
+          .map((e) => ProximoServicio.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<List<NotificacionDashboard>> getNotificaciones() async {
     try {
       final r = await _client.get('/dashboard/notificaciones');

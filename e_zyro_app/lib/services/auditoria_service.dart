@@ -1,5 +1,6 @@
 import 'dart:convert';
 import '../core/api_client.dart';
+import '../utils/json_async.dart';
 import '../core/api_result.dart';
 import '../models/auditoria_models.dart';
 
@@ -37,7 +38,7 @@ class AuditoriaService {
     // Deja que la excepción de sesión expirada se propague al caller
     final r = await _client.get(path);
     if (r.statusCode == 200) {
-      final list = jsonDecode(r.body) as List;
+      final list = (await decodeJson(r.body)) as List;
       return list.map((e) => AuditoriaItem.fromJson(e as Map<String, dynamic>)).toList();
     }
     if (r.statusCode == 403) throw Exception('Sin permiso para ver auditoría');
@@ -70,7 +71,7 @@ class AuditoriaService {
 
       final r = await _client.get('/auditoria/general?${params.join('&')}');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List;
+        final list = (await decodeJson(r.body)) as List;
         return ApiResult.ok(list
             .map((e) => AuditoriaGeneralItem.fromJson(e as Map<String, dynamic>))
             .toList());
@@ -97,7 +98,7 @@ class AuditoriaService {
 
       final r = await _client.get('/auditoria/logs?${params.join('&')}');
       if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List;
+        final list = (await decodeJson(r.body)) as List;
         return ApiResult.ok(list
             .map((e) => LogSistemaItem.fromJson(e as Map<String, dynamic>))
             .toList());

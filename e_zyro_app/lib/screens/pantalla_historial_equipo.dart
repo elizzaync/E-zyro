@@ -477,6 +477,7 @@ class _FotoThumbnail extends StatelessWidget {
           width: 56,
           height: 56,
           fit: BoxFit.cover,
+          memCacheWidth: 180,
           errorWidget: (_, _, _) => Container(
             width: 56,
             height: 56,

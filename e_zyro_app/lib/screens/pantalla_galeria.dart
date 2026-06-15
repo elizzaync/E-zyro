@@ -162,6 +162,7 @@ class _PantallaGaleriaState extends State<PantallaGaleria> {
                 child: CachedNetworkImage(
                   imageUrl: r.secureUrl,
                   fit: BoxFit.contain,
+                  memCacheWidth: 1440,
                   placeholder: (_, _) => const Center(child: CircularProgressIndicator()),
                   errorWidget: (_, _, _) =>
                       const Icon(Icons.broken_image, color: Colors.white54, size: 48),
@@ -294,6 +295,7 @@ class _PantallaGaleriaState extends State<PantallaGaleria> {
                   ? CachedNetworkImage(
                       imageUrl: r.secureUrl,
                       fit: BoxFit.cover,
+                      memCacheWidth: 300,
                       placeholder: (_, _) =>
                           Container(color: Colors.black12),
                       errorWidget: (_, _, _) =>

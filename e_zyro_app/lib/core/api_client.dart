@@ -6,11 +6,16 @@ import 'app_constants.dart';
 /// Low-level HTTP client — injects auth token, applies timeout, centralises
 /// error translation. All services receive an instance of this class.
 class ApiClient {
+  /// Cliente HTTP compartido por toda la app: reutiliza conexiones (keep-alive),
+  /// evitando un handshake TLS nuevo en cada request a Railway. Antes se creaba
+  /// un http.Client por servicio y nunca se cerraba (sin reúso + fuga de recursos).
+  static final http.Client _sharedHttp = http.Client();
+
   final SharedPreferences _prefs;
   final http.Client _http;
 
   ApiClient(this._prefs, {http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+      : _http = httpClient ?? _sharedHttp;
 
   String get _token => _prefs.getString('auth_token') ?? '';
 

@@ -258,6 +258,7 @@ class _Avatar extends StatelessWidget {
         child: CachedNetworkImage(
           imageUrl: fotoUrl!,
           width: 44, height: 44, fit: BoxFit.cover,
+          memCacheWidth: 150,
           placeholder: (_, _) => _initials(),
           errorWidget: (_, _, _) => _initials(),
         ),

@@ -147,6 +147,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     ? CachedNetworkImage(
                                         imageUrl: _fotoUrl,
                                         fit: BoxFit.cover,
+                                        memCacheWidth: 300,
                                         errorWidget: (context, error, _) =>
                                             const Icon(Icons.person, size: 50, color: _green),
                                       )
