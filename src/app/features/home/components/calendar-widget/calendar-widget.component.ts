@@ -70,6 +70,7 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
   }
 
   // ── CARGA DE DATOS ───────────────────────────────────────────────
@@ -225,6 +226,7 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
       this.cargandoServicio  = true;
       this.showServicioModal = true;
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
       this.dashboardService.getDetalleServicioDia(dia.fechaStr).subscribe({
         next: (res: any) => {
           this.serviciosDelDia  = res.data || [];
@@ -236,6 +238,7 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
       this.textoNota = this.notasGuardadas[dia.fechaStr] || '';
       this.showModal = true;
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     }
   }
 
@@ -243,6 +246,7 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
     this.showModal       = false;
     this.diaSeleccionado = null;
     document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
   }
 
   cerrarServicioModal(): void {
@@ -250,6 +254,7 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
     this.servicioModoNota  = false;
     this.serviciosDelDia   = [];
     document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
   }
 
   abrirNotaDesdeServicio(): void {
