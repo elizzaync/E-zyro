@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from app.models.contabilidad import CuentaContable, PeriodoContable
 from app.models.costeo_inventario import CostoPromedioMaterial
 from app.models.material import Material, Stock
+from app.models.almacen import Almacen
 from app.models.movimiento_inventario import MovimientoInventario
 from app.services import contabilizacion_service as contab
 from app.services.contabilizacion_service import LineaAsiento
@@ -387,10 +388,25 @@ def kardex_valorizado(db: Session, empresa_id: str, almacen_id: str | None = Non
         clave = (mat, alm)
         signo = Decimal("1") if tipo in ("entrada", "compra", "ajuste") else Decimal("-1")
         acc[clave] = acc.get(clave, CERO) + signo * _d2(valor)
+    # Resolver nombres (evita mostrar UUIDs en el kardex).
+    mat_ids = {mat for (mat, _a) in acc.keys() if mat is not None}
+    alm_ids = {alm for (_m, alm) in acc.keys() if alm is not None}
+    nom_mat: dict[str, tuple] = {}
+    if mat_ids:
+        for mid, nombre, codigo in db.query(
+                Material.id, Material.nombre, Material.codigo).filter(Material.id.in_(mat_ids)).all():
+            nom_mat[str(mid)] = (nombre, codigo)
+    nom_alm: dict[str, str] = {}
+    if alm_ids:
+        for aid, nombre in db.query(Almacen.id, Almacen.nombre).filter(Almacen.id.in_(alm_ids)).all():
+            nom_alm[str(aid)] = nombre
     return [
         {
             "material_id": str(mat) if mat is not None else None,
+            "material_nombre": nom_mat.get(str(mat), (None, None))[0] if mat is not None else None,
+            "material_codigo": nom_mat.get(str(mat), (None, None))[1] if mat is not None else None,
             "almacen_id": str(alm) if alm is not None else None,
+            "almacen_nombre": nom_alm.get(str(alm)) if alm is not None else None,
             "saldo_valorizado": saldo,
         }
         for (mat, alm), saldo in acc.items()

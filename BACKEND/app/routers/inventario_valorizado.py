@@ -33,7 +33,10 @@ class CostoPromedioOut(BaseModel):
 
 class KardexFilaOut(BaseModel):
     material_id: str
+    material_nombre: Optional[str] = None
+    material_codigo: Optional[str] = None
     almacen_id: Optional[str] = None
+    almacen_nombre: Optional[str] = None
     saldo_valorizado: Decimal
 
 
