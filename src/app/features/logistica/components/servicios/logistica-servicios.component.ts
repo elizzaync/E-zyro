@@ -60,19 +60,7 @@ export class LogisticaServiciosComponent implements OnInit {
     return !!(this.busqueda || this.filtroEstado || this.filtroCliente || this.filtroUbicacion);
   }
 
-  get chipsFiltros(): { label: string; campo: string }[] {
-    const chips: { label: string; campo: string }[] = [];
-    if (this.filtroEstado)    chips.push({ label: this.estadoLabel(this.filtroEstado), campo: 'filtroEstado' });
-    if (this.filtroCliente)   chips.push({ label: this.filtroCliente,   campo: 'filtroCliente' });
-    if (this.filtroUbicacion) chips.push({ label: this.filtroUbicacion, campo: 'filtroUbicacion' });
-    if (this.busqueda)        chips.push({ label: `"${this.busqueda}"`, campo: 'busqueda' });
-    return chips;
-  }
-
-  quitarChip(campo: string): void {
-    (this as any)[campo] = '';
-    this.page = 1;
-  }
+  setEstado(e: string): void { this.filtroEstado = e; this.page = 1; }
 
   limpiarFiltros(): void {
     this.busqueda = '';

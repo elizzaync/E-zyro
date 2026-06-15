@@ -101,7 +101,7 @@
   width: 16px; height: 16px; color: var(--text-muted, #94a3b8); pointer-events: none;
 }
 .search-input {
-  width: 100%; padding: 9px 14px 9px 38px;
+  width: 100%; padding: 9px 36px 9px 38px;
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 9px;
   background: var(--card-bg, #fff);
@@ -111,6 +111,14 @@
   box-sizing: border-box;
 }
 .search-input:focus { border-color: var(--brand-green, #8dc63f); }
+.search-clear {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted, #94a3b8); padding: 2px;
+  display: flex; align-items: center; transition: color 0.15s;
+}
+.search-clear svg { width: 13px; height: 13px; }
+.search-clear:hover { color: #dc2626; }
 
 .select-wrap {
   position: relative; flex: 1; min-width: 150px;
@@ -143,28 +151,42 @@
 .btn-limpiar:hover { border-color: #dc2626; color: #dc2626; }
 .btn-limpiar svg { width: 14px; height: 14px; }
 
-/* Chips de filtros activos */
-.chips-bar {
-  display: flex; align-items: center; gap: 8px;
+/* Pills de estado */
+.estado-pills {
+  display: flex; align-items: center; gap: 6px;
   flex-wrap: wrap; margin-top: 10px;
 }
-.chips-label { font-size: 12px; font-weight: 600; color: var(--text-muted, #64748b); }
-.chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  background: rgba(141,198,63,0.1);
-  border: 1px solid rgba(141,198,63,0.35);
-  color: #3d6010;
-  padding: 3px 10px 3px 10px;
-  border-radius: 20px; font-size: 12px; font-weight: 600;
+.estado-pill {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  background: var(--card-bg, #fff);
+  font-size: 12.5px; font-weight: 600;
+  color: var(--text-muted, #64748b);
+  cursor: pointer; transition: all 0.15s;
+  white-space: nowrap;
 }
-.chip-x {
-  display: flex; align-items: center;
-  background: none; border: none; cursor: pointer;
-  color: #5a8a20; padding: 0; margin-left: 2px;
-  transition: color 0.15s;
+.estado-pill:hover { border-color: var(--brand-green, #8dc63f); color: var(--brand-green, #5a8a20); }
+
+/* Todos — activo */
+.estado-pill.pill-activo:not(.pill-pendiente):not(.pill-proceso):not(.pill-pausa):not(.pill-completado):not(.pill-cancelado) {
+  background: var(--brand-green, #8dc63f); border-color: var(--brand-green, #8dc63f); color: #fff;
 }
-.chip-x:hover { color: #dc2626; }
-.chip-x svg { width: 11px; height: 11px; }
+/* Pendiente */
+.pill-pendiente { color: #b45309; border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.06); }
+.pill-pendiente.pill-activo { background: rgba(245,158,11,.18); border-color: #f59e0b; }
+/* En Proceso */
+.pill-proceso { color: #1d4ed8; border-color: rgba(59,130,246,.35); background: rgba(59,130,246,.06); }
+.pill-proceso.pill-activo { background: rgba(59,130,246,.18); border-color: #3b82f6; }
+/* En Pausa */
+.pill-pausa { color: #6d28d9; border-color: rgba(139,92,246,.35); background: rgba(139,92,246,.06); }
+.pill-pausa.pill-activo { background: rgba(139,92,246,.18); border-color: #8b5cf6; }
+/* Completado */
+.pill-completado { color: #15803d; border-color: rgba(34,197,94,.35); background: rgba(34,197,94,.06); }
+.pill-completado.pill-activo { background: rgba(34,197,94,.18); border-color: #22c55e; }
+/* Cancelado */
+.pill-cancelado { color: #b91c1c; border-color: rgba(239,68,68,.35); background: rgba(239,68,68,.06); }
+.pill-cancelado.pill-activo { background: rgba(239,68,68,.18); border-color: #ef4444; }
 
 /* ── ESTADOS ── */
 .estado-badge {
