@@ -662,6 +662,29 @@
 }
 .geo-add-cancel:hover { border-color: var(--csm-border2); }
 
+/* ─── Picker de proyecto (Solo Servicio desde Logística) ─────────────── */
+.csm-divider {
+  border: none; border-top: 1px solid var(--csm-border); margin: 4px 0 8px;
+}
+.proyecto-panel { max-height: 280px; }
+.proyecto-opt {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 14px; cursor: pointer;
+  border-bottom: 1px solid var(--csm-border);
+  transition: background .15s;
+}
+.proyecto-opt:last-child { border-bottom: none; }
+.proyecto-opt:hover { background: var(--csm-surface2); }
+.po-nombre { font-size: 13.5px; font-weight: 600; color: var(--csm-text); }
+.po-meta   { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--csm-muted); }
+.po-ot     { font-family: monospace; font-size: 11px; background: var(--csm-surface); padding: 1px 6px; border-radius: 4px; color: var(--csm-dimmed); }
+.po-estado { padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.ep-pendiente  { background: rgba(245,158,11,.1);  color: #b45309; }
+.ep-proceso    { background: rgba(59,130,246,.1);   color: #1d4ed8; }
+.ep-pausa      { background: rgba(139,92,246,.1);   color: #6d28d9; }
+.ep-completado { background: rgba(34,197,94,.1);    color: #15803d; }
+.ep-cancelado  { background: rgba(239,68,68,.1);    color: #b91c1c; }
+
 /* ── Toggle: Inspección de Equipos Intervenidos ─────────────────────── */
 .toggle-ei-wrap {
   display: flex;

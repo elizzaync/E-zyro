@@ -28,7 +28,8 @@ export interface PersonaServicio {
 
 export type TipoDocumentoCliente = 'OC' | 'PROF' | 'SIN_OC';
 
-interface GeoItem { id: string; nombre: string; }
+interface GeoItem        { id: string; nombre: string; }
+interface ProyectoBasico { id: string; nombre: string; cliente: string; orden_trabajo: string; estado: string; }
 
 @Component({
   selector: 'app-crear-servicio-modal',
@@ -38,7 +39,9 @@ interface GeoItem { id: string; nombre: string; }
   styleUrls: ['./crear-servicio-modal.component.css']
 })
 export class CrearServicioModalComponent implements OnInit, OnDestroy {
-  @Input() proyectoId!: string;
+  /** Cuando viene de la vista de detalle de proyecto, se pasa el proyectoId.
+   *  Cuando viene de Logística (Solo Servicio), no se pasa y el modal muestra un picker. */
+  @Input() proyectoId?: string;
   @Input() mode: 'crear' | 'editar' = 'crear';
   @Input() servicioId: string | null = null;
   @Output() closed = new EventEmitter<{ guardado: boolean }>();
@@ -62,6 +65,16 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
   cargandoCatalogo     = false;
   cargandoLideres      = false;
   cargandoResponsables = false;
+
+  // ── Picker de proyecto (cuando proyectoId no viene del padre) ────────
+  proyectos:           ProyectoBasico[] = [];
+  cargandoProyectos    = false;
+  proyectoExistenteId  = '';
+  proyectoSelLabel     = '';
+  proyectoSearch       = '';
+  showProyectoDrop     = false;
+
+  get esPickingProyecto(): boolean { return !this.proyectoId; }
 
   // ── Catálogos geográficos ──────────────────────────────────────────
   ubicaciones: GeoItem[] = [];
@@ -107,6 +120,7 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
     this._cargarLideres();
     this._cargarResponsables();
     this._cargarUbicaciones();
+    if (this.esPickingProyecto) { this._cargarProyectos(); }
     if (this.mode === 'editar' && this.servicioId) {
       this._precargarServicio();
     }
@@ -157,6 +171,56 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
         if (tipo === 'SIN_OC') { ctrl.setValue(''); ctrl.disable({ emitEvent: false }); }
         else { ctrl.enable({ emitEvent: false }); }
       });
+  }
+
+  // ── Proyecto picker ───────────────────────────────────────────────
+  private _cargarProyectos(): void {
+    this.cargandoProyectos = true;
+    this.svc.getProyectos().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res: any) => {
+        const lista = Array.isArray(res) ? res : (res.proyectos ?? []);
+        this.proyectos = lista.map((p: any) => ({
+          id:            String(p.id ?? ''),
+          nombre:        String(p.nombre_proyecto ?? p.nombre ?? ''),
+          cliente:       String(p.cliente ?? ''),
+          orden_trabajo: String(p.orden_trabajo ?? ''),
+          estado:        String(p.estado ?? ''),
+        }));
+        this.cargandoProyectos = false;
+      },
+      error: () => { this.cargandoProyectos = false; }
+    });
+  }
+
+  get proyectosFiltrados(): ProyectoBasico[] {
+    const q = this.proyectoSearch.toLowerCase();
+    return q
+      ? this.proyectos.filter(p =>
+          p.nombre.toLowerCase().includes(q) ||
+          p.cliente.toLowerCase().includes(q) ||
+          p.orden_trabajo.toLowerCase().includes(q)
+        )
+      : this.proyectos;
+  }
+
+  toggleProyectoDrop(): void { this.showProyectoDrop = !this.showProyectoDrop; this.proyectoSearch = ''; }
+
+  selProyecto(p: ProyectoBasico): void {
+    this.proyectoExistenteId = p.id;
+    this.proyectoSelLabel    = `${p.nombre}  ·  ${p.cliente}`;
+    this.showProyectoDrop    = false;
+    this.proyectoSearch      = '';
+    this.errorMsg            = '';
+  }
+
+  limpiarProyecto(): void { this.proyectoExistenteId = ''; this.proyectoSelLabel = ''; }
+
+  estadoProyectoClass(estado: string): string {
+    const m: Record<string, string> = {
+      'Pendiente': 'ep-pendiente', 'En_Proceso': 'ep-proceso',
+      'En_Pausa': 'ep-pausa', 'Completado': 'ep-completado', 'Cancelado': 'ep-cancelado',
+    };
+    return m[estado] ?? 'ep-pendiente';
   }
 
   // ── Loaders ───────────────────────────────────────────────────────
@@ -367,6 +431,10 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
   // ── Guardar ───────────────────────────────────────────────────────
   guardar(): void {
     this.errorMsg = '';
+    if (this.esPickingProyecto && !this.proyectoExistenteId) {
+      this.errorMsg = 'Selecciona el proyecto al que pertenece el servicio.';
+      return;
+    }
     this.form.markAllAsTouched();
     if (this.form.invalid) {
       this.errorMsg = 'Completa los campos requeridos (Nombre y Tipo de Servicio).';
@@ -411,9 +479,10 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
   }
 
   private _ejecutarGuardar(payload: object, justificacion?: string): void {
+    const pid = this.proyectoId ?? this.proyectoExistenteId;
     const obs = this.mode === 'editar' && this.servicioId
       ? this.svc.actualizarServicio(this.servicioId, payload, justificacion)
-      : this.svc.crearServicio(this.proyectoId, payload);
+      : this.svc.crearServicio(pid!, payload);
 
     obs.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => { this.guardando = false; this.closed.emit({ guardado: true }); },

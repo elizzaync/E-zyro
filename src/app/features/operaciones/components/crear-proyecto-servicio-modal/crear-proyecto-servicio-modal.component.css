@@ -81,40 +81,6 @@
 .cpsm-close svg { width: 16px; height: 16px; }
 .cpsm-close:hover { background: rgba(239,68,68,.12); border-color: #ef4444; color: #ef4444; }
 
-/* ── Modo toggle ── */
-.modo-toggle {
-  display: flex; gap: 6px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--cpm-border);
-  background: var(--cpm-surface);
-  flex-shrink: 0;
-}
-.modo-btn {
-  display: flex; align-items: center; gap: 7px;
-  padding: 8px 14px;
-  border: 1.5px solid var(--cpm-border);
-  border-radius: 9px;
-  background: var(--cpm-bg);
-  color: var(--cpm-muted);
-  font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif;
-  cursor: pointer; transition: all .18s;
-}
-.modo-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
-.modo-btn:hover { border-color: var(--cpm-accent); color: var(--cpm-accent); }
-.modo-btn.active {
-  border-color: var(--cpm-accent);
-  background: var(--cpm-accent-dim);
-  color: var(--cpm-accent);
-  box-shadow: 0 0 0 3px var(--cpm-accent-glow);
-}
-.modo-chip {
-  font-size: 10px; font-weight: 700; padding: 1px 7px;
-  background: rgba(59,130,246,.1); color: #3b82f6;
-  border-radius: 4px; text-transform: uppercase; letter-spacing: .04em;
-  white-space: nowrap;
-}
-.modo-btn.active .modo-chip { background: rgba(90,138,32,.12); color: var(--cpm-accent); }
-
 /* ── Steps ── */
 .cpsm-steps {
   display: flex; align-items: center;
@@ -235,40 +201,6 @@
 }
 .geo-option:hover { background: var(--cpm-surface); }
 .geo-empty { padding: 10px 14px; font-size: 13px; color: var(--cpm-dimmed); text-align: center; }
-
-/* ── Proyecto picker ── */
-.geo-sel-placeholder { color: var(--cpm-dimmed) !important; }
-.geo-dropdown--error .geo-selected { border-color: #ef4444; }
-
-.proyecto-drop-panel {
-  max-height: 260px;
-}
-.proyecto-option {
-  padding: 10px 14px; cursor: pointer;
-  border-bottom: 1px solid var(--cpm-border);
-  transition: background .15s;
-}
-.proyecto-option:last-child { border-bottom: none; }
-.proyecto-option:hover { background: var(--cpm-surface); }
-.po-nombre { font-size: 13.5px; font-weight: 600; color: var(--cpm-text); margin-bottom: 4px; }
-.po-meta {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  font-size: 12px; color: var(--cpm-muted);
-}
-.po-ot {
-  font-family: monospace; font-size: 11px;
-  background: var(--cpm-surface); padding: 1px 6px; border-radius: 4px;
-  color: var(--cpm-dimmed);
-}
-.po-estado {
-  padding: 1px 8px; border-radius: 10px;
-  font-size: 11px; font-weight: 700; white-space: nowrap;
-}
-.ep-pendiente  { background: rgba(245,158,11,.1);  color: #b45309; }
-.ep-proceso    { background: rgba(59,130,246,.1);   color: #1d4ed8; }
-.ep-pausa      { background: rgba(139,92,246,.1);   color: #6d28d9; }
-.ep-completado { background: rgba(34,197,94,.1);    color: #15803d; }
-.ep-cancelado  { background: rgba(239,68,68,.1);    color: #b91c1c; }
 
 /* ── Footer ── */
 .cpsm-footer {

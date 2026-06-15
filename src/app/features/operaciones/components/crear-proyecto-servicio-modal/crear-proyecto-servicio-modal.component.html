@@ -5,30 +5,15 @@
     <header class="cpsm-header">
       <div class="cpsm-header-left">
         <div class="cpsm-icon">
-          @if (modo === 'nuevo') {
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-              <line x1="12" y1="11" x2="12" y2="17"/>
-              <line x1="9" y1="14" x2="15" y2="14"/>
-            </svg>
-          } @else {
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="12" y1="11" x2="12" y2="17"/>
-              <line x1="9" y1="14" x2="15" y2="14"/>
-            </svg>
-          }
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
         </div>
         <div>
-          <h2 class="cpsm-title">
-            {{ modo === 'nuevo' ? 'Nuevo Proyecto + Servicio' : 'Agregar Servicio' }}
-          </h2>
-          <p class="cpsm-subtitle">
-            {{ modo === 'nuevo'
-              ? (paso === 1 ? 'Paso 1 de 2 · Datos del proyecto' : 'Paso 2 de 2 · Datos del servicio')
-              : 'Selecciona el proyecto y completa los datos del servicio' }}
-          </p>
+          <h2 class="cpsm-title">Nuevo Proyecto + Servicio</h2>
+          <p class="cpsm-subtitle">{{ paso === 1 ? 'Paso 1 de 2 · Datos del proyecto' : 'Paso 2 de 2 · Datos del servicio' }}</p>
         </div>
       </div>
       <button class="cpsm-close" type="button" (click)="cerrar()">
@@ -38,30 +23,7 @@
       </button>
     </header>
 
-    <!-- ═══ MODO TOGGLE ═══ -->
-    <div class="modo-toggle">
-      <button class="modo-btn" [class.active]="modo === 'nuevo'" type="button" (click)="cambiarModo('nuevo')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          <line x1="12" y1="11" x2="12" y2="17"/>
-          <line x1="9" y1="14" x2="15" y2="14"/>
-        </svg>
-        Nuevo Proyecto + Servicio
-      </button>
-      <button class="modo-btn" [class.active]="modo === 'existente'" type="button" (click)="cambiarModo('existente')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="11" x2="12" y2="17"/>
-          <line x1="9" y1="14" x2="15" y2="14"/>
-        </svg>
-        Solo Servicio
-        <span class="modo-chip">proyecto existente</span>
-      </button>
-    </div>
-
-    <!-- ═══ WIZARD STEPS (solo modo nuevo) ═══ -->
-    @if (modo === 'nuevo') {
+    <!-- ═══ WIZARD STEPS ═══ -->
     <nav class="cpsm-steps">
       <button class="cpsm-step" [class.active]="paso === 1" [class.done]="paso > 1" (click)="paso > 1 && (paso = 1)" type="button">
         <span class="step-bubble">
@@ -77,13 +39,12 @@
         <span class="step-label">Servicio</span>
       </button>
     </nav>
-    }
 
     <!-- ═══ BODY ═══ -->
     <div class="cpsm-body">
 
-      <!-- ─── MODO: Nuevo — PASO 1: PROYECTO ─── -->
-      @if (modo === 'nuevo' && paso === 1) {
+      <!-- ─── PASO 1: PROYECTO ─── -->
+      @if (paso === 1) {
       <div class="cpsm-section fade-in-section" [formGroup]="fProyecto">
 
         <div class="field-group">
@@ -145,53 +106,9 @@
       </div>
       }
 
-      <!-- ─── FORMULARIO DE SERVICIO (modo nuevo paso 2 + modo existente) ─── -->
-      @if ((modo === 'nuevo' && paso === 2) || modo === 'existente') {
+      <!-- ─── PASO 2: SERVICIO ─── -->
+      @if (paso === 2) {
       <div class="cpsm-section fade-in-section" [formGroup]="fServicio">
-
-        <!-- Picker de proyecto (solo modo existente) -->
-        @if (modo === 'existente') {
-        <div class="field-group">
-          <label class="field-label">Proyecto *</label>
-          @if (cargandoProyectos) {
-            <div class="field-loading"><app-spinner></app-spinner><span>Cargando proyectos…</span></div>
-          } @else {
-          <div class="geo-dropdown" [class.geo-dropdown--error]="!proyectoExistenteId && errorMsg" (click)="toggleProyectoDrop()">
-            <div class="geo-selected">
-              <span class="geo-sel-label" [class.geo-sel-placeholder]="!proyectoSelLabel">
-                {{ proyectoSelLabel || 'Seleccionar proyecto' }}
-              </span>
-              @if (proyectoSelLabel) {
-                <button type="button" class="geo-clear" (click)="$event.stopPropagation(); limpiarProyecto()">✕</button>
-              }
-              <svg class="geo-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </div>
-            @if (showProyectoDrop) {
-            <div class="geo-drop-panel proyecto-drop-panel" (click)="$event.stopPropagation()">
-              <input class="geo-search" [(ngModel)]="proyectoSearch" [ngModelOptions]="{standalone:true}"
-                placeholder="Buscar por nombre, cliente u OT..."
-                (click)="$event.stopPropagation()">
-              @for (p of proyectosFiltrados; track p.id) {
-                <div class="proyecto-option" (click)="selProyecto(p)">
-                  <div class="po-nombre">{{ p.nombre }}</div>
-                  <div class="po-meta">
-                    <span>{{ p.cliente }}</span>
-                    @if (p.orden_trabajo) { <span class="po-ot">OT {{ p.orden_trabajo }}</span> }
-                    <span class="po-estado" [class]="estadoProyectoClass(p.estado)">{{ estadoLabel(p.estado) }}</span>
-                  </div>
-                </div>
-              }
-              @if (proyectosFiltrados.length === 0) {
-                <div class="geo-empty">Sin proyectos{{ proyectoSearch ? ' con esa búsqueda' : '' }}</div>
-              }
-            </div>
-            }
-          </div>
-          }
-        </div>
-        }
 
         <div class="field-group">
           <label class="field-label">Nombre del Servicio *</label>
@@ -331,42 +248,28 @@
       }
       <div class="footer-actions">
         <button class="btn-cancel" type="button" (click)="cerrar()">Cancelar</button>
-
-        @if (modo === 'nuevo') {
-          @if (paso === 2) {
-          <button class="btn-secondary" type="button" (click)="anterior()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-            Anterior
-          </button>
-          }
-          @if (paso === 1) {
-          <button class="btn-primary" type="button" (click)="siguiente()">
-            Siguiente
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-          } @else {
-          <button class="btn-save" type="button" [disabled]="guardando" (click)="guardar()">
-            @if (guardando) { <app-spinner></app-spinner> Guardando… }
-            @else {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                <polyline points="17 21 17 13 7 13 7 21"/>
-              </svg>
-              Crear Proyecto + Servicio
-            }
-          </button>
-          }
+        @if (paso === 2) {
+        <button class="btn-secondary" type="button" (click)="anterior()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Anterior
+        </button>
+        }
+        @if (paso === 1) {
+        <button class="btn-primary" type="button" (click)="siguiente()">
+          Siguiente
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
         } @else {
-          <button class="btn-save" type="button" [disabled]="guardando" (click)="guardar()">
-            @if (guardando) { <app-spinner></app-spinner> Guardando… }
-            @else {
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-                <polyline points="17 21 17 13 7 13 7 21"/>
-              </svg>
-              Agregar Servicio
-            }
-          </button>
+        <button class="btn-save" type="button" [disabled]="guardando" (click)="guardar()">
+          @if (guardando) { <app-spinner></app-spinner> Guardando… }
+          @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+            </svg>
+            Crear Proyecto + Servicio
+          }
+        </button>
         }
       </div>
     </footer>

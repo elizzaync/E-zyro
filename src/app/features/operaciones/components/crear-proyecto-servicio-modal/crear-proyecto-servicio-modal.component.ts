@@ -8,11 +8,10 @@ import { Subject, switchMap, takeUntil } from 'rxjs';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
-interface ClienteBasico  { id: string; razon_social: string; ruc: string | null; }
-interface CatalogoSvc    { id: string; nombre: string; tipo_trabajo: string; }
-interface PersonaSvc     { id: string; nombre: string; apellido: string; cargo: string | null; }
-interface GeoItem        { id: string; nombre: string; }
-interface ProyectoBasico { id: string; nombre: string; cliente: string; orden_trabajo: string; estado: string; }
+interface ClienteBasico { id: string; razon_social: string; ruc: string | null; }
+interface CatalogoSvc   { id: string; nombre: string; tipo_trabajo: string; }
+interface PersonaSvc    { id: string; nombre: string; apellido: string; cargo: string | null; }
+interface GeoItem       { id: string; nombre: string; }
 
 @Component({
   selector: 'app-crear-proyecto-servicio-modal',
@@ -28,9 +27,6 @@ export class CrearProyectoServicioModalComponent implements OnInit, OnDestroy {
   private svc      = inject(OperacionesService);
   private destroy$ = new Subject<void>();
 
-  // ── Modo ─────────────────────────────────────────────────────────
-  modo: 'nuevo' | 'existente' = 'nuevo';
-
   paso: 1 | 2 = 1;
   guardando   = false;
   errorMsg    = '';
@@ -41,14 +37,11 @@ export class CrearProyectoServicioModalComponent implements OnInit, OnDestroy {
   lideres:      PersonaSvc[]    = [];
   ubicaciones:  GeoItem[]       = [];
   zonas:        GeoItem[]       = [];
-  proyectos:    ProyectoBasico[] = [];
-
   cargandoClientes    = false;
   cargandoCatalogo    = false;
   cargandoLideres     = false;
   cargandoUbicaciones = false;
   cargandoZonas       = false;
-  cargandoProyectos   = false;
 
   // ── Geo pickers ──────────────────────────────────────────────────
   ubicSelLabel = '';
@@ -57,12 +50,6 @@ export class CrearProyectoServicioModalComponent implements OnInit, OnDestroy {
   showZonaDrop = false;
   ubicSearch   = '';
   zonaSearch   = '';
-
-  // ── Proyecto existente picker ─────────────────────────────────────
-  proyectoExistenteId  = '';
-  proyectoSelLabel     = '';
-  proyectoSearch       = '';
-  showProyectoDrop     = false;
 
   estadosProyecto = ['Pendiente', 'En_Proceso', 'En_Pausa', 'Completado', 'Cancelado'];
   tiposDoc = [
@@ -159,70 +146,6 @@ export class CrearProyectoServicioModalComponent implements OnInit, OnDestroy {
       error: () => { this.cargandoUbicaciones = false; }
     });
 
-    this.cargandoProyectos = true;
-    this.svc.getProyectos().pipe(takeUntil(this.destroy$)).subscribe({
-      next: (res: any) => {
-        const lista = Array.isArray(res) ? res : (res.proyectos ?? []);
-        this.proyectos = lista.map((p: any) => ({
-          id:            String(p.id ?? ''),
-          nombre:        String(p.nombre_proyecto ?? p.nombre ?? ''),
-          cliente:       String(p.cliente ?? ''),
-          orden_trabajo: String(p.orden_trabajo ?? ''),
-          estado:        String(p.estado ?? ''),
-        }));
-        this.cargandoProyectos = false;
-      },
-      error: () => { this.cargandoProyectos = false; }
-    });
-  }
-
-  // ── Modo toggle ───────────────────────────────────────────────────
-  cambiarModo(m: 'nuevo' | 'existente'): void {
-    if (this.modo === m) return;
-    this.modo = m;
-    this.paso = 1;
-    this.errorMsg = '';
-    this.proyectoExistenteId = '';
-    this.proyectoSelLabel = '';
-    this.proyectoSearch = '';
-    this.showProyectoDrop = false;
-    this.ubicSelLabel = '';
-    this.zonaSelLabel = '';
-    this.showUbicDrop = false;
-    this.showZonaDrop = false;
-    this.fServicio.reset({ tipo_documento_cliente: 'SIN_OC' });
-  }
-
-  // ── Proyecto existente picker ─────────────────────────────────────
-  get proyectosFiltrados(): ProyectoBasico[] {
-    const q = this.proyectoSearch.toLowerCase();
-    return q
-      ? this.proyectos.filter(p =>
-          p.nombre.toLowerCase().includes(q) ||
-          p.cliente.toLowerCase().includes(q) ||
-          p.orden_trabajo.toLowerCase().includes(q)
-        )
-      : this.proyectos;
-  }
-
-  toggleProyectoDrop(): void { this.showProyectoDrop = !this.showProyectoDrop; this.proyectoSearch = ''; }
-
-  selProyecto(p: ProyectoBasico): void {
-    this.proyectoExistenteId = p.id;
-    this.proyectoSelLabel = `${p.nombre}  ·  ${p.cliente}`;
-    this.showProyectoDrop = false;
-    this.proyectoSearch = '';
-    this.errorMsg = '';
-  }
-
-  limpiarProyecto(): void { this.proyectoExistenteId = ''; this.proyectoSelLabel = ''; }
-
-  estadoProyectoClass(estado: string): string {
-    const m: Record<string, string> = {
-      'Pendiente': 'ep-pendiente', 'En_Proceso': 'ep-proceso',
-      'En_Pausa': 'ep-pausa', 'Completado': 'ep-completado', 'Cancelado': 'ep-cancelado',
-    };
-    return m[estado] ?? 'ep-pendiente';
   }
 
   // ── Geo helpers ──────────────────────────────────────────────────
@@ -287,25 +210,6 @@ export class CrearProyectoServicioModalComponent implements OnInit, OnDestroy {
       estado:               'Pendiente',
     };
 
-    // ── Modo: agregar servicio a proyecto existente ───────────────
-    if (this.modo === 'existente') {
-      if (!this.proyectoExistenteId) { this.errorMsg = 'Selecciona el proyecto al que pertenece el servicio.'; return; }
-      this.errorMsg = '';
-      this.guardando = true;
-      this.svc.crearServicio(this.proyectoExistenteId, payloadServicio).pipe(takeUntil(this.destroy$)).subscribe({
-        next: (servicio: any) => {
-          this.guardando = false;
-          this.closed.emit({ guardado: true, proyectoId: this.proyectoExistenteId, servicioId: servicio?.id });
-        },
-        error: (err: any) => {
-          this.guardando = false;
-          this.errorMsg = err?.error?.detail ?? 'Error al guardar. Verifica los datos.';
-        }
-      });
-      return;
-    }
-
-    // ── Modo: crear proyecto + servicio ───────────────────────────
     this.errorMsg = '';
     this.guardando = true;
 

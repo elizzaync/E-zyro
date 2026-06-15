@@ -24,6 +24,8 @@
 .page-title   { margin: 0; font-size: 28px; font-weight: 800; color: var(--text-main, #0f172a); }
 .page-subtitle { margin: 6px 0 0; font-size: 15px; font-weight: 500; color: var(--text-muted, #64748b); }
 
+.crear-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
 .btn-nuevo {
   display: flex; align-items: center; gap: 8px;
   background: var(--brand-green, #8dc63f);
@@ -35,7 +37,21 @@
   white-space: nowrap;
 }
 .btn-nuevo:hover { opacity: 0.88; }
-.btn-nuevo svg { width: 18px; height: 18px; }
+.btn-nuevo svg { width: 16px; height: 16px; }
+
+.btn-solo-svc {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--card-bg, #fff);
+  color: var(--text-main, #1e293b);
+  border: 1.5px solid var(--brand-green, #8dc63f);
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btn-solo-svc:hover { background: var(--brand-green, #8dc63f); color: #fff; }
+.btn-solo-svc svg { width: 16px; height: 16px; }
 
 /* ── KPIs ── */
 .kpi-grid {

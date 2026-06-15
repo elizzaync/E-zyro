@@ -6,12 +6,13 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { CrearProyectoServicioModalComponent } from '../../../operaciones/components/crear-proyecto-servicio-modal/crear-proyecto-servicio-modal.component';
+import { CrearServicioModalComponent } from '../../../operaciones/components/crear-servicio-modal/crear-servicio-modal.component';
 import { ToastService } from '../../../../core/services/toast.service';
 
 @Component({
   selector: 'app-logistica-servicios',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, CrearProyectoServicioModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, CrearProyectoServicioModalComponent, CrearServicioModalComponent],
   templateUrl: './logistica-servicios.component.html',
   styleUrls: ['./logistica-servicios.component.css'],
 })
@@ -33,6 +34,7 @@ export class LogisticaServiciosComponent implements OnInit {
   readonly PER_PAGE = 10;
 
   showCrearProyectoModal = false;
+  showCrearServicioModal = false;
 
   get isTecnico(): boolean {
     return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
@@ -158,9 +160,18 @@ export class LogisticaServiciosComponent implements OnInit {
   }
 
   abrirCrearProyecto(): void { this.showCrearProyectoModal = true; }
+  abrirCrearServicio(): void { this.showCrearServicioModal = true; }
 
   onCrearClosed(result: { guardado: boolean; proyectoId?: string; servicioId?: string }): void {
     this.showCrearProyectoModal = false;
+    if (result.guardado) {
+      this.toast.mostrar('Proyecto y servicio creados exitosamente', 'success');
+      this.cargar();
+    }
+  }
+
+  onCrearServicioClosed(result: { guardado: boolean }): void {
+    this.showCrearServicioModal = false;
     if (result.guardado) {
       this.toast.mostrar('Servicio creado exitosamente', 'success');
       this.cargar();

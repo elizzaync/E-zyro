@@ -37,6 +37,58 @@
 
       <div class="csm-section">
 
+        <!-- Picker de proyecto (solo cuando no viene proyectoId del padre) -->
+        @if (esPickingProyecto) {
+        <div class="field-group">
+          <label class="field-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            Proyecto *
+          </label>
+          @if (cargandoProyectos) {
+            <div class="field-loading"><app-spinner></app-spinner><span>Cargando proyectos…</span></div>
+          } @else {
+          <div class="geo-dropdown">
+            <div class="geo-trigger" [class.open]="showProyectoDrop" (click)="toggleProyectoDrop()">
+              @if (proyectoSelLabel) {
+                <span class="geo-value">{{ proyectoSelLabel }}</span>
+                <button class="geo-clear" type="button" (click)="$event.stopPropagation(); limpiarProyecto()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              } @else {
+                <span class="geo-placeholder">— Seleccionar proyecto —</span>
+                <svg class="geo-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              }
+            </div>
+            @if (showProyectoDrop) {
+            <div class="geo-panel proyecto-panel">
+              <input class="geo-search" type="text" placeholder="Buscar por nombre, cliente u OT…"
+                     [(ngModel)]="proyectoSearch" [ngModelOptions]="{standalone:true}"
+                     (click)="$event.stopPropagation()" autofocus>
+              <ul class="geo-list">
+                @for (p of proyectosFiltrados; track p.id) {
+                  <li class="proyecto-opt" (click)="selProyecto(p)">
+                    <span class="po-nombre">{{ p.nombre }}</span>
+                    <span class="po-meta">
+                      <span>{{ p.cliente }}</span>
+                      @if (p.orden_trabajo) { <span class="po-ot">OT {{ p.orden_trabajo }}</span> }
+                      <span class="po-estado" [class]="estadoProyectoClass(p.estado)">{{ estadoLabel(p.estado) }}</span>
+                    </span>
+                  </li>
+                }
+                @if (proyectosFiltrados.length === 0) {
+                  <li class="geo-empty">Sin proyectos{{ proyectoSearch ? ' con esa búsqueda' : '' }}</li>
+                }
+              </ul>
+            </div>
+            }
+          </div>
+          }
+        </div>
+        <hr class="csm-divider">
+        }
+
         <!-- Intro -->
         <p class="section-intro">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
