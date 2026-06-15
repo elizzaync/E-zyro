@@ -70,6 +70,7 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   detalleTotalDias   = 0;
   readonly DETALLE_PER_PAGE = 10;
 
+  showModalDetalle          = false;
   showModalAdv              = false;
   empleadoSeleccionado: ResumenEmpleadoDto | null = null;
   advCargando               = false;
@@ -255,8 +256,11 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   // ── Detalle diario (panel expandible en tab semanal) ───────────────────────
 
   abrirDetalle(emp: ResumenEmpleadoDto): void {
-    if (this.empleadoDetalle?.id === emp.id) { this.empleadoDetalle = null; return; }
-    this.empleadoDetalle = emp; this.detallePage = 1; this.cargarDetalle();
+    this.empleadoDetalle = emp; this.detallePage = 1;
+    this.showModalDetalle = true; this.cargarDetalle();
+  }
+  cerrarModalDetalle(): void {
+    this.showModalDetalle = false; this.empleadoDetalle = null;
   }
   private cargarDetalle(): void {
     if (!this.empleadoDetalle) return;

@@ -251,8 +251,7 @@
                 </tr>
               }
               @for (emp of filteredEmpleados; track emp.id) {
-                <tr [class.row-falta]="emp.horas_faltantes > 0"
-                    [class.row-expanded]="empleadoDetalle?.id === emp.id">
+                <tr [class.row-falta]="emp.horas_faltantes > 0">
                   <td>
                     <div class="emp-cell">
                       <div class="emp-avatar">
@@ -323,116 +322,12 @@
                     </td>
                   }
                   <td class="text-center">
-                    <button class="btn-detalle" [class.active]="empleadoDetalle?.id === emp.id" (click)="abrirDetalle(emp)" title="Ver detalle diario">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline [attr.points]="empleadoDetalle?.id === emp.id ? '18 15 12 9 6 15' : '6 9 12 15 18 9'"/></svg>
+                    <button class="btn-detalle" (click)="abrirDetalle(emp)" title="Ver detalle diario">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      Ver
                     </button>
                   </td>
                 </tr>
-
-                <!-- Panel detalle diario -->
-                @if (empleadoDetalle?.id === emp.id) {
-                  <tr>
-                    <td [attr.colspan]="puedeEmitir ? 10 : 9" style="padding:0;background:var(--hover-bg)">
-                      <div class="detalle-panel card" style="border-radius:0;border:none;border-top:1px solid var(--border-color)">
-                        <div class="detalle-panel-header">
-                          <div class="detalle-panel-title">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                            <h3>Detalle diario — <span class="detalle-emp-nombre">{{ emp.nombreCompleto }}</span></h3>
-                          </div>
-                          <button class="btn-close-detalle" (click)="empleadoDetalle = null">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                          </button>
-                        </div>
-                        @if (detalleLoading) {
-                          <div class="detalle-loading">
-                            <div class="spinner-sm"></div> Cargando detalle…
-                          </div>
-                        } @else if (detalleError) {
-                          <p style="padding:16px;color:#dc2626">{{ detalleError }}</p>
-                        } @else {
-                          <div class="detalle-table-wrap">
-                            <table class="detalle-table">
-                              <thead>
-                                <tr>
-                                  <th>Fecha</th>
-                                  <th>Ingreso</th>
-                                  <th>Salida</th>
-                                  <th>Almuerzo</th>
-                                  <th>Horas</th>
-                                  <th>GPS</th>
-                                  <th>Estado</th>
-                                  <th>Mapa</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                @for (dia of detalleDias; track dia.fecha) {
-                                  <tr>
-                                    <td>
-                                      <div class="dia-fecha">
-                                        <span class="dia-dia">{{ dia.dia_nombre }}</span>
-                                        <span class="dia-fecha-num">{{ dia.fecha | date:'dd/MM' }}</span>
-                                      </div>
-                                    </td>
-                                    <td><span class="hora-cell">{{ formatHora(dia.hora_ingreso) }}</span></td>
-                                    <td><span class="hora-cell">{{ formatHora(dia.hora_salida) }}</span></td>
-                                    <td>
-                                      <div class="almuerzo-cell">
-                                        <span>{{ formatHora(dia.almuerzo_inicio) }}</span>
-                                        @if (dia.almuerzo_inicio) { <span class="almuerzo-sep">—</span> }
-                                        <span>{{ dia.almuerzo_fin ? formatHora(dia.almuerzo_fin) : '' }}</span>
-                                      </div>
-                                    </td>
-                                    <td><span class="hrs-badge">{{ formatHoras(dia.horas_trabajadas) }}</span></td>
-                                    <td>
-                                      @if (dia.geo_ingreso || dia.geo_salida) {
-                                        <span class="geo-chip geo-ok">
-                                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
-                                          GPS
-                                        </span>
-                                      } @else {
-                                        <span class="geo-none text-muted">—</span>
-                                      }
-                                    </td>
-                                    <td>
-                                      <span class="estado-badge" [ngClass]="estadoDiaClase(dia.estado)">{{ dia.estado }}</span>
-                                    </td>
-                                    <td>
-                                      @if (dia.geo_ingreso || dia.geo_salida) {
-                                        <button class="btn-mapa" (click)="abrirMapa(emp.nombreCompleto + ' · ' + dia.fecha, dia.geo_ingreso, dia.geo_salida)">
-                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
-                                          Mapa
-                                        </button>
-                                      } @else {
-                                        <span class="text-muted">—</span>
-                                      }
-                                    </td>
-                                  </tr>
-                                }
-                                @if (detalleDias.length === 0) {
-                                  <tr>
-                                    <td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">Sin registros para este período</td>
-                                  </tr>
-                                }
-                              </tbody>
-                            </table>
-                          </div>
-                          @if (detalleTotalPag > 1) {
-                            <div class="pagination-footer">
-                              <span class="pagination-info">{{ minVal(detallePage * DETALLE_PER_PAGE, detalleTotalDias) }} de {{ detalleTotalDias }} días</span>
-                              <div class="pagination-controls">
-                                <button class="btn-pag" [disabled]="detallePage === 1" (click)="irPaginaDetalle(detallePage - 1)">‹</button>
-                                @for (p of paginasDetalleBtn; track p) {
-                                  <button class="btn-pag-num" [class.active]="p === detallePage" (click)="irPaginaDetalle(p)">{{ p }}</button>
-                                }
-                                <button class="btn-pag" [disabled]="detallePage === detalleTotalPag" (click)="irPaginaDetalle(detallePage + 1)">›</button>
-                              </div>
-                            </div>
-                          }
-                        }
-                      </div>
-                    </td>
-                  </tr>
-                }
               }
             </tbody>
           </table>
@@ -608,6 +503,112 @@
   }
 
 </div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL DETALLE DIARIO
+═══════════════════════════════════════════════════════════════════════════ -->
+@if (showModalDetalle && empleadoDetalle) {
+  <div class="modal-backdrop-pro" (click)="cerrarModalDetalle()"></div>
+  <div class="modal-detalle">
+    <div class="modal-detalle-head">
+      <div class="modal-detalle-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div>
+        <p class="modal-detalle-title">Detalle Diario</p>
+        <p class="modal-detalle-sub">{{ empleadoDetalle.nombreCompleto }} · {{ labelSemana }}</p>
+      </div>
+      <button class="modal-close-btn" (click)="cerrarModalDetalle()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-detalle-body">
+      @if (detalleLoading) {
+        <div class="detalle-loading"><div class="spinner-sm"></div> Cargando detalle…</div>
+      } @else if (detalleError) {
+        <p style="padding:16px;color:#dc2626">{{ detalleError }}</p>
+      } @else {
+        <div class="detalle-table-wrap">
+          <table class="detalle-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Ingreso</th>
+                <th>Salida</th>
+                <th>Almuerzo</th>
+                <th>Horas</th>
+                <th>GPS</th>
+                <th>Estado</th>
+                <th>Mapa</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (dia of detalleDias; track dia.fecha) {
+                <tr>
+                  <td>
+                    <div class="dia-fecha">
+                      <span class="dia-dia">{{ dia.dia_nombre }}</span>
+                      <span class="dia-fecha-num">{{ dia.fecha | date:'dd/MM' }}</span>
+                    </div>
+                  </td>
+                  <td><span class="hora-cell">{{ formatHora(dia.hora_ingreso) }}</span></td>
+                  <td><span class="hora-cell">{{ formatHora(dia.hora_salida) }}</span></td>
+                  <td>
+                    <div class="almuerzo-cell">
+                      <span>{{ formatHora(dia.almuerzo_inicio) }}</span>
+                      @if (dia.almuerzo_inicio) { <span class="almuerzo-sep">—</span> }
+                      <span>{{ dia.almuerzo_fin ? formatHora(dia.almuerzo_fin) : '' }}</span>
+                    </div>
+                  </td>
+                  <td><span class="hrs-badge">{{ formatHoras(dia.horas_trabajadas) }}</span></td>
+                  <td>
+                    @if (dia.geo_ingreso || dia.geo_salida) {
+                      <span class="geo-chip geo-ok">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+                        GPS
+                      </span>
+                    } @else {
+                      <span class="text-muted">—</span>
+                    }
+                  </td>
+                  <td><span class="estado-badge" [ngClass]="estadoDiaClase(dia.estado)">{{ dia.estado }}</span></td>
+                  <td>
+                    @if (dia.geo_ingreso || dia.geo_salida) {
+                      <button class="btn-mapa" (click)="abrirMapa(empleadoDetalle!.nombreCompleto + ' · ' + dia.fecha, dia.geo_ingreso, dia.geo_salida)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/><circle cx="12" cy="10" r="3"/></svg>
+                        Mapa
+                      </button>
+                    } @else {
+                      <span class="text-muted">—</span>
+                    }
+                  </td>
+                </tr>
+              }
+              @if (detalleDias.length === 0) {
+                <tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">Sin registros para este período</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (detalleTotalPag > 1) {
+          <div class="pagination-footer">
+            <span class="pagination-info">{{ minVal(detallePage * DETALLE_PER_PAGE, detalleTotalDias) }} de {{ detalleTotalDias }} días</span>
+            <div class="pagination-controls">
+              <button class="btn-pag" [disabled]="detallePage === 1" (click)="irPaginaDetalle(detallePage - 1)">‹</button>
+              @for (p of paginasDetalleBtn; track p) {
+                <button class="btn-pag-num" [class.active]="p === detallePage" (click)="irPaginaDetalle(p)">{{ p }}</button>
+              }
+              <button class="btn-pag" [disabled]="detallePage === detalleTotalPag" (click)="irPaginaDetalle(detallePage + 1)">›</button>
+            </div>
+          </div>
+        }
+      }
+    </div>
+    <div class="modal-detalle-footer">
+      <button class="btn-cancel" (click)="cerrarModalDetalle()">Cerrar</button>
+    </div>
+  </div>
+}
 
 <!-- ════════════════════════════════════════════════════════════════════════
      MODAL ADVERTENCIA
