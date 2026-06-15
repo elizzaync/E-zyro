@@ -24,6 +24,7 @@ from ..core.audit_context import get_audit_context
 from ..db.database import get_db
 from ..services.firma_seguridad import registrar_firma, verificar_evento
 from ..services.fcm_service import enviar_push_a_usuario
+from ..services import costeo_inventario_service as costeo
 from ..models.firma_evento import FirmaEvento
 
 from ..models.material import Material, Stock
@@ -1304,14 +1305,18 @@ async def aprobar_requerimiento(
                 restante -= quita
 
             # Movimiento de inventario (registro de salida — auditoría/proyección)
-            db.add(MovimientoInventario(
+            _mov = MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=d.material_id, almacen_id=almacen_id,
                 tipo="salida", cantidad=cant_aprob,
                 referencia_id=req.id, referencia_tipo="requerimiento",
                 responsable_id=emp_log.id if emp_log else None,
                 fecha=datetime.utcnow(),
-            ))
+            )
+            db.add(_mov)
+            db.flush()
+            # Valorización + asiento (Db 691 / Cr 201) al costo promedio vigente.
+            costeo.valorizar_movimiento(db, _mov, creado_por_id=emp_log.id if emp_log else None)
             d.estado_item = "aprobado"
             d.cantidad_aprobada = cant_aprob
             hay_aprobado = True
@@ -1564,7 +1569,7 @@ async def _registrar_salidas_entrega(
             restante    -= quita
 
         # Movimiento de salida — trazable al requerimiento Y al servicio
-        db.add(MovimientoInventario(
+        _mov = MovimientoInventario(
             id              = str(_uuid.uuid4()),
             empresa_id      = empresa_id,
             material_id     = d.material_id,
@@ -1576,7 +1581,11 @@ async def _registrar_salidas_entrega(
             responsable_id  = str(emp_log.id) if emp_log else None,
             motivo          = f"Despacho al servicio {servicio_label}",
             fecha           = datetime.utcnow(),
-        ))
+        )
+        db.add(_mov)
+        db.flush()
+        # Valorización + asiento (Db 691 / Cr 201) al costo promedio vigente.
+        costeo.valorizar_movimiento(db, _mov, creado_por_id=str(emp_log.id) if emp_log else None)
 
 
 @router.post("/requerimientos/{req_id}/entregar", response_model=RequerimientoOut)
@@ -2312,7 +2321,7 @@ async def _aplicar_ingreso_ticket(
                 ).first()
                 if mat_upd:
                     mat_upd.precio = float(it.precio_unitario)
-            db.add(MovimientoInventario(
+            _mov = MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=it.material_id, almacen_id=alm_id,
                 # 'entrada' = ingreso de stock (chk_mov_tipo no admite 'ingreso');
@@ -2321,7 +2330,13 @@ async def _aplicar_ingreso_ticket(
                 referencia_id=str(tc.id), referencia_tipo="compra",
                 responsable_id=str(emp.id) if emp else None,
                 fecha=datetime.utcnow(),
-            ))
+            )
+            db.add(_mov)
+            db.flush()
+            # Valorización + asiento (Db 201 / Cr 611) al precio de compra.
+            costeo.valorizar_movimiento(
+                db, _mov, costo_unitario=it.precio_unitario,
+                creado_por_id=str(emp.id) if emp else None)
 
         elif tipo in ("equipo", "herramienta") and it.equipo_id:
             # ── No-consumible: sumar cantidad en tabla equipo ──────────────
@@ -2471,7 +2486,7 @@ def vincular_inventario(
         ))
         # Movimiento de ingreso trazable al ticket
         if cant_comprada > 0:
-            db.add(MovimientoInventario(
+            _mov = MovimientoInventario(
                 id=str(_uuid.uuid4()), empresa_id=empresa_id,
                 material_id=mat.id, almacen_id=alm_id,
                 # 'entrada' = ingreso de stock (chk_mov_tipo no admite 'ingreso').
@@ -2479,7 +2494,13 @@ def vincular_inventario(
                 referencia_id=str(it.ticket_id), referencia_tipo="compra",
                 responsable_id=str(emp.id) if emp else None,
                 fecha=datetime.utcnow(),
-            ))
+            )
+            db.add(_mov)
+            db.flush()
+            # Valorización + asiento (Db 201 / Cr 611) al precio de compra.
+            costeo.valorizar_movimiento(
+                db, _mov, costo_unitario=body.precioUnitario,
+                creado_por_id=str(emp.id) if emp else None)
         it.material_id = mat.id
 
     else:  # equipo o herramienta
@@ -3194,14 +3215,18 @@ def ajustar_stock(
     emp = db.query(Empleado).filter(
         Empleado.usuario_id == usuario_id, Empleado.empresa_id == empresa_id
     ).first()
-    db.add(MovimientoInventario(
+    _mov = MovimientoInventario(
         id=str(_uuid.uuid4()), empresa_id=empresa_id,
         material_id=material_id, almacen_id=almacen_id,
         tipo=tipo, cantidad=delta,
         referencia_id=None, referencia_tipo="ajuste_manual",
         responsable_id=emp.id if emp else None,
         fecha=datetime.utcnow(),
-    ))
+    )
+    db.add(_mov)
+    db.flush()
+    # Valoriza solo entrada/salida; el tipo 'ajuste' (stock absoluto) queda neutro.
+    costeo.valorizar_movimiento(db, _mov, creado_por_id=emp.id if emp else None)
     db.commit()
     return {"ok": True}
 
@@ -4001,7 +4026,7 @@ def completar_retorno(
                         material_id=d.material_id, almacen_id=almacen_id,
                         cantidad=cant, cantidad_minima=0, updated_at=datetime.utcnow(),
                     ))
-                db.add(MovimientoInventario(
+                _mov = MovimientoInventario(
                     id=str(_uuid.uuid4()), empresa_id=empresa_id,
                     material_id=d.material_id, almacen_id=almacen_id,
                     # 'entrada' = stock que vuelve (chk_mov_tipo no admite 'retorno');
@@ -4011,7 +4036,13 @@ def completar_retorno(
                     responsable_id=str(emp.id) if emp else None,
                     motivo=f"Retorno de campo – {r.proyecto_servicio_id or ''}",
                     fecha=datetime.utcnow(),
-                ))
+                )
+                db.add(_mov)
+                db.flush()
+                # Reingresa al costo promedio vigente (no altera el promedio).
+                costeo.valorizar_movimiento(
+                    db, _mov, usar_promedio_vigente=True,
+                    creado_por_id=str(emp.id) if emp else None)
             elif d.equipo_id:
                 eq = db.query(Equipo).filter(Equipo.id == d.equipo_id, Equipo.empresa_id == empresa_id).first()
                 if eq:
