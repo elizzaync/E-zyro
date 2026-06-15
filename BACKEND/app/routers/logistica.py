@@ -43,6 +43,11 @@ from ..models.usuario import Usuario
 from ..models.proyecto import Proyecto
 from ..models.proyecto_servicio import ProyectoServicio
 from ..models.proyecto_miembro import ProyectoMiembro
+from ..models.cliente import Cliente
+from ..models.equipo_intervenido import EquipoIntervenido
+from ..models.historial_inspeccion import HistorialInspeccion
+from ..models.ubicacion import Ubicacion
+from ..models.zona import Zona
 from ..models.firma_digital import FirmaDigital
 from ..models.notificacion import Notificacion
 from ..models.proveedor import Proveedor as ProveedorModel, ProveedorCategoria
@@ -4295,3 +4300,118 @@ def desglose_stock_equipo(
         enIncidencia=en_incidencia,
         incidenciasAbiertas=len(incidencias_activas),
     )
+
+
+# ── GET /logistica/servicios — vista global de todos los servicios ────────────
+
+@router.get("/servicios")
+def get_servicios_global(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    rows = (
+        db.query(
+            ProyectoServicio,
+            Proyecto.nombre_proyecto.label("nombre_proyecto"),
+            Proyecto.orden_trabajo.label("orden_trabajo"),
+            Cliente.razon_social.label("razon_social"),
+        )
+        .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
+        .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
+        .filter(
+            ProyectoServicio.empresa_id == empresa_id,
+            Proyecto.empresa_id         == empresa_id,
+        )
+        .order_by(Proyecto.created_at.desc(), ProyectoServicio.orden.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id":              str(ps.ProyectoServicio.id),
+            "proyecto_id":     str(ps.ProyectoServicio.proyecto_id),
+            "nombre":          ps.ProyectoServicio.nombre or "",
+            "nombre_proyecto": ps.nombre_proyecto or "",
+            "orden_trabajo":   ps.orden_trabajo   or "",
+            "cliente":         ps.razon_social     or "Sin Cliente",
+            "estado":          ps.ProyectoServicio.estado or "Pendiente",
+            "fecha_programada": (
+                ps.ProyectoServicio.fecha_programada.strftime("%d %b %Y")
+                if ps.ProyectoServicio.fecha_programada else None
+            ),
+            "fecha_fin": (
+                ps.ProyectoServicio.fecha_fin.strftime("%d %b %Y")
+                if ps.ProyectoServicio.fecha_fin else None
+            ),
+            "descripcion": ps.ProyectoServicio.descripcion,
+        }
+        for ps in rows
+    ]
+
+
+# ── GET /logistica/mantenimiento — todos los equipos intervenidos globales ────
+
+@router.get("/mantenimiento")
+def get_mantenimiento_global(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    historial_sq = (
+        db.query(
+            HistorialInspeccion.equipo_intervenido_id,
+            func.max(HistorialInspeccion.created_at).label("ultima"),
+        )
+        .group_by(HistorialInspeccion.equipo_intervenido_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            EquipoIntervenido,
+            TipoEquipo.nombre.label("tipo_nombre"),
+            Ubicacion.nombre.label("ubicacion_nombre"),
+            Zona.nombre.label("zona_nombre"),
+            HistorialInspeccion.estado.label("estado_inspeccion"),
+        )
+        .outerjoin(TipoEquipo,   TipoEquipo.id   == EquipoIntervenido.tipo_equipo_id)
+        .outerjoin(Ubicacion,    Ubicacion.id     == EquipoIntervenido.ubicacion_id)
+        .outerjoin(Zona,         Zona.id          == EquipoIntervenido.zona_id)
+        .outerjoin(historial_sq, historial_sq.c.equipo_intervenido_id == EquipoIntervenido.id)
+        .outerjoin(
+            HistorialInspeccion,
+            (HistorialInspeccion.equipo_intervenido_id == EquipoIntervenido.id) &
+            (HistorialInspeccion.created_at            == historial_sq.c.ultima),
+        )
+        .filter(
+            EquipoIntervenido.empresa_id == empresa_id,
+            EquipoIntervenido.activo     == True,
+        )
+        .order_by(TipoEquipo.nombre.asc(), EquipoIntervenido.nombre.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id":                    str(ei.id),
+            "nombre":                ei.nombre or "",
+            "codigo":                ei.codigo or None,
+            "ubicacion_referencia":  ei.ubicacion_referencia or None,
+            "tipo_nombre":           tipo_nombre or None,
+            "tipo_equipo_id":        str(ei.tipo_equipo_id) if ei.tipo_equipo_id else None,
+            "marca":                 ei.marca or None,
+            "modelo":                ei.modelo or None,
+            "numero_serie":          ei.numero_serie or None,
+            "estado":                ei.estado or "operativo",
+            "ubicacion":             ubicacion_nombre or None,
+            "zona":                  zona_nombre or None,
+            "ultimo_mantenimiento":  ei.ultimo_mantenimiento.isoformat() if ei.ultimo_mantenimiento else None,
+            "proximo_mantenimiento": ei.proximo_mantenimiento.isoformat() if ei.proximo_mantenimiento else None,
+            "estado_intervencion":   estado_inspeccion or "sin_inspeccion",
+            "observaciones":         ei.observaciones or None,
+        }
+        for ei, tipo_nombre, ubicacion_nombre, zona_nombre, estado_inspeccion in rows
+    ]
