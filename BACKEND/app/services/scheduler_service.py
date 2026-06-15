@@ -466,6 +466,7 @@ def _alertas_vencimientos():
     from app.models.equipo import Equipo
     from app.models.proveedor import Proveedor
     from app.models.cliente import Cliente
+    from app.models.documento_sst import DocumentoSst
 
     def _umbral(dias: int):
         if dias < 0:
@@ -581,6 +582,29 @@ def _alertas_vencimientos():
                        tipo="warning", categoria="finanzas", titulo=titulo,
                        mensaje=f"Comprobante {f.numero_documento} de {clin} por S/ {f.total}: {cuando}.",
                        ref_key=ref_key):
+                emitidos += 1
+
+        # 5) Documentos SST (homologaciones, ATS, PETAR) por vencer / vencidos
+        etiquetas = {"homologacion": "Homologación", "ats": "ATS", "petar": "PETAR"}
+        for d in db.query(DocumentoSst).filter(
+            DocumentoSst.fecha_vencimiento.isnot(None),
+        ).all():
+            umbral = _umbral((d.fecha_vencimiento - hoy).days)
+            if not umbral:
+                continue
+            etiqueta = etiquetas.get(d.tipo, "Documento")
+            if umbral == "vencido":
+                titulo = "Documento SST vencido"
+                cuando = f"venció el {d.fecha_vencimiento.isoformat()}"
+            else:
+                titulo = "Documento SST por vencer"
+                cuando = (f"vence el {d.fecha_vencimiento.isoformat()} "
+                          f"(faltan {(d.fecha_vencimiento - hoy).days} días)")
+            ref_key = f"docsst:{d.id}:{d.fecha_vencimiento.isoformat()}:{umbral}"
+            if _emitir(db, empresa_id=d.empresa_id,
+                       usuarios=dest(d.empresa_id, "documentos_sst", "ver"),
+                       tipo="warning", categoria="documentos", titulo=titulo,
+                       mensaje=f"{etiqueta} «{d.titulo}»: {cuando}.", ref_key=ref_key):
                 emitidos += 1
 
         db.commit()

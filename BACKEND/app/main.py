@@ -29,6 +29,7 @@ from app.routers import seguridad       as seguridad_router
 from app.routers import prestamo        as prestamo_router
 from app.routers import catalogos       as catalogos_router
 from app.routers import galeria         as galeria_router
+from app.routers import documentos_sst  as documentos_sst_router
 from app.routers import epp             as epp_router
 from app.routers import calibraciones   as calibraciones_router
 from app.routers import correctivos     as correctivos_router
@@ -160,6 +161,8 @@ from app.models import (  # noqa: F401
     planilla as planilla_model,
     # Fase 10 — Bus de eventos contables (mapeos + historial)
     eventos_contables,
+    # Repositorio de documentos de cumplimiento / SST (homologaciones, ATS, PETAR)
+    documento_sst,
 )
 
 
@@ -933,6 +936,10 @@ def _run_migrations():
         sembrar_permisos(conn, "vacaciones",
                          ["ver", "configurar", "solicitar", "aprobar", "rechazar"],
                          descripcion_base="Vacaciones:")
+        # ── Documentos de cumplimiento / SST (homologaciones, ATS, PETAR) ────
+        sembrar_permisos(conn, "documentos_sst",
+                         ["ver", "crear", "editar", "eliminar"],
+                         descripcion_base="Documentos SST:")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
@@ -1738,6 +1745,7 @@ app.include_router(seguridad_router.router)
 app.include_router(prestamo_router.router)
 app.include_router(catalogos_router.router)
 app.include_router(galeria_router.router)
+app.include_router(documentos_sst_router.router)
 app.include_router(epp_router.router)
 app.include_router(calibraciones_router.router)
 app.include_router(calibraciones_router.router_estado)
