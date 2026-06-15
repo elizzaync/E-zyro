@@ -162,12 +162,8 @@ export class LogisticaServiciosComponent implements OnInit {
   onCrearClosed(result: { guardado: boolean; proyectoId?: string; servicioId?: string }): void {
     this.showCrearProyectoModal = false;
     if (result.guardado) {
-      this.toast.mostrar('Proyecto y servicio creados exitosamente', 'success');
-      if (result.proyectoId) {
-        this.router.navigate(['/operaciones/proyecto', result.proyectoId]);
-      } else {
-        this.cargar();
-      }
+      this.toast.mostrar('Servicio creado exitosamente', 'success');
+      this.cargar();
     }
   }
 }
