@@ -55,7 +55,6 @@ class AppSession {
   // ── Atajos para cada módulo ───────────────────────────────────────────────
 
   bool get canVerAuditoria          => hasPerm('auditoria:ver');
-  bool get canVerMantenimientoGeneral => isAdmin || _esJefeOp || hasPerm('mantenimiento:ver_general');
   // RBAC: el permiso 'comunicados:enviar' decide quién publica.
   // (hasPerm ya concede acceso a Admin por bypass; el Jefe de Operaciones lo
   //  recibe por la matriz rol→permiso.)

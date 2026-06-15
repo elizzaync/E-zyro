@@ -9,7 +9,6 @@ import '../widgets/topo_background.dart';
 import 'pantalla_accesos_portal.dart';
 import 'pantalla_auditoria.dart';
 import 'pantalla_auditoria_general.dart';
-import 'pantalla_mantenimientos.dart';
 import 'pantalla_comunicados.dart';
 import 'pantalla_soporte.dart';
 import 'pantalla_editar_perfil.dart';
@@ -46,7 +45,6 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _puedeVerAuditoria = false;
   bool _esAdmin = false;
   bool _esSuperAdmin = false;
-  bool _puedeVerMantenimiento = false;
   bool _puedeVerPersonal = false;
   bool _puedeVerDashboards = false;
   bool _puedeVerControlAsistencias = false;
@@ -77,7 +75,6 @@ class _MoreScreenState extends State<MoreScreen> {
         _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
         _esAdmin             = AppSession.i.isAdmin;
         _esSuperAdmin        = AppSession.i.esSuperAdmin;
-        _puedeVerMantenimiento = AppSession.i.canVerMantenimientoGeneral;
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
         _puedeVerDashboards  = AppSession.i.canVerDashboards;
         _puedeVerControlAsistencias = AppSession.i.canVerControlAsistencias;
@@ -326,7 +323,7 @@ class _MoreScreenState extends State<MoreScreen> {
             ),
 
             // ── 3. Administración (según permisos) ──────────────────────
-            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _puedeVerMantenimiento || _esAdmin || _puedeVerAuditoria || _esSuperAdmin) ...[
+            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _esAdmin || _puedeVerAuditoria || _esSuperAdmin) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
@@ -368,16 +365,6 @@ class _MoreScreenState extends State<MoreScreen> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const PantallaDashboards()),
-                      ),
-                    ),
-                  if (_puedeVerMantenimiento)
-                    _MenuItem(
-                      icon: Icons.build_circle_outlined,
-                      label: 'Mantenimientos',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const PantallaMantenimientos()),
                       ),
                     ),
                   if (_esAdmin)
@@ -433,8 +420,8 @@ class _MoreScreenState extends State<MoreScreen> {
                     ),
                   if (_canEquipoIntervenido)
                     _MenuItem(
-                      icon: Icons.electrical_services_outlined,
-                      label: 'Equipos Intervenidos',
+                      icon: Icons.build_circle_outlined,
+                      label: 'Mantenimientos',
                       onTap: () => Navigator.push(
                         context, MaterialPageRoute(
                             builder: (_) => const PantallaEquiposIntervenidos())),

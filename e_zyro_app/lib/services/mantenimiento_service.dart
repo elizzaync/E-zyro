@@ -74,22 +74,6 @@ class MantenimientoService {
     }
   }
 
-  // GET /operaciones/mantenimientos/general  (Jefe de Operaciones / Admin)
-  Future<List<MantenimientoGeneral>> getMantenimientosGenerales() async {
-    try {
-      final r = await _client.get('/operaciones/mantenimientos/general');
-      if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List? ?? [];
-        return list
-            .map(
-              (e) => MantenimientoGeneral.fromJson(e as Map<String, dynamic>),
-            )
-            .toList();
-      }
-    } catch (_) {}
-    return [];
-  }
-
   // HU-18: POST /operaciones/mantenimientos/{equipo_id}/finalizar — genera informe PDF
   Future<bool> finalizarMantenimiento(String equipoId) async {
     try {

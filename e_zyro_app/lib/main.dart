@@ -29,7 +29,6 @@ import 'services/notification_service.dart';
 import 'services/fcm_flutter_service.dart';
 import 'screens/pantalla_historial_equipo.dart';
 import 'screens/pantalla_auditoria.dart';
-import 'screens/pantalla_mantenimientos.dart';
 import 'portal/pantalla_portal_shell.dart';
 import 'portal/portal_design.dart';
 
@@ -270,7 +269,6 @@ class ESystemApp extends StatelessWidget {
               body: const AsistenciaScreen(),
             ),
         '/auditoria': (_) => const PantallaAuditoria(),
-        '/mantenimientos': (_) => const PantallaMantenimientos(),
         '/historial-equipo': (context) {
           final args = ModalRoute.of(context)?.settings.arguments
               as Map<String, String>?;

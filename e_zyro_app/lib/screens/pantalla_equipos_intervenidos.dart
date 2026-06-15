@@ -562,7 +562,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
                       ),
                       const SizedBox(width: 8),
                       const Expanded(
-                        child: Text('Equipos Intervenidos',
+                        child: Text('Mantenimientos',
                             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                       ),
                       if (AppSession.i.canCrearEquipoIntervenido)
