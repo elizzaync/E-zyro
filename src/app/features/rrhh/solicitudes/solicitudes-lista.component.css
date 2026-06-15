@@ -357,15 +357,15 @@
 
 .modal-eval {
   position: fixed;
-  top: calc(50% + 30px);
+  top: 72px;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 18px;
   width: 90%;
   max-width: 580px;
-  max-height: 88vh;
+  max-height: calc(100vh - 92px);
   overflow-y: auto;
   z-index: 999999;
   box-shadow: var(--shadow-modal);
