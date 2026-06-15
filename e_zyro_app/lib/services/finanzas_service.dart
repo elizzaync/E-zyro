@@ -434,6 +434,31 @@ class FinanzasService {
   Future<ApiResult<List<BoletaPago>>> listarBoletas(String planillaId) =>
       _getList('/planilla/$planillaId/boletas', BoletaPago.fromJson);
 
+  // ── Sueldos por empleado (asignación de montos por concepto) ───────────────
+  Future<ApiResult<List<EmpleadoPlanilla>>> empleadosPlanilla() =>
+      _getList('/planilla/empleados', EmpleadoPlanilla.fromJson);
+
+  Future<ApiResult<List<AsignacionConcepto>>> asignacionesPlanilla() =>
+      _getList('/planilla/asignaciones', AsignacionConcepto.fromJson);
+
+  /// Guarda los montos por concepto de un empleado. Cada item:
+  /// {'concepto_id': ..., 'monto': double?}. monto null elimina el override.
+  Future<ApiResult<List<AsignacionConcepto>>> guardarAsignaciones(
+      String empleadoId, List<Map<String, dynamic>> items) async {
+    try {
+      final r = await _client.put('/planilla/empleados/$empleadoId/asignaciones', items);
+      if (r.statusCode == 200) {
+        final data = (jsonDecode(r.body) as List)
+            .map((e) => AsignacionConcepto.fromJson(e as Map<String, dynamic>))
+            .toList();
+        return ApiResult.ok(data);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<Planilla>> anularPlanilla(String id) async {
     try {
       final r = await _client.post('/planilla/$id/anular', {});
@@ -606,51 +631,8 @@ class FinanzasService {
   Future<ApiResult<CostoPromedio>> costoPromedio(String materialId, String almacenId) =>
       _getObj('/logistica/inventario/costo-promedio/$materialId?almacen_id=$almacenId', CostoPromedio.fromJson);
 
-  Future<ApiResult<MovimientoValorizado>> registrarIngresoValorizado({
-    required String materialId,
-    required String almacenId,
-    required int cantidad,
-    required double costoUnitario,
-    String? motivo,
-  }) async {
-    try {
-      final r = await _client.post('/logistica/inventario/ingresos', {
-        'material_id': materialId,
-        'almacen_id': almacenId,
-        'cantidad': cantidad,
-        'costo_unitario': costoUnitario,
-        if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
-      });
-      if (r.statusCode == 201 || r.statusCode == 200) {
-        return ApiResult.ok(MovimientoValorizado.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
-      }
-      return ApiResult.fail(ApiError.fromResponse(r));
-    } catch (_) {
-      return const ApiResult.fail(ApiError(ApiErrorKind.network));
-    }
-  }
-
-  Future<ApiResult<MovimientoValorizado>> registrarSalidaValorizada({
-    required String materialId,
-    required String almacenId,
-    required int cantidad,
-    String? motivo,
-  }) async {
-    try {
-      final r = await _client.post('/logistica/inventario/salidas', {
-        'material_id': materialId,
-        'almacen_id': almacenId,
-        'cantidad': cantidad,
-        if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
-      });
-      if (r.statusCode == 201 || r.statusCode == 200) {
-        return ApiResult.ok(MovimientoValorizado.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
-      }
-      return ApiResult.fail(ApiError.fromResponse(r));
-    } catch (_) {
-      return const ApiResult.fail(ApiError(ApiErrorKind.network));
-    }
-  }
+  // Los movimientos valorizados ya no se registran desde la app: el inventario
+  // se mueve desde Logística, que valoriza y contabiliza automáticamente.
 
   // ── Caja Chica ─────────────────────────────────────────────────────────────
   Future<ApiResult<List<CajaChica>>> cajasChicas({String? estado}) {

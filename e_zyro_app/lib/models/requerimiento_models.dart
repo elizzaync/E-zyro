@@ -238,6 +238,44 @@ class MovimientoStock {
       );
 }
 
+// ── Alerta de reposición (material en/bajo su stock mínimo) ────────────────────
+
+class ReposicionItem {
+  final String materialId;
+  final String materialNombre;
+  final String? materialCodigo;
+  final String almacenId;
+  final String almacenNombre;
+  final String unidad;
+  final int cantidad;
+  final int stockMinimo;
+  final int faltante;
+
+  const ReposicionItem({
+    required this.materialId,
+    required this.materialNombre,
+    this.materialCodigo,
+    required this.almacenId,
+    required this.almacenNombre,
+    required this.unidad,
+    required this.cantidad,
+    required this.stockMinimo,
+    required this.faltante,
+  });
+
+  factory ReposicionItem.fromJson(Map<String, dynamic> j) => ReposicionItem(
+        materialId: j['material_id'] as String? ?? '',
+        materialNombre: j['material_nombre'] as String? ?? '',
+        materialCodigo: j['material_codigo'] as String?,
+        almacenId: j['almacen_id'] as String? ?? '',
+        almacenNombre: j['almacen_nombre'] as String? ?? '',
+        unidad: j['unidad'] as String? ?? 'und',
+        cantidad: (j['cantidad'] as num?)?.toInt() ?? 0,
+        stockMinimo: (j['stock_minimo'] as num?)?.toInt() ?? 0,
+        faltante: (j['faltante'] as num?)?.toInt() ?? 0,
+      );
+}
+
 // ── Solicitud para gestión del encargado ──────────────────────────────────────
 
 class SolicitudGestion {

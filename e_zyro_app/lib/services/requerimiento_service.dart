@@ -235,6 +235,7 @@ class RequerimientoService {
     required int cantidad,
     String? motivo,
     String? almacenId,
+    double? costoUnitario,
   }) async {
     try {
       final r = await _client.post('/logistica/inventario/ajuste', {
@@ -243,6 +244,7 @@ class RequerimientoService {
         'cantidad': cantidad,
         if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
         'almacen_id': ?almacenId,
+        'costo_unitario': ?costoUnitario,
       });
       return r.statusCode == 200 || r.statusCode == 201;
     } catch (_) {
@@ -263,6 +265,23 @@ class RequerimientoService {
         final list = jsonDecode(r.body) as List? ?? [];
         return list
             .map((e) => MovimientoStock.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  // Alertas de reposición: materiales en o bajo su stock mínimo.
+  Future<List<ReposicionItem>> getReposicion({String? almacenId}) async {
+    try {
+      final query = (almacenId != null && almacenId.isNotEmpty)
+          ? '?almacen=${Uri.encodeComponent(almacenId)}'
+          : '';
+      final r = await _client.get('/logistica/inventario/reposicion$query');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => ReposicionItem.fromJson(e as Map<String, dynamic>))
             .toList();
       }
     } catch (_) {}

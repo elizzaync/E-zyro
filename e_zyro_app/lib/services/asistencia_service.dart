@@ -611,22 +611,34 @@ class AsistenciaService {
   /// [periodo]: 'dia' | 'semana' | 'mes'. [formato]: 'csv' | 'xlsx'.
   /// [fecha] (YYYY-MM-DD) es la fecha ancla del rango (por defecto, hoy en el
   /// servidor). Devuelve los bytes del archivo o null si falla.
+  ///
+  /// Reintenta una vez ante fallo transitorio (p. ej. un 401 puntual del
+  /// preflight/sesión en web, donde la petición idéntica siguiente sí responde
+  /// 200): así un tropiezo aislado no muestra error si el servidor ya sirve bien.
   Future<List<int>?> descargarAsistencias({
     required String periodo,
     required String formato,
     String? fecha,
   }) async {
-    try {
-      final q = StringBuffer('?periodo=$periodo&formato=$formato');
-      if (fecha != null && fecha.isNotEmpty) q.write('&fecha=$fecha');
-      final r = await _client.get('/asistencia/export$q',
-          timeout: const Duration(seconds: 60));
-      if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
-        return r.bodyBytes;
+    final q = StringBuffer('?periodo=$periodo&formato=$formato');
+    if (fecha != null && fecha.isNotEmpty) q.write('&fecha=$fecha');
+    final path = '/asistencia/export$q';
+
+    for (var intento = 1; intento <= 2; intento++) {
+      try {
+        final r = await _client.get(path, timeout: const Duration(seconds: 60));
+        if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
+          return r.bodyBytes;
+        }
+        debugPrint(
+            '[AsistenciaService] descargarAsistencias intento $intento HTTP ${r.statusCode}');
+      } catch (e) {
+        debugPrint(
+            '[AsistenciaService] descargarAsistencias intento $intento error: $e');
       }
-      debugPrint('[AsistenciaService] descargarAsistencias HTTP ${r.statusCode}');
-    } catch (e) {
-      debugPrint('[AsistenciaService] descargarAsistencias error: $e');
+      if (intento == 1) {
+        await Future.delayed(const Duration(milliseconds: 600));
+      }
     }
     return null;
   }

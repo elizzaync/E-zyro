@@ -20,15 +20,20 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
   List<ConceptoRemunerativo> _conceptos = [];
   bool _loadingConceptos = true;
 
+  List<EmpleadoPlanilla> _empleados = [];
+  List<AsignacionConcepto> _asignaciones = [];
+  bool _loadingSueldos = true;
+
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
     });
     _cargarPlanillas();
     _cargarConceptos();
+    _cargarSueldos();
   }
 
   @override
@@ -59,6 +64,20 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
       if (r.ok) _conceptos = r.data!;
     });
     if (!r.ok) mostrarError(context, r.errorMessage);
+  }
+
+  Future<void> _cargarSueldos() async {
+    setState(() => _loadingSueldos = true);
+    final svc = await getFinanzasService();
+    final re = await svc.empleadosPlanilla();
+    final ra = await svc.asignacionesPlanilla();
+    if (!mounted) return;
+    setState(() {
+      _loadingSueldos = false;
+      if (re.ok) _empleados = re.data!;
+      if (ra.ok) _asignaciones = ra.data!;
+    });
+    if (!re.ok) mostrarError(context, re.errorMessage);
   }
 
   Future<void> _calcular() async {
@@ -198,7 +217,7 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
         actions: [accionConmutadorFinanzas(context, actual: FinId.planilla)],
         bottom: TabBar(
           controller: _tabs,
-          tabs: const [Tab(text: 'Planillas'), Tab(text: 'Conceptos')],
+          tabs: const [Tab(text: 'Planillas'), Tab(text: 'Conceptos'), Tab(text: 'Sueldos')],
         ),
       ),
       floatingActionButton: fab,
@@ -207,7 +226,82 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
         children: [
           _tabPlanillas(),
           _tabConceptos(),
+          _tabSueldos(),
         ],
+      ),
+    );
+  }
+
+  Widget _tabSueldos() {
+    if (_loadingSueldos || _loadingConceptos) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_empleados.isEmpty) return const Center(child: Text('Sin empleados activos'));
+    final puedeEditar = AppSession.i.canCalcularPlanilla;
+    return RefreshIndicator(
+      onRefresh: _cargarSueldos,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(12),
+        itemCount: _empleados.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 6),
+        itemBuilder: (_, i) {
+          final e = _empleados[i];
+          final asigs = _asignaciones.where((a) => a.empleadoId == e.id).toList();
+          final neto = _netoEstimado(asigs);
+          return Card(
+            child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+              title: Text(e.nombre ?? 'Empleado ${e.id}'),
+              subtitle: Text(e.cargo ?? '—'),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(asigs.isEmpty ? 'Sin asignar' : money(neto),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: asigs.isEmpty ? Colors.grey : Colors.purple)),
+                  Text(asigs.isEmpty ? 'usa referencial' : 'neto estimado',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                ],
+              ),
+              onTap: puedeEditar ? () => _abrirSueldos(e) : null,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Neto estimado con los montos asignados (ingresos − descuentos).
+  double _netoEstimado(List<AsignacionConcepto> asigs) {
+    double neto = 0;
+    for (final a in asigs) {
+      final matches = _conceptos.where((x) => x.id == a.conceptoId);
+      if (matches.isEmpty) continue;
+      final tipo = matches.first.tipo;
+      if (tipo == 'ingreso') {
+        neto += a.monto;
+      } else if (tipo == 'descuento') {
+        neto -= a.monto;
+      }
+    }
+    return neto;
+  }
+
+  void _abrirSueldos(EmpleadoPlanilla e) {
+    final asigs = {
+      for (final a in _asignaciones.where((a) => a.empleadoId == e.id)) a.conceptoId: a.monto
+    };
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _FormSueldos(
+        empleado: e,
+        conceptos: _conceptos,
+        montosActuales: asigs,
+        onGuardado: _cargarSueldos,
       ),
     );
   }
@@ -422,7 +516,7 @@ class _PantallaDetallePlanillaState extends State<_PantallaDetallePlanilla> {
                     ..._boletas.map((b) => Card(
                           child: ExpansionTile(
                             leading: const CircleAvatar(child: Icon(Icons.badge_outlined)),
-                            title: Text('Empleado ${b.empleadoId}'),
+                            title: Text(b.empleadoNombre ?? 'Empleado ${b.empleadoId}'),
                             subtitle: Text('Neto: ${money(b.totalNeto)}'),
                             children: [
                               ListTile(
@@ -444,7 +538,10 @@ class _PantallaDetallePlanillaState extends State<_PantallaDetallePlanilla> {
                               ...b.detalles.map((d) => ListTile(
                                     dense: true,
                                     leading: const Icon(Icons.fiber_manual_record, size: 10),
-                                    title: Text('Concepto ${d.conceptoId}', style: const TextStyle(fontSize: 12)),
+                                    title: Text(
+                                      d.conceptoNombre ?? 'Concepto ${d.conceptoId}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
                                     trailing: Text(money(d.monto), style: const TextStyle(fontSize: 12)),
                                   )),
                             ],
@@ -560,6 +657,144 @@ class _FormConceptoState extends State<_FormConcepto> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Editor de sueldos por empleado (montos por concepto) ──────────────────────
+
+class _FormSueldos extends StatefulWidget {
+  final EmpleadoPlanilla empleado;
+  final List<ConceptoRemunerativo> conceptos;
+  final Map<String, double> montosActuales; // conceptoId -> monto override
+  final VoidCallback onGuardado;
+  const _FormSueldos({
+    required this.empleado,
+    required this.conceptos,
+    required this.montosActuales,
+    required this.onGuardado,
+  });
+
+  @override
+  State<_FormSueldos> createState() => _FormSueldosState();
+}
+
+class _FormSueldosState extends State<_FormSueldos> {
+  late final Map<String, TextEditingController> _ctrls;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrls = {
+      for (final c in widget.conceptos)
+        c.id: TextEditingController(
+          text: widget.montosActuales.containsKey(c.id)
+              ? widget.montosActuales[c.id]!.toStringAsFixed(2)
+              : '',
+        ),
+    };
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    setState(() => _guardando = true);
+    final items = <Map<String, dynamic>>[];
+    for (final c in widget.conceptos) {
+      final txt = _ctrls[c.id]!.text.trim();
+      final tenia = widget.montosActuales.containsKey(c.id);
+      if (txt.isEmpty) {
+        // vacío: si tenía override lo eliminamos (vuelve al referencial)
+        if (tenia) items.add({'concepto_id': c.id, 'monto': null});
+        continue;
+      }
+      final monto = double.tryParse(txt.replaceAll(',', '.'));
+      if (monto == null) continue;
+      items.add({'concepto_id': c.id, 'monto': monto});
+    }
+    final svc = await getFinanzasService();
+    final r = await svc.guardarAsignaciones(widget.empleado.id, items);
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (r.ok) {
+      mostrarOk(context, 'Sueldo de ${widget.empleado.nombre ?? 'empleado'} guardado');
+      Navigator.pop(context);
+      widget.onGuardado();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activos = widget.conceptos.where((c) => c.activo).toList();
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16, right: 16, top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.empleado.nombre ?? 'Empleado',
+                style: Theme.of(context).textTheme.titleLarge),
+            Text(widget.empleado.cargo ?? '',
+                style: TextStyle(color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            Text(
+              'Monto por concepto para este empleado. Vacío = usa el monto referencial del catálogo.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            if (activos.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('No hay conceptos activos')),
+              )
+            else
+              ...activos.map((c) {
+                final color = switch (c.tipo) {
+                  'ingreso' => Colors.green,
+                  'descuento' => Colors.deepOrange,
+                  _ => Colors.blueGrey,
+                };
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: TextField(
+                    controller: _ctrls[c.id],
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: c.nombre,
+                      helperText: c.tipo.replaceAll('_', ' '),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.circle, size: 12, color: color),
+                      hintText: c.montoReferencial != null
+                          ? 'ref: ${c.montoReferencial!.toStringAsFixed(2)}'
+                          : null,
+                    ),
+                  ),
+                );
+              }),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _guardando ? null : _guardar,
+              child: _guardando
+                  ? const SizedBox(height: 20, width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Guardar sueldo'),
+            ),
+          ],
         ),
       ),
     );

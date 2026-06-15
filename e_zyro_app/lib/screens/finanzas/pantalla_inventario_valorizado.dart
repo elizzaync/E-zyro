@@ -8,7 +8,6 @@ import '../../services/finanzas_service.dart';
 import '../../services/proyecto_service.dart';
 import '../../services/requerimiento_service.dart';
 import '../../utils/api_provider.dart';
-import '../../utils/app_session.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -70,7 +69,6 @@ class _PantallaInventarioValorizadoState extends State<PantallaInventarioValoriz
 
   @override
   Widget build(BuildContext context) {
-    final puedeRegistrar = AppSession.i.isAdmin || AppSession.i.canRegistrarMovimientoInventarioValorizado;
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -87,14 +85,8 @@ class _PantallaInventarioValorizadoState extends State<PantallaInventarioValoriz
             IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh)),
           ],
         ),
+        // Solo lectura: el inventario se mueve y valoriza desde Logística.
         body: TabBarView(children: [_tabKardex(), _tabCostoPromedio()]),
-        floatingActionButton: puedeRegistrar
-            ? FloatingActionButton.extended(
-                onPressed: _registrarMovimiento,
-                icon: const Icon(Icons.swap_vert),
-                label: const Text('Movimiento'),
-              )
-            : null,
       ),
     );
   }
@@ -143,8 +135,15 @@ class _PantallaInventarioValorizadoState extends State<PantallaInventarioValoriz
               backgroundColor: Color(0x1A3F51B5),
               child: Icon(Icons.inventory_2_outlined, color: Colors.indigo, size: 20),
             ),
-            title: Text(f.materialId, style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
-            subtitle: Text('Almacén: ${_nombreAlmacen(f.almacenId)}', style: const TextStyle(fontSize: 11)),
+            title: Text(
+              f.materialNombre ?? f.materialId,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(
+              '${f.materialCodigo != null && f.materialCodigo!.isNotEmpty ? '${f.materialCodigo} · ' : ''}'
+              'Almacén: ${f.almacenNombre ?? _nombreAlmacen(f.almacenId)}',
+              style: const TextStyle(fontSize: 11),
+            ),
             trailing: Text(money(f.saldoValorizado), style: const TextStyle(fontWeight: FontWeight.w600)),
           );
         },
@@ -154,17 +153,6 @@ class _PantallaInventarioValorizadoState extends State<PantallaInventarioValoriz
 
   Widget _tabCostoPromedio() {
     return _BuscadorCostoPromedio(svc: _svc, proySvc: _proySvc, almacenes: _almacenes);
-  }
-
-  Future<void> _registrarMovimiento() async {
-    if (_svc == null || _proySvc == null) return;
-    final registrado = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => _FormMovimientoValorizado(svc: _svc!, proySvc: _proySvc!, almacenes: _almacenes),
-    );
-    if (registrado == true) await _cargar();
   }
 }
 
@@ -307,180 +295,6 @@ class _BuscadorCostoPromedioState extends State<_BuscadorCostoPromedio> {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _FormMovimientoValorizado extends StatefulWidget {
-  final FinanzasService svc;
-  final ProyectoService proySvc;
-  final List<AlmacenItem> almacenes;
-  const _FormMovimientoValorizado({required this.svc, required this.proySvc, required this.almacenes});
-  @override
-  State<_FormMovimientoValorizado> createState() => _FormMovimientoValorizadoState();
-}
-
-class _FormMovimientoValorizadoState extends State<_FormMovimientoValorizado> {
-  final _busqueda = TextEditingController();
-  final _cantidad = TextEditingController();
-  final _costoUnitario = TextEditingController();
-  final _motivo = TextEditingController();
-  Timer? _debounce;
-  List<MaterialBusqueda> _resultados = [];
-  bool _buscando = false;
-  MaterialBusqueda? _material;
-  String? _almacenId;
-  String _tipo = 'ingreso';
-  bool _guardando = false;
-  String? _error;
-
-  @override
-  void dispose() {
-    _busqueda.dispose();
-    _cantidad.dispose();
-    _costoUnitario.dispose();
-    _motivo.dispose();
-    _debounce?.cancel();
-    super.dispose();
-  }
-
-  void _onChanged(String q) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () async {
-      if (q.trim().length < 2) {
-        setState(() => _resultados = []);
-        return;
-      }
-      setState(() => _buscando = true);
-      final r = await widget.proySvc.buscarMateriales(q);
-      if (!mounted) return;
-      setState(() { _resultados = r; _buscando = false; });
-    });
-  }
-
-  Future<void> _guardar() async {
-    setState(() => _error = null);
-    if (_material == null) { setState(() => _error = 'Seleccione un material.'); return; }
-    if (_almacenId == null) { setState(() => _error = 'Seleccione un almacén.'); return; }
-    final cantidad = int.tryParse(_cantidad.text.trim());
-    if (cantidad == null || cantidad <= 0) { setState(() => _error = 'Ingrese una cantidad válida.'); return; }
-    double? costo;
-    if (_tipo == 'ingreso') {
-      costo = double.tryParse(_costoUnitario.text.replaceAll(',', '.'));
-      if (costo == null || costo <= 0) { setState(() => _error = 'Ingrese un costo unitario válido.'); return; }
-    }
-    setState(() => _guardando = true);
-    final r = _tipo == 'ingreso'
-        ? await widget.svc.registrarIngresoValorizado(
-            materialId: _material!.id, almacenId: _almacenId!, cantidad: cantidad,
-            costoUnitario: costo!, motivo: _motivo.text.trim().isEmpty ? null : _motivo.text.trim())
-        : await widget.svc.registrarSalidaValorizada(
-            materialId: _material!.id, almacenId: _almacenId!, cantidad: cantidad,
-            motivo: _motivo.text.trim().isEmpty ? null : _motivo.text.trim());
-    if (!mounted) return;
-    setState(() => _guardando = false);
-    if (r.ok) {
-      mostrarOk(context, _tipo == 'ingreso' ? 'Ingreso registrado' : 'Salida registrada');
-      Navigator.pop(context, true);
-    } else {
-      setState(() => _error = r.errorMessage);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16, right: 16, top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Nuevo movimiento valorizado', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'ingreso', label: Text('Ingreso'), icon: Icon(Icons.arrow_downward)),
-                ButtonSegment(value: 'salida', label: Text('Salida'), icon: Icon(Icons.arrow_upward)),
-              ],
-              selected: {_tipo},
-              onSelectionChanged: (s) => setState(() => _tipo = s.first),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _busqueda,
-              decoration: InputDecoration(
-                labelText: 'Buscar material',
-                border: const OutlineInputBorder(),
-                suffixIcon: _buscando ? const Padding(padding: EdgeInsets.all(12),
-                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))) : null,
-              ),
-              onChanged: _onChanged,
-            ),
-            if (_material != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Chip(
-                  label: Text('${_material!.nombre} (${_material!.unidad})'),
-                  onDeleted: () => setState(() => _material = null),
-                ),
-              )
-            else if (_resultados.isNotEmpty)
-              Card(
-                margin: const EdgeInsets.only(top: 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: _resultados.map((m) => ListTile(
-                        dense: true,
-                        title: Text(m.nombre, style: const TextStyle(fontSize: 13)),
-                        subtitle: Text('${m.unidad} · stock ${m.stock}', style: const TextStyle(fontSize: 11)),
-                        onTap: () => setState(() { _material = m; _resultados = []; _busqueda.text = m.nombre; }),
-                      )).toList(),
-                ),
-              ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _almacenId,
-              decoration: const InputDecoration(labelText: 'Almacén', border: OutlineInputBorder(), isDense: true),
-              items: widget.almacenes.map((a) => DropdownMenuItem(value: a.id, child: Text(a.nombre))).toList(),
-              onChanged: (v) => setState(() => _almacenId = v),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _cantidad,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Cantidad', border: OutlineInputBorder(), isDense: true),
-            ),
-            if (_tipo == 'ingreso') ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _costoUnitario,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Costo unitario', border: OutlineInputBorder(), isDense: true),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _motivo,
-              decoration: const InputDecoration(labelText: 'Motivo (opcional)', border: OutlineInputBorder(), isDense: true),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
-            ],
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _guardando ? null : _guardar,
-              child: _guardando
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text(_tipo == 'ingreso' ? 'Registrar ingreso' : 'Registrar salida'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

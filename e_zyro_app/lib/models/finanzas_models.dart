@@ -378,32 +378,63 @@ class ConceptoRemunerativo {
 
 class BoletaPagoDetalle {
   final String conceptoId;
+  final String? conceptoNombre, conceptoCodigo;
   final double monto;
-  BoletaPagoDetalle({required this.conceptoId, required this.monto});
+  BoletaPagoDetalle({
+    required this.conceptoId, this.conceptoNombre, this.conceptoCodigo, required this.monto,
+  });
   factory BoletaPagoDetalle.fromJson(Map<String, dynamic> j) => BoletaPagoDetalle(
         conceptoId: j['concepto_id'].toString(),
+        conceptoNombre: j['concepto_nombre']?.toString(),
+        conceptoCodigo: j['concepto_codigo']?.toString(),
         monto: _toD(j['monto']),
       );
 }
 
 class BoletaPago {
   final String id, empleadoId;
+  final String? empleadoNombre;
   final double totalIngresos, totalDescuentos, totalAportes, totalNeto;
   final List<BoletaPagoDetalle> detalles;
   BoletaPago({
-    required this.id, required this.empleadoId, required this.totalIngresos,
+    required this.id, required this.empleadoId, this.empleadoNombre, required this.totalIngresos,
     required this.totalDescuentos, required this.totalAportes, required this.totalNeto,
     required this.detalles,
   });
   factory BoletaPago.fromJson(Map<String, dynamic> j) => BoletaPago(
         id: j['id'].toString(),
         empleadoId: j['empleado_id'].toString(),
+        empleadoNombre: j['empleado_nombre']?.toString(),
         totalIngresos: _toD(j['total_ingresos']),
         totalDescuentos: _toD(j['total_descuentos']),
         totalAportes: _toD(j['total_aportes']),
         totalNeto: _toD(j['total_neto']),
         detalles: ((j['detalles'] ?? []) as List)
             .map((e) => BoletaPagoDetalle.fromJson(e as Map<String, dynamic>)).toList(),
+      );
+}
+
+/// Empleado activo para asignarle montos por concepto en Planilla.
+class EmpleadoPlanilla {
+  final String id;
+  final String? nombre, cargo;
+  EmpleadoPlanilla({required this.id, this.nombre, this.cargo});
+  factory EmpleadoPlanilla.fromJson(Map<String, dynamic> j) => EmpleadoPlanilla(
+        id: j['id'].toString(),
+        nombre: j['nombre']?.toString(),
+        cargo: j['cargo']?.toString(),
+      );
+}
+
+/// Monto de un concepto asignado a un empleado concreto (sueldo individual).
+class AsignacionConcepto {
+  final String empleadoId, conceptoId;
+  final double monto;
+  AsignacionConcepto({required this.empleadoId, required this.conceptoId, required this.monto});
+  factory AsignacionConcepto.fromJson(Map<String, dynamic> j) => AsignacionConcepto(
+        empleadoId: j['empleado_id'].toString(),
+        conceptoId: j['concepto_id'].toString(),
+        monto: _toD(j['monto']),
       );
 }
 
@@ -616,12 +647,19 @@ class CostoPromedio {
 
 class KardexFila {
   final String materialId;
-  final String? almacenId;
+  final String? materialNombre, materialCodigo;
+  final String? almacenId, almacenNombre;
   final double saldoValorizado;
-  KardexFila({required this.materialId, this.almacenId, required this.saldoValorizado});
+  KardexFila({
+    required this.materialId, this.materialNombre, this.materialCodigo,
+    this.almacenId, this.almacenNombre, required this.saldoValorizado,
+  });
   factory KardexFila.fromJson(Map<String, dynamic> j) => KardexFila(
         materialId: j['material_id'].toString(),
+        materialNombre: j['material_nombre']?.toString(),
+        materialCodigo: j['material_codigo']?.toString(),
         almacenId: j['almacen_id']?.toString(),
+        almacenNombre: j['almacen_nombre']?.toString(),
         saldoValorizado: _toD(j['saldo_valorizado']),
       );
 }

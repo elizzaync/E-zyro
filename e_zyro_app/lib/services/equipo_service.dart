@@ -69,4 +69,16 @@ class EquipoService {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));
     }
   }
+
+  /// Bitácora (historial de eventos) de una unidad de equipo/herramienta.
+  Future<List<Map<String, dynamic>>> movimientos(String id) async {
+    try {
+      final r = await _client.get('/logistica/equipos/$id/movimientos');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list.cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    return [];
+  }
 }

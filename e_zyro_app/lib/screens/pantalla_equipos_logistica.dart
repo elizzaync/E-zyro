@@ -157,6 +157,93 @@ class _State extends State<PantallaEquiposLogistica>
         _            => 'Sin programa',
       };
 
+  IconData _iconoMov(String tipo) => switch (tipo) {
+        'alta' => Icons.add_circle_outline,
+        'transferencia' => Icons.compare_arrows_rounded,
+        'mantenimiento' => Icons.build_circle_outlined,
+        'baja' => Icons.cancel_outlined,
+        'asignacion' => Icons.assignment_ind_outlined,
+        'retorno' => Icons.assignment_return_outlined,
+        _ => Icons.history,
+      };
+
+  // ── Historial (bitácora) de la unidad ────────────────────────────────────────
+  void _verHistorial(EquipoItem e) {
+    final surface = Theme.of(context).colorScheme.surface;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FutureBuilder<List<Map<String, dynamic>>>(
+        future: _svc?.movimientos(e.id) ?? Future.value(const []),
+        builder: (ctx, snap) {
+          final movs = snap.data ?? const [];
+          return DraggableScrollableSheet(
+            initialChildSize: 0.6,
+            maxChildSize: 0.92,
+            expand: false,
+            builder: (_, ctrl) => Container(
+              decoration: BoxDecoration(
+                color: surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40, height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  Text('Historial · ${e.nombre}',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  if (snap.connectionState == ConnectionState.waiting)
+                    const Expanded(child: Center(child: CircularProgressIndicator()))
+                  else if (movs.isEmpty)
+                    const Expanded(
+                        child: Center(
+                            child: Text('Sin eventos registrados',
+                                style: TextStyle(color: Colors.grey))))
+                  else
+                    Expanded(
+                      child: ListView.separated(
+                        controller: ctrl,
+                        itemCount: movs.length,
+                        separatorBuilder: (_, _) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final m = movs[i];
+                          final fecha = (m['fecha'] ?? '').toString();
+                          final partes = [
+                            (m['tipo'] ?? '').toString(),
+                            (m['responsable_nombre'] ?? '').toString(),
+                            fecha.isNotEmpty ? fecha.split('T').first : '',
+                          ].where((x) => x.isNotEmpty).join(' · ');
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(_iconoMov(m['tipo']?.toString() ?? ''),
+                                size: 20, color: _green),
+                            title: Text((m['detalle'] ?? m['tipo'] ?? '').toString(),
+                                style: const TextStyle(fontSize: 13)),
+                            subtitle: Text(partes, style: const TextStyle(fontSize: 11)),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // ── Detalle ─────────────────────────────────────────────────────────────────
   void _verDetalle(EquipoItem e) {
     final surface = Theme.of(context).colorScheme.surface;
@@ -238,8 +325,23 @@ class _State extends State<PantallaEquiposLogistica>
                     _row(Icons.event_outlined, 'Próximo', e.proximaFechaMantenimiento!),
                 ],
 
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _verHistorial(e),
+                    icon: const Icon(Icons.history, size: 18),
+                    label: const Text('Ver historial'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+
                 if (AppSession.i.canGestionarInventario) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(

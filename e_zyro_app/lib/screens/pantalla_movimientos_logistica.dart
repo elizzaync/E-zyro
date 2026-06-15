@@ -26,6 +26,7 @@ class _PantallaMovimientosLogisticaState
     extends State<PantallaMovimientosLogistica> {
   RequerimientoService? _service;
   List<MovimientoStock> _movimientos = [];
+  List<ReposicionItem> _reposicion = [];
   bool _isLoading = true;
 
   @override
@@ -43,11 +44,22 @@ class _PantallaMovimientosLogisticaState
     if (_service == null) return;
     setState(() => _isLoading = true);
     final data = await _service!.getMovimientos();
+    final repo = await _service!.getReposicion();
     if (!mounted) return;
     setState(() {
       _movimientos = data;
+      _reposicion = repo;
       _isLoading = false;
     });
+  }
+
+  Future<void> _abrirReposicion() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReposicionSheet(items: _reposicion),
+    );
   }
 
   Future<void> _exportarSalidasPdf() async {
@@ -84,6 +96,12 @@ class _PantallaMovimientosLogisticaState
         elevation: 0,
         backgroundColor: Colors.transparent,
         actions: [
+          _BadgeAccion(
+            count: _reposicion.length,
+            tooltip: 'Reposición (stock bajo el mínimo)',
+            icon: Icons.warning_amber_rounded,
+            onPressed: _reposicion.isEmpty ? null : _abrirReposicion,
+          ),
           IconButton(
             tooltip: 'Exportar salidas (PDF)',
             icon: const Icon(Icons.picture_as_pdf_outlined),
@@ -257,6 +275,7 @@ class _AjusteSheetState extends State<_AjusteSheet> {
   final _searchCtrl = TextEditingController();
   final _cantidadCtrl = TextEditingController();
   final _motivoCtrl = TextEditingController();
+  final _costoCtrl = TextEditingController();
   Timer? _debounce;
 
   List<CatalogoItem> _resultados = [];
@@ -271,6 +290,7 @@ class _AjusteSheetState extends State<_AjusteSheet> {
     _searchCtrl.dispose();
     _cantidadCtrl.dispose();
     _motivoCtrl.dispose();
+    _costoCtrl.dispose();
     super.dispose();
   }
 
@@ -308,12 +328,16 @@ class _AjusteSheetState extends State<_AjusteSheet> {
       _err('La cantidad debe ser mayor a 0');
       return;
     }
+    final costo = _tipo == 'entrada'
+        ? double.tryParse(_costoCtrl.text.trim().replaceAll(',', '.'))
+        : null;
     setState(() => _guardando = true);
     final ok = await widget.service.ajustarStock(
       materialId: mat.id,
       tipo: _tipo,
       cantidad: cantidad,
       motivo: _motivoCtrl.text.trim(),
+      costoUnitario: costo,
     );
     if (!mounted) return;
     setState(() => _guardando = false);
@@ -492,6 +516,32 @@ class _AjusteSheetState extends State<_AjusteSheet> {
             ),
             const SizedBox(height: 16),
 
+            // ── Costo unitario (solo entrada; alimenta el kardex/promedio) ──
+            if (_tipo == 'entrada') ...[
+              const Text('Costo unitario',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _costoCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  hintText: 'Costo al que entra (opcional)',
+                  helperText: 'Si lo dejas vacío se usa el precio del material',
+                  prefixText: 'S/ ',
+                  filled: true,
+                  fillColor: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.4),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // ── Motivo ─────────────────────────────────────────────────────
             const Text('Motivo (opcional)',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -629,6 +679,129 @@ class _TipoBtn extends StatelessWidget {
                           : Theme.of(context).colorScheme.onSurface)),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Acción de AppBar con badge numérico ─────────────────────────────────────
+class _BadgeAccion extends StatelessWidget {
+  final int count;
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  const _BadgeAccion({
+    required this.count,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        IconButton(tooltip: tooltip, icon: Icon(icon), onPressed: onPressed),
+        if (count > 0)
+          Positioned(
+            top: 8,
+            right: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: _kRed,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 16),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─── Hoja de reposición: materiales en/bajo el stock mínimo ──────────────────
+class _ReposicionSheet extends StatelessWidget {
+  final List<ReposicionItem> items;
+  const _ReposicionSheet({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.4,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade400,
+                    borderRadius: BorderRadius.circular(2)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: _kAmber),
+                const SizedBox(width: 8),
+                Text('Reposición (${items.length})',
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Text('Materiales en o por debajo de su stock mínimo',
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.separated(
+                controller: scrollCtrl,
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final it = items[i];
+                  return ListTile(
+                    dense: true,
+                    leading: const CircleAvatar(
+                      backgroundColor: Color(0x1AF59E0B),
+                      child: Icon(Icons.inventory_2_outlined,
+                          color: _kAmber, size: 20),
+                    ),
+                    title: Text(it.materialNombre,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                        '${it.almacenNombre} · ${it.cantidad}/${it.stockMinimo} ${it.unidad}',
+                        style: const TextStyle(fontSize: 11)),
+                    trailing: Text('faltan ${it.faltante}',
+                        style: const TextStyle(
+                            color: _kRed,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700)),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
