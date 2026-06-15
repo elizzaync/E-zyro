@@ -37,16 +37,16 @@ export class LogisticaMantenimientoComponent implements OnInit {
     return !!(this.busqueda || this.filtroEstado || this.filtroTipo || this.filtroUbicacion);
   }
 
-  get chipsFiltros(): { label: string; campo: keyof this }[] {
-    const chips: { label: string; campo: keyof this }[] = [];
-    if (this.filtroEstado)    chips.push({ label: this.estadoLabel(this.filtroEstado), campo: 'filtroEstado'    as keyof this });
-    if (this.filtroTipo)      chips.push({ label: this.filtroTipo,      campo: 'filtroTipo'      as keyof this });
-    if (this.filtroUbicacion) chips.push({ label: this.filtroUbicacion, campo: 'filtroUbicacion' as keyof this });
-    if (this.busqueda)        chips.push({ label: `"${this.busqueda}"`, campo: 'busqueda'         as keyof this });
+  get chipsFiltros(): { label: string; campo: string }[] {
+    const chips: { label: string; campo: string }[] = [];
+    if (this.filtroEstado)    chips.push({ label: this.estadoLabel(this.filtroEstado), campo: 'filtroEstado' });
+    if (this.filtroTipo)      chips.push({ label: this.filtroTipo,      campo: 'filtroTipo' });
+    if (this.filtroUbicacion) chips.push({ label: this.filtroUbicacion, campo: 'filtroUbicacion' });
+    if (this.busqueda)        chips.push({ label: `"${this.busqueda}"`, campo: 'busqueda' });
     return chips;
   }
 
-  quitarChip(campo: keyof this): void {
+  quitarChip(campo: string): void {
     (this as any)[campo] = '';
     this.page = 1;
   }
