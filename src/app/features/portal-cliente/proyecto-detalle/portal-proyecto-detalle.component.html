@@ -255,7 +255,7 @@
       </div>
 
       <!-- Equipo (acceso al modal con datos completos) -->
-      @if ((drawerServicio.equipo ?? []).length > 0) {
+      @if (drawerServicio.equipo.length > 0) {
       <div class="pdet-dw-section">
         <span class="pdet-dw-section-title">Equipo</span>
         <button class="pdet-svc-equipo-btn" type="button" (click)="abrirEquipoModal(drawerServicio)">

@@ -446,7 +446,7 @@
             <div class="vr-meta">
               <span>{{ formatFecha(v.fecha) }}</span>
               <span class="text-muted">{{ formatBytes(v.bytes) }}</span>
-              @if (v.formato) { <span class="text-muted">{{ v.formato?.toUpperCase() }}</span> }
+              @if (v.formato) { <span class="text-muted">{{ v.formato.toUpperCase() }}</span> }
             </div>
             <button class="btn-download" (click)="abrirPdf(v.url)" title="Descargar">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
