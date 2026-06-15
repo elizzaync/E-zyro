@@ -1106,6 +1106,12 @@ def _run_migrations():
             "ALTER TABLE solicitud_laboral "
             "ADD COLUMN IF NOT EXISTS aprobado_por VARCHAR(36)"
         ))
+        # aprobado_por apunta a usuario.id (puede ser admin sin fila en empleado).
+        # La FK a empleado que existe en prod es incorrecta — se elimina.
+        conn.execute(text(
+            "ALTER TABLE solicitud_laboral "
+            "DROP CONSTRAINT IF EXISTS fk_sollaboral_aprobado"
+        ))
         conn.execute(text(
             "ALTER TABLE solicitud_laboral "
             "ADD COLUMN IF NOT EXISTS fecha_aprobacion TIMESTAMP"
