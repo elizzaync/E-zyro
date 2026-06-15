@@ -6,7 +6,8 @@ Lecturas: empresa del token. Escrituras: RBAC módulo 'epp'.
 from __future__ import annotations
 
 import uuid as _uuid
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -18,6 +19,10 @@ from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.epp import Epp, EppEntrega, EppEntregaDetalle, EppIngreso, EppIngresoDetalle
 from ..models.empleado import Empleado
+from ..models.contabilidad import CuentaContable
+from ..services import contabilizacion_service as contab
+from ..services.contabilizacion_service import LineaAsiento
+from ..services import costeo_inventario_service as costeo
 from ..services.cloudinary_service import (
     subir_e_indexar, eliminar_imagen_cloudinary, subir_pdf_bytes_cloudinary, registrar_recurso,
 )
@@ -32,6 +37,40 @@ from ..schemas.epp import (
 )
 
 router = APIRouter(prefix="/epp", tags=["epp"])
+
+CTA_MERCADERIAS  = "201"   # Mercaderías
+CTA_VARIACION    = "611"   # Variación de existencias
+CTA_COSTO_VENTAS = "691"   # Costo de ventas
+Q2 = Decimal("0.01")
+
+
+def _d(v) -> Decimal:
+    return Decimal(str(v if v is not None else 0)).quantize(Q2)
+
+
+def _contabilizar_epp(db: Session, empresa_id: str, deb_cod: str, cre_cod: str,
+                      valor: Decimal, descripcion: str, ref_id: str | None,
+                      creado_por_id: str | None = None) -> None:
+    """Asiento de inventario para EPP, best-effort: si no hay periodo abierto o
+    falta una cuenta, NO contabiliza y NO rompe la operación de EPP."""
+    valor = _d(valor)
+    if valor <= 0:
+        return
+    fecha = datetime.utcnow()
+    if not costeo._puede_contabilizar(db, empresa_id, fecha, (deb_cod, cre_cod)):
+        return
+    def _cid(cod: str):
+        c = db.query(CuentaContable).filter(
+            CuentaContable.empresa_id == empresa_id, CuentaContable.codigo == cod).first()
+        return c.id if c else None
+    contab.registrar_asiento(
+        db, empresa_id=empresa_id, fecha=fecha.date(), descripcion=descripcion,
+        origen="inventario", lineas=[
+            LineaAsiento(cuenta_id=_cid(deb_cod), debito=valor),
+            LineaAsiento(cuenta_id=_cid(cre_cod), credito=valor),
+        ],
+        referencia_id=ref_id, creado_por_id=creado_por_id, commit=False,
+    )
 
 
 def _epp_out(e: Epp) -> EppOut:
@@ -160,9 +199,15 @@ def crear_entrega(body: EntregaIn, payload: dict = Depends(verificar_token), db:
         estado="registrada",
     )
     db.add(entrega)
+    total_costo = Decimal("0")
     for it in body.items:
         db.add(EppEntregaDetalle(id=str(_uuid.uuid4()), entrega_id=entrega.id, epp_id=it.epp_id, cantidad=it.cantidad))
-        epps[it.epp_id].stock_actual = int(epps[it.epp_id].stock_actual or 0) - it.cantidad
+        e = epps[it.epp_id]
+        total_costo += _d(e.precio) * Decimal(int(it.cantidad))
+        e.stock_actual = int(e.stock_actual or 0) - it.cantidad
+    # Asiento de salida al costo promedio (Db 691 / Cr 201) por el total entregado.
+    _contabilizar_epp(db, empresa_id, CTA_COSTO_VENTAS, CTA_MERCADERIAS, total_costo,
+                      f"Entrega de EPP (costo) {_d(total_costo)}", str(entrega.id))
     db.commit()
 
     # Firma (opcional) → Cloudinary + índice
@@ -214,10 +259,15 @@ def anular_entrega(entrega_id: str, payload: dict = Depends(verificar_token), db
     if en.estado == "anulada":
         raise HTTPException(status_code=409, detail="La entrega ya está anulada")
     detalles = db.query(EppEntregaDetalle).filter(EppEntregaDetalle.entrega_id == en.id).all()
+    total_costo = Decimal("0")
     for d in detalles:  # devolver stock
         e = db.query(Epp).filter(Epp.id == d.epp_id).first()
         if e:
             e.stock_actual = int(e.stock_actual or 0) + int(d.cantidad)
+            total_costo += _d(e.precio) * Decimal(int(d.cantidad))
+    # Revierte el asiento de salida (Db 201 / Cr 691) al costo promedio vigente.
+    _contabilizar_epp(db, empresa_id, CTA_MERCADERIAS, CTA_COSTO_VENTAS, total_costo,
+                      f"Anulación entrega EPP {_d(total_costo)}", str(en.id))
     en.estado = "anulada"
     db.commit()
     return EntregaOut(
@@ -351,11 +401,24 @@ def crear_ingreso(body: IngresoIn, payload: dict = Depends(verificar_token), db:
         fecha_compra=date.today(), registrado_por_id=payload.get("id"),
     )
     db.add(ing)
+    total_valor = Decimal("0")
     for it in body.items:
         db.add(EppIngresoDetalle(id=str(_uuid.uuid4()), ingreso_id=ing.id, epp_id=it.epp_id,
                                  cantidad=it.cantidad, precio_unitario=it.precio_unitario))
         e = db.query(Epp).filter(Epp.id == it.epp_id).first()
-        e.stock_actual = int(e.stock_actual or 0) + it.cantidad
+        prev = int(e.stock_actual or 0)
+        precio = _d(it.precio_unitario)
+        if precio > 0:
+            # epp.precio se usa como COSTO PROMEDIO móvil del EPP.
+            avg_prev = _d(e.precio)
+            nueva = prev + int(it.cantidad)
+            e.precio = (((Decimal(prev) * avg_prev + Decimal(int(it.cantidad)) * precio)
+                         / Decimal(nueva)).quantize(Q2) if nueva > 0 else precio)
+            total_valor += precio * Decimal(int(it.cantidad))
+        e.stock_actual = prev + it.cantidad
+    # Asiento de entrada valorizada (Db 201 / Cr 611) por el total del ingreso.
+    _contabilizar_epp(db, empresa_id, CTA_MERCADERIAS, CTA_VARIACION, total_valor,
+                      f"Ingreso de EPP (valorizado) {_d(total_valor)}", str(ing.id))
     db.commit()
     detalles = db.query(EppIngresoDetalle).filter(EppIngresoDetalle.ingreso_id == ing.id).all()
     return IngresoOut(

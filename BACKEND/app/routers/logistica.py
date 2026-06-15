@@ -38,6 +38,7 @@ from ..models.unidad_medida import UnidadMedida
 from ..models.requerimiento import Requerimiento, RequerimientoDetalle
 from ..models.requerimiento_entrega import RequerimientoEntrega
 from ..models.movimiento_inventario import MovimientoInventario
+from ..models.movimiento_equipo import MovimientoEquipo
 from ..models.ticket_compra import TicketCompra, TicketCompraItem
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
@@ -99,6 +100,26 @@ def _autorizar_logistica(payload: dict) -> None:
                "administrador", "admin", "superadmin"):
         return
     raise HTTPException(status_code=403, detail="Sin permiso para operar sobre logística")
+
+
+def _emp_id(db: Session, payload: dict, empresa_id: str) -> "str | None":
+    """ID de empleado del usuario autenticado (para responsable de bitácoras)."""
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == payload.get("id"),
+        Empleado.empresa_id == empresa_id).first()
+    return str(emp.id) if emp else None
+
+
+def _log_equipo(db: Session, *, empresa_id: str, equipo_id: str, tipo: str,
+                detalle: "str | None" = None, responsable_id: "str | None" = None,
+                referencia_id: "str | None" = None, referencia_tipo: "str | None" = None) -> None:
+    """Registra un evento en la bitácora del equipo (no rompe el flujo si falla)."""
+    db.add(MovimientoEquipo(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id, equipo_id=equipo_id,
+        tipo=tipo, detalle=detalle, responsable_id=responsable_id,
+        referencia_id=referencia_id, referencia_tipo=referencia_tipo,
+        fecha=datetime.utcnow(),
+    ))
 
 
 def _bloquear_seccion_logistica(payload: dict, seccion: str = "esta sección de logística") -> None:
@@ -844,6 +865,10 @@ def crear_equipo(
         ficha_tecnica              = (body.fichaTecnica or "").strip() or None,
     )
     db.add(e)
+    db.flush()
+    _log_equipo(db, empresa_id=empresa_id, equipo_id=e.id, tipo="alta",
+                detalle=f"Alta · {e.estado}" + (f" · {e.ubicacion}" if e.ubicacion else ""),
+                responsable_id=_emp_id(db, payload, empresa_id))
     db.commit()
     db.refresh(e)
     return _equipo_out(e)
@@ -863,6 +888,10 @@ def actualizar_equipo(
     ).first()
     if not e:
         raise HTTPException(status_code=404, detail="Equipo/Herramienta no encontrada")
+
+    # Estado/almacén previos: para registrar el evento en la bitácora del equipo.
+    _estado_prev  = e.estado
+    _almacen_prev = e.almacen_id
 
     if body.codigo      is not None: e.codigo      = (body.codigo or "").strip() or e.codigo
     if body.nombre      is not None: e.nombre      = body.nombre.strip() or e.nombre
@@ -930,9 +959,56 @@ def actualizar_equipo(
         e.proxima_fecha_mantenimiento = body.proximaFechaMantenimiento
 
     e.updated_at = datetime.utcnow()
+
+    # Bitácora: registra cambios de estado y de almacén (transferencia).
+    _resp = _emp_id(db, payload, empresa_id)
+    if e.estado != _estado_prev:
+        _tipo_mov = ("baja" if e.estado == "baja"
+                     else "mantenimiento" if e.estado == "en_mantenimiento"
+                     else "estado")
+        _log_equipo(db, empresa_id=empresa_id, equipo_id=e.id, tipo=_tipo_mov,
+                    detalle=f"{_estado_prev} → {e.estado}", responsable_id=_resp)
+    if e.almacen_id != _almacen_prev:
+        _log_equipo(db, empresa_id=empresa_id, equipo_id=e.id, tipo="transferencia",
+                    detalle=f"Almacén → {e.ubicacion or 'sin almacén'}", responsable_id=_resp)
+
     db.commit()
     db.refresh(e)
     return _equipo_out(e)
+
+
+@router.get("/equipos/{equipo_id}/movimientos")
+def movimientos_equipo(
+    equipo_id: str,
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """Bitácora (historial de eventos) de una unidad de equipo/herramienta."""
+    empresa_id = payload["empresa_id"]
+    e = db.query(Equipo).filter(
+        Equipo.id == equipo_id, Equipo.empresa_id == empresa_id).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Equipo/Herramienta no encontrada")
+    movs = (
+        db.query(MovimientoEquipo, Empleado, Usuario)
+        .outerjoin(Empleado, Empleado.id == MovimientoEquipo.responsable_id)
+        .outerjoin(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(MovimientoEquipo.empresa_id == empresa_id,
+                MovimientoEquipo.equipo_id == equipo_id)
+        .order_by(MovimientoEquipo.fecha.desc())
+        .all()
+    )
+    return [
+        {
+            "id": str(m.id),
+            "tipo": m.tipo,
+            "detalle": m.detalle,
+            "fecha": m.fecha.isoformat() if m.fecha else None,
+            "responsable_nombre": (f"{u.nombre} {u.apellido}".strip() if u else None),
+            "referencia_tipo": m.referencia_tipo,
+        }
+        for m, _emp, u in movs
+    ]
 
 
 @router.delete("/equipos/{equipo_id}", status_code=204)
