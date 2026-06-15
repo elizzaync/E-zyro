@@ -61,16 +61,16 @@
       <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
-      <input class="search-input" type="text" [(ngModel)]="busqueda" placeholder="Buscar equipo, código, tipo, ubicación...">
+      <input class="search-input" type="text" [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" placeholder="Buscar equipo, código, tipo, ubicación...">
     </div>
-    <select class="filter-select" [(ngModel)]="filtroEstado">
+    <select class="filter-select" [(ngModel)]="filtroEstado" (ngModelChange)="onFiltroChange()">
       <option value="">Todos los estados</option>
       <option value="operativo">Operativo</option>
       <option value="mantenimiento">Mantenimiento</option>
       <option value="inoperativo">Inoperativo</option>
       <option value="en_revision">En Revisión</option>
     </select>
-    <select class="filter-select" [(ngModel)]="filtroTipo">
+    <select class="filter-select" [(ngModel)]="filtroTipo" (ngModelChange)="onFiltroChange()">
       <option value="">Todos los tipos</option>
       @for (t of tiposUnicos; track t) {
       <option [value]="t">{{ t }}</option>
@@ -124,7 +124,7 @@
         </tr>
       </thead>
       <tbody>
-        @for (e of filtrados; track e.id) {
+        @for (e of paginados; track e.id) {
         <tr class="tabla-fila">
           <td>
             <span class="eq-nombre">{{ e.nombre }}</span>
@@ -158,7 +158,22 @@
         }
       </tbody>
     </table>
-    <p class="tabla-count">{{ filtrados.length }} equipo{{ filtrados.length !== 1 ? 's' : '' }} encontrado{{ filtrados.length !== 1 ? 's' : '' }}</p>
+    <div class="tabla-footer">
+      <p class="tabla-count">{{ filtrados.length }} equipo{{ filtrados.length !== 1 ? 's' : '' }} encontrado{{ filtrados.length !== 1 ? 's' : '' }}</p>
+      @if (totalPaginas > 1) {
+      <nav class="paginacion">
+        <button class="pag-btn" (click)="irPagina(page - 1)" [disabled]="page === 1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        @for (p of botonesPage; track p) {
+          <button class="pag-btn" [class.pag-activo]="p === page" (click)="irPagina(p)">{{ p }}</button>
+        }
+        <button class="pag-btn" (click)="irPagina(page + 1)" [disabled]="page === totalPaginas">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </nav>
+      }
+    </div>
   </div>
   }
 

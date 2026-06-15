@@ -21,6 +21,8 @@ export class LogisticaMantenimientoComponent implements OnInit {
   busqueda = '';
   filtroEstado = '';
   filtroTipo = '';
+  page = 1;
+  readonly PER_PAGE = 10;
 
   get tiposUnicos(): string[] {
     const s = new Set(this.equipos.map(e => e.tipo_nombre).filter(Boolean));
@@ -41,6 +43,25 @@ export class LogisticaMantenimientoComponent implements OnInit {
       return matchTerm && matchEstado && matchTipo;
     });
   }
+
+  get paginados(): any[] {
+    const start = (this.page - 1) * this.PER_PAGE;
+    return this.filtrados.slice(start, start + this.PER_PAGE);
+  }
+
+  get totalPaginas(): number {
+    return Math.max(1, Math.ceil(this.filtrados.length / this.PER_PAGE));
+  }
+
+  get botonesPage(): number[] {
+    const pages: number[] = [];
+    for (let i = Math.max(1, this.page - 2); i <= Math.min(this.totalPaginas, this.page + 2); i++) pages.push(i);
+    return pages;
+  }
+
+  irPagina(p: number): void { if (p >= 1 && p <= this.totalPaginas) this.page = p; }
+
+  onFiltroChange(): void { this.page = 1; }
 
   get kpis() {
     const total     = this.equipos.length;
