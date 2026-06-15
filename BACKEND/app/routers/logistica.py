@@ -4342,15 +4342,23 @@ def get_servicios_global(
 ):
     empresa_id = payload["empresa_id"]
 
+    from sqlalchemy.orm import aliased
+    UbicSvc = aliased(Ubicacion)
+    ZonaSvc = aliased(Zona)
+
     rows = (
         db.query(
             ProyectoServicio,
             Proyecto.nombre_proyecto.label("nombre_proyecto"),
             Proyecto.orden_trabajo.label("orden_trabajo"),
             Cliente.razon_social.label("razon_social"),
+            UbicSvc.nombre.label("ubicacion_nombre"),
+            ZonaSvc.nombre.label("zona_nombre"),
         )
         .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
+        .outerjoin(UbicSvc, UbicSvc.id == ProyectoServicio.ubicacion_id)
+        .outerjoin(ZonaSvc, ZonaSvc.id == ProyectoServicio.zona_id)
         .filter(
             ProyectoServicio.empresa_id == empresa_id,
             Proyecto.empresa_id         == empresa_id,
@@ -4379,6 +4387,8 @@ def get_servicios_global(
             "descripcion":            ps.ProyectoServicio.descripcion,
             "tipo_documento_cliente": ps.ProyectoServicio.tipo_documento_cliente or "SIN_OC",
             "nro_documento":          ps.ProyectoServicio.nro_documento or None,
+            "ubicacion":              ps.ubicacion_nombre or None,
+            "zona":                   ps.zona_nombre      or None,
         }
         for ps in rows
     ]
