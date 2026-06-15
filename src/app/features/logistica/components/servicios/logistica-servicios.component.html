@@ -57,21 +57,78 @@
 
   <!-- FILTROS -->
   @if (!isLoading && !errorMessage && servicios.length > 0) {
-  <div class="filtros-bar">
-    <div class="search-wrap">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input class="search-input" type="text" [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" placeholder="Buscar servicio, proyecto, cliente...">
+  <div class="filtros-section">
+    <div class="filtros-bar">
+      <!-- Búsqueda -->
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input class="search-input" type="text" [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" placeholder="Buscar servicio, proyecto, cliente, ubicación...">
+      </div>
+      <!-- Estado -->
+      <div class="select-wrap">
+        <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <select class="filter-select" [(ngModel)]="filtroEstado" (ngModelChange)="onFiltroChange()">
+          <option value="">Todos los estados</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="En_Proceso">En Proceso</option>
+          <option value="En_Pausa">En Pausa</option>
+          <option value="Completado">Completado</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+      </div>
+      <!-- Cliente (dinámico) -->
+      <div class="select-wrap">
+        <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        <select class="filter-select" [(ngModel)]="filtroCliente" (ngModelChange)="onFiltroChange()">
+          <option value="">Todos los clientes</option>
+          @for (c of clientesUnicos; track c) {
+            <option [value]="c">{{ c }}</option>
+          }
+        </select>
+      </div>
+      <!-- Ubicación (dinámico) -->
+      <div class="select-wrap">
+        <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+        <select class="filter-select" [(ngModel)]="filtroUbicacion" (ngModelChange)="onFiltroChange()">
+          <option value="">Todas las ubicaciones</option>
+          @for (u of ubicacionesUnicas; track u) {
+            <option [value]="u">{{ u }}</option>
+          }
+        </select>
+      </div>
+      <!-- Botón limpiar -->
+      @if (hayFiltros) {
+      <button class="btn-limpiar" (click)="limpiarFiltros()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+        Limpiar
+      </button>
+      }
     </div>
-    <select class="filter-select" [(ngModel)]="filtroEstado" (ngModelChange)="onFiltroChange()">
-      <option value="">Todos los estados</option>
-      <option value="Pendiente">Pendiente</option>
-      <option value="En_Proceso">En Proceso</option>
-      <option value="En_Pausa">En Pausa</option>
-      <option value="Completado">Completado</option>
-      <option value="Cancelado">Cancelado</option>
-    </select>
+
+    <!-- Chips de filtros activos -->
+    @if (hayFiltros) {
+    <div class="chips-bar">
+      <span class="chips-label">Filtros:</span>
+      @for (chip of chipsFiltros; track chip.campo) {
+      <span class="chip">
+        {{ chip.label }}
+        <button class="chip-x" (click)="quitarChip(chip.campo)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </span>
+      }
+    </div>
+    }
   </div>
   }
 
@@ -100,7 +157,10 @@
       <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
     </svg>
     <h3>Sin servicios</h3>
-    <p>{{ servicios.length === 0 ? 'No hay servicios registrados aún.' : 'Ningún servicio coincide con el filtro.' }}</p>
+    <p>{{ servicios.length === 0 ? 'No hay servicios registrados aún.' : 'Ningún servicio coincide con los filtros.' }}</p>
+    @if (hayFiltros) {
+    <button class="btn-retry" (click)="limpiarFiltros()">Quitar filtros</button>
+    }
   </div>
 
   <!-- TABLA -->
@@ -112,9 +172,10 @@
           <th>Servicio</th>
           <th>Proyecto / OT</th>
           <th>Cliente</th>
+          <th>Ubicación</th>
           <th>Estado</th>
           <th>OC / Documento</th>
-          <th>Fecha Programada</th>
+          <th>Fecha Prog.</th>
           <th>Fecha Fin</th>
           <th></th>
         </tr>
@@ -133,6 +194,14 @@
             <span class="orden-trabajo">OT: {{ s.orden_trabajo }}</span>
           </td>
           <td class="cliente-cell">{{ s.cliente }}</td>
+          <td class="ubic-cell">
+            @if (s.ubicacion) {
+              <span class="ubic-nombre">{{ s.ubicacion }}</span>
+              @if (s.zona) { <span class="ubic-zona">{{ s.zona }}</span> }
+            } @else {
+              <span class="muted-dash">—</span>
+            }
+          </td>
           <td>
             <span class="estado-badge" [class]="estadoClass(s.estado)">{{ estadoLabel(s.estado) }}</span>
           </td>

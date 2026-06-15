@@ -25,8 +25,10 @@ export class LogisticaServiciosComponent implements OnInit {
   isLoading = true;
   errorMessage: string | null = null;
 
-  busqueda = '';
+  busqueda     = '';
   filtroEstado = '';
+  filtroCliente   = '';
+  filtroUbicacion = '';
   page = 1;
   readonly PER_PAGE = 10;
 
@@ -44,6 +46,40 @@ export class LogisticaServiciosComponent implements OnInit {
     return !this.isTecnico && !this.isJefeOperaciones;
   }
 
+  get clientesUnicos(): string[] {
+    return [...new Set(this.servicios.map(s => s.cliente).filter(Boolean))].sort();
+  }
+
+  get ubicacionesUnicas(): string[] {
+    return [...new Set(this.servicios.map(s => s.ubicacion).filter(Boolean))].sort();
+  }
+
+  get hayFiltros(): boolean {
+    return !!(this.busqueda || this.filtroEstado || this.filtroCliente || this.filtroUbicacion);
+  }
+
+  get chipsFiltros(): { label: string; campo: keyof this }[] {
+    const chips: { label: string; campo: keyof this }[] = [];
+    if (this.filtroEstado)    chips.push({ label: this.estadoLabel(this.filtroEstado), campo: 'filtroEstado' as keyof this });
+    if (this.filtroCliente)   chips.push({ label: this.filtroCliente,   campo: 'filtroCliente'   as keyof this });
+    if (this.filtroUbicacion) chips.push({ label: this.filtroUbicacion, campo: 'filtroUbicacion' as keyof this });
+    if (this.busqueda)        chips.push({ label: `"${this.busqueda}"`, campo: 'busqueda'         as keyof this });
+    return chips;
+  }
+
+  quitarChip(campo: keyof this): void {
+    (this as any)[campo] = '';
+    this.page = 1;
+  }
+
+  limpiarFiltros(): void {
+    this.busqueda = '';
+    this.filtroEstado = '';
+    this.filtroCliente = '';
+    this.filtroUbicacion = '';
+    this.page = 1;
+  }
+
   get filtrados(): any[] {
     const term = this.busqueda.toLowerCase().trim();
     return this.servicios.filter(s => {
@@ -51,9 +87,12 @@ export class LogisticaServiciosComponent implements OnInit {
         s.nombre.toLowerCase().includes(term) ||
         s.nombre_proyecto.toLowerCase().includes(term) ||
         s.cliente.toLowerCase().includes(term) ||
-        s.orden_trabajo.toLowerCase().includes(term);
-      const matchEstado = !this.filtroEstado || s.estado === this.filtroEstado;
-      return matchTerm && matchEstado;
+        s.orden_trabajo.toLowerCase().includes(term) ||
+        (s.ubicacion || '').toLowerCase().includes(term);
+      const matchEstado    = !this.filtroEstado    || s.estado    === this.filtroEstado;
+      const matchCliente   = !this.filtroCliente   || s.cliente   === this.filtroCliente;
+      const matchUbicacion = !this.filtroUbicacion || s.ubicacion === this.filtroUbicacion;
+      return matchTerm && matchEstado && matchCliente && matchUbicacion;
     });
   }
 

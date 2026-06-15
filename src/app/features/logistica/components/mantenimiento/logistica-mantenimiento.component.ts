@@ -18,15 +18,45 @@ export class LogisticaMantenimientoComponent implements OnInit {
   isLoading = true;
   errorMessage: string | null = null;
 
-  busqueda = '';
-  filtroEstado = '';
-  filtroTipo = '';
+  busqueda     = '';
+  filtroEstado    = '';
+  filtroTipo      = '';
+  filtroUbicacion = '';
   page = 1;
   readonly PER_PAGE = 10;
 
   get tiposUnicos(): string[] {
-    const s = new Set(this.equipos.map(e => e.tipo_nombre).filter(Boolean));
-    return [...s].sort();
+    return [...new Set(this.equipos.map(e => e.tipo_nombre).filter(Boolean))].sort();
+  }
+
+  get ubicacionesUnicas(): string[] {
+    return [...new Set(this.equipos.map(e => e.ubicacion).filter(Boolean))].sort();
+  }
+
+  get hayFiltros(): boolean {
+    return !!(this.busqueda || this.filtroEstado || this.filtroTipo || this.filtroUbicacion);
+  }
+
+  get chipsFiltros(): { label: string; campo: keyof this }[] {
+    const chips: { label: string; campo: keyof this }[] = [];
+    if (this.filtroEstado)    chips.push({ label: this.estadoLabel(this.filtroEstado), campo: 'filtroEstado'    as keyof this });
+    if (this.filtroTipo)      chips.push({ label: this.filtroTipo,      campo: 'filtroTipo'      as keyof this });
+    if (this.filtroUbicacion) chips.push({ label: this.filtroUbicacion, campo: 'filtroUbicacion' as keyof this });
+    if (this.busqueda)        chips.push({ label: `"${this.busqueda}"`, campo: 'busqueda'         as keyof this });
+    return chips;
+  }
+
+  quitarChip(campo: keyof this): void {
+    (this as any)[campo] = '';
+    this.page = 1;
+  }
+
+  limpiarFiltros(): void {
+    this.busqueda = '';
+    this.filtroEstado = '';
+    this.filtroTipo = '';
+    this.filtroUbicacion = '';
+    this.page = 1;
   }
 
   get filtrados(): any[] {
@@ -38,9 +68,10 @@ export class LogisticaMantenimientoComponent implements OnInit {
         (e.tipo_nombre || '').toLowerCase().includes(term) ||
         (e.ubicacion || '').toLowerCase().includes(term) ||
         (e.marca || '').toLowerCase().includes(term);
-      const matchEstado = !this.filtroEstado || e.estado === this.filtroEstado;
-      const matchTipo   = !this.filtroTipo   || e.tipo_nombre === this.filtroTipo;
-      return matchTerm && matchEstado && matchTipo;
+      const matchEstado    = !this.filtroEstado    || e.estado     === this.filtroEstado;
+      const matchTipo      = !this.filtroTipo      || e.tipo_nombre === this.filtroTipo;
+      const matchUbicacion = !this.filtroUbicacion || e.ubicacion  === this.filtroUbicacion;
+      return matchTerm && matchEstado && matchTipo && matchUbicacion;
     });
   }
 

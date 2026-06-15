@@ -56,26 +56,77 @@
 
   <!-- FILTROS -->
   @if (!isLoading && !errorMessage && equipos.length > 0) {
-  <div class="filtros-bar">
-    <div class="search-wrap">
-      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input class="search-input" type="text" [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" placeholder="Buscar equipo, código, tipo, ubicación...">
-    </div>
-    <select class="filter-select" [(ngModel)]="filtroEstado" (ngModelChange)="onFiltroChange()">
-      <option value="">Todos los estados</option>
-      <option value="operativo">Operativo</option>
-      <option value="mantenimiento">Mantenimiento</option>
-      <option value="inoperativo">Inoperativo</option>
-      <option value="en_revision">En Revisión</option>
-    </select>
-    <select class="filter-select" [(ngModel)]="filtroTipo" (ngModelChange)="onFiltroChange()">
-      <option value="">Todos los tipos</option>
-      @for (t of tiposUnicos; track t) {
-      <option [value]="t">{{ t }}</option>
+  <div class="filtros-section">
+    <div class="filtros-bar">
+      <!-- Búsqueda -->
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input class="search-input" type="text" [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" placeholder="Buscar equipo, código, tipo, ubicación...">
+      </div>
+      <!-- Estado -->
+      <div class="select-wrap">
+        <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <select class="filter-select" [(ngModel)]="filtroEstado" (ngModelChange)="onFiltroChange()">
+          <option value="">Todos los estados</option>
+          <option value="operativo">Operativo</option>
+          <option value="mantenimiento">Mantenimiento</option>
+          <option value="inoperativo">Inoperativo</option>
+          <option value="en_revision">En Revisión</option>
+        </select>
+      </div>
+      <!-- Tipo (dinámico) -->
+      <div class="select-wrap">
+        <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+        <select class="filter-select" [(ngModel)]="filtroTipo" (ngModelChange)="onFiltroChange()">
+          <option value="">Todos los tipos</option>
+          @for (t of tiposUnicos; track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+      </div>
+      <!-- Ubicación (dinámico) -->
+      <div class="select-wrap">
+        <svg class="select-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+        <select class="filter-select" [(ngModel)]="filtroUbicacion" (ngModelChange)="onFiltroChange()">
+          <option value="">Todas las ubicaciones</option>
+          @for (u of ubicacionesUnicas; track u) {
+            <option [value]="u">{{ u }}</option>
+          }
+        </select>
+      </div>
+      <!-- Limpiar -->
+      @if (hayFiltros) {
+      <button class="btn-limpiar" (click)="limpiarFiltros()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+        Limpiar
+      </button>
       }
-    </select>
+    </div>
+
+    <!-- Chips de filtros activos -->
+    @if (hayFiltros) {
+    <div class="chips-bar">
+      <span class="chips-label">Filtros:</span>
+      @for (chip of chipsFiltros; track chip.campo) {
+      <span class="chip">
+        {{ chip.label }}
+        <button class="chip-x" (click)="quitarChip(chip.campo)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </span>
+      }
+    </div>
+    }
   </div>
   }
 
@@ -104,7 +155,10 @@
       <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
     </svg>
     <h3>Sin equipos</h3>
-    <p>{{ equipos.length === 0 ? 'No hay equipos intervenidos registrados.' : 'Ningún equipo coincide con el filtro.' }}</p>
+    <p>{{ equipos.length === 0 ? 'No hay equipos intervenidos registrados.' : 'Ningún equipo coincide con los filtros.' }}</p>
+    @if (hayFiltros) {
+    <button class="btn-retry" (click)="limpiarFiltros()">Quitar filtros</button>
+    }
   </div>
 
   <!-- TABLA -->
