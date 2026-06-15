@@ -1,0 +1,22 @@
+@if (open) {
+  <div class="modal-backdrop-pro" (click)="close()"></div>
+  <div class="app-modal-shell fade-in-up" [style.maxWidth]="maxWidth" (click)="$event.stopPropagation()">
+    <div class="app-modal-head">
+      <div class="app-modal-icon" [style.background]="iconBg" [style.color]="iconColor">
+        <ng-content select="[modal-icon]"></ng-content>
+      </div>
+      <div class="app-modal-texts">
+        <p class="app-modal-title">{{ title }}</p>
+        @if (subtitle) {
+          <p class="app-modal-sub">{{ subtitle }}</p>
+        }
+      </div>
+      <button class="app-modal-close-btn" type="button" (click)="close()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <ng-content></ng-content>
+  </div>
+}

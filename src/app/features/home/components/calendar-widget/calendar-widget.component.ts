@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { DashboardService } from '../../../../core/services/dashboard.service';
@@ -28,7 +29,7 @@ interface EventoFecha {
 @Component({
   selector: 'app-calendar-widget',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './calendar-widget.component.html',
   styleUrls: ['./calendar-widget.component.css']
 })
@@ -196,6 +197,22 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
   cambiarMes(delta: number): void {
     this.fechaVista.setMonth(this.fechaVista.getMonth() + delta);
     this.generarCalendario();
+  }
+
+  get servicioModalTitle(): string {
+    if (this.cargandoServicio) return 'Cargando…';
+    if (this.servicioModoNota) {
+      const key = this.diaSeleccionado?.fechaStr;
+      return key && this.notasGuardadas[key] ? 'Editar Nota' : 'Añadir Nota';
+    }
+    if (this.serviciosDelDia.length === 1) return this.serviciosDelDia[0].nombre ?? 'Detalle del Servicio';
+    if (this.serviciosDelDia.length > 1)  return `${this.serviciosDelDia.length} Servicios`;
+    return 'Detalle del Servicio';
+  }
+
+  get servicioModalSubtitle(): string {
+    if (!this.diaSeleccionado) return '';
+    return `${this.diaSeleccionado.num} de ${this.mesActual}`;
   }
 
   abrirModal(dia: any): void {

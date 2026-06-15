@@ -270,35 +270,17 @@
 <!-- ════════════════════════════════════════════════════════════════════════
      MODAL DE EVALUACIÓN
      ════════════════════════════════════════════════════════════════════════ -->
-@if (showModal && solicitudActual) {
-<div class="modal-backdrop-pro" (click)="cerrarModal()"></div>
-<div class="modal-eval fade-in-up" (click)="$event.stopPropagation()">
+@if (solicitudActual) {
+  <app-modal
+    [open]="showModal"
+    [title]="solicitudActual.estado === 'pendiente' ? 'Evaluar Solicitud' : 'Detalle de Solicitud'"
+    [subtitle]="tipoLabel(solicitudActual.tipo) + ' · ' + solicitudActual.empleado.nombreCompleto"
+    maxWidth="580px"
+    (closeModal)="cerrarModal()">
 
-    <!-- Cabecera -->
-    <div class="modal-eval-head">
-        <div class="modal-eval-title-row">
-            <div class="modal-eval-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" width="22" height="22">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="modal-eval-title">
-                    @if (solicitudActual.estado === 'pendiente') { Evaluar Solicitud }
-                    @else { Detalle de Solicitud }
-                </h3>
-                <p class="modal-eval-sub">{{ tipoLabel(solicitudActual.tipo) }} · {{ solicitudActual.empleado.nombreCompleto }}</p>
-            </div>
-        </div>
-        <button class="modal-close-btn" (click)="cerrarModal()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                stroke-width="2" width="20" height="20">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-        </button>
-    </div>
+    <svg modal-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+    </svg>
 
     <!-- Cuerpo -->
     <div class="modal-eval-body">
@@ -441,5 +423,6 @@
         </button>
         }
     </div>
-</div>
+
+  </app-modal>
 }

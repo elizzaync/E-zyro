@@ -507,21 +507,20 @@
 <!-- ════════════════════════════════════════════════════════════════════════
      MODAL DETALLE DIARIO
 ═══════════════════════════════════════════════════════════════════════════ -->
-@if (showModalDetalle && empleadoDetalle) {
-  <div class="modal-backdrop-pro" (click)="cerrarModalDetalle()"></div>
-  <div class="modal-detalle">
-    <div class="modal-detalle-head">
-      <div class="modal-detalle-icon">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      </div>
-      <div>
-        <p class="modal-detalle-title">Detalle Diario</p>
-        <p class="modal-detalle-sub">{{ empleadoDetalle.nombreCompleto }} · {{ labelSemana }}</p>
-      </div>
-      <button class="modal-close-btn" (click)="cerrarModalDetalle()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
+@if (empleadoDetalle) {
+  <app-modal
+    [open]="showModalDetalle"
+    title="Detalle Diario"
+    [subtitle]="empleadoDetalle.nombreCompleto + ' · ' + labelSemana"
+    maxWidth="840px"
+    (closeModal)="cerrarModalDetalle()">
+
+    <svg modal-icon width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
     <div class="modal-detalle-body">
       @if (detalleLoading) {
         <div class="detalle-loading"><div class="spinner-sm"></div> Cargando detalle…</div>
@@ -607,27 +606,29 @@
     <div class="modal-detalle-footer">
       <button class="btn-cancel" (click)="cerrarModalDetalle()">Cerrar</button>
     </div>
-  </div>
+
+  </app-modal>
 }
 
 <!-- ════════════════════════════════════════════════════════════════════════
      MODAL ADVERTENCIA
 ═══════════════════════════════════════════════════════════════════════════ -->
 @if (showModalAdv) {
-  <div class="modal-backdrop-pro" (click)="cerrarModalAdv()"></div>
-  <div class="modal-adv">
-    <div class="modal-adv-head">
-      <div class="modal-adv-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      </div>
-      <div>
-        <p class="modal-adv-title">Emitir Advertencia</p>
-        <p class="modal-adv-sub">Esta acción quedará registrada en el historial del empleado</p>
-      </div>
-      <button class="modal-close-btn" (click)="cerrarModalAdv()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
+  <app-modal
+    [open]="showModalAdv"
+    title="Emitir Advertencia"
+    subtitle="Esta acción quedará registrada en el historial del empleado"
+    maxWidth="480px"
+    iconBg="rgba(245,158,11,0.12)"
+    iconColor="#f59e0b"
+    (closeModal)="cerrarModalAdv()">
+
+    <svg modal-icon width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+
     @if (empleadoSeleccionado) {
       <div class="modal-adv-body">
         <div class="adv-emp-row">
@@ -679,7 +680,8 @@
         @if (advCargando) { Procesando… } @else { Emitir Advertencia }
       </button>
     </div>
-  </div>
+
+  </app-modal>
 }
 
 <!-- ════════════════════════════════════════════════════════════════════════

@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { RrhhService, SolicitudLaboralDto } from '../../../core/services/rrhh.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
 
 const TIPO_LABELS: Record<string, string> = {
   vacaciones:           'Vacaciones',
@@ -19,11 +20,11 @@ const TIPO_LABELS: Record<string, string> = {
 @Component({
   selector: 'app-solicitudes-lista',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, AppModalComponent],
   templateUrl: './solicitudes-lista.component.html',
   styleUrls: ['./solicitudes-lista.component.css']
 })
-export class SolicitudesListaComponent implements OnInit {
+export class SolicitudesListaComponent implements OnInit, OnDestroy {
 
   // ── Estado de UI ─────────────────────────────────────────────────────────
   activeTab: 'permisos' | 'vacaciones' = 'permisos';
@@ -183,6 +184,10 @@ export class SolicitudesListaComponent implements OnInit {
   diasLabel(dias: number | null): string {
     if (dias === null || dias === undefined) return '';
     return dias === 1 ? '1 día' : `${dias} días`;
+  }
+
+  ngOnDestroy(): void {
+    document.body.style.overflow = '';
   }
 
   // ── Modal de evaluación ───────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
 import * as L from 'leaflet';
 
 import {
@@ -27,7 +28,7 @@ L.Marker.prototype.options.icon = iconDefault;
 @Component({
   selector: 'app-asistencia-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './asistencia-dashboard.component.html',
   styleUrls: ['./asistencia-dashboard.component.css'],
 })
