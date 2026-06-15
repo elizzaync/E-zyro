@@ -21,6 +21,7 @@ from app.core.permisos import exigir_no_tecnico
 from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.empleado import Empleado
 from app.models.usuario import Usuario
+from app.services.fcm_service import notificar_usuario
 
 router = APIRouter(tags=["RRHH · Solicitudes"])
 
@@ -151,6 +152,29 @@ def evaluar_solicitud(
 
     db.commit()
     db.refresh(sol)
+
+    # Notificar al empleado solicitante
+    emp = db.query(Empleado).filter(Empleado.id == sol.empleado_id).first()
+    if emp:
+        accion = "aprobada" if sol.estado == "aprobada" else "rechazada"
+        tipo_label = sol.tipo.replace("_", " ").capitalize()
+        titulo = f"Solicitud {accion}"
+        mensaje = (
+            f"Tu solicitud de {tipo_label} fue {accion}. "
+            f"Observación: {sol.observacion}"
+        )
+        notificar_usuario(
+            db=db,
+            empresa_id=empresa_id,
+            usuario_id=emp.usuario_id,
+            titulo=titulo,
+            mensaje=mensaje,
+            tipo="warning",
+            categoria="rrhh",
+            referencia_id=sol.id,
+            referencia_tabla="solicitud_laboral",
+        )
+        db.commit()
 
     return {
         "id": sol.id,

@@ -1099,6 +1099,22 @@ def _run_migrations():
             "ADD COLUMN IF NOT EXISTS public_id_pdf VARCHAR(255)"
         ))
         conn.execute(text(
+            "ALTER TABLE solicitud_laboral "
+            "ADD COLUMN IF NOT EXISTS observacion VARCHAR(500)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE solicitud_laboral "
+            "ADD COLUMN IF NOT EXISTS aprobado_por VARCHAR(36)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE solicitud_laboral "
+            "ADD COLUMN IF NOT EXISTS fecha_aprobacion TIMESTAMP"
+        ))
+        conn.execute(text(
+            "ALTER TABLE solicitud_laboral "
+            "ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP"
+        ))
+        conn.execute(text(
             "ALTER TABLE mensaje_chat "
             "ADD COLUMN IF NOT EXISTS destinatario_id UUID "
             "REFERENCES usuario(id)"
@@ -1715,6 +1731,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(
         status_code=500,
         content={"detail": f"{type(exc).__name__}: {exc}"},
+        headers={"Access-Control-Allow-Origin": "*"},
     )
 
 
