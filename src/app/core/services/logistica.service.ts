@@ -438,4 +438,12 @@ export class LogisticaService {
   getDesgloseEquipo(equipoId: string): Observable<EquipoStockDesglose> {
     return this.http.get<EquipoStockDesglose>(`${this.api}/logistica/incidencias/equipo/${equipoId}/desglose`);
   }
+
+  getServiciosGlobal(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/logistica/servicios`);
+  }
+
+  getMantenimientoGlobal(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/logistica/mantenimiento`);
+  }
 }

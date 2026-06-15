@@ -1,0 +1,113 @@
+import { Component, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { LogisticaService } from '../../../../core/services/logistica.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { CrearProyectoModalComponent } from '../../../operaciones/components/crear-proyecto-modal/crear-proyecto-modal.component';
+import { ToastService } from '../../../../core/services/toast.service';
+
+@Component({
+  selector: 'app-logistica-servicios',
+  standalone: true,
+  imports: [CommonModule, FormsModule, SpinnerComponent, CrearProyectoModalComponent],
+  templateUrl: './logistica-servicios.component.html',
+  styleUrls: ['./logistica-servicios.component.css'],
+})
+export class LogisticaServiciosComponent implements OnInit {
+  private svc    = inject(LogisticaService);
+  private router = inject(Router);
+  private auth   = inject(AuthService);
+  private toast  = inject(ToastService);
+
+  servicios: any[] = [];
+  isLoading = true;
+  errorMessage: string | null = null;
+
+  busqueda = '';
+  filtroEstado = '';
+
+  showCrearProyectoModal = false;
+
+  get isTecnico(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
+  }
+
+  get isJefeOperaciones(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
+  }
+
+  get puedeCrear(): boolean {
+    return !this.isTecnico && !this.isJefeOperaciones;
+  }
+
+  get filtrados(): any[] {
+    const term = this.busqueda.toLowerCase().trim();
+    return this.servicios.filter(s => {
+      const matchTerm = !term ||
+        s.nombre.toLowerCase().includes(term) ||
+        s.nombre_proyecto.toLowerCase().includes(term) ||
+        s.cliente.toLowerCase().includes(term) ||
+        s.orden_trabajo.toLowerCase().includes(term);
+      const matchEstado = !this.filtroEstado || s.estado === this.filtroEstado;
+      return matchTerm && matchEstado;
+    });
+  }
+
+  get kpis() {
+    const total = this.servicios.length;
+    const completados = this.servicios.filter(s => s.estado === 'Completado').length;
+    const pendientes  = this.servicios.filter(s => s.estado === 'Pendiente').length;
+    const enProceso   = this.servicios.filter(s => s.estado === 'En_Proceso').length;
+    return { total, completados, pendientes, enProceso };
+  }
+
+  ngOnInit(): void { this.cargar(); }
+
+  cargar(): void {
+    this.isLoading = true;
+    this.errorMessage = null;
+    this.svc.getServiciosGlobal().subscribe({
+      next: (data) => { this.servicios = data; this.isLoading = false; },
+      error: () => {
+        this.errorMessage = 'Error de conexión con el servidor.';
+        this.isLoading = false;
+      },
+    });
+  }
+
+  estadoClass(estado: string): string {
+    const map: Record<string, string> = {
+      'Pendiente':  'estado-pendiente',
+      'En_Proceso': 'estado-en-proceso',
+      'En_Pausa':   'estado-en-pausa',
+      'Completado': 'estado-completado',
+      'Cancelado':  'estado-cancelado',
+    };
+    return map[estado] ?? 'estado-pendiente';
+  }
+
+  estadoLabel(estado: string): string {
+    const map: Record<string, string> = { 'En_Proceso': 'En Proceso', 'En_Pausa': 'En Pausa' };
+    return map[estado] ?? estado;
+  }
+
+  irAServicio(s: any): void {
+    this.router.navigate(['/operaciones/proyecto', s.proyecto_id]);
+  }
+
+  abrirCrearProyecto(): void { this.showCrearProyectoModal = true; }
+
+  onCrearProyectoClosed(result: { guardado: boolean; proyectoId?: string }): void {
+    this.showCrearProyectoModal = false;
+    if (result.guardado) {
+      this.toast.mostrar('Proyecto creado. Ahora agrega los servicios.', 'success');
+      if (result.proyectoId) {
+        this.router.navigate(['/operaciones/proyecto', result.proyectoId]);
+      } else {
+        this.cargar();
+      }
+    }
+  }
+}

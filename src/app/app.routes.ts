@@ -14,6 +14,8 @@ import { LogisticaComponent } from './features/logistica/logistica.component';
 import { RequerimientosComponent } from './features/logistica/components/requerimientos/requerimientos.component';
 import { ComprasComponent } from './features/logistica/components/compras/compras.component';
 import { SalidasComponent } from './features/logistica/components/salidas/salidas.component';
+import { LogisticaServiciosComponent } from './features/logistica/components/servicios/logistica-servicios.component';
+import { LogisticaMantenimientoComponent } from './features/logistica/components/mantenimiento/logistica-mantenimiento.component';
 import { OperacionesDetalleComponent } from './features/operaciones/components/operaciones-detalle/operaciones-detalle.component';
 import { OperacionesServiciosListaComponent } from './features/operaciones/components/operaciones-servicios-lista/operaciones-servicios-lista.component';
 import { OperacionesCronogramaComponent } from './features/operaciones/components/operaciones-cronograma/operaciones-cronograma.component';
@@ -151,6 +153,18 @@ export const routes: Routes = [
     component: SalidasComponent,
     title: 'Salidas de Materiales | e-zyro TIC',
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
+  },
+  {
+    path: 'logistica/servicios',
+    component: LogisticaServiciosComponent,
+    title: 'Servicios | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'logistica/mantenimiento',
+    component: LogisticaMantenimientoComponent,
+    title: 'Mantenimiento de Equipos | e-zyro TIC',
+    canActivate: [authGuard]
   },
   {
     path: 'operaciones/proyecto/:id',

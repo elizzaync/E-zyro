@@ -1,0 +1,163 @@
+<div class="ls-layout fade-in">
+
+  <!-- HEADER -->
+  <div class="header-section">
+    <div>
+      <h2 class="page-title">Servicios</h2>
+      <p class="page-subtitle">
+        @if (!isLoading) { Vista global de todos los servicios y proyectos }
+        @else { Cargando servicios... }
+      </p>
+    </div>
+    @if (puedeCrear) {
+    <button class="btn-nuevo" (click)="abrirCrearProyecto()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nuevo Proyecto
+    </button>
+    }
+  </div>
+
+  <!-- KPIs -->
+  @if (!isLoading && !errorMessage) {
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--blue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+      </div>
+      <div class="kpi-body"><span class="kpi-value">{{ kpis.total }}</span><span class="kpi-label">Total Servicios</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--green">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="kpi-body"><span class="kpi-value">{{ kpis.completados }}</span><span class="kpi-label">Completados</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--amber">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="kpi-body"><span class="kpi-value">{{ kpis.enProceso }}</span><span class="kpi-label">En Proceso</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon--gray">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div class="kpi-body"><span class="kpi-value">{{ kpis.pendientes }}</span><span class="kpi-label">Pendientes</span></div>
+    </div>
+  </div>
+  }
+
+  <!-- FILTROS -->
+  @if (!isLoading && !errorMessage && servicios.length > 0) {
+  <div class="filtros-bar">
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input class="search-input" type="text" [(ngModel)]="busqueda" placeholder="Buscar servicio, proyecto, cliente...">
+    </div>
+    <select class="filter-select" [(ngModel)]="filtroEstado">
+      <option value="">Todos los estados</option>
+      <option value="Pendiente">Pendiente</option>
+      <option value="En_Proceso">En Proceso</option>
+      <option value="En_Pausa">En Pausa</option>
+      <option value="Completado">Completado</option>
+      <option value="Cancelado">Cancelado</option>
+    </select>
+  </div>
+  }
+
+  <!-- LOADING -->
+  @if (isLoading) {
+  <div class="loading-state">
+    <app-spinner></app-spinner>
+    <span>Cargando servicios...</span>
+  </div>
+
+  <!-- ERROR -->
+  } @else if (errorMessage) {
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <h3>Error al cargar</h3>
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="cargar()">Reintentar</button>
+  </div>
+
+  <!-- VACÍO -->
+  } @else if (filtrados.length === 0) {
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+    </svg>
+    <h3>Sin servicios</h3>
+    <p>{{ servicios.length === 0 ? 'No hay servicios registrados aún.' : 'Ningún servicio coincide con el filtro.' }}</p>
+  </div>
+
+  <!-- TABLA -->
+  } @else {
+  <div class="table-wrap">
+    <table class="servicios-table">
+      <thead>
+        <tr>
+          <th>Servicio</th>
+          <th>Proyecto / OT</th>
+          <th>Cliente</th>
+          <th>Estado</th>
+          <th>Fecha Programada</th>
+          <th>Fecha Fin</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (s of filtrados; track s.id) {
+        <tr class="tabla-fila" (click)="irAServicio(s)">
+          <td>
+            <span class="svc-nombre">{{ s.nombre }}</span>
+            @if (s.descripcion) {
+            <span class="svc-desc">{{ s.descripcion }}</span>
+            }
+          </td>
+          <td>
+            <span class="proyecto-nombre">{{ s.nombre_proyecto }}</span>
+            <span class="orden-trabajo">OT: {{ s.orden_trabajo }}</span>
+          </td>
+          <td class="cliente-cell">{{ s.cliente }}</td>
+          <td>
+            <span class="estado-badge" [class]="estadoClass(s.estado)">{{ estadoLabel(s.estado) }}</span>
+          </td>
+          <td class="fecha-cell">{{ s.fecha_programada || '—' }}</td>
+          <td class="fecha-cell">{{ s.fecha_fin || '—' }}</td>
+          <td>
+            <button class="btn-ver" (click)="irAServicio(s); $event.stopPropagation()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+    <p class="tabla-count">{{ filtrados.length }} servicio{{ filtrados.length !== 1 ? 's' : '' }} encontrado{{ filtrados.length !== 1 ? 's' : '' }}</p>
+  </div>
+  }
+
+</div>
+
+<!-- MODAL CREAR PROYECTO -->
+@if (showCrearProyectoModal) {
+<app-crear-proyecto-modal
+  mode="crear"
+  (closed)="onCrearProyectoClosed($event)">
+</app-crear-proyecto-modal>
+}
