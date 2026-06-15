@@ -46,7 +46,7 @@
 ## Repos
 - Backend (FastAPI):  D:\e-zyro-backend
 - App (Flutter):      D:\e-zyro-app
-- Frontend Angular:   NO TOCAR (solo Backend y Flutter)
+- Frontend Angular:   D:\e-zyro-frontend> 
 - Lab Finanzas:       NO CONECTADO
 
 ## Producción / Railway (úsalo para verificar datos sin desplegar)

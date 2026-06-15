@@ -33,6 +33,7 @@ from app.routers import documentos_sst  as documentos_sst_router
 from app.routers import epp             as epp_router
 from app.routers import calibraciones   as calibraciones_router
 from app.routers import correctivos     as correctivos_router
+from app.routers import garantias        as garantias_router
 from app.routers import itse            as itse_router
 from app.routers import informes_servicio as informes_servicio_router
 from app.routers import equipos_intervenidos as equipos_intervenidos_router
@@ -1750,6 +1751,7 @@ app.include_router(epp_router.router)
 app.include_router(calibraciones_router.router)
 app.include_router(calibraciones_router.router_estado)
 app.include_router(correctivos_router.router)
+app.include_router(garantias_router.router)
 app.include_router(itse_router.router)
 app.include_router(informes_servicio_router.router)
 app.include_router(equipos_intervenidos_router.router)
