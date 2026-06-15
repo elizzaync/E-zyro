@@ -20,6 +20,7 @@ from ..db.database import get_db
 
 from ..models.prestamo import Prestamo, PrestamoItem
 from ..models.equipo import Equipo
+from ..models.movimiento_equipo import MovimientoEquipo
 from ..models.almacen import Almacen
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
@@ -87,6 +88,19 @@ def _nombre_firmando(db: Session, usuario_id: Optional[str], desde) -> Optional[
         return None
     row = db.query(Usuario.nombre, Usuario.apellido).filter(Usuario.id == usuario_id).first()
     return f"{row[0]} {row[1]}".strip() if row else None
+
+
+def _log_equipo(db: Session, empresa_id: str, equipo_id, tipo: str,
+                detalle: Optional[str], responsable_id, ref_id) -> None:
+    """Registra un evento en la bitácora del equipo (asignación/retorno por préstamo)."""
+    if not equipo_id:
+        return
+    db.add(MovimientoEquipo(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id, equipo_id=str(equipo_id),
+        tipo=tipo, detalle=detalle, responsable_id=responsable_id,
+        referencia_id=str(ref_id) if ref_id else None, referencia_tipo="prestamo",
+        fecha=datetime.utcnow(),
+    ))
 
 
 def _prestamos_activos_por_equipo(db: Session, empresa_id: str) -> dict[str, int]:
@@ -523,6 +537,10 @@ async def entregar_prestamo(
     for it in items:
         cant = decisiones.get(str(it.id))
         it.cantidad_entregada = int(cant) if cant is not None else int(it.cantidad_solicitada)
+        # Bitácora del equipo: asignación a servicio por préstamo.
+        _log_equipo(db, empresa_id, it.equipo_id, "asignacion",
+                    f"Préstamo a servicio (x{it.cantidad_entregada})",
+                    emp.id, p.id)
 
     # Logística despacha y firma como entregador. Queda 'por_recibir' a la espera
     # de que el equipo técnico firme la recepción (doble firma + consenso).
@@ -797,6 +815,12 @@ def confirmar_devolucion(
         p.estado = "confirmado"
         p.confirmado_por_id = emp.id
         p.fecha_confirmacion = datetime.utcnow()
+        # Bitácora del equipo: retorno definitivo a almacén.
+        for it in db.query(PrestamoItem).filter(PrestamoItem.prestamo_id == p.id).all():
+            cant_dev = int(it.cantidad_devuelta if it.cantidad_devuelta is not None
+                           else (it.cantidad_entregada or 0))
+            _log_equipo(db, empresa_id, it.equipo_id, "retorno",
+                        f"Devuelto de servicio (x{cant_dev})", emp.id, p.id)
     else:
         # Rechazo de la devolución: queda 'devuelto' con observación; técnico debe corregir
         p.observacion_logistico = body.observacion or "Devolución observada por logística"
