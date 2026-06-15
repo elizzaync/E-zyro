@@ -55,6 +55,7 @@ from ..models.notificacion import Notificacion
 from ..models.proveedor import Proveedor as ProveedorModel, ProveedorCategoria
 from ..models.retorno import Retorno, RetornoDetalle
 from ..models.incidencia import Incidencia
+from ..models.tarea import Tarea
 
 from ..schemas.logistica import (
     MaterialIn, MaterialPatch, MaterialOut, MaterialesListResponse,
@@ -4497,7 +4498,7 @@ def get_servicios_global(
     UbicSvc = aliased(Ubicacion)
     ZonaSvc = aliased(Zona)
 
-    rows = (
+    q = (
         db.query(
             ProyectoServicio,
             Proyecto.nombre_proyecto.label("nombre_proyecto"),
@@ -4514,9 +4515,28 @@ def get_servicios_global(
             ProyectoServicio.empresa_id == empresa_id,
             Proyecto.empresa_id         == empresa_id,
         )
-        .order_by(Proyecto.created_at.desc(), ProyectoServicio.orden.asc())
-        .all()
     )
+
+    # Técnicos solo ven los servicios donde tienen tareas asignadas
+    if es_tecnico(payload):
+        usuario_id = payload["id"]
+        empleado = (
+            db.query(Empleado.id)
+            .filter(
+                Empleado.usuario_id == usuario_id,
+                Empleado.empresa_id == empresa_id,
+            )
+            .first()
+        )
+        if not empleado:
+            return []
+        q = (
+            q.join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
+            .filter(Tarea.responsable_id == empleado.id)
+            .distinct()
+        )
+
+    rows = q.order_by(Proyecto.created_at.desc(), ProyectoServicio.orden.asc()).all()
 
     return [
         {
