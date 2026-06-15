@@ -388,7 +388,11 @@ def kardex_valorizado(db: Session, empresa_id: str, almacen_id: str | None = Non
         signo = Decimal("1") if tipo in ("entrada", "compra", "ajuste") else Decimal("-1")
         acc[clave] = acc.get(clave, CERO) + signo * _d2(valor)
     return [
-        {"material_id": mat, "almacen_id": alm, "saldo_valorizado": saldo}
+        {
+            "material_id": str(mat) if mat is not None else None,
+            "almacen_id": str(alm) if alm is not None else None,
+            "saldo_valorizado": saldo,
+        }
         for (mat, alm), saldo in acc.items()
     ]
 
