@@ -1,3 +1,7 @@
+:host {
+  display: contents;
+}
+
 .app-modal-shell {
   position: fixed;
   top: 50%;
