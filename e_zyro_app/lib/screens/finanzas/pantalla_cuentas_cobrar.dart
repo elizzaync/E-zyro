@@ -130,6 +130,41 @@ class _State extends State<PantallaCuentasCobrar>
     );
   }
 
+  Future<void> _abrirFacturarServicio() async {
+    final svc = await getFinanzasService();
+    final r = await svc.serviciosFacturables();
+    if (!mounted) return;
+    if (!r.ok) {
+      mostrarError(context, r.errorMessage);
+      return;
+    }
+    final servicios = r.data!;
+    if (servicios.isEmpty) {
+      mostrarError(
+          context, 'No hay servicios completados pendientes de facturar');
+      return;
+    }
+    final elegido = await showModalBottomSheet<ServicioFacturable>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _SelectorServicio(servicios: servicios),
+    );
+    if (elegido == null || !mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _FormFacturarServicio(
+        servicio: elegido,
+        onGuardado: () {
+          _cargarComprobantes();
+          _cargarSaldos();
+        },
+      ),
+    );
+  }
+
   void _abrirFormCobro() {
     showModalBottomSheet(
       context: context,
@@ -172,7 +207,15 @@ class _State extends State<PantallaCuentasCobrar>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cuentas por Cobrar'),
-        actions: [accionConmutadorFinanzas(context, actual: FinId.cxc)],
+        actions: [
+          if (_tabs.index == 0 && canEmitir)
+            IconButton(
+              icon: const Icon(Icons.receipt_long),
+              tooltip: 'Facturar servicio',
+              onPressed: _abrirFacturarServicio,
+            ),
+          accionConmutadorFinanzas(context, actual: FinId.cxc),
+        ],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
@@ -852,6 +895,308 @@ class _FormCobroState extends State<_FormCobro> {
                   : const Text('Registrar cobro'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Selector de servicio facturable ───────────────────────────────────────────
+
+class _SelectorServicio extends StatelessWidget {
+  final List<ServicioFacturable> servicios;
+  const _SelectorServicio({required this.servicios});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Elegir servicio a facturar',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: servicios.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 8),
+              itemBuilder: (_, i) {
+                final s = servicios[i];
+                final detalle = [
+                  if (s.proyectoNombre != null && s.proyectoNombre!.isNotEmpty)
+                    s.proyectoNombre,
+                  if (s.clienteNombre != null && s.clienteNombre!.isNotEmpty)
+                    s.clienteNombre,
+                  if (s.nroDocumentoCliente != null &&
+                      s.nroDocumentoCliente!.isNotEmpty)
+                    'OC ${s.nroDocumentoCliente}',
+                ].whereType<String>().join(' · ');
+                return Card(
+                  child: ListTile(
+                    leading: const CircleAvatar(child: Icon(Icons.build)),
+                    title: Text(s.servicioNombre),
+                    subtitle: detalle.isEmpty
+                        ? null
+                        : Text(detalle, style: const TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.pop(context, s),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Formulario facturar servicio ───────────────────────────────────────────────
+
+class _FormFacturarServicio extends StatefulWidget {
+  final ServicioFacturable servicio;
+  final VoidCallback onGuardado;
+  const _FormFacturarServicio({required this.servicio, required this.onGuardado});
+
+  @override
+  State<_FormFacturarServicio> createState() => _FormFacturarServicioState();
+}
+
+class _FormFacturarServicioState extends State<_FormFacturarServicio> {
+  final _form = GlobalKey<FormState>();
+  final _numCtrl = TextEditingController();
+  String _tipo = 'factura';
+  DateTime _emision = DateTime.now();
+  DateTime? _vencimiento;
+  final _subtotalCtrl = TextEditingController();
+  final _igvCtrl = TextEditingController();
+  bool _alContado = false;
+  bool _guardando = false;
+  bool _igvEditadoManual = false;
+  double _tasaIgv = 18.0;
+
+  static const _tipos = ['factura', 'boleta', 'nota_credito', 'nota_debito'];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarTasaIgv();
+  }
+
+  @override
+  void dispose() {
+    _numCtrl.dispose();
+    _subtotalCtrl.dispose();
+    _igvCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarTasaIgv() async {
+    final svc = await getFinanzasService();
+    final tasa = await svc.getTasaIgv();
+    if (!mounted) return;
+    setState(() => _tasaIgv = tasa);
+    _recalcularIgv();
+  }
+
+  /// Pre-llena el IGV = subtotal × tasa/100 salvo que el usuario lo haya editado.
+  void _recalcularIgv() {
+    if (_igvEditadoManual) return;
+    final subtotal = double.tryParse(_subtotalCtrl.text) ?? 0;
+    final igv = subtotal * _tasaIgv / 100;
+    _igvCtrl.text = igv == 0 ? '' : igv.toStringAsFixed(2);
+  }
+
+  double get _subtotal => double.tryParse(_subtotalCtrl.text) ?? 0;
+  double get _igv => double.tryParse(_igvCtrl.text) ?? 0;
+  double get _total => _subtotal + _igv;
+
+  Future<void> _guardar() async {
+    if (!_form.currentState!.validate()) return;
+    if (!_alContado && _vencimiento == null) {
+      mostrarError(context, 'Indica la fecha de vencimiento');
+      return;
+    }
+    if (!_alContado && _vencimiento!.isBefore(DateTime(
+        _emision.year, _emision.month, _emision.day))) {
+      mostrarError(
+          context, 'El vencimiento no puede ser anterior a la emisión');
+      return;
+    }
+    setState(() => _guardando = true);
+    final fmt = DateFormat('yyyy-MM-dd');
+    final svc = await getFinanzasService();
+    final r = await svc.facturarServicio(
+      servicioId: widget.servicio.servicioId,
+      numeroDocumento: _numCtrl.text.trim(),
+      tipoDocumento: _tipo,
+      fechaEmision: fmt.format(_emision),
+      fechaVencimiento:
+          _alContado || _vencimiento == null ? null : fmt.format(_vencimiento!),
+      subtotal: _subtotal,
+      igv: _igv,
+      alContado: _alContado,
+    );
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (r.ok) {
+      mostrarOk(context, 'Servicio facturado');
+      Navigator.pop(context);
+      widget.onGuardado();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cliente = widget.servicio.clienteNombre;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: Form(
+        key: _form,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Facturar servicio',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text(widget.servicio.servicioNombre,
+                  style: const TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              TextFormField(
+                initialValue:
+                    (cliente == null || cliente.isEmpty) ? '—' : cliente,
+                readOnly: true,
+                enabled: false,
+                decoration: const InputDecoration(
+                  labelText: 'Cliente',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _tipo,
+                decoration: const InputDecoration(
+                  labelText: 'Tipo documento',
+                  border: OutlineInputBorder(),
+                ),
+                items: _tipos
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                    .toList(),
+                onChanged: (v) => setState(() => _tipo = v!),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _numCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'N° documento',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 12),
+              _DateField(
+                label: 'Fecha emisión',
+                value: _emision,
+                onChanged: (d) => setState(() => _emision = d),
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                title: const Text('Al contado'),
+                value: _alContado,
+                onChanged: (v) => setState(() {
+                  _alContado = v;
+                  if (v) _vencimiento = null;
+                }),
+                contentPadding: EdgeInsets.zero,
+              ),
+              if (!_alContado) ...[
+                const SizedBox(height: 12),
+                _DateField(
+                  label: 'Fecha vencimiento',
+                  value: _vencimiento ??
+                      DateTime.now().add(const Duration(days: 30)),
+                  onChanged: (d) => setState(() => _vencimiento = d),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _subtotalCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Subtotal (S/)',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (_) => setState(_recalcularIgv),
+                      validator: (v) {
+                        final d = double.tryParse(v ?? '');
+                        if (d == null || d <= 0) return 'Monto inválido';
+                        return null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _igvCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'IGV (S/)',
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (_) => setState(() => _igvEditadoManual = true),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Total',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(money(_total),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: _guardando ? null : _guardar,
+                child: _guardando
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Text('Facturar'),
+              ),
+            ],
+          ),
         ),
       ),
     );

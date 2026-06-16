@@ -150,6 +150,31 @@ class Tercero {
       );
 }
 
+/// Servicio completado pendiente de facturar (CxC). El backend deriva el
+/// cliente del proyecto del servicio; aquí solo lo mostramos como referencia.
+class ServicioFacturable {
+  final String servicioId, servicioNombre;
+  final String? proyectoId, proyectoNombre, clienteId, clienteNombre, nroDocumentoCliente;
+  ServicioFacturable({
+    required this.servicioId,
+    required this.servicioNombre,
+    this.proyectoId,
+    this.proyectoNombre,
+    this.clienteId,
+    this.clienteNombre,
+    this.nroDocumentoCliente,
+  });
+  factory ServicioFacturable.fromJson(Map<String, dynamic> j) => ServicioFacturable(
+        servicioId: (j['servicio_id'] ?? j['id'])?.toString() ?? '',
+        servicioNombre: (j['servicio_nombre'] ?? j['nombre'])?.toString() ?? '',
+        proyectoId: j['proyecto_id']?.toString(),
+        proyectoNombre: j['proyecto_nombre']?.toString(),
+        clienteId: j['cliente_id']?.toString(),
+        clienteNombre: j['cliente_nombre']?.toString(),
+        nroDocumentoCliente: j['nro_documento_cliente']?.toString(),
+      );
+}
+
 // ── Reportes financieros ─────────────────────────────────────────────────────
 class SeccionSaldo {
   final String codigo, nombre;

@@ -265,6 +265,43 @@ class FinanzasService {
     }
   }
 
+  /// Servicios COMPLETADOS sin factura vigente, candidatos a facturarse.
+  Future<ApiResult<List<ServicioFacturable>>> serviciosFacturables() =>
+      _getList('/cuentas-por-cobrar/servicios-facturables', ServicioFacturable.fromJson);
+
+  /// Emite el comprobante de un servicio completado. El cliente se deriva en el
+  /// backend del proyecto del servicio (no se envía). moneda se inyecta como null.
+  Future<ApiResult<Factura>> facturarServicio({
+    required String servicioId,
+    required String numeroDocumento,
+    required String tipoDocumento,
+    required String fechaEmision,
+    String? fechaVencimiento,
+    required double subtotal,
+    required double igv,
+    bool alContado = false,
+  }) async {
+    try {
+      final r = await _client.post('/cuentas-por-cobrar/facturar-servicio', {
+        'servicio_id': servicioId,
+        'numero_documento': numeroDocumento,
+        'tipo_documento': tipoDocumento,
+        'fecha_emision': fechaEmision,
+        'fecha_vencimiento': ?fechaVencimiento,
+        'subtotal': subtotal,
+        'igv': igv,
+        'moneda': null,
+        'al_contado': alContado,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<CobroCliente>>> listarCobros({String? clienteId}) {
     final qs = clienteId != null ? '?cliente_id=$clienteId' : '';
     return _getList('/cuentas-por-cobrar/cobros$qs', CobroCliente.fromJson);
