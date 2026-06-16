@@ -760,6 +760,26 @@ class _ItemForm {
         nota = it.nota ?? '';
 }
 
+/// Estado del comprobante (CxP) de UN proveedor en modo multi-proveedor.
+/// El subtotal NO se guarda aquí: es solo lectura y se recalcula de los ítems.
+class _CompProveedorForm {
+  final String proveedorId;
+  final String proveedorNombre;
+  String tipoDoc = 'factura';
+  final TextEditingController numeroCtrl = TextEditingController();
+  final TextEditingController igvCtrl = TextEditingController();
+  DateTime? fechaEmision;
+  DateTime? fechaVencimiento;
+  bool igvEditadoManual = false;
+
+  _CompProveedorForm({required this.proveedorId, required this.proveedorNombre});
+
+  void dispose() {
+    numeroCtrl.dispose();
+    igvCtrl.dispose();
+  }
+}
+
 class _ProcesarSheet extends StatefulWidget {
   final TicketCompra ticket;
   final List<Proveedor> proveedores;
@@ -800,6 +820,11 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
   double _tasaIgv = 18.0;
   bool _igvEditadoManual = false;
 
+  // Modo multi-proveedor: un comprobante (CxP) por proveedor detectado en los
+  // ítems comprados. Keyed por proveedorId. Se reconstruye perezosamente según
+  // los proveedores presentes en los ítems con cantidad comprada > 0.
+  final Map<String, _CompProveedorForm> _compMulti = {};
+
   @override
   void initState() {
     super.initState();
@@ -830,6 +855,9 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
     _compNumeroCtrl.dispose();
     _compSubtotalCtrl.dispose();
     _compIgvCtrl.dispose();
+    for (final f in _compMulti.values) {
+      f.dispose();
+    }
     super.dispose();
   }
 
@@ -892,11 +920,67 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
     setState(() {});
   }
 
+  // ── Comprobantes por proveedor (modo multi) ─────────────────────────────────
+
+  /// Proveedores DISTINTOS presentes en los ítems con cantidad comprada > 0
+  /// (solo los que tienen proveedor asignado; los de canal propio quedan fuera
+  /// porque no generan CxP). Devuelve pares (id, nombre) en orden estable.
+  List<({String id, String nombre})> get _proveedoresEnItems {
+    final orden = <String>[];
+    final nombres = <String, String>{};
+    for (final f in _items) {
+      if (f.cantidadComprada <= 0) continue;
+      if (f.modoCustom) continue;
+      final id = f.proveedorId;
+      if (id == null || id.isEmpty) continue;
+      if (!nombres.containsKey(id)) {
+        orden.add(id);
+        nombres[id] = f.proveedorNombre ?? 'Proveedor';
+      }
+    }
+    return [for (final id in orden) (id: id, nombre: nombres[id]!)];
+  }
+
+  /// Subtotal (suma cantidadComprada × precioUnitario) de un proveedor.
+  double _subtotalProveedor(String proveedorId) => _items
+      .where((f) =>
+          !f.modoCustom &&
+          f.proveedorId == proveedorId &&
+          f.cantidadComprada > 0)
+      .fold(0.0, (s, f) => s + f.cantidadComprada * (f.precioUnitario ?? 0));
+
+  /// Asegura que exista un form por cada proveedor presente y elimina los que
+  /// ya no aparecen. Re-autocalcula el IGV de cada bloque salvo override manual.
+  void _sincronizarCompMulti() {
+    final presentes = _proveedoresEnItems;
+    final idsPresentes = presentes.map((p) => p.id).toSet();
+    // Eliminar los que ya no están.
+    final aQuitar =
+        _compMulti.keys.where((k) => !idsPresentes.contains(k)).toList();
+    for (final k in aQuitar) {
+      _compMulti.remove(k)?.dispose();
+    }
+    // Crear / actualizar.
+    for (final p in presentes) {
+      final form = _compMulti.putIfAbsent(
+          p.id, () => _CompProveedorForm(proveedorId: p.id, proveedorNombre: p.nombre));
+      if (!form.igvEditadoManual) {
+        final igv = _subtotalProveedor(p.id) * _tasaIgv / 100;
+        form.igvCtrl.text = igv.toStringAsFixed(2);
+      }
+    }
+  }
+
+  double _igvProveedor(_CompProveedorForm f) =>
+      double.tryParse(f.igvCtrl.text.trim().replaceAll(',', '.')) ?? 0;
+
   /// Valida la sección del comprobante (solo si está activa).
   String? _validarComprobante() {
     if (!_compActiva) return null;
+    // Modo multi-proveedor: un bloque por proveedor; todos deben estar completos.
+    if (!_compProveedorFijo) return _validarComprobantesMulti();
     // En modo "un proveedor" el comprobante hereda el proveedor único.
-    final provId = _compProveedorFijo ? _proveedorUnicoId : _compProveedorId;
+    final provId = _proveedorUnicoId;
     if (provId == null) return 'Selecciona el proveedor del comprobante.';
     if (_compTipoDoc.trim().isEmpty) return 'Selecciona el tipo de documento.';
     if (_compNumeroCtrl.text.trim().isEmpty) {
@@ -911,6 +995,52 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
     }
     if (_compSubtotal <= 0) return 'El subtotal debe ser mayor a 0.';
     return null;
+  }
+
+  /// Valida que cada bloque de proveedor (modo multi) esté completo.
+  String? _validarComprobantesMulti() {
+    _sincronizarCompMulti();
+    final provs = _proveedoresEnItems;
+    if (provs.isEmpty) {
+      return 'Asigna un proveedor a los ítems comprados para generar la CxP, '
+          'o desactiva el comprobante.';
+    }
+    for (final p in provs) {
+      final f = _compMulti[p.id]!;
+      if (f.tipoDoc.trim().isEmpty) {
+        return '${p.nombre}: selecciona el tipo de documento.';
+      }
+      if (f.numeroCtrl.text.trim().isEmpty) {
+        return '${p.nombre}: ingresa el número de documento.';
+      }
+      if (f.fechaEmision == null) {
+        return '${p.nombre}: selecciona la fecha de emisión.';
+      }
+      if (f.fechaVencimiento == null) {
+        return '${p.nombre}: selecciona la fecha de vencimiento.';
+      }
+      if (f.fechaVencimiento!.isBefore(f.fechaEmision!)) {
+        return '${p.nombre}: el vencimiento no puede ser anterior a la emisión.';
+      }
+    }
+    return null;
+  }
+
+  /// Lista de comprobantes (uno por proveedor) para el contrato `comprobantes`.
+  List<Map<String, dynamic>> _buildComprobantesMulti() {
+    return [
+      for (final p in _proveedoresEnItems)
+        if (_compMulti[p.id] case final f?)
+          {
+            'proveedorId': f.proveedorId,
+            'tipoDocumento': f.tipoDoc,
+            'numeroDocumento': f.numeroCtrl.text.trim(),
+            'fechaEmision': _fmtFecha(f.fechaEmision!),
+            'fechaVencimiento': _fmtFecha(f.fechaVencimiento!),
+            'igv': _igvProveedor(f),
+            'moneda': null,
+          },
+    ];
   }
 
   Map<String, dynamic> _buildComprobante() => {
@@ -954,7 +1084,12 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
       completado: completado,
       items: _buildItems(),
-      comprobante: (completado && _compActiva) ? _buildComprobante() : null,
+      comprobante: (completado && _compActiva && _compProveedorFijo)
+          ? _buildComprobante()
+          : null,
+      comprobantes: (completado && _compActiva && !_compProveedorFijo)
+          ? _buildComprobantesMulti()
+          : null,
     );
     if (!mounted) return;
     setState(() => _enviando = false);
@@ -1377,119 +1512,244 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
               style: TextStyle(fontSize: 11, color: Colors.grey),
             ),
             const SizedBox(height: 10),
-            // Proveedor: en modo "un proveedor" se hereda del proveedor único
-            // (solo lectura); en modo "por ítem" se elige aquí.
+            // Modo "un proveedor": comprobante único (hereda el proveedor del
+            // pedido). Modo multi: un bloque/CxP por cada proveedor detectado.
             if (_compProveedorFijo)
-              InputDecorator(
-                decoration: _fieldDeco('Proveedor (del pedido)', fill),
-                child: Text(
-                  _proveedorUnicoNombre ??
-                      'Selecciona arriba el proveedor del pedido',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _proveedorUnicoNombre == null ? Colors.grey : null),
-                ),
-              )
+              ..._buildComprobanteUnico(fill, tiposDoc, total)
             else
-              DropdownButtonFormField<String?>(
-                initialValue: widget.proveedores
-                        .any((p) => p.id == _compProveedorId)
-                    ? _compProveedorId
-                    : null,
-                isExpanded: true,
-                decoration: _fieldDeco('Proveedor', fill),
-                items: [
-                  const DropdownMenuItem(
-                      value: null, child: Text('— Selecciona —')),
-                  ...widget.proveedores.map((p) => DropdownMenuItem(
-                      value: p.id,
-                      child: Text(p.nombre, overflow: TextOverflow.ellipsis))),
-                ],
-                onChanged: (v) => setState(() => _compProveedorId = v),
-              ),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _compTipoDoc,
-                  isExpanded: true,
-                  decoration: _fieldDeco('Tipo', fill),
-                  items: [
-                    for (final t in tiposDoc)
-                      DropdownMenuItem(value: t.$1, child: Text(t.$2)),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _compTipoDoc = v ?? 'factura'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _compNumeroCtrl,
-                  decoration: _fieldDeco('N° documento', fill),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: _compFechaField(
-                  label: 'F. emisión',
-                  value: _compFechaEmision,
-                  fill: fill,
-                  onPick: (d) => setState(() {
-                    _compFechaEmision = d;
-                    if (_compFechaVencimiento != null &&
-                        _compFechaVencimiento!.isBefore(d)) {
-                      _compFechaVencimiento = d;
-                    }
-                  }),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _compFechaField(
-                  label: 'F. vencimiento',
-                  value: _compFechaVencimiento,
-                  fill: fill,
-                  firstDate: _compFechaEmision,
-                  onPick: (d) => setState(() => _compFechaVencimiento = d),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 8),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _compSubtotalCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => _onSubtotalChanged(),
-                  decoration: _fieldDeco('Subtotal', fill),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _compIgvCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => _onIgvEditadoManual(),
-                  decoration: _fieldDeco(
-                      'IGV (auto ${_tasaIgv.toStringAsFixed(0)}%)', fill),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 10),
-            Row(children: [
-              const Text('Total', style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const Spacer(),
-              Text('S/ ${total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold)),
-            ]),
+              ..._buildComprobantesMultiUI(fill, tiposDoc),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Campos del comprobante único (modo "un proveedor"). Sin cambios de
+  /// comportamiento respecto a la versión anterior.
+  List<Widget> _buildComprobanteUnico(
+      Color fill, List<(String, String)> tiposDoc, double total) {
+    return [
+      InputDecorator(
+        decoration: _fieldDeco('Proveedor (del pedido)', fill),
+        child: Text(
+          _proveedorUnicoNombre ?? 'Selecciona arriba el proveedor del pedido',
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _proveedorUnicoNombre == null ? Colors.grey : null),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            initialValue: _compTipoDoc,
+            isExpanded: true,
+            decoration: _fieldDeco('Tipo', fill),
+            items: [
+              for (final t in tiposDoc)
+                DropdownMenuItem(value: t.$1, child: Text(t.$2)),
+            ],
+            onChanged: (v) => setState(() => _compTipoDoc = v ?? 'factura'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: _compNumeroCtrl,
+            decoration: _fieldDeco('N° documento', fill),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(
+          child: _compFechaField(
+            label: 'F. emisión',
+            value: _compFechaEmision,
+            fill: fill,
+            onPick: (d) => setState(() {
+              _compFechaEmision = d;
+              if (_compFechaVencimiento != null &&
+                  _compFechaVencimiento!.isBefore(d)) {
+                _compFechaVencimiento = d;
+              }
+            }),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _compFechaField(
+            label: 'F. vencimiento',
+            value: _compFechaVencimiento,
+            fill: fill,
+            firstDate: _compFechaEmision,
+            onPick: (d) => setState(() => _compFechaVencimiento = d),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(
+          child: TextField(
+            controller: _compSubtotalCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => _onSubtotalChanged(),
+            decoration: _fieldDeco('Subtotal', fill),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            controller: _compIgvCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => _onIgvEditadoManual(),
+            decoration:
+                _fieldDeco('IGV (auto ${_tasaIgv.toStringAsFixed(0)}%)', fill),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        const Text('Total', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        const Spacer(),
+        Text('S/ ${total.toStringAsFixed(2)}',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+      ]),
+    ];
+  }
+
+  /// Un bloque/card de comprobante por cada proveedor presente en los ítems
+  /// comprados (modo multi-proveedor). Subtotal solo lectura, IGV autocalculado.
+  List<Widget> _buildComprobantesMultiUI(
+      Color fill, List<(String, String)> tiposDoc) {
+    _sincronizarCompMulti();
+    final provs = _proveedoresEnItems;
+    if (provs.isEmpty) {
+      return [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _kAmber.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Text(
+            'Asigna un proveedor a los ítems comprados (arriba) para generar una '
+            'Cuenta por Pagar por proveedor.',
+            style: TextStyle(fontSize: 11.5, color: Colors.grey),
+          ),
+        ),
+      ];
+    }
+    return [
+      Text('${provs.length} proveedor(es) · una CxP por proveedor',
+          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      const SizedBox(height: 8),
+      for (final p in provs)
+        _bloqueProveedor(_compMulti[p.id]!, p.nombre, fill, tiposDoc),
+    ];
+  }
+
+  Widget _bloqueProveedor(_CompProveedorForm f, String nombre, Color fill,
+      List<(String, String)> tiposDoc) {
+    final subtotal = _subtotalProveedor(f.proveedorId);
+    final total = subtotal + _igvProveedor(f);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBlue.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.store_outlined, size: 16, color: _kBlue),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(nombre,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: _kBlue)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          InputDecorator(
+            decoration: _fieldDeco('Subtotal (de los ítems)', fill),
+            child: Text('S/ ${subtotal.toStringAsFixed(2)}',
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: f.tipoDoc,
+                isExpanded: true,
+                decoration: _fieldDeco('Tipo', fill),
+                items: [
+                  for (final t in tiposDoc)
+                    DropdownMenuItem(value: t.$1, child: Text(t.$2)),
+                ],
+                onChanged: (v) => setState(() => f.tipoDoc = v ?? 'factura'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: f.numeroCtrl,
+                onChanged: (_) => setState(() {}),
+                decoration: _fieldDeco('N° documento', fill),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: _compFechaField(
+                label: 'F. emisión',
+                value: f.fechaEmision,
+                fill: fill,
+                onPick: (d) => setState(() {
+                  f.fechaEmision = d;
+                  if (f.fechaVencimiento != null &&
+                      f.fechaVencimiento!.isBefore(d)) {
+                    f.fechaVencimiento = d;
+                  }
+                }),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _compFechaField(
+                label: 'F. vencimiento',
+                value: f.fechaVencimiento,
+                fill: fill,
+                firstDate: f.fechaEmision,
+                onPick: (d) => setState(() => f.fechaVencimiento = d),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          TextField(
+            controller: f.igvCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: (_) => setState(() => f.igvEditadoManual = true),
+            decoration:
+                _fieldDeco('IGV (auto ${_tasaIgv.toStringAsFixed(0)}%)', fill),
+          ),
+          const SizedBox(height: 10),
+          Row(children: [
+            const Text('Total',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Spacer(),
+            Text('S/ ${total.toStringAsFixed(2)}',
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          ]),
         ],
       ),
     );
