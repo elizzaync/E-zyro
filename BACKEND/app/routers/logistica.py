@@ -56,6 +56,7 @@ from ..models.proveedor import Proveedor as ProveedorModel, ProveedorCategoria
 from ..models.retorno import Retorno, RetornoDetalle
 from ..models.incidencia import Incidencia
 from ..models.tarea import Tarea
+from ..models.catalogo_servicio import CatalogoServicio
 
 from ..schemas.logistica import (
     MaterialIn, MaterialPatch, MaterialOut, MaterialesListResponse,
@@ -4506,11 +4507,13 @@ def get_servicios_global(
             Cliente.razon_social.label("razon_social"),
             UbicSvc.nombre.label("ubicacion_nombre"),
             ZonaSvc.nombre.label("zona_nombre"),
+            CatalogoServicio.nombre.label("tipo_servicio"),
         )
         .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
         .outerjoin(UbicSvc, UbicSvc.id == ProyectoServicio.ubicacion_id)
         .outerjoin(ZonaSvc, ZonaSvc.id == ProyectoServicio.zona_id)
+        .outerjoin(CatalogoServicio, CatalogoServicio.id == ProyectoServicio.catalogo_servicio_id)
         .filter(
             ProyectoServicio.empresa_id == empresa_id,
             Proyecto.empresa_id         == empresa_id,
@@ -4547,6 +4550,7 @@ def get_servicios_global(
             "orden_trabajo":   ps.orden_trabajo   or "",
             "cliente":         ps.razon_social     or "Sin Cliente",
             "estado":          ps.ProyectoServicio.estado or "Pendiente",
+            "tipo_servicio":   ps.tipo_servicio or "",
             "fecha_programada": (
                 ps.ProyectoServicio.fecha_programada.strftime("%d %b %Y")
                 if ps.ProyectoServicio.fecha_programada else None
@@ -4554,6 +4558,10 @@ def get_servicios_global(
             "fecha_fin": (
                 ps.ProyectoServicio.fecha_fin.strftime("%d %b %Y")
                 if ps.ProyectoServicio.fecha_fin else None
+            ),
+            "fecha_creacion": (
+                ps.ProyectoServicio.created_at.strftime("%d %b %Y")
+                if ps.ProyectoServicio.created_at else None
             ),
             "descripcion":            ps.ProyectoServicio.descripcion,
             "tipo_documento_cliente": ps.ProyectoServicio.tipo_documento_cliente or "SIN_OC",
