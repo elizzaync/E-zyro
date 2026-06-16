@@ -37,6 +37,23 @@ def _empleado_id(db: Session, payload: dict) -> Optional[str]:
     return str(emp.id) if emp else None
 
 
+@router.get("/empresa-info")
+def info_empresa(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Datos de la propia empresa (razón social, RUC) para encabezar la
+    Planilla Mensual de Remuneraciones en PDF."""
+    exigir_permiso(db, payload, "planilla", "ver")
+    emp = db.query(Empresa).filter(Empresa.id == payload["empresa_id"]).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    return {
+        "razon_social": emp.razon_social,
+        "ruc": emp.ruc,
+        "regimen_tributario": emp.regimen_tributario,
+    }
+
+
 def _planilla_out(p: Planilla) -> PlanillaOut:
     return PlanillaOut(
         id=str(p.id), periodo_id=str(p.periodo_id), fecha_proceso=p.fecha_proceso,

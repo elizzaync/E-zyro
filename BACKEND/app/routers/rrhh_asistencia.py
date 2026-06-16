@@ -252,6 +252,8 @@ def resumen_asistencia(
             "iniciales":          iniciales,
             "fotoUrl":            usr.foto_url or "",
             "tipo_contrato":      emp.tipo,
+            "codigo":             emp.codigo,
+            "fecha_ingreso":      emp.fecha_ingreso.isoformat() if emp.fecha_ingreso else None,
             "horas_reales":       round(horas_reales,       2),
             "horas_justificadas": round(horas_justificadas, 2),
             "horas_total":        round(horas_total,        2),
