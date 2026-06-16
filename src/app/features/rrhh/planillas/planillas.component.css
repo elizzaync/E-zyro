@@ -240,26 +240,18 @@
 }
 .afp-entidad-select { font-size: 10px; min-width: 110px; }
 
-/* ── Chips de beneficios (CTS/Gratificación/Vacaciones) — reactivos al
-     régimen de empresa elegido arriba; cambian sin recargar la tabla ────── */
-.beneficios-chips {
-  display:        flex;
-  flex-direction: column;
-  gap:            3px;
-  align-items:    center;
+/* ── Columnas de beneficios (CTS / Gratificación / Vacaciones) — cada una
+     en su propia columna, valor simple Sí/No, reactivas al régimen elegido
+     arriba sin recargar la tabla ─────────────────────────────────────────── */
+.beneficio-val {
+  display:      inline-block;
+  font-size:    12px;
+  font-weight:  700;
+  cursor:       help;
 }
-.chip-benef {
-  display:       inline-block;
-  padding:       2px 8px;
-  border-radius: 6px;
-  font-size:     10px;
-  font-weight:   700;
-  white-space:   nowrap;
-  cursor:        help;
-}
-.chip-on  { background: rgba(34,197,94,0.12); color: #16a34a; }
-.chip-off { background: rgba(100,116,139,0.1); color: #64748b; }
-.chip-vac { background: rgba(59,130,246,0.1); color: #2563eb; }
+.beneficio-si { color: #16a34a; }
+.beneficio-no { color: var(--text-muted, #94a3b8); }
+.beneficio-vac { color: #2563eb; }
 
 /* ── KPI cards ──────────────────────────────────────────────────────────── */
 .kpi-grid {
@@ -639,6 +631,7 @@
   transform:   translate(-50%, -50%);
   z-index:     1001;
   width:       min(560px, 95vw);
+  max-height:  90vh;
   background:  var(--card-bg, #fff);
   border:      1px solid var(--border-color, #e5e7eb);
   border-radius: 20px;
@@ -672,7 +665,15 @@
 }
 .boleta-close-btn:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
 
-.boleta-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 18px; }
+.boleta-body {
+  padding:        20px 22px;
+  display:        flex;
+  flex-direction: column;
+  gap:            18px;
+  overflow-y:     auto;
+  flex:           1 1 auto;
+  min-height:     0;
+}
 
 .boleta-emp-row { display: flex; align-items: center; gap: 14px; }
 .boleta-avatar {

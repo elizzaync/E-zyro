@@ -194,7 +194,9 @@
             <th class="text-center">Desc. Faltas</th>
             <th class="text-center">+ H. Extra</th>
             <th class="text-center">Pensión</th>
-            <th class="text-center" [title]="'Cambia según: ' + regimenLabel">Beneficios</th>
+            <th class="text-center" [title]="'Cambia según: ' + regimenLabel">CTS</th>
+            <th class="text-center" [title]="'Cambia según: ' + regimenLabel">Gratif.</th>
+            <th class="text-center" [title]="'Cambia según: ' + regimenLabel">Vac.</th>
             <th class="text-center th-neto">Neto a Pagar</th>
             <th class="text-center">Estado</th>
             <th class="text-center">Boleta</th>
@@ -320,19 +322,29 @@
 
             <td class="text-center">
               @if (beneficiosResumen(emp).aplica) {
-              <div class="beneficios-chips">
-                <span class="chip-benef" [class.chip-on]="beneficiosResumen(emp).cts" [class.chip-off]="!beneficiosResumen(emp).cts" [title]="motivoCTS(emp)">
-                  CTS {{ beneficiosResumen(emp).cts ? '✓' : '✕' }}
-                </span>
-                <span class="chip-benef" [class.chip-on]="beneficiosResumen(emp).grati" [class.chip-off]="!beneficiosResumen(emp).grati" [title]="motivoGratificacion(emp)">
-                  Grati {{ beneficiosResumen(emp).grati ? '✓' : '✕' }}
-                </span>
-                <span class="chip-benef chip-vac" [title]="motivoVacaciones(emp)">
-                  Vac {{ beneficiosResumen(emp).vac }}d
-                </span>
-              </div>
+              <span class="beneficio-val" [class.beneficio-si]="beneficiosResumen(emp).cts" [class.beneficio-no]="!beneficiosResumen(emp).cts" [title]="motivoCTS(emp)">
+                {{ beneficiosResumen(emp).cts ? 'Sí' : 'No' }}
+              </span>
               } @else {
-              <span class="hrs-cero" title="Practicante: sin CTS ni gratificación (Ley 28518)">N/A</span>
+              <span class="hrs-cero" title="Practicante: no aplica (Ley 28518)">—</span>
+              }
+            </td>
+
+            <td class="text-center">
+              @if (beneficiosResumen(emp).aplica) {
+              <span class="beneficio-val" [class.beneficio-si]="beneficiosResumen(emp).grati" [class.beneficio-no]="!beneficiosResumen(emp).grati" [title]="motivoGratificacion(emp)">
+                {{ beneficiosResumen(emp).grati ? 'Sí' : 'No' }}
+              </span>
+              } @else {
+              <span class="hrs-cero" title="Practicante: no aplica (Ley 28518)">—</span>
+              }
+            </td>
+
+            <td class="text-center">
+              @if (beneficiosResumen(emp).aplica) {
+              <span class="beneficio-val beneficio-vac" [title]="motivoVacaciones(emp)">{{ beneficiosResumen(emp).vac }}d</span>
+              } @else {
+              <span class="hrs-cero" title="Practicante: 30 días de descanso sin provisión monetaria">30d</span>
               }
             </td>
 
