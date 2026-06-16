@@ -78,6 +78,7 @@ export class LogisticaServiciosComponent implements OnInit {
         s.nombre_proyecto.toLowerCase().includes(term) ||
         s.cliente.toLowerCase().includes(term) ||
         s.orden_trabajo.toLowerCase().includes(term) ||
+        (s.tipo_servicio || '').toLowerCase().includes(term) ||
         (s.ubicacion || '').toLowerCase().includes(term);
       const matchEstado    = !this.filtroEstado    || s.estado    === this.filtroEstado;
       const matchCliente   = !this.filtroCliente   || s.cliente   === this.filtroCliente;

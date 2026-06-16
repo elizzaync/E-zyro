@@ -175,13 +175,16 @@
       <thead>
         <tr>
           <th>Servicio</th>
-          <th>Proyecto / OT</th>
+          <th>Tipo Servicio</th>
+          <th>Proyecto</th>
+          <th>OT</th>
           <th>Cliente</th>
           <th>Ubicación</th>
           <th>Estado</th>
           <th>OC / Documento</th>
           <th>Fecha Prog.</th>
           <th>Fecha Fin</th>
+          <th>Creado</th>
           <th></th>
         </tr>
       </thead>
@@ -194,9 +197,22 @@
             <span class="svc-desc">{{ s.descripcion }}</span>
             }
           </td>
+          <td class="tipo-svc-cell">
+            @if (s.tipo_servicio) {
+              <span class="tipo-svc-badge">{{ s.tipo_servicio }}</span>
+            } @else {
+              <span class="muted-dash">—</span>
+            }
+          </td>
           <td>
             <span class="proyecto-nombre">{{ s.nombre_proyecto }}</span>
-            <span class="orden-trabajo">OT: {{ s.orden_trabajo }}</span>
+          </td>
+          <td class="ot-cell">
+            @if (s.orden_trabajo) {
+              <span class="ot-badge">{{ s.orden_trabajo }}</span>
+            } @else {
+              <span class="muted-dash">—</span>
+            }
           </td>
           <td class="cliente-cell">{{ s.cliente }}</td>
           <td class="ubic-cell">
@@ -220,6 +236,7 @@
           </td>
           <td class="fecha-cell">{{ s.fecha_programada || '—' }}</td>
           <td class="fecha-cell">{{ s.fecha_fin || '—' }}</td>
+          <td class="fecha-cell">{{ s.fecha_creacion || '—' }}</td>
           <td>
             <button class="btn-ver" (click)="irAServicio(s); $event.stopPropagation()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
