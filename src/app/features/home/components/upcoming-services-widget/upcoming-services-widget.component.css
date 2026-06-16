@@ -126,3 +126,30 @@
   :host-context(html:not([data-theme="light"])) .badge-active { background-color: rgba(217, 119, 6, 0.15); color: #fbbf24; }
   :host-context(html:not([data-theme="light"])) .badge-pending { background-color: rgba(255,255,255,0.05); color: var(--text-muted); }
 }
+
+/* ── Estados del widget ── */
+.srv-estado-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.srv-estado-box p { margin: 0; font-size: 14px; font-weight: 500; }
+.srv-spinner { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; }
+.spin-svg { width: 20px; height: 20px; animation: upSpin 1s linear infinite; }
+@keyframes upSpin { to { transform: rotate(360deg); } }
+.srv-error { color: #ef4444; }
+.retry-btn {
+  margin-top: 4px; padding: 6px 16px; font-size: 12px; font-weight: 600;
+  border: 1px solid #ef4444; border-radius: 8px; background: transparent;
+  color: #ef4444; cursor: pointer; transition: all 0.2s;
+}
+.retry-btn:hover { background: rgba(239,68,68,0.08); }
+
+/* Estado / badge adicional */
+.sc-badge.badge-done { background: rgba(16,185,129,0.1); color: #10b981; }
+.sc-badge.badge-cancel { background: rgba(100,116,139,0.1); color: #64748b; }

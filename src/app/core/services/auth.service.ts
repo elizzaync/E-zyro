@@ -44,6 +44,7 @@ export class AuthService {
           };
           localStorage.setItem('ezyro_user', JSON.stringify(userData));
           this.startSessionTimer();
+          this.startDevicePolling();
         }
       })
     );
@@ -92,7 +93,9 @@ export class AuthService {
   // 4. Lógica de logout que notifica al backend y limpia sesión
   logout(): void {
     this.clearSessionTimers();
+    this.stopDevicePolling();
     this.showSessionWarningSubject.next(false);
+    this.showNewDeviceWarningSubject.next(false);
     const token = localStorage.getItem('ezyro_token');
     const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
 
@@ -151,6 +154,87 @@ export class AuthService {
   isClienteExterno(): boolean {
     const u = this.getUsuario();
     return (u?.rol || '').toLowerCase().replace(' ', '') === 'clienteexterno';
+  }
+
+  // ==========================================
+  // MULTI-DEVICE SECURITY
+  // ==========================================
+  private showNewDeviceWarningSubject = new BehaviorSubject<boolean>(false);
+  showNewDeviceWarning$ = this.showNewDeviceWarningSubject.asObservable();
+
+  newDeviceInfo: any = null;
+  private knownSessionIds = new Set<string>();
+  private devicePollingTimer: ReturnType<typeof setInterval> | null = null;
+
+  getSesionesActivas(): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/sesiones`);
+  }
+
+  cerrarSesionRemota(sessionId: string): Observable<any> {
+    return this.http.delete<any>(`${this.apiUrl}/sesiones/${sessionId}`);
+  }
+
+  startDevicePolling(): void {
+    this.stopDevicePolling();
+    // Initial fetch to establish baseline known sessions
+    this.getSesionesActivas().pipe(
+      catchError(() => of(null))
+    ).subscribe((res: any) => {
+      if (res?.status === 'success') {
+        this.knownSessionIds = new Set(res.data.map((s: any) => s.id));
+      }
+    });
+    // Poll every 60 seconds for new sessions
+    this.devicePollingTimer = setInterval(() => {
+      if (!this.isAuthenticated()) {
+        this.stopDevicePolling();
+        return;
+      }
+      this.getSesionesActivas().pipe(
+        catchError(() => of(null))
+      ).subscribe((res: any) => {
+        if (!res?.data) return;
+        const newSessions = res.data.filter(
+          (s: any) => !s.es_actual && !this.knownSessionIds.has(s.id)
+        );
+        if (newSessions.length > 0) {
+          this.newDeviceInfo = newSessions[0];
+          this.showNewDeviceWarningSubject.next(true);
+          document.body.style.overflow = 'hidden';
+        }
+        // Update known set to include ALL current sessions
+        res.data.forEach((s: any) => this.knownSessionIds.add(s.id));
+      });
+    }, 60_000);
+  }
+
+  stopDevicePolling(): void {
+    if (this.devicePollingTimer !== null) {
+      clearInterval(this.devicePollingTimer);
+      this.devicePollingTimer = null;
+    }
+  }
+
+  dismissNewDeviceWarning(): void {
+    if (this.newDeviceInfo) {
+      this.knownSessionIds.add(this.newDeviceInfo.id);
+    }
+    this.newDeviceInfo = null;
+    this.showNewDeviceWarningSubject.next(false);
+    document.body.style.overflow = '';
+  }
+
+  cerrarSesionDesconocida(): void {
+    if (!this.newDeviceInfo) return;
+    const id = this.newDeviceInfo.id;
+    this.cerrarSesionRemota(id).pipe(
+      catchError(() => of(null))
+    ).subscribe(() => {
+      this.knownSessionIds.add(id);
+      this.newDeviceInfo = null;
+      this.showNewDeviceWarningSubject.next(false);
+      document.body.style.overflow = '';
+    });
   }
 
   // ==========================================

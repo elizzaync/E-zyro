@@ -19,6 +19,7 @@ export class App implements OnInit {
 
   showLogoutModal = false;
   showSessionWarning = false;
+  showNewDeviceWarning = false;
   extendingSession = false;
 
   constructor(
@@ -42,8 +43,13 @@ export class App implements OnInit {
       this.showSessionWarning = estado;
     });
 
+    this.authService.showNewDeviceWarning$.subscribe(estado => {
+      this.showNewDeviceWarning = estado;
+    });
+
     if (this.authService.isAuthenticated()) {
       this.authService.startSessionTimer();
+      this.authService.startDevicePolling();
     }
   }
 
@@ -81,5 +87,17 @@ export class App implements OnInit {
 
   cerrarAvisoSesion() {
     this.authService.dismissSessionWarning();
+  }
+
+  get newDeviceInfo(): any {
+    return this.authService.newDeviceInfo;
+  }
+
+  soyYo() {
+    this.authService.dismissNewDeviceWarning();
+  }
+
+  noSoyYo() {
+    this.authService.cerrarSesionDesconocida();
   }
 }

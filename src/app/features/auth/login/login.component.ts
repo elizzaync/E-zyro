@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+﻿import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -41,6 +41,16 @@ export class LoginComponent {
     this.showPassword.update(v => !v);
   }
 
+  private getOrCreateDeviceId(): string {
+    const key = 'ezyro_device_id';
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now();
+      localStorage.setItem(key, id);
+    }
+    return id;
+  }
+
   onSubmit(): void {
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
@@ -52,8 +62,9 @@ export class LoginComponent {
     this.successMessage.set('');
 
     const { username, password } = this.loginForm.value;
+    const device_id = this.getOrCreateDeviceId();
     // 3. LLAMADA REAL A LA API
-    this.authService.login({ username, password }).subscribe({
+    this.authService.login({ username, password, device_id }).subscribe({
       next: (response) => {
         // La API validó la contraseña encriptada correctamente
         this.isAuthenticating.set(false);

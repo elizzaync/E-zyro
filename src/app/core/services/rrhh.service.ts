@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+﻿import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
@@ -86,6 +86,7 @@ export interface ResumenEmpleadoDto {
   area: string;
   iniciales: string;
   fotoUrl: string;
+  tipo_contrato: 'planilla' | 'contrato' | 'practicante' | string;
   horas_reales: number;
   horas_justificadas: number;
   horas_total: number;
@@ -294,6 +295,36 @@ export class RrhhService {
     advertencias_restantes: number;
   }> {
     return this.http.post<any>(`${this.api}/rrhh/asistencia/${empleadoId}/advertencia`, {});
+  }
+
+  // ── Planillas ────────────────────────────────────────────────────────────────────
+
+  getPlanillas(): Observable<any> {
+    return this.http.get<any>(`${this.api}/planilla`);
+  }
+
+  calcularPlanilla(periodo: string): Observable<any> {
+    return this.http.post<any>(`${this.api}/planilla/calcular?periodo=${encodeURIComponent(periodo)}`, {});
+  }
+
+  aprobarPlanilla(id: string): Observable<any> {
+    return this.http.post<any>(`${this.api}/planilla/${id}/aprobar`, {});
+  }
+
+  marcarPagadaPlanilla(id: string): Observable<any> {
+    return this.http.post<any>(`${this.api}/planilla/${id}/marcar-pagada`, {});
+  }
+
+  anularPlanilla(id: string): Observable<any> {
+    return this.http.post<any>(`${this.api}/planilla/${id}/anular`, {});
+  }
+
+  getBoletasPlanilla(planillaId: string): Observable<any> {
+    return this.http.get<any>(`${this.api}/planilla/${planillaId}/boletas`);
+  }
+
+  actualizarModalidad(empleadoId: string, tipo: 'planilla' | 'contrato' | 'practicante'): Observable<any> {
+    return this.http.put<any>(`${this.api}/planilla/empleados/${empleadoId}/modalidad`, { tipo });
   }
 
   // ── Reportes ─────────────────────────────────────────────────────────────

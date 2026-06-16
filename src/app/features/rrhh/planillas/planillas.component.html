@@ -1,0 +1,589 @@
+<div class="plan-wrapper">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="plan-header">
+    <div class="header-left">
+      <h2 class="page-title">Nómina de Personal</h2>
+      <p class="page-subtitle">Cálculo automático basado en asistencia mensual · Régimen Laboral MYPE</p>
+    </div>
+    @if (puedeEditar && esVistaMensual) {
+    <button class="btn-guardar" [disabled]="guardando" (click)="guardarSueldos()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+      </svg>
+      @if (guardando) { Guardando… } @else { Guardar Sueldos }
+    </button>
+    }
+  </div>
+
+  <!-- ═══ NAVEGACIÓN DE MES + CONFIGURACIÓN DE LA EMPRESA ═══ -->
+  <div class="plan-period-bar">
+    <div class="period-nav">
+      <button class="nav-btn" (click)="irMesAnterior()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
+      <span class="period-label">{{ labelPeriodo | titlecase }}</span>
+      <button class="nav-btn" [disabled]="esMesActual" (click)="irMesSiguiente()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+    </div>
+
+    @if (periodo) {
+    <span class="meta-chip">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+      Meta: {{ periodo.meta_horas }}h
+    </span>
+    }
+  </div>
+
+  <!-- ═══ CONFIGURACIÓN DINÁMICA: ESQUEMA DE PAGO + RÉGIMEN DE EMPRESA ═══ -->
+  <div class="plan-config-bar">
+    <div class="config-block">
+      <span class="regimen-toggle-label">Esquema de pago:</span>
+      <button class="pago-btn" [class.active]="esquemaPago === 'quincenal'" (click)="setEsquemaPago('quincenal')">Quincena + Fin de mes</button>
+      <button class="pago-btn" [class.active]="esquemaPago === 'mensual'" (click)="setEsquemaPago('mensual')">Mensual</button>
+    </div>
+
+    @if (esquemaPago === 'quincenal') {
+    <div class="config-block">
+      <span class="regimen-toggle-label">Vista:</span>
+      <button class="pago-btn" [class.active]="periodoPago === 'q1'" (click)="setPeriodoPago('q1')">1ra Quincena</button>
+      <button class="pago-btn" [class.active]="periodoPago === 'q2'" (click)="setPeriodoPago('q2')">2da Quincena</button>
+      <button class="pago-btn" [class.active]="periodoPago === 'mes'" (click)="setPeriodoPago('mes')">Mes Completo</button>
+      @if (!esVistaMensual) {
+      <span class="quincena-rango">({{ labelRangoQuincena }})</span>
+      }
+    </div>
+    }
+
+    <div class="config-block config-block-end">
+      <span class="regimen-toggle-label">Tipo de empresa:</span>
+      <button class="regimen-btn" [class.active]="regimenEmpresa === 'micro'" (click)="setRegimen('micro')">Microempresa</button>
+      <button class="regimen-btn" [class.active]="regimenEmpresa === 'pequena'" (click)="setRegimen('pequena')">Pequeña Empresa</button>
+      <button class="regimen-btn" [class.active]="regimenEmpresa === 'general'" (click)="setRegimen('general')">Régimen General</button>
+    </div>
+  </div>
+
+  @if (kpis.bajoRmvCount > 0) {
+  <div class="rmv-banner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+    <span>{{ kpis.bajoRmvCount }} trabajador(es) con sueldo por debajo de la RMV vigente (S/ {{ rmvVigente }}). Riesgo de sanción SUNAFIL — verificar y corregir.</span>
+  </div>
+  }
+
+  <!-- ═══ KPI CARDS ═══ -->
+  <div class="kpi-grid">
+    <div class="card kpi-card">
+      <span class="kpi-icon icon-blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </span>
+      <div class="kpi-info">
+        <span class="kpi-label">Total Personal</span>
+        <span class="kpi-value">{{ kpis.totalEmpleados }}</span>
+        <span class="kpi-sub">{{ kpis.enPlanilla }} planilla/contrato · {{ kpis.practicantes }} practicante(s)</span>
+        @if (kpis.sinSueldo > 0) {
+        <span class="kpi-warn">{{ kpis.sinSueldo }} sin sueldo cargado</span>
+        }
+      </div>
+    </div>
+
+    <div class="card kpi-card">
+      <span class="kpi-icon icon-green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="1" x2="12" y2="23"/>
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      </span>
+      <div class="kpi-info">
+        <span class="kpi-label">Total a Pagar (página)</span>
+        <span class="kpi-value kpi-green">{{ formatMonto(kpis.totalNeto) }}</span>
+      </div>
+    </div>
+
+    <div class="card kpi-card">
+      <span class="kpi-icon icon-red">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+      </span>
+      <div class="kpi-info">
+        <span class="kpi-label">Descuentos Legales</span>
+        <span class="kpi-value kpi-red">{{ formatMonto(kpis.totalDesc) }}</span>
+        <span class="kpi-sub">Faltas + ONP/AFP</span>
+      </div>
+    </div>
+
+    <div class="card kpi-card">
+      <span class="kpi-icon icon-amber">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </span>
+      <div class="kpi-info">
+        <span class="kpi-label">Pago H. Extra</span>
+        <span class="kpi-value kpi-amber">{{ formatMonto(kpis.totalExt) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ AVISO VISTA QUINCENA ═══ -->
+  @if (!esVistaMensual) {
+  <div class="quincena-banner">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span>Cálculo de adelanto para la <strong>{{ periodoPago === 'q1' ? '1ra' : '2da' }} Quincena</strong> (días {{ labelRangoQuincena }}). El sueldo base se muestra editable solo en "Mes Completo". La boleta oficial en PDF y el envío a Legajo Digital se generan al finalizar el mes.</span>
+  </div>
+  }
+
+  <!-- ═══ TABLA PRINCIPAL ═══ -->
+  <div class="card">
+    @if (cargando) {
+    <div class="state-center">
+      <div class="spinner"></div>
+      <span>Cargando nómina…</span>
+    </div>
+    } @else if (error) {
+    <div class="state-center">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <p class="error-msg">{{ error }}</p>
+      <button class="btn-retry" (click)="cargar()">Reintentar</button>
+    </div>
+    } @else if (empleados.length === 0) {
+    <div class="state-center">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+      </svg>
+      <p>Sin empleados en este período</p>
+    </div>
+    } @else {
+    <div class="table-wrap">
+      <table class="plan-table">
+        <thead>
+          <tr>
+            <th>Empleado</th>
+            <th class="text-center">Modalidad</th>
+            <th class="th-input">Sueldo Base
+              <span class="th-sub">{{ esVistaMensual ? '(S/. mensual)' : '(S/. quincena, 50%)' }}</span>
+            </th>
+            <th class="text-center">H. Estándar</th>
+            <th class="text-center">H. Trabajadas</th>
+            <th class="text-center">H. Extra</th>
+            <th class="text-center">H. Faltantes</th>
+            <th class="text-center">Desc. Faltas</th>
+            <th class="text-center">+ H. Extra</th>
+            <th class="text-center">Pensión</th>
+            <th class="text-center th-neto">Neto a Pagar</th>
+            <th class="text-center">Estado</th>
+            <th class="text-center">Boleta</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (emp of empleados; track emp.id) {
+          <tr [class.row-falta]="emp.horas_faltantes > 0">
+            <td>
+              <div class="emp-cell">
+                <div class="emp-avatar">
+                  @if (emp.fotoUrl) {
+                  <img class="avatar-photo" [src]="emp.fotoUrl" [alt]="emp.iniciales">
+                  } @else {
+                  {{ iniciales(emp.nombreCompleto) }}
+                  }
+                </div>
+                <div>
+                  <span class="emp-name">{{ emp.nombreCompleto }}</span>
+                  <span class="emp-cargo">{{ emp.cargo }}{{ safeArea(emp.area) }}</span>
+                </div>
+              </div>
+            </td>
+
+            <td class="text-center">
+              @if (puedeEditar) {
+              <select class="modalidad-select" [ngModel]="emp.tipo_contrato" (ngModelChange)="onModalidadChange(emp, $event)">
+                <option value="planilla">Planilla</option>
+                <option value="contrato">Contrato</option>
+                <option value="practicante">Practicante</option>
+              </select>
+              } @else {
+              <span class="tipo-badge" [ngClass]="modalidadClass(emp)">{{ modalidadLabel(emp) }}</span>
+              }
+            </td>
+
+            <td class="td-input">
+              @if (puedeEditar && esVistaMensual) {
+              <div class="sueldo-input-wrap" [class.sueldo-input-warn]="bajoRmv(emp)">
+                <span class="sueldo-prefix">S/.</span>
+                <input
+                  type="number"
+                  class="sueldo-input"
+                  [value]="getSueldo(emp.id) || ''"
+                  (input)="onSueldoChange(emp.id, $any($event.target).value)"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01">
+              </div>
+              } @else {
+              <span class="sueldo-readonly">{{ sueldoPeriodo(emp.id) > 0 ? formatMonto(sueldoPeriodo(emp.id)) : '—' }}</span>
+              }
+              @if (bajoRmv(emp)) {
+              <span class="rmv-flag" title="Por debajo de la RMV vigente (S/ {{ rmvVigente }})">⚠ Bajo RMV</span>
+              }
+            </td>
+
+            <td class="text-center">
+              <span class="hrs-num">{{ formatH(emp.meta_horas) }}</span>
+            </td>
+
+            <td class="text-center">
+              <span [class.hrs-num]="emp.horas_reales > 0" [class.hrs-cero]="emp.horas_reales === 0">
+                {{ formatH(emp.horas_reales) }}
+              </span>
+            </td>
+
+            <td class="text-center">
+              @if (horasExtra(emp) > 0) {
+              <span class="badge-extra">+{{ formatH(horasExtra(emp)) }}</span>
+              } @else {
+              <span class="hrs-cero">—</span>
+              }
+            </td>
+
+            <td class="text-center">
+              @if (emp.horas_faltantes > 0) {
+              <span class="hrs-falta">−{{ formatH(emp.horas_faltantes) }}</span>
+              } @else {
+              <span class="hrs-cero">—</span>
+              }
+            </td>
+
+            <td class="text-center">
+              @if (descuentoFaltas(emp) > 0) {
+              <span class="monto-red">−{{ formatMonto(descuentoFaltas(emp)) }}</span>
+              } @else {
+              <span class="hrs-cero">—</span>
+              }
+            </td>
+
+            <td class="text-center">
+              @if (pagoHorasExtra(emp) > 0) {
+              <span class="monto-green">+{{ formatMonto(pagoHorasExtra(emp)) }}</span>
+              } @else {
+              <span class="hrs-cero">—</span>
+              }
+            </td>
+
+            <td class="text-center">
+              @if (esDependiente(emp)) {
+                @if (puedeEditar) {
+                <div class="pension-cell">
+                  <select class="pension-select" [ngModel]="getPension(emp.id)" (ngModelChange)="onPensionChange(emp.id, $event)">
+                    <option value="onp">ONP 13%</option>
+                    <option value="afp">AFP</option>
+                  </select>
+                  @if (getPension(emp.id) === 'afp') {
+                  <select class="pension-select afp-entidad-select" [ngModel]="getAfpEntidad(emp.id)" (ngModelChange)="onAfpEntidadChange(emp.id, $event)">
+                    @for (afp of afpEntidades; track afp.value) {
+                    <option [value]="afp.value">{{ afp.label }}</option>
+                    }
+                  </select>
+                  }
+                </div>
+                } @else {
+                <span class="pension-readonly">{{ pensionLabel(emp) }}</span>
+                }
+              } @else {
+              <span class="hrs-cero" title="No aplica para practicantes">N/A</span>
+              }
+            </td>
+
+            <td class="text-center td-neto">
+              @if (getSueldo(emp.id) > 0) {
+              <span class="neto-val">{{ formatMonto(netoAPagar(emp)) }}</span>
+              } @else {
+              <span class="neto-empty">—</span>
+              }
+            </td>
+
+            <td class="text-center">
+              <span class="badge" [ngClass]="estadoClass(emp)">{{ estadoLabel(emp) }}</span>
+            </td>
+
+            <td class="text-center">
+              <button class="btn-boleta" (click)="verBoleta(emp)" [title]="esVistaMensual ? 'Ver boleta detallada' : 'Ver detalle del adelanto de quincena'">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                {{ esVistaMensual ? 'Ver' : 'Adelanto' }}
+              </button>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Paginación -->
+    @if (totalPaginas > 1 || totalRegistros > 0) {
+    <div class="pagination-footer">
+      <span class="pagination-info">
+        Mostrando {{ rangoMostrando.desde }}–{{ rangoMostrando.hasta }} de {{ rangoMostrando.total }} empleados
+      </span>
+      <div class="pagination-controls">
+        <button class="btn-pag" [disabled]="currentPage === 1" (click)="irPagina(currentPage - 1)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Anterior
+        </button>
+        @for (p of paginasBotones; track p) {
+        <button class="btn-pag-num" [class.active]="p === currentPage" (click)="irPagina(p)">{{ p }}</button>
+        }
+        <button class="btn-pag" [disabled]="currentPage === totalPaginas" (click)="irPagina(currentPage + 1)">
+          Siguiente
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    }
+    }
+  </div>
+
+  <!-- ═══ NOTA LEGAL ═══ -->
+  <div class="nota-legal">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="12"/>
+      <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span>
+      Configuración actual: tipo de empresa <strong>{{ regimenLabel }}</strong>, esquema de pago <strong>{{ esquemaPago === 'quincenal' ? 'Quincena + Fin de mes' : 'Mensual' }}</strong>
+      @if (esquemaPago === 'quincenal') { (días 01–15 y 16–fin de mes, 50% del sueldo cada una) }.
+      La <strong>boleta oficial es siempre mensual</strong> (PDF + envío a Legajo Digital, vista "Mes Completo"). Vacaciones: {{ diasVacaciones }} días/año.
+      Horas extra con recargo de 25%/35% (D.L. 854) solo para planilla/contrato. Descuento de pensión (ONP/AFP, con entidad seleccionable) obligatorio solo para dependientes — RRHH asigna la modalidad y el sistema de pensión de cada trabajador en esta misma pantalla.
+      Los <strong>practicantes</strong> (Ley 28518) no generan CTS, gratificación ni aporte a pensión.
+      @if (regimenEmpresa === 'micro') { Como <strong>Microempresa</strong>, no corresponde CTS ni gratificación (exoneración legal MYPE). }
+      @else if (regimenEmpresa === 'pequena') { Como <strong>Pequeña Empresa</strong>, corresponde medio CTS y media gratificación (informativo, no se descuenta del neto). }
+      @else { En <strong>Régimen General</strong>, corresponde CTS y gratificación completos (informativo, no se descuenta del neto). }
+      Tasas de ONP/AFP y RMV son referenciales — verificar vigencia ante SBS/SUNAFIL antes de procesar planilla real.
+    </span>
+  </div>
+
+</div>
+
+<!-- ═══ MODAL BOLETA INDIVIDUAL ═══ -->
+@if (boletaEmp) {
+<div class="modal-backdrop-pro" (click)="cerrarBoleta()"></div>
+<div class="boleta-modal fade-in-up">
+  <div class="boleta-modal-head">
+    <div class="boleta-modal-title-row">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        style="color:var(--brand-green,#22c55e)">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <h3>{{ esVistaMensual ? 'Boleta de Pago Mensual' : 'Adelanto de Quincena' }}</h3>
+    </div>
+    <button class="boleta-close-btn" (click)="cerrarBoleta()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="boleta-body">
+    @if (!esVistaMensual) {
+    <div class="boleta-info-note">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12.01" y2="16"/><line x1="12" y1="8" x2="12" y2="12"/>
+      </svg>
+      Este es un cálculo de adelanto ({{ periodoPago === 'q1' ? '1ra' : '2da' }} Quincena, días {{ labelRangoQuincena }}). La boleta oficial en PDF se genera en la vista "Mes Completo".
+    </div>
+    }
+
+    <!-- Empleado -->
+    <div class="boleta-emp-row">
+      <div class="boleta-avatar">{{ iniciales(boletaEmp.nombreCompleto) }}</div>
+      <div>
+        <div class="boleta-emp-name">{{ boletaEmp.nombreCompleto }}</div>
+        <div class="boleta-emp-cargo">{{ boletaEmp.cargo }}{{ safeArea(boletaEmp.area) }}</div>
+        <div class="boleta-periodo">
+          Período: {{ labelPeriodo | titlecase }}{{ esVistaMensual ? '' : ' · ' + (periodoPago === 'q1' ? '1ra' : '2da') + ' Quincena (' + labelRangoQuincena + ')' }}
+          <span class="tipo-badge" [ngClass]="modalidadClass(boletaEmp)" style="margin-left:8px;">{{ modalidadLabel(boletaEmp) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla de conceptos -->
+    <div class="boleta-table">
+      <div class="bol-row bol-row-header">
+        <span>Concepto</span><span>Detalle</span><span>Monto</span>
+      </div>
+
+      <div class="bol-row bol-ingreso">
+        <span class="bol-concepto">Sueldo Base</span>
+        <span class="bol-detalle">{{ formatH(boletaEmp.meta_horas) }} estándar</span>
+        <span class="bol-monto text-green">{{ formatMonto(getSueldo(boletaEmp.id)) }}</span>
+      </div>
+
+      @if (horasExtra(boletaEmp) > 0) {
+      <div class="bol-row bol-ingreso">
+        <span class="bol-concepto">Horas Extra ({{ formatH(horasExtra(boletaEmp)) }})</span>
+        <span class="bol-detalle">
+          @if (esPracticante(boletaEmp)) {
+            Tarifa simple (sin recargo)
+          } @else if (horasExtra(boletaEmp) <= 2) {
+            {{ formatH(horasExtra(boletaEmp)) }} × 25% recargo
+          } @else {
+            2h × 25% + {{ formatH(horasExtra(boletaEmp) - 2) }} × 35% recargo
+          }
+        </span>
+        <span class="bol-monto text-green">+{{ formatMonto(pagoHorasExtra(boletaEmp)) }}</span>
+      </div>
+      }
+
+      @if (descuentoFaltas(boletaEmp) > 0) {
+      <div class="bol-row bol-descuento">
+        <span class="bol-concepto">Descuento por Faltas/Tardanzas</span>
+        <span class="bol-detalle">{{ formatH(boletaEmp.horas_faltantes) }} × {{ formatMonto(valorHora(boletaEmp)) }}/h</span>
+        <span class="bol-monto text-red">−{{ formatMonto(descuentoFaltas(boletaEmp)) }}</span>
+      </div>
+      }
+
+      @if (descuentoPension(boletaEmp) > 0) {
+      <div class="bol-row bol-descuento">
+        <span class="bol-concepto">Sistema de Pensión ({{ pensionLabel(boletaEmp) }})</span>
+        <span class="bol-detalle">Descuento obligatorio por ley</span>
+        <span class="bol-monto text-red">−{{ formatMonto(descuentoPension(boletaEmp)) }}</span>
+      </div>
+      }
+
+      <div class="bol-row bol-row-total">
+        <span class="bol-concepto">NETO A PAGAR</span>
+        <span class="bol-detalle">{{ formatH(boletaEmp.horas_total) }} trabajadas</span>
+        <span class="bol-monto bol-neto">{{ formatMonto(netoAPagar(boletaEmp)) }}</span>
+      </div>
+    </div>
+
+    <!-- Información adicional: aportes patronales y provisiones -->
+    <div class="boleta-info-title">Información adicional (no afecta el neto)</div>
+    <div class="boleta-table boleta-table-info">
+      <div class="bol-row bol-info">
+        <span class="bol-concepto">Aporte EsSalud (empleador)</span>
+        <span class="bol-detalle">No descontado al trabajador</span>
+        <span class="bol-monto">{{ formatMonto(aporteEssalud(boletaEmp)) }}</span>
+      </div>
+      @if (provisionCTS(boletaEmp) > 0) {
+      <div class="bol-row bol-info">
+        <span class="bol-concepto">Provisión CTS</span>
+        <span class="bol-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año' }}</span>
+        <span class="bol-monto">{{ formatMonto(provisionCTS(boletaEmp)) }}</span>
+      </div>
+      }
+      @if (provisionGratificacion(boletaEmp) > 0) {
+      <div class="bol-row bol-info">
+        <span class="bol-concepto">Provisión Gratificación</span>
+        <span class="bol-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre' }}</span>
+        <span class="bol-monto">{{ formatMonto(provisionGratificacion(boletaEmp)) }}</span>
+      </div>
+      }
+      @if (provisionVacaciones(boletaEmp) > 0) {
+      <div class="bol-row bol-info">
+        <span class="bol-concepto">Provisión Vacacional</span>
+        <span class="bol-detalle">{{ diasVacaciones }} días/año</span>
+        <span class="bol-monto">{{ formatMonto(provisionVacaciones(boletaEmp)) }}</span>
+      </div>
+      }
+    </div>
+
+    <!-- Indicadores -->
+    <div class="boleta-stats">
+      <div class="bstat">
+        <span class="bstat-label">Valor Hora</span>
+        <span class="bstat-val">{{ formatMonto(valorHora(boletaEmp)) }}</span>
+      </div>
+      <div class="bstat">
+        <span class="bstat-label">Cumplimiento</span>
+        <span class="bstat-val">{{ boletaEmp.porcentaje | number:'1.0-0' }}%</span>
+      </div>
+      <div class="bstat">
+        <span class="bstat-label">Advertencias</span>
+        <span class="bstat-val" [class.text-red]="boletaEmp.advertencias > 0">{{ boletaEmp.advertencias }}</span>
+      </div>
+    </div>
+
+    @if (bajoRmv(boletaEmp)) {
+    <div class="boleta-warning">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      El sueldo base está por debajo de la RMV vigente (S/ {{ rmvVigente }}). Riesgo de sanción SUNAFIL.
+    </div>
+    }
+
+    @if (esPracticante(boletaEmp)) {
+    <div class="boleta-info-note">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12.01" y2="16"/><line x1="12" y1="8" x2="12" y2="12"/>
+      </svg>
+      Bajo Convenio de Modalidad Formativa (Ley 28518): no genera CTS, gratificación ni aporte obligatorio a pensión.
+    </div>
+    }
+
+    @if (getSueldo(boletaEmp.id) === 0) {
+    <div class="boleta-warning">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      No hay sueldo base registrado para este empleado. Ingresa el monto en la tabla.
+    </div>
+    }
+  </div>
+
+  <div class="boleta-footer">
+    <button class="btn-close-boleta" (click)="cerrarBoleta()">Cerrar</button>
+    @if (esVistaMensual) {
+    <button class="btn-pdf" [disabled]="generandoPdf || getSueldo(boletaEmp.id) === 0" (click)="descargarPdf(boletaEmp)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+      </svg>
+      Descargar PDF
+    </button>
+    }
+    @if (isAdmin && esVistaMensual) {
+    <button class="btn-legajo" [disabled]="generandoPdf || getSueldo(boletaEmp.id) === 0" (click)="enviarALegajo(boletaEmp)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      @if (generandoPdf) { Enviando… } @else { Enviar a Legajo Digital }
+    </button>
+    }
+  </div>
+</div>
+}

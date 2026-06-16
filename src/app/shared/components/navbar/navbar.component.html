@@ -1,4 +1,4 @@
-<nav class="top-navbar">
+﻿<nav class="top-navbar">
     <!-- Hamburguesa: solo visible en móvil/tablet (CSS) -->
     <button class="nav-hamburger" (click)="toggleMobileNav()" [class.active]="mobileNavOpen"
         aria-label="Menú de navegación">
@@ -239,6 +239,20 @@
                     <div class="nav-subitem-txt">
                         <span class="nav-subitem-title">Bandeja Solicitudes</span>
                         <span class="nav-subitem-desc">Permisos y vacaciones</span>
+                    </div>
+                </a>
+                <a routerLink="/rrhh/planillas" routerLinkActive="active" class="nav-subitem"
+                    (click)="rrhhOpen = false; cerrarMobileNav()">
+                    <span class="nav-subitem-ic">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2M12 12h3M12 16h3"/>
+                        </svg>
+                    </span>
+                    <div class="nav-subitem-txt">
+                        <span class="nav-subitem-title">Planillas</span>
+                        <span class="nav-subitem-desc">Nómina y boletas de pago</span>
                     </div>
                 </a>
             </div>

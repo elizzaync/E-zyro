@@ -274,6 +274,12 @@ main.portal-mode {
 .session-warn-dialog .btn-save-main { background-color: #2563eb !important; }
 .session-warn-dialog .btn-save-main:hover { box-shadow: 0 6px 15px rgba(37, 99, 235, 0.35) !important; }
 
+.device-warn-icon {
+  background: rgba(59, 130, 246, 0.12) !important;
+  color: #3b82f6 !important;
+}
+.device-warn-dialog .modal-body-pro p strong { color: var(--text-main); }
+
 .fade-in-up { animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @keyframes modalPop {
   from { opacity: 0; transform: translate(-50%, -45%) scale(0.96); }

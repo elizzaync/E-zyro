@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+﻿import { Routes } from '@angular/router';
 import { LoginComponent } from './features/auth/login/login.component';
 import { ResetPasswordComponent } from './features/auth/reset-password/reset-password.component';
 import { HomeComponent } from './features/home/home.component';
@@ -27,6 +27,7 @@ import { bloquearRolesGuard } from './core/guards/roles.guard';
 import { LegajoListaComponent } from './features/rrhh/legajo/legajo-lista.component';
 import { LegajoDetalleComponent } from './features/rrhh/legajo/components/legajo-detalle/legajo-detalle.component';
 import { SolicitudesListaComponent } from './features/rrhh/solicitudes/solicitudes-lista.component';
+import { PlanillasComponent } from './features/rrhh/planillas/planillas.component';
 import { AsistenciaDashboardComponent } from './features/rrhh/asistencia/asistencia-dashboard.component';
 import { AsistenciaComponent } from './features/asistencia/asistencia.component';
 
@@ -81,6 +82,12 @@ export const routes: Routes = [
     path: 'rrhh/solicitudes',
     component: SolicitudesListaComponent,
     title: 'Bandeja de Solicitudes | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'rrhh/planillas',
+    component: PlanillasComponent,
+    title: 'Planillas | e-zyro TIC',
     canActivate: [authGuard]
   },
   {
