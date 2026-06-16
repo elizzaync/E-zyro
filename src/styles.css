@@ -22,6 +22,10 @@ html, body {
   -webkit-text-size-adjust: 100%; /* iOS: no auto-zoom de texto */
 }
 
+/* Scrollbar del body: completamente oculto visualmente, scroll funcional */
+html::-webkit-scrollbar { width: 0px; background: transparent; }
+html { scrollbar-width: none; }
+
 /* Multimedia nunca desborda su contenedor */
 img, picture, video, canvas, svg, iframe {
   max-width: 100%;
