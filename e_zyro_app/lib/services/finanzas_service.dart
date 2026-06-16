@@ -579,6 +579,17 @@ class FinanzasService {
   Future<ApiResult<ConfiguracionTributaria>> configuracionTributaria() =>
       _getObj('/tributario/configuracion', ConfiguracionTributaria.fromJson);
 
+  /// Tasa de IGV vigente (porcentaje, p. ej. 18.0) leída de la configuración
+  /// tributaria. Devuelve 18.0 por defecto si el endpoint falla. Pensado para
+  /// auto-calcular el IGV de comprobantes desde Logística.
+  Future<double> getTasaIgv() async {
+    final res = await configuracionTributaria();
+    if (res.ok && res.data != null && res.data!.tasaIgv > 0) {
+      return res.data!.tasaIgv;
+    }
+    return 18.0;
+  }
+
   Future<ApiResult<ConfiguracionTributaria>> actualizarConfiguracionTributaria({
     String? regimenId,
     String? cuentaIgvCreditoFiscalId,

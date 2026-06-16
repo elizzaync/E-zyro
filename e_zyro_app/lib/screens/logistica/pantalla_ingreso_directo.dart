@@ -21,6 +21,7 @@ import '../../services/personal_service.dart';
 import '../../services/proyecto_service.dart';
 import '../../services/correctivo_service.dart';
 import '../../services/compras_service.dart';
+import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import '../../widgets/form_articulo_dinamico.dart';
 import '../../widgets/scanner_codigo.dart';
@@ -98,6 +99,7 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
 
   // ── Comprobante (genera Cuenta por Pagar) ───────────────────────────────────
   ComprasService? _comprasSvc;
+  FinanzasService? _finanzasSvc;
   List<Proveedor> _proveedores = [];
   bool _compActiva = false;
   String? _compProveedorId;
@@ -107,6 +109,11 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
   DateTime? _compFechaVencimiento;
   final TextEditingController _compSubtotalCtrl = TextEditingController();
   final TextEditingController _compIgvCtrl = TextEditingController();
+  // Tasa de IGV (porcentaje) leída de la configuración tributaria. El IGV se
+  // autocalcula desde el subtotal; el usuario puede sobrescribirlo a mano
+  // (exonerado/inafecto) y se respeta hasta que vuelva a cambiar el subtotal.
+  double _tasaIgv = 18.0;
+  bool _igvEditadoManual = false;
 
   // Destino: stock | servicio | correctivo
   String _destinoTipo = 'stock';
@@ -144,6 +151,7 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
     _proyectoSvc = await getProyectoService();
     _correctivoSvc = await getCorrectivoService();
     _comprasSvc = await getComprasService();
+    _finanzasSvc = await getFinanzasService();
     await _cargarSchema();
     await _cargarAuxiliares();
   }
@@ -155,11 +163,14 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
     final proy = await _proyectoSvc!.getProyectos();
     // Proveedores (para el comprobante / CxP)
     final provs = await _comprasSvc!.getProveedores();
+    // Tasa de IGV vigente (configuración tributaria; default 18%).
+    final tasa = await _finanzasSvc!.getTasaIgv();
     if (!mounted) return;
     setState(() {
       if (emp.ok) _empleados = emp.data ?? [];
       _proyectos = proy?.proyectos ?? [];
       _proveedores = provs;
+      _tasaIgv = tasa;
     });
   }
 
@@ -369,11 +380,27 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
   double get _compIgv =>
       double.tryParse(_compIgvCtrl.text.trim().replaceAll(',', '.')) ?? 0;
 
+  /// Recalcula el IGV a partir del subtotal y la tasa configurada, salvo que el
+  /// usuario lo haya editado a mano (override exonerado/inafecto).
+  void _onSubtotalChanged() {
+    if (!_igvEditadoManual) {
+      final igv = _compSubtotal * _tasaIgv / 100;
+      _compIgvCtrl.text = igv.toStringAsFixed(2);
+    }
+    setState(() {});
+  }
+
+  void _onIgvEditadoManual() {
+    _igvEditadoManual = true;
+    setState(() {});
+  }
+
   /// Valida la sección del comprobante (solo si está activa). Devuelve mensaje
   /// de error o null si todo OK.
   String? _validarComprobante() {
     if (!_compActiva) return null;
     if (_compProveedorId == null) return 'Selecciona el proveedor del comprobante.';
+    if (_compTipoDoc.trim().isEmpty) return 'Selecciona el tipo de documento.';
     if (_compNumeroCtrl.text.trim().isEmpty) {
       return 'Ingresa el número de documento.';
     }
@@ -452,6 +479,7 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
         _compFechaVencimiento = null;
         _compSubtotalCtrl.clear();
         _compIgvCtrl.clear();
+        _igvEditadoManual = false;
       });
     } catch (e) {
       _toast(e.toString().replaceFirst('Exception: ', ''));
@@ -1088,7 +1116,7 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: pj(size: 14.5, color: ESC.ink),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => _onSubtotalChanged(),
                   decoration: _deco('Subtotal'),
                 ),
               ),
@@ -1099,8 +1127,9 @@ class _PantallaIngresoDirectoState extends State<PantallaIngresoDirecto> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   style: pj(size: 14.5, color: ESC.ink),
-                  onChanged: (_) => setState(() {}),
-                  decoration: _deco('IGV'),
+                  onChanged: (_) => _onIgvEditadoManual(),
+                  decoration: _deco('IGV',
+                      hint: 'Auto ${_tasaIgv.toStringAsFixed(0)}%'),
                 ),
               ),
             ]),

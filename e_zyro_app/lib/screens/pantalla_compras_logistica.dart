@@ -794,6 +794,11 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
   DateTime? _compFechaVencimiento;
   final _compSubtotalCtrl = TextEditingController();
   final _compIgvCtrl = TextEditingController();
+  // Tasa de IGV (porcentaje) leída de la configuración tributaria. El IGV se
+  // autocalcula desde el subtotal; el usuario puede sobrescribirlo a mano
+  // (exonerado/inafecto) y se respeta hasta que vuelva a cambiar el subtotal.
+  double _tasaIgv = 18.0;
+  bool _igvEditadoManual = false;
 
   @override
   void initState() {
@@ -806,8 +811,16 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
     _canalUnicoCtrl.text = t.canalUnico ?? '';
     _notaCtrl.text = t.nota ?? '';
     _items = t.items.map((it) => _ItemForm.fromItem(it)).toList();
-    // Prerrellena el proveedor del comprobante con el proveedor único, si lo hay.
+    // En modo "un proveedor" el comprobante queda fijado al proveedor único.
     _compProveedorId = t.proveedorUnicoId;
+    _cargarTasaIgv();
+  }
+
+  Future<void> _cargarTasaIgv() async {
+    final svc = await getFinanzasService();
+    final tasa = await svc.getTasaIgv();
+    if (!mounted) return;
+    setState(() => _tasaIgv = tasa);
   }
 
   @override
@@ -860,10 +873,32 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
   double get _compIgv =>
       double.tryParse(_compIgvCtrl.text.trim().replaceAll(',', '.')) ?? 0;
 
+  /// En modo "un proveedor" el comprobante usa el proveedor único; en modo
+  /// "por ítem" se elige con un dropdown propio del comprobante.
+  bool get _compProveedorFijo => _modoUnificado && !_canalUnicoCustom;
+
+  /// Recalcula el IGV a partir del subtotal y la tasa configurada, salvo que el
+  /// usuario lo haya editado a mano (override exonerado/inafecto).
+  void _onSubtotalChanged() {
+    if (!_igvEditadoManual) {
+      final igv = _compSubtotal * _tasaIgv / 100;
+      _compIgvCtrl.text = igv.toStringAsFixed(2);
+    }
+    setState(() {});
+  }
+
+  void _onIgvEditadoManual() {
+    _igvEditadoManual = true;
+    setState(() {});
+  }
+
   /// Valida la sección del comprobante (solo si está activa).
   String? _validarComprobante() {
     if (!_compActiva) return null;
-    if (_compProveedorId == null) return 'Selecciona el proveedor del comprobante.';
+    // En modo "un proveedor" el comprobante hereda el proveedor único.
+    final provId = _compProveedorFijo ? _proveedorUnicoId : _compProveedorId;
+    if (provId == null) return 'Selecciona el proveedor del comprobante.';
+    if (_compTipoDoc.trim().isEmpty) return 'Selecciona el tipo de documento.';
     if (_compNumeroCtrl.text.trim().isEmpty) {
       return 'Ingresa el número de documento.';
     }
@@ -879,7 +914,7 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
   }
 
   Map<String, dynamic> _buildComprobante() => {
-        'proveedorId': _compProveedorId,
+        'proveedorId': _compProveedorFijo ? _proveedorUnicoId : _compProveedorId,
         'tipoDocumento': _compTipoDoc,
         'numeroDocumento': _compNumeroCtrl.text.trim(),
         'fechaEmision': _fmtFecha(_compFechaEmision!),
@@ -1342,22 +1377,37 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
               style: TextStyle(fontSize: 11, color: Colors.grey),
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<String?>(
-              initialValue: widget.proveedores
-                      .any((p) => p.id == _compProveedorId)
-                  ? _compProveedorId
-                  : null,
-              isExpanded: true,
-              decoration: _fieldDeco('Proveedor', fill),
-              items: [
-                const DropdownMenuItem(
-                    value: null, child: Text('— Selecciona —')),
-                ...widget.proveedores.map((p) => DropdownMenuItem(
-                    value: p.id,
-                    child: Text(p.nombre, overflow: TextOverflow.ellipsis))),
-              ],
-              onChanged: (v) => setState(() => _compProveedorId = v),
-            ),
+            // Proveedor: en modo "un proveedor" se hereda del proveedor único
+            // (solo lectura); en modo "por ítem" se elige aquí.
+            if (_compProveedorFijo)
+              InputDecorator(
+                decoration: _fieldDeco('Proveedor (del pedido)', fill),
+                child: Text(
+                  _proveedorUnicoNombre ??
+                      'Selecciona arriba el proveedor del pedido',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _proveedorUnicoNombre == null ? Colors.grey : null),
+                ),
+              )
+            else
+              DropdownButtonFormField<String?>(
+                initialValue: widget.proveedores
+                        .any((p) => p.id == _compProveedorId)
+                    ? _compProveedorId
+                    : null,
+                isExpanded: true,
+                decoration: _fieldDeco('Proveedor', fill),
+                items: [
+                  const DropdownMenuItem(
+                      value: null, child: Text('— Selecciona —')),
+                  ...widget.proveedores.map((p) => DropdownMenuItem(
+                      value: p.id,
+                      child: Text(p.nombre, overflow: TextOverflow.ellipsis))),
+                ],
+                onChanged: (v) => setState(() => _compProveedorId = v),
+              ),
             const SizedBox(height: 8),
             Row(children: [
               Expanded(
@@ -1415,7 +1465,7 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
                   controller: _compSubtotalCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => _onSubtotalChanged(),
                   decoration: _fieldDeco('Subtotal', fill),
                 ),
               ),
@@ -1425,8 +1475,9 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
                   controller: _compIgvCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => setState(() {}),
-                  decoration: _fieldDeco('IGV', fill),
+                  onChanged: (_) => _onIgvEditadoManual(),
+                  decoration: _fieldDeco(
+                      'IGV (auto ${_tasaIgv.toStringAsFixed(0)}%)', fill),
                 ),
               ),
             ]),
