@@ -608,159 +608,164 @@ export class PlanillasComponent implements OnInit {
     const cts            = this.provisionCTS(emp);
     const grati          = this.provisionGratificacion(emp);
     const vacaciones      = this.provisionVacaciones(emp);
-
-    const filaIngreso = (label: string, detalle: string, monto: number) => `
-      <tr style="background:#f0fdf4;">
-        <td style="padding:8px 10px;font-size:11px;color:#1e293b;">${label}</td>
-        <td style="padding:8px 10px;font-size:10px;color:#64748b;text-align:right;">${detalle}</td>
-        <td style="padding:8px 10px;font-size:11px;font-weight:700;color:#16a34a;text-align:right;">+${this.formatMonto(monto)}</td>
-      </tr>`;
-    const filaDescuento = (label: string, detalle: string, monto: number) => `
-      <tr style="background:#fef2f2;">
-        <td style="padding:8px 10px;font-size:11px;color:#1e293b;">${label}</td>
-        <td style="padding:8px 10px;font-size:10px;color:#64748b;text-align:right;">${detalle}</td>
-        <td style="padding:8px 10px;font-size:11px;font-weight:700;color:#dc2626;text-align:right;">−${this.formatMonto(monto)}</td>
-      </tr>`;
-    const filaInfo = (label: string, detalle: string, monto: number) => `
-      <tr style="background:#f8fafc;">
-        <td style="padding:8px 10px;font-size:11px;color:#64748b;">${label}</td>
-        <td style="padding:8px 10px;font-size:10px;color:#94a3b8;text-align:right;">${detalle}</td>
-        <td style="padding:8px 10px;font-size:11px;font-weight:600;color:#64748b;text-align:right;">${this.formatMonto(monto)}</td>
-      </tr>`;
-
     const asig = this.asignacionFamiliar(emp);
     const renta = this.impuestoQuintaCategoria(emp);
 
-    let filasIngresos = filaIngreso('Sueldo Base', `${this.formatH(emp.meta_horas)} estándar`, sueldo);
+    // Blanco y negro, sin color de relleno — solo bordes y negritas para
+    // jerarquía visual (mismo lenguaje que la Planilla Mensual consolidada).
+    const fila = (label: string, detalle: string, monto: string) => `
+      <tr><td>${label}</td><td class="c-det">${detalle}</td><td class="c-mon">${monto}</td></tr>`;
+    const filaSinMonto = (label: string, motivo: string) => `
+      <tr><td>${label}</td><td class="c-det na" colspan="2">${motivo}</td></tr>`;
+
+    let filasIngresos = fila('Sueldo Base', `${this.formatH(emp.meta_horas)} estándar`, `${this.formatMonto(sueldo)}`);
     if (extra > 0) {
       const detalleExtra = dependiente
         ? (this.horasExtra(emp) <= 2 ? `${this.formatH(this.horasExtra(emp))} × 25%` : `2h×25% + ${this.formatH(this.horasExtra(emp) - 2)}×35%`)
         : `${this.formatH(this.horasExtra(emp))} tarifa simple`;
-      filasIngresos += filaIngreso(`Horas Extra (${this.formatH(this.horasExtra(emp))})`, detalleExtra, extra);
+      filasIngresos += fila(`Horas Extra (${this.formatH(this.horasExtra(emp))})`, detalleExtra, `+${this.formatMonto(extra)}`);
     }
     if (asig > 0) {
-      filasIngresos += filaIngreso('Asignación Familiar', '10% RMV vigente', asig);
+      filasIngresos += fila('Asignación Familiar', '10% RMV vigente', `+${this.formatMonto(asig)}`);
     }
-
-    const filaSinMonto = (label: string, motivo: string) => `
-      <tr style="background:#f8fafc;">
-        <td style="padding:8px 10px;font-size:11px;color:#94a3b8;">${label}</td>
-        <td style="padding:8px 10px;font-size:10px;color:#94a3b8;text-align:right;" colspan="2">${motivo}</td>
-      </tr>`;
 
     let filasDescuentos = '';
     if (descFaltas > 0) {
-      filasDescuentos += filaDescuento('Descuento por Faltas/Tardanzas', `${this.formatH(emp.horas_faltantes)} × ${this.formatMonto(this.valorHora(emp))}/h`, descFaltas);
+      filasDescuentos += fila('Faltas / Tardanzas', `${this.formatH(emp.horas_faltantes)} × ${this.formatMonto(this.valorHora(emp))}/h`, `−${this.formatMonto(descFaltas)}`);
+    } else {
+      filasDescuentos += filaSinMonto('Faltas / Tardanzas', 'Sin faltas ni tardanzas este período');
     }
-    // Pensión: SIEMPRE se muestra, con monto o con el motivo por el que no aplica.
     if (descPension > 0) {
-      filasDescuentos += filaDescuento(`Sistema de Pensión (${this.pensionLabel(emp)})`, 'Ley N.° 19990 / D.L. 25897', descPension);
+      filasDescuentos += fila(`Pensión (${this.pensionLabel(emp)})`, 'Ley N.° 19990 / D.L. 25897', `−${this.formatMonto(descPension)}`);
     } else {
       filasDescuentos += filaSinMonto('Sistema de Pensión', this.motivoPension(emp));
     }
     if (renta > 0) {
-      filasDescuentos += filaDescuento('Renta de 5ta Categoría', 'Referencial — verificar con contador', renta);
+      filasDescuentos += fila('Renta de 5ta Categoría', 'Referencial — verificar con contador', `−${this.formatMonto(renta)}`);
+    } else {
+      filasDescuentos += filaSinMonto('Renta de 5ta Categoría', 'No alcanza el tramo afecto');
     }
 
-    // Aportes patronales y provisiones: SIEMPRE visibles (con monto o motivo).
-    let filasInformativas = filaInfo('Aporte EsSalud (empleador)', 'No descontado al trabajador', essalud);
+    let filasInformativas = fila('Aporte EsSalud (empleador)', 'No descontado al trabajador', this.formatMonto(essalud));
     filasInformativas += cts > 0
-      ? filaInfo('Provisión CTS', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año'}`, cts)
+      ? fila('Provisión CTS', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año'}`, this.formatMonto(cts))
       : filaSinMonto('Provisión CTS', this.motivoCTS(emp));
     filasInformativas += grati > 0
-      ? filaInfo('Provisión Gratificación', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre'}`, grati)
+      ? fila('Provisión Gratificación', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre'}`, this.formatMonto(grati))
       : filaSinMonto('Provisión Gratificación', this.motivoGratificacion(emp));
     filasInformativas += vacaciones > 0
-      ? filaInfo('Provisión Vacacional', `${this.diasVacaciones} días/año`, vacaciones)
+      ? fila('Provisión Vacacional', `${this.diasVacaciones} días/año`, this.formatMonto(vacaciones))
       : filaSinMonto('Provisión Vacacional', this.motivoVacaciones(emp));
 
-    const empresaNombre = 'E-zyro TIC';
+    const razonSocial = this.empresaInfo?.razon_social || 'E-SYSTEM TIC';
+    const ruc = this.empresaInfo?.ruc || '—';
     const fechaEmision = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
 
     return `
-    <div style="font-family:Arial,Helvetica,sans-serif;width:680px;padding:28px;color:#1e293b;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #22c55e;padding-bottom:14px;margin-bottom:18px;">
+    <style>
+      .bol-hoja { font-family: 'Times New Roman', Times, serif; width: 1000px; color: #000; padding: 16px; }
+      .bol-cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
+      .bol-empresa { font-size: 18px; font-weight: 700; letter-spacing: 0.4px; }
+      .bol-sub { font-size: 11px; margin-top: 2px; }
+      .bol-titulo { font-size: 14px; font-weight: 700; letter-spacing: 0.4px; }
+      .bol-cab-der { text-align: right; }
+      .bol-datos { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 11.5px; }
+      .bol-datos td { padding: 3px 0; }
+      .bol-cols { display: flex; gap: 16px; margin-bottom: 14px; }
+      .bol-col { flex: 1; }
+      .bol-sec-tit { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+      .bol-tabla { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      .bol-tabla th, .bol-tabla td { border: 1px solid #000; padding: 5px 7px; }
+      .bol-tabla thead th { background: #e5e5e5; font-weight: 700; text-align: left; font-size: 9.5px; text-transform: uppercase; }
+      .bol-tabla thead th.c-mon, .bol-tabla thead th.c-det { text-align: right; }
+      .bol-tabla .c-det { text-align: right; font-size: 10px; }
+      .bol-tabla .c-mon { text-align: right; font-weight: 700; white-space: nowrap; }
+      .bol-tabla .na { font-style: italic; text-align: left; opacity: 0.7; }
+      .bol-tot td { background: #e5e5e5; font-weight: 800; }
+      .bol-neto { width: 100%; border: 2px solid #000; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; background: #f0f0f0; }
+      .bol-neto-lab { font-size: 13px; font-weight: 700; text-transform: uppercase; }
+      .bol-neto-sub { font-size: 10px; }
+      .bol-neto-val { font-size: 19px; font-weight: 800; }
+      .bol-nota { font-size: 9.5px; line-height: 1.5; border-left: 3px solid #000; padding: 8px 12px; margin-bottom: 26px; background: #f5f5f5; }
+      .bol-firmas { display: flex; justify-content: space-between; margin-top: 10px; }
+      .bol-firma { width: 260px; text-align: center; }
+      .bol-firma-linea { border-top: 1px solid #000; margin-bottom: 4px; }
+      .bol-firma-cargo { font-size: 11px; font-weight: 700; }
+      .bol-firma-sub { font-size: 10px; }
+    </style>
+    <div class="bol-hoja">
+      <div class="bol-cab">
         <div>
-          <div style="font-size:18px;font-weight:800;color:#16a34a;">${empresaNombre}</div>
-          <div style="font-size:11px;color:#64748b;">Boleta de Pago — Régimen Laboral MYPE (${this.regimenLabel})</div>
+          <div class="bol-empresa">${razonSocial.toUpperCase()}</div>
+          <div class="bol-sub">RUC: ${ruc} | Régimen ${this.regimenLabel}</div>
         </div>
-        <div style="text-align:right;font-size:11px;color:#64748b;">
-          <div><strong>Período:</strong> ${this.titleCase(this.labelPeriodo)}</div>
-          <div><strong>Emisión:</strong> ${fechaEmision}</div>
+        <div class="bol-cab-der">
+          <div class="bol-titulo">BOLETA DE PAGO</div>
+          <div class="bol-sub">Período: <strong>${this.titleCase(this.labelPeriodo)}</strong> | Emisión: ${fechaEmision}</div>
         </div>
       </div>
 
-      <table style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+      <table class="bol-datos">
         <tr>
-          <td style="padding:4px 0;font-size:12px;"><strong>Trabajador:</strong> ${emp.nombreCompleto}</td>
-          <td style="padding:4px 0;font-size:12px;text-align:right;"><strong>Cargo:</strong> ${emp.cargo}</td>
-        </tr>
-        <tr>
-          <td style="padding:4px 0;font-size:12px;"><strong>Modalidad:</strong> ${this.modalidadLabel(emp)}</td>
-          <td style="padding:4px 0;font-size:12px;text-align:right;"><strong>Área:</strong> ${emp.area || '—'}</td>
+          <td style="width:25%;"><strong>Trabajador:</strong> ${emp.nombreCompleto}</td>
+          <td style="width:25%;"><strong>Cargo:</strong> ${emp.cargo}</td>
+          <td style="width:25%;"><strong>Modalidad:</strong> ${this.modalidadLabel(emp)}</td>
+          <td style="width:25%;"><strong>Área:</strong> ${emp.area || '—'}</td>
         </tr>
       </table>
 
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#16a34a;letter-spacing:0.4px;margin-bottom:4px;">Ingresos</div>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:14px;">
-        <tr style="background:#1e293b;">
-          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;">Concepto</td>
-          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Detalle</td>
-          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Monto</td>
-        </tr>
-        ${filasIngresos}
-        <tr style="background:#f0fdf4;border-top:1px solid #bbf7d0;">
-          <td style="padding:8px 10px;font-size:11px;font-weight:800;color:#1e293b;" colspan="2">TOTAL INGRESOS</td>
-          <td style="padding:8px 10px;font-size:12px;font-weight:800;color:#16a34a;text-align:right;">${this.formatMonto(this.totalIngresos(emp))}</td>
-        </tr>
+      <div class="bol-cols">
+        <div class="bol-col">
+          <div class="bol-sec-tit">Ingresos</div>
+          <table class="bol-tabla">
+            <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Monto</th></tr></thead>
+            <tbody>${filasIngresos}</tbody>
+            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL INGRESOS</td><td class="c-mon">${this.formatMonto(this.totalIngresos(emp))}</td></tr></tfoot>
+          </table>
+        </div>
+        <div class="bol-col">
+          <div class="bol-sec-tit">Descuentos</div>
+          <table class="bol-tabla">
+            <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Monto</th></tr></thead>
+            <tbody>${filasDescuentos}</tbody>
+            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL DESCUENTOS</td><td class="c-mon">−${this.formatMonto(this.totalDescuentosLegales(emp))}</td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="bol-neto">
+        <div>
+          <div class="bol-neto-lab">Neto a Pagar</div>
+          <div class="bol-neto-sub">${this.formatH(emp.horas_total)} trabajadas este período</div>
+        </div>
+        <div class="bol-neto-val">${this.formatMonto(neto)}</div>
+      </div>
+
+      <div class="bol-sec-tit">Beneficios y Aportes (no afectan el neto)</div>
+      <table class="bol-tabla" style="margin-bottom:14px;">
+        <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Monto</th></tr></thead>
+        <tbody>${filasInformativas}</tbody>
       </table>
 
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#dc2626;letter-spacing:0.4px;margin-bottom:4px;">Descuentos</div>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:14px;">
-        <tr style="background:#1e293b;">
-          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;">Concepto</td>
-          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Detalle</td>
-          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Monto</td>
-        </tr>
-        ${filasDescuentos}
-        <tr style="background:#fef2f2;border-top:1px solid #fecaca;">
-          <td style="padding:8px 10px;font-size:11px;font-weight:800;color:#1e293b;" colspan="2">TOTAL DESCUENTOS</td>
-          <td style="padding:8px 10px;font-size:12px;font-weight:800;color:#dc2626;text-align:right;">−${this.formatMonto(this.totalDescuentosLegales(emp))}</td>
-        </tr>
-      </table>
-
-      <table style="width:100%;border-collapse:collapse;border:2px solid #16a34a;border-radius:8px;overflow:hidden;margin-bottom:14px;">
-        <tr style="background:#dcfce7;">
-          <td style="padding:12px 14px;font-size:14px;font-weight:800;color:#1e293b;">NETO A PAGAR</td>
-          <td style="padding:12px 14px;font-size:10px;color:#64748b;text-align:right;">${this.formatH(emp.horas_total)} trabajadas</td>
-          <td style="padding:12px 14px;font-size:17px;font-weight:800;color:#16a34a;text-align:right;">${this.formatMonto(neto)}</td>
-        </tr>
-      </table>
-
-      <div style="margin-top:6px;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.4px;">Beneficios y aportes (no afectan el neto)</div>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-top:4px;">
-        ${filasInformativas}
-      </table>
-
-      <div style="margin-top:18px;font-size:9px;color:#94a3b8;line-height:1.5;border-top:1px solid #e2e8f0;padding-top:10px;">
+      <div class="bol-nota">
         Cálculo conforme al Régimen ${this.regimenLabel} ${this.esRegimenMype ? '(Ley N.° 28015 / D.L. N.° 1086)' : '(Régimen Laboral General)'} y D.L. N.° 854 (jornada y sobretiempo). Vacaciones: ${this.diasVacaciones} días/año.
-        ${this.esPracticante(emp) ? 'El trabajador se encuentra bajo Convenio de Modalidad Formativa (Ley N.° 28518): no genera CTS, gratificación ni aporte obligatorio a pensión.' : ''}
-        ${dependiente && this.regimenEmpresa === 'micro' ? 'Como Microempresa, no corresponde CTS ni gratificación (exoneración legal MYPE).' : ''}
-        ${this.bajoRmv(emp) ? `<strong style="color:#dc2626;">ATENCIÓN: el sueldo base registrado está por debajo de la RMV vigente (S/ ${this.rmvVigente}). Verificar cumplimiento ante SUNAFIL.</strong>` : ''}
+        ${this.esPracticante(emp) ? ' El trabajador se encuentra bajo Convenio de Modalidad Formativa (Ley N.° 28518): no genera CTS, gratificación ni aporte obligatorio a pensión.' : ''}
+        ${dependiente && this.regimenEmpresa === 'micro' ? ' Como Microempresa, no corresponde CTS ni gratificación (exoneración legal MYPE).' : ''}
+        Tasas de AFP/ONP, RMV y Renta de 5ta Categoría son referenciales — corresponde validarlas con el contador de la empresa.
+        ${this.bajoRmv(emp) ? '<br><strong>ATENCIÓN: el sueldo base registrado está por debajo de la RMV vigente (S/ ' + this.rmvVigente + '). Verificar cumplimiento ante SUNAFIL.</strong>' : ''}
       </div>
 
-      <table style="width:100%;margin-top:36px;">
-        <tr>
-          <td style="width:50%;text-align:center;font-size:10px;color:#64748b;">
-            <div style="border-top:1px solid #94a3b8;width:80%;margin:0 auto 4px;"></div>
-            Firma del Trabajador
-          </td>
-          <td style="width:50%;text-align:center;font-size:10px;color:#64748b;">
-            <div style="border-top:1px solid #94a3b8;width:80%;margin:0 auto 4px;"></div>
-            Firma del Empleador
-          </td>
-        </tr>
-      </table>
+      <div class="bol-firmas">
+        <div class="bol-firma">
+          <div class="bol-firma-linea"></div>
+          <div class="bol-firma-cargo">Firma del Trabajador</div>
+        </div>
+        <div class="bol-firma">
+          <div class="bol-firma-linea"></div>
+          <div class="bol-firma-cargo">Firma del Empleador</div>
+          <div class="bol-firma-sub">${razonSocial.toUpperCase()}</div>
+        </div>
+      </div>
     </div>`;
   }
 
@@ -812,10 +817,10 @@ export class PlanillasComponent implements OnInit {
 
     try {
       await html2pdf().set({
-        margin: 0,
+        margin: 20,
         filename,
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'landscape' },
       }).from(div).save();
       this.toast.mostrar('Boleta PDF generada', 'success');
     } catch {
@@ -844,9 +849,9 @@ export class PlanillasComponent implements OnInit {
 
     try {
       const blob: Blob = await html2pdf().set({
-        margin: 0,
+        margin: 20,
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'landscape' },
       }).from(div).outputPdf('blob');
 
       const mesLabel = MESES_ES[this.selectedMonth];
