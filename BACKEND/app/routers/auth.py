@@ -400,7 +400,7 @@ def refresh_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
     exp = payload.get("exp", 0)
-    if (time.time() - exp) > (30 * 24 * 3600):
+    if (time.time() - exp) > (24 * 3600):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sesión expirada. Inicia sesión con tu contraseña para continuar.",
