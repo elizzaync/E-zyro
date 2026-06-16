@@ -2714,26 +2714,64 @@ async def procesar_compra(
         )
         db.refresh(tc)
 
-    # ── CxP automática: si la compra completada trae comprobante, crear la
-    # factura del proveedor (Db 60 + 40 / Cr 42). El ingreso ya quedó aplicado;
-    # si la CxP falla se informa para crearla manual en Finanzas (idempotente).
-    if body.completado and body.comprobante is not None:
-        try:
-            _crear_cxp_desde_comprobante(
-                db, empresa_id, body.comprobante,
-                creado_por_id=str(emp.id) if emp else None)
-        except HTTPException as e:
-            detalle = e.detail if isinstance(e.detail, str) else "motivo desconocido"
-            raise HTTPException(
-                status_code=e.status_code,
-                detail=(f"La compra se registró, pero la Cuenta por Pagar no se creó: "
-                        f"{detalle}. Genérala manualmente en Finanzas."),
-            )
-        except Exception as exc:  # noqa: BLE001
+    # ── CxP automática: al completar, crear la(s) factura(s) del proveedor
+    # (Db 60 + 40 / Cr 42). El ingreso ya quedó aplicado; si alguna CxP falla se
+    # informa para crearla manual en Finanzas (idempotente por nº de documento).
+    #  - modo "un proveedor"  → body.comprobante (subtotal explícito).
+    #  - modo multi-proveedor → body.comprobantes (uno por proveedor; subtotal =
+    #    suma de los ítems comprados de ese proveedor en el ticket).
+    if body.completado:
+        errores: list[str] = []
+
+        if body.comprobante is not None:
+            try:
+                _crear_cxp_desde_comprobante(
+                    db, empresa_id, body.comprobante,
+                    creado_por_id=str(emp.id) if emp else None)
+            except HTTPException as e:
+                errores.append(e.detail if isinstance(e.detail, str) else "motivo desconocido")
+            except Exception as exc:  # noqa: BLE001
+                errores.append(str(exc))
+
+        if body.comprobantes:
+            # Subtotal por proveedor = suma de total_item de sus ítems comprados.
+            subtotal_por_prov: dict[str, float] = {}
+            for it in db.query(TicketCompraItem).filter(
+                    TicketCompraItem.ticket_id == tc.id).all():
+                pid = str(it.proveedor_id) if it.proveedor_id else None
+                if pid and (it.cantidad_comprada or 0) > 0:
+                    subtotal_por_prov[pid] = subtotal_por_prov.get(pid, 0.0) + float(it.total_item or 0)
+
+            for comp in body.comprobantes:
+                subtotal = subtotal_por_prov.get(str(comp.proveedorId), 0.0)
+                if subtotal <= 0:
+                    errores.append(
+                        f"Proveedor {comp.proveedorId}: sin ítems comprados; no se generó CxP.")
+                    continue
+                try:
+                    datos = FacturaCreate(
+                        proveedor_id=comp.proveedorId,
+                        numero_documento=comp.numeroDocumento,
+                        tipo_documento=comp.tipoDocumento,
+                        fecha_emision=comp.fechaEmision,
+                        fecha_vencimiento=comp.fechaVencimiento,
+                        subtotal=_Decimal(str(subtotal)),
+                        igv=_Decimal(str(comp.igv or 0)),
+                        moneda=comp.moneda,
+                    )
+                    cxp_srv.registrar_factura(
+                        db, empresa_id, datos, str(emp.id) if emp else None)
+                except HTTPException as e:
+                    det = e.detail if isinstance(e.detail, str) else "motivo desconocido"
+                    errores.append(f"{comp.numeroDocumento}: {det}")
+                except Exception as exc:  # noqa: BLE001
+                    errores.append(f"{comp.numeroDocumento}: {exc}")
+
+        if errores:
             raise HTTPException(
                 status_code=422,
-                detail=(f"La compra se registró, pero la Cuenta por Pagar no se creó: "
-                        f"{exc}. Genérala manualmente en Finanzas."),
+                detail=("La compra se registró, pero algunas Cuentas por Pagar no se "
+                        "crearon: " + " | ".join(errores) + ". Genéralas manualmente en Finanzas."),
             )
 
     return _ticket_out(db, tc)

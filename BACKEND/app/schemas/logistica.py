@@ -411,6 +411,19 @@ class ComprobanteCompraIn(BaseModel):
     moneda:           Optional[str] = None
 
 
+class ComprobanteProveedorIn(BaseModel):
+    """Comprobante de un proveedor en una compra MULTI-proveedor. El subtotal
+    NO viene del front: el backend lo calcula como la suma de los ítems de ese
+    proveedor en el ticket (subtotal fijo). El IGV sí (auto por tasa, editable)."""
+    proveedorId:      str
+    tipoDocumento:    str = "factura"
+    numeroDocumento:  str
+    fechaEmision:     date
+    fechaVencimiento: date
+    igv:              float = 0.0
+    moneda:           Optional[str] = None
+
+
 class ProcesarCompraBody(BaseModel):
     modoUnificado:        bool
     proveedorUnicoId:     Optional[str]   = None
@@ -420,7 +433,11 @@ class ProcesarCompraBody(BaseModel):
     completado:           bool            = False
     items:                List[ProcesarCompraItemBody] = []
     # Comprobante opcional → al completar la compra crea la CxP del proveedor.
+    #  - modo "un proveedor"   → `comprobante` (uno; subtotal explícito).
+    #  - modo multi-proveedor  → `comprobantes` (uno por proveedor; subtotal lo
+    #    calcula el backend = suma de ítems de ese proveedor).
     comprobante:          Optional[ComprobanteCompraIn] = None
+    comprobantes:         Optional[List[ComprobanteProveedorIn]] = None
 
 
 class CancelarCompraBody(BaseModel):
