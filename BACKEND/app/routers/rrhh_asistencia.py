@@ -251,6 +251,7 @@ def resumen_asistencia(
             "area":               _resolve_area(emp.area, area_nombres),
             "iniciales":          iniciales,
             "fotoUrl":            usr.foto_url or "",
+            "tipo_contrato":      emp.tipo,
             "horas_reales":       round(horas_reales,       2),
             "horas_justificadas": round(horas_justificadas, 2),
             "horas_total":        round(horas_total,        2),

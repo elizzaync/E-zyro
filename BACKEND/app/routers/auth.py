@@ -429,3 +429,56 @@ def refresh_token(
     db.commit()
 
     return {"status": "success", "data": {"token": new_token}}
+
+# =========================================================================
+# SESIONES ACTIVAS (detección multi-dispositivo)
+# =========================================================================
+@router.get("/sesiones")
+def listar_sesiones_activas(
+    credentials: HTTPAuthorizationCredentials = Security(_http_bearer),
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Lista las sesiones activas del usuario actual (excluye la sesión actual)."""
+    usuario_id = payload.get("id")
+    token_hash_actual = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+
+    sesiones = db.query(SesionUsuario).filter(
+        SesionUsuario.usuario_id == usuario_id,
+        SesionUsuario.activa == True,
+    ).order_by(SesionUsuario.created_at.desc()).all()
+
+    resultado = []
+    for s in sesiones:
+        resultado.append({
+            "id": str(s.id),
+            "dispositivo": s.dispositivo or "Dispositivo desconocido",
+            "ip": s.ip or "—",
+            "device_id": s.device_id,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "fecha_expiracion": s.fecha_expiracion.isoformat() if s.fecha_expiracion else None,
+            "es_actual": s.token_hash == token_hash_actual,
+        })
+
+    return {"status": "success", "data": resultado}
+
+
+@router.delete("/sesiones/{sesion_id}")
+def cerrar_sesion_remota(
+    sesion_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Cierra (revoca) una sesión activa del usuario actual por su ID."""
+    usuario_id = payload.get("id")
+    sesion = db.query(SesionUsuario).filter(
+        SesionUsuario.id == sesion_id,
+        SesionUsuario.usuario_id == usuario_id,
+        SesionUsuario.activa == True,
+    ).first()
+    if not sesion:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada o ya cerrada.")
+    sesion.activa = False
+    sesion.fecha_cierre = datetime.now(ZONA_HORARIA)
+    db.commit()
+    return {"status": "success", "mensaje": "Sesión cerrada correctamente."}

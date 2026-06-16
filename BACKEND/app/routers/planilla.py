@@ -25,7 +25,7 @@ from ..models.planilla import (
 from ..schemas.planilla import (
     ConceptoCreate, ConceptoUpdate, ConceptoOut, PlanillaOut, BoletaOut, BoletaDetalleOut,
     EmpleadoPlanillaOut, AsignacionOut, AsignacionItem,
-    BoletaDetalleUpdate, ConfigPlanillaOut, ConfigPlanillaUpdate,
+    BoletaDetalleUpdate, ConfigPlanillaOut, ConfigPlanillaUpdate, ModalidadUpdate,
 )
 from ..services import planilla_service as planilla_svc
 
@@ -201,6 +201,25 @@ def listar_empleados_planilla(
         nombre=(f"{u.nombre} {u.apellido}".strip() if u else None),
         cargo=e.cargo,
     ) for e, u in rows]
+
+
+@router.put("/empleados/{empleado_id}/modalidad")
+def actualizar_modalidad(
+    empleado_id: str,
+    body: ModalidadUpdate,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Cambia la modalidad laboral del empleado (planilla/contrato/practicante),
+    usada por RRHH para clasificar correctamente el cálculo de planilla."""
+    exigir_permiso(db, payload, "planilla", "calcular")
+    empresa_id = payload["empresa_id"]
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado.")
+    emp.tipo = body.tipo
+    db.commit()
+    return {"id": emp.id, "tipo": emp.tipo}
 
 
 @router.get("/asignaciones", response_model=List[AsignacionOut])

@@ -109,3 +109,18 @@ class AsignacionItem(BaseModel):
     """Una asignación a guardar. monto None elimina el override (vuelve al referencial)."""
     concepto_id: str
     monto: Optional[Decimal] = None
+
+
+TIPOS_MODALIDAD = {"planilla", "contrato", "practicante"}
+
+
+class ModalidadUpdate(BaseModel):
+    """Modalidad laboral del empleado (afecta el cálculo de planilla)."""
+    tipo: str
+
+    @field_validator("tipo")
+    @classmethod
+    def _tipo(cls, v: str) -> str:
+        if v not in TIPOS_MODALIDAD:
+            raise ValueError(f"tipo debe ser uno de {sorted(TIPOS_MODALIDAD)}")
+        return v
