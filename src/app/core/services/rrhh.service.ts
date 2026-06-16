@@ -87,6 +87,8 @@ export interface ResumenEmpleadoDto {
   iniciales: string;
   fotoUrl: string;
   tipo_contrato: 'planilla' | 'contrato' | 'practicante' | string;
+  codigo: string | null;
+  fecha_ingreso: string | null;
   horas_reales: number;
   horas_justificadas: number;
   horas_total: number;
@@ -325,6 +327,10 @@ export class RrhhService {
 
   actualizarModalidad(empleadoId: string, tipo: 'planilla' | 'contrato' | 'practicante'): Observable<any> {
     return this.http.put<any>(`${this.api}/planilla/empleados/${empleadoId}/modalidad`, { tipo });
+  }
+
+  getEmpresaInfo(): Observable<{ razon_social: string; ruc: string; regimen_tributario: string }> {
+    return this.http.get<any>(`${this.api}/planilla/empresa-info`);
   }
 
   // ── Reportes ─────────────────────────────────────────────────────────────

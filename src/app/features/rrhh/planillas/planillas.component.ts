@@ -11,6 +11,7 @@ const REGIMEN_KEY  = 'ezp_regimen_v1';
 const PENSION_KEY  = 'ezp_pensiones_v1';
 const AFP_KEY      = 'ezp_afp_entidad_v1';
 const ESQUEMA_KEY  = 'ezp_esquema_pago_v1';
+const ASIGFAM_KEY  = 'ezp_asigfam_v1';
 const PER_PAGE     = 10;
 
 const MESES_ES = [
@@ -33,6 +34,18 @@ const CTS_GENERAL_FACTOR    = 1 / 12;  // 1 remuneración/año, mensualizado (R�
 const GRATIF_GENERAL_FACTOR = 1 / 6;   // 1 sueldo × 2 semestres/año, mensualizado (Régimen General)
 const VACACIONES_DIAS_MYPE  = 15;
 const VACACIONES_DIAS_GENERAL = 30;
+const ASIG_FAMILIAR_PCT     = 0.10;    // 10% de la RMV vigente (D.S. 035-90-TR)
+const UIT_VIGENTE           = 5350;    // S/ por UIT, referencial — verificar SUNAT vigente
+const RENTA_5TA_DEDUCCION_UIT = 7;     // deducción anual fija (7 UIT)
+// Tramos progresivos de Renta de 5ta Categoría (sobre la base imponible anual,
+// en UIT). Referencial — confirmar tasas/tramos vigentes con SUNAT.
+const RENTA_5TA_TRAMOS: { limiteUit: number; tasa: number }[] = [
+  { limiteUit: 5,  tasa: 0.08 },
+  { limiteUit: 20, tasa: 0.14 },
+  { limiteUit: 35, tasa: 0.17 },
+  { limiteUit: 45, tasa: 0.20 },
+  { limiteUit: Infinity, tasa: 0.30 },
+];
 
 // Comisión por flujo de cada AFP sobre la remuneración (referencial, verificar SBS)
 const AFP_COMISIONES: Record<AfpEntidad, number> = {
@@ -94,9 +107,16 @@ export class PlanillasComponent implements OnInit {
   pensionMap: Record<string, Pension> = {};
   afpEntidadMap: Record<string, AfpEntidad> = {};
 
+  // ── Asignación Familiar (10% RMV, trabajadores con hijos a cargo) ──────────
+  asigFamiliarMap: Record<string, boolean> = {};
+
+  // ── Datos de la empresa (para el encabezado de la Planilla Mensual PDF) ────
+  empresaInfo: { razon_social: string; ruc: string; regimen_tributario: string } | null = null;
+
   // ── Modal boleta individual ───────────────────────────────────────────────
   boletaEmp: ResumenEmpleadoDto | null = null;
   generandoPdf = false;
+  generandoPlanillaPdf = false;
 
   get puedeEditar(): boolean {
     const rol = (this.auth.getUsuario()?.rol || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -114,9 +134,14 @@ export class PlanillasComponent implements OnInit {
     this.sueldoMap      = JSON.parse(localStorage.getItem(SUELDO_KEY) ?? '{}');
     this.pensionMap     = JSON.parse(localStorage.getItem(PENSION_KEY) ?? '{}');
     this.afpEntidadMap  = JSON.parse(localStorage.getItem(AFP_KEY) ?? '{}');
+    this.asigFamiliarMap = JSON.parse(localStorage.getItem(ASIGFAM_KEY) ?? '{}');
     this.regimenEmpresa = (localStorage.getItem(REGIMEN_KEY) as Regimen) || 'micro';
     this.esquemaPago    = (localStorage.getItem(ESQUEMA_KEY) as EsquemaPago) || 'quincenal';
     if (this.esquemaPago === 'mensual') this.periodoPago = 'mes';
+    this.svc.getEmpresaInfo().subscribe({
+      next: (res) => { this.empresaInfo = res; },
+      error: () => { this.empresaInfo = null; },
+    });
     this.cargar();
   }
 
@@ -382,6 +407,54 @@ export class PlanillasComponent implements OnInit {
     return RMV_VIGENTE;
   }
 
+  // ── Asignación Familiar (10% RMV, solo dependientes con hijos a cargo) ──────
+
+  getAsigFamiliar(empId: string): boolean {
+    return !!this.asigFamiliarMap[empId];
+  }
+
+  onAsigFamiliarChange(empId: string, val: boolean): void {
+    this.asigFamiliarMap[empId] = val;
+    localStorage.setItem(ASIGFAM_KEY, JSON.stringify(this.asigFamiliarMap));
+  }
+
+  // Monto mensual de Asignación Familiar = 10% de la RMV vigente; en vista de
+  // quincena se prorratea igual que el resto de la remuneración.
+  asignacionFamiliar(emp: ResumenEmpleadoDto): number {
+    if (!this.esDependiente(emp) || !this.getAsigFamiliar(emp.id)) return 0;
+    const mensual = RMV_VIGENTE * ASIG_FAMILIAR_PCT;
+    return this.periodoPago === 'mes' ? mensual : mensual / 2;
+  }
+
+  // ── Impuesto a la Renta de 5ta Categoría (trabajadores dependientes) ────────
+  // Cálculo simplificado por proyección anual: (sueldo mensual + asignación
+  // familiar) × 12 − 7 UIT de deducción, tramos progresivos, entre 12. Las
+  // gratificaciones están exoneradas (Ley 30334) y no se incluyen en la base.
+  // Referencial — un contador debe validar la retención real de cada caso.
+  impuestoQuintaCategoria(emp: ResumenEmpleadoDto): number {
+    if (!this.esDependiente(emp)) return 0;
+    const sueldoMensual = this.getSueldo(emp.id);
+    if (sueldoMensual <= 0) return 0;
+    const asigMensual = this.esDependiente(emp) && this.getAsigFamiliar(emp.id) ? RMV_VIGENTE * ASIG_FAMILIAR_PCT : 0;
+    const rentaAnual = (sueldoMensual + asigMensual) * 12;
+    const deduccion  = RENTA_5TA_DEDUCCION_UIT * UIT_VIGENTE;
+    let baseImponible = Math.max(0, rentaAnual - deduccion);
+    if (baseImponible === 0) return 0;
+
+    let impuestoAnual = 0;
+    let limiteAnterior = 0;
+    for (const tramo of RENTA_5TA_TRAMOS) {
+      const limiteUitSoles = tramo.limiteUit * UIT_VIGENTE;
+      const montoEnTramo = Math.max(0, Math.min(baseImponible, limiteUitSoles) - limiteAnterior);
+      impuestoAnual += montoEnTramo * tramo.tasa;
+      limiteAnterior = limiteUitSoles;
+      if (baseImponible <= limiteUitSoles) break;
+    }
+
+    const impuestoMensual = impuestoAnual / 12;
+    return this.periodoPago === 'mes' ? impuestoMensual : impuestoMensual / 2;
+  }
+
   // ── Cálculos de nómina (MYPE Perú: DL 854 + Ley 28015/DL 1086 + Ley 28518) ──
 
   valorHora(emp: ResumenEmpleadoDto): number {
@@ -416,7 +489,7 @@ export class PlanillasComponent implements OnInit {
   // están afiliados obligatoriamente.
   descuentoPension(emp: ResumenEmpleadoDto): number {
     if (!this.esDependiente(emp)) return 0;
-    const base = this.sueldoPeriodo(emp.id) - this.descuentoFaltas(emp) + this.pagoHorasExtra(emp);
+    const base = this.sueldoPeriodo(emp.id) - this.descuentoFaltas(emp) + this.pagoHorasExtra(emp) + this.asignacionFamiliar(emp);
     return Math.max(0, base) * this.pensionPct(emp);
   }
 
@@ -493,20 +566,15 @@ export class PlanillasComponent implements OnInit {
   netoAPagar(emp: ResumenEmpleadoDto): number {
     const sueldo = this.sueldoPeriodo(emp.id);
     if (sueldo <= 0) return 0;
-    return Math.max(0,
-      sueldo
-      - this.descuentoFaltas(emp)
-      + this.pagoHorasExtra(emp)
-      - this.descuentoPension(emp)
-    );
+    return Math.max(0, this.totalIngresos(emp) - this.totalDescuentosLegales(emp));
   }
 
   totalDescuentosLegales(emp: ResumenEmpleadoDto): number {
-    return this.descuentoFaltas(emp) + this.descuentoPension(emp);
+    return this.descuentoFaltas(emp) + this.descuentoPension(emp) + this.impuestoQuintaCategoria(emp);
   }
 
   totalIngresos(emp: ResumenEmpleadoDto): number {
-    return this.sueldoPeriodo(emp.id) + this.pagoHorasExtra(emp);
+    return this.sueldoPeriodo(emp.id) + this.pagoHorasExtra(emp) + this.asignacionFamiliar(emp);
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
@@ -560,12 +628,18 @@ export class PlanillasComponent implements OnInit {
         <td style="padding:8px 10px;font-size:11px;font-weight:600;color:#64748b;text-align:right;">${this.formatMonto(monto)}</td>
       </tr>`;
 
+    const asig = this.asignacionFamiliar(emp);
+    const renta = this.impuestoQuintaCategoria(emp);
+
     let filasIngresos = filaIngreso('Sueldo Base', `${this.formatH(emp.meta_horas)} estándar`, sueldo);
     if (extra > 0) {
       const detalleExtra = dependiente
         ? (this.horasExtra(emp) <= 2 ? `${this.formatH(this.horasExtra(emp))} × 25%` : `2h×25% + ${this.formatH(this.horasExtra(emp) - 2)}×35%`)
         : `${this.formatH(this.horasExtra(emp))} tarifa simple`;
       filasIngresos += filaIngreso(`Horas Extra (${this.formatH(this.horasExtra(emp))})`, detalleExtra, extra);
+    }
+    if (asig > 0) {
+      filasIngresos += filaIngreso('Asignación Familiar', '10% RMV vigente', asig);
     }
 
     const filaSinMonto = (label: string, motivo: string) => `
@@ -583,6 +657,9 @@ export class PlanillasComponent implements OnInit {
       filasDescuentos += filaDescuento(`Sistema de Pensión (${this.pensionLabel(emp)})`, 'Ley N.° 19990 / D.L. 25897', descPension);
     } else {
       filasDescuentos += filaSinMonto('Sistema de Pensión', this.motivoPension(emp));
+    }
+    if (renta > 0) {
+      filasDescuentos += filaDescuento('Renta de 5ta Categoría', 'Referencial — verificar con contador', renta);
     }
 
     // Aportes patronales y provisiones: SIEMPRE visibles (con monto o motivo).
@@ -801,6 +878,222 @@ export class PlanillasComponent implements OnInit {
     } finally {
       document.body.removeChild(div);
     }
+  }
+
+  // ── Planilla Mensual de Remuneraciones (PDF consolidado, blanco y negro) ────
+  // Registro formal de todos los trabajadores del mes en una sola hoja,
+  // análogo al formato estándar de planilla MYPE: documento, datos, ingresos,
+  // descuentos, neto y aporte patronal, con totales generales y firmas.
+
+  private fechaCorta(iso: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso + 'T00:00:00');
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  }
+
+  private fetchTodosEmpleadosMes(): Promise<ResumenEmpleadoDto[]> {
+    return new Promise((resolve, reject) => {
+      this.svc.getResumenAsistencia({
+        fecha_inicio: `${this.selectedYear}-${String(this.selectedMonth).padStart(2, '0')}-01`,
+        fecha_fin:    new Date(this.selectedYear, this.selectedMonth, 0).toISOString().split('T')[0],
+        page:  1,
+        limit: 500,
+      }).subscribe({
+        next: (res) => resolve(res.empleados ?? []),
+        error: (err) => reject(err),
+      });
+    });
+  }
+
+  private construirPlanillaMensualHtml(lista: ResumenEmpleadoDto[]): string {
+    const num = (n: number) => n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const razonSocial = this.empresaInfo?.razon_social || 'E-ZYRO TIC';
+    const ruc = this.empresaInfo?.ruc || '—';
+    const hoy = new Date();
+
+    let totBasico = 0, totAsig = 0, totExtra = 0, totBruto = 0,
+        totPension = 0, totRenta = 0, totDescto = 0, totNeto = 0, totEssalud = 0;
+
+    const filas = lista.map((emp, i) => {
+      const sueldoMostrado = this.sueldoPeriodoMostrar(emp);
+      const asig    = this.asignacionFamiliar(emp);
+      const extra   = this.pagoHorasExtra(emp);
+      const bruto   = this.totalIngresos(emp);
+      const pension = this.descuentoPension(emp);
+      const renta   = this.impuestoQuintaCategoria(emp);
+      const descto  = pension + renta;
+      const neto    = this.netoAPagar(emp);
+      const essalud = this.aporteEssalud(emp);
+
+      totBasico += sueldoMostrado; totAsig += asig; totExtra += extra; totBruto += bruto;
+      totPension += pension; totRenta += renta; totDescto += descto; totNeto += neto; totEssalud += essalud;
+
+      return `
+      <tr>
+        <td class="c">${String(i + 1).padStart(2, '0')}</td>
+        <td class="c">${emp.codigo || '—'}</td>
+        <td class="izq">${emp.nombreCompleto}</td>
+        <td class="izq">${emp.cargo}</td>
+        <td class="c">${this.fechaCorta(emp.fecha_ingreso)}</td>
+        <td class="m">${num(sueldoMostrado)}</td>
+        <td class="m">${num(asig)}</td>
+        <td class="m">${num(extra)}</td>
+        <td class="m strong">${num(bruto)}</td>
+        <td class="m">${num(pension)}</td>
+        <td class="m">${num(renta)}</td>
+        <td class="m strong">${num(descto)}</td>
+        <td class="m strong">${num(neto)}</td>
+        <td class="m">${num(essalud)}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+    <div class="hoja">
+      <div class="cab">
+        <div>
+          <div class="empresa">${razonSocial.toUpperCase()}</div>
+          <div class="sub">Sistema de Gestión Empresarial</div>
+          <div class="sub">RUC: ${ruc} | Régimen ${this.regimenLabel}</div>
+        </div>
+        <div class="cab-der">
+          <div class="titulo">PLANILLA MENSUAL DE REMUNERACIONES</div>
+          <div class="sub">Periodo Laboral: <strong>${this.titleCase(this.labelPeriodo)}</strong> &nbsp;|&nbsp; <strong>${this.esRegimenMype ? 'MYPE' : 'GENERAL'}</strong></div>
+        </div>
+      </div>
+
+      <table class="reg">
+        <thead>
+          <tr>
+            <th rowspan="2">N°</th>
+            <th rowspan="2">Código</th>
+            <th rowspan="2">Apellidos y Nombres</th>
+            <th rowspan="2">Cargo u Ocupación</th>
+            <th rowspan="2">Fecha<br>Ingreso</th>
+            <th colspan="4">Ingresos (S/.)</th>
+            <th colspan="3">Descuentos del Trabajador (S/.)</th>
+            <th rowspan="2">Neto a<br>Pagar (S/.)</th>
+            <th rowspan="2">Aporte (S/.)</th>
+          </tr>
+          <tr>
+            <th>Sueldo<br>Básico</th>
+            <th>Asig.<br>Fam.</th>
+            <th>Horas<br>Extra</th>
+            <th>Total<br>Bruto</th>
+            <th>Pensiones<br>(AFP/ONP)</th>
+            <th>Renta<br>5ta Cat.</th>
+            <th>Total<br>Descto.</th>
+            <th>EsSalud<br>(9%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filas || '<tr><td colspan="14" class="c">Sin empleados en este período</td></tr>'}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5" class="izq strong">TOTALES GENERALES</td>
+            <td class="m strong">${num(totBasico)}</td>
+            <td class="m strong">${num(totAsig)}</td>
+            <td class="m strong">${num(totExtra)}</td>
+            <td class="m strong">${num(totBruto)}</td>
+            <td class="m strong">${num(totPension)}</td>
+            <td class="m strong">${num(totRenta)}</td>
+            <td class="m strong">${num(totDescto)}</td>
+            <td class="m strong">${num(totNeto)}</td>
+            <td class="m strong">${num(totEssalud)}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="nota">
+        <strong>Nota informativa de Régimen ${this.regimenLabel}:</strong>
+        ${this.esRegimenMype
+          ? 'Conforme a la Ley N.° 28015 / D.L. N.° 1086, las micro y pequeñas empresas cuentan con tasas y beneficios laborales especiales.'
+          : 'Trabajadores bajo Régimen Laboral General, con beneficios completos de CTS, gratificación y 30 días de vacaciones anuales.'}
+        La asignación familiar (10% de la RMV vigente, S/ ${num(RMV_VIGENTE * ASIG_FAMILIAR_PCT)}) corresponde a los trabajadores con hijos menores o universitarios a cargo.
+        El aporte a EsSalud equivale al 9% de la remuneración bruta. La Renta de 5ta Categoría y las tasas de AFP/ONP son referenciales — corresponde validarlas con el contador de la empresa antes de su uso oficial.
+      </div>
+
+      <div class="firmas">
+        <div class="firma-bloque">
+          <div class="firma-linea"></div>
+          <div class="firma-cargo">Gerencia General</div>
+          <div class="firma-sub">${razonSocial.toUpperCase()}</div>
+        </div>
+        <div class="firma-bloque">
+          <div class="firma-linea"></div>
+          <div class="firma-cargo">Contador General</div>
+          <div class="firma-sub">Reg. CPC N.° ___________</div>
+        </div>
+      </div>
+
+      <div class="pie">Generado el ${this.fechaCorta(hoy.toISOString().split('T')[0])} &nbsp;|&nbsp; Página 1 de 1</div>
+    </div>`;
+  }
+
+  // El sueldo "informativo" de la planilla consolidada muestra el sueldo
+  // base del período (sin descontar faltas aquí: las faltas restan dentro
+  // del total bruto vía horas extra/pensión en el resto del sistema, pero en
+  // este registro formal se expone el básico pactado tal cual se acordó).
+  private sueldoPeriodoMostrar(emp: ResumenEmpleadoDto): number {
+    return Math.max(0, this.sueldoPeriodo(emp.id) - this.descuentoFaltas(emp));
+  }
+
+  async descargarPlanillaMensual(): Promise<void> {
+    if (!this.esVistaMensual) {
+      this.toast.mostrar('La Planilla Mensual se genera en la vista "Mes Completo"', 'error');
+      return;
+    }
+    this.generandoPlanillaPdf = true;
+    try {
+      const lista = await this.fetchTodosEmpleadosMes();
+      const div = document.createElement('div');
+      div.style.pointerEvents = 'none';
+      div.innerHTML = `<style>${this.estilosPlanillaMensual()}</style>${this.construirPlanillaMensualHtml(lista)}`;
+      document.body.appendChild(div);
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+      const filename = `planilla_mensual_${this.selectedYear}${String(this.selectedMonth).padStart(2, '0')}.pdf`;
+      await html2pdf().set({
+        margin: 20,
+        filename,
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'landscape' },
+      }).from(div).save();
+
+      document.body.removeChild(div);
+      this.toast.mostrar('Planilla mensual generada', 'success');
+    } catch {
+      this.toast.mostrar('Error al generar la planilla mensual', 'error');
+    } finally {
+      this.generandoPlanillaPdf = false;
+    }
+  }
+
+  private estilosPlanillaMensual(): string {
+    return `
+      .hoja { font-family: 'Times New Roman', Times, serif; width: 1000px; color: #000; padding: 10px; }
+      .cab { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
+      .empresa { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+      .sub { font-size: 11px; color: #000; margin-top: 2px; }
+      .cab-der { text-align: right; }
+      .titulo { font-size: 14px; font-weight: 700; letter-spacing: 0.4px; }
+      .reg { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 10px; }
+      .reg th, .reg td { border: 1px solid #000; padding: 5px 6px; }
+      .reg thead th { background: #e5e5e5; font-weight: 700; text-align: center; font-size: 9.5px; }
+      .reg tfoot td { background: #e5e5e5; }
+      .c { text-align: center; }
+      .izq { text-align: left; }
+      .m { text-align: right; }
+      .strong { font-weight: 700; }
+      .nota { font-size: 9.5px; line-height: 1.5; border-left: 3px solid #000; padding: 8px 12px; margin-bottom: 26px; background: #f5f5f5; }
+      .firmas { display: flex; justify-content: space-between; margin-top: 10px; }
+      .firma-bloque { width: 260px; text-align: center; }
+      .firma-linea { border-top: 1px solid #000; margin-bottom: 4px; }
+      .firma-cargo { font-size: 11px; font-weight: 700; }
+      .firma-sub { font-size: 10px; }
+      .pie { text-align: right; font-size: 9px; color: #444; margin-top: 18px; }
+    `;
   }
 
   // ── Helpers visuales ──────────────────────────────────────────────────────

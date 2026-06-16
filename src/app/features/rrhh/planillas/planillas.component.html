@@ -6,14 +6,26 @@
       <h2 class="page-title">Nómina de Personal</h2>
       <p class="page-subtitle">Cálculo automático basado en asistencia mensual · Régimen Laboral MYPE</p>
     </div>
-    @if (puedeEditar && esVistaMensual) {
-    <button class="btn-guardar" [disabled]="guardando" (click)="guardarSueldos()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-      </svg>
-      @if (guardando) { Guardando… } @else { Guardar Sueldos }
-    </button>
-    }
+    <div class="header-actions">
+      @if (esVistaMensual) {
+      <button class="btn-planilla-mensual" [disabled]="generandoPlanillaPdf" (click)="descargarPlanillaMensual()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>
+        </svg>
+        @if (generandoPlanillaPdf) { Generando… } @else { Planilla Mensual (PDF) }
+      </button>
+      }
+      @if (puedeEditar && esVistaMensual) {
+      <button class="btn-guardar" [disabled]="guardando" (click)="guardarSueldos()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+        @if (guardando) { Guardando… } @else { Guardar Sueldos }
+      </button>
+      }
+    </div>
   </div>
 
   <!-- ═══ NAVEGACIÓN DE MES + CONFIGURACIÓN DE LA EMPRESA ═══ -->
@@ -498,6 +510,22 @@
           <td class="col-detalle" colspan="2">Sin horas extra registradas este período</td>
         </tr>
         }
+
+        @if (esDependiente(boletaEmp)) {
+        <tr class="row-ingreso">
+          <td>
+            Asignación Familiar
+            @if (puedeEditar) {
+            <label class="asigfam-toggle">
+              <input type="checkbox" [checked]="getAsigFamiliar(boletaEmp.id)" (change)="onAsigFamiliarChange(boletaEmp.id, $any($event.target).checked)">
+              ¿Tiene hijos a cargo?
+            </label>
+            }
+          </td>
+          <td class="col-detalle">10% RMV vigente (S/ {{ rmvVigente }})</td>
+          <td class="col-monto text-green">{{ asignacionFamiliar(boletaEmp) > 0 ? '+' + formatMonto(asignacionFamiliar(boletaEmp)) : '—' }}</td>
+        </tr>
+        }
       </tbody>
       <tfoot>
         <tr class="row-subtotal row-subtotal-ingreso">
@@ -540,6 +568,21 @@
           <td>Sistema de Pensión</td>
           <td class="col-detalle" colspan="2">{{ motivoPension(boletaEmp) }}</td>
         </tr>
+        }
+
+        @if (esDependiente(boletaEmp)) {
+          @if (impuestoQuintaCategoria(boletaEmp) > 0) {
+          <tr class="row-descuento">
+            <td>Renta de 5ta Categoría</td>
+            <td class="col-detalle">Referencial — verificar con contador</td>
+            <td class="col-monto text-red">−{{ formatMonto(impuestoQuintaCategoria(boletaEmp)) }}</td>
+          </tr>
+          } @else {
+          <tr class="row-na">
+            <td>Renta de 5ta Categoría</td>
+            <td class="col-detalle" colspan="2">No alcanza el tramo afecto (proyección anual bajo 7 UIT)</td>
+          </tr>
+          }
         }
       </tbody>
       <tfoot>
