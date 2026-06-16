@@ -470,145 +470,149 @@
 
     <!-- Tabla de Ingresos -->
     <div class="boleta-info-title boleta-title-ingreso">Ingresos</div>
-    <div class="boleta-table">
-      <div class="bol-row bol-row-header">
-        <span>Concepto</span><span>Detalle</span><span>Monto</span>
-      </div>
-
-      <div class="bol-row bol-ingreso">
-        <span class="bol-concepto">Sueldo Base</span>
-        <span class="bol-detalle">{{ formatH(boletaEmp.meta_horas) }} estándar</span>
-        <span class="bol-monto text-green">{{ formatMonto(getSueldo(boletaEmp.id)) }}</span>
-      </div>
-
-      @if (horasExtra(boletaEmp) > 0) {
-      <div class="bol-row bol-ingreso">
-        <span class="bol-concepto">Horas Extra ({{ formatH(horasExtra(boletaEmp)) }})</span>
-        <span class="bol-detalle">
-          @if (esPracticante(boletaEmp)) {
-            Tarifa simple (sin recargo)
-          } @else if (horasExtra(boletaEmp) <= 2) {
-            {{ formatH(horasExtra(boletaEmp)) }} × 25% recargo
-          } @else {
-            2h × 25% + {{ formatH(horasExtra(boletaEmp) - 2) }} × 35% recargo
-          }
-        </span>
-        <span class="bol-monto text-green">+{{ formatMonto(pagoHorasExtra(boletaEmp)) }}</span>
-      </div>
-      } @else {
-      <div class="bol-row bol-na">
-        <span class="bol-concepto">Horas Extra</span>
-        <span class="bol-detalle" style="grid-column: span 2;">Sin horas extra registradas este período</span>
-      </div>
-      }
-
-      <div class="bol-row bol-row-subtotal">
-        <span class="bol-concepto">TOTAL INGRESOS</span>
-        <span class="bol-detalle"></span>
-        <span class="bol-monto text-green">{{ formatMonto(totalIngresos(boletaEmp)) }}</span>
-      </div>
-    </div>
+    <table class="boleta-html-table">
+      <thead>
+        <tr>
+          <th>Concepto</th><th>Detalle</th><th class="col-monto">Monto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row-ingreso">
+          <td>Sueldo Base</td>
+          <td class="col-detalle">{{ formatH(boletaEmp.meta_horas) }} estándar</td>
+          <td class="col-monto text-green">{{ formatMonto(getSueldo(boletaEmp.id)) }}</td>
+        </tr>
+        @if (horasExtra(boletaEmp) > 0) {
+        <tr class="row-ingreso">
+          <td>Horas Extra ({{ formatH(horasExtra(boletaEmp)) }})</td>
+          <td class="col-detalle">
+            @if (esPracticante(boletaEmp)) { Tarifa simple (sin recargo) }
+            @else if (horasExtra(boletaEmp) <= 2) { {{ formatH(horasExtra(boletaEmp)) }} × 25% recargo }
+            @else { 2h × 25% + {{ formatH(horasExtra(boletaEmp) - 2) }} × 35% recargo }
+          </td>
+          <td class="col-monto text-green">+{{ formatMonto(pagoHorasExtra(boletaEmp)) }}</td>
+        </tr>
+        } @else {
+        <tr class="row-na">
+          <td>Horas Extra</td>
+          <td class="col-detalle" colspan="2">Sin horas extra registradas este período</td>
+        </tr>
+        }
+      </tbody>
+      <tfoot>
+        <tr class="row-subtotal row-subtotal-ingreso">
+          <td colspan="2">TOTAL INGRESOS</td>
+          <td class="col-monto text-green">{{ formatMonto(totalIngresos(boletaEmp)) }}</td>
+        </tr>
+      </tfoot>
+    </table>
 
     <!-- Tabla de Descuentos -->
     <div class="boleta-info-title boleta-title-descuento">Descuentos</div>
-    <div class="boleta-table">
-      <div class="bol-row bol-row-header">
-        <span>Concepto</span><span>Detalle</span><span>Monto</span>
-      </div>
-
-      @if (descuentoFaltas(boletaEmp) > 0) {
-      <div class="bol-row bol-descuento">
-        <span class="bol-concepto">Faltas / Tardanzas</span>
-        <span class="bol-detalle">{{ formatH(boletaEmp.horas_faltantes) }} × {{ formatMonto(valorHora(boletaEmp)) }}/h</span>
-        <span class="bol-monto text-red">−{{ formatMonto(descuentoFaltas(boletaEmp)) }}</span>
-      </div>
-      } @else {
-      <div class="bol-row bol-na">
-        <span class="bol-concepto">Faltas / Tardanzas</span>
-        <span class="bol-detalle" style="grid-column: span 2;">Sin faltas ni tardanzas este período</span>
-      </div>
-      }
-
-      <!-- Pensión: SIEMPRE visible — con monto descontado o con el motivo por el que no aplica -->
-      @if (descuentoPension(boletaEmp) > 0) {
-      <div class="bol-row bol-descuento">
-        <span class="bol-concepto">Sistema de Pensión ({{ pensionLabel(boletaEmp) }})</span>
-        <span class="bol-detalle">Descuento obligatorio por ley</span>
-        <span class="bol-monto text-red">−{{ formatMonto(descuentoPension(boletaEmp)) }}</span>
-      </div>
-      } @else {
-      <div class="bol-row bol-na">
-        <span class="bol-concepto">Sistema de Pensión</span>
-        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoPension(boletaEmp) }}</span>
-      </div>
-      }
-
-      <div class="bol-row bol-row-subtotal bol-row-subtotal-desc">
-        <span class="bol-concepto">TOTAL DESCUENTOS</span>
-        <span class="bol-detalle"></span>
-        <span class="bol-monto text-red">−{{ formatMonto(totalDescuentosLegales(boletaEmp)) }}</span>
-      </div>
-    </div>
+    <table class="boleta-html-table">
+      <thead>
+        <tr>
+          <th>Concepto</th><th>Detalle</th><th class="col-monto">Monto</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (descuentoFaltas(boletaEmp) > 0) {
+        <tr class="row-descuento">
+          <td>Faltas / Tardanzas</td>
+          <td class="col-detalle">{{ formatH(boletaEmp.horas_faltantes) }} × {{ formatMonto(valorHora(boletaEmp)) }}/h</td>
+          <td class="col-monto text-red">−{{ formatMonto(descuentoFaltas(boletaEmp)) }}</td>
+        </tr>
+        } @else {
+        <tr class="row-na">
+          <td>Faltas / Tardanzas</td>
+          <td class="col-detalle" colspan="2">Sin faltas ni tardanzas este período</td>
+        </tr>
+        }
+        <!-- Pensión: SIEMPRE visible — con monto descontado o con el motivo por el que no aplica -->
+        @if (descuentoPension(boletaEmp) > 0) {
+        <tr class="row-descuento">
+          <td>Sistema de Pensión ({{ pensionLabel(boletaEmp) }})</td>
+          <td class="col-detalle">Descuento obligatorio por ley</td>
+          <td class="col-monto text-red">−{{ formatMonto(descuentoPension(boletaEmp)) }}</td>
+        </tr>
+        } @else {
+        <tr class="row-na">
+          <td>Sistema de Pensión</td>
+          <td class="col-detalle" colspan="2">{{ motivoPension(boletaEmp) }}</td>
+        </tr>
+        }
+      </tbody>
+      <tfoot>
+        <tr class="row-subtotal row-subtotal-descuento">
+          <td colspan="2">TOTAL DESCUENTOS</td>
+          <td class="col-monto text-red">−{{ formatMonto(totalDescuentosLegales(boletaEmp)) }}</td>
+        </tr>
+      </tfoot>
+    </table>
 
     <!-- Resumen Neto -->
-    <div class="boleta-table boleta-neto-box">
-      <div class="bol-row bol-row-total">
-        <span class="bol-concepto">NETO A PAGAR</span>
-        <span class="bol-detalle">{{ formatH(boletaEmp.horas_total) }} trabajadas</span>
-        <span class="bol-monto bol-neto">{{ formatMonto(netoAPagar(boletaEmp)) }}</span>
-      </div>
+    <div class="boleta-neto-box">
+      <span class="neto-label">NETO A PAGAR</span>
+      <span class="neto-sub">{{ formatH(boletaEmp.horas_total) }} trabajadas este período</span>
+      <span class="neto-val">{{ formatMonto(netoAPagar(boletaEmp)) }}</span>
     </div>
 
-    <!-- Información adicional: aportes patronales y provisiones — SIEMPRE
-         visibles para los 3 conceptos legales (CTS, Gratificación, Vacaciones),
-         se muestra el monto si corresponde o el motivo si no corresponde. -->
+    <!-- Beneficios y aportes — SIEMPRE visibles para los 3 conceptos legales
+         (CTS, Gratificación, Vacaciones): monto si corresponde, motivo si no. -->
     <div class="boleta-info-title">Beneficios y aportes ({{ regimenLabel }}) — no afectan el neto</div>
-    <div class="boleta-table boleta-table-info">
-      <div class="bol-row bol-info">
-        <span class="bol-concepto">Aporte EsSalud (empleador)</span>
-        <span class="bol-detalle">No descontado al trabajador</span>
-        <span class="bol-monto">{{ formatMonto(aporteEssalud(boletaEmp)) }}</span>
-      </div>
+    <table class="boleta-html-table table-info">
+      <thead>
+        <tr>
+          <th>Concepto</th><th>Detalle</th><th class="col-monto">Monto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row-info">
+          <td>Aporte EsSalud (empleador)</td>
+          <td class="col-detalle">No descontado al trabajador</td>
+          <td class="col-monto">{{ formatMonto(aporteEssalud(boletaEmp)) }}</td>
+        </tr>
 
-      @if (provisionCTS(boletaEmp) > 0) {
-      <div class="bol-row bol-info">
-        <span class="bol-concepto">Provisión CTS</span>
-        <span class="bol-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año' }}</span>
-        <span class="bol-monto">{{ formatMonto(provisionCTS(boletaEmp)) }}</span>
-      </div>
-      } @else {
-      <div class="bol-row bol-na">
-        <span class="bol-concepto">Provisión CTS</span>
-        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoCTS(boletaEmp) }}</span>
-      </div>
-      }
+        @if (provisionCTS(boletaEmp) > 0) {
+        <tr class="row-info">
+          <td>Provisión CTS</td>
+          <td class="col-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año' }}</td>
+          <td class="col-monto">{{ formatMonto(provisionCTS(boletaEmp)) }}</td>
+        </tr>
+        } @else {
+        <tr class="row-na">
+          <td>Provisión CTS</td>
+          <td class="col-detalle" colspan="2">{{ motivoCTS(boletaEmp) }}</td>
+        </tr>
+        }
 
-      @if (provisionGratificacion(boletaEmp) > 0) {
-      <div class="bol-row bol-info">
-        <span class="bol-concepto">Provisión Gratificación</span>
-        <span class="bol-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre' }}</span>
-        <span class="bol-monto">{{ formatMonto(provisionGratificacion(boletaEmp)) }}</span>
-      </div>
-      } @else {
-      <div class="bol-row bol-na">
-        <span class="bol-concepto">Provisión Gratificación</span>
-        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoGratificacion(boletaEmp) }}</span>
-      </div>
-      }
+        @if (provisionGratificacion(boletaEmp) > 0) {
+        <tr class="row-info">
+          <td>Provisión Gratificación</td>
+          <td class="col-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre' }}</td>
+          <td class="col-monto">{{ formatMonto(provisionGratificacion(boletaEmp)) }}</td>
+        </tr>
+        } @else {
+        <tr class="row-na">
+          <td>Provisión Gratificación</td>
+          <td class="col-detalle" colspan="2">{{ motivoGratificacion(boletaEmp) }}</td>
+        </tr>
+        }
 
-      @if (provisionVacaciones(boletaEmp) > 0) {
-      <div class="bol-row bol-info">
-        <span class="bol-concepto">Provisión Vacacional</span>
-        <span class="bol-detalle">{{ diasVacaciones }} días/año</span>
-        <span class="bol-monto">{{ formatMonto(provisionVacaciones(boletaEmp)) }}</span>
-      </div>
-      } @else {
-      <div class="bol-row bol-na">
-        <span class="bol-concepto">Provisión Vacacional</span>
-        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoVacaciones(boletaEmp) }}</span>
-      </div>
-      }
-    </div>
+        @if (provisionVacaciones(boletaEmp) > 0) {
+        <tr class="row-info">
+          <td>Provisión Vacacional</td>
+          <td class="col-detalle">{{ diasVacaciones }} días/año</td>
+          <td class="col-monto">{{ formatMonto(provisionVacaciones(boletaEmp)) }}</td>
+        </tr>
+        } @else {
+        <tr class="row-na">
+          <td>Provisión Vacacional</td>
+          <td class="col-detalle" colspan="2">{{ motivoVacaciones(boletaEmp) }}</td>
+        </tr>
+        }
+      </tbody>
+    </table>
 
     <!-- Indicadores -->
     <div class="boleta-stats">

@@ -694,55 +694,76 @@
 .boleta-emp-cargo  { font-size: 12px; color: var(--text-muted, #64748b); }
 .boleta-periodo    { font-size: 11px; font-weight: 600; color: var(--brand-green, #22c55e); margin-top: 2px; }
 
-.boleta-table { display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-color, #e5e7eb); }
-.bol-row {
-  display:  grid;
-  grid-template-columns: 1fr auto auto;
-  gap:      10px;
-  padding:  11px 14px;
-  border-bottom: 1px solid var(--border-color, #e5e7eb);
-  align-items: center;
+/* ── Tablas de la boleta (Ingresos / Descuentos / Beneficios) ──────────────── */
+.boleta-html-table {
+  width:            100%;
+  border-collapse:  collapse;
+  border:           1px solid var(--border-color, #e5e7eb);
+  border-radius:    10px;
+  overflow:         hidden;
+  font-size:        12.5px;
 }
-.bol-row:last-child { border-bottom: none; }
-.bol-row-header {
-  background:   var(--hover-bg, #f8fafc);
-  font-size:    10px;
-  font-weight:  700;
+.boleta-html-table thead th {
+  background:     var(--hover-bg, #f1f5f9);
+  color:          var(--text-muted, #64748b);
+  font-size:      10px;
+  font-weight:    700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color:        var(--text-muted, #64748b);
+  text-align:     left;
+  padding:        9px 12px;
+  border-bottom:  1px solid var(--border-color, #e5e7eb);
 }
-.bol-ingreso   { background: rgba(34,197,94,0.03); }
-.bol-descuento { background: rgba(239,68,68,0.03); }
-.bol-row-total {
-  background:  rgba(34,197,94,0.06);
-  border-top:  2px solid rgba(34,197,94,0.2) !important;
+.boleta-html-table thead th.col-monto { text-align: right; }
+.boleta-html-table tbody td {
+  padding:       10px 12px;
+  color:         var(--text-main, #1e293b);
+  font-weight:   600;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  vertical-align: middle;
 }
+.boleta-html-table tbody tr:last-child td { border-bottom: none; }
+.boleta-html-table .col-detalle { color: var(--text-muted, #64748b); font-weight: 500; text-align: right; font-size: 11.5px; }
+.boleta-html-table .col-monto   { text-align: right; font-weight: 700; white-space: nowrap; }
 
-/* ── Subtotales de cada tabla (Ingresos / Descuentos) ──────────────────────── */
-.bol-row-subtotal {
-  background:  rgba(34,197,94,0.08);
-  border-top:  2px solid rgba(34,197,94,0.25) !important;
-}
-.bol-row-subtotal .bol-concepto { font-weight: 800; font-size: 12px; }
-.bol-row-subtotal-desc {
-  background:  rgba(239,68,68,0.08);
-  border-top:  2px solid rgba(239,68,68,0.25) !important;
-}
+.row-ingreso   { background: rgba(34,197,94,0.03); }
+.row-descuento { background: rgba(239,68,68,0.03); }
+.row-info      { background: var(--hover-bg, #f8fafc); }
+.row-info .col-monto { color: var(--text-muted, #64748b); }
 
-/* ── Caja destacada del Neto a Pagar (entre Descuentos y Beneficios) ──────── */
-.boleta-neto-box { border: 2px solid rgba(34,197,94,0.35); }
-.boleta-neto-box .bol-row-total { background: rgba(34,197,94,0.1); }
-.boleta-neto-box .bol-neto { font-size: 18px; }
+.row-na td { opacity: 0.65; }
+.row-na .col-detalle { font-style: italic; text-align: left; }
+
+.boleta-html-table tfoot .row-subtotal td {
+  font-weight: 800;
+  font-size:   12.5px;
+  border-bottom: none;
+}
+.row-subtotal-ingreso    { background: rgba(34,197,94,0.1);  border-top: 2px solid rgba(34,197,94,0.3); }
+.row-subtotal-descuento  { background: rgba(239,68,68,0.1);  border-top: 2px solid rgba(239,68,68,0.3); }
+
+.table-info { border-style: dashed; opacity: 0.95; }
 
 .boleta-title-ingreso { color: #16a34a !important; }
 .boleta-title-descuento { color: #dc2626 !important; }
-.bol-concepto { font-size: 13px; font-weight: 600; color: var(--text-main, #1e293b); }
-.bol-detalle  { font-size: 11px; color: var(--text-muted, #64748b); text-align: right; }
-.bol-monto    { font-size: 13px; font-weight: 700; text-align: right; white-space: nowrap; min-width: 100px; }
-.bol-neto     { font-size: 15px; font-weight: 800; color: #16a34a; }
 .text-green   { color: #22c55e; }
 .text-red     { color: #ef4444; }
+
+/* ── Caja destacada del Neto a Pagar ────────────────────────────────────────── */
+.boleta-neto-box {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            2px;
+  padding:        16px;
+  border:         2px solid rgba(34,197,94,0.35);
+  background:     rgba(34,197,94,0.07);
+  border-radius:  12px;
+  text-align:     center;
+}
+.neto-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #16a34a; }
+.neto-sub   { font-size: 11px; color: var(--text-muted, #64748b); }
+.neto-val   { font-size: 22px; font-weight: 800; color: #16a34a; margin-top: 2px; }
 
 .boleta-stats {
   display: grid;

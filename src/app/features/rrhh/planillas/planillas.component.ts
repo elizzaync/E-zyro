@@ -691,17 +691,15 @@ export class PlanillasComponent implements OnInit {
     return s.replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  // Crea el nodo del voucher fuera de pantalla y espera a que el navegador
-  // termine el layout/paint antes de devolverlo. Sin esta espera, html2canvas
-  // a veces captura el elemento recién insertado ANTES de que tenga tamaño
-  // real, generando un PDF en blanco.
+  // Crea el nodo del voucher y espera a que el navegador termine el
+  // layout/paint antes de devolverlo. IMPORTANTE: html2canvas tiene un bug
+  // conocido al capturar elementos con `position: fixed` combinados con
+  // opacidad casi cero — el resultado es un PDF en blanco. Por eso el nodo
+  // se agrega en flujo normal (sin position/opacity), simplemente al final
+  // del body: queda fuera de la vista (debajo del contenido visible) sin
+  // necesidad de trucos que rompan la captura.
   private async crearDivVoucher(emp: ResumenEmpleadoDto): Promise<HTMLElement> {
     const div = document.createElement('div');
-    div.style.position = 'fixed';
-    div.style.top = '0';
-    div.style.left = '0';
-    div.style.zIndex = '-9999';
-    div.style.opacity = '0.01';
     div.style.pointerEvents = 'none';
     div.innerHTML = this.construirVoucherHtml(emp);
     document.body.appendChild(div);
@@ -709,6 +707,17 @@ export class PlanillasComponent implements OnInit {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
     return div;
+  }
+
+  // Nombre de archivo: boleta_<primer-nombre>_<DDMMYYYY> (fecha de emisión)
+  private nombreArchivoBoleta(emp: ResumenEmpleadoDto): string {
+    const primerNombre = (emp.nombreCompleto || 'trabajador').trim().split(/\s+/)[0]
+      .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const hoy = new Date();
+    const dd = String(hoy.getDate()).padStart(2, '0');
+    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+    const yyyy = hoy.getFullYear();
+    return `boleta_${primerNombre}_${dd}${mm}${yyyy}`;
   }
 
   async descargarPdf(emp: ResumenEmpleadoDto): Promise<void> {
@@ -722,7 +731,7 @@ export class PlanillasComponent implements OnInit {
     }
     this.generandoPdf = true;
     const div = await this.crearDivVoucher(emp);
-    const filename = `Boleta_${emp.nombreCompleto.replace(/\s+/g, '_')}_${this.selectedYear}-${String(this.selectedMonth).padStart(2, '0')}.pdf`;
+    const filename = `${this.nombreArchivoBoleta(emp)}.pdf`;
 
     try {
       await html2pdf().set({
