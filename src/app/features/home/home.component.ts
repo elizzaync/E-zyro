@@ -1,7 +1,6 @@
 import { Component, OnInit, AfterViewInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Router } from '@angular/router';
 import { SummaryCardComponent } from './components/summary-card/summary-card.component';
 import { CalendarWidgetComponent } from './components/calendar-widget/calendar-widget.component';
 import { MonthlySummaryWidgetComponent } from './components/monthly-summary-widget/monthly-summary-widget.component';
@@ -28,7 +27,6 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   private dashboardService = inject(DashboardService);
   private fcmService = inject(FcmService);
   private http = inject(HttpClient);
-  private router = inject(Router);
 
   nombreUsuario = 'Cargando...';
   saludoTiempo = 'Hola';
@@ -155,10 +153,6 @@ ngOnInit(): void {
     const opciones: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     let fecha = new Date().toLocaleDateString('es-ES', opciones);
     this.fechaActual = fecha.charAt(0).toUpperCase() + fecha.slice(1);
-  }
-
-  irAsistencia(): void {
-    this.router.navigate(['/asistencia']);
   }
 
   cargarTarjetasDesdeBackend(): void {

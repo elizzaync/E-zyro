@@ -1,6 +1,6 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { retry, timer } from 'rxjs';
+import { catchError, retry, throwError, timer } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 
 // Reintentos para "cold start" de Railway: el backend dormido devuelve un
@@ -12,10 +12,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
   const token = authService.getToken();
 
-  // Si hay un token, clonamos la petición original y le inyectamos el Header
   const request = token
     ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
-    : req; // Si no hay token (ej. durante el login), la petición pasa limpia
+    : req;
 
   return next(request).pipe(
     retry({
@@ -26,6 +25,14 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         }
         throw error;
       }
+    }),
+    catchError((error: HttpErrorResponse) => {
+      // Token rechazado por el backend → cerrar sesión automáticamente
+      // Excluir rutas /auth/ para evitar bucles en login/logout/refresh
+      if (error.status === 401 && !req.url.includes('/auth/')) {
+        authService.logout();
+      }
+      return throwError(() => error);
     })
   );
 };

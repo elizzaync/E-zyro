@@ -263,6 +263,13 @@ main.portal-mode {
 }
 .logout-icon-wrapper svg { width: 32px; height: 32px; }
 
+.session-warn-icon {
+  background: rgba(234, 179, 8, 0.12) !important;
+  color: #eab308 !important;
+}
+.session-warn-dialog .btn-save-main { background-color: #2563eb !important; }
+.session-warn-dialog .btn-save-main:hover { box-shadow: 0 6px 15px rgba(37, 99, 235, 0.35) !important; }
+
 .fade-in-up { animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @keyframes modalPop {
   from { opacity: 0; transform: translate(-50%, -45%) scale(0.96); }

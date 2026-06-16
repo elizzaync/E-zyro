@@ -14,7 +14,6 @@ import { Router } from '@angular/router';
 })
 export class QuickActionsWidgetComponent implements OnInit, OnDestroy {
   acciones = [
-    { nombre: 'Asistencia',  icono: 'clock',    ruta: '/personal', params: { tab: 'asistencia' } },
     { nombre: 'Operaciones', icono: 'wrench',   ruta: null,        params: null },
     { nombre: 'Evidencia',   icono: 'camera',   ruta: null,        params: null },
     { nombre: 'Reportes',    icono: 'chart',    ruta: null,        params: null },

@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap, catchError, of, BehaviorSubject } from 'rxjs'; 
+import { Observable, tap, catchError, of, BehaviorSubject } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 @Injectable({
@@ -20,10 +20,17 @@ export class AuthService {
   showLogoutModal$ = this.showLogoutModalSubject.asObservable();
 
   // ==========================================
+  // ESTADO GLOBAL DEL AVISO DE SESIÓN
+  // ==========================================
+  private showSessionWarningSubject = new BehaviorSubject<boolean>(false);
+  showSessionWarning$ = this.showSessionWarningSubject.asObservable();
+
+  private sessionTimers: ReturnType<typeof setTimeout>[] = [];
+
+  // ==========================================
   // MÉTODOS DE LOGIN Y RECUPERACIÓN
   // ==========================================
   login(credentials: any): Observable<any> {
-    // Le agregamos el "/login" solo a esta petición
     return this.http.post(`${this.apiUrl}/login`, credentials).pipe(
       tap((response: any) => {
         if (response.status === 'success' && response.data.token) {
@@ -36,6 +43,7 @@ export class AuthService {
             foto_url:        response.data.foto_url ?? ''
           };
           localStorage.setItem('ezyro_user', JSON.stringify(userData));
+          this.startSessionTimer();
         }
       })
     );
@@ -75,21 +83,19 @@ export class AuthService {
 
   // 3. Ejecuta la decisión de salir
   ejecutarCerrarSesion() {
-    // Ocultamos el modal y limpiamos el scroll/tema
     this.showLogoutModalSubject.next(false);
     document.body.style.overflow = '';
     document.documentElement.removeAttribute('data-theme');
-
-    // Llamamos a tu lógica real de logout
     this.logout();
   }
 
-  // 4. Tu lógica original intacta que avisa al backend
+  // 4. Lógica de logout que notifica al backend y limpia sesión
   logout(): void {
+    this.clearSessionTimers();
+    this.showSessionWarningSubject.next(false);
     const token = localStorage.getItem('ezyro_token');
     const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
 
-    // Notifica al backend para registrar fecha_cierre en sesion_usuario
     this.http.post(`${this.apiUrl}/logout`, {}, { headers }).pipe(
       catchError(() => of(null))
     ).subscribe(() => {
@@ -145,5 +151,89 @@ export class AuthService {
   isClienteExterno(): boolean {
     const u = this.getUsuario();
     return (u?.rol || '').toLowerCase().replace(' ', '') === 'clienteexterno';
+  }
+
+  // ==========================================
+  // REFRESH TOKEN Y TEMPORIZADOR DE SESIÓN
+  // ==========================================
+
+  getTokenExp(): number | null {
+    const token = this.getToken();
+    if (!token) return null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload?.exp ?? null;
+    } catch { return null; }
+  }
+
+  refreshToken(): Observable<any> {
+    const token = this.getToken();
+    const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
+    return this.http.post(`${this.apiUrl}/refresh`, {}, { headers }).pipe(
+      tap((res: any) => {
+        if (res.status === 'success' && res.data?.token) {
+          localStorage.setItem('ezyro_token', res.data.token);
+        }
+      })
+    );
+  }
+
+  extenderSesion(): void {
+    this.refreshToken().pipe(
+      catchError(() => {
+        this.logout();
+        return of(null);
+      })
+    ).subscribe((res: any) => {
+      if (res) {
+        this.showSessionWarningSubject.next(false);
+        document.body.style.overflow = '';
+        this.startSessionTimer();
+      }
+    });
+  }
+
+  dismissSessionWarning(): void {
+    this.showSessionWarningSubject.next(false);
+    document.body.style.overflow = '';
+  }
+
+  clearSessionTimers(): void {
+    this.sessionTimers.forEach(t => clearTimeout(t));
+    this.sessionTimers = [];
+  }
+
+  startSessionTimer(): void {
+    this.clearSessionTimers();
+    const exp = this.getTokenExp();
+    if (!exp) return;
+
+    const now = Math.floor(Date.now() / 1000);
+    const ttlMs = (exp - now) * 1000;
+
+    if (ttlMs <= 0) {
+      this.logout();
+      return;
+    }
+
+    const warningMs = ttlMs - 5 * 60 * 1000;
+
+    if (warningMs > 0) {
+      this.sessionTimers.push(setTimeout(() => {
+        this.showSessionWarningSubject.next(true);
+        document.body.style.overflow = 'hidden';
+      }, warningMs));
+    } else {
+      // Less than 5 min left — show warning immediately
+      this.showSessionWarningSubject.next(true);
+      document.body.style.overflow = 'hidden';
+    }
+
+    // Auto-logout at expiry
+    this.sessionTimers.push(setTimeout(() => {
+      this.showSessionWarningSubject.next(false);
+      document.body.style.overflow = '';
+      this.logout();
+    }, ttlMs));
   }
 }

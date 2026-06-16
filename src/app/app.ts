@@ -17,8 +17,9 @@ export class App implements OnInit {
   title = 'e-zyro';
   mostrarNavbar = false;
 
-  // Variable local para controlar la vista del modal
   showLogoutModal = false;
+  showSessionWarning = false;
+  extendingSession = false;
 
   constructor(
     private router: Router,
@@ -36,6 +37,14 @@ export class App implements OnInit {
     this.authService.showLogoutModal$.subscribe(estado => {
       this.showLogoutModal = estado;
     });
+
+    this.authService.showSessionWarning$.subscribe(estado => {
+      this.showSessionWarning = estado;
+    });
+
+    if (this.authService.isAuthenticated()) {
+      this.authService.startSessionTimer();
+    }
   }
 
   verificarRuta(url: string) {
@@ -62,5 +71,15 @@ export class App implements OnInit {
 
   confirmarSalir() {
     this.authService.ejecutarCerrarSesion();
+  }
+
+  extenderSesion() {
+    this.extendingSession = true;
+    this.authService.extenderSesion();
+    this.extendingSession = false;
+  }
+
+  cerrarAvisoSesion() {
+    this.authService.dismissSessionWarning();
   }
 }

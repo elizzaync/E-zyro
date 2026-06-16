@@ -33,3 +33,23 @@
     </div>
 </div>
 }
+
+@if (showSessionWarning) {
+<div class="modal-backdrop-pro session-warn-backdrop" (click)="cerrarAvisoSesion()"></div>
+<div class="modal-dialog-pro session-warn-dialog fade-in-up">
+    <div class="modal-body-pro">
+        <div class="logout-icon-wrapper session-warn-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+        </div>
+        <h3>Tu sesión va a concluir</h3>
+        <p>En menos de 5 minutos tu sesión expirará. ¿Quieres alargar tu tiempo?</p>
+    </div>
+    <div class="modal-footer-pro">
+        <button class="btn-cancel-pro" (click)="cerrarAvisoSesion()">Ahora no</button>
+        <button class="btn-save-main" (click)="extenderSesion()">Sí, extender sesión</button>
+    </div>
+</div>
+}
