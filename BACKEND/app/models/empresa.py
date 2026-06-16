@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, Boolean
 from app.db.database import Base
 
 def generate_uuid():
@@ -20,3 +20,7 @@ class Empresa(Base):
     # ── Finanzas (Fase 0): configuración contable por empresa ──
     moneda_funcional = Column(String(3), nullable=False, default="PEN")
     regimen_tributario = Column(String(30), nullable=False, default="general")
+    # ── Planilla (Fase 2): descuento automático de tardanzas (configurable) ──
+    # Si está activo, el cálculo de planilla descuenta las tardanzas por minutos;
+    # si se desactiva, las tardanzas solo se registran (descuento manual).
+    descuento_tardanza_auto = Column(Boolean, nullable=False, default=True)

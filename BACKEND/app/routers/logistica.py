@@ -78,8 +78,14 @@ from ..schemas.logistica import (
     CrearRetornoBody, CrearRetornoServicioBody, InspectionarRetornoBody,
     CrearIncidenciaBody, ResolverIncidenciaBody,
     IncidenciaOut, IncidenciasListResponse, EquipoStockDesglose,
+    FormFieldDef, FormSchemaOut,
+    IngresoDirectoIn, IngresoDirectoResult, IngresoItemResult,
 )
+from ..models.correctivo import ServicioCorrectivo
+from ..schemas.cuentas_por_pagar import FacturaCreate
+from ..services import cuentas_por_pagar_service as cxp_srv
 from datetime import date as _date
+from decimal import Decimal as _Decimal
 
 
 router = APIRouter(prefix="/logistica", tags=["logistica"])
@@ -2708,6 +2714,28 @@ async def procesar_compra(
         )
         db.refresh(tc)
 
+    # ── CxP automática: si la compra completada trae comprobante, crear la
+    # factura del proveedor (Db 60 + 40 / Cr 42). El ingreso ya quedó aplicado;
+    # si la CxP falla se informa para crearla manual en Finanzas (idempotente).
+    if body.completado and body.comprobante is not None:
+        try:
+            _crear_cxp_desde_comprobante(
+                db, empresa_id, body.comprobante,
+                creado_por_id=str(emp.id) if emp else None)
+        except HTTPException as e:
+            detalle = e.detail if isinstance(e.detail, str) else "motivo desconocido"
+            raise HTTPException(
+                status_code=e.status_code,
+                detail=(f"La compra se registró, pero la Cuenta por Pagar no se creó: "
+                        f"{detalle}. Genérala manualmente en Finanzas."),
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(
+                status_code=422,
+                detail=(f"La compra se registró, pero la Cuenta por Pagar no se creó: "
+                        f"{exc}. Genérala manualmente en Finanzas."),
+            )
+
     return _ticket_out(db, tc)
 
 
@@ -2798,6 +2826,477 @@ async def registrar_ingreso_compra(
     await _aplicar_ingreso_ticket(db, tc, empresa_id, emp, almacen_default)
     db.refresh(tc)
     return _ticket_out(db, tc)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# INGRESO DIRECTO  (compra/registro manual sin requerimiento previo)
+# ══════════════════════════════════════════════════════════════════════════
+#
+# Reutiliza la maquinaria de inventario existente:
+#   - Materiales → Stock + MovimientoInventario(entrada) valorizado (costeo).
+#   - Equipos/Herramientas/Tecnológicos → tabla `equipo` + bitácora (no llevan
+#     costo: son activos, no inventario de consumo).
+# El ingreso se materializa como un TicketCompra sintético (origen='ingreso_directo',
+# ingreso_registrado=True) para aparecer en GET /logistica/ingresos y en Finanzas.
+# El destino decide si el ingreso queda en stock o se imputa a servicio/correctivo.
+
+_ESTADOS_EQUIPO = [
+    ("operativo", "Operativo"),
+    ("en_mantenimiento", "En mantenimiento"),
+    ("fuera_de_servicio", "Fuera de servicio"),
+    ("baja", "Baja"),
+]
+
+_PREFIJO_EQUIPO = {"equipo": "EQ", "herramienta": "HR", "equipo_tecnologico": "TI"}
+
+
+def _form_schema(clase: str) -> FormSchemaOut:
+    """Definición de campos del formulario por clase de artículo.
+    `nativo=True` → el valor va a un campo propio del ítem; `nativo=False` → a
+    `atributos[key]`. Los selects de catálogo (categoria/unidad/marca/tipo/
+    almacén/ubicación) los rellena el frontend con sus endpoints; aquí solo se
+    declara que existen (`opciones=None`)."""
+    G_BAS, G_SPEC, G_COMP, G_UBI = (
+        "Información Básica", "Especificaciones Técnicas",
+        "Información de Compra", "Ubicación",
+    )
+
+    if clase == "material":
+        campos = [
+            FormFieldDef(key="nombre", label="Nombre", inputType="text", required=True, nativo=True, grupo=G_BAS, placeholder="Ej: Cable UTP Cat6"),
+            FormFieldDef(key="descripcion", label="Descripción", inputType="textarea", nativo=True, grupo=G_BAS, placeholder="Descripción breve"),
+            FormFieldDef(key="codigo", label="Código", inputType="text", nativo=True, grupo=G_BAS, placeholder="Autogenerado si se deja vacío"),
+            FormFieldDef(key="cantidad", label="Cantidad", inputType="number", required=True, nativo=True, grupo=G_BAS),
+            FormFieldDef(key="stockMinimo", label="Stock Mínimo", inputType="number", nativo=True, grupo=G_BAS),
+            FormFieldDef(key="marca", label="Marca", inputType="text", nativo=True, grupo=G_BAS, placeholder="Opcional"),
+            FormFieldDef(key="categoriaId", label="Categoría/Tipo", inputType="select", required=True, nativo=True, grupo=G_BAS),
+            FormFieldDef(key="unidadId", label="Unidad", inputType="select", required=True, nativo=True, grupo=G_BAS),
+            FormFieldDef(key="almacenId", label="Ubicación / Almacén", inputType="select", required=True, nativo=True, grupo=G_UBI),
+            FormFieldDef(key="precioCompra", label="Precio de Compra (S/.)", inputType="number", nativo=True, grupo=G_COMP),
+            FormFieldDef(key="imagenUrl", label="Imagen", inputType="image", nativo=True, grupo=G_BAS),
+        ]
+        return FormSchemaOut(clase=clase, titulo="Ingreso de Material", campos=campos)
+
+    # equipo / herramienta / equipo_tecnologico
+    estado_field = FormFieldDef(
+        key="estado", label="Estado", inputType="select", required=True, nativo=True, grupo=G_BAS,
+        opciones=[CatalogoItem(id=i, nombre=n) for i, n in _ESTADOS_EQUIPO],
+    )
+    campos = [
+        FormFieldDef(key="nombre", label="Nombre del Equipo", inputType="text", required=True, nativo=True, grupo=G_BAS, placeholder="Ej: PC-ADMINISTRACION-01"),
+        FormFieldDef(key="codigo", label="Código de Equipo", inputType="text", nativo=True, grupo=G_BAS, placeholder="Autogenerado si se deja vacío"),
+        FormFieldDef(key="descripcion", label="Descripción / Ficha técnica", inputType="textarea", nativo=True, grupo=G_BAS),
+        FormFieldDef(key="cantidad", label="Cantidad", inputType="number", required=True, nativo=True, grupo=G_BAS),
+        FormFieldDef(key="tipoId", label="Tipo de Equipo", inputType="select", required=True, nativo=True, grupo=G_BAS),
+        FormFieldDef(key="marcaId", label="Marca", inputType="select", nativo=True, grupo=G_BAS),
+        FormFieldDef(key="modeloId", label="Modelo", inputType="select", nativo=True, grupo=G_BAS),
+        FormFieldDef(key="numeroSerie", label="Número de Serie", inputType="text", nativo=True, grupo=G_BAS),
+        estado_field,
+        FormFieldDef(key="almacenId", label="Ubicación / Almacén", inputType="select", required=True, nativo=True, grupo=G_UBI),
+        FormFieldDef(key="asignadoA", label="Asignado a", inputType="text", nativo=True, grupo=G_UBI, placeholder="Nombre del usuario asignado"),
+        FormFieldDef(key="precioCompra", label="Precio de Compra (S/.)", inputType="number", nativo=True, grupo=G_COMP),
+        FormFieldDef(key="fechaGarantia", label="Fecha de Garantía", inputType="date", nativo=True, grupo=G_COMP),
+        FormFieldDef(key="observaciones", label="Observaciones", inputType="textarea", nativo=True, grupo=G_COMP),
+        FormFieldDef(key="imagenUrl", label="Imagen del Equipo", inputType="image", nativo=True, grupo=G_BAS),
+    ]
+    if clase == "equipo_tecnologico":
+        campos += [
+            FormFieldDef(key="procesador", label="Procesador", inputType="text", nativo=False, grupo=G_SPEC, placeholder="Ej: Intel Core i7-13700K"),
+            FormFieldDef(key="ram", label="RAM", inputType="text", nativo=False, grupo=G_SPEC, placeholder="Ej: 16GB DDR4"),
+            FormFieldDef(key="almacenamiento", label="Almacenamiento", inputType="text", nativo=False, grupo=G_SPEC, placeholder="Ej: SSD 512GB + HDD 1TB"),
+            FormFieldDef(key="sistemaOperativo", label="Sistema Operativo", inputType="text", nativo=False, grupo=G_SPEC, placeholder="Ej: Windows 11 Pro"),
+            FormFieldDef(key="ip", label="Dirección IP", inputType="ip", nativo=False, grupo=G_SPEC, placeholder="Ej: 192.168.1.100"),
+            FormFieldDef(key="mac", label="Dirección MAC", inputType="mac", nativo=False, grupo=G_SPEC, placeholder="Ej: 00:1A:2B:3C:4D:5E"),
+        ]
+    titulo = {
+        "equipo": "Ingreso de Equipo",
+        "herramienta": "Ingreso de Herramienta",
+        "equipo_tecnologico": "Ingreso de Equipo Tecnológico",
+    }.get(clase, "Ingreso de Equipo")
+    return FormSchemaOut(clase=clase, titulo=titulo, campos=campos)
+
+
+def _entrada_material(db, empresa_id, material_id, almacen_id, cant, precio, emp_id):
+    """Suma stock + MovimientoInventario(entrada) valorizado (Db 201 / Cr 611)."""
+    stock_row = db.query(Stock).filter(
+        Stock.material_id == material_id,
+        Stock.empresa_id  == empresa_id,
+        Stock.almacen_id  == almacen_id,
+    ).with_for_update().first()
+    if stock_row:
+        stock_row.cantidad   = int(stock_row.cantidad or 0) + cant
+        stock_row.updated_at = datetime.utcnow()
+    else:
+        db.add(Stock(empresa_id=empresa_id, material_id=material_id,
+                     almacen_id=almacen_id, cantidad=cant, cantidad_minima=0,
+                     updated_at=datetime.utcnow()))
+    _mov = MovimientoInventario(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        material_id=material_id, almacen_id=almacen_id,
+        tipo="entrada", cantidad=cant,
+        referencia_tipo="ingreso_directo",
+        responsable_id=emp_id, motivo="Ingreso directo de material",
+        fecha=datetime.utcnow(),
+    )
+    db.add(_mov)
+    db.flush()
+    costeo.valorizar_movimiento(db, _mov, costo_unitario=precio, creado_por_id=emp_id)
+
+
+def _salida_material(db, empresa_id, material_id, almacen_id, cant, ref_tipo, ref_id, emp_id, motivo):
+    """Descuenta stock (preferentemente del almacén indicado) + salida valorizada
+    al costo promedio vigente (Db 691 / Cr 201)."""
+    stocks = (
+        db.query(Stock)
+        .filter(Stock.material_id == material_id, Stock.empresa_id == empresa_id, Stock.cantidad > 0)
+        .order_by((Stock.almacen_id == almacen_id).desc(), Stock.cantidad.desc())
+        .all()
+    )
+    restante = cant
+    for s in stocks:
+        if restante <= 0:
+            break
+        quita = min(int(s.cantidad), restante)
+        s.cantidad = int(s.cantidad) - quita
+        s.updated_at = datetime.utcnow()
+        restante -= quita
+    _mov = MovimientoInventario(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        material_id=material_id, almacen_id=almacen_id,
+        tipo="salida", cantidad=cant,
+        referencia_id=str(ref_id), referencia_tipo=ref_tipo,
+        responsable_id=emp_id, motivo=motivo, fecha=datetime.utcnow(),
+    )
+    db.add(_mov)
+    db.flush()
+    costeo.valorizar_movimiento(db, _mov, creado_por_id=emp_id)
+
+
+def _crear_cxp_desde_comprobante(db, empresa_id, comp, *,
+                                 creado_por_id=None, orden_compra_id=None):
+    """Crea la CxP (FacturaProveedor) + asiento del proveedor (Db 60 + 40 IGV /
+    Cr 42) a partir del comprobante de una compra. Reutiliza el único punto de
+    contabilización. Lanza HTTPException si falla (lo decide el llamador)."""
+    datos = FacturaCreate(
+        proveedor_id=comp.proveedorId,
+        numero_documento=comp.numeroDocumento,
+        tipo_documento=comp.tipoDocumento,
+        fecha_emision=comp.fechaEmision,
+        fecha_vencimiento=comp.fechaVencimiento,
+        subtotal=_Decimal(str(comp.subtotal)),
+        igv=_Decimal(str(comp.igv or 0)),
+        moneda=comp.moneda,
+        orden_compra_id=orden_compra_id,
+    )
+    return cxp_srv.registrar_factura(db, empresa_id, datos, creado_por_id)
+
+
+@router.get("/form-schema/{clase}", response_model=FormSchemaOut)
+def form_schema(
+    clase:   str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Esquema del formulario dinámico de ingreso por clase de artículo.
+    Rellena las `opciones` de los selects de catálogo (categoría/unidad/marca/
+    tipo/almacén) con los registros de la empresa. `modeloId` queda dinámico
+    (depende de la marca elegida → el frontend lo carga por marca)."""
+    if clase not in ("material", "equipo", "herramienta", "equipo_tecnologico"):
+        raise HTTPException(status_code=404, detail="Clase de artículo no soportada")
+    schema = _form_schema(clase)
+    empresa_id = payload["empresa_id"]
+
+    catalogos = {
+        "categoriaId": db.query(CategoriaMaterial).filter(CategoriaMaterial.empresa_id == empresa_id).order_by(CategoriaMaterial.nombre).all(),
+        "unidadId":    db.query(UnidadMedida).filter(UnidadMedida.empresa_id == empresa_id).order_by(UnidadMedida.nombre).all(),
+        "marcaId":     db.query(Marca).filter(Marca.empresa_id == empresa_id).order_by(Marca.nombre).all(),
+        "tipoId":      db.query(TipoEquipo).filter(TipoEquipo.empresa_id == empresa_id).order_by(TipoEquipo.nombre).all(),
+        "almacenId":   db.query(Almacen).filter(Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)).order_by(Almacen.nombre).all(),
+    }
+    for campo in schema.campos:
+        if campo.opciones is None and campo.key in catalogos:
+            campo.opciones = [CatalogoItem(id=str(r.id), nombre=r.nombre) for r in catalogos[campo.key]]
+    return schema
+
+
+@router.get("/articulos/by-codigo/{codigo}")
+def articulo_por_codigo(
+    codigo:  str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Carga un artículo existente por código (equipos también por nº de serie),
+    para 'escanear/clonar' en el formulario de ingreso. 404 si no existe."""
+    empresa_id = payload["empresa_id"]
+    cod = (codigo or "").strip()
+    if not cod:
+        raise HTTPException(status_code=404, detail="Código vacío")
+
+    eq = db.query(Equipo).filter(
+        Equipo.empresa_id == empresa_id,
+        or_(Equipo.codigo == cod, Equipo.numero_serie == cod),
+    ).first()
+    if eq:
+        data = _equipo_out(eq)
+        body = data.model_dump() if hasattr(data, "model_dump") else data.dict()
+        return {"tipo": "equipo", **body}
+
+    mat = db.query(Material).filter(
+        Material.empresa_id == empresa_id, Material.codigo == cod
+    ).first()
+    if mat:
+        data = _material_out(db, mat, empresa_id)
+        body = data.model_dump() if hasattr(data, "model_dump") else data.dict()
+        # `clase` para que el front abra el form-schema correcto al clonar.
+        return {"tipo": "material", "clase": "material", **body}
+
+    raise HTTPException(status_code=404, detail="No se encontró ningún artículo con ese código")
+
+
+@router.post("/ingreso-directo", response_model=IngresoDirectoResult, status_code=201)
+def ingreso_directo(
+    body:    IngresoDirectoIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Ingreso manual de un lote de artículos (sin requerimiento previo), con
+    destino opcional a servicio/correctivo. Reutiliza la valuación de inventario
+    y queda registrado en el historial de ingresos."""
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+
+    if not body.items:
+        raise HTTPException(status_code=422, detail="Debe incluir al menos un ítem")
+
+    destino = body.destino
+    if destino.tipo == "servicio" and not destino.servicioId:
+        raise HTTPException(status_code=422, detail="destino.servicioId es requerido para destino 'servicio'")
+    if destino.tipo == "correctivo" and not destino.correctivoId:
+        raise HTTPException(status_code=422, detail="destino.correctivoId es requerido para destino 'correctivo'")
+
+    # Resolver servicio/correctivo y el proyecto (para asignar equipos)
+    servicio = None
+    proyecto_id = None
+    servicio_id_ref = None
+    if destino.tipo == "servicio":
+        servicio = db.query(ProyectoServicio).filter(
+            ProyectoServicio.id == destino.servicioId,
+            ProyectoServicio.empresa_id == empresa_id,
+        ).first()
+        if not servicio:
+            raise HTTPException(status_code=404, detail="Servicio no encontrado")
+        proyecto_id = servicio.proyecto_id
+        servicio_id_ref = servicio.id
+    elif destino.tipo == "correctivo":
+        correctivo = db.query(ServicioCorrectivo).filter(
+            ServicioCorrectivo.id == destino.correctivoId,
+            ServicioCorrectivo.empresa_id == empresa_id,
+        ).first()
+        if not correctivo:
+            raise HTTPException(status_code=404, detail="Correctivo no encontrado")
+        servicio = db.query(ProyectoServicio).filter(
+            ProyectoServicio.id == correctivo.servicio_id
+        ).first()
+        proyecto_id = servicio.proyecto_id if servicio else None
+        servicio_id_ref = correctivo.servicio_id
+
+    # Empleado que compró (explícito o usuario logueado)
+    emp = None
+    if body.personalCompraId:
+        emp = db.query(Empleado).filter(
+            Empleado.id == body.personalCompraId, Empleado.empresa_id == empresa_id
+        ).first()
+    if not emp:
+        emp = db.query(Empleado).filter(
+            Empleado.usuario_id == payload.get("id"), Empleado.empresa_id == empresa_id
+        ).first()
+    emp_id = str(emp.id) if emp else None
+
+    alm_def = _almacen_default(db, empresa_id)
+    alm_def_id = str(alm_def.id) if alm_def else None
+    fecha_compra = body.fechaCompra or _date.today()
+
+    # Ticket sintético → historial de ingresos + Finanzas
+    tc = TicketCompra(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        codigo=_siguiente_codigo_ticket(db, empresa_id),
+        estado="completado", origen="ingreso_directo",
+        proyecto_id=str(proyecto_id) if proyecto_id else None,
+        proyecto_servicio_id=str(servicio_id_ref) if servicio_id_ref else None,
+        servicio_nombre=servicio.nombre if servicio else None,
+        proveedor_unico_nombre=body.proveedor,
+        responsable_id=emp_id,
+        nota=body.notas,
+        ingreso_registrado=True,
+        created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+    )
+    db.add(tc)
+    db.flush()
+
+    resultados: List[IngresoItemResult] = []
+    total_real = 0.0
+
+    for item in body.items:
+        cant = max(1, int(item.cantidad or 1))
+        precio = float(item.precioCompra) if item.precioCompra is not None else None
+        almacen_id = item.almacenId or alm_def_id
+        atributos = dict(item.atributos or {})
+
+        if item.clase == "material":
+            if item.modo == "existente":
+                mat = db.query(Material).filter(
+                    Material.id == item.existenteId, Material.empresa_id == empresa_id
+                ).first()
+                if not mat:
+                    raise HTTPException(status_code=404, detail=f"Material existente no encontrado: {item.existenteId}")
+                creado = False
+            else:
+                if not item.nombre:
+                    raise HTTPException(status_code=422, detail="nombre es requerido para un material nuevo")
+                if not item.categoriaId or not item.unidadId:
+                    raise HTTPException(status_code=422, detail="categoriaId y unidadId son requeridos para un material nuevo")
+                cat = _categoria_or_404(db, empresa_id, item.categoriaId)
+                uni = _unidad_or_404(db, empresa_id, item.unidadId)
+                if item.marca:
+                    atributos.setdefault("marca", item.marca)
+                codigo = (item.codigo or "").strip() or _siguiente_codigo(db, empresa_id, "MAT", Material)
+                mat = Material(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    categoria_id=cat.id, nombre=item.nombre.strip(), codigo=codigo,
+                    unidad=uni.nombre, descripcion=(item.descripcion or "").strip() or None,
+                    precio=precio, activo=True,
+                    imagen_url=item.imagenUrl, atributos=atributos or None,
+                )
+                db.add(mat)
+                db.flush()
+                creado = True
+
+            if not almacen_id:
+                raise HTTPException(status_code=422, detail="No hay almacén disponible para el ingreso")
+
+            _entrada_material(db, empresa_id, mat.id, almacen_id, cant, precio, emp_id)
+            db.add(TicketCompraItem(
+                id=str(_uuid.uuid4()), ticket_id=tc.id, material_id=mat.id,
+                nombre=mat.nombre, cantidad=cant, cantidad_comprada=cant,
+                unidad=mat.unidad, precio_unitario=precio,
+                total_item=(precio * cant) if precio else None,
+                estado_item="comprado", tipo_item="material",
+            ))
+            if destino.tipo in ("servicio", "correctivo"):
+                ref_id = servicio_id_ref if destino.tipo == "servicio" else destino.correctivoId
+                _salida_material(
+                    db, empresa_id, mat.id, almacen_id, cant,
+                    destino.tipo, ref_id, emp_id,
+                    f"Ingreso directo → {destino.tipo} {ref_id}",
+                )
+            resultados.append(IngresoItemResult(clase=item.clase, articuloId=mat.id, nombre=mat.nombre, cantidad=cant, creado=creado))
+
+        else:  # equipo | herramienta | equipo_tecnologico
+            clase = item.clase
+            if item.modo == "existente":
+                eq = db.query(Equipo).filter(
+                    Equipo.id == item.existenteId, Equipo.empresa_id == empresa_id
+                ).first()
+                if not eq:
+                    raise HTTPException(status_code=404, detail=f"Equipo existente no encontrado: {item.existenteId}")
+                eq.cantidad   = int(eq.cantidad or 0) + cant
+                eq.updated_at = datetime.utcnow()
+                _log_equipo(db, empresa_id=empresa_id, equipo_id=eq.id, tipo="alta",
+                            detalle=f"Reingreso directo +{cant}", responsable_id=emp_id,
+                            referencia_id=str(tc.id), referencia_tipo="ingreso_directo")
+                creado = False
+            else:
+                if not item.nombre:
+                    raise HTTPException(status_code=422, detail="nombre es requerido para un equipo nuevo")
+                tipo_nombre = None
+                if item.tipoId:
+                    tipo_nombre = _tipo_or_404(db, empresa_id, item.tipoId).nombre
+                marca_nombre = item.marca
+                if item.marcaId:
+                    marca_nombre = _marca_or_404(db, empresa_id, item.marcaId).nombre
+                modelo_nombre = None
+                if item.modeloId:
+                    mo = _modelo_or_404(db, empresa_id, item.modeloId)
+                    if item.marcaId and mo.marca_id != item.marcaId:
+                        raise HTTPException(status_code=400, detail="El modelo no pertenece a la marca indicada")
+                    modelo_nombre = mo.nombre
+                alm_obj = None
+                if almacen_id:
+                    alm_obj = db.query(Almacen).filter(
+                        Almacen.id == almacen_id, Almacen.empresa_id == empresa_id
+                    ).first()
+                prefijo = _PREFIJO_EQUIPO.get(clase, "EQ")
+                codigo = (item.codigo or "").strip() or _siguiente_codigo(db, empresa_id, prefijo, Equipo)
+                eq = Equipo(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    nombre=item.nombre.strip(), codigo=codigo, clase=clase,
+                    tipo_equipo_id=item.tipoId, tipo=tipo_nombre,
+                    marca_id=item.marcaId, marca=marca_nombre,
+                    modelo_id=item.modeloId, modelo=modelo_nombre,
+                    numero_serie=(item.numeroSerie or "").strip() or None,
+                    almacen_id=almacen_id, ubicacion=alm_obj.nombre if alm_obj else None,
+                    ubicacion_id=item.ubicacionId or None, zona_id=item.zonaId or None, area_id=item.areaId or None,
+                    cantidad=cant, estado=item.estado or "operativo", estado_operativo="operativo",
+                    ficha_tecnica=(item.descripcion or "").strip() or None,
+                    asignado_a=item.asignadoA, proveedor=body.proveedor,
+                    precio_compra=precio, fecha_garantia=item.fechaGarantia,
+                    imagen_url=item.imagenUrl, observaciones=item.observaciones,
+                    fecha_adquisicion=fecha_compra,
+                    atributos=atributos or None,
+                )
+                db.add(eq)
+                db.flush()
+                _log_equipo(db, empresa_id=empresa_id, equipo_id=eq.id, tipo="alta",
+                            detalle=f"Ingreso directo · {eq.estado}", responsable_id=emp_id,
+                            referencia_id=str(tc.id), referencia_tipo="ingreso_directo")
+                creado = True
+
+            # Destino: los equipos no se consumen; se ASIGNAN al proyecto del servicio
+            if destino.tipo in ("servicio", "correctivo") and proyecto_id:
+                eq.proyecto_id      = str(proyecto_id)
+                eq.tipo_asignacion  = "proyecto"
+                eq.updated_at       = datetime.utcnow()
+                _log_equipo(db, empresa_id=empresa_id, equipo_id=eq.id, tipo="asignacion",
+                            detalle=f"Asignado a {destino.tipo} {servicio_id_ref or destino.correctivoId}",
+                            responsable_id=emp_id,
+                            referencia_id=str(servicio_id_ref or destino.correctivoId),
+                            referencia_tipo=destino.tipo)
+
+            db.add(TicketCompraItem(
+                id=str(_uuid.uuid4()), ticket_id=tc.id, equipo_id=eq.id,
+                nombre=eq.nombre, cantidad=cant, cantidad_comprada=cant,
+                precio_unitario=precio, total_item=(precio * cant) if precio else None,
+                estado_item="comprado",
+                tipo_item="herramienta" if clase == "herramienta" else "equipo",
+            ))
+            resultados.append(IngresoItemResult(clase=item.clase, articuloId=eq.id, nombre=eq.nombre, cantidad=cant, creado=creado))
+
+        if precio:
+            total_real += precio * cant
+
+    tc.total_real = total_real if total_real > 0 else None
+    db.commit()
+
+    # CxP opcional: si vino comprobante, crear la factura del proveedor. El
+    # ingreso ya está confirmado, así que un fallo aquí NO lo revierte; se
+    # reporta para crearla manualmente desde Finanzas (idempotente por nº doc).
+    cxp_factura_id = None
+    cxp_error = None
+    if body.comprobante is not None:
+        try:
+            f = _crear_cxp_desde_comprobante(
+                db, empresa_id, body.comprobante, creado_por_id=emp_id)
+            cxp_factura_id = str(f.id)
+        except HTTPException as e:
+            cxp_error = e.detail if isinstance(e.detail, str) else "No se pudo crear la CxP"
+        except Exception as e:  # noqa: BLE001
+            cxp_error = f"No se pudo crear la CxP: {e}"
+
+    return IngresoDirectoResult(
+        ingresoId=str(tc.id), totalItems=len(resultados),
+        destino=destino.tipo, items=resultados,
+        cxpFacturaId=cxp_factura_id, cxpError=cxp_error,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════

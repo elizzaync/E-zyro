@@ -8,7 +8,7 @@ campo `clase`).
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal, Optional, List
+from typing import Literal, Optional, List, Dict, Any
 
 from pydantic import BaseModel, Field
 
@@ -33,6 +33,9 @@ class MaterialOut(BaseModel):
     precio:      Optional[float] = None
     activo:      bool
     tipo:        str = "consumible"   # consumible | herramienta
+    marca:       Optional[str] = None         # conveniencia: leído de atributos.marca
+    imagenUrl:   Optional[str] = None
+    atributos:   Optional[Dict[str, Any]] = None
 
     class Config:
         populate_by_name = True
@@ -50,6 +53,9 @@ class MaterialIn(BaseModel):
     precio:      Optional[float] = None
     activo:      bool = True
     tipo:        str = "consumible"
+    marca:       Optional[str] = None         # opcional; se guarda dentro de atributos
+    imagenUrl:   Optional[str] = None
+    atributos:   Optional[Dict[str, Any]] = None
 
 
 class MaterialPatch(BaseModel):
@@ -64,6 +70,9 @@ class MaterialPatch(BaseModel):
     precio:      Optional[float] = None
     activo:      Optional[bool] = None
     tipo:        Optional[str] = None
+    marca:       Optional[str] = None
+    imagenUrl:   Optional[str] = None
+    atributos:   Optional[Dict[str, Any]] = None
 
 
 class MaterialesListResponse(BaseModel):
@@ -107,6 +116,14 @@ class EquipoOut(BaseModel):
     proximaFechaMantenimiento: Optional[str] = None
     fechaAdquisicion:          Optional[str] = None
     fichaTecnica:              Optional[str] = None
+    # ── Ingreso Directo: specs flexibles + datos de compra/asignación ───────
+    asignadoA:     Optional[str] = None
+    proveedor:     Optional[str] = None
+    precioCompra:  Optional[float] = None
+    fechaGarantia: Optional[str] = None
+    imagenUrl:     Optional[str] = None
+    observaciones: Optional[str] = None
+    atributos:     Optional[Dict[str, Any]] = None
 
 
 class EquipoIn(BaseModel):
@@ -129,6 +146,14 @@ class EquipoIn(BaseModel):
     proximaFechaMantenimiento: Optional[date] = None
     fechaAdquisicion:          Optional[date] = None
     fichaTecnica:              Optional[str]  = None
+    # ── Ingreso Directo ─────────────────────────────────────────────────────
+    asignadoA:     Optional[str]  = None
+    proveedor:     Optional[str]  = None
+    precioCompra:  Optional[float] = None
+    fechaGarantia: Optional[date] = None
+    imagenUrl:     Optional[str]  = None
+    observaciones: Optional[str]  = None
+    atributos:     Optional[Dict[str, Any]] = None
 
 
 class EquipoPatch(BaseModel):
@@ -150,6 +175,14 @@ class EquipoPatch(BaseModel):
     proximaFechaMantenimiento: Optional[date] = None
     fechaAdquisicion:          Optional[date] = None
     fichaTecnica:              Optional[str]  = None
+    # ── Ingreso Directo ─────────────────────────────────────────────────────
+    asignadoA:     Optional[str]  = None
+    proveedor:     Optional[str]  = None
+    precioCompra:  Optional[float] = None
+    fechaGarantia: Optional[date] = None
+    imagenUrl:     Optional[str]  = None
+    observaciones: Optional[str]  = None
+    atributos:     Optional[Dict[str, Any]] = None
 
 
 class EquiposListResponse(BaseModel):
@@ -364,6 +397,20 @@ class ProcesarCompraItemBody(BaseModel):
     nota:               Optional[str]   = None
 
 
+class ComprobanteCompraIn(BaseModel):
+    """Datos del comprobante del proveedor para generar la CxP (Cuenta por
+    Pagar) automática al cerrar la compra. Si se omite, no se crea CxP.
+    El asiento contable lo arma cuentas_por_pagar_service (Db 60 + 40 / Cr 42)."""
+    proveedorId:      str
+    tipoDocumento:    str = "factura"        # factura|boleta|nota_credito|nota_debito
+    numeroDocumento:  str
+    fechaEmision:     date
+    fechaVencimiento: date
+    subtotal:         float
+    igv:              float = 0.0
+    moneda:           Optional[str] = None
+
+
 class ProcesarCompraBody(BaseModel):
     modoUnificado:        bool
     proveedorUnicoId:     Optional[str]   = None
@@ -372,6 +419,8 @@ class ProcesarCompraBody(BaseModel):
     nota:                 Optional[str]   = None
     completado:           bool            = False
     items:                List[ProcesarCompraItemBody] = []
+    # Comprobante opcional → al completar la compra crea la CxP del proveedor.
+    comprobante:          Optional[ComprobanteCompraIn] = None
 
 
 class CancelarCompraBody(BaseModel):
@@ -660,3 +709,105 @@ class EquipoStockDesglose(BaseModel):
     operativos:      int
     enIncidencia:    int
     incidenciasAbiertas: int
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# INGRESO DIRECTO  (compra/registro manual sin requerimiento previo)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Flujo: cabecera (quién compró + fecha + destino) + lote de ítems de cualquier
+# clase (material | equipo | herramienta | equipo_tecnologico). Reutiliza la
+# maquinaria de inventario (MovimientoInventario + costeo + asiento). El destino
+# decide si el ingreso queda en stock o se imputa a un servicio/correctivo.
+
+ClaseArticuloIngreso = Literal["material", "equipo", "herramienta", "equipo_tecnologico"]
+TipoDestino          = Literal["stock", "servicio", "correctivo"]
+ModoItem             = Literal["nuevo", "existente"]
+
+
+class FormFieldDef(BaseModel):
+    """Definición de un campo del formulario dinámico por clase de artículo."""
+    key:         str                       # nombre del campo (atributos.<key> o campo nativo)
+    label:       str
+    inputType:   str = "text"              # text|number|date|select|textarea|image|ip|mac
+    required:    bool = False
+    nativo:      bool = False              # True → columna propia; False → va en atributos
+    grupo:       Optional[str] = None      # sección del form (Básico, Specs, Compra…)
+    placeholder: Optional[str] = None
+    sugerencias: Optional[List[str]] = None  # autocompletar (procesador, RAM…)
+    opciones:    Optional[List[CatalogoItem]] = None  # para selects servidos por catálogo
+
+
+class FormSchemaOut(BaseModel):
+    """Esquema del formulario para una clase de artículo."""
+    clase:  ClaseArticuloIngreso
+    titulo: str
+    campos: List[FormFieldDef]
+
+
+class DestinoIn(BaseModel):
+    tipo:         TipoDestino = "stock"
+    servicioId:   Optional[str] = None     # requerido si tipo=servicio
+    correctivoId: Optional[str] = None     # requerido si tipo=correctivo
+
+
+class IngresoItemIn(BaseModel):
+    """Un ítem del lote de ingreso. Reúne campos comunes + atributos flexibles."""
+    clase:        ClaseArticuloIngreso
+    modo:         ModoItem = "nuevo"
+    existenteId:  Optional[str] = None     # requerido si modo=existente (id material/equipo)
+    # comunes
+    nombre:       Optional[str] = None     # requerido si modo=nuevo
+    codigo:       Optional[str] = None
+    descripcion:  Optional[str] = None
+    cantidad:     int = 1
+    precioCompra: Optional[float] = None   # costo unitario → valuación
+    almacenId:    Optional[str] = None
+    imagenUrl:    Optional[str] = None
+    # material
+    categoriaId:  Optional[str] = None
+    unidadId:     Optional[str] = None
+    stockMinimo:  Optional[int] = None
+    # equipo / herramienta / equipo_tecnologico
+    tipoId:       Optional[str] = None     # tipo_equipo
+    marcaId:      Optional[str] = None
+    modeloId:     Optional[str] = None
+    marca:        Optional[str] = None     # texto libre (materiales / sin catálogo)
+    numeroSerie:  Optional[str] = None
+    ubicacionId:  Optional[str] = None
+    zonaId:       Optional[str] = None
+    areaId:       Optional[str] = None
+    estado:       Optional[str] = None
+    asignadoA:    Optional[str] = None
+    fechaGarantia: Optional[date] = None
+    observaciones: Optional[str] = None
+    # libres por tipo (procesador, RAM, IP, MAC, SO…)
+    atributos:    Optional[Dict[str, Any]] = None
+
+
+class IngresoDirectoIn(BaseModel):
+    personalCompraId: Optional[str] = None  # empleado que compró (default: usuario logueado)
+    fechaCompra:      Optional[date] = None  # default: hoy
+    proveedor:        Optional[str] = None
+    destino:          DestinoIn = DestinoIn()
+    notas:            Optional[str] = None
+    items:            List[IngresoItemIn]
+    # Comprobante opcional → crea la CxP del proveedor (Cuenta por Pagar).
+    comprobante:      Optional[ComprobanteCompraIn] = None
+
+
+class IngresoItemResult(BaseModel):
+    clase:     ClaseArticuloIngreso
+    articuloId: str                        # id del material/equipo creado o reusado
+    nombre:    str
+    cantidad:  int
+    creado:    bool                        # True=nuevo registro, False=existente
+
+
+class IngresoDirectoResult(BaseModel):
+    ingresoId:  str                        # id del ticket sintético generado
+    totalItems: int
+    destino:    TipoDestino
+    items:      List[IngresoItemResult]
+    cxpFacturaId: Optional[str] = None     # CxP creada (si vino comprobante)
+    cxpError:     Optional[str] = None      # motivo si la CxP no se pudo crear

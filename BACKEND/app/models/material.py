@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, Text, Boolean, DateTime, ForeignKey, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from app.db.database import Base
 
 
@@ -21,6 +22,11 @@ class Material(Base):
     precio       = Column(Numeric(10, 2), nullable=True)
     tipo         = Column(String(20),    nullable=False, default="consumible")  # consumible | herramienta
     activo       = Column(Boolean, nullable=False, default=True)
+    # ── Ingreso Directo: campos flexibles + imagen ─────────────────────────
+    # `atributos` aloja datos opcionales por material (marca, etc.) sin tocar
+    # el esquema; `imagen_url` la foto del material.
+    atributos    = Column(JSONB, nullable=True)
+    imagen_url   = Column(Text,  nullable=True)
     created_at   = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 

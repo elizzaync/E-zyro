@@ -34,6 +34,9 @@ class ConceptoRemunerativo(Base):
     formula_referencial = Column(String(255), nullable=True)     # descripción textual
     cuenta_contable_id  = Column(String(36), ForeignKey("cuenta_contable.id"), nullable=True)
     activo              = Column(String(5), nullable=False, default="true")
+    # Concepto base (sueldo básico): su monto define el "valor día" (monto/30)
+    # para los descuentos por faltas/tardanzas de asistencia (Fase 2).
+    es_base             = Column(String(5), nullable=False, default="false")
     created_at          = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     __table_args__ = (

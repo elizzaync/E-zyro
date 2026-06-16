@@ -17,6 +17,7 @@ class ConceptoCreate(BaseModel):
     monto_referencial: Optional[Decimal] = None
     formula_referencial: Optional[str] = None
     cuenta_contable_id: Optional[str] = None
+    es_base: bool = False   # concepto base (sueldo) → valor día = monto/30
 
     @field_validator("tipo")
     @classmethod
@@ -26,6 +27,14 @@ class ConceptoCreate(BaseModel):
         return v
 
 
+class ConceptoUpdate(BaseModel):
+    """Actualización parcial de un concepto (p. ej. marcarlo como base)."""
+    nombre: Optional[str] = None
+    monto_referencial: Optional[Decimal] = None
+    activo: Optional[bool] = None
+    es_base: Optional[bool] = None
+
+
 class ConceptoOut(BaseModel):
     id: str
     codigo: str
@@ -33,6 +42,22 @@ class ConceptoOut(BaseModel):
     tipo: str
     monto_referencial: Optional[Decimal] = None
     activo: bool
+    es_base: bool = False
+
+
+class BoletaDetalleUpdate(BaseModel):
+    """Override manual de un concepto en una boleta (antes de aprobar).
+    monto = 0 elimina el concepto de la boleta."""
+    concepto_id: str
+    monto: Decimal
+
+
+class ConfigPlanillaOut(BaseModel):
+    descuento_tardanza_auto: bool
+
+
+class ConfigPlanillaUpdate(BaseModel):
+    descuento_tardanza_auto: bool
 
 
 class PlanillaOut(BaseModel):

@@ -20,16 +20,43 @@ from decimal import Decimal
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+import calendar as _cal
+
 from app.models.contabilidad import CuentaContable, PeriodoContable
 from app.models.empleado import Empleado
+from app.models.empresa import Empresa
 from app.models.planilla import (
     ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle, EmpleadoConcepto,
 )
 from app.services import contabilizacion_service as contab
+from app.services import planilla_asistencia_service as pa
 from app.services.contabilizacion_service import LineaAsiento
 
 CERO = Decimal("0.00")
 Q2 = Decimal("0.01")
+
+# Conceptos de descuento auto-generados desde la asistencia (Fase 2).
+COD_DESC_FALTA    = "DESC_FALTA"
+COD_DESC_TARDANZA = "DESC_TARDANZA"
+
+
+def _get_or_create_descuento(db: Session, empresa_id: str, codigo: str, nombre: str) -> ConceptoRemunerativo:
+    """Concepto de descuento (tipo='descuento') sin monto fijo; el importe lo
+    calcula la asistencia por boleta. Idempotente por (empresa, código)."""
+    c = (
+        db.query(ConceptoRemunerativo)
+        .filter(ConceptoRemunerativo.empresa_id == empresa_id,
+                ConceptoRemunerativo.codigo == codigo)
+        .first()
+    )
+    if c is None:
+        c = ConceptoRemunerativo(
+            empresa_id=empresa_id, codigo=codigo, nombre=nombre,
+            tipo="descuento", monto_referencial=None, activo="true", es_base="false",
+        )
+        db.add(c)
+        db.flush()
+    return c
 
 CTA_GASTO_REMUN   = "621"   # Remuneraciones
 CTA_GASTO_APORTES = "627"   # Seguridad, previsión social y otras contribuciones
@@ -122,6 +149,19 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
             EmpleadoConcepto.empresa_id == empresa_id).all()
     }
 
+    # ── Asistencia → descuentos (Fase 2) ─────────────────────────────────────
+    # valor_día = monto del concepto BASE (es_base) / 30. Si no hay concepto
+    # base configurado, no se aplican descuentos automáticos por asistencia.
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    desc_tardanza_auto = bool(getattr(empresa, "descuento_tardanza_auto", True)) if empresa else True
+    base_concepto = next(
+        (c for c in conceptos if str(getattr(c, "es_base", "false")).lower() == "true"), None)
+    inicio_p = date(periodo.anio, periodo.mes, 1)
+    fin_p = date(periodo.anio, periodo.mes, _cal.monthrange(periodo.anio, periodo.mes)[1])
+    asistencia = pa.resumen_asistencia_periodo(db, empresa_id, inicio_p, fin_p)
+    concepto_falta = _get_or_create_descuento(db, empresa_id, COD_DESC_FALTA, "Descuento por falta")
+    concepto_tardanza = _get_or_create_descuento(db, empresa_id, COD_DESC_TARDANZA, "Descuento por tardanza")
+
     planilla = Planilla(
         empresa_id=empresa_id, periodo_id=periodo_id, fecha_proceso=date.today(),
         estado="calculada", total_ingresos=CERO, total_descuentos=CERO,
@@ -146,6 +186,26 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
                 b_desc += monto
             else:  # aporte_empleador
                 b_apo += monto
+
+        # ── Descuentos por asistencia (faltas/tardanzas) ─────────────────────
+        res = asistencia.get(str(emp.id))
+        if res and base_concepto is not None:
+            base_asignado = overrides.get((emp.id, base_concepto.id))
+            base_monto = _d(base_asignado if base_asignado is not None else base_concepto.monto_referencial)
+            valor_dia = (base_monto / Decimal(30)) if base_monto > CERO else CERO
+            if valor_dia > CERO:
+                if res["faltas"] > 0:
+                    m = _d(valor_dia * res["faltas"])
+                    if m > CERO:
+                        detalles.append((concepto_falta.id, m))
+                        b_desc += m
+                if (desc_tardanza_auto and res["minutos_tardanza"] > 0
+                        and res["minutos_jornada"] > 0):
+                    m = _d(valor_dia * Decimal(res["minutos_tardanza"]) / Decimal(res["minutos_jornada"]))
+                    if m > CERO:
+                        detalles.append((concepto_tardanza.id, m))
+                        b_desc += m
+
         if not detalles:
             continue
         b_neto = b_ing - b_desc
@@ -165,6 +225,78 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
     planilla.total_descuentos = tot_desc
     planilla.total_aportes = tot_apo
     planilla.total_neto = tot_ing - tot_desc
+    db.commit()
+    db.refresh(planilla)
+    return planilla
+
+
+# ── Override manual de un detalle de boleta (antes de aprobar) ────────────────
+def _recompute_boleta(db: Session, boleta: BoletaPago) -> None:
+    """Recalcula los totales de una boleta desde sus detalles."""
+    dets = db.query(BoletaPagoDetalle).filter(BoletaPagoDetalle.boleta_id == boleta.id).all()
+    ids = {d.concepto_id for d in dets}
+    tipos = {}
+    if ids:
+        tipos = {str(c.id): c.tipo for c in db.query(ConceptoRemunerativo).filter(
+            ConceptoRemunerativo.id.in_(ids)).all()}
+    ing = desc = apo = CERO
+    for d in dets:
+        t = tipos.get(str(d.concepto_id))
+        if t == "ingreso":
+            ing += _d(d.monto)
+        elif t == "descuento":
+            desc += _d(d.monto)
+        else:
+            apo += _d(d.monto)
+    boleta.total_ingresos = ing
+    boleta.total_descuentos = desc
+    boleta.total_aportes = apo
+    boleta.total_neto = ing - desc
+
+
+def _recompute_planilla(db: Session, planilla: Planilla) -> None:
+    """Recalcula los totales de la planilla desde sus boletas."""
+    bs = db.query(BoletaPago).filter(BoletaPago.planilla_id == planilla.id).all()
+    planilla.total_ingresos = sum((_d(b.total_ingresos) for b in bs), CERO)
+    planilla.total_descuentos = sum((_d(b.total_descuentos) for b in bs), CERO)
+    planilla.total_aportes = sum((_d(b.total_aportes) for b in bs), CERO)
+    planilla.total_neto = planilla.total_ingresos - planilla.total_descuentos
+
+
+def editar_boleta_detalle(db: Session, empresa_id: str, planilla_id: str,
+                          boleta_id: str, concepto_id: str, monto) -> Planilla:
+    """Ajuste manual (override) de un concepto en una boleta mientras la planilla
+    está 'calculada'. monto<=0 elimina el detalle. Recalcula boleta y planilla.
+    Permite corregir los descuentos automáticos por asistencia antes de aprobar."""
+    planilla = get_planilla(db, empresa_id, planilla_id)
+    if planilla.estado != "calculada":
+        raise HTTPException(status_code=409,
+                            detail=f"Solo se edita una planilla 'calculada' (actual: {planilla.estado}).")
+    boleta = db.query(BoletaPago).filter(
+        BoletaPago.id == boleta_id, BoletaPago.planilla_id == planilla_id).first()
+    if boleta is None:
+        raise HTTPException(status_code=404, detail="Boleta no encontrada.")
+    concepto = db.query(ConceptoRemunerativo).filter(
+        ConceptoRemunerativo.id == concepto_id,
+        ConceptoRemunerativo.empresa_id == empresa_id).first()
+    if concepto is None:
+        raise HTTPException(status_code=404, detail="Concepto no encontrado.")
+
+    m = _d(monto)
+    det = db.query(BoletaPagoDetalle).filter(
+        BoletaPagoDetalle.boleta_id == boleta.id,
+        BoletaPagoDetalle.concepto_id == concepto_id).first()
+    if m <= CERO:
+        if det is not None:
+            db.delete(det)
+    elif det is not None:
+        det.monto = m
+    else:
+        db.add(BoletaPagoDetalle(boleta_id=boleta.id, concepto_id=concepto_id, monto=m))
+    db.flush()
+
+    _recompute_boleta(db, boleta)
+    _recompute_planilla(db, planilla)
     db.commit()
     db.refresh(planilla)
     return planilla

@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer, Date, Text
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer, Date, Text, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from app.db.database import Base
 
 def _uuid():
@@ -61,6 +62,17 @@ class Equipo(Base):
     # ── Estado operativo / averiados (Fase 3) ──────────────────────────────
     cantidad_inoperativa = Column(Integer,    nullable=False, default=0)
     estado_operativo     = Column(String(20), nullable=True, default="operativo")  # operativo|parcial|inoperativo
+
+    # ── Ingreso Directo: specs flexibles + datos de compra/asignación ───────
+    # `atributos` guarda los campos específicos por tipo (procesador, RAM,
+    # almacenamiento, SO, IP, MAC para equipo_tecnologico…) sin migraciones.
+    atributos        = Column(JSONB,         nullable=True)
+    asignado_a       = Column(String(200),   nullable=True)   # usuario/responsable al que se asigna
+    proveedor        = Column(String(200),   nullable=True)
+    precio_compra    = Column(Numeric(12, 2), nullable=True)
+    fecha_garantia   = Column(Date,          nullable=True)
+    imagen_url       = Column(Text,          nullable=True)
+    observaciones    = Column(Text,          nullable=True)
 
     created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at       = Column(DateTime, nullable=True)

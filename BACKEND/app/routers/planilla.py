@@ -17,13 +17,15 @@ from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
+from ..models.empresa import Empresa
 from ..models.contabilidad import PeriodoContable
 from ..models.planilla import (
     ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle, EmpleadoConcepto,
 )
 from ..schemas.planilla import (
-    ConceptoCreate, ConceptoOut, PlanillaOut, BoletaOut, BoletaDetalleOut,
+    ConceptoCreate, ConceptoUpdate, ConceptoOut, PlanillaOut, BoletaOut, BoletaDetalleOut,
     EmpleadoPlanillaOut, AsignacionOut, AsignacionItem,
+    BoletaDetalleUpdate, ConfigPlanillaOut, ConfigPlanillaUpdate,
 )
 from ..services import planilla_service as planilla_svc
 
@@ -54,7 +56,8 @@ def listar_conceptos(
     filas = db.query(ConceptoRemunerativo).filter(
         ConceptoRemunerativo.empresa_id == payload["empresa_id"]).order_by(ConceptoRemunerativo.codigo).all()
     return [ConceptoOut(id=str(c.id), codigo=c.codigo, nombre=c.nombre, tipo=c.tipo,
-                        monto_referencial=c.monto_referencial, activo=(c.activo == "true")) for c in filas]
+                        monto_referencial=c.monto_referencial, activo=(c.activo == "true"),
+                        es_base=(getattr(c, "es_base", "false") == "true")) for c in filas]
 
 
 @router.post("/conceptos", response_model=ConceptoOut, status_code=201)
@@ -72,12 +75,76 @@ def crear_concepto(
         empresa_id=payload["empresa_id"], codigo=body.codigo, nombre=body.nombre, tipo=body.tipo,
         monto_referencial=body.monto_referencial, formula_referencial=body.formula_referencial,
         cuenta_contable_id=body.cuenta_contable_id, activo="true",
+        es_base="true" if body.es_base else "false",
     )
     db.add(c)
     db.commit()
     db.refresh(c)
     return ConceptoOut(id=str(c.id), codigo=c.codigo, nombre=c.nombre, tipo=c.tipo,
-                       monto_referencial=c.monto_referencial, activo=True)
+                       monto_referencial=c.monto_referencial, activo=True,
+                       es_base=bool(body.es_base))
+
+
+@router.patch("/conceptos/{concepto_id}", response_model=ConceptoOut)
+def actualizar_concepto(
+    concepto_id: str,
+    body: ConceptoUpdate,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Actualiza un concepto (nombre/monto/activo) y permite marcarlo como BASE
+    (es_base) para el valor día de los descuentos por asistencia. Solo un concepto
+    base por empresa: marcar uno desmarca el resto."""
+    exigir_permiso(db, payload, "planilla", "calcular")
+    empresa_id = payload["empresa_id"]
+    c = db.query(ConceptoRemunerativo).filter(
+        ConceptoRemunerativo.id == concepto_id,
+        ConceptoRemunerativo.empresa_id == empresa_id).first()
+    if c is None:
+        raise HTTPException(status_code=404, detail="Concepto no encontrado.")
+    if body.nombre is not None:
+        c.nombre = body.nombre
+    if body.monto_referencial is not None:
+        c.monto_referencial = body.monto_referencial
+    if body.activo is not None:
+        c.activo = "true" if body.activo else "false"
+    if body.es_base is not None:
+        if body.es_base:
+            # base único: desmarca cualquier otro concepto base de la empresa
+            db.query(ConceptoRemunerativo).filter(
+                ConceptoRemunerativo.empresa_id == empresa_id,
+                ConceptoRemunerativo.id != c.id,
+                ConceptoRemunerativo.es_base == "true").update(
+                    {ConceptoRemunerativo.es_base: "false"}, synchronize_session=False)
+        c.es_base = "true" if body.es_base else "false"
+    db.commit()
+    db.refresh(c)
+    return ConceptoOut(id=str(c.id), codigo=c.codigo, nombre=c.nombre, tipo=c.tipo,
+                       monto_referencial=c.monto_referencial, activo=(c.activo == "true"),
+                       es_base=(c.es_base == "true"))
+
+
+@router.get("/config", response_model=ConfigPlanillaOut)
+def obtener_config(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "planilla", "ver")
+    emp = db.query(Empresa).filter(Empresa.id == payload["empresa_id"]).first()
+    return ConfigPlanillaOut(
+        descuento_tardanza_auto=bool(getattr(emp, "descuento_tardanza_auto", True)) if emp else True)
+
+
+@router.patch("/config", response_model=ConfigPlanillaOut)
+def actualizar_config(
+    body: ConfigPlanillaUpdate,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "planilla", "calcular")
+    emp = db.query(Empresa).filter(Empresa.id == payload["empresa_id"]).first()
+    if emp is None:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    emp.descuento_tardanza_auto = bool(body.descuento_tardanza_auto)
+    db.commit()
+    return ConfigPlanillaOut(descuento_tardanza_auto=bool(emp.descuento_tardanza_auto))
 
 
 # ── Planilla ─────────────────────────────────────────────────────────────────
@@ -267,3 +334,18 @@ def listar_boletas(
             ) for d in detalles],
         ))
     return salida
+
+
+@router.patch("/{planilla_id}/boletas/{boleta_id}/detalle", response_model=PlanillaOut)
+def editar_detalle_boleta(
+    planilla_id: str,
+    boleta_id: str,
+    body: BoletaDetalleUpdate,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Override manual de un concepto en la boleta (p. ej. corregir el descuento
+    automático por falta/tardanza) mientras la planilla está 'calculada'.
+    monto=0 elimina el concepto. Recalcula totales de boleta y planilla."""
+    exigir_permiso(db, payload, "planilla", "calcular")
+    return _planilla_out(planilla_svc.editar_boleta_detalle(
+        db, payload["empresa_id"], planilla_id, boleta_id, body.concepto_id, body.monto))

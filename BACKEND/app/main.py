@@ -1009,6 +1009,10 @@ def _run_migrations():
         # ── Finanzas Fase 0/3: configuración contable por empresa (idempotente) ─
         conn.execute(text("ALTER TABLE empresa ADD COLUMN IF NOT EXISTS moneda_funcional VARCHAR(3) NOT NULL DEFAULT 'PEN'"))
         conn.execute(text("ALTER TABLE empresa ADD COLUMN IF NOT EXISTS regimen_tributario VARCHAR(30) NOT NULL DEFAULT 'general'"))
+        # Planilla Fase 2: descuento automático de tardanzas (config por empresa)
+        # + marca de concepto base (sueldo) para el "valor día" de los descuentos.
+        conn.execute(text("ALTER TABLE empresa ADD COLUMN IF NOT EXISTS descuento_tardanza_auto BOOLEAN NOT NULL DEFAULT TRUE"))
+        conn.execute(text("ALTER TABLE concepto_remunerativo ADD COLUMN IF NOT EXISTS es_base VARCHAR(5) NOT NULL DEFAULT 'false'"))
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────
@@ -1023,6 +1027,24 @@ def _run_migrations():
         conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS costo_unitario NUMERIC(14,4)"))
         conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS valor_total NUMERIC(14,2)"))
         conn.execute(text("ALTER TABLE movimiento_inventario ADD COLUMN IF NOT EXISTS asiento_id uuid REFERENCES asiento_contable(id)"))
+        conn.commit()
+
+        # ── Ingreso Directo: specs flexibles + datos de compra/asignación ─────
+        # `atributos` (JSONB) guarda los campos específicos por tipo de artículo
+        # (specs TI de equipos tecnológicos, marca opcional de materiales…) sin
+        # requerir nuevas migraciones cuando logística amplíe el formulario.
+        conn.execute(text("ALTER TABLE equipo   ADD COLUMN IF NOT EXISTS atributos JSONB"))
+        conn.execute(text("ALTER TABLE equipo   ADD COLUMN IF NOT EXISTS asignado_a VARCHAR(200)"))
+        conn.execute(text("ALTER TABLE equipo   ADD COLUMN IF NOT EXISTS proveedor VARCHAR(200)"))
+        conn.execute(text("ALTER TABLE equipo   ADD COLUMN IF NOT EXISTS precio_compra NUMERIC(12,2)"))
+        conn.execute(text("ALTER TABLE equipo   ADD COLUMN IF NOT EXISTS fecha_garantia DATE"))
+        conn.execute(text("ALTER TABLE equipo   ADD COLUMN IF NOT EXISTS imagen_url TEXT"))
+        conn.execute(text("ALTER TABLE equipo   ADD COLUMN IF NOT EXISTS observaciones TEXT"))
+        conn.execute(text("ALTER TABLE material ADD COLUMN IF NOT EXISTS atributos JSONB"))
+        conn.execute(text("ALTER TABLE material ADD COLUMN IF NOT EXISTS imagen_url TEXT"))
+        # Ingreso Directo se materializa como TicketCompra sintético; aseguramos
+        # la columna `origen` (la usa el guard y el historial de /ingresos).
+        conn.execute(text("ALTER TABLE ticket_compra ADD COLUMN IF NOT EXISTS origen VARCHAR(30)"))
         conn.commit()
 
         # ── Almacén predeterminado (Oficina): destino por defecto de altas/compras
