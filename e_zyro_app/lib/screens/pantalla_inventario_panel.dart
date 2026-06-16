@@ -12,6 +12,7 @@ import 'pantalla_equipos_logistica.dart';
 import 'pantalla_epp.dart';
 import 'logistica/almacen/pantalla_requerimientos_logistica.dart';
 import 'logistica/almacen/pantalla_transferencias_almacen.dart';
+import 'logistica/pantalla_ingreso_directo.dart';
 
 /// Panel del encargado de logística — dashboard de inventario + accesos a la
 /// gestión. Usa el estilo "Paper Dots" (bitácora) de forma permanente.
@@ -86,7 +87,7 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
                       const SizedBox(height: 16),
                       _buildKpis(),
                       const SizedBox(height: 22),
-                      const PaperSectionHeader(title: 'Gestión', trailing: '08 áreas'),
+                      const PaperSectionHeader(title: 'Gestión', trailing: '09 áreas'),
                       const SizedBox(height: 12),
                       _buildGestion(),
                       const SizedBox(height: 22),
@@ -250,6 +251,14 @@ class _PantallaInventarioPanelState extends State<PantallaInventarioPanel> {
         subtitle: 'Entre almacenes',
         onTap: () => Navigator.push(context,
             MaterialPageRoute(builder: (_) => const PantallaTransferenciasAlmacen())),
+      ),
+      _AccesoData(
+        icon: Icons.move_to_inbox_outlined,
+        color: kPaperSky,
+        label: 'Ingreso Directo',
+        subtitle: 'Alta de artículos',
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const PantallaIngresoDirecto())),
       ),
     ];
 

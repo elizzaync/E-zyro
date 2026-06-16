@@ -87,6 +87,7 @@ class ComprasService {
     String? nota,
     required bool completado,
     required List<Map<String, dynamic>> items,
+    Map<String, dynamic>? comprobante,
   }) async {
     try {
       final r = await _client.patch('/logistica/compras/$id/procesar', {
@@ -97,6 +98,7 @@ class ComprasService {
         'nota': nota,
         'completado': completado,
         'items': items,
+        'comprobante': ?comprobante,
       });
       if (r.statusCode == 200) {
         return ApiResult.ok(

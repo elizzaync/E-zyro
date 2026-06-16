@@ -7,6 +7,9 @@ import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import '../widgets/geo_cascade_picker.dart';
+import '../pdf/pdf_service.dart';
+import '../pdf/pdf_preview_screen.dart';
+import '../widgets/scanner_codigo.dart';
 
 class PantallaEquiposLogistica extends StatefulWidget {
   const PantallaEquiposLogistica({super.key});
@@ -340,6 +343,21 @@ class _State extends State<PantallaEquiposLogistica>
                   ),
                 ),
 
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _generarEtiqueta(e),
+                    icon: const Icon(Icons.qr_code_2, size: 18),
+                    label: const Text('Etiqueta QR'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+
                 if (AppSession.i.canGestionarInventario) ...[
                   const SizedBox(height: 12),
                   SizedBox(
@@ -363,6 +381,42 @@ class _State extends State<PantallaEquiposLogistica>
           ]),
         ),
       ),
+    );
+  }
+
+  // Escanea un código y lo vuelca en el buscador para filtrar la lista.
+  Future<void> _escanearBuscar() async {
+    final cod = await ScannerCodigo.abrir(context, titulo: 'Escanear equipo');
+    if (cod != null && cod.trim().isNotEmpty) {
+      _searchCtrl.text = cod.trim();
+    }
+  }
+
+  // Genera y previsualiza la etiqueta QR imprimible del equipo.
+  Future<void> _generarEtiqueta(EquipoItem e) async {
+    final codigo = e.codigo.trim().isNotEmpty
+        ? e.codigo.trim()
+        : (e.numeroSerie?.trim() ?? '');
+    if (codigo.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('El equipo no tiene código ni N° de serie para la etiqueta.'),
+      ));
+      return;
+    }
+    final bytes = await PdfService.etiquetaEquipo(
+      codigo: codigo,
+      nombre: e.nombre,
+      marca: e.marca,
+      modelo: e.modelo,
+      numeroSerie: e.numeroSerie,
+    );
+    if (!mounted) return;
+    await PdfPreviewScreen.abrir(
+      context,
+      bytes: bytes,
+      nombreArchivo: 'etiqueta_$codigo.pdf',
+      titulo: 'Etiqueta · $codigo',
     );
   }
 
@@ -735,10 +789,17 @@ class _State extends State<PantallaEquiposLogistica>
                 decoration: InputDecoration(
                   hintText: 'Buscar por nombre, marca, código...',
                   prefixIcon: const Icon(Icons.search, size: 20, color: _green),
-                  suffixIcon: _q.isNotEmpty
-                      ? IconButton(icon: const Icon(Icons.clear, size: 18),
-                          onPressed: () => _searchCtrl.clear())
-                      : null,
+                  suffixIcon: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (_q.isNotEmpty)
+                      IconButton(icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () => _searchCtrl.clear()),
+                    IconButton(
+                      tooltip: 'Escanear código',
+                      icon: const Icon(Icons.qr_code_scanner_rounded,
+                          size: 20, color: _green),
+                      onPressed: _escanearBuscar,
+                    ),
+                  ]),
                   filled: true,
                   fillColor: isDark
                       ? _green.withValues(alpha: 0.06) : Colors.grey.shade100,

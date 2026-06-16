@@ -49,6 +49,7 @@ dependencies:
   table_calendar: ^3.1.2
   intl: ^0.19.0
   camera: ^0.11.0
+  mobile_scanner: ^5.2.3
   signature: ^6.3.0
   url_launcher: ^6.3.0
   pdf: ^3.10.7

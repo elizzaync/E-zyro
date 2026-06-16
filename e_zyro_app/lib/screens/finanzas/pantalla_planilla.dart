@@ -20,6 +20,9 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
   List<ConceptoRemunerativo> _conceptos = [];
   bool _loadingConceptos = true;
 
+  bool? _descTardanzaAuto; // null mientras carga
+  bool _togglingConfig = false;
+
   List<EmpleadoPlanilla> _empleados = [];
   List<AsignacionConcepto> _asignaciones = [];
   bool _loadingSueldos = true;
@@ -34,6 +37,87 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
     _cargarPlanillas();
     _cargarConceptos();
     _cargarSueldos();
+    _cargarConfig();
+  }
+
+  Future<void> _cargarConfig() async {
+    final svc = await getFinanzasService();
+    final r = await svc.getDescuentoTardanzaAuto();
+    if (!mounted) return;
+    setState(() {
+      if (r.ok) _descTardanzaAuto = r.data!;
+    });
+  }
+
+  Future<void> _toggleDescTardanza(bool v) async {
+    setState(() => _togglingConfig = true);
+    final svc = await getFinanzasService();
+    final r = await svc.setDescuentoTardanzaAuto(v);
+    if (!mounted) return;
+    setState(() {
+      _togglingConfig = false;
+      if (r.ok) _descTardanzaAuto = r.data!;
+    });
+    if (r.ok) {
+      mostrarOk(context, v
+          ? 'Las tardanzas se descontarán automáticamente.'
+          : 'Descuento automático de tardanzas desactivado.');
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  void _abrirAjustes() {
+    showModalBottomSheet(
+      context: context,
+      useSafeArea: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Ajustes de planilla', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              if (_descTardanzaAuto == null)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Descontar tardanzas automáticamente'),
+                  subtitle: const Text(
+                    'Al calcular la planilla, descuenta las tardanzas registradas en asistencia.',
+                  ),
+                  value: _descTardanzaAuto!,
+                  onChanged: _togglingConfig
+                      ? null
+                      : (v) async {
+                          await _toggleDescTardanza(v);
+                          if (ctx.mounted) setSt(() {});
+                        },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _marcarBase(ConceptoRemunerativo c) async {
+    if (c.esBase) return;
+    final svc = await getFinanzasService();
+    final r = await svc.marcarConceptoBase(c.id, true);
+    if (!mounted) return;
+    if (r.ok) {
+      mostrarOk(context, '"${c.nombre}" marcado como concepto base (sueldo).');
+      _cargarConceptos();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
   }
 
   @override
@@ -214,7 +298,14 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
     return Scaffold(
       appBar: AppBar(
         title: const Text('Planilla'),
-        actions: [accionConmutadorFinanzas(context, actual: FinId.planilla)],
+        actions: [
+          IconButton(
+            tooltip: 'Ajustes de planilla',
+            icon: const Icon(Icons.tune),
+            onPressed: _abrirAjustes,
+          ),
+          accionConmutadorFinanzas(context, actual: FinId.planilla),
+        ],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [Tab(text: 'Planillas'), Tab(text: 'Conceptos'), Tab(text: 'Sueldos')],
@@ -407,30 +498,92 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
   Widget _tabConceptos() {
     if (_loadingConceptos) return const Center(child: CircularProgressIndicator());
     if (_conceptos.isEmpty) return const Center(child: Text('Sin conceptos remunerativos registrados'));
+    final puedeEditar = AppSession.i.canCalcularPlanilla;
+    final hayBase = _conceptos.any((c) => c.esBase);
     return RefreshIndicator(
       onRefresh: _cargarConceptos,
       child: ListView.separated(
         padding: const EdgeInsets.all(12),
-        itemCount: _conceptos.length,
+        itemCount: _conceptos.length + 1,
         separatorBuilder: (_, _) => const SizedBox(height: 6),
         itemBuilder: (_, i) {
-          final c = _conceptos[i];
+          if (i == 0) {
+            if (hayBase) return const SizedBox.shrink();
+            return Card(
+              color: Colors.amber.withValues(alpha: 0.12),
+              child: const Padding(
+                padding: EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Ningún concepto está marcado como Base (sueldo). '
+                        'Los descuentos por asistencia (faltas/tardanzas) no se '
+                        'calcularán hasta marcar uno.',
+                        style: TextStyle(fontSize: 12.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          final c = _conceptos[i - 1];
           final color = switch (c.tipo) {
             'ingreso' => Colors.green,
             'descuento' => Colors.deepOrange,
             _ => Colors.blueGrey,
           };
+          // Solo un concepto de tipo ingreso tiene sentido como base (sueldo).
+          final puedeSerBase = c.tipo == 'ingreso';
           return Card(
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: color.withValues(alpha: 0.15),
                 child: Text(c.codigo, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
               ),
-              title: Text(c.nombre),
+              title: Row(
+                children: [
+                  Flexible(child: Text(c.nombre)),
+                  if (c.esBase) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
+                      ),
+                      child: const Text('Base (sueldo)',
+                          style: TextStyle(color: Colors.purple, fontSize: 10.5, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
+                ],
+              ),
               subtitle: Text(c.tipo.replaceAll('_', ' ')),
-              trailing: c.montoReferencial != null
-                  ? Text(money(c.montoReferencial!), style: const TextStyle(fontWeight: FontWeight.w600))
-                  : (c.activo ? null : const Icon(Icons.visibility_off_outlined, size: 18, color: Colors.grey)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (c.montoReferencial != null)
+                    Text(money(c.montoReferencial!), style: const TextStyle(fontWeight: FontWeight.w600))
+                  else if (!c.activo)
+                    const Icon(Icons.visibility_off_outlined, size: 18, color: Colors.grey),
+                  if (puedeEditar && puedeSerBase && !c.esBase) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Marcar como base (sueldo)',
+                      icon: const Icon(Icons.star_outline, size: 20),
+                      onPressed: () => _marcarBase(c),
+                    ),
+                  ] else if (c.esBase)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Icon(Icons.star, size: 20, color: Colors.purple),
+                    ),
+                ],
+              ),
             ),
           );
         },
@@ -449,31 +602,99 @@ class _PantallaDetallePlanilla extends StatefulWidget {
   State<_PantallaDetallePlanilla> createState() => _PantallaDetallePlanillaState();
 }
 
+// Códigos de descuento que provienen del módulo de asistencia.
+const _codigosAsistencia = {'DESC_FALTA', 'DESC_TARDANZA'};
+
 class _PantallaDetallePlanillaState extends State<_PantallaDetallePlanilla> {
   List<BoletaPago> _boletas = [];
   bool _loading = true;
+  late Planilla _planilla; // mutable: se actualiza tras un override
+
+  bool get _editable => _planilla.estado == 'calculada';
 
   @override
   void initState() {
     super.initState();
+    _planilla = widget.planilla;
     _cargar();
   }
 
   Future<void> _cargar() async {
     setState(() => _loading = true);
     final svc = await getFinanzasService();
-    final r = await svc.listarBoletas(widget.planilla.id);
+    final rb = await svc.listarBoletas(_planilla.id);
+    final rp = await svc.obtenerPlanilla(_planilla.id);
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (r.ok) _boletas = r.data!;
+      if (rb.ok) _boletas = rb.data!;
+      if (rp.ok) _planilla = rp.data!;
     });
-    if (!r.ok) mostrarError(context, r.errorMessage);
+    if (!rb.ok) mostrarError(context, rb.errorMessage);
+  }
+
+  Future<void> _editarDetalle(BoletaPago b, BoletaPagoDetalle d) async {
+    final ctrl = TextEditingController(text: d.monto.toStringAsFixed(2));
+    final esAsistencia = _codigosAsistencia.contains(d.conceptoCodigo);
+    final nuevo = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(d.conceptoNombre ?? 'Concepto ${d.conceptoId}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (esAsistencia)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('Descuento por asistencia. Ajusta o pon 0 para eliminarlo.',
+                    style: TextStyle(fontSize: 12, color: Colors.deepOrange)),
+              ),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Monto',
+                helperText: '0 elimina el concepto de la boleta',
+                border: OutlineInputBorder(),
+                prefixText: 'S/ ',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () {
+              final v = double.tryParse(ctrl.text.trim().replaceAll(',', '.'));
+              if (v == null || v < 0) {
+                mostrarError(ctx, 'Ingresa un monto válido (≥ 0).');
+                return;
+              }
+              Navigator.pop(ctx, v);
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    if (nuevo == null || !mounted) return;
+    final svc = await getFinanzasService();
+    final r = await svc.editarDetalleBoleta(_planilla.id, b.id, d.conceptoId, nuevo);
+    if (!mounted) return;
+    if (r.ok) {
+      setState(() => _planilla = r.data!);
+      mostrarOk(context, 'Concepto actualizado. Totales recalculados.');
+      _cargar(); // refresca boletas con los nuevos detalles
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.planilla;
+    final p = _planilla;
     return Scaffold(
       appBar: AppBar(title: Text('Planilla ${p.fechaProceso}')),
       body: _loading
@@ -499,6 +720,13 @@ class _PantallaDetallePlanillaState extends State<_PantallaDetallePlanilla> {
                           const SizedBox(height: 4),
                           Text(money(p.totalNeto),
                               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text(
+                            _editable
+                                ? 'Puedes ajustar (override) los conceptos de cada boleta antes de aprobar.'
+                                : 'Solo lectura: la planilla ya no está en estado "calculada".',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          ),
                         ],
                       ),
                     ),
@@ -513,43 +741,107 @@ class _PantallaDetallePlanillaState extends State<_PantallaDetallePlanilla> {
                       child: Center(child: Text('Sin boletas generadas', style: TextStyle(color: Colors.grey))),
                     )
                   else
-                    ..._boletas.map((b) => Card(
-                          child: ExpansionTile(
-                            leading: const CircleAvatar(child: Icon(Icons.badge_outlined)),
-                            title: Text(b.empleadoNombre ?? 'Empleado ${b.empleadoId}'),
-                            subtitle: Text('Neto: ${money(b.totalNeto)}'),
-                            children: [
-                              ListTile(
-                                dense: true,
-                                title: const Text('Ingresos'),
-                                trailing: Text(money(b.totalIngresos), style: const TextStyle(color: Colors.green)),
-                              ),
-                              ListTile(
-                                dense: true,
-                                title: const Text('Descuentos'),
-                                trailing: Text(money(b.totalDescuentos), style: const TextStyle(color: Colors.deepOrange)),
-                              ),
-                              ListTile(
-                                dense: true,
-                                title: const Text('Aportes empleador'),
-                                trailing: Text(money(b.totalAportes)),
-                              ),
-                              const Divider(height: 1),
-                              ...b.detalles.map((d) => ListTile(
-                                    dense: true,
-                                    leading: const Icon(Icons.fiber_manual_record, size: 10),
-                                    title: Text(
-                                      d.conceptoNombre ?? 'Concepto ${d.conceptoId}',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                    trailing: Text(money(d.monto), style: const TextStyle(fontSize: 12)),
-                                  )),
-                            ],
-                          ),
-                        )),
+                    ..._boletas.map(_buildBoleta),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildBoleta(BoletaPago b) {
+    final ingresos = b.detalles.where((d) {
+      final cod = d.conceptoCodigo ?? '';
+      return !_codigosAsistencia.contains(cod) && d.monto >= 0 && !cod.startsWith('DESC');
+    }).toList();
+    final descuentos = b.detalles
+        .where((d) => !ingresos.contains(d))
+        .toList();
+    return Card(
+      child: ExpansionTile(
+        leading: const CircleAvatar(child: Icon(Icons.badge_outlined)),
+        title: Text(b.empleadoNombre ?? 'Empleado ${b.empleadoId}'),
+        subtitle: Text('Neto: ${money(b.totalNeto)}'),
+        children: [
+          ListTile(
+            dense: true,
+            title: const Text('Ingresos'),
+            trailing: Text(money(b.totalIngresos), style: const TextStyle(color: Colors.green)),
+          ),
+          ListTile(
+            dense: true,
+            title: const Text('Descuentos'),
+            trailing: Text(money(b.totalDescuentos), style: const TextStyle(color: Colors.deepOrange)),
+          ),
+          ListTile(
+            dense: true,
+            title: const Text('Aportes empleador'),
+            trailing: Text(money(b.totalAportes)),
+          ),
+          const Divider(height: 1),
+          if (ingresos.isNotEmpty) ...[
+            _seccionTitulo('Ingresos'),
+            ...ingresos.map((d) => _filaDetalle(b, d)),
+          ],
+          if (descuentos.isNotEmpty) ...[
+            _seccionTitulo('Descuentos'),
+            ...descuentos.map((d) => _filaDetalle(b, d)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _seccionTitulo(String t) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+        child: Text(t.toUpperCase(),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600, letterSpacing: 0.5)),
+      );
+
+  Widget _filaDetalle(BoletaPago b, BoletaPagoDetalle d) {
+    final esAsistencia = _codigosAsistencia.contains(d.conceptoCodigo);
+    return ListTile(
+      dense: true,
+      leading: esAsistencia
+          ? const Icon(Icons.event_busy, size: 16, color: Colors.deepOrange)
+          : const Icon(Icons.fiber_manual_record, size: 10),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              d.conceptoNombre ?? 'Concepto ${d.conceptoId}',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+          if (esAsistencia) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.deepOrange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Text('Asistencia',
+                  style: TextStyle(fontSize: 9.5, color: Colors.deepOrange, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ],
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(money(d.monto), style: const TextStyle(fontSize: 12)),
+          if (_editable) ...[
+            const SizedBox(width: 2),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Ajustar monto',
+              icon: const Icon(Icons.edit, size: 16),
+              onPressed: () => _editarDetalle(b, d),
+            ),
+          ],
+        ],
+      ),
+      onTap: _editable ? () => _editarDetalle(b, d) : null,
     );
   }
 }

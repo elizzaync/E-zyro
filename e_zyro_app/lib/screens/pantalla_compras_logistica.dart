@@ -785,6 +785,16 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
   late List<_ItemForm> _items;
   bool _enviando = false;
 
+  // Comprobante (genera Cuenta por Pagar) — opcional.
+  bool _compActiva = false;
+  String? _compProveedorId;
+  String _compTipoDoc = 'factura';
+  final _compNumeroCtrl = TextEditingController();
+  DateTime? _compFechaEmision;
+  DateTime? _compFechaVencimiento;
+  final _compSubtotalCtrl = TextEditingController();
+  final _compIgvCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -796,12 +806,17 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
     _canalUnicoCtrl.text = t.canalUnico ?? '';
     _notaCtrl.text = t.nota ?? '';
     _items = t.items.map((it) => _ItemForm.fromItem(it)).toList();
+    // Prerrellena el proveedor del comprobante con el proveedor único, si lo hay.
+    _compProveedorId = t.proveedorUnicoId;
   }
 
   @override
   void dispose() {
     _canalUnicoCtrl.dispose();
     _notaCtrl.dispose();
+    _compNumeroCtrl.dispose();
+    _compSubtotalCtrl.dispose();
+    _compIgvCtrl.dispose();
     super.dispose();
   }
 
@@ -840,8 +855,56 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
     }).toList();
   }
 
+  double get _compSubtotal =>
+      double.tryParse(_compSubtotalCtrl.text.trim().replaceAll(',', '.')) ?? 0;
+  double get _compIgv =>
+      double.tryParse(_compIgvCtrl.text.trim().replaceAll(',', '.')) ?? 0;
+
+  /// Valida la sección del comprobante (solo si está activa).
+  String? _validarComprobante() {
+    if (!_compActiva) return null;
+    if (_compProveedorId == null) return 'Selecciona el proveedor del comprobante.';
+    if (_compNumeroCtrl.text.trim().isEmpty) {
+      return 'Ingresa el número de documento.';
+    }
+    if (_compFechaEmision == null) return 'Selecciona la fecha de emisión.';
+    if (_compFechaVencimiento == null) {
+      return 'Selecciona la fecha de vencimiento.';
+    }
+    if (_compFechaVencimiento!.isBefore(_compFechaEmision!)) {
+      return 'La fecha de vencimiento no puede ser anterior a la de emisión.';
+    }
+    if (_compSubtotal <= 0) return 'El subtotal debe ser mayor a 0.';
+    return null;
+  }
+
+  Map<String, dynamic> _buildComprobante() => {
+        'proveedorId': _compProveedorId,
+        'tipoDocumento': _compTipoDoc,
+        'numeroDocumento': _compNumeroCtrl.text.trim(),
+        'fechaEmision': _fmtFecha(_compFechaEmision!),
+        'fechaVencimiento': _fmtFecha(_compFechaVencimiento!),
+        'subtotal': _compSubtotal,
+        'igv': _compIgv,
+      };
+
+  static String _fmtFecha(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   Future<void> _enviar({required bool completado}) async {
     if (completado && !_puedeCompletar) return;
+    // El comprobante solo aplica al completar la compra.
+    if (completado) {
+      final errComp = _validarComprobante();
+      if (errComp != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(errComp),
+          backgroundColor: _kRed,
+          behavior: SnackBarBehavior.floating,
+        ));
+        return;
+      }
+    }
     setState(() => _enviando = true);
     final res = await widget.service.procesarCompra(
       widget.ticket.id,
@@ -856,6 +919,7 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
       completado: completado,
       items: _buildItems(),
+      comprobante: (completado && _compActiva) ? _buildComprobante() : null,
     );
     if (!mounted) return;
     setState(() => _enviando = false);
@@ -971,9 +1035,11 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
               child: ListView.separated(
                 controller: scrollCtrl,
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                itemCount: _items.length,
+                itemCount: _items.length + 1,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (_, i) => _buildItemCard(_items[i], i, fill),
+                itemBuilder: (_, i) => i < _items.length
+                    ? _buildItemCard(_items[i], i, fill)
+                    : _buildComprobanteCard(fill),
               ),
             ),
             // Footer
@@ -1052,6 +1118,8 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
                       } else {
                         _proveedorUnicoId = p.id;
                         _proveedorUnicoNombre = p.nombre;
+                        // Prerrellena el proveedor del comprobante.
+                        _compProveedorId = p.id;
                       }
                     }),
                     child: Container(
@@ -1227,6 +1295,183 @@ class _ProcesarSheetState extends State<_ProcesarSheet> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildComprobanteCard(Color fill) {
+    const tiposDoc = <(String, String)>[
+      ('factura', 'Factura'),
+      ('boleta', 'Boleta'),
+      ('nota_credito', 'Nota de crédito'),
+      ('nota_debito', 'Nota de débito'),
+    ];
+    final total = _compSubtotal + _compIgv;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _compActiva
+            ? _kBlue.withValues(alpha: 0.05)
+            : fill.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: _compActiva
+                ? _kBlue.withValues(alpha: 0.4)
+                : Colors.grey.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.receipt_long_outlined, size: 18, color: _kBlue),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text('Comprobante (genera Cuenta por Pagar)',
+                  style:
+                      TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            Switch(
+              value: _compActiva,
+              activeThumbColor: _kPurple,
+              onChanged: (v) => setState(() => _compActiva = v),
+            ),
+          ]),
+          if (_compActiva) ...[
+            const Text(
+              'Solo se envía al "Completar". Crea la CxP pendiente en Finanzas.',
+              style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String?>(
+              initialValue: widget.proveedores
+                      .any((p) => p.id == _compProveedorId)
+                  ? _compProveedorId
+                  : null,
+              isExpanded: true,
+              decoration: _fieldDeco('Proveedor', fill),
+              items: [
+                const DropdownMenuItem(
+                    value: null, child: Text('— Selecciona —')),
+                ...widget.proveedores.map((p) => DropdownMenuItem(
+                    value: p.id,
+                    child: Text(p.nombre, overflow: TextOverflow.ellipsis))),
+              ],
+              onChanged: (v) => setState(() => _compProveedorId = v),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _compTipoDoc,
+                  isExpanded: true,
+                  decoration: _fieldDeco('Tipo', fill),
+                  items: [
+                    for (final t in tiposDoc)
+                      DropdownMenuItem(value: t.$1, child: Text(t.$2)),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => _compTipoDoc = v ?? 'factura'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _compNumeroCtrl,
+                  decoration: _fieldDeco('N° documento', fill),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: _compFechaField(
+                  label: 'F. emisión',
+                  value: _compFechaEmision,
+                  fill: fill,
+                  onPick: (d) => setState(() {
+                    _compFechaEmision = d;
+                    if (_compFechaVencimiento != null &&
+                        _compFechaVencimiento!.isBefore(d)) {
+                      _compFechaVencimiento = d;
+                    }
+                  }),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _compFechaField(
+                  label: 'F. vencimiento',
+                  value: _compFechaVencimiento,
+                  fill: fill,
+                  firstDate: _compFechaEmision,
+                  onPick: (d) => setState(() => _compFechaVencimiento = d),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: TextField(
+                  controller: _compSubtotalCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                  decoration: _fieldDeco('Subtotal', fill),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _compIgvCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                  decoration: _fieldDeco('IGV', fill),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              const Text('Total', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              const Spacer(),
+              Text('S/ ${total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold)),
+            ]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _compFechaField({
+    required String label,
+    required DateTime? value,
+    required Color fill,
+    required ValueChanged<DateTime> onPick,
+    DateTime? firstDate,
+  }) {
+    final now = DateTime.now();
+    return InkWell(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: value ?? firstDate ?? now,
+          firstDate: firstDate ?? DateTime(now.year - 5),
+          lastDate: DateTime(now.year + 5),
+        );
+        if (picked != null) onPick(picked);
+      },
+      child: InputDecorator(
+        decoration: _fieldDeco(label, fill).copyWith(
+          suffixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
+        ),
+        child: Text(
+          value == null ? '—' : _fmtFecha(value),
+          style: TextStyle(
+              fontSize: 13,
+              color: value == null ? Colors.grey : null),
+        ),
       ),
     );
   }

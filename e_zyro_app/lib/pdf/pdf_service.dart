@@ -13,6 +13,7 @@ import 'builders/salidas_builder.dart';
 import 'builders/gantt_builder.dart';
 import 'builders/calibracion_builder.dart';
 import 'builders/historial_personal_builder.dart';
+import 'builders/etiqueta_equipo_builder.dart';
 
 /// ╔══════════════════════════════════════════════════════════════════════════╗
 /// ║  PdfService — FACHADA ÚNICA de creación de PDFs de la app.                 ║
@@ -36,6 +37,7 @@ import 'builders/historial_personal_builder.dart';
 /// ║   - asistenciaUsuario()    [P3] Reporte de asistencia por usuario          ║
 /// ║   - historialPersonal()    Ficha/historial laboral de un empleado          ║
 /// ║   - historialCalibracion() Historial de calibraciones de un equipo         ║
+/// ║   - etiquetaEquipo()       Etiqueta QR imprimible de un equipo             ║
 /// ║   - gantt()                [P3] Cronograma Gantt del proyecto              ║
 /// ╚══════════════════════════════════════════════════════════════════════════╝
 class PdfService {
@@ -93,6 +95,19 @@ class PdfService {
   static Future<Uint8List> historialCalibracion(
           String equipoNombre, List<CalibracionEvento> eventos) =>
       CalibracionBuilder.build(equipoNombre: equipoNombre, eventos: eventos);
+
+  /// Etiqueta imprimible (tarjeta) con QR del código del equipo + datos.
+  static Future<Uint8List> etiquetaEquipo({
+    required String codigo,
+    required String nombre,
+    String? marca,
+    String? modelo,
+    String? numeroSerie,
+  }) =>
+      EtiquetaEquipoBuilder.build(
+        codigo: codigo, nombre: nombre,
+        marca: marca, modelo: modelo, numeroSerie: numeroSerie,
+      );
 
   // ── Proyectos ──────────────────────────────────────────────────────────────
 

@@ -32,6 +32,12 @@ import '../services/analitica_service.dart';
 import '../services/planos_service.dart';
 import '../services/soporte_service.dart';
 import '../services/finanzas_service.dart';
+import '../services/ingreso_directo_service.dart';
+
+Future<IngresoDirectoService> getIngresoDirectoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return IngresoDirectoService(ApiClient(prefs));
+}
 
 Future<FinanzasService> getFinanzasService() async {
   final prefs = await SharedPreferences.getInstance();

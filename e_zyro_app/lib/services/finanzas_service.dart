@@ -431,8 +431,82 @@ class FinanzasService {
   Future<ApiResult<Planilla>> obtenerPlanilla(String id) =>
       _getObj('/planilla/$id', Planilla.fromJson);
 
+  /// Marca/ajusta un concepto. El uso principal aquí es marcar el concepto
+  /// base (sueldo) con [esBase]=true; el backend garantiza base único.
+  Future<ApiResult<ConceptoRemunerativo>> actualizarConceptoPlanilla(
+    String conceptoId, {
+    String? nombre,
+    double? montoReferencial,
+    bool? activo,
+    bool? esBase,
+  }) async {
+    try {
+      final r = await _client.patch('/planilla/conceptos/$conceptoId', {
+        'nombre': ?nombre,
+        'monto_referencial': ?montoReferencial,
+        'activo': ?activo,
+        'es_base': ?esBase,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(ConceptoRemunerativo.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<ConceptoRemunerativo>> marcarConceptoBase(String conceptoId, bool esBase) =>
+      actualizarConceptoPlanilla(conceptoId, esBase: esBase);
+
+  /// Configuración global de planilla (por ahora: descuento de tardanzas auto).
+  Future<ApiResult<bool>> getDescuentoTardanzaAuto() async {
+    try {
+      final r = await _client.get('/planilla/config');
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return ApiResult.ok(body['descuento_tardanza_auto'] == true);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<bool>> setDescuentoTardanzaAuto(bool v) async {
+    try {
+      final r = await _client.patch('/planilla/config', {'descuento_tardanza_auto': v});
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return ApiResult.ok(body['descuento_tardanza_auto'] == true);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   Future<ApiResult<List<BoletaPago>>> listarBoletas(String planillaId) =>
       _getList('/planilla/$planillaId/boletas', BoletaPago.fromJson);
+
+  /// Override del monto de un concepto en una boleta (monto=0 lo elimina).
+  /// Solo si la planilla está 'calculada'. Devuelve la planilla con totales
+  /// recalculados.
+  Future<ApiResult<Planilla>> editarDetalleBoleta(
+      String planillaId, String boletaId, String conceptoId, double monto) async {
+    try {
+      final r = await _client.patch(
+        '/planilla/$planillaId/boletas/$boletaId/detalle',
+        {'concepto_id': conceptoId, 'monto': monto},
+      );
+      if (r.statusCode == 200) {
+        return ApiResult.ok(Planilla.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
 
   // ── Sueldos por empleado (asignación de montos por concepto) ───────────────
   Future<ApiResult<List<EmpleadoPlanilla>>> empleadosPlanilla() =>

@@ -362,9 +362,11 @@ class ConceptoRemunerativo {
   final String id, codigo, nombre, tipo;
   final double? montoReferencial;
   final bool activo;
+  final bool esBase;
   ConceptoRemunerativo({
     required this.id, required this.codigo, required this.nombre,
     required this.tipo, this.montoReferencial, required this.activo,
+    this.esBase = false,
   });
   factory ConceptoRemunerativo.fromJson(Map<String, dynamic> j) => ConceptoRemunerativo(
         id: j['id'].toString(),
@@ -373,6 +375,7 @@ class ConceptoRemunerativo {
         tipo: j['tipo']?.toString() ?? '',
         montoReferencial: j['monto_referencial'] != null ? _toD(j['monto_referencial']) : null,
         activo: j['activo'] == true,
+        esBase: j['es_base'] == true,
       );
 }
 
