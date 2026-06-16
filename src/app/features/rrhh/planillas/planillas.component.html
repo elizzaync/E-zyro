@@ -468,7 +468,8 @@
       </div>
     </div>
 
-    <!-- Tabla de conceptos -->
+    <!-- Tabla de Ingresos -->
+    <div class="boleta-info-title boleta-title-ingreso">Ingresos</div>
     <div class="boleta-table">
       <div class="bol-row bol-row-header">
         <span>Concepto</span><span>Detalle</span><span>Monto</span>
@@ -494,13 +495,37 @@
         </span>
         <span class="bol-monto text-green">+{{ formatMonto(pagoHorasExtra(boletaEmp)) }}</span>
       </div>
+      } @else {
+      <div class="bol-row bol-na">
+        <span class="bol-concepto">Horas Extra</span>
+        <span class="bol-detalle" style="grid-column: span 2;">Sin horas extra registradas este período</span>
+      </div>
       }
+
+      <div class="bol-row bol-row-subtotal">
+        <span class="bol-concepto">TOTAL INGRESOS</span>
+        <span class="bol-detalle"></span>
+        <span class="bol-monto text-green">{{ formatMonto(totalIngresos(boletaEmp)) }}</span>
+      </div>
+    </div>
+
+    <!-- Tabla de Descuentos -->
+    <div class="boleta-info-title boleta-title-descuento">Descuentos</div>
+    <div class="boleta-table">
+      <div class="bol-row bol-row-header">
+        <span>Concepto</span><span>Detalle</span><span>Monto</span>
+      </div>
 
       @if (descuentoFaltas(boletaEmp) > 0) {
       <div class="bol-row bol-descuento">
-        <span class="bol-concepto">Descuento por Faltas/Tardanzas</span>
+        <span class="bol-concepto">Faltas / Tardanzas</span>
         <span class="bol-detalle">{{ formatH(boletaEmp.horas_faltantes) }} × {{ formatMonto(valorHora(boletaEmp)) }}/h</span>
         <span class="bol-monto text-red">−{{ formatMonto(descuentoFaltas(boletaEmp)) }}</span>
+      </div>
+      } @else {
+      <div class="bol-row bol-na">
+        <span class="bol-concepto">Faltas / Tardanzas</span>
+        <span class="bol-detalle" style="grid-column: span 2;">Sin faltas ni tardanzas este período</span>
       </div>
       }
 
@@ -518,6 +543,15 @@
       </div>
       }
 
+      <div class="bol-row bol-row-subtotal bol-row-subtotal-desc">
+        <span class="bol-concepto">TOTAL DESCUENTOS</span>
+        <span class="bol-detalle"></span>
+        <span class="bol-monto text-red">−{{ formatMonto(totalDescuentosLegales(boletaEmp)) }}</span>
+      </div>
+    </div>
+
+    <!-- Resumen Neto -->
+    <div class="boleta-table boleta-neto-box">
       <div class="bol-row bol-row-total">
         <span class="bol-concepto">NETO A PAGAR</span>
         <span class="bol-detalle">{{ formatH(boletaEmp.horas_total) }} trabajadas</span>

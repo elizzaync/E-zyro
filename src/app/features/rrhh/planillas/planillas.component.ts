@@ -505,6 +505,10 @@ export class PlanillasComponent implements OnInit {
     return this.descuentoFaltas(emp) + this.descuentoPension(emp);
   }
 
+  totalIngresos(emp: ResumenEmpleadoDto): number {
+    return this.sueldoPeriodo(emp.id) + this.pagoHorasExtra(emp);
+  }
+
   // ── KPIs ──────────────────────────────────────────────────────────────────
 
   get kpis() {
@@ -620,22 +624,43 @@ export class PlanillasComponent implements OnInit {
         </tr>
       </table>
 
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#16a34a;letter-spacing:0.4px;margin-bottom:4px;">Ingresos</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:14px;">
         <tr style="background:#1e293b;">
           <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;">Concepto</td>
           <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Detalle</td>
           <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Monto</td>
         </tr>
         ${filasIngresos}
-        ${filasDescuentos}
-        <tr style="background:#dcfce7;border-top:2px solid #16a34a;">
-          <td style="padding:10px 10px;font-size:13px;font-weight:800;color:#1e293b;">NETO A PAGAR</td>
-          <td style="padding:10px 10px;font-size:10px;color:#64748b;text-align:right;">${this.formatH(emp.horas_total)} trabajadas</td>
-          <td style="padding:10px 10px;font-size:15px;font-weight:800;color:#16a34a;text-align:right;">${this.formatMonto(neto)}</td>
+        <tr style="background:#f0fdf4;border-top:1px solid #bbf7d0;">
+          <td style="padding:8px 10px;font-size:11px;font-weight:800;color:#1e293b;" colspan="2">TOTAL INGRESOS</td>
+          <td style="padding:8px 10px;font-size:12px;font-weight:800;color:#16a34a;text-align:right;">${this.formatMonto(this.totalIngresos(emp))}</td>
         </tr>
       </table>
 
-      <div style="margin-top:14px;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.4px;">Información adicional (no afecta el neto)</div>
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#dc2626;letter-spacing:0.4px;margin-bottom:4px;">Descuentos</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:14px;">
+        <tr style="background:#1e293b;">
+          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;">Concepto</td>
+          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Detalle</td>
+          <td style="padding:8px 10px;font-size:10px;font-weight:700;color:#fff;text-transform:uppercase;text-align:right;">Monto</td>
+        </tr>
+        ${filasDescuentos}
+        <tr style="background:#fef2f2;border-top:1px solid #fecaca;">
+          <td style="padding:8px 10px;font-size:11px;font-weight:800;color:#1e293b;" colspan="2">TOTAL DESCUENTOS</td>
+          <td style="padding:8px 10px;font-size:12px;font-weight:800;color:#dc2626;text-align:right;">−${this.formatMonto(this.totalDescuentosLegales(emp))}</td>
+        </tr>
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;border:2px solid #16a34a;border-radius:8px;overflow:hidden;margin-bottom:14px;">
+        <tr style="background:#dcfce7;">
+          <td style="padding:12px 14px;font-size:14px;font-weight:800;color:#1e293b;">NETO A PAGAR</td>
+          <td style="padding:12px 14px;font-size:10px;color:#64748b;text-align:right;">${this.formatH(emp.horas_total)} trabajadas</td>
+          <td style="padding:12px 14px;font-size:17px;font-weight:800;color:#16a34a;text-align:right;">${this.formatMonto(neto)}</td>
+        </tr>
+      </table>
+
+      <div style="margin-top:6px;font-size:10px;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:0.4px;">Beneficios y aportes (no afectan el neto)</div>
       <table style="width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-top:4px;">
         ${filasInformativas}
       </table>
@@ -666,7 +691,27 @@ export class PlanillasComponent implements OnInit {
     return s.replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  descargarPdf(emp: ResumenEmpleadoDto): void {
+  // Crea el nodo del voucher fuera de pantalla y espera a que el navegador
+  // termine el layout/paint antes de devolverlo. Sin esta espera, html2canvas
+  // a veces captura el elemento recién insertado ANTES de que tenga tamaño
+  // real, generando un PDF en blanco.
+  private async crearDivVoucher(emp: ResumenEmpleadoDto): Promise<HTMLElement> {
+    const div = document.createElement('div');
+    div.style.position = 'fixed';
+    div.style.top = '0';
+    div.style.left = '0';
+    div.style.zIndex = '-9999';
+    div.style.opacity = '0.01';
+    div.style.pointerEvents = 'none';
+    div.innerHTML = this.construirVoucherHtml(emp);
+    document.body.appendChild(div);
+    await new Promise<void>(resolve => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    return div;
+  }
+
+  async descargarPdf(emp: ResumenEmpleadoDto): Promise<void> {
     if (!this.esVistaMensual) {
       this.toast.mostrar('La boleta oficial se genera en la vista "Mes Completo"', 'error');
       return;
@@ -676,31 +721,26 @@ export class PlanillasComponent implements OnInit {
       return;
     }
     this.generandoPdf = true;
-    const div = document.createElement('div');
-    div.style.position = 'fixed';
-    div.style.left = '-9999px';
-    div.innerHTML = this.construirVoucherHtml(emp);
-    document.body.appendChild(div);
-
+    const div = await this.crearDivVoucher(emp);
     const filename = `Boleta_${emp.nombreCompleto.replace(/\s+/g, '_')}_${this.selectedYear}-${String(this.selectedMonth).padStart(2, '0')}.pdf`;
 
-    html2pdf().set({
-      margin: 0,
-      filename,
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-    }).from(div).save().then(() => {
-      document.body.removeChild(div);
-      this.generandoPdf = false;
+    try {
+      await html2pdf().set({
+        margin: 0,
+        filename,
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      }).from(div).save();
       this.toast.mostrar('Boleta PDF generada', 'success');
-    }).catch(() => {
+    } catch {
+      this.toast.mostrar('Error al generar el PDF', 'error');
+    } finally {
       document.body.removeChild(div);
       this.generandoPdf = false;
-      this.toast.mostrar('Error al generar el PDF', 'error');
-    });
+    }
   }
 
-  enviarALegajo(emp: ResumenEmpleadoDto): void {
+  async enviarALegajo(emp: ResumenEmpleadoDto): Promise<void> {
     if (!this.esVistaMensual) {
       this.toast.mostrar('La boleta oficial se genera en la vista "Mes Completo"', 'error');
       return;
@@ -714,18 +754,15 @@ export class PlanillasComponent implements OnInit {
       return;
     }
     this.generandoPdf = true;
-    const div = document.createElement('div');
-    div.style.position = 'fixed';
-    div.style.left = '-9999px';
-    div.innerHTML = this.construirVoucherHtml(emp);
-    document.body.appendChild(div);
+    const div = await this.crearDivVoucher(emp);
 
-    html2pdf().set({
-      margin: 0,
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-    }).from(div).outputPdf('blob').then((blob: Blob) => {
-      document.body.removeChild(div);
+    try {
+      const blob: Blob = await html2pdf().set({
+        margin: 0,
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      }).from(div).outputPdf('blob');
+
       const mesLabel = MESES_ES[this.selectedMonth];
       const nombreDoc = `Boleta de Pago - ${mesLabel} ${this.selectedYear}`;
       const archivo = new File([blob], `${nombreDoc}.pdf`, { type: 'application/pdf' });
@@ -749,11 +786,12 @@ export class PlanillasComponent implements OnInit {
           this.toast.mostrar(err?.error?.detail || 'Error al enviar la boleta al legajo', 'error');
         }
       });
-    }).catch(() => {
-      document.body.removeChild(div);
+    } catch {
       this.generandoPdf = false;
       this.toast.mostrar('Error al generar el PDF', 'error');
-    });
+    } finally {
+      document.body.removeChild(div);
+    }
   }
 
   // ── Helpers visuales ──────────────────────────────────────────────────────

@@ -718,6 +718,25 @@
   background:  rgba(34,197,94,0.06);
   border-top:  2px solid rgba(34,197,94,0.2) !important;
 }
+
+/* ── Subtotales de cada tabla (Ingresos / Descuentos) ──────────────────────── */
+.bol-row-subtotal {
+  background:  rgba(34,197,94,0.08);
+  border-top:  2px solid rgba(34,197,94,0.25) !important;
+}
+.bol-row-subtotal .bol-concepto { font-weight: 800; font-size: 12px; }
+.bol-row-subtotal-desc {
+  background:  rgba(239,68,68,0.08);
+  border-top:  2px solid rgba(239,68,68,0.25) !important;
+}
+
+/* ── Caja destacada del Neto a Pagar (entre Descuentos y Beneficios) ──────── */
+.boleta-neto-box { border: 2px solid rgba(34,197,94,0.35); }
+.boleta-neto-box .bol-row-total { background: rgba(34,197,94,0.1); }
+.boleta-neto-box .bol-neto { font-size: 18px; }
+
+.boleta-title-ingreso { color: #16a34a !important; }
+.boleta-title-descuento { color: #dc2626 !important; }
 .bol-concepto { font-size: 13px; font-weight: 600; color: var(--text-main, #1e293b); }
 .bol-detalle  { font-size: 11px; color: var(--text-muted, #64748b); text-align: right; }
 .bol-monto    { font-size: 13px; font-weight: 700; text-align: right; white-space: nowrap; min-width: 100px; }
