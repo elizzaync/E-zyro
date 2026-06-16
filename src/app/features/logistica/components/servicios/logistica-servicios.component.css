@@ -207,9 +207,11 @@
   background: var(--card-bg, #fff);
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 16px;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   box-shadow: 0 2px 12px rgba(0,0,0,.04);
 }
+.servicios-table { min-width: 1100px; }
 
 .servicios-table {
   width: 100%; border-collapse: collapse;

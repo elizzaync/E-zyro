@@ -174,10 +174,10 @@
     <table class="servicios-table">
       <thead>
         <tr>
+          <th>OT</th>
           <th>Servicio</th>
           <th>Tipo Servicio</th>
           <th>Proyecto</th>
-          <th>OT</th>
           <th>Cliente</th>
           <th>Ubicación</th>
           <th>Estado</th>
@@ -191,6 +191,13 @@
       <tbody>
         @for (s of paginados; track s.id) {
         <tr class="tabla-fila" (click)="irAServicio(s)">
+          <td class="ot-cell">
+            @if (s.orden_trabajo) {
+              <span class="ot-badge">{{ s.orden_trabajo }}</span>
+            } @else {
+              <span class="muted-dash">—</span>
+            }
+          </td>
           <td>
             <span class="svc-nombre">{{ s.nombre }}</span>
             @if (s.descripcion) {
@@ -206,13 +213,6 @@
           </td>
           <td>
             <span class="proyecto-nombre">{{ s.nombre_proyecto }}</span>
-          </td>
-          <td class="ot-cell">
-            @if (s.orden_trabajo) {
-              <span class="ot-badge">{{ s.orden_trabajo }}</span>
-            } @else {
-              <span class="muted-dash">—</span>
-            }
           </td>
           <td class="cliente-cell">{{ s.cliente }}</td>
           <td class="ubic-cell">

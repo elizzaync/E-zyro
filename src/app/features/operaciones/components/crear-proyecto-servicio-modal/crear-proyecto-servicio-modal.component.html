@@ -75,15 +75,6 @@
           }
         </div>
 
-        <div class="field-group">
-          <label class="field-label">
-            N° Orden de Trabajo
-            <span class="label-auto">automática</span>
-          </label>
-          <input type="text" class="field-input field-input--readonly" formControlName="orden_trabajo"
-            readonly placeholder="Se asignará al guardar">
-        </div>
-
         <div class="fields-grid-2">
           <div class="field-group">
             <label class="field-label">Estado</label>
@@ -109,6 +100,15 @@
       <!-- ─── PASO 2: SERVICIO ─── -->
       @if (paso === 2) {
       <div class="cpsm-section fade-in-section" [formGroup]="fServicio">
+
+        <div class="field-group">
+          <label class="field-label">
+            N° Orden de Trabajo
+            <span class="label-auto">automática</span>
+          </label>
+          <input type="text" class="field-input field-input--readonly" [value]="ctrl1('orden_trabajo')?.value || 'Se asignará al guardar'"
+            readonly>
+        </div>
 
         <div class="field-group">
           <label class="field-label">Nombre del Servicio *</label>

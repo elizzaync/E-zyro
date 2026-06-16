@@ -86,6 +86,16 @@
           </div>
           }
         </div>
+        <!-- OT del proyecto seleccionado -->
+        @if (proyectoSelOT) {
+        <div class="ot-info-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="2" width="6" height="4" rx="1"/><path d="M5 6h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z"/>
+          </svg>
+          <span class="ot-info-label">Orden de Trabajo</span>
+          <span class="ot-info-value">{{ proyectoSelOT }}</span>
+        </div>
+        }
         <hr class="csm-divider">
         }
 

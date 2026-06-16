@@ -71,6 +71,7 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
   cargandoProyectos    = false;
   proyectoExistenteId  = '';
   proyectoSelLabel     = '';
+  proyectoSelOT        = '';
   proyectoSearch       = '';
   showProyectoDrop     = false;
 
@@ -208,12 +209,13 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
   selProyecto(p: ProyectoBasico): void {
     this.proyectoExistenteId = p.id;
     this.proyectoSelLabel    = `${p.nombre}  ·  ${p.cliente}`;
+    this.proyectoSelOT       = p.orden_trabajo || '';
     this.showProyectoDrop    = false;
     this.proyectoSearch      = '';
     this.errorMsg            = '';
   }
 
-  limpiarProyecto(): void { this.proyectoExistenteId = ''; this.proyectoSelLabel = ''; }
+  limpiarProyecto(): void { this.proyectoExistenteId = ''; this.proyectoSelLabel = ''; this.proyectoSelOT = ''; }
 
   estadoProyectoClass(estado: string): string {
     const m: Record<string, string> = {

@@ -662,6 +662,21 @@
 }
 .geo-add-cancel:hover { border-color: var(--csm-border2); }
 
+/* ─── OT del proyecto seleccionado ───────────────────────────────────── */
+.ot-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(37, 99, 235, 0.06);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+.ot-info-bar svg { width: 15px; height: 15px; color: #2563eb; flex-shrink: 0; }
+.ot-info-label { font-size: 12px; font-weight: 600; color: #64748b; white-space: nowrap; }
+.ot-info-value { font-size: 13px; font-weight: 800; color: #2563eb; letter-spacing: 0.3px; }
+
 /* ─── Picker de proyecto (Solo Servicio desde Logística) ─────────────── */
 .csm-divider {
   border: none; border-top: 1px solid var(--csm-border); margin: 4px 0 8px;

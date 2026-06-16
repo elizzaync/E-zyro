@@ -62,10 +62,6 @@ export class OperacionesComponent implements OnInit {
   cpmProyectoId: string | null = null;
 
   ngOnInit(): void {
-    if (!this.isTecnico && !this.isJefeOperaciones) {
-      this.router.navigate(['/operaciones/servicios'], { replaceUrl: true });
-      return;
-    }
     this.cargarProyectos();
   }
 
