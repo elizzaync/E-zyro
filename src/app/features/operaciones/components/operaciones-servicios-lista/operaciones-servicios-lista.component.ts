@@ -142,6 +142,28 @@ export class OperacionesServiciosListaComponent implements OnInit {
     return servicio.estado !== 'Completado' && servicio.estado !== 'Cancelado';
   }
 
+  // ── Acciones directas de estado ─────────────────────────────────────
+
+  cambiarEstado(event: Event, servicio: ServicioProyecto, nuevoEstado: string): void {
+    event.stopPropagation();
+    if (this.isTecnico) return;
+    this.svc.actualizarEstado(servicio.id, nuevoEstado).subscribe({
+      next: () => {
+        const labels: Record<string, string> = {
+          En_Proceso: 'Servicio iniciado',
+          Cancelado:  'Servicio cancelado',
+          Completado: 'Servicio completado',
+          Pendiente:  'Servicio reabierto',
+        };
+        this.toast.mostrar(labels[nuevoEstado] ?? 'Estado actualizado', 'success');
+        this.cargarServicios();
+      },
+      error: (err: any) => {
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo cambiar el estado', 'error');
+      },
+    });
+  }
+
   // ── Crear / Editar Servicio ───────────────────────────────────────────
 
   abrirCrearServicio(): void {

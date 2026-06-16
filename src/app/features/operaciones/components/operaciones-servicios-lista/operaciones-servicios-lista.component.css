@@ -342,6 +342,67 @@
 }
 .sc-stepper--completado .step.done .step-label { color: #5a8a20; font-weight: 700; }
 
+/* ── ACCIONES DIRECTAS ── */
+.sc-acciones {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.ac-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1.5px solid transparent;
+}
+.ac-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+.ac-btn--iniciar {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: #2563eb;
+}
+.ac-btn--iniciar:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(59, 130, 246, 0.3);
+}
+
+.ac-btn--completar {
+  background: rgba(145, 211, 55, 0.1);
+  border-color: rgba(145, 211, 55, 0.35);
+  color: #5a8a20;
+}
+.ac-btn--completar:hover {
+  background: #91d337;
+  border-color: #91d337;
+  color: #0f172a;
+  box-shadow: 0 3px 10px rgba(145, 211, 55, 0.3);
+}
+
+.ac-btn--cancelar {
+  background: rgba(239, 68, 68, 0.07);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+.ac-btn--cancelar:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(239, 68, 68, 0.25);
+}
+
 /* ── FOOTER ── */
 .sc-footer {
   display: flex;

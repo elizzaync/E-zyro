@@ -53,6 +53,9 @@ export class OperacionesComponent implements OnInit {
   isLoading    = true;
   errorMessage: string | null = null;
 
+  proyectosAbierto = true;
+  toggleProyectos(): void { this.proyectosAbierto = !this.proyectosAbierto; }
+
   // ── Modal Crear / Editar Proyecto ─────────────────────────────────────
   showCrearProyectoModal = false;
   cpmMode: 'crear' | 'editar' = 'crear';

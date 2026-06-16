@@ -101,6 +101,21 @@
 
   <!-- GRID DE PROYECTOS -->
   } @else {
+  <div class="seccion-dropdown">
+    <button class="seccion-header" (click)="toggleProyectos()">
+      <div class="seccion-header-left">
+        <svg class="seccion-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+        </svg>
+        <span class="seccion-titulo">Proyectos</span>
+        <span class="seccion-count">{{ proyectos.length }}</span>
+      </div>
+      <svg class="seccion-chevron" [class.rotado]="proyectosAbierto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
+
+    @if (proyectosAbierto) {
   <div class="proyectos-grid">
     @for (proyecto of proyectos; track proyecto.id) {
     <div class="proyecto-card" (click)="irAProyecto(proyecto.id)">
@@ -183,6 +198,8 @@
     </div>
     }
   </div>
+    } <!-- /proyectosAbierto -->
+  </div> <!-- /seccion-dropdown -->
   }
 
 </div>
