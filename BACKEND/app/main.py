@@ -1015,7 +1015,7 @@ def _run_migrations():
         conn.execute(text("ALTER TABLE concepto_remunerativo ADD COLUMN IF NOT EXISTS es_base VARCHAR(5) NOT NULL DEFAULT 'false'"))
         # CxC desde servicios (Fase 3): vincula la factura de venta al servicio
         # que la originó, para listar servicios facturables y evitar doble emisión.
-        conn.execute(text("ALTER TABLE factura_cliente ADD COLUMN IF NOT EXISTS proyecto_servicio_id VARCHAR(36) REFERENCES proyecto_servicio(id)"))
+        conn.execute(text("ALTER TABLE factura_cliente ADD COLUMN IF NOT EXISTS proyecto_servicio_id uuid REFERENCES proyecto_servicio(id)"))
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────
