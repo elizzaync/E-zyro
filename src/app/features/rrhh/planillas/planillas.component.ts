@@ -451,6 +451,45 @@ export class PlanillasComponent implements OnInit {
     return this.sueldoPeriodo(emp.id) * (this.diasVacaciones / 360);
   }
 
+  // ── Motivos (por qué un beneficio sí/no aplica) — reactivos a modalidad y
+  //    régimen, usados en tabla, modal "Ver" y PDF para mostrar SIEMPRE el
+  //    concepto, nunca ocultarlo sin explicación. ─────────────────────────────
+
+  motivoCTS(emp: ResumenEmpleadoDto): string {
+    if (this.esPracticante(emp)) return 'No aplica — Practicante (Ley 28518)';
+    if (this.regimenEmpresa === 'micro') return 'No corresponde — Microempresa (exoneración MYPE)';
+    if (this.regimenEmpresa === 'general') return 'Completo — 1 remuneración/año (mayo y noviembre)';
+    return 'Medio — 15 remun. diarias/año (mayo y noviembre)';
+  }
+
+  motivoGratificacion(emp: ResumenEmpleadoDto): string {
+    if (this.esPracticante(emp)) return 'No aplica — Practicante (Ley 28518)';
+    if (this.regimenEmpresa === 'micro') return 'No corresponde — Microempresa (exoneración MYPE)';
+    if (this.regimenEmpresa === 'general') return 'Completa — 1 sueldo × semestre (julio y diciembre)';
+    return 'Media — medio sueldo × semestre (julio y diciembre)';
+  }
+
+  motivoVacaciones(emp: ResumenEmpleadoDto): string {
+    if (this.esPracticante(emp)) return 'Descanso de 30 días/año (sin provisión monetaria)';
+    return `${this.diasVacaciones} días/año, mensualizado`;
+  }
+
+  motivoPension(emp: ResumenEmpleadoDto): string {
+    if (this.esPracticante(emp)) return 'No aplica — sin afiliación obligatoria (Ley 28518)';
+    return this.pensionLabel(emp);
+  }
+
+  // Resumen compacto para la columna "Beneficios" de la tabla — cambia en vivo
+  // según régimen y modalidad sin recargar datos.
+  beneficiosResumen(emp: ResumenEmpleadoDto): { cts: boolean; grati: boolean; vac: number; aplica: boolean } {
+    return {
+      cts:    this.provisionCTS(emp) > 0,
+      grati:  this.provisionGratificacion(emp) > 0,
+      vac:    this.esDependiente(emp) ? this.diasVacaciones : 30,
+      aplica: this.esDependiente(emp),
+    };
+  }
+
   netoAPagar(emp: ResumenEmpleadoDto): number {
     const sueldo = this.sueldoPeriodo(emp.id);
     if (sueldo <= 0) return 0;
@@ -525,18 +564,34 @@ export class PlanillasComponent implements OnInit {
       filasIngresos += filaIngreso(`Horas Extra (${this.formatH(this.horasExtra(emp))})`, detalleExtra, extra);
     }
 
+    const filaSinMonto = (label: string, motivo: string) => `
+      <tr style="background:#f8fafc;">
+        <td style="padding:8px 10px;font-size:11px;color:#94a3b8;">${label}</td>
+        <td style="padding:8px 10px;font-size:10px;color:#94a3b8;text-align:right;" colspan="2">${motivo}</td>
+      </tr>`;
+
     let filasDescuentos = '';
     if (descFaltas > 0) {
       filasDescuentos += filaDescuento('Descuento por Faltas/Tardanzas', `${this.formatH(emp.horas_faltantes)} × ${this.formatMonto(this.valorHora(emp))}/h`, descFaltas);
     }
+    // Pensión: SIEMPRE se muestra, con monto o con el motivo por el que no aplica.
     if (descPension > 0) {
       filasDescuentos += filaDescuento(`Sistema de Pensión (${this.pensionLabel(emp)})`, 'Ley N.° 19990 / D.L. 25897', descPension);
+    } else {
+      filasDescuentos += filaSinMonto('Sistema de Pensión', this.motivoPension(emp));
     }
 
+    // Aportes patronales y provisiones: SIEMPRE visibles (con monto o motivo).
     let filasInformativas = filaInfo('Aporte EsSalud (empleador)', 'No descontado al trabajador', essalud);
-    if (cts > 0)   filasInformativas += filaInfo('Provisión CTS', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año'}`, cts);
-    if (grati > 0) filasInformativas += filaInfo('Provisión Gratificación', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre'}`, grati);
-    if (vacaciones > 0) filasInformativas += filaInfo('Provisión Vacacional', `${this.diasVacaciones} días/año`, vacaciones);
+    filasInformativas += cts > 0
+      ? filaInfo('Provisión CTS', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año'}`, cts)
+      : filaSinMonto('Provisión CTS', this.motivoCTS(emp));
+    filasInformativas += grati > 0
+      ? filaInfo('Provisión Gratificación', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre'}`, grati)
+      : filaSinMonto('Provisión Gratificación', this.motivoGratificacion(emp));
+    filasInformativas += vacaciones > 0
+      ? filaInfo('Provisión Vacacional', `${this.diasVacaciones} días/año`, vacaciones)
+      : filaSinMonto('Provisión Vacacional', this.motivoVacaciones(emp));
 
     const empresaNombre = 'E-zyro TIC';
     const fechaEmision = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });

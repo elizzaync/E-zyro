@@ -240,6 +240,27 @@
 }
 .afp-entidad-select { font-size: 10px; min-width: 110px; }
 
+/* ── Chips de beneficios (CTS/Gratificación/Vacaciones) — reactivos al
+     régimen de empresa elegido arriba; cambian sin recargar la tabla ────── */
+.beneficios-chips {
+  display:        flex;
+  flex-direction: column;
+  gap:            3px;
+  align-items:    center;
+}
+.chip-benef {
+  display:       inline-block;
+  padding:       2px 8px;
+  border-radius: 6px;
+  font-size:     10px;
+  font-weight:   700;
+  white-space:   nowrap;
+  cursor:        help;
+}
+.chip-on  { background: rgba(34,197,94,0.12); color: #16a34a; }
+.chip-off { background: rgba(100,116,139,0.1); color: #64748b; }
+.chip-vac { background: rgba(59,130,246,0.1); color: #2563eb; }
+
 /* ── KPI cards ──────────────────────────────────────────────────────────── */
 .kpi-grid {
   display:               grid;
@@ -322,7 +343,7 @@
   border-collapse: collapse;
   font-size:       13px;
   color:           var(--text-main, #1e293b);
-  min-width:       1100px;
+  min-width:       1250px;
 }
 
 .plan-table thead tr {
@@ -758,6 +779,12 @@
 .boleta-table-info { border-style: dashed; opacity: 0.92; }
 .bol-info { background: var(--hover-bg, #f8fafc); }
 .bol-info .bol-monto { color: var(--text-muted, #64748b); font-weight: 600; }
+
+.bol-na {
+  opacity: 0.65;
+}
+.bol-na .bol-concepto { color: var(--text-muted, #94a3b8); }
+.bol-na .bol-detalle { color: var(--text-muted, #94a3b8); font-style: italic; text-align: left; }
 
 .boleta-footer {
   padding:     16px 22px;

@@ -194,6 +194,7 @@
             <th class="text-center">Desc. Faltas</th>
             <th class="text-center">+ H. Extra</th>
             <th class="text-center">Pensión</th>
+            <th class="text-center" [title]="'Cambia según: ' + regimenLabel">Beneficios</th>
             <th class="text-center th-neto">Neto a Pagar</th>
             <th class="text-center">Estado</th>
             <th class="text-center">Boleta</th>
@@ -314,6 +315,24 @@
                 }
               } @else {
               <span class="hrs-cero" title="No aplica para practicantes">N/A</span>
+              }
+            </td>
+
+            <td class="text-center">
+              @if (beneficiosResumen(emp).aplica) {
+              <div class="beneficios-chips">
+                <span class="chip-benef" [class.chip-on]="beneficiosResumen(emp).cts" [class.chip-off]="!beneficiosResumen(emp).cts" [title]="motivoCTS(emp)">
+                  CTS {{ beneficiosResumen(emp).cts ? '✓' : '✕' }}
+                </span>
+                <span class="chip-benef" [class.chip-on]="beneficiosResumen(emp).grati" [class.chip-off]="!beneficiosResumen(emp).grati" [title]="motivoGratificacion(emp)">
+                  Grati {{ beneficiosResumen(emp).grati ? '✓' : '✕' }}
+                </span>
+                <span class="chip-benef chip-vac" [title]="motivoVacaciones(emp)">
+                  Vac {{ beneficiosResumen(emp).vac }}d
+                </span>
+              </div>
+              } @else {
+              <span class="hrs-cero" title="Practicante: sin CTS ni gratificación (Ley 28518)">N/A</span>
               }
             </td>
 
@@ -473,11 +492,17 @@
       </div>
       }
 
+      <!-- Pensión: SIEMPRE visible — con monto descontado o con el motivo por el que no aplica -->
       @if (descuentoPension(boletaEmp) > 0) {
       <div class="bol-row bol-descuento">
         <span class="bol-concepto">Sistema de Pensión ({{ pensionLabel(boletaEmp) }})</span>
         <span class="bol-detalle">Descuento obligatorio por ley</span>
         <span class="bol-monto text-red">−{{ formatMonto(descuentoPension(boletaEmp)) }}</span>
+      </div>
+      } @else {
+      <div class="bol-row bol-na">
+        <span class="bol-concepto">Sistema de Pensión</span>
+        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoPension(boletaEmp) }}</span>
       </div>
       }
 
@@ -488,33 +513,53 @@
       </div>
     </div>
 
-    <!-- Información adicional: aportes patronales y provisiones -->
-    <div class="boleta-info-title">Información adicional (no afecta el neto)</div>
+    <!-- Información adicional: aportes patronales y provisiones — SIEMPRE
+         visibles para los 3 conceptos legales (CTS, Gratificación, Vacaciones),
+         se muestra el monto si corresponde o el motivo si no corresponde. -->
+    <div class="boleta-info-title">Beneficios y aportes ({{ regimenLabel }}) — no afectan el neto</div>
     <div class="boleta-table boleta-table-info">
       <div class="bol-row bol-info">
         <span class="bol-concepto">Aporte EsSalud (empleador)</span>
         <span class="bol-detalle">No descontado al trabajador</span>
         <span class="bol-monto">{{ formatMonto(aporteEssalud(boletaEmp)) }}</span>
       </div>
+
       @if (provisionCTS(boletaEmp) > 0) {
       <div class="bol-row bol-info">
         <span class="bol-concepto">Provisión CTS</span>
         <span class="bol-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año' }}</span>
         <span class="bol-monto">{{ formatMonto(provisionCTS(boletaEmp)) }}</span>
       </div>
+      } @else {
+      <div class="bol-row bol-na">
+        <span class="bol-concepto">Provisión CTS</span>
+        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoCTS(boletaEmp) }}</span>
+      </div>
       }
+
       @if (provisionGratificacion(boletaEmp) > 0) {
       <div class="bol-row bol-info">
         <span class="bol-concepto">Provisión Gratificación</span>
         <span class="bol-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre' }}</span>
         <span class="bol-monto">{{ formatMonto(provisionGratificacion(boletaEmp)) }}</span>
       </div>
+      } @else {
+      <div class="bol-row bol-na">
+        <span class="bol-concepto">Provisión Gratificación</span>
+        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoGratificacion(boletaEmp) }}</span>
+      </div>
       }
+
       @if (provisionVacaciones(boletaEmp) > 0) {
       <div class="bol-row bol-info">
         <span class="bol-concepto">Provisión Vacacional</span>
         <span class="bol-detalle">{{ diasVacaciones }} días/año</span>
         <span class="bol-monto">{{ formatMonto(provisionVacaciones(boletaEmp)) }}</span>
+      </div>
+      } @else {
+      <div class="bol-row bol-na">
+        <span class="bol-concepto">Provisión Vacacional</span>
+        <span class="bol-detalle" style="grid-column: span 2;">{{ motivoVacaciones(boletaEmp) }}</span>
       </div>
       }
     </div>
