@@ -27,6 +27,9 @@ class FacturaCliente(Base):
     empresa_id        = Column(String(36), ForeignKey("empresa.id"), nullable=False)
     cliente_id        = Column(String(36), ForeignKey("cliente.id"), nullable=False)
     proyecto_id       = Column(String(36), ForeignKey("proyecto.id"), nullable=True)
+    # Servicio que originó la factura (cuando se emite desde "Facturar servicio").
+    # Permite listar servicios completados aún sin facturar y evitar doble emisión.
+    proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=True)
     numero_documento  = Column(String(50), nullable=False)
     tipo_documento    = Column(String(20), nullable=False)   # factura|boleta|nota_credito|nota_debito
     fecha_emision     = Column(Date, nullable=False)

@@ -116,6 +116,7 @@ def emitir_comprobante(db: Session, empresa_id: str, datos, creado_por_id: str |
 
     factura = FacturaCliente(
         empresa_id=empresa_id, cliente_id=datos.cliente_id, proyecto_id=datos.proyecto_id,
+        proyecto_servicio_id=getattr(datos, "proyecto_servicio_id", None),
         numero_documento=datos.numero_documento, tipo_documento=datos.tipo_documento,
         fecha_emision=datos.fecha_emision, fecha_vencimiento=datos.fecha_vencimiento,
         moneda=moneda, subtotal=subtotal, igv=igv, total=total,

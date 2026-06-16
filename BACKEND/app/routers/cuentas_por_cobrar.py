@@ -19,9 +19,13 @@ from ..models.empleado import Empleado
 from ..models.cuentas_por_cobrar import (
     FacturaCliente, CobroCliente, AplicacionCobroCliente,
 )
+from ..models.proyecto_servicio import ProyectoServicio
+from ..models.proyecto import Proyecto
+from ..models.cliente import Cliente
 from ..schemas.cuentas_por_cobrar import (
     ComprobanteCreate, ComprobanteOut, CobroCreate, CobroOut, AplicacionCobroOut,
     SaldoClienteOut, AntiguedadClienteOut,
+    FacturarServicioIn, ServicioFacturableOut,
 )
 from ..services import cuentas_por_cobrar_service as cxc
 
@@ -104,6 +108,97 @@ def anular_comprobante(
 ):
     exigir_permiso(db, payload, "cxc", "anular_comprobante")
     f = cxc.anular_comprobante(db, payload["empresa_id"], factura_id, _empleado_id(db, payload))
+    return _factura_out(db, f)
+
+
+# ── Facturación de servicios (Servicios → CxC) ───────────────────────────────
+@router.get("/servicios-facturables", response_model=List[ServicioFacturableOut])
+def servicios_facturables(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Servicios COMPLETADOS que aún no tienen una factura vigente (no anulada).
+    Insumo de la acción 'Facturar servicio'."""
+    exigir_permiso(db, payload, "cxc", "ver")
+    empresa_id = payload["empresa_id"]
+
+    # IDs de servicios ya facturados con comprobante vigente (no anulado).
+    facturados = {
+        str(sid) for (sid,) in db.query(FacturaCliente.proyecto_servicio_id).filter(
+            FacturaCliente.empresa_id == empresa_id,
+            FacturaCliente.proyecto_servicio_id.isnot(None),
+            FacturaCliente.estado != "anulada",
+        ).all()
+    }
+
+    filas = (
+        db.query(ProyectoServicio, Proyecto, Cliente)
+        .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
+        .outerjoin(Cliente, Cliente.id == Proyecto.cliente_id)
+        .filter(ProyectoServicio.empresa_id == empresa_id,
+                ProyectoServicio.estado == "Completado")
+        .order_by(ProyectoServicio.updated_at.desc())
+        .all()
+    )
+    out = []
+    for ps, proy, cli in filas:
+        if str(ps.id) in facturados:
+            continue
+        out.append(ServicioFacturableOut(
+            servicio_id=str(ps.id), servicio_nombre=ps.nombre or "Servicio",
+            proyecto_id=str(proy.id) if proy else None,
+            proyecto_nombre=(proy.nombre_proyecto if proy else None),
+            cliente_id=str(cli.id) if cli else None,
+            cliente_nombre=(cli.razon_social if cli else None),
+            nro_documento_cliente=ps.nro_documento,
+        ))
+    return out
+
+
+@router.post("/facturar-servicio", response_model=ComprobanteOut, status_code=201)
+def facturar_servicio(
+    body: FacturarServicioIn,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Emite la factura de venta de un servicio completado. Deriva el cliente del
+    proyecto, valida que el servicio esté Completado y sin factura vigente, y
+    genera la CxC + asiento (Db 121/Cr 7011+40111) vía emitir_comprobante."""
+    exigir_permiso(db, payload, "cxc", "emitir_comprobante")
+    empresa_id = payload["empresa_id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id == body.servicio_id,
+        ProyectoServicio.empresa_id == empresa_id).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    if ps.estado != "Completado":
+        raise HTTPException(status_code=409, detail="Solo se factura un servicio Completado.")
+
+    ya = db.query(FacturaCliente).filter(
+        FacturaCliente.empresa_id == empresa_id,
+        FacturaCliente.proyecto_servicio_id == ps.id,
+        FacturaCliente.estado != "anulada").first()
+    if ya:
+        raise HTTPException(status_code=409, detail="El servicio ya tiene una factura vigente.")
+
+    proy = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+    if not proy or not proy.cliente_id:
+        raise HTTPException(status_code=422,
+                            detail="El proyecto del servicio no tiene cliente asignado.")
+
+    datos = ComprobanteCreate(
+        cliente_id=str(proy.cliente_id),
+        numero_documento=body.numero_documento,
+        tipo_documento=body.tipo_documento,
+        fecha_emision=body.fecha_emision,
+        fecha_vencimiento=body.fecha_vencimiento,
+        subtotal=body.subtotal,
+        igv=body.igv,
+        moneda=body.moneda,
+        proyecto_id=str(ps.proyecto_id),
+        proyecto_servicio_id=str(ps.id),
+        al_contado=body.al_contado,
+    )
+    f = cxc.emitir_comprobante(db, empresa_id, datos, _empleado_id(db, payload))
     return _factura_out(db, f)
 
 

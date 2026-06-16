@@ -21,6 +21,7 @@ class ComprobanteCreate(BaseModel):
     igv: Decimal = Decimal("0.00")
     moneda: Optional[str] = None
     proyecto_id: Optional[str] = None
+    proyecto_servicio_id: Optional[str] = None   # servicio que origina la factura
     al_contado: bool = False   # True → se cobra de inmediato (Db caja), estado 'cobrada'
 
     @field_validator("tipo_documento")
@@ -50,6 +51,47 @@ class ComprobanteCreate(BaseModel):
     @property
     def total(self) -> Decimal:
         return (self.subtotal + self.igv).quantize(Decimal("0.01"))
+
+
+class FacturarServicioIn(BaseModel):
+    """Emite la factura de venta de un servicio completado. El cliente se deriva
+    del proyecto; el monto se captura aquí (no existe en el modelo del servicio)."""
+    servicio_id: str
+    numero_documento: str
+    tipo_documento: str = "factura"
+    fecha_emision: date
+    fecha_vencimiento: Optional[date] = None
+    subtotal: Decimal
+    igv: Decimal = Decimal("0.00")
+    moneda: Optional[str] = None
+    al_contado: bool = False
+
+    @field_validator("subtotal", "igv")
+    @classmethod
+    def _no_neg(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("los montos no pueden ser negativos")
+        return v
+
+    @model_validator(mode="after")
+    def _coherencia(self) -> "FacturarServicioIn":
+        if self.subtotal <= 0:
+            raise ValueError("el subtotal debe ser mayor que 0")
+        if not self.al_contado and self.fecha_vencimiento is None:
+            raise ValueError("una venta a crédito requiere fecha de vencimiento")
+        if self.fecha_vencimiento is not None and self.fecha_vencimiento < self.fecha_emision:
+            raise ValueError("la fecha de vencimiento no puede ser anterior a la de emisión")
+        return self
+
+
+class ServicioFacturableOut(BaseModel):
+    servicio_id: str
+    servicio_nombre: str
+    proyecto_id: Optional[str] = None
+    proyecto_nombre: Optional[str] = None
+    cliente_id: Optional[str] = None
+    cliente_nombre: Optional[str] = None
+    nro_documento_cliente: Optional[str] = None   # OC/proforma del cliente, si la hay
 
 
 class ComprobanteOut(BaseModel):
