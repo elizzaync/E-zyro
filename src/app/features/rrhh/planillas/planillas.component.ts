@@ -618,44 +618,44 @@ export class PlanillasComponent implements OnInit {
     const filaSinMonto = (label: string, motivo: string) => `
       <tr><td>${label}</td><td class="c-det na" colspan="2">${motivo}</td></tr>`;
 
-    let filasIngresos = fila('Sueldo Base', `${this.formatH(emp.meta_horas)} estándar`, `${this.formatMonto(sueldo)}`);
+    let filasIngresos = fila('Remuneración Básica', `${this.formatH(emp.meta_horas)} jornada ordinaria`, `${this.formatMonto(sueldo)}`);
     if (extra > 0) {
       const detalleExtra = dependiente
         ? (this.horasExtra(emp) <= 2 ? `${this.formatH(this.horasExtra(emp))} × 25%` : `2h×25% + ${this.formatH(this.horasExtra(emp) - 2)}×35%`)
         : `${this.formatH(this.horasExtra(emp))} tarifa simple`;
-      filasIngresos += fila(`Horas Extra (${this.formatH(this.horasExtra(emp))})`, detalleExtra, `+${this.formatMonto(extra)}`);
+      filasIngresos += fila(`Trabajo en Sobretiempo (${this.formatH(this.horasExtra(emp))})`, detalleExtra, `+${this.formatMonto(extra)}`);
     }
     if (asig > 0) {
-      filasIngresos += fila('Asignación Familiar', '10% RMV vigente', `+${this.formatMonto(asig)}`);
+      filasIngresos += fila('Asignación Familiar', '10% R.M.V. vigente — Ley N.° 25129', `+${this.formatMonto(asig)}`);
     }
 
     let filasDescuentos = '';
     if (descFaltas > 0) {
-      filasDescuentos += fila('Faltas / Tardanzas', `${this.formatH(emp.horas_faltantes)} × ${this.formatMonto(this.valorHora(emp))}/h`, `−${this.formatMonto(descFaltas)}`);
+      filasDescuentos += fila('Descuento por Inasistencias', `${this.formatH(emp.horas_faltantes)} × ${this.formatMonto(this.valorHora(emp))}/h`, `−${this.formatMonto(descFaltas)}`);
     } else {
-      filasDescuentos += filaSinMonto('Faltas / Tardanzas', 'Sin faltas ni tardanzas este período');
+      filasDescuentos += filaSinMonto('Descuento por Inasistencias', 'Sin faltas ni tardanzas registradas en el período');
     }
     if (descPension > 0) {
-      filasDescuentos += fila(`Pensión (${this.pensionLabel(emp)})`, 'Ley N.° 19990 / D.L. 25897', `−${this.formatMonto(descPension)}`);
+      filasDescuentos += fila(`Sistema de Pensiones (${this.pensionLabel(emp)})`, 'D.L. N.° 19990 / D.L. N.° 25897', `−${this.formatMonto(descPension)}`);
     } else {
-      filasDescuentos += filaSinMonto('Sistema de Pensión', this.motivoPension(emp));
+      filasDescuentos += filaSinMonto('Sistema de Pensiones', this.motivoPension(emp));
     }
     if (renta > 0) {
-      filasDescuentos += fila('Renta de 5ta Categoría', 'Referencial — verificar con contador', `−${this.formatMonto(renta)}`);
+      filasDescuentos += fila('Retención Renta de 5ta Categoría', 'Cifra referencial — sujeta a validación contable', `−${this.formatMonto(renta)}`);
     } else {
-      filasDescuentos += filaSinMonto('Renta de 5ta Categoría', 'No alcanza el tramo afecto');
+      filasDescuentos += filaSinMonto('Retención Renta de 5ta Categoría', 'Proyección anual no alcanza el tramo afecto');
     }
 
-    let filasInformativas = fila('Aporte EsSalud (empleador)', 'No descontado al trabajador', this.formatMonto(essalud));
+    let filasInformativas = fila('Aporte a EsSalud (Carga del Empleador)', 'Ley N.° 26790 — no se descuenta al trabajador', this.formatMonto(essalud));
     filasInformativas += cts > 0
-      ? fila('Provisión CTS', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año'}`, this.formatMonto(cts))
-      : filaSinMonto('Provisión CTS', this.motivoCTS(emp));
+      ? fila('Compensación por Tiempo de Servicios (CTS)', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año'}`, this.formatMonto(cts))
+      : filaSinMonto('Compensación por Tiempo de Servicios (CTS)', this.motivoCTS(emp));
     filasInformativas += grati > 0
-      ? fila('Provisión Gratificación', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre'}`, this.formatMonto(grati))
-      : filaSinMonto('Provisión Gratificación', this.motivoGratificacion(emp));
+      ? fila('Gratificación Legal (Ley N.° 27735)', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre'}`, this.formatMonto(grati))
+      : filaSinMonto('Gratificación Legal (Ley N.° 27735)', this.motivoGratificacion(emp));
     filasInformativas += vacaciones > 0
-      ? fila('Provisión Vacacional', `${this.diasVacaciones} días/año`, this.formatMonto(vacaciones))
-      : filaSinMonto('Provisión Vacacional', this.motivoVacaciones(emp));
+      ? fila('Provisión de Vacaciones', `${this.diasVacaciones} días/año`, this.formatMonto(vacaciones))
+      : filaSinMonto('Provisión de Vacaciones', this.motivoVacaciones(emp));
 
     const razonSocial = this.empresaInfo?.razon_social || 'E-SYSTEM TIC';
     const ruc = this.empresaInfo?.ruc || '—';
@@ -675,13 +675,14 @@ export class PlanillasComponent implements OnInit {
       .bol-col { flex: 1; }
       .bol-sec-tit { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
       .bol-tabla { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-      .bol-tabla th, .bol-tabla td { border: 1px solid #000; padding: 5px 7px; }
-      .bol-tabla thead th { background: #e5e5e5; font-weight: 700; text-align: left; font-size: 9.5px; text-transform: uppercase; }
+      .bol-tabla th, .bol-tabla td { padding: 5px 7px; border-right: 1px solid #000; }
+      .bol-tabla th:last-child, .bol-tabla td:last-child { border-right: none; }
+      .bol-tabla thead th { border-top: 1px solid #000; border-bottom: 1.5px solid #000; font-weight: 700; text-align: left; font-size: 9.5px; text-transform: uppercase; }
       .bol-tabla thead th.c-mon, .bol-tabla thead th.c-det { text-align: right; }
       .bol-tabla .c-det { text-align: right; font-size: 10px; }
       .bol-tabla .c-mon { text-align: right; font-weight: 700; white-space: nowrap; }
       .bol-tabla .na { font-style: italic; text-align: left; opacity: 0.7; }
-      .bol-tot td { background: #e5e5e5; font-weight: 800; }
+      .bol-tot td { border-top: 1.5px solid #000; font-weight: 800; }
       .bol-neto { width: 100%; border: 2px solid #000; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; background: #f0f0f0; }
       .bol-neto-lab { font-size: 13px; font-weight: 700; text-transform: uppercase; }
       .bol-neto-sub { font-size: 10px; }
@@ -700,17 +701,17 @@ export class PlanillasComponent implements OnInit {
           <div class="bol-sub">RUC: ${ruc} | Régimen ${this.regimenLabel}</div>
         </div>
         <div class="bol-cab-der">
-          <div class="bol-titulo">BOLETA DE PAGO</div>
-          <div class="bol-sub">Período: <strong>${this.titleCase(this.labelPeriodo)}</strong> | Emisión: ${fechaEmision}</div>
+          <div class="bol-titulo">BOLETA DE PAGO DE REMUNERACIONES</div>
+          <div class="bol-sub">Período Laboral: <strong>${this.titleCase(this.labelPeriodo)}</strong> | Fecha de Emisión: ${fechaEmision}</div>
         </div>
       </div>
 
       <table class="bol-datos">
         <tr>
-          <td style="width:25%;"><strong>Trabajador:</strong> ${emp.nombreCompleto}</td>
-          <td style="width:25%;"><strong>Cargo:</strong> ${emp.cargo}</td>
-          <td style="width:25%;"><strong>Modalidad:</strong> ${this.modalidadLabel(emp)}</td>
-          <td style="width:25%;"><strong>Área:</strong> ${emp.area || '—'}</td>
+          <td style="width:25%;"><strong>Apellidos y Nombres:</strong> ${emp.nombreCompleto}</td>
+          <td style="width:25%;"><strong>Cargo u Ocupación:</strong> ${emp.cargo}</td>
+          <td style="width:25%;"><strong>Régimen Laboral:</strong> ${this.modalidadLabel(emp)}</td>
+          <td style="width:25%;"><strong>Área / Centro de Costo:</strong> ${emp.area || '—'}</td>
         </tr>
       </table>
 
@@ -718,15 +719,15 @@ export class PlanillasComponent implements OnInit {
         <div class="bol-col">
           <div class="bol-sec-tit">Ingresos</div>
           <table class="bol-tabla">
-            <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Monto</th></tr></thead>
+            <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Importe S/.</th></tr></thead>
             <tbody>${filasIngresos}</tbody>
-            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL INGRESOS</td><td class="c-mon">${this.formatMonto(this.totalIngresos(emp))}</td></tr></tfoot>
+            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL REMUNERACIÓN BRUTA</td><td class="c-mon">${this.formatMonto(this.totalIngresos(emp))}</td></tr></tfoot>
           </table>
         </div>
         <div class="bol-col">
-          <div class="bol-sec-tit">Descuentos</div>
+          <div class="bol-sec-tit">Descuentos y Retenciones</div>
           <table class="bol-tabla">
-            <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Monto</th></tr></thead>
+            <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Importe S/.</th></tr></thead>
             <tbody>${filasDescuentos}</tbody>
             <tfoot><tr class="bol-tot"><td colspan="2">TOTAL DESCUENTOS</td><td class="c-mon">−${this.formatMonto(this.totalDescuentosLegales(emp))}</td></tr></tfoot>
           </table>
@@ -736,14 +737,14 @@ export class PlanillasComponent implements OnInit {
       <div class="bol-neto">
         <div>
           <div class="bol-neto-lab">Neto a Pagar</div>
-          <div class="bol-neto-sub">${this.formatH(emp.horas_total)} trabajadas este período</div>
+          <div class="bol-neto-sub">${this.formatH(emp.horas_total)} horas laboradas en el período</div>
         </div>
         <div class="bol-neto-val">${this.formatMonto(neto)}</div>
       </div>
 
-      <div class="bol-sec-tit">Beneficios y Aportes (no afectan el neto)</div>
+      <div class="bol-sec-tit">Beneficios Sociales y Aportes del Empleador (no afectan el neto a pagar)</div>
       <table class="bol-tabla" style="margin-bottom:14px;">
-        <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Monto</th></tr></thead>
+        <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Importe S/.</th></tr></thead>
         <tbody>${filasInformativas}</tbody>
       </table>
 
@@ -1084,9 +1085,10 @@ export class PlanillasComponent implements OnInit {
       .cab-der { text-align: right; }
       .titulo { font-size: 14px; font-weight: 700; letter-spacing: 0.4px; }
       .reg { width: 100%; border-collapse: collapse; font-size: 10px; margin-bottom: 10px; }
-      .reg th, .reg td { border: 1px solid #000; padding: 5px 6px; }
-      .reg thead th { background: #e5e5e5; font-weight: 700; text-align: center; font-size: 9.5px; }
-      .reg tfoot td { background: #e5e5e5; }
+      .reg th, .reg td { padding: 5px 6px; border-right: 1px solid #000; }
+      .reg th:last-child, .reg td:last-child { border-right: none; }
+      .reg thead th { border-top: 1px solid #000; border-bottom: 1.5px solid #000; font-weight: 700; text-align: center; font-size: 9.5px; }
+      .reg tfoot td { border-top: 1.5px solid #000; }
       .c { text-align: center; }
       .izq { text-align: left; }
       .m { text-align: right; }
