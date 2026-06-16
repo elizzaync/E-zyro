@@ -761,9 +761,9 @@
   border-radius:  12px;
   text-align:     center;
 }
-.neto-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #16a34a; }
-.neto-sub   { font-size: 11px; color: var(--text-muted, #64748b); }
-.neto-val   { font-size: 22px; font-weight: 800; color: #16a34a; margin-top: 2px; }
+.neto-label    { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #16a34a; }
+.neto-sub      { font-size: 11px; color: var(--text-muted, #64748b); }
+.neto-box-val  { font-size: 22px; font-weight: 800; color: #16a34a; margin-top: 2px; }
 
 .boleta-stats {
   display: grid;
