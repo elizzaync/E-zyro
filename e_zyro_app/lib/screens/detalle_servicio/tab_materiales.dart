@@ -35,6 +35,7 @@ class _MaterialesTabState extends State<_MaterialesTab> {
 
   // Préstamos del servicio (chip de aviso si hay devoluciones sin confirmar)
   int _avisosPrestamoCount = 0;
+  int _equiposSolicitadosCount = 0; // equipos/herramientas pedidos en este servicio
   PrestamoService? _prestamoService;
 
   @override
@@ -52,8 +53,19 @@ class _MaterialesTabState extends State<_MaterialesTab> {
     if (_prestamoService == null) return;
     final avisos =
         await _prestamoService!.getAvisosServicio(widget.servicioId);
+    // Equipos en esta solicitud = borrador (sin enviar) + préstamos en curso.
+    final prestamos = await _prestamoService!.getPorServicio(widget.servicioId);
+    final borrador = await _prestamoService!.getBorrador(widget.servicioId);
+    const enCurso = {'solicitado', 'por_recibir', 'entregado'};
+    final cuenta = prestamos
+            .where((p) => enCurso.contains(p.estado.toLowerCase()))
+            .length +
+        borrador.length;
     if (!mounted) return;
-    setState(() => _avisosPrestamoCount = avisos.length);
+    setState(() {
+      _avisosPrestamoCount = avisos.length;
+      _equiposSolicitadosCount = cuenta;
+    });
   }
 
   Future<void> _abrirPrestamos() async {
@@ -73,8 +85,18 @@ class _MaterialesTabState extends State<_MaterialesTab> {
 
   Future<void> _enviarBorrador() async {
     if (widget.borrador.items.isEmpty) return;
+    // Firma obligatoria del solicitante al enviar el lote a Logística.
+    final firma = await FirmaSheet.mostrar(
+      context,
+      titulo: 'Firmar solicitud',
+      subtitulo: 'Firma para confirmar y enviar el lote a Logística',
+      textoBoton: 'Firmar y enviar',
+    );
+    if (firma == null || firma.isEmpty) return; // canceló: no se envía
+    if (!mounted) return;
     setState(() => _enviando = true);
-    final res = await widget.service.enviarBorrador(widget.servicioId);
+    final res = await widget.service
+        .enviarBorrador(widget.servicioId, firmaSolicitanteUrl: firma);
     if (!mounted) return;
     setState(() => _enviando = false);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -213,6 +235,7 @@ class _MaterialesTabState extends State<_MaterialesTab> {
             // ── Equipos y herramientas (préstamos FASE 5) ─────────────────────
             _EquiposHerramientasCard(
               avisosCount: _avisosPrestamoCount,
+              solicitadosCount: _equiposSolicitadosCount,
               onTap: _abrirPrestamos,
             ),
             const SizedBox(height: 16),
@@ -305,8 +328,8 @@ class _MaterialesTabState extends State<_MaterialesTab> {
                           height: 16,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white))
-                      : const Icon(Icons.send_outlined, size: 16),
-                  label: Text(_enviando ? 'Enviando...' : 'Enviar a Logística',
+                      : const Icon(Icons.draw_outlined, size: 16),
+                  label: Text(_enviando ? 'Enviando...' : 'Firmar y enviar a Logística',
                       style: const TextStyle(fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _amber,

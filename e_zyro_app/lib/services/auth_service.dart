@@ -63,9 +63,9 @@ class AuthService {
         await _prefs.setString('user_name', res.data.nombreCompleto);
         await _prefs.setString('user_rol', res.data.rol);
         await _prefs.setStringList('user_permisos', res.data.permisos);
-        if (res.data.fotoUrl.isNotEmpty) {
-          await _prefs.setString('user_foto_url', res.data.fotoUrl);
-        }
+        // Escribir SIEMPRE la foto (vacía = limpiar): si el nuevo usuario no
+        // tiene foto, así no se hereda la del usuario anterior.
+        await _prefs.setString('user_foto_url', res.data.fotoUrl);
         await AppSession.load();
         return res;
       } else if (r.statusCode == 401) {
@@ -225,12 +225,44 @@ class AuthService {
       if (rol.isNotEmpty) await _prefs.setString('user_rol', rol);
       await _prefs.setStringList('user_permisos', permisos);
       if (nombre.isNotEmpty) await _prefs.setString('user_name', nombre);
-      if (fotoUrl.isNotEmpty) await _prefs.setString('user_foto_url', fotoUrl);
+      // Escribir SIEMPRE la foto (vacía = limpiar) para no heredar la del
+      // usuario anterior cuando el actual no tiene foto.
+      await _prefs.setString('user_foto_url', fotoUrl);
       await AppSession.load();
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  // ── Foto de perfil ────────────────────────────────────────────────────────
+
+  /// Sube la foto de perfil (base64 sin prefijo data URI) y devuelve la URL.
+  /// Actualiza `user_foto_url` en prefs para que el avatar se refresque.
+  Future<String> subirFotoPerfil(String base64) async {
+    final r = await _client.post(
+      '/auth/me/foto',
+      {'imagen_base64': base64},
+      timeout: const Duration(seconds: 45),
+    );
+    if (r.statusCode == 200) {
+      final url = ((jsonDecode(r.body) as Map<String, dynamic>)['data']
+              as Map<String, dynamic>?)?['foto_url'] as String? ??
+          '';
+      await _prefs.setString('user_foto_url', url);
+      return url;
+    }
+    throw Exception('No se pudo subir la foto. Intenta nuevamente.');
+  }
+
+  /// Quita la foto de perfil del usuario actual.
+  Future<void> quitarFotoPerfil() async {
+    final r = await _client.delete('/auth/me/foto');
+    if (r.statusCode == 200) {
+      await _prefs.setString('user_foto_url', '');
+      return;
+    }
+    throw Exception('No se pudo quitar la foto.');
   }
 
   // ── Session ───────────────────────────────────────────────────────────────

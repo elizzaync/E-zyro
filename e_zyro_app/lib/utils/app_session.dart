@@ -55,13 +55,20 @@ class AppSession {
   // ── Atajos para cada módulo ───────────────────────────────────────────────
 
   bool get canVerAuditoria          => hasPerm('auditoria:ver');
+  // Gestión de usuarios (roles, alta, activar/desactivar). Admin por bypass;
+  // delegable a otros roles vía el permiso 'usuarios:gestionar'.
+  bool get canGestionarUsuarios     => hasPerm('usuarios:gestionar');
   // RBAC: el permiso 'comunicados:enviar' decide quién publica.
   // (hasPerm ya concede acceso a Admin por bypass; el Jefe de Operaciones lo
   //  recibe por la matriz rol→permiso.)
   bool get canEnviarComunicado => hasPerm('comunicados:enviar');
   // Logística: admin (bypass) · rol Logístico · o cualquiera con permiso de inventario.
+  // El Jefe de Operaciones queda EXCLUIDO: el backend bloquea todas las secciones
+  // operativas de logística (Requerimientos/Compras/Salidas/Ingresos/...) para él,
+  // así que el panel le saldría vacío. Él solicita materiales desde el servicio.
   bool get canGestInventario   =>
-      isAdmin || _esLogistica || hasPerm('inventario:ver') || hasPerm('inventario:gestionar');
+      !_esJefeOp &&
+      (isAdmin || _esLogistica || hasPerm('inventario:ver') || hasPerm('inventario:gestionar'));
   // Personal: visibilidad (ver) separada de gestión (crear/editar).
   bool get canVerPersonal      => isAdmin || hasPerm('empleados:ver');
   bool get canGestPersonal     => isAdmin || hasPerm('empleados:crear') || hasPerm('empleados:editar');

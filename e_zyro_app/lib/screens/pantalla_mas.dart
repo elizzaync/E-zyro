@@ -7,6 +7,8 @@ import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_accesos_portal.dart';
+import 'pantalla_gestion_usuarios.dart';
+import 'pantalla_drive.dart';
 import 'pantalla_auditoria.dart';
 import 'pantalla_auditoria_general.dart';
 import 'pantalla_comunicados.dart';
@@ -48,6 +50,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _puedeVerPersonal = false;
   bool _puedeVerDashboards = false;
   bool _puedeVerControlAsistencias = false;
+  bool _puedeGestionarUsuarios = false;
   // Visibilidad de módulos por permiso (admin ve todos).
   bool _canCalibracion = false;
   bool _canCorrectivo = false;
@@ -78,6 +81,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
         _puedeVerDashboards  = AppSession.i.canVerDashboards;
         _puedeVerControlAsistencias = AppSession.i.canVerControlAsistencias;
+        _puedeGestionarUsuarios = AppSession.i.canGestionarUsuarios;
         _canCalibracion  = AppSession.i.canVerCalibracion;
         _canCorrectivo   = AppSession.i.canVerCorrectivo;
         _canItse         = AppSession.i.canVerItse;
@@ -319,17 +323,35 @@ class _MoreScreenState extends State<MoreScreen> {
                     MaterialPageRoute(builder: (_) => const PantallaTramites()),
                   ),
                 ),
+                _MenuItem(
+                  icon: Icons.cloud_outlined,
+                  label: 'Drive de empresa',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaDrive()),
+                  ),
+                ),
               ],
             ),
 
             // ── 3. Administración (según permisos) ──────────────────────
-            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _esAdmin || _puedeVerAuditoria || _esSuperAdmin) ...[
+            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _esAdmin || _puedeVerAuditoria || _esSuperAdmin || _puedeGestionarUsuarios) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
+                  if (_puedeGestionarUsuarios)
+                    _MenuItem(
+                      icon: Icons.manage_accounts_outlined,
+                      label: 'Gestión de usuarios',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaGestionUsuarios()),
+                      ),
+                    ),
                   if (_puedeVerControlAsistencias)
                     _MenuItem(
                       icon: Icons.how_to_reg_outlined,

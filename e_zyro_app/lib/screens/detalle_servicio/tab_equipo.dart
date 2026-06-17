@@ -172,9 +172,11 @@ class _MiembroCard extends StatelessWidget {
 // los préstamos viven vinculados al servicio.
 class _EquiposHerramientasCard extends StatelessWidget {
   final int avisosCount;
+  final int solicitadosCount;
   final VoidCallback onTap;
   const _EquiposHerramientasCard({
     required this.avisosCount,
+    this.solicitadosCount = 0,
     required this.onTap,
   });
 
@@ -216,17 +218,23 @@ class _EquiposHerramientasCard extends StatelessWidget {
                 color: _green, size: 22),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Solicitar recursos',
+                const Text('Solicitar recursos',
                     style: TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 14)),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                    'Pide materiales y equipos · devuelve préstamos',
-                    style: TextStyle(color: Colors.grey, fontSize: 11.5)),
+                    solicitadosCount > 0
+                        ? '$solicitadosCount equipo(s)/herramienta(s) en esta solicitud'
+                        : 'Pide materiales y equipos · devuelve préstamos',
+                    style: TextStyle(
+                        color: solicitadosCount > 0 ? _green : Colors.grey,
+                        fontWeight:
+                            solicitadosCount > 0 ? FontWeight.w600 : FontWeight.normal,
+                        fontSize: 11.5)),
               ],
             ),
           ),

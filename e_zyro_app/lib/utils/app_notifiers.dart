@@ -34,3 +34,8 @@ final syncCompletedNotifier = ValueNotifier<int>(0);
 /// Se incrementa al cambiar el rol desde "Mi Perfil" (modo test).
 /// MainShell escucha esto para recargar permisos y actualizar el bottom nav.
 final permissionsRefreshNotifier = ValueNotifier<int>(0);
+
+/// Última URL de la foto de perfil. Se actualiza al subir/quitar foto desde
+/// "Editar Perfil"; las pantallas que muestran el avatar la escuchan para
+/// refrescarse al instante (sin esperar al caché del dashboard).
+final fotoPerfilNotifier = ValueNotifier<String>('');

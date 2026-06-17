@@ -61,11 +61,13 @@ class PrestamoService {
     String servicioId, {
     required List<Map<String, dynamic>> items,
     String? observacion,
+    String? firmaSolicitanteUrl,
   }) async {
     try {
       final body = <String, dynamic>{
         'items': items,
         if (observacion != null && observacion.isNotEmpty) 'observacion': observacion,
+        'firma_solicitante_url': ?firmaSolicitanteUrl,
       };
       final r = await _client.post('/prestamos/servicio/$servicioId', body);
       if (r.statusCode == 201 || r.statusCode == 200) {
@@ -82,6 +84,63 @@ class PrestamoService {
       return (ok: false, error: _detail(r.body), id: null, faltanteCount: 0);
     } catch (_) {
       return (ok: false, error: null, id: null, faltanteCount: 0);
+    }
+  }
+
+  // ── Borrador de préstamo (acumula equipos antes de enviar+firmar) ─────────
+  Future<List<PrestamoBorradorItem>> getBorrador(String servicioId) async {
+    try {
+      final r = await _client.get('/prestamos/servicio/$servicioId/borrador');
+      if (r.statusCode == 200) {
+        final m = jsonDecode(r.body) as Map<String, dynamic>;
+        final list = (m['items'] as List?) ?? const [];
+        return list
+            .map((e) => PrestamoBorradorItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> agregarItemBorrador(
+      String servicioId, String equipoId, int cantidad) async {
+    try {
+      final r = await _client.post(
+        '/prestamos/servicio/$servicioId/borrador/item',
+        {'equipo_id': equipoId, 'cantidad': cantidad},
+      );
+      return r.statusCode == 200 || r.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> quitarItemBorrador(String itemId) async {
+    try {
+      final r = await _client.delete('/prestamos/borrador-item/$itemId');
+      return r.statusCode == 204 || r.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<({bool ok, String? error, int faltanteCount})> enviarBorrador(
+    String servicioId, {
+    String? firmaSolicitanteUrl,
+  }) async {
+    try {
+      final r = await _client.post(
+        '/prestamos/servicio/$servicioId/borrador/enviar',
+        {'firma_solicitante_url': ?firmaSolicitanteUrl},
+      );
+      if (r.statusCode == 200 || r.statusCode == 201) {
+        final m = jsonDecode(r.body) as Map<String, dynamic>;
+        final faltantes = (m['faltantes'] as List?) ?? const [];
+        return (ok: true, error: null, faltanteCount: faltantes.length);
+      }
+      return (ok: false, error: _detail(r.body), faltanteCount: 0);
+    } catch (_) {
+      return (ok: false, error: null, faltanteCount: 0);
     }
   }
 

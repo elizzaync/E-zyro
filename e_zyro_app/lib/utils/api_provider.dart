@@ -18,6 +18,7 @@ import '../services/galeria_service.dart';
 import '../services/epp_service.dart';
 import '../services/calibracion_service.dart';
 import '../services/personal_service.dart';
+import '../services/usuarios_service.dart';
 import '../services/evaluacion_service.dart';
 import '../services/vacaciones_service.dart';
 import '../services/indicadores_service.dart';
@@ -30,6 +31,7 @@ import '../services/equipo_service.dart';
 import '../services/intervencion_service.dart';
 import '../services/analitica_service.dart';
 import '../services/planos_service.dart';
+import '../services/drive_service.dart';
 import '../services/soporte_service.dart';
 import '../services/finanzas_service.dart';
 import '../services/ingreso_directo_service.dart';
@@ -139,6 +141,11 @@ Future<EvaluacionService> getEvaluacionService() async {
   return EvaluacionService(ApiClient(prefs));
 }
 
+Future<UsuariosService> getUsuariosService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return UsuariosService(ApiClient(prefs));
+}
+
 Future<VacacionesService> getVacacionesService() async {
   final prefs = await SharedPreferences.getInstance();
   return VacacionesService(ApiClient(prefs));
@@ -192,6 +199,11 @@ Future<AnaliticaService> getAnaliticaService() async {
 Future<PlanosService> getPlanosService() async {
   final prefs = await SharedPreferences.getInstance();
   return PlanosService(ApiClient(prefs));
+}
+
+Future<DriveService> getDriveService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return DriveService(ApiClient(prefs));
 }
 
 Future<SoporteService> getSoporteService() async {

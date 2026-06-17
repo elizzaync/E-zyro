@@ -534,8 +534,13 @@ class ProyectoService {
       );
 
   // POST /operaciones/servicio/{id}/borrador/enviar
-  Future<ApiResult<bool>> enviarBorrador(String servicioId) => _run(
-        () => _client.post('/operaciones/servicio/$servicioId/borrador/enviar', {}),
+  // [firmaSolicitanteUrl]: firma del solicitante al enviar el lote (data-url o URL nube).
+  Future<ApiResult<bool>> enviarBorrador(String servicioId,
+          {String? firmaSolicitanteUrl}) =>
+      _run(
+        () => _client.post('/operaciones/servicio/$servicioId/borrador/enviar', {
+          'firma_solicitante_url': ?firmaSolicitanteUrl,
+        }),
         (_) => true,
       );
 

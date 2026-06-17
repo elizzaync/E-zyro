@@ -185,6 +185,17 @@ class _ProfileTabState extends State<_ProfileTab> {
   void initState() {
     super.initState();
     _loadData();
+    fotoPerfilNotifier.addListener(_onFotoChanged);
+  }
+
+  @override
+  void dispose() {
+    fotoPerfilNotifier.removeListener(_onFotoChanged);
+    super.dispose();
+  }
+
+  void _onFotoChanged() {
+    if (mounted) setState(() => _fotoUrl = fotoPerfilNotifier.value);
   }
 
   Future<void> _loadData() async {

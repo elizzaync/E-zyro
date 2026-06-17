@@ -40,7 +40,9 @@ class PantallaPrestamosServicio extends StatefulWidget {
 class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
   PrestamoService? _service;
   List<Prestamo> _prestamos = [];
+  List<PrestamoBorradorItem> _borrador = [];
   bool _loading = true;
+  bool _enviandoBorrador = false;
 
   // WS en vivo: refresca cuando otro técnico toma/suelta el lock de firma o
   // cuando logística despacha (banner "X está firmando" sin recargar).
@@ -86,11 +88,48 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
     if (_service == null) return;
     setState(() => _loading = true);
     final data = await _service!.getPorServicio(widget.servicioId);
+    final borr = await _service!.getBorrador(widget.servicioId);
     if (!mounted) return;
     setState(() {
       _prestamos = data;
+      _borrador = borr;
       _loading = false;
     });
+  }
+
+  Future<void> _quitarBorradorItem(PrestamoBorradorItem it) async {
+    if (_service == null) return;
+    final ok = await _service!.quitarItemBorrador(it.id);
+    if (ok) {
+      await _load();
+    } else {
+      _snack('No se pudo quitar el ítem', _kRed);
+    }
+  }
+
+  Future<void> _enviarBorrador() async {
+    if (_service == null || _borrador.isEmpty) return;
+    final firma = await FirmaSheet.mostrar(
+      context,
+      titulo: 'Firmar solicitud',
+      subtitulo: 'Firma para confirmar y enviar el lote de equipos/herramientas',
+      textoBoton: 'Firmar y enviar',
+    );
+    if (firma == null || firma.isEmpty || !mounted) return;
+    setState(() => _enviandoBorrador = true);
+    final res = await _service!
+        .enviarBorrador(widget.servicioId, firmaSolicitanteUrl: firma);
+    if (!mounted) return;
+    setState(() => _enviandoBorrador = false);
+    if (res.ok) {
+      final msg = res.faltanteCount > 0
+          ? 'Solicitud enviada. ${res.faltanteCount} ítem(s) sin stock se enviaron a compra a Logística.'
+          : 'Solicitud de equipos enviada';
+      _snack(msg, res.faltanteCount > 0 ? _kAmber : _kGreen);
+      await _load();
+    } else {
+      _snack(res.error ?? 'Error al enviar', _kRed);
+    }
   }
 
   Future<void> _abrirSolicitarSheet() async {
@@ -213,6 +252,8 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
                 children: [
                   if (pendienteConfirm > 0)
                     _PendienteConfirmacionBanner(count: pendienteConfirm),
+                  if (!widget.isClosed && _borrador.isNotEmpty)
+                    _buildBorradorSection(),
                   Expanded(
                     child: _prestamos.isEmpty
                         ? _buildEmpty()
@@ -237,6 +278,85 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
                   ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildBorradorSection() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kAmber.withValues(alpha: 0.5), width: 1.4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.edit_note, color: _kAmber, size: 20),
+            const SizedBox(width: 6),
+            const Text('Borrador de solicitud',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Text('${_borrador.length} ítem(s)',
+                style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          ]),
+          const SizedBox(height: 8),
+          ..._borrador.map((it) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Icon(
+                      it.clase == 'herramienta'
+                          ? Icons.handyman_outlined
+                          : Icons.precision_manufacturing_outlined,
+                      size: 18, color: _kGreen),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(it.nombre,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13)),
+                  ),
+                  Text('x${it.cantidad}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 13)),
+                  if (it.disponible < it.cantidad)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: Text('(${it.disponible} disp.)',
+                          style: const TextStyle(
+                              color: _kAmber, fontSize: 10.5)),
+                    ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close, size: 16, color: _kRed),
+                    onPressed: () => _quitarBorradorItem(it),
+                  ),
+                ]),
+              )),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _enviandoBorrador ? null : _enviarBorrador,
+              icon: _enviandoBorrador
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.draw_outlined, size: 16),
+              label: Text(
+                  _enviandoBorrador ? 'Enviando...' : 'Firmar y enviar a Logística',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kAmber,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -715,31 +835,28 @@ class _SolicitarPrestamoSheetState extends State<_SolicitarPrestamoSheet> {
 
   Future<void> _enviar() async {
     if (_carrito.isEmpty) return;
+    // Agrega al BORRADOR (no crea el préstamo todavía). La firma se hace al
+    // confirmar y enviar el borrador, igual que en materiales.
     setState(() => _sending = true);
-    final items = _carrito.entries
-        .map((e) => {'equipo_id': e.key, 'cantidad': e.value})
-        .toList();
-    final res = await widget.service.crear(
-      widget.servicioId,
-      items: items,
-      observacion: _obsCtrl.text.trim().isEmpty ? null : _obsCtrl.text.trim(),
-    );
+    var ok = 0;
+    for (final e in _carrito.entries) {
+      if (await widget.service
+          .agregarItemBorrador(widget.servicioId, e.key, e.value)) {
+        ok++;
+      }
+    }
     if (!mounted) return;
     setState(() => _sending = false);
-    if (res.ok) {
-      // Si hubo faltantes, se generó una solicitud de compra a Logística.
-      final msg = res.faltanteCount > 0
-          ? 'Préstamo solicitado. ${res.faltanteCount} ítem(s) sin stock se enviaron a compra a Logística.'
-          : 'Préstamo solicitado';
+    if (ok > 0) {
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(msg),
-        backgroundColor: res.faltanteCount > 0 ? _kAmber : _kGreen,
+        content: Text('$ok ítem(s) agregados al borrador'),
+        backgroundColor: _kGreen,
         behavior: SnackBarBehavior.floating,
       ));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res.error ?? 'Error al solicitar'),
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se pudo agregar al borrador'),
         backgroundColor: _kRed,
         behavior: SnackBarBehavior.floating,
       ));

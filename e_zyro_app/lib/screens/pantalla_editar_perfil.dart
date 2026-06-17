@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/api_provider.dart';
 import '../utils/app_notifiers.dart';
-import '../utils/app_session.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -20,6 +22,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String _fotoUrl = '';
   bool _isSaving = false;
   bool _isLoading = true;
+  bool _isUploadingFoto = false;
 
   static const _green = Color(0xFF8FD11B);
 
@@ -50,6 +53,86 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// Abre el selector (cámara/galería) o permite quitar la foto actual.
+  Future<void> _cambiarFoto() async {
+    if (_isUploadingFoto) return;
+    final accion = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined, color: _green),
+              title: const Text('Tomar foto'),
+              onTap: () => Navigator.pop(ctx, 'camara'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: _green),
+              title: const Text('Elegir de la galería'),
+              onTap: () => Navigator.pop(ctx, 'galeria'),
+            ),
+            if (_fotoUrl.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Quitar foto actual'),
+                onTap: () => Navigator.pop(ctx, 'quitar'),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (accion == null || !mounted) return;
+
+    try {
+      final auth = await getAuthService();
+      if (accion == 'quitar') {
+        setState(() => _isUploadingFoto = true);
+        await auth.quitarFotoPerfil();
+        if (!mounted) return;
+        setState(() => _fotoUrl = '');
+        fotoPerfilNotifier.value = '';
+        _toast('Foto eliminada');
+        return;
+      }
+
+      final picker = ImagePicker();
+      final XFile? img = await picker.pickImage(
+        source: accion == 'camara' ? ImageSource.camera : ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      if (img == null || !mounted) return;
+
+      setState(() => _isUploadingFoto = true);
+      final bytes = await img.readAsBytes();
+      final base64 = base64Encode(bytes);
+      final url = await auth.subirFotoPerfil(base64);
+      if (!mounted) return;
+      setState(() => _fotoUrl = url);
+      fotoPerfilNotifier.value = url;
+      _toast('Foto actualizada');
+    } catch (e) {
+      if (mounted) _toast('No se pudo actualizar la foto: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _isUploadingFoto = false);
+    }
+  }
+
+  void _toast(String msg, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: error ? Colors.red : _green,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ));
   }
 
   Future<void> _save() async {
@@ -143,26 +226,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 border: Border.all(color: _green, width: 2.5),
                               ),
                               child: ClipOval(
-                                child: _fotoUrl.isNotEmpty
-                                    ? CachedNetworkImage(
-                                        imageUrl: _fotoUrl,
-                                        fit: BoxFit.cover,
-                                        memCacheWidth: 300,
-                                        errorWidget: (context, error, _) =>
-                                            const Icon(Icons.person, size: 50, color: _green),
+                                child: _isUploadingFoto
+                                    ? const Center(
+                                        child: SizedBox(
+                                          width: 26,
+                                          height: 26,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor: AlwaysStoppedAnimation<Color>(_green),
+                                          ),
+                                        ),
                                       )
-                                    : const Icon(Icons.person, size: 50, color: _green),
+                                    : (_fotoUrl.isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl: _fotoUrl,
+                                            fit: BoxFit.cover,
+                                            memCacheWidth: 300,
+                                            errorWidget: (context, error, _) =>
+                                                const Icon(Icons.person, size: 50, color: _green),
+                                          )
+                                        : const Icon(Icons.person, size: 50, color: _green)),
                               ),
                             ),
                             Positioned(
                               right: 0,
                               bottom: 0,
                               child: GestureDetector(
-                                onTap: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  content: const Text('Edición de foto disponible próximamente'),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                )),
+                                onTap: _isUploadingFoto ? null : _cambiarFoto,
                                 child: Container(
                                   padding: const EdgeInsets.all(7),
                                   decoration: BoxDecoration(
@@ -273,12 +363,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-
-                      // ── Selector de rol (modo test) ───────────────────────────
-                      const _SectionLabel('MODO TEST — ROL'),
-                      const SizedBox(height: 10),
-                      _RolSwitcher(cardDeco: cardDeco),
                       const SizedBox(height: 32),
 
                       // ── Botón Guardar ─────────────────────────────────────────
@@ -322,107 +406,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ),
               ),
             ),
-    );
-  }
-}
-
-// ── Selector de rol para testing ──────────────────────────────────────────────
-class _RolSwitcher extends StatefulWidget {
-  final BoxDecoration Function() cardDeco;
-  const _RolSwitcher({required this.cardDeco});
-
-  @override
-  State<_RolSwitcher> createState() => _RolSwitcherState();
-}
-
-class _RolSwitcherState extends State<_RolSwitcher> {
-  static const _green = Color(0xFF8FD11B);
-  static const _roles = [
-    'Administrador',
-    'Jefe de Operaciones',
-    'Técnico de Campo',
-    'Logístico',
-    'Supervisor',
-  ];
-
-  String _rolActual = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() => _rolActual = prefs.getString('user_rol') ?? '');
-  }
-
-  Future<void> _cambiarRol(String nuevoRol) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_rol', nuevoRol);
-    await AppSession.load();
-    permissionsRefreshNotifier.value++;
-    if (mounted) {
-      setState(() => _rolActual = nuevoRol);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Rol cambiado a "$nuevoRol"'),
-        backgroundColor: _green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(seconds: 2),
-      ));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: widget.cardDeco(),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(14),
-        child: Column(
-          children: _roles.asMap().entries.map((e) {
-            final i = e.key;
-            final rol = e.value;
-            final selected = _rolActual.toLowerCase() == rol.toLowerCase();
-            return Column(
-              children: [
-                ListTile(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  leading: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? _green.withValues(alpha: isDark ? 0.25 : 0.15)
-                          : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade100),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                      size: 20,
-                      color: selected ? _green : Colors.grey,
-                    ),
-                  ),
-                  title: Text(
-                    rol,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected ? _green : null,
-                    ),
-                  ),
-                  onTap: selected ? null : () => _cambiarRol(rol),
-                ),
-                if (i < _roles.length - 1) const Divider(height: 1, indent: 52),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
     );
   }
 }

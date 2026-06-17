@@ -185,3 +185,32 @@ class PrestamoAviso {
         totalItems: (j['total_items'] as num?)?.toInt() ?? 0,
       );
 }
+
+/// Ítem del borrador de préstamo (equipos/herramientas aún sin enviar).
+class PrestamoBorradorItem {
+  final String id;
+  final String equipoId;
+  final String nombre;
+  final String clase; // equipo | herramienta
+  final int cantidad;
+  final int disponible;
+
+  const PrestamoBorradorItem({
+    required this.id,
+    required this.equipoId,
+    required this.nombre,
+    required this.clase,
+    required this.cantidad,
+    required this.disponible,
+  });
+
+  factory PrestamoBorradorItem.fromJson(Map<String, dynamic> j) =>
+      PrestamoBorradorItem(
+        id: j['id']?.toString() ?? '',
+        equipoId: j['equipo_id']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        clase: j['clase']?.toString() ?? 'equipo',
+        cantidad: (j['cantidad'] as num?)?.toInt() ?? 0,
+        disponible: (j['disponible'] as num?)?.toInt() ?? 0,
+      );
+}

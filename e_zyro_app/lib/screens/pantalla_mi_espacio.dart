@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/api_result.dart';
 import '../models/evaluacion_models.dart';
 import '../models/vacaciones_models.dart';
 import '../services/vacaciones_service.dart';
@@ -47,6 +48,7 @@ class _MisVacacionesTabState extends State<_MisVacacionesTab> with AutomaticKeep
   List<SolicitudVacaciones> _solicitudes = [];
   bool _cargando = true;
   String? _error;
+  bool _sinFicha = false;
 
   @override
   bool get wantKeepAlive => true;
@@ -67,6 +69,7 @@ class _MisVacacionesTabState extends State<_MisVacacionesTab> with AutomaticKeep
     setState(() {
       _cargando = true;
       _error = null;
+      _sinFicha = false;
     });
     final sld = await _svc!.miSaldo();
     final sol = await _svc!.misSolicitudes();
@@ -75,6 +78,10 @@ class _MisVacacionesTabState extends State<_MisVacacionesTab> with AutomaticKeep
       _cargando = false;
       if (sld.ok) {
         _saldo = sld.data;
+      } else if (sld.error?.kind == ApiErrorKind.notFound) {
+        // El usuario no tiene ficha de empleado (p. ej. cuenta de sistema):
+        // no es un error que mostrar en rojo, sino un estado vacío amable.
+        _sinFicha = true;
       } else {
         _error = sld.errorMessage;
       }
@@ -146,6 +153,28 @@ class _MisVacacionesTabState extends State<_MisVacacionesTab> with AutomaticKeep
   Widget build(BuildContext context) {
     super.build(context);
     if (_cargando) return const Center(child: CircularProgressIndicator());
+    if (_sinFicha) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.badge_outlined, size: 48, color: Colors.black26),
+              SizedBox(height: 12),
+              Text('Aún no tienes ficha de empleado',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              SizedBox(height: 6),
+              Text(
+                'Tus vacaciones aparecerán aquí cuando Recursos Humanos\nregistre tu ficha de empleado.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     if (_error != null) {
       return Center(
         child: Padding(
