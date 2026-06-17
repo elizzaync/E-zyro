@@ -79,9 +79,12 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   advExito                  = '';
 
   // ── Tab Diaria ─────────────────────────────────────────────────────────────
-  fechaDiaria = this.toISODate(new Date());
-  diariaLoading = false;
-  diariaError   = '';
+  fechaDiaria       = this.toISODate(new Date());
+  diariaFechaInicio = this.toISODate(new Date());
+  diariaFechaFin    = this.toISODate(new Date());
+  diariaSearch      = '';
+  diariaLoading     = false;
+  diariaError       = '';
   diariaEmpleados:  AsistenciaDiariaItemDto[] = [];
   diariaPage    = 1;
   diariaTotalPag= 1;
@@ -332,19 +335,106 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   // ── Tab Diaria ─────────────────────────────────────────────────────────────
 
-  onFechaDiariaChange(): void { this.diariaPage = 1; this.cargarDiaria(); }
+  onFechaDiariaChange(): void {
+    if (this.fechaDiaria < this.diariaFechaInicio) this.diariaFechaInicio = this.fechaDiaria;
+    if (this.fechaDiaria > this.diariaFechaFin)    this.diariaFechaFin    = this.fechaDiaria;
+    this.diariaPage = 1; this.cargarDiaria();
+  }
+
+  onRangoDiarioChange(): void {
+    if (!this.diariaFechaInicio || !this.diariaFechaFin) return;
+    if (this.diariaFechaFin < this.diariaFechaInicio) this.diariaFechaFin = this.diariaFechaInicio;
+    if (this.fechaDiaria < this.diariaFechaInicio) this.fechaDiaria = this.diariaFechaInicio;
+    if (this.fechaDiaria > this.diariaFechaFin)    this.fechaDiaria = this.diariaFechaInicio;
+    this.diariaPage = 1; this.cargarDiaria();
+  }
+
+  setRangoPreset(preset: 'hoy' | 'semana' | 'mes'): void {
+    const hoy = new Date();
+    if (preset === 'hoy') {
+      this.diariaFechaInicio = this.toISODate(hoy);
+      this.diariaFechaFin    = this.toISODate(hoy);
+      this.fechaDiaria       = this.toISODate(hoy);
+    } else if (preset === 'semana') {
+      this.diariaFechaInicio = this.toISODate(this.lunesDe(hoy));
+      this.diariaFechaFin    = this.toISODate(this.sabadoDe(hoy));
+      this.fechaDiaria       = this.toISODate(this.lunesDe(hoy));
+    } else {
+      const ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      const fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+      this.diariaFechaInicio = this.toISODate(ini);
+      this.diariaFechaFin    = this.toISODate(fin);
+      this.fechaDiaria       = this.toISODate(ini);
+    }
+    this.diariaPage = 1; this.diariaSearch = ''; this.cargarDiaria();
+  }
+
+  irDiaAnterior(): void {
+    if (!this.puedeIrDiaAnterior) return;
+    const d = new Date(this.fechaDiaria + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    this.fechaDiaria = this.toISODate(d);
+    this.diariaPage = 1; this.cargarDiaria();
+  }
+
+  irDiaSiguiente(): void {
+    if (!this.puedeIrDiaSiguiente) return;
+    const d = new Date(this.fechaDiaria + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
+    this.fechaDiaria = this.toISODate(d);
+    this.diariaPage = 1; this.cargarDiaria();
+  }
+
+  get esRangoMultiDia(): boolean { return this.diariaFechaInicio !== this.diariaFechaFin; }
+  get puedeIrDiaAnterior(): boolean { return !!this.diariaFechaInicio && this.fechaDiaria > this.diariaFechaInicio; }
+  get puedeIrDiaSiguiente(): boolean { return !!this.diariaFechaFin && this.fechaDiaria < this.diariaFechaFin; }
+
+  get diaEnRango(): string {
+    if (!this.esRangoMultiDia) return '';
+    const start = new Date(this.diariaFechaInicio + 'T00:00:00');
+    const end   = new Date(this.diariaFechaFin    + 'T00:00:00');
+    const curr  = new Date(this.fechaDiaria        + 'T00:00:00');
+    const total  = Math.round((end.getTime()  - start.getTime()) / 86400000) + 1;
+    const actual = Math.round((curr.getTime() - start.getTime()) / 86400000) + 1;
+    return `Día ${actual} / ${total}`;
+  }
 
   cargarDiaria(): void {
     this.diariaLoading = true; this.diariaError = '';
-    this.rrhhService.getAsistenciaDiaria(this.fechaDiaria, this.diariaPage, this.DIARIA_PER_PAGE).subscribe({
+    const buscando = !!this.diariaSearch.trim();
+    this.rrhhService.getAsistenciaDiaria(
+      this.fechaDiaria,
+      buscando ? 1 : this.diariaPage,
+      buscando ? 500 : this.DIARIA_PER_PAGE,
+    ).subscribe({
       next: (res) => {
         this.diariaEmpleados = res.empleados;
         this.diariaTotalReg  = res.total;
-        this.diariaTotalPag  = res.total_paginas;
+        this.diariaTotalPag  = buscando ? 1 : res.total_paginas;
         this.diariaLoading   = false;
       },
       error: () => { this.diariaError = 'No se pudo cargar la asistencia diaria.'; this.diariaLoading = false; },
     });
+  }
+
+  get diariaEmpleadosFiltrados(): AsistenciaDiariaItemDto[] {
+    if (!this.diariaSearch.trim()) return this.diariaEmpleados;
+    const t = this.diariaSearch.toLowerCase();
+    return this.diariaEmpleados.filter(e =>
+      e.nombreCompleto.toLowerCase().includes(t) ||
+      e.cargo.toLowerCase().includes(t) ||
+      (e.area || '').toLowerCase().includes(t),
+    );
+  }
+
+  get kpisDiaria() {
+    const emps = this.diariaEmpleados;
+    return {
+      total:     this.diariaTotalReg,
+      presentes: emps.filter(e => !!e.hora_ingreso).length,
+      ausentes:  emps.filter(e => !e.hora_ingreso).length,
+      enOficina: emps.filter(e => !!e.hora_ingreso && !e.hora_salida).length,
+    };
   }
 
   irPaginaDiaria(p: number): void {

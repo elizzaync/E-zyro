@@ -363,16 +363,92 @@
   ═══════════════════════════════════════════════════════════════════════════ -->
   @if (activeTab === 'diaria') {
     <div class="card">
-      <div class="diaria-toolbar">
-        <div class="diaria-date-row">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--brand-green,#22c55e)"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <label class="diaria-label">Fecha:</label>
-          <input class="diaria-date-input" type="date" [(ngModel)]="fechaDiaria" (change)="onFechaDiariaChange()">
-          <span class="diaria-label-full">{{ labelFechaDiaria() }}</span>
+
+      <!-- ── Filtros ────────────────────────────────────────────── -->
+      <div class="diaria-filters">
+
+        <!-- Fila 1: Rango de fechas + presets + navegación -->
+        <div class="diaria-filter-row">
+
+          <!-- Selector de rango -->
+          <div class="diaria-range-group">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="range-icon"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span class="filter-label">Desde</span>
+            <input class="filter-date-input" type="date" [(ngModel)]="diariaFechaInicio" (change)="onRangoDiarioChange()">
+            <span class="filter-sep">—</span>
+            <span class="filter-label">Hasta</span>
+            <input class="filter-date-input" type="date" [(ngModel)]="diariaFechaFin" (change)="onRangoDiarioChange()">
+          </div>
+
+          <!-- Presets rápidos -->
+          <div class="diaria-presets">
+            <button class="btn-preset" (click)="setRangoPreset('hoy')">Hoy</button>
+            <button class="btn-preset" (click)="setRangoPreset('semana')">Esta semana</button>
+            <button class="btn-preset" (click)="setRangoPreset('mes')">Este mes</button>
+          </div>
+
+          <!-- Navegación día a día (visible solo en rango multi-día) -->
+          @if (esRangoMultiDia) {
+            <div class="diaria-nav-group">
+              <button class="nav-btn" [disabled]="!puedeIrDiaAnterior" (click)="irDiaAnterior()" title="Día anterior">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <div class="diaria-fecha-actual">
+                <span class="fecha-dia-label">{{ labelFechaDiaria() }}</span>
+                <span class="fecha-rango-chip">{{ diaEnRango }}</span>
+              </div>
+              <button class="nav-btn" [disabled]="!puedeIrDiaSiguiente" (click)="irDiaSiguiente()" title="Día siguiente">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </div>
+          } @else {
+            <span class="fecha-dia-single">{{ labelFechaDiaria() }}</span>
+          }
         </div>
-        @if (!diariaLoading && diariaTotalReg > 0) {
-          <span class="meta-chip">{{ diariaTotalReg }} empleados</span>
-        }
+
+        <!-- Fila 2: Búsqueda + KPI chips -->
+        <div class="diaria-filter-row diaria-filter-row--2">
+
+          <!-- Buscador por empleado -->
+          <div class="search-box diaria-search">
+            <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" placeholder="Buscar empleado, cargo, área…"
+              [(ngModel)]="diariaSearch" (ngModelChange)="cargarDiaria()">
+            @if (diariaSearch) {
+              <button class="search-clear" (click)="diariaSearch = ''; cargarDiaria()" title="Limpiar">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            }
+          </div>
+
+          <!-- KPI chips dinámicos -->
+          @if (!diariaLoading && diariaTotalReg > 0) {
+            <div class="diaria-kpi-chips">
+              <span class="kpi-chip kpi-chip--total">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                {{ kpisDiaria.total }} empleados
+              </span>
+              @if (kpisDiaria.presentes > 0) {
+                <span class="kpi-chip kpi-chip--present">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  {{ kpisDiaria.presentes }} presentes
+                </span>
+              }
+              @if (kpisDiaria.ausentes > 0) {
+                <span class="kpi-chip kpi-chip--absent">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  {{ kpisDiaria.ausentes }} ausentes
+                </span>
+              }
+              @if (kpisDiaria.enOficina > 0) {
+                <span class="kpi-chip kpi-chip--office">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  {{ kpisDiaria.enOficina }} en oficina
+                </span>
+              }
+            </div>
+          }
+        </div>
       </div>
 
       @if (diariaLoading) {
@@ -388,31 +464,31 @@
             <thead>
               <tr>
                 <th>Empleado</th>
-                <th class="text-center">Hora Ingreso</th>
-                <th class="text-center">Hora Salida</th>
+                <th class="text-center">Ingreso</th>
+                <th class="text-center">Salida</th>
                 <th class="text-center">Almuerzo</th>
-                <th class="text-center">Horas Trab.</th>
-                <th class="text-center coord-th">Lat. Ingreso</th>
-                <th class="text-center coord-th">Lng. Ingreso</th>
-                <th class="text-center coord-th">Lat. Salida</th>
-                <th class="text-center coord-th">Lng. Salida</th>
+                <th class="text-center">H. Trab.</th>
+                <th class="text-center coord-th">Lat. Ing.</th>
+                <th class="text-center coord-th">Lng. Ing.</th>
+                <th class="text-center coord-th">Lat. Sal.</th>
+                <th class="text-center coord-th">Lng. Sal.</th>
                 <th class="text-center">Mapa</th>
                 <th class="text-center">Estado</th>
               </tr>
             </thead>
             <tbody>
-              @if (diariaEmpleados.length === 0) {
+              @if (diariaEmpleadosFiltrados.length === 0) {
                 <tr>
                   <td colspan="11">
                     <div class="empty-state">
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                      <p>Sin registros para esta fecha</p>
+                      <p>{{ diariaSearch ? 'Sin coincidencias para "' + diariaSearch + '"' : 'Sin registros para esta fecha' }}</p>
                     </div>
                   </td>
                 </tr>
               }
-              @for (item of diariaEmpleados; track item.empleado_id) {
-                <tr>
+              @for (item of diariaEmpleadosFiltrados; track item.empleado_id) {
+                <tr [class.row-sin-ingreso]="!item.hora_ingreso">
                   <td>
                     <div class="emp-cell">
                       <div class="emp-avatar">
@@ -429,10 +505,10 @@
                     </div>
                   </td>
                   <td class="text-center">
-                    <span class="hora-cell">{{ formatHora(item.hora_ingreso) }}</span>
+                    <span class="hora-cell" [class.hora-ausente]="!item.hora_ingreso">{{ formatHora(item.hora_ingreso) }}</span>
                   </td>
                   <td class="text-center">
-                    <span class="hora-cell">{{ formatHora(item.hora_salida) }}</span>
+                    <span class="hora-cell" [class.hora-ausente]="!item.hora_salida">{{ formatHora(item.hora_salida) }}</span>
                   </td>
                   <td class="text-center">
                     <div class="almuerzo-cell" style="justify-content:center">
@@ -477,8 +553,8 @@
           </table>
         </div>
 
-        <!-- Paginación diaria -->
-        @if (diariaTotalPag > 1) {
+        <!-- Paginación diaria (solo cuando no hay búsqueda activa) -->
+        @if (diariaTotalPag > 1 && !diariaSearch.trim()) {
           <div class="pagination-footer">
             <span class="pagination-info">
               Mostrando {{ rangoDiaria.desde }}–{{ rangoDiaria.hasta }} de {{ rangoDiaria.total }} empleados
