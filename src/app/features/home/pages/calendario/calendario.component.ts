@@ -24,6 +24,10 @@ interface DiaCell {
   permisoTipo: string;
   eventoOT: boolean;
   estadoOT: string;
+  otNombre: string;
+  otOrden: string;
+  otCliente: string;
+  tooltip: string;
 }
 
 @Component({
@@ -133,10 +137,16 @@ export class CalendarioComponent implements OnInit {
       }
     }
 
-    const otMap = new Map<string, string>();
+    interface OTInfo { estado: string; nombre: string; orden: string; cliente: string; }
+    const otMap = new Map<string, OTInfo>();
     for (const s of this.servicios) {
       const f = (s.fecha_programada ?? '').split('T')[0];
-      if (f) otMap.set(f, s.estado ?? 'Pendiente');
+      if (f) otMap.set(f, {
+        estado:  s.estado       ?? 'Pendiente',
+        nombre:  s.nombre       ?? '',
+        orden:   s.orden_trabajo ?? '',
+        cliente: s.cliente      ?? '',
+      });
     }
 
     // ── cuadrícula ───────────────────────────────────────────────────
@@ -158,7 +168,7 @@ export class CalendarioComponent implements OnInit {
 
       const asist    = asistMap.get(fecha);
       const permData = permisoMap.get(fecha);
-      const otEstado = otMap.get(fecha);
+      const otInfo   = otMap.get(fecha);
 
       const entrada = asist?.entrada ?? null;
       const horasTrab = parseFloat(String(asist?.horas_trabajadas ?? '0')) || 0;
@@ -188,14 +198,26 @@ export class CalendarioComponent implements OnInit {
         tag = 'libre';
       }
 
+      // tooltip para hover CSS
+      let tooltip = '';
+      if (tag === 'asistio')  tooltip = `${entrada ?? '--'} → ${asist?.salida ?? '--'} · ${horasTrab.toFixed(1)}h`;
+      if (tag === 'tardanza') tooltip = `Tardanza · ${entrada ?? '--'} → ${asist?.salida ?? '--'}`;
+      if (tag === 'falta')    tooltip = 'Sin marcación';
+      if (tag === 'permiso')  tooltip = permData?.tipo ?? 'Permiso';
+      if (otInfo)             tooltip += (tooltip ? ' · ' : '') + (otInfo.orden ? `${otInfo.orden}` : 'OT programada');
+
       this.diasMes.push({
         num: d, fecha, isHoy, isWeekend, tag,
         horaIngreso: entrada ?? '',
         horaSalida:  asist?.salida ?? '',
         horasTrabajadas: horasTrab,
         permisoTipo: permData?.tipo ?? '',
-        eventoOT: !!otEstado,
-        estadoOT: otEstado ?? '',
+        eventoOT: !!otInfo,
+        estadoOT: otInfo?.estado ?? '',
+        otNombre:  otInfo?.nombre  ?? '',
+        otOrden:   otInfo?.orden   ?? '',
+        otCliente: otInfo?.cliente ?? '',
+        tooltip,
       });
     }
 
@@ -251,6 +273,6 @@ export class CalendarioComponent implements OnInit {
   private emptyCell(): DiaCell {
     return { num:null, fecha:'', isHoy:false, isWeekend:false, tag:'',
       horaIngreso:'', horaSalida:'', horasTrabajadas:0, permisoTipo:'',
-      eventoOT:false, estadoOT:'' };
+      eventoOT:false, estadoOT:'', otNombre:'', otOrden:'', otCliente:'', tooltip:'' };
   }
 }
