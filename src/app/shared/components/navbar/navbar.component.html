@@ -592,6 +592,16 @@
                 <label>Teléfono</label>
                 <input type="text" [(ngModel)]="perfilData.telefono" [disabled]="!isEditingProfile">
             </div>
+
+            <!-- Datos no editables del trabajador (siempre bloqueados) -->
+            <div class="input-wrapper disabled">
+                <label>{{ perfilData.tipoDocumento || 'DNI' }}</label>
+                <input type="text" [value]="perfilData.dni || '—'" disabled>
+            </div>
+            <div class="input-wrapper disabled">
+                <label>Sexo</label>
+                <input type="text" [value]="sexoLabel" disabled>
+            </div>
         </div>
     </div>
 

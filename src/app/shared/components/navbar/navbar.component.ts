@@ -97,8 +97,20 @@ get enRRHH(): boolean {
     ruc: '',
     ubicacion: 'Cargando...',
     fechaCreacion: '',
-    fotoUrl: ''
+    fotoUrl: '',
+    // Datos no editables del trabajador.
+    dni: '',
+    tipoDocumento: 'DNI',
+    sexo: ''
   };
+
+  /** Etiqueta legible del sexo (campo de solo lectura). */
+  get sexoLabel(): string {
+    const s = (this.perfilData.sexo || '').toUpperCase();
+    if (s === 'M') return 'Masculino';
+    if (s === 'F') return 'Femenino';
+    return '—';
+  }
 
   perfilDataBackup: any = null; // Variable para guardar los datos originales
 
@@ -238,6 +250,9 @@ get enRRHH(): boolean {
             ubicacion:     p.empresaEmail || '—',
             fechaCreacion: p.fechaCreacion,
             fotoUrl:       p.fotoUrl,
+            dni:           '',
+            tipoDocumento: 'DNI',
+            sexo:          '',
           };
         },
         error: () => { /* sin toast — datos básicos ya están en localStorage */ }
@@ -273,7 +288,11 @@ get enRRHH(): boolean {
             ruc: empresa.ruc,
             ubicacion: empresa.ubicacion,
             fechaCreacion: personal.fechaCreacion,
-            fotoUrl: personal.fotoUrl
+            fotoUrl: personal.fotoUrl,
+            // Datos no editables del trabajador.
+            dni: personal.dni || '',
+            tipoDocumento: personal.tipoDocumento || 'DNI',
+            sexo: personal.sexo || ''
           };
         }
       },
