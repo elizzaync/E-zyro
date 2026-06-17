@@ -4,6 +4,7 @@ from fastapi import Security
 from sqlalchemy import text, case, func
 from sqlalchemy.orm import Session
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 import uuid
 import random
@@ -31,6 +32,7 @@ from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_
 from app.core.email import enviar_correo_otp
 from app.core.session_cache import marcar_activa, invalidar
 from app.core.session_events import manager as session_manager
+from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 from jose import jwt, JWTError
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 _http_bearer = HTTPBearer()
@@ -308,6 +310,55 @@ def obtener_mi_sesion(payload: dict = Depends(verificar_token), db: Session = De
             "permisos":        lista_permisos,
         }
     }
+
+
+# =========================================================================
+# /auth/me/foto — subir / quitar foto de perfil del usuario autenticado
+# =========================================================================
+class _FotoPerfilIn(BaseModel):
+    imagen_base64: str
+
+
+@router.post("/me/foto")
+def subir_mi_foto(body: _FotoPerfilIn, payload: dict = Depends(verificar_token),
+                  db: Session = Depends(get_db)):
+    """Sube la foto de perfil del usuario autenticado a Cloudinary y persiste
+    `usuario.foto_url`. Usa public_id = id del usuario → sobrescribe la anterior
+    (sin huérfanos) y mantiene una URL estable por usuario."""
+    if not body.imagen_base64:
+        raise HTTPException(status_code=400, detail="imagen_base64 requerida")
+    usuario_id = payload.get("id")
+    empresa_id = payload.get("empresa_id")
+    usuario_db = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario_db:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    folder = f"e-zyro/perfiles/{empresa_id}"
+    try:
+        url = subir_imagen_cloudinary(
+            body.imagen_base64, folder=folder,
+            public_id=str(usuario_id), is_perfil=True,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    usuario_db.foto_url = url
+    db.commit()
+    return {"status": "success", "data": {"foto_url": url or ""}}
+
+
+@router.delete("/me/foto")
+def quitar_mi_foto(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Quita la foto de perfil (borra el asset en Cloudinary y limpia foto_url)."""
+    usuario_id = payload.get("id")
+    usuario_db = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario_db:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if usuario_db.foto_url:
+        eliminar_imagen_cloudinary(usuario_db.foto_url)
+    usuario_db.foto_url = None
+    db.commit()
+    return {"status": "success", "data": {"foto_url": ""}}
 
 
 @router.post("/logout")
