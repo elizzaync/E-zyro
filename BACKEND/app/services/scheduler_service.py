@@ -843,6 +843,62 @@ def _aviso_pre_horario():
         db.close()
 
 
+def _depreciacion_mensual_automatica():
+    """Día 1 de cada mes (01:00 Lima): deprecia el MES ANTERIOR para todas las
+    empresas. Por cada empresa: asegura un periodo contable abierto para ese mes
+    (lo crea si no existe; si está cerrado, lo respeta y omite) y procesa la
+    depreciación de línea recta (Db 6814 / Cr 391).
+
+    Idempotente: `procesar_depreciacion_periodo` no duplica asientos por
+    (activo, periodo), así que correrlo de nuevo —o haberlo corrido a mano— es
+    inofensivo."""
+    from app.models.empresa import Empresa
+    from app.models.contabilidad import PeriodoContable
+    from app.services import activos_fijos_service as af
+
+    db: Session = SessionLocal()
+    try:
+        hoy = date.today()
+        # Mes anterior: último día del mes pasado = día 0 del mes actual.
+        ultimo_mes = hoy.replace(day=1) - timedelta(days=1)
+        anio, mes = ultimo_mes.year, ultimo_mes.month
+
+        empresas = db.query(Empresa.id).all()
+        total_emp = 0
+        total_dep = 0
+        for (eid,) in empresas:
+            eid = str(eid)
+            p = db.query(PeriodoContable).filter(
+                PeriodoContable.empresa_id == eid,
+                PeriodoContable.anio == anio,
+                PeriodoContable.mes == mes,
+            ).first()
+            if p is None:
+                p = PeriodoContable(empresa_id=eid, anio=anio, mes=mes, estado="abierto")
+                db.add(p)
+                db.commit()
+                db.refresh(p)
+            elif p.estado != "abierto":
+                continue  # periodo cerrado por contabilidad: no se toca
+            try:
+                res = af.procesar_depreciacion_periodo(db, eid, str(p.id), None)
+                if res.get("procesados"):
+                    total_emp += 1
+                    total_dep += res["procesados"]
+            except Exception as exc:
+                db.rollback()
+                print(f"[Scheduler] ⚠️ Depreciación {anio}-{mes:02d} empresa {eid}: {exc}")
+                continue
+
+        print(f"[Scheduler] 🏭 Depreciación {anio}-{mes:02d}: "
+              f"{total_dep} activo(s) en {total_emp} empresa(s)")
+    except Exception as e:
+        print(f"[Scheduler] ❌ Error en depreciación mensual: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def iniciar_scheduler():
     """Registra las tareas y arranca el scheduler. Llamar desde main.py."""
     # Recordatorio diario a las 08:00 AM
@@ -901,10 +957,17 @@ def iniciar_scheduler():
         id="aviso_pre_horario",
         replace_existing=True
     )
+    # Depreciación mensual de activos fijos — día 1 de cada mes, 01:00 (mes anterior)
+    scheduler.add_job(
+        func=_depreciacion_mensual_automatica,
+        trigger=CronTrigger(day=1, hour=1, minute=0),
+        id="depreciacion_mensual",
+        replace_existing=True
+    )
     scheduler.start()
     print("⏰ Scheduler iniciado → calendario 08:00 + mantenimiento 08:15 + "
           "vencimientos 08:30 + préstamos 08:45 + pre-horario cada 5 min (4-21h) + "
-          "pre-almuerzo 11:45 + fin almuerzo cada 5 min")
+          "pre-almuerzo 11:45 + fin almuerzo cada 5 min + depreciación día 1 01:00")
 def detener_scheduler():
     """Detiene el scheduler al cerrar la app."""
     if scheduler.running:
