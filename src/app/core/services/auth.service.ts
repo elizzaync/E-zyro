@@ -44,7 +44,7 @@ export class AuthService {
           };
           localStorage.setItem('ezyro_user', JSON.stringify(userData));
           this.startSessionTimer();
-          this.startDevicePolling();
+          this.connectSessionSocket();
         }
       })
     );
@@ -93,7 +93,7 @@ export class AuthService {
   // 4. Lógica de logout que notifica al backend y limpia sesión
   logout(): void {
     this.clearSessionTimers();
-    this.stopDevicePolling();
+    this.disconnectSessionSocket();
     this.showSessionWarningSubject.next(false);
     this.showNewDeviceWarningSubject.next(false);
     const token = localStorage.getItem('ezyro_token');
@@ -111,7 +111,9 @@ export class AuthService {
   logoutAllDevices(): Observable<any> {
     const token = localStorage.getItem('ezyro_token');
     const headers = new HttpHeaders({ 'Authorization': `Bearer ${token}` });
-    return this.http.post(`${this.apiUrl}/password-recovery/logout-all`, {}, { headers }).pipe(
+    // Cierra todas las demás sesiones (mantiene la actual). El backend revoca
+    // los tokens y empuja "sesion_cerrada" a cada equipo por WebSocket.
+    return this.http.post(`${this.apiUrl}/logout-all`, {}, { headers }).pipe(
       catchError(() => of(null))
     );
   }
@@ -163,8 +165,12 @@ export class AuthService {
   showNewDeviceWarning$ = this.showNewDeviceWarningSubject.asObservable();
 
   newDeviceInfo: any = null;
-  private knownSessionIds = new Set<string>();
-  private devicePollingTimer: ReturnType<typeof setInterval> | null = null;
+
+  // ── WebSocket de sesiones (reemplaza el polling de 60s) ───────────────────
+  private sessionSocket: WebSocket | null = null;
+  private sessionReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private sessionReconnectAttempts = 0;
+  private sessionManualClose = false;
 
   getSesionesActivas(): Observable<any> {
     return this.http.get<any>(`${this.apiUrl}/sesiones`);
@@ -174,67 +180,115 @@ export class AuthService {
     return this.http.delete<any>(`${this.apiUrl}/sesiones/${sessionId}`);
   }
 
-  startDevicePolling(): void {
-    this.stopDevicePolling();
-    // Initial fetch to establish baseline known sessions
-    this.getSesionesActivas().pipe(
-      catchError(() => of(null))
-    ).subscribe((res: any) => {
-      if (res?.status === 'success') {
-        this.knownSessionIds = new Set(res.data.map((s: any) => s.id));
+  /**
+   * Abre el WebSocket /ws/sesiones para recibir avisos instantáneos:
+   *  - nuevo_dispositivo → muestra el aviso en este equipo.
+   *  - sesion_cerrada     → este equipo fue expulsado → logout forzado.
+   * Reconecta con backoff exponencial si la conexión cae.
+   */
+  connectSessionSocket(): void {
+    this.disconnectSessionSocket(false);
+    const token = this.getToken();
+    if (!token) return;
+
+    this.sessionManualClose = false;
+    const wsBase = environment.apiUrl.replace(/^http/, 'ws');
+
+    let socket: WebSocket;
+    try {
+      socket = new WebSocket(`${wsBase}/ws/sesiones?token=${token}`);
+    } catch {
+      this.scheduleSessionReconnect();
+      return;
+    }
+    this.sessionSocket = socket;
+
+    socket.onopen = () => { this.sessionReconnectAttempts = 0; };
+
+    socket.onmessage = (ev: MessageEvent) => {
+      let data: any;
+      try { data = JSON.parse(ev.data); } catch { return; }
+
+      if (data?.tipo === 'nuevo_dispositivo') {
+        this.newDeviceInfo = {
+          dispositivo: data.dispositivo,
+          ip:          data.ip,
+          sesion_id:   data.sesion_id,
+          fecha:       data.fecha,
+        };
+        this.showNewDeviceWarningSubject.next(true);
+        document.body.style.overflow = 'hidden';
+      } else if (data?.tipo === 'sesion_cerrada') {
+        // Este equipo fue cerrado desde otro dispositivo → expulsión real.
+        this.forceLogout();
       }
-    });
-    // Poll every 60 seconds for new sessions
-    this.devicePollingTimer = setInterval(() => {
-      if (!this.isAuthenticated()) {
-        this.stopDevicePolling();
-        return;
-      }
-      this.getSesionesActivas().pipe(
-        catchError(() => of(null))
-      ).subscribe((res: any) => {
-        if (!res?.data) return;
-        const newSessions = res.data.filter(
-          (s: any) => !s.es_actual && !this.knownSessionIds.has(s.id)
-        );
-        if (newSessions.length > 0) {
-          this.newDeviceInfo = newSessions[0];
-          this.showNewDeviceWarningSubject.next(true);
-          document.body.style.overflow = 'hidden';
-        }
-        // Update known set to include ALL current sessions
-        res.data.forEach((s: any) => this.knownSessionIds.add(s.id));
-      });
-    }, 60_000);
+    };
+
+    socket.onclose = (ev: CloseEvent) => {
+      this.sessionSocket = null;
+      if (this.sessionManualClose) return;
+      // 4001 token inválido · 4002 sesión cerrada → no reconectar.
+      if (ev.code === 4001 || ev.code === 4002) return;
+      if (this.isAuthenticated()) this.scheduleSessionReconnect();
+    };
+
+    socket.onerror = () => { /* onclose gestiona la reconexión */ };
   }
 
-  stopDevicePolling(): void {
-    if (this.devicePollingTimer !== null) {
-      clearInterval(this.devicePollingTimer);
-      this.devicePollingTimer = null;
+  private scheduleSessionReconnect(): void {
+    if (this.sessionReconnectTimer) return;
+    // Backoff exponencial con techo de 30s.
+    const delay = Math.min(30_000, 1_000 * Math.pow(2, this.sessionReconnectAttempts));
+    this.sessionReconnectAttempts++;
+    this.sessionReconnectTimer = setTimeout(() => {
+      this.sessionReconnectTimer = null;
+      if (this.isAuthenticated() && !this.sessionManualClose) {
+        this.connectSessionSocket();
+      }
+    }, delay);
+  }
+
+  disconnectSessionSocket(manual = true): void {
+    this.sessionManualClose = manual;
+    if (this.sessionReconnectTimer) {
+      clearTimeout(this.sessionReconnectTimer);
+      this.sessionReconnectTimer = null;
     }
+    if (this.sessionSocket) {
+      try { this.sessionSocket.close(); } catch { /* noop */ }
+      this.sessionSocket = null;
+    }
+  }
+
+  /** Logout forzado (sin llamar al backend): el servidor ya cerró la sesión. */
+  private forceLogout(): void {
+    this.clearSessionTimers();
+    this.disconnectSessionSocket();
+    this.showSessionWarningSubject.next(false);
+    this.showNewDeviceWarningSubject.next(false);
+    this.newDeviceInfo = null;
+    document.body.style.overflow = '';
+    localStorage.removeItem('ezyro_token');
+    localStorage.removeItem('ezyro_user');
+    this.router.navigate(['/']);
   }
 
   dismissNewDeviceWarning(): void {
-    if (this.newDeviceInfo) {
-      this.knownSessionIds.add(this.newDeviceInfo.id);
-    }
     this.newDeviceInfo = null;
     this.showNewDeviceWarningSubject.next(false);
     document.body.style.overflow = '';
   }
 
   cerrarSesionDesconocida(): void {
-    if (!this.newDeviceInfo) return;
-    const id = this.newDeviceInfo.id;
+    const id = this.newDeviceInfo?.sesion_id;
+    this.newDeviceInfo = null;
+    this.showNewDeviceWarningSubject.next(false);
+    document.body.style.overflow = '';
+    if (!id) return;
+    // Cierra la sesión del equipo intruso; el backend lo expulsa al instante.
     this.cerrarSesionRemota(id).pipe(
       catchError(() => of(null))
-    ).subscribe(() => {
-      this.knownSessionIds.add(id);
-      this.newDeviceInfo = null;
-      this.showNewDeviceWarningSubject.next(false);
-      document.body.style.overflow = '';
-    });
+    ).subscribe();
   }
 
   // ==========================================

@@ -49,7 +49,7 @@ export class App implements OnInit {
 
     if (this.authService.isAuthenticated()) {
       this.authService.startSessionTimer();
-      this.authService.startDevicePolling();
+      this.authService.connectSessionSocket();
     }
   }
 
