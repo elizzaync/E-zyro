@@ -111,7 +111,7 @@ export class PlanillasComponent implements OnInit {
   asigFamiliarMap: Record<string, boolean> = {};
 
   // ── Datos de la empresa (para el encabezado de la Planilla Mensual PDF) ────
-  empresaInfo: { razon_social: string; ruc: string; regimen_tributario: string } | null = null;
+  empresaInfo: { razon_social: string; ruc: string; regimen_tributario: string; direccion?: string; telefono?: string } | null = null;
 
   // ── Modal boleta individual ───────────────────────────────────────────────
   boletaEmp: ResumenEmpleadoDto | null = null;
@@ -486,10 +486,40 @@ export class PlanillasComponent implements OnInit {
   // trabajadores dependientes (planilla/contrato). Los practicantes, bajo la
   // Ley de Modalidades Formativas (28518), no tienen relación laboral y no
   // están afiliados obligatoriamente.
-  descuentoPension(emp: ResumenEmpleadoDto): number {
+  // Base imponible para el aporte a pensiones (remuneración computable del período).
+  basePension(emp: ResumenEmpleadoDto): number {
     if (!this.esDependiente(emp)) return 0;
     const base = this.sueldoPeriodo(emp.id) - this.descuentoFaltas(emp) + this.pagoHorasExtra(emp) + this.asignacionFamiliar(emp);
-    return Math.max(0, base) * this.pensionPct(emp);
+    return Math.max(0, base);
+  }
+
+  descuentoPension(emp: ResumenEmpleadoDto): number {
+    if (!this.esDependiente(emp)) return 0;
+    return this.basePension(emp) * this.pensionPct(emp);
+  }
+
+  // ── Desglose del Sistema Privado de Pensiones (AFP) en sus 3 componentes ────
+  // Estándar de boleta peruana: Aporte Obligatorio (10%), Prima de Seguro y
+  // Comisión de la AFP por separado. Solo aplica a dependientes afiliados a AFP;
+  // en ONP el aporte es único (13%). La suma de los tres = descuentoPension.
+  esAfp(emp: ResumenEmpleadoDto): boolean {
+    return this.esDependiente(emp) && this.getPension(emp.id) === 'afp';
+  }
+
+  afpAporteObligatorio(emp: ResumenEmpleadoDto): number {
+    return this.esAfp(emp) ? this.basePension(emp) * AFP_APORTE_PCT : 0;
+  }
+
+  afpPrimaSeguro(emp: ResumenEmpleadoDto): number {
+    return this.esAfp(emp) ? this.basePension(emp) * AFP_SEGURO_PCT : 0;
+  }
+
+  afpComision(emp: ResumenEmpleadoDto): number {
+    return this.esAfp(emp) ? this.basePension(emp) * AFP_COMISIONES[this.getAfpEntidad(emp.id)] : 0;
+  }
+
+  afpComisionPct(emp: ResumenEmpleadoDto): number {
+    return AFP_COMISIONES[this.getAfpEntidad(emp.id)];
   }
 
   // Aporte EsSalud: costo del empleador, NO se descuenta del trabajador.
@@ -635,10 +665,15 @@ export class PlanillasComponent implements OnInit {
       filasDescuentos += filaSinMonto('Descuento por Inasistencias y Tardanzas', 'Sin faltas ni tardanzas registradas en el período');
     }
     if (descPension > 0) {
-      const baseLegalPension = this.getPension(emp.id) === 'onp'
-        ? 'Aporte obligatorio ONP — D.L. N.° 19990'
-        : 'Aporte, prima de seguro y comisión AFP — D.L. N.° 25897';
-      filasDescuentos += fila(`Aporte al Sistema de Pensiones — ${this.pensionLabel(emp)}`, baseLegalPension, `−${this.formatMonto(descPension)}`);
+      if (this.esAfp(emp)) {
+        // Desglose en 3 componentes (estándar de boleta peruana, D.L. N.° 25897).
+        const afpNom = this.afpEntidadLabel(emp.id);
+        filasDescuentos += fila('Aporte Obligatorio al Fondo de Pensiones', `Cuenta Individual de Capitalización — 10.00% · ${afpNom}`, `−${this.formatMonto(this.afpAporteObligatorio(emp))}`);
+        filasDescuentos += fila('Prima de Seguro de Invalidez y Sobrevivencia', `Cobertura previsional SPP — ${(AFP_SEGURO_PCT * 100).toFixed(2)}%`, `−${this.formatMonto(this.afpPrimaSeguro(emp))}`);
+        filasDescuentos += fila('Comisión de Administración (AFP)', `${afpNom} — comisión sobre flujo ${(this.afpComisionPct(emp) * 100).toFixed(2)}%`, `−${this.formatMonto(this.afpComision(emp))}`);
+      } else {
+        filasDescuentos += fila('Aporte al Sistema Nacional de Pensiones (ONP)', 'Aporte obligatorio — D.L. N.° 19990 · 13.00%', `−${this.formatMonto(descPension)}`);
+      }
     } else {
       filasDescuentos += filaSinMonto('Aporte al Sistema de Pensiones', this.motivoPension(emp));
     }
@@ -661,7 +696,20 @@ export class PlanillasComponent implements OnInit {
 
     const razonSocial = this.empresaInfo?.razon_social || 'E-SYSTEM TIC';
     const ruc = this.empresaInfo?.ruc || '—';
+    const direccionEmp = (this.empresaInfo?.direccion || '').trim();
+    const telefonoEmp = (this.empresaInfo?.telefono || '').trim();
     const fechaEmision = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    // Documento de identidad del trabajador (DNI / Carné de Extranjería).
+    const docTipo = (emp.tipo_documento || 'DNI').toUpperCase();
+    const docNum  = (emp.numero_documento || '').trim() || '—';
+    // Fecha de ingreso (vital para el cálculo de beneficios sociales).
+    const fechaIngreso = emp.fecha_ingreso
+      ? new Date(emp.fecha_ingreso + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })
+      : '—';
+    // Resumen de asistencia directo: días y horas efectivamente laborados.
+    const diasLaborados  = (emp.dias_laborados ?? 0).toFixed(2);
+    const horasLaboradas = this.formatH(emp.horas_reales);
 
     return `
     <style>
@@ -697,6 +745,8 @@ export class PlanillasComponent implements OnInit {
         <div>
           <div class="bol-empresa">${razonSocial.toUpperCase()}</div>
           <div class="bol-sub">RUC: ${ruc} | Régimen ${this.regimenLabel}</div>
+          ${direccionEmp ? `<div class="bol-sub">Domicilio Fiscal: ${direccionEmp}</div>` : ''}
+          ${telefonoEmp ? `<div class="bol-sub">Teléfono: ${telefonoEmp}</div>` : ''}
         </div>
         <div class="bol-cab-der">
           <div class="bol-titulo">BOLETA DE PAGO</div>
@@ -707,9 +757,15 @@ export class PlanillasComponent implements OnInit {
       <table class="bol-datos">
         <tr>
           <td style="width:25%;"><strong>Apellidos y Nombres:</strong> ${emp.nombreCompleto}</td>
-          <td style="width:25%;"><strong>Cargo u Ocupación:</strong> ${emp.cargo}</td>
+          <td style="width:25%;"><strong>${docTipo}:</strong> ${docNum}</td>
+          <td style="width:25%;"><strong>Fecha de Ingreso:</strong> ${fechaIngreso}</td>
           <td style="width:25%;"><strong>Régimen Laboral:</strong> ${this.modalidadLabel(emp)}</td>
+        </tr>
+        <tr>
+          <td style="width:25%;"><strong>Cargo u Ocupación:</strong> ${emp.cargo}</td>
           <td style="width:25%;"><strong>Área / Centro de Costo:</strong> ${emp.area || '—'}</td>
+          <td style="width:25%;"><strong>Días Laborados:</strong> ${diasLaborados}</td>
+          <td style="width:25%;"><strong>Horas Laboradas:</strong> ${horasLaboradas}</td>
         </tr>
       </table>
 
