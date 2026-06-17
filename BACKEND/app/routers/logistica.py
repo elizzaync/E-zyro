@@ -3788,6 +3788,9 @@ def ajustar_stock(
     material_id = (body.get("material_id") or "").strip()
     tipo        = (body.get("tipo") or "").strip().lower()
     motivo      = body.get("motivo")
+    # Clasificación estructurada (merma|desmedro|vencido|robo|faltante|error_conteo…)
+    # que decide la cuenta de pérdida; el `motivo` queda como sustento libre.
+    clasificacion = (body.get("clasificacion") or "").strip() or None
     almacen_id  = body.get("almacen_id")
     try:
         cantidad = int(body.get("cantidad") or 0)
@@ -3865,7 +3868,7 @@ def ajustar_stock(
         tipo=tipo, cantidad=delta,
         referencia_id=None, referencia_tipo="ajuste_manual",
         responsable_id=emp.id if emp else None,
-        fecha=datetime.utcnow(),
+        motivo=(motivo or None), fecha=datetime.utcnow(),
     )
     # En una entrada con costo explícito, refresca el precio del material
     # (mismo criterio que el ingreso por compra) para reportes y respaldos.
@@ -3874,10 +3877,20 @@ def ajustar_stock(
 
     db.add(_mov)
     db.flush()
-    # Valoriza solo entrada/salida; el tipo 'ajuste' (stock absoluto) queda neutro.
-    # En entrada usa el costo enviado; si no, cae a material.precio.
-    costeo.valorizar_movimiento(
-        db, _mov, costo_unitario=costo_unitario, creado_por_id=emp.id if emp else None)
+    _creador = emp.id if emp else None
+    if tipo == "ajuste":
+        # Conteo físico (stock absoluto): reconcilia la 201 con el conteo,
+        # reconociendo sobrante (Cr 759) o faltante (Db 6593/6591) al costo promedio.
+        costeo.valorizar_ajuste_absoluto(
+            db, _mov, nueva_cantidad=cantidad, motivo=clasificacion, creado_por_id=_creador)
+    else:
+        # entrada/salida normal; una salida clasificada como pérdida (merma/faltante)
+        # se carga a la cuenta de pérdida en vez del costo de ventas (691).
+        cta_perdida = (costeo.cuenta_perdida_por_motivo(clasificacion)
+                       if tipo == "salida" else None)
+        costeo.valorizar_movimiento(
+            db, _mov, costo_unitario=costo_unitario,
+            cuenta_perdida_codigo=cta_perdida, creado_por_id=_creador)
     db.commit()
     return {"ok": True}
 

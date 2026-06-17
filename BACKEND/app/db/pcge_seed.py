@@ -87,6 +87,10 @@ CATALOGO_PCGE: list[tuple[str, str, str, str | None]] = [
     ("641", "Gobierno central", "gasto", None),
     ("65", "Otros gastos de gestión", "gasto", None),
     ("659", "Otros gastos de gestión", "gasto", None),
+    # Subcuentas de detalle para pérdidas de existencias (inventario): separan la
+    # merma/desmedro del faltante/robo, y ambas del costo de ventas (691).
+    ("6591", "Otras pérdidas de existencias (faltantes/robo)", "gasto", None),
+    ("6593", "Mermas y desmedros de existencias", "gasto", None),
     ("68", "Valuación y deterioro de activos y provisiones", "gasto", None),
     ("681", "Depreciación", "gasto", None),
     ("6814", "Depreciación de inmuebles, maquinaria y equipo - costo", "gasto", None),

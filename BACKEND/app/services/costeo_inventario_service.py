@@ -38,12 +38,32 @@ CTA_MERCADERIAS  = "201"   # 20 Mercaderías (detalle)
 CTA_VARIACION    = "611"   # 61 Variación de existencias (detalle)
 CTA_COSTO_VENTAS = "691"   # 69 Costo de ventas (detalle)
 CTA_APERTURA_INV = "591"   # 59 Resultados acumulados — contracuenta de apertura
+CTA_MERMA        = "6593"  # 65 Mermas y desmedros de existencias (pérdida)
+CTA_OTRA_PERDIDA = "6591"  # 65 Otras pérdidas de existencias: faltante/robo
+CTA_SOBRANTE     = "759"   # 75 Otros ingresos de gestión: sobrante de conteo
 
 # Tipos de movimiento que suman inventario (ingreso) vs los que restan (salida).
-# 'ajuste' NO se valoriza automáticamente: en Logística fija un stock ABSOLUTO
-# (no es un delta direccional), así que valorizar_movimiento lo ignora.
+# 'ajuste' se valoriza por separado vía `valorizar_ajuste_absoluto` (fija un stock
+# ABSOLUTO, no un delta direccional); `valorizar_movimiento` lo sigue ignorando.
 TIPOS_INGRESO = ("entrada", "compra", "ingreso", "retorno")
 TIPOS_SALIDA  = ("salida",)
+
+# Motivo de pérdida → cuenta de gasto. Una salida o ajuste negativo con uno de
+# estos motivos NO es costo de venta (691): es una pérdida del periodo.
+_MOTIVOS_MERMA   = {"merma", "desmedro", "vencido", "deterioro", "roto", "dañado", "danado"}
+_MOTIVOS_PERDIDA = {"robo", "faltante", "extravio", "extravío", "perdida", "pérdida",
+                    "error_conteo", "error de conteo"}
+
+
+def cuenta_perdida_por_motivo(motivo: str | None) -> str | None:
+    """Cuenta de pérdida según el motivo. None si el motivo no es de pérdida
+    (→ una salida normal sigue siendo costo de ventas 691)."""
+    m = (motivo or "").strip().lower()
+    if m in _MOTIVOS_MERMA:
+        return CTA_MERMA
+    if m in _MOTIVOS_PERDIDA:
+        return CTA_OTRA_PERDIDA
+    return None
 
 
 def _d4(v) -> Decimal:
@@ -129,6 +149,7 @@ def _puede_contabilizar(db: Session, empresa_id: str, fecha, codigos: tuple[str,
 def valorizar_movimiento(
     db: Session, mov: MovimientoInventario, *,
     costo_unitario=None, usar_promedio_vigente: bool = False,
+    cuenta_perdida_codigo: str | None = None,
     creado_por_id: str | None = None,
 ) -> None:
     """Valoriza un movimiento de inventario que **Logística ya creó** (no crea
@@ -139,9 +160,11 @@ def valorizar_movimiento(
     Reglas:
       - Ingreso (entrada/compra/retorno/ajuste): al `costo_unitario` dado, o a
         `material.precio` si no se pasa. Db 201 / Cr 611.
-      - Salida: al costo promedio vigente. Db 691 / Cr 201. Si el material aún no
-        tiene costo (apertura perezosa), reconoce primero la cantidad de la salida
-        a `material.precio` con Db 201 / Cr 591 y luego la consume.
+      - Salida: al costo promedio vigente. Db 691 / Cr 201. Si la salida es una
+        pérdida (baja por merma/faltante), pasar `cuenta_perdida_codigo` para
+        debitar esa cuenta (6593/6591) en vez del costo de ventas. Si el material
+        aún no tiene costo (apertura perezosa), reconoce primero la cantidad de la
+        salida a `material.precio` con Db 201 / Cr 591 y luego la consume.
       - Transferencias y movimientos sin material/almacén: se omiten (neutros).
     """
     if mov.material_id is None or mov.almacen_id is None:
@@ -158,8 +181,11 @@ def valorizar_movimiento(
     # Best-effort: si no se puede contabilizar (periodo cerrado/inexistente o
     # falta una cuenta), se omite la valorización SIN tocar nada. El movimiento
     # de stock de Logística queda intacto.
+    # En una salida-pérdida, la cuenta de cargo es la de pérdida (6593/6591),
+    # no el costo de ventas (691).
+    cta_cargo_salida = cuenta_perdida_codigo or CTA_COSTO_VENTAS
     cuentas_req = ((CTA_MERCADERIAS, CTA_VARIACION) if mov.tipo in TIPOS_INGRESO
-                   else (CTA_MERCADERIAS, CTA_COSTO_VENTAS, CTA_APERTURA_INV))
+                   else (CTA_MERCADERIAS, cta_cargo_salida, CTA_APERTURA_INV))
     if not _puede_contabilizar(db, empresa_id, fecha, cuentas_req):
         return
 
@@ -223,17 +249,102 @@ def valorizar_movimiento(
         valor = (cant_val * costo).quantize(Q2)
         mov.costo_unitario = costo
         mov.valor_total = valor
+        descripcion = (f"Baja de inventario (pérdida) {valor}" if cuenta_perdida_codigo
+                       else f"Salida de almacén (costo) {valor}")
         asiento = contab.registrar_asiento(
             db, empresa_id=empresa_id, fecha=fecha.date(),
-            descripcion=f"Salida de almacén (costo) {valor}",
+            descripcion=descripcion,
             origen="inventario", lineas=[
-                LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_COSTO_VENTAS).id, debito=valor),
+                LineaAsiento(cuenta_id=_cuenta(db, empresa_id, cta_cargo_salida).id, debito=valor),
                 LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_MERCADERIAS).id, credito=valor),
             ],
             referencia_id=mov.id, creado_por_id=creado_por_id, commit=False,
         )
         mov.asiento_id = asiento.id
         estado.cantidad_actual = _d4(estado.cantidad_actual) - cant_val
+
+
+def valorizar_ajuste_absoluto(
+    db: Session, mov: MovimientoInventario, *, nueva_cantidad,
+    motivo: str | None = None, creado_por_id: str | None = None,
+) -> None:
+    """Valoriza un ajuste de conteo físico que fija un stock ABSOLUTO. Reconcilia
+    la cantidad contable (costo promedio) con el conteo, reconociendo la
+    diferencia al costo promedio vigente. NO hace commit (corre en la transacción
+    del endpoint de Logística).
+
+      - Sobrante (conteo > contable): Db 201 / Cr 759 (otros ingresos).
+      - Faltante (conteo < contable): Db 6593|6591 / Cr 201 (pérdida; 6593 si el
+        motivo es merma/desmedro, 6591 para faltante/robo y por defecto).
+
+    Best-effort: si no hay periodo abierto, faltan cuentas, o no hay costo unitario
+    con que valorizar, NO toca nada (el ajuste de stock de Logística queda intacto)."""
+    if mov.material_id is None or mov.almacen_id is None:
+        return
+    empresa_id = mov.empresa_id
+    fecha = mov.fecha or datetime.utcnow()
+
+    estado = _estado_costo(db, empresa_id, mov.material_id, mov.almacen_id)
+    cant_contable = _d4(estado.cantidad_actual)
+    cant_fisica = _d4(nueva_cantidad)
+    delta = (cant_fisica - cant_contable).quantize(Q4)
+    if delta == CERO:
+        return
+
+    # Costo unitario para valorizar: promedio vigente, o precio de catálogo si aún no hay.
+    costo = _d4(estado.costo_promedio_actual)
+    if costo <= CERO:
+        costo = _precio_material(db, empresa_id, mov.material_id)
+    if costo <= CERO:
+        return  # sin costo no se puede valorizar la diferencia
+
+    if delta > CERO:
+        # Sobrante: reconoce ingreso. Db 201 / Cr 759.
+        cuentas_req = (CTA_MERCADERIAS, CTA_SOBRANTE)
+        if not _puede_contabilizar(db, empresa_id, fecha, cuentas_req):
+            return
+        valor = (delta * costo).quantize(Q2)
+        mov.costo_unitario = costo
+        mov.valor_total = valor
+        asiento = contab.registrar_asiento(
+            db, empresa_id=empresa_id, fecha=fecha.date(),
+            descripcion=f"Sobrante de inventario (conteo) {valor}",
+            origen="inventario", lineas=[
+                LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_MERCADERIAS).id, debito=valor),
+                LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_SOBRANTE).id, credito=valor),
+            ],
+            referencia_id=mov.id, creado_por_id=creado_por_id, commit=False,
+        )
+        mov.asiento_id = asiento.id
+        estado.cantidad_actual = cant_fisica
+        if _d4(estado.costo_promedio_actual) <= CERO:
+            estado.costo_promedio_actual = costo
+        return
+
+    # Faltante: reconoce pérdida. Db 6593|6591 / Cr 201.
+    cta_perdida = cuenta_perdida_por_motivo(motivo) or CTA_OTRA_PERDIDA
+    cuentas_req = (CTA_MERCADERIAS, cta_perdida)
+    if not _puede_contabilizar(db, empresa_id, fecha, cuentas_req):
+        return
+    cant_baja = min(-delta, cant_contable)
+    if cant_baja <= CERO:
+        return
+    valor = (cant_baja * costo).quantize(Q2)
+    mov.costo_unitario = costo
+    # valor_total del ajuste va CON SIGNO: negativo en un faltante, para que el
+    # kardex (que trata 'ajuste' como +1) lo reste y siga cuadrando con la 201.
+    mov.valor_total = -valor
+    asiento = contab.registrar_asiento(
+        db, empresa_id=empresa_id, fecha=fecha.date(),
+        descripcion=f"Faltante de inventario (conteo) {valor}",
+        origen="inventario", lineas=[
+            LineaAsiento(cuenta_id=_cuenta(db, empresa_id, cta_perdida).id, debito=valor),
+            LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_MERCADERIAS).id, credito=valor),
+        ],
+        referencia_id=mov.id, creado_por_id=creado_por_id, commit=False,
+    )
+    mov.asiento_id = asiento.id
+    estado.cantidad_actual = cant_contable - cant_baja
 
 
 # ── Ingreso ──────────────────────────────────────────────────────────────────
