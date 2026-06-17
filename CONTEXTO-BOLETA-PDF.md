@@ -73,3 +73,25 @@ Datos que usa la boleta del frontend (cálculo client-side):
     Total Remuneración Bruta, (−) Total Descuentos, **IMPORTE LÍQUIDO A PERCIBIR**).
   - Redacción contable formal en todos los ingresos y descuentos.
   - Sin errores de compilación (diagnostics limpios).
+
+## 5. Segunda iteración (2026-06-17) — nuevos campos solicitados
+
+Backend (`C:\E-zyro\BACKEND`, rama `Backend`):
+- `empleado`: + `tipo_documento` (DNI/CE/PAS, default DNI) + `numero_documento`.
+- `empresa`: + `direccion`; `telefono` ya existía en BD → ahora mapeado en el modelo.
+- Migración `ADD COLUMN IF NOT EXISTS` en `_run_migrations` (idempotente). **Ya
+  aplicada también a la BD de producción** (Railway) vía ALTER directo.
+- `/rrhh/asistencia/resumen` expone `tipo_documento`, `numero_documento`, `dias_laborados`.
+- `/planilla/empresa-info` expone `direccion`, `telefono`.
+
+Frontend (`C:\E-zyro-frontend`, rama `frontend`) — en `construirVoucherHtml`:
+- Cabecera trabajador: **DNI/C.E.** + **Fecha de Ingreso**.
+- Resumen de asistencia directo: **Días Laborados** + **Horas Laboradas**.
+- Cabecera empresa: **domicilio fiscal** + **teléfono**.
+- Pensiones **AFP desglosado en 3 líneas** (Aporte Obligatorio 10%, Prima de
+  Seguro, Comisión AFP); ONP sigue en línea única. La suma = `descuentoPension`.
+
+> ⚠️ Pendiente de datos: `numero_documento` (DNI) por empleado y `direccion` de
+> la empresa están **vacíos** en BD (no hay UI de captura aún). La boleta muestra
+> "—" hasta que se carguen. `empresa.telefono` de Esystemtic ya tiene valor.
+> Próximo paso sugerido: formulario en el legajo para capturar DNI y dirección.
