@@ -1017,6 +1017,9 @@ def _run_migrations():
         # CxC desde servicios (Fase 3): vincula la factura de venta al servicio
         # que la originó, para listar servicios facturables y evitar doble emisión.
         conn.execute(text("ALTER TABLE factura_cliente ADD COLUMN IF NOT EXISTS proyecto_servicio_id uuid REFERENCES proyecto_servicio(id)"))
+        # CxP Fase 3 #2: cuenta de gasto elegible en la factura manual (601 vs 63/65).
+        # Referencia lógica a cuenta_contable.id, sin FK (esa PK es uuid nativo en prod).
+        conn.execute(text("ALTER TABLE factura_proveedor ADD COLUMN IF NOT EXISTS cuenta_gasto_id VARCHAR(36)"))
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────

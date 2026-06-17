@@ -43,6 +43,9 @@ class FacturaProveedor(Base):
     total             = Column(Numeric(14, 2), nullable=False, default=0)
     estado            = Column(String(20), nullable=False, default="pendiente")  # pendiente|pagada_parcial|pagada|anulada
     asiento_id        = Column(String(36), ForeignKey("asiento_contable.id"), nullable=True)
+    # Cuenta de gasto que debita la factura manual (601 mercadería | 63/65 servicios…).
+    # Referencia lógica a cuenta_contable.id (sin FK: esa PK es uuid nativo en prod).
+    cuenta_gasto_id   = Column(String(36), nullable=True)
     created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at        = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 

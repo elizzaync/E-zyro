@@ -67,6 +67,30 @@ def _cuenta(db: Session, empresa_id: str, codigo: str) -> CuentaContable:
     return c
 
 
+def _cuenta_gasto(db: Session, empresa_id: str, cuenta_gasto_id: str | None) -> CuentaContable:
+    """Resuelve la cuenta de gasto que debita la factura. Sin selección explícita
+    cae a 601 Mercaderías (compatibilidad con el comportamiento previo). Si se
+    elige una cuenta, debe ser de la empresa, de tipo 'gasto', de detalle y activa
+    — así una factura de servicios se clasifica en 63/65 y no se fuerza a 601."""
+    if not cuenta_gasto_id:
+        return _cuenta(db, empresa_id, CTA_COMPRAS)
+    c = (
+        db.query(CuentaContable)
+        .filter(CuentaContable.id == cuenta_gasto_id,
+                CuentaContable.empresa_id == empresa_id)
+        .first()
+    )
+    if c is None:
+        raise HTTPException(status_code=422, detail="La cuenta de gasto no existe en la empresa.")
+    if c.tipo != "gasto":
+        raise HTTPException(status_code=422, detail=f"La cuenta {c.codigo} no es una cuenta de gasto.")
+    if c.nivel != "detalle":
+        raise HTTPException(status_code=422, detail=f"La cuenta {c.codigo} es de mayor; elige una de detalle.")
+    if not c.activo:
+        raise HTTPException(status_code=422, detail=f"La cuenta de gasto {c.codigo} está inactiva.")
+    return c
+
+
 def _proveedor(db: Session, empresa_id: str, proveedor_id: str) -> Proveedor:
     p = (
         db.query(Proveedor)
@@ -134,6 +158,9 @@ def registrar_factura(db: Session, empresa_id: str, datos, creado_por_id: str | 
 
     moneda = datos.moneda or _moneda_empresa(db, empresa_id)
 
+    # Cuenta de gasto a debitar: la elegida (601 mercadería | 63/65 servicios…) o 601 por defecto.
+    cuenta_gasto = _cuenta_gasto(db, empresa_id, getattr(datos, "cuenta_gasto_id", None))
+
     factura = FacturaProveedor(
         empresa_id=empresa_id,
         proveedor_id=datos.proveedor_id,
@@ -147,15 +174,16 @@ def registrar_factura(db: Session, empresa_id: str, datos, creado_por_id: str | 
         igv=igv,
         total=total,
         estado="pendiente",
+        cuenta_gasto_id=str(cuenta_gasto.id),
     )
     db.add(factura)
     db.flush()  # obtiene factura.id sin confirmar
 
-    # Asiento: Db Compras (+ IGV) / Cr Por pagar — sin commit (lo hace esta fn).
+    # Asiento: Db gasto (+ IGV) / Cr Por pagar — sin commit (lo hace esta fn).
     # La cuenta de IGV crédito fiscal la resuelve el servicio tributario (Fase 6),
     # por configuración — no por código fijo.
     from app.services import tributario_service as tributario
-    lineas = [LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_COMPRAS).id, debito=subtotal)]
+    lineas = [LineaAsiento(cuenta_id=cuenta_gasto.id, debito=subtotal)]
     if igv > CERO:
         lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, debito=igv))
     lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, credito=total))

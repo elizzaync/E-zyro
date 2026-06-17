@@ -28,6 +28,7 @@ class FacturaCreate(BaseModel):
     igv: Decimal = Decimal("0.00")
     moneda: Optional[str] = None
     orden_compra_id: Optional[str] = None
+    cuenta_gasto_id: Optional[str] = None   # cuenta de gasto a debitar (601 por defecto)
 
     @field_validator("tipo_documento")
     @classmethod
@@ -71,6 +72,8 @@ class FacturaOut(BaseModel):
     estado: str
     saldo_pendiente: Decimal
     asiento_id: Optional[str] = None
+    cuenta_gasto_id: Optional[str] = None
+    cuenta_gasto_codigo: Optional[str] = None   # p.ej. "639" — para mostrar la clasificación
 
 
 # ── Pagos ────────────────────────────────────────────────────────────────────

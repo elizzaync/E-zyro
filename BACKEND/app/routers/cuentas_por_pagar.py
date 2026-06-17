@@ -20,6 +20,7 @@ from ..models.empleado import Empleado
 from ..models.cuentas_por_pagar import (
     FacturaProveedor, PagoProveedor, AplicacionPagoProveedor,
 )
+from ..models.contabilidad import CuentaContable
 from ..schemas.cuentas_por_pagar import (
     FacturaCreate, FacturaOut, PagoCreate, PagoOut, AplicacionOut,
     SaldoProveedorOut, AntiguedadBucketOut,
@@ -35,6 +36,11 @@ def _empleado_id(db: Session, payload: dict) -> Optional[str]:
 
 
 def _factura_out(db: Session, f: FacturaProveedor) -> FacturaOut:
+    cuenta_gasto_id = str(f.cuenta_gasto_id) if f.cuenta_gasto_id else None
+    cuenta_gasto_codigo = None
+    if cuenta_gasto_id:
+        c = db.query(CuentaContable.codigo).filter(CuentaContable.id == cuenta_gasto_id).first()
+        cuenta_gasto_codigo = c[0] if c else None
     return FacturaOut(
         id=str(f.id), proveedor_id=str(f.proveedor_id),
         orden_compra_id=(str(f.orden_compra_id) if f.orden_compra_id else None),
@@ -43,6 +49,7 @@ def _factura_out(db: Session, f: FacturaProveedor) -> FacturaOut:
         moneda=f.moneda, subtotal=f.subtotal, igv=f.igv, total=f.total,
         estado=f.estado, saldo_pendiente=cxp.saldo_pendiente(db, f),
         asiento_id=(str(f.asiento_id) if f.asiento_id else None),
+        cuenta_gasto_id=cuenta_gasto_id, cuenta_gasto_codigo=cuenta_gasto_codigo,
     )
 
 
