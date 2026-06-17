@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from fastapi import HTTPException, Request, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from app.core.session_cache import sesion_activa, hash_token
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -49,6 +50,19 @@ def verificar_token(request: Request, credentials: HTTPAuthorizationCredentials 
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Acceso restringido al Portal Cliente.",
             )
+
+        # Expulsión real: el JWT puede ser válido (firma + no expirado) pero la
+        # sesión pudo cerrarse (logout / cierre remoto / "cerrar todas"). Si no
+        # sigue activa en BD, el token queda revocado de inmediato. La validación
+        # usa una caché con TTL (session_cache) para no consultar BD en cada
+        # request — clave para escalar a miles de usuarios.
+        if not sesion_activa(hash_token(token), usuario_id):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Tu sesión fue cerrada. Inicia sesión nuevamente.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         # Devolvemos los datos del usuario si todo está bien
         return payload
     except JWTError:

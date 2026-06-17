@@ -29,6 +29,8 @@ from app.models.portal_acceso import PortalAcceso
 from app.db.database import get_db
 from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
 from app.core.email import enviar_correo_otp
+from app.core.session_cache import marcar_activa, invalidar
+from app.core.session_events import manager as session_manager
 from jose import jwt, JWTError
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 _http_bearer = HTTPBearer()
@@ -54,6 +56,59 @@ def registrar_auditoria(db: Session, usuario_id: str, empresa_id: str, tabla: st
         fecha=datetime.now(ZONA_HORARIA)
     )
     db.add(nueva_auditoria)
+
+
+# =========================================================================
+# HELPERS: IP real + descripción legible del dispositivo (sin dependencias)
+# =========================================================================
+def _ip_real(request: Request) -> str | None:
+    """IP real del cliente. Detrás del proxy de Railway, `request.client` es el
+    proxy; el primer salto de `X-Forwarded-For` es el cliente original."""
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()[:45]
+    return (request.client.host[:45] if request.client else None)
+
+
+def _describir_dispositivo(user_agent: str) -> str:
+    """Convierte el User-Agent crudo en algo legible: "📱 Celular Android · Chrome"
+    / "💻 Computadora Windows · Edge". Parseo de strings, sin librerías externas."""
+    ua = (user_agent or "").lower()
+
+    es_movil = any(k in ua for k in ("mobile", "android", "iphone", "ipad", "ipod"))
+
+    if "android" in ua:
+        so = "Android"
+    elif any(k in ua for k in ("iphone", "ipad", "ipod")):
+        so = "iOS"
+    elif "windows" in ua:
+        so = "Windows"
+    elif "mac os" in ua or "macintosh" in ua:
+        so = "macOS"
+    elif "linux" in ua:
+        so = "Linux"
+    else:
+        so = "Desconocido"
+
+    # Orden importa: Edge/Opera/Chrome comparten tokens "safari"/"chrome".
+    if "edg" in ua:
+        nav = "Edge"
+    elif "opr" in ua or "opera" in ua:
+        nav = "Opera"
+    elif "crios" in ua:
+        nav = "Chrome"
+    elif "fxios" in ua or "firefox" in ua:
+        nav = "Firefox"
+    elif "chrome" in ua and "chromium" not in ua:
+        nav = "Chrome"
+    elif "safari" in ua:
+        nav = "Safari"
+    else:
+        nav = "Navegador"
+
+    icono = "📱" if es_movil else "💻"
+    tipo = "Celular" if es_movil else "Computadora"
+    return f"{icono} {tipo} {so} · {nav}"[:100]
 
 
 # =========================================================================
@@ -141,11 +196,14 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
     token_real = crear_token_acceso(datos_para_token)
 
     # Registrar / actualizar sesión en sesion_usuario
+    token_hash       = hashlib.sha256(token_real.encode()).hexdigest()
+    es_nuevo_equipo  = False
+    info_dispositivo = None
+    sesion_id_actual = None
     try:
-        ip_cliente  = request.client.host if request.client else None
+        ip_cliente  = _ip_real(request)
         user_agent  = request.headers.get("user-agent", "")[:255]
-        dispositivo = user_agent[:100]
-        token_hash  = hashlib.sha256(token_real.encode()).hexdigest()
+        dispositivo = _describir_dispositivo(user_agent)
         fecha_exp   = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         device_id   = (credenciales.device_id or "")[:100] or None
 
@@ -166,7 +224,8 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             ).first()
 
         if sesion_existente:
-            # Reutilizar el registro: actualiza token, reactiva y extiende expiración
+            # Mismo equipo (mismo device_id): reutiliza el registro, NO es un
+            # "nuevo dispositivo" → no se avisa a los demás.
             sesion_existente.token_hash       = token_hash
             sesion_existente.activa           = True
             sesion_existente.fecha_expiracion = fecha_exp
@@ -174,8 +233,14 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             sesion_existente.ip               = ip_cliente
             sesion_existente.user_agent       = user_agent
             sesion_existente.dispositivo      = dispositivo
+            sesion_id_actual = str(sesion_existente.id)
         else:
+            # Equipo nuevo (otro device_id o sin device_id) → se avisará a las
+            # sesiones ya abiertas del usuario.
+            es_nuevo_equipo  = True
+            sesion_id_actual = str(uuid.uuid4())
             db.add(SesionUsuario(
+                id               = sesion_id_actual,
                 usuario_id       = str(usuario_db.id),
                 token_hash       = token_hash,
                 device_id        = device_id,
@@ -187,8 +252,26 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             ))
 
         db.commit()
+        # Pre-cachea el token como válido para que el primer request protegido
+        # no pague una consulta a BD (verificar_token).
+        marcar_activa(token_hash)
+        info_dispositivo = {
+            "dispositivo": dispositivo,
+            "ip":          ip_cliente or "—",
+            "sesion_id":   sesion_id_actual,
+            "fecha":       datetime.now(ZONA_HORARIA).isoformat(),
+        }
     except Exception:
         db.rollback()  # No bloqueamos el login si falla el registro de sesión
+
+    # Aviso en tiempo real a los equipos ya conectados: "alguien entró a tu cuenta".
+    if es_nuevo_equipo and info_dispositivo:
+        try:
+            session_manager.notificar_nuevo_dispositivo(
+                str(usuario_db.id), info_dispositivo, excluir_token_hash=token_hash
+            )
+        except Exception:
+            pass
 
     return {
         "status": "success",
@@ -248,6 +331,9 @@ def logout_usuario(
             sesion.fecha_cierre = datetime.now(ZONA_HORARIA)
             db.commit()
 
+        # Revoca el token al instante (no esperar al TTL de la caché): el JWT
+        # deja de ser aceptado por verificar_token aunque no haya expirado.
+        invalidar(token_hash)
         return {"status": "success", "mensaje": "Sesión cerrada correctamente"}
     except Exception as e:
         db.rollback()
@@ -424,9 +510,14 @@ def refresh_token(
     new_token   = crear_token_acceso(new_payload)
 
     # Actualizar hash en BD con el nuevo token
-    sesion.token_hash       = hashlib.sha256(new_token.encode()).hexdigest()
+    nuevo_hash = hashlib.sha256(new_token.encode()).hexdigest()
+    sesion.token_hash       = nuevo_hash
     sesion.fecha_expiracion = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     db.commit()
+
+    # Rotación de token: el viejo hash queda revocado, el nuevo pre-cacheado.
+    invalidar(token_hash)
+    marcar_activa(nuevo_hash)
 
     return {"status": "success", "data": {"token": new_token}}
 
@@ -478,7 +569,57 @@ def cerrar_sesion_remota(
     ).first()
     if not sesion:
         raise HTTPException(status_code=404, detail="Sesión no encontrada o ya cerrada.")
+    token_hash_cerrado = sesion.token_hash
     sesion.activa = False
     sesion.fecha_cierre = datetime.now(ZONA_HORARIA)
     db.commit()
+
+    # Expulsión real + inmediata del equipo cerrado:
+    #  1) invalida el token en la caché → verificar_token lo rechaza ya.
+    #  2) empuja "sesion_cerrada" por WS → el equipo hace logout al instante.
+    invalidar(token_hash_cerrado)
+    try:
+        session_manager.notificar_sesion_cerrada(usuario_id, token_hash_cerrado)
+    except Exception:
+        pass
     return {"status": "success", "mensaje": "Sesión cerrada correctamente."}
+
+
+@router.post("/logout-all")
+def cerrar_todas_las_sesiones(
+    credentials: HTTPAuthorizationCredentials = Security(_http_bearer),
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Cierra TODAS las demás sesiones activas del usuario (mantiene la actual).
+
+    Útil ante un acceso sospechoso: revoca todos los demás equipos al instante.
+    """
+    usuario_id = payload.get("id")
+    token_hash_actual = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+
+    otras = db.query(SesionUsuario).filter(
+        SesionUsuario.usuario_id == usuario_id,
+        SesionUsuario.activa     == True,
+        SesionUsuario.token_hash != token_hash_actual,
+    ).all()
+
+    hashes_cerrados = [s.token_hash for s in otras]
+    ahora = datetime.now(ZONA_HORARIA)
+    for s in otras:
+        s.activa = False
+        s.fecha_cierre = ahora
+    db.commit()
+
+    for th in hashes_cerrados:
+        invalidar(th)
+        try:
+            session_manager.notificar_sesion_cerrada(usuario_id, th)
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "mensaje": f"Se cerraron {len(hashes_cerrados)} sesión(es) en otros dispositivos.",
+        "data": {"cerradas": len(hashes_cerrados)},
+    }

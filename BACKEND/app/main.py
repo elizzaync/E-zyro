@@ -21,6 +21,7 @@ from app.routers import proyectos       as proyectos_router
 from app.routers import comunicados     as comunicados_router
 from app.routers import operaciones     as operaciones_router
 from app.routers import chat_ws         as chat_ws_router
+from app.routers import session_ws      as session_ws_router
 from app.routers import notificaciones  as notificaciones_router
 from app.routers import requerimientos  as requerimientos_router
 from app.routers import auditoria       as auditoria_router
@@ -1673,6 +1674,20 @@ def _run_migrations():
             conn.rollback()
             print(f"[migración] split procedimiento→tarea omitido: {e}")
 
+        # ── Seguridad de sesiones: índice de token_hash ──────────────────────
+        # verificar_token consulta sesion_usuario por (usuario_id, token_hash)
+        # en cada MISS de caché. Con miles de usuarios este índice evita escaneos
+        # secuenciales y mantiene la validación en O(log n).
+        try:
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_sesion_usuario_token "
+                "ON sesion_usuario (usuario_id, token_hash)"
+            ))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"[migración] índice sesion_usuario(token_hash) omitido: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1786,6 +1801,7 @@ app.include_router(proyectos_router.router)
 app.include_router(comunicados_router.router)
 app.include_router(operaciones_router.router)
 app.include_router(chat_ws_router.router)
+app.include_router(session_ws_router.router)
 app.include_router(notificaciones_router.router)
 app.include_router(requerimientos_router.router)
 app.include_router(auditoria_router.router)
