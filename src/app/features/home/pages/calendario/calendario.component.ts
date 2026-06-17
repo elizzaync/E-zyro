@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { DashboardService } from '../../../../core/services/dashboard.service';
@@ -37,7 +37,7 @@ interface DiaCell {
   templateUrl: './calendario.component.html',
   styleUrls: ['./calendario.component.css']
 })
-export class CalendarioComponent implements OnInit {
+export class CalendarioComponent implements OnInit, OnDestroy {
   private dashSvc = inject(DashboardService);
   private router  = inject(Router);
 
@@ -260,9 +260,17 @@ export class CalendarioComponent implements OnInit {
   abrirDetalle(dia: DiaCell): void {
     if (!dia.num || (!dia.tag && !dia.eventoOT)) return;
     this.diaDetalle = dia;
+    document.body.style.overflow = 'hidden';
   }
 
-  cerrarDetalle(): void { this.diaDetalle = null; }
+  cerrarDetalle(): void {
+    this.diaDetalle = null;
+    document.body.style.overflow = '';
+  }
+
+  ngOnDestroy(): void {
+    document.body.style.overflow = '';
+  }
 
   volver(): void { this.router.navigate(['/home']); }
 
