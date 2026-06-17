@@ -34,6 +34,8 @@ class Prestamo(Base):
 
     firma_receptor_url   = Column(Text, nullable=True)   # firma del técnico al recibir el préstamo
     firma_entregador_url = Column(Text, nullable=True)   # firma de logística al despachar
+    firma_solicitante_url   = Column(Text, nullable=True)   # firma del solicitante al pedir el lote
+    firma_solicitante_fecha = Column(DateTime, nullable=True)
 
     # Cinema-seat lock para la firma de recepción (anti-duplicidad entre técnicos)
     firmando_por_id      = Column(String(36), nullable=True)   # usuario_id que tiene el lock

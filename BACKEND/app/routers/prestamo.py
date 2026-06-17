@@ -245,6 +245,7 @@ def _prestamo_out(db: Session, p: Prestamo) -> PrestamoOut:
         fecha_confirmacion=_fmt(p.fecha_confirmacion),
         firma_receptor_url=getattr(p, "firma_receptor_url", None),
         firma_entregador_url=getattr(p, "firma_entregador_url", None),
+        firma_solicitante_url=getattr(p, "firma_solicitante_url", None),
         firmando_por_nombre=_nombre_firmando(db, getattr(p, "firmando_por_id", None),
                                              getattr(p, "firmando_desde", None)),
         items=items,
@@ -369,6 +370,8 @@ def crear_prestamo(
         solicitante_id=emp.id,
         estado="solicitado",
         observacion=body.observacion,
+        firma_solicitante_url=((body.firma_solicitante_url or "").strip() or None),
+        firma_solicitante_fecha=(datetime.utcnow() if (body.firma_solicitante_url or "").strip() else None),
         fecha_solicitud=datetime.utcnow(),
     )
     db.add(p)

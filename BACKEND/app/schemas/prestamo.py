@@ -45,6 +45,7 @@ class PrestamoItemOut(BaseModel):
 class CrearPrestamoBody(BaseModel):
     items:        List[PrestamoItemSolicitar]
     observacion:  Optional[str] = None
+    firma_solicitante_url: Optional[str] = None   # firma del solicitante al pedir el lote
 
 
 class EntregarPrestamoItem(BaseModel):
@@ -101,6 +102,7 @@ class PrestamoOut(BaseModel):
     fecha_confirmacion:   Optional[str] = None
     firma_receptor_url:   Optional[str] = None
     firma_entregador_url: Optional[str] = None
+    firma_solicitante_url: Optional[str] = None   # firma del solicitante al pedir el lote
     firmando_por_nombre:  Optional[str] = None   # cinema-seat: quién está firmando la recepción
     items:                List[PrestamoItemOut]
 
