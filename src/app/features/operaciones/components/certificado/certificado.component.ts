@@ -50,7 +50,7 @@ export class CertificadoComponent implements OnInit {
     ubicacion:          '',
     // Pozo
     nombre_pozo:        '',   // va en "CERTIFICADO N°"
-    numero_pozo:        '',   // va solo en columna N° DE POZO de tabla
+    numero_pozo:        null as unknown as number,   // solo columna N° DE POZO de tabla
     fecha_ejecucion:    '',   // type="date"  → YYYY-MM-DD
     fecha_hora_medicion:'',   // type="datetime-local" → YYYY-MM-DDTHH:MM
     resultado_medicion: '',
@@ -198,7 +198,7 @@ export class CertificadoComponent implements OnInit {
     return {
       nombre_pozo:          this.form.nombre_pozo,
       ubicacion:            this.form.ubicacion,
-      numero_pozo:          this.form.numero_pozo,
+      numero_pozo:          this.form.numero_pozo != null ? String(this.form.numero_pozo) : '',
       // fecha_actualizacion se auto-genera en backend (fecha de hoy)
       fecha_ejecucion:      this._fmtDate(this.form.fecha_ejecucion),
       fecha_hora_medicion:  this._fmtDatetime(this.form.fecha_hora_medicion),

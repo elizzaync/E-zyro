@@ -57,7 +57,7 @@
           <div class="form-row">
             <div class="field-group">
               <label class="field-label">N° de Pozo <span class="req">*</span></label>
-              <input class="field-input" [(ngModel)]="form.numero_pozo" placeholder="PT-01">
+              <input class="field-input" type="number" min="1" [(ngModel)]="form.numero_pozo" placeholder="1">
             </div>
             <div class="field-group">
               <label class="field-label">Fecha de ejecución <span class="req">*</span></label>
