@@ -326,7 +326,7 @@ async def subir_documento(
         result = _cu.upload(
             io.BytesIO(contenido),
             folder=f"e-zyro/{empresa_id}/legajos/{empleado_id}",
-            resource_type="raw",
+            resource_type="auto",   # PDFs se sirven inline en el navegador
         )
         url = result.get("secure_url", "")
         public_id = result.get("public_id", "")
@@ -414,7 +414,8 @@ def eliminar_documento(
 
     if doc.public_id_cloudinary:
         try:
-            _cu.destroy(doc.public_id_cloudinary, resource_type="raw", invalidate=True)
+            rtype = "image" if "/image/upload/" in (doc.url_archivo or "") else "raw"
+            _cu.destroy(doc.public_id_cloudinary, resource_type=rtype, invalidate=True)
         except Exception:
             pass
 
