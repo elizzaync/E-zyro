@@ -45,6 +45,7 @@ from app.routers import portal_accesos    as portal_accesos_router
 from app.routers import analitica         as analitica_router
 from app.routers import planos            as planos_router
 from app.routers import personal          as personal_router
+from app.routers import usuarios          as usuarios_router
 from app.routers import evaluaciones      as evaluaciones_router
 from app.routers import vacaciones        as vacaciones_router
 from app.routers import indicadores       as indicadores_router
@@ -942,6 +943,9 @@ def _run_migrations():
         sembrar_permisos(conn, "documentos_sst",
                          ["ver", "crear", "editar", "eliminar"],
                          descripcion_base="Documentos SST:")
+        # ── Gestión de usuarios (Admin / delegable): roles, alta, activar ─────
+        sembrar_permisos(conn, "usuarios", ["ver", "gestionar"],
+                         descripcion_base="Gestión de usuarios:")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
@@ -1870,6 +1874,7 @@ app.include_router(activo_cliente_router.router)
 app.include_router(analitica_router.router)
 app.include_router(planos_router.router)
 app.include_router(personal_router.router)
+app.include_router(usuarios_router.router)
 app.include_router(evaluaciones_router.router)
 app.include_router(vacaciones_router.router)
 app.include_router(indicadores_router.router)
