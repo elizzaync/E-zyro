@@ -49,7 +49,7 @@ export class CertificadoComponent implements OnInit {
   form = {
     ubicacion:          '',
     // Pozo
-    nombre_pozo:        '',   // va en "CERTIFICADO N°"
+    nombre_pozo:        '',   // auto desde BD → va en "CERTIFICADO N°"
     numero_pozo:        null as unknown as number,   // solo columna N° DE POZO de tabla
     fecha_ejecucion:    '',   // type="date"  → YYYY-MM-DD
     fecha_hora_medicion:'',   // type="datetime-local" → YYYY-MM-DDTHH:MM
@@ -90,6 +90,7 @@ export class CertificadoComponent implements OnInit {
           this.ubicacionReferencia = eq.ubicacion_referencia ?? '';
           this.form.ubicacion = this.ubicacionReferencia;
           this.form.nombre_tablero = eq.nombre ?? '';
+          this.form.nombre_pozo    = eq.nombre ?? '';
         }
         // Fotos de los procedimientos (si ya fueron subidas)
         const procs: any[] = data?.resultado ?? [];

@@ -49,9 +49,8 @@
           </div>
 
           <div class="field-group">
-            <label class="field-label">Nombre del Pozo <span class="req">*</span></label>
-            <input class="field-input" [(ngModel)]="form.nombre_pozo"
-                   placeholder="POZO A TIERRA - SALA ELÉCTRICA">
+            <label class="field-label">Nombre del Pozo <span class="badge badge--auto">auto</span></label>
+            <input class="field-input field-readonly" [value]="form.nombre_pozo || '—'" readonly>
           </div>
 
           <div class="form-row">
