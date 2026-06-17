@@ -16,6 +16,10 @@ class Empleado(Base):
     cargo                  = Column(String(100), nullable=False)
     area                   = Column(String(100), nullable=True)
     tipo                   = Column(String(20), nullable=False)
+    # Documento de identidad del trabajador (boleta de pago peruana):
+    # tipo_documento = DNI | CE (Carné de Extranjería) | PAS (Pasaporte).
+    tipo_documento         = Column(String(10), nullable=True, default="DNI")
+    numero_documento       = Column(String(20), nullable=True)
     fecha_ingreso          = Column(Date, nullable=False)
     fecha_fin_contrato     = Column(Date, nullable=True)
     dias_aviso_vencimiento = Column(Integer, nullable=True, default=7)

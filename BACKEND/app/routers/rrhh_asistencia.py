@@ -226,10 +226,14 @@ def resumen_asistencia(
                 cur += timedelta(days=1)
 
         horas_reales = 0.0
+        dias_laborados = 0
         for dia in dias_lab:
             if dia not in dias_justificados:
                 regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
-                horas_reales += _horas_dia(regs_dia)
+                h = _horas_dia(regs_dia)
+                horas_reales += h
+                if h > 0:
+                    dias_laborados += 1
 
         horas_justificadas = len(dias_justificados) * META_HORAS_DIA
         horas_total        = horas_reales + horas_justificadas
@@ -253,11 +257,14 @@ def resumen_asistencia(
             "fotoUrl":            usr.foto_url or "",
             "tipo_contrato":      emp.tipo,
             "codigo":             emp.codigo,
+            "tipo_documento":     emp.tipo_documento or "DNI",
+            "numero_documento":   emp.numero_documento,
             "fecha_ingreso":      emp.fecha_ingreso.isoformat() if emp.fecha_ingreso else None,
             "horas_reales":       round(horas_reales,       2),
             "horas_justificadas": round(horas_justificadas, 2),
             "horas_total":        round(horas_total,        2),
             "horas_faltantes":    round(horas_faltantes,    2),
+            "dias_laborados":     dias_laborados,
             "meta_horas":         meta_horas,
             "porcentaje":         porcentaje,
             "advertencias":       advertencias,

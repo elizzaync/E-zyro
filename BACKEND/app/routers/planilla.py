@@ -51,6 +51,8 @@ def info_empresa(
         "razon_social": emp.razon_social,
         "ruc": emp.ruc,
         "regimen_tributario": emp.regimen_tributario,
+        "direccion": emp.direccion or "",
+        "telefono": emp.telefono or "",
     }
 
 

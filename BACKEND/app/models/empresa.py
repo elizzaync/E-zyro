@@ -13,6 +13,9 @@ class Empresa(Base):
     razon_social = Column(String(200), nullable=False)
     ruc = Column(String(20), nullable=False, unique=True)
     email_contacto = Column(String(150), nullable=False)
+    # Contacto / domicilio fiscal para encabezar la boleta de pago (formalidad).
+    telefono = Column(String(20), nullable=True)
+    direccion = Column(String(200), nullable=True)
     slug = Column(String(100), nullable=False, unique=True)
     estado = Column(String(20), nullable=False)
     fecha_registro = Column(DateTime, nullable=False, default=datetime.utcnow)

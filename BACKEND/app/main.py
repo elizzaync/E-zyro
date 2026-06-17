@@ -1688,6 +1688,26 @@ def _run_migrations():
             conn.rollback()
             print(f"[migración] índice sesion_usuario(token_hash) omitido: {e}")
 
+        # ── Boleta de pago: documento de identidad del trabajador + contacto ──
+        # de la empresa (DNI/CE en empleado; dirección/teléfono en empresa).
+        try:
+            conn.execute(text(
+                "ALTER TABLE empleado ADD COLUMN IF NOT EXISTS tipo_documento VARCHAR(10) DEFAULT 'DNI'"
+            ))
+            conn.execute(text(
+                "ALTER TABLE empleado ADD COLUMN IF NOT EXISTS numero_documento VARCHAR(20)"
+            ))
+            conn.execute(text(
+                "ALTER TABLE empresa ADD COLUMN IF NOT EXISTS telefono VARCHAR(20)"
+            ))
+            conn.execute(text(
+                "ALTER TABLE empresa ADD COLUMN IF NOT EXISTS direccion VARCHAR(200)"
+            ))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"[migración] columnas boleta (DNI/dirección) omitidas: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
