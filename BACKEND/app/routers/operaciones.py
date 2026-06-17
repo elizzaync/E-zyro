@@ -5121,6 +5121,7 @@ def generar_certificado_pozo(
     body = body or {}
 
     ubicacion            = str(body.get("ubicacion",            ei.ubicacion_referencia or "") or "")
+    nombre_pozo          = str(body.get("nombre_pozo",          "") or "")
     numero_pozo          = str(body.get("numero_pozo",          "") or "")
     fecha_actualizacion  = str(body.get("fecha_actualizacion",  _date_today.today().strftime("%d/%m/%Y")) or "")
     fecha_ejecucion      = str(body.get("fecha_ejecucion",      "") or "")
@@ -5133,12 +5134,13 @@ def generar_certificado_pozo(
     fotos                = body.get("fotos_procedimientos") or []
 
     logger.info(
-        "[cert-pozo] numero_pozo=%r tecnico=%r firma_ok=%s fotos=%d",
-        numero_pozo, nombre_tecnico, bool(firma_tecnico), len(fotos),
+        "[cert-pozo] nombre_pozo=%r numero_pozo=%r tecnico=%r firma_ok=%s fotos=%d",
+        nombre_pozo, numero_pozo, nombre_tecnico, bool(firma_tecnico), len(fotos),
     )
 
     try:
         pdf_bytes = generar_protocolo_pozo(
+            nombre_pozo=nombre_pozo,
             ubicacion=ubicacion,
             numero_pozo=numero_pozo,
             fecha_actualizacion=fecha_actualizacion,
@@ -5155,7 +5157,7 @@ def generar_certificado_pozo(
         logger.exception("[cert-pozo] Error generando PDF: %s", exc)
         raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
 
-    filename = f"PROTOCOLO_POZO_{re.sub(r'[^A-Za-z0-9]', '_', numero_pozo or 'XX')}.pdf"
+    filename = f"PROTOCOLO_POZO_{re.sub(r'[^A-Za-z0-9]', '_', nombre_pozo or numero_pozo or 'XX')}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",

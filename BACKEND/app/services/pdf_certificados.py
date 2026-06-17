@@ -113,14 +113,15 @@ _PZ_IMG_RECTS = [
 
 
 def generar_protocolo_pozo(
-    ubicacion:           str,
-    numero_pozo:         str,
+    nombre_pozo:         str,       # va en "CERTIFICADO N° …" (ej: "POZO A TIERRA - SALA ELÉCTRICA")
+    ubicacion:           str,       # "Área / Ubicación" y columna UBICACIÓN de tabla
+    numero_pozo:         str,       # solo columna N° DE POZO de tabla (ej: "PT-01")
     fecha_actualizacion: str,       # hoy (auto)
-    fecha_ejecucion:     str,       # cuándo se realizó el trabajo
-    fecha_hora_medicion: str,       # "07/06/2026  08:30"
+    fecha_ejecucion:     str,       # "dd/mm/yyyy" — solo fecha
+    fecha_hora_medicion: str,       # "dd/mm/yyyy  HH:MM" — fecha y hora
     resultado_medicion:  str,       # "3.45 Ω"
-    hora_inicio:         str,
-    hora_termino:        str,
+    hora_inicio:         str,       # "HH:MM"
+    hora_termino:        str,       # "HH:MM"
     nombre_tecnico:      str,
     firma_tecnico:       str | None = None,
     fotos_procedimientos: list | None = None,
@@ -146,11 +147,13 @@ def generar_protocolo_pozo(
     # "Área / Ubicación:" (y=104-114): valor a la derecha del ":"
     page.insert_text(fitz.Point(_PZ_UBICACION_X,  _PZ_UBICACION_Y),  ubicacion.upper(),    **fa7)
 
-    # ── Número de pozo — sobreescribe "(PT – 01)" hardcoded en y=131-143 ──
-    _white_rect(page, _PZ_NRO_CERT_RECT)
-    page.insert_text(fitz.Point(_PZ_NRO_CERT_X, _PZ_NRO_CERT_Y), numero_pozo, **fa8b)
+    # ── Nombre del pozo — sobreescribe "(PT – 01)" hardcoded en y=131-143 ──
+    # El rect se extiende hasta x=563 para cubrir nombres largos
+    _white_rect(page, fitz.Rect(314, 129, 563, 145))
+    page.insert_text(fitz.Point(_PZ_NRO_CERT_X, _PZ_NRO_CERT_Y), nombre_pozo.upper(), **fa8b)
 
     # ── Fila de medición (blank row y≈291-313, tras headers y=282-291) ─
+    # Columnas: UBICACIÓN(x=87-190) | N°POZO(x=190-257) | FECHA Y HORA(x=257-424) | RESULTADO(x=424+)
     page.insert_text(fitz.Point(_PZ_UBIC_MED_X,   _PZ_UBIC_MED_Y),   ubicacion.upper(),    **fa7)
     page.insert_text(fitz.Point(_PZ_NRO_X,        _PZ_NRO_Y),        numero_pozo,          **fa7)
     page.insert_text(fitz.Point(_PZ_FECHA_MED_X,  _PZ_FECHA_MED_Y),  fecha_hora_medicion,  **fa7)
