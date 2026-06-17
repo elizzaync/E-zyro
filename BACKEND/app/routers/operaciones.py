@@ -3937,6 +3937,21 @@ def list_equipos_intervenidos(
         rows = q.filter(EquipoIntervenido.ubicacion_id == filtro_ubicacion_id).order_by(*orden).all()
     # Si no hay ningún criterio geográfico no devolvemos todos: lista vacía con mensaje claro.
 
+    # Garantizar que SIEMPRE aparezcan los equipos del SERVICIO ACTUAL
+    # (proyecto_servicio_id == servicio_id), aunque el filtro por zona exacta los
+    # dejara fuera. Es el caso más común: entrar a inspeccionar/marcar lo que se
+    # está interviniendo ahora, esté terminado o no.
+    presentes = {str(ei.id) for ei, *_ in rows}
+    delServicio = (
+        q.filter(EquipoIntervenido.proyecto_servicio_id == servicio_id)
+        .order_by(*orden)
+        .all()
+    )
+    for tup in delServicio:
+        if str(tup[0].id) not in presentes:
+            rows.append(tup)
+            presentes.add(str(tup[0].id))
+
     return [
         {
             "id":                    str(ei.id),
