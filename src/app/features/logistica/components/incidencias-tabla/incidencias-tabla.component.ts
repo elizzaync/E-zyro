@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
@@ -13,7 +13,7 @@ import { Incidencia, EstadoIncidencia } from '../../logistica.models';
   templateUrl: './incidencias-tabla.component.html',
   styleUrls: ['./incidencias-tabla.component.css'],
 })
-export class IncidenciasTablaComponent implements OnInit {
+export class IncidenciasTablaComponent implements OnInit, OnDestroy {
   private svc   = inject(LogisticaService);
   private toast = inject(ToastService);
 
@@ -34,6 +34,7 @@ export class IncidenciasTablaComponent implements OnInit {
   resolviendo                  = false;
 
   ngOnInit(): void { this.cargar(); }
+  ngOnDestroy(): void { document.body.style.overflow = ''; }
 
   cargar(): void {
     this.cargando = true;
@@ -60,8 +61,9 @@ export class IncidenciasTablaComponent implements OnInit {
     this.incActiva        = inc;
     this.resolNuevoEstado = inc.estado === 'abierta' ? 'en_reparacion' : 'solucionado';
     this.resolNota        = '';
+    document.body.style.overflow = 'hidden';
   }
-  cerrarResolucion(): void { this.incActiva = null; }
+  cerrarResolucion(): void { this.incActiva = null; document.body.style.overflow = ''; }
 
   confirmarResolucion(): void {
     if (!this.incActiva || !this.resolNuevoEstado || this.resolviendo) return;

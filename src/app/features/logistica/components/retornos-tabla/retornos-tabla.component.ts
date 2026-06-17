@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
@@ -25,7 +25,7 @@ interface ItemInspeccionForm {
   templateUrl: './retornos-tabla.component.html',
   styleUrls: ['./retornos-tabla.component.css'],
 })
-export class RetornosTablaComponent implements OnInit {
+export class RetornosTablaComponent implements OnInit, OnDestroy {
   private svc   = inject(LogisticaService);
   private toast = inject(ToastService);
 
@@ -46,6 +46,7 @@ export class RetornosTablaComponent implements OnInit {
   completando   = false;
 
   ngOnInit(): void { this.cargar(); }
+  ngOnDestroy(): void { document.body.style.overflow = ''; }
 
   cargar(): void {
     this.cargando = true;
@@ -64,6 +65,7 @@ export class RetornosTablaComponent implements OnInit {
   // ── Modal ──
   abrirInspeccion(r: Retorno): void {
     this.retornoActivo = r;
+    document.body.style.overflow = 'hidden';
     this.notaLogistica = r.notaLogistica || '';
     this.itemsForm = r.items.map(it => ({
       detalleId:          it.id,
@@ -78,7 +80,7 @@ export class RetornosTablaComponent implements OnInit {
     }));
   }
 
-  cerrarInspeccion(): void { this.retornoActivo = null; this.itemsForm = []; }
+  cerrarInspeccion(): void { this.retornoActivo = null; this.itemsForm = []; document.body.style.overflow = ''; }
 
   confirmarTodos(): void {
     this.itemsForm.forEach(f => f.cantidadConfirmada = f.cantidadRetornada);

@@ -79,7 +79,7 @@
 /* ═══════════════════════════════════════════════════
    MODAL DE RESOLUCIÓN
    ═══════════════════════════════════════════════════ */
-.inc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; animation: fadeIn .2s ease; }
+.inc-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 9000; padding: 1rem; animation: fadeIn .2s ease; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 .inc-modal { width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column; background: var(--card-bg,#fff); border-radius: 20px; box-shadow: 0 24px 80px rgba(0,0,0,.2); animation: popIn .22s cubic-bezier(.34,1.56,.64,1); overflow: hidden; }
 @keyframes popIn { from { opacity: 0; transform: scale(.93) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }

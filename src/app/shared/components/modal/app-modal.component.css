@@ -2,20 +2,33 @@
   display: contents;
 }
 
+/* Backdrop que cubre toda la pantalla por detrás del modal */
+.modal-backdrop-pro {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.6);
+  animation: backdropIn .18s ease;
+}
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .app-modal-shell {
   position: fixed;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  margin-top: 36px;
   width: 92%;
-  max-height: calc(100vh - 160px);
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--border-color, #e2e8f0);
   border-radius: 18px;
-  z-index: 999999;
-  box-shadow: var(--shadow-modal, 0 24px 60px rgba(0,0,0,.25));
+  z-index: 9001;
+  box-shadow: var(--shadow-modal, 0 24px 60px rgba(0,0,0,.35));
 }
 
 .app-modal-head {
