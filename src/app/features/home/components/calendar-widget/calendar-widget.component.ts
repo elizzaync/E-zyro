@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { ToastService } from '../../../../core/services/toast.service';
 
@@ -29,7 +29,7 @@ interface EventoFecha {
 @Component({
   selector: 'app-calendar-widget',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
+  imports: [CommonModule, FormsModule, RouterLink, SpinnerComponent, AppModalComponent],
   templateUrl: './calendar-widget.component.html',
   styleUrls: ['./calendar-widget.component.css']
 })
