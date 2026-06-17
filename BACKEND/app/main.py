@@ -44,6 +44,7 @@ from app.routers import portal_cliente    as portal_cliente_router
 from app.routers import portal_accesos    as portal_accesos_router
 from app.routers import analitica         as analitica_router
 from app.routers import planos            as planos_router
+from app.routers import drive             as drive_router
 from app.routers import personal          as personal_router
 from app.routers import usuarios          as usuarios_router
 from app.routers import evaluaciones      as evaluaciones_router
@@ -1873,6 +1874,7 @@ app.include_router(equipos_intervenidos_router.router)
 app.include_router(activo_cliente_router.router)
 app.include_router(analitica_router.router)
 app.include_router(planos_router.router)
+app.include_router(drive_router.router)
 app.include_router(personal_router.router)
 app.include_router(usuarios_router.router)
 app.include_router(evaluaciones_router.router)
