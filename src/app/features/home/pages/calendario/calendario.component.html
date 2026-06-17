@@ -1,228 +1,285 @@
-<div class="cal-page">
+<div class="cal-layout fade-in">
 
-  <!-- ══ HEADER ══ -->
-  <div class="page-header">
-    <div class="header-left">
+  <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+  <header class="cal-header">
+    <div class="cal-header-left">
       <button class="back-btn" (click)="volver()">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
         </svg>
       </button>
       <div>
-        <h1 class="page-title">Mi Calendario</h1>
-        <p class="page-sub">Seguimiento de asistencia, permisos y actividades</p>
+        <h1 class="cal-title">Mi Calendario</h1>
+        <p class="cal-sub">Resumen personal de asistencia · {{ mesLabel }}</p>
       </div>
     </div>
-    <div class="header-nav">
-      <button class="nav-pill" (click)="cambiarMes(-1)">
+    <div class="cal-nav">
+      <button class="nav-btn" (click)="cambiarMes(-1)">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
         </svg>
       </button>
-      <span class="month-chip">{{ mesLabel }}</span>
-      <button class="nav-pill" (click)="cambiarMes(1)">
+      <span class="month-badge">{{ mesLabel }}</span>
+      <button class="nav-btn" (click)="cambiarMes(1)">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
         </svg>
       </button>
       <button class="today-btn" (click)="irHoy()">Hoy</button>
     </div>
-  </div>
+  </header>
 
+  <!-- ══ SKELETON ═══════════════════════════════════════════════════ -->
   @if (cargando) {
-    <div class="loading-block">
-      <div class="spinner-ring"></div>
-      <p>Cargando tu calendario…</p>
+    <div class="skeleton-wrap">
+      <div class="sk-cards">
+        @for (i of [1,2,3,4,5,6]; track i) {
+          <div class="sk-card">
+            <div class="sk-icon"></div>
+            <div class="sk-text">
+              <div class="sk-val"></div>
+              <div class="sk-lbl"></div>
+            </div>
+          </div>
+        }
+      </div>
+      <div class="sk-cal"></div>
     </div>
   } @else {
 
-  <!-- ══ KPI CARDS ══ -->
+  <!-- ══ TARJETAS KPI ════════════════════════════════════════════════ -->
   <div class="kpi-grid">
-    @for (k of kpis; track k.label) {
-      <div class="kpi-card" [class]="'kpi-' + k.color">
-        <div class="kpi-icon">
-          @if (k.icon === 'check-circle') {
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          }
-          @if (k.icon === 'clock') {
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          }
-          @if (k.icon === 'lightning') {
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-          }
-          @if (k.icon === 'x-circle') {
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          }
-          @if (k.icon === 'warning') {
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-            </svg>
-          }
-        </div>
-        <div class="kpi-body">
-          <span class="kpi-value">{{ k.value }}</span>
-          <span class="kpi-label">{{ k.label }}</span>
-          <span class="kpi-sub">{{ k.sub }}</span>
-        </div>
+
+    <div class="kpi-card kpi-green hover-up">
+      <div class="kpi-icon-box">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="26" height="26">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
       </div>
-    }
-  </div>
-
-  <!-- ══ BARRA DE PROGRESO ASISTENCIA ══ -->
-  <div class="progress-bar-card">
-    <div class="pb-header">
-      <span class="pb-label">Asistencia del mes</span>
-      <span class="pb-pct">{{ porcentajeAsistencia }}%</span>
+      <div class="kpi-info">
+        <span class="kpi-val">{{ kpiAsistidos }}</span>
+        <span class="kpi-lbl">Días Asistidos</span>
+        <span class="kpi-sub">de {{ kpiLaborables }} laborables</span>
+      </div>
     </div>
-    <div class="pb-track">
-      <div class="pb-fill" [style.width.%]="porcentajeAsistencia"></div>
+
+    <div class="kpi-card kpi-blue hover-up">
+      <div class="kpi-icon-box">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="26" height="26">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-val">{{ kpiHoras }}h</span>
+        <span class="kpi-lbl">Horas Trabajadas</span>
+        <span class="kpi-sub">{{ (kpiHoras / 8).toFixed(1) }} jornadas</span>
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-amber hover-up">
+      <div class="kpi-icon-box">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="26" height="26">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-val">{{ kpiHorasExtra.toFixed(1) }}h</span>
+        <span class="kpi-lbl">Horas Extra</span>
+        <span class="kpi-sub">Aprobadas</span>
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-red hover-up">
+      <div class="kpi-icon-box">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="26" height="26">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-val">{{ kpiFaltas }}</span>
+        <span class="kpi-lbl">Días Faltados</span>
+        <span class="kpi-sub">{{ kpiFaltas === 0 ? 'Sin inasistencias' : 'Ausencias registradas' }}</span>
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-orange hover-up">
+      <div class="kpi-icon-box">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="26" height="26">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-val">{{ kpiTardanzas }}</span>
+        <span class="kpi-lbl">Tardanzas</span>
+        <span class="kpi-sub">{{ kpiTardanzas === 0 ? 'Puntualidad perfecta' : 'Llegadas después 08:30' }}</span>
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-indigo hover-up">
+      <div class="kpi-icon-box">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="26" height="26">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-val">{{ kpiPermisos }}</span>
+        <span class="kpi-lbl">Días con Permiso</span>
+        <span class="kpi-sub">Aprobados / solicitados</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══ BARRA ASISTENCIA ══════════════════════════════════════════ -->
+  <div class="prog-card">
+    <div class="prog-row">
+      <span class="prog-label">Asistencia del mes</span>
+      <span class="prog-pct">{{ pctAsistencia }}%</span>
+    </div>
+    <div class="prog-track">
+      <div class="prog-fill" [style.width.%]="pctAsistencia"
+        [class.prog-low]="pctAsistencia < 60"
+        [class.prog-mid]="pctAsistencia >= 60 && pctAsistencia < 85"></div>
     </div>
   </div>
 
-  <!-- ══ LEYENDA ══ -->
-  <div class="leyenda">
-    <div class="leyenda-item"><span class="dot dot-asistio"></span> Asistió</div>
-    <div class="leyenda-item"><span class="dot dot-tardanza"></span> Tardanza</div>
-    <div class="leyenda-item"><span class="dot dot-falta"></span> Falta</div>
-    <div class="leyenda-item"><span class="dot dot-permiso"></span> Permiso</div>
-    <div class="leyenda-item"><span class="dot dot-extra"></span> Horas Extra</div>
-    <div class="leyenda-item"><span class="dot dot-evento"></span> OT Programada</div>
+  <!-- ══ LEYENDA ════════════════════════════════════════════════════ -->
+  <div class="leyenda-row">
+    <div class="leg-item"><span class="leg-dot ld-asistio"></span>Asistió</div>
+    <div class="leg-item"><span class="leg-dot ld-tardanza"></span>Tardanza</div>
+    <div class="leg-item"><span class="leg-dot ld-falta"></span>Falta</div>
+    <div class="leg-item"><span class="leg-dot ld-permiso"></span>Permiso</div>
+    <div class="leg-item"><span class="leg-dot ld-ot"></span>OT Programada</div>
+    <div class="leg-item"><span class="leg-dot ld-libre"></span>Fin de semana</div>
   </div>
 
-  <!-- ══ CALENDARIO ══ -->
+  <!-- ══ CALENDARIO ════════════════════════════════════════════════ -->
   <div class="cal-card">
-    <!-- Cabecera días semana -->
-    <div class="weekdays-row">
+    <div class="weekdays">
       @for (d of diasSemana; track $index) {
-        <div class="wd-cell" [class.wd-weekend]="$index === 0 || $index === 6">{{ d }}</div>
+        <div class="wd" [class.wd-end]="$index === 0 || $index === 6">{{ d }}</div>
       }
     </div>
-
-    <!-- Cuadrícula días -->
     <div class="days-grid">
       @for (dia of diasMes; track $index) {
-        <div class="day-cell"
+        <div class="day"
           [class.empty]="!dia.num"
           [class.is-today]="dia.isHoy"
-          [class.is-weekend]="dia.isWeekend"
-          [class.day-asistio]="dia.asistio && !dia.tardanza"
-          [class.day-tardanza]="dia.tardanza"
-          [class.day-falta]="dia.falta"
-          [class.day-permiso]="dia.permiso && !dia.asistio"
-          [class.day-extra]="dia.horasExtra"
+          [class.d-asistio]="dia.tag === 'asistio'"
+          [class.d-tardanza]="dia.tag === 'tardanza'"
+          [class.d-falta]="dia.tag === 'falta'"
+          [class.d-permiso]="dia.tag === 'permiso'"
+          [class.d-libre]="dia.tag === 'libre'"
+          [class.has-ot]="dia.eventoOT"
+          [class.clickable]="!!dia.num && (!!dia.tag || dia.eventoOT)"
           (click)="abrirDetalle(dia)">
           @if (dia.num) {
-            <span class="day-num">{{ dia.num }}</span>
-            <div class="day-dots">
-              @if (dia.asistio && !dia.tardanza) { <span class="d dot-asistio"></span> }
-              @if (dia.tardanza)                 { <span class="d dot-tardanza"></span> }
-              @if (dia.falta)                    { <span class="d dot-falta"></span> }
-              @if (dia.permiso)                  { <span class="d dot-permiso"></span> }
-              @if (dia.horasExtra)               { <span class="d dot-extra"></span> }
-              @if (dia.evento)                   { <span class="d dot-evento"></span> }
-            </div>
+            <span class="d-num">{{ dia.num }}</span>
+            @if (dia.tag === 'asistio') {
+              <span class="d-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                </svg>
+              </span>
+            }
+            @if (dia.tag === 'tardanza') {
+              <span class="d-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3"/>
+                </svg>
+              </span>
+            }
+            @if (dia.tag === 'falta') {
+              <span class="d-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </span>
+            }
+            @if (dia.tag === 'permiso') {
+              <span class="d-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6"/>
+                </svg>
+              </span>
+            }
+            @if (dia.eventoOT) {
+              <span class="ot-dot"></span>
+            }
           }
         </div>
       }
     </div>
   </div>
 
-  <!-- ══ MODAL DETALLE DÍA ══ -->
+  <!-- ══ MODAL DETALLE ════════════════════════════════════════════ -->
   @if (diaDetalle) {
-    <div class="modal-overlay" (click)="cerrarDetalle()">
-      <div class="modal-box" (click)="$event.stopPropagation()">
-        <div class="modal-top">
+    <div class="overlay" (click)="cerrarDetalle()">
+      <div class="det-box" (click)="$event.stopPropagation()">
+        <div class="det-head">
           <div>
-            <h3 class="modal-title">{{ diaDetalle.num }} de {{ mesLabel }}</h3>
-            <p class="modal-date">{{ diaDetalle.fecha }}</p>
+            <h3 class="det-title">{{ diaDetalle.num }} de {{ mesLabel }}</h3>
+            <p class="det-date">{{ diaDetalle.fecha }}</p>
           </div>
-          <button class="modal-close" (click)="cerrarDetalle()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <button class="close-btn" (click)="cerrarDetalle()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
         </div>
-
-        <div class="modal-body">
-          @if (diaDetalle.asistio || diaDetalle.tardanza) {
-            <div class="detail-row" [class.row-tardanza]="diaDetalle.tardanza" [class.row-asistio]="!diaDetalle.tardanza">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <div class="det-body">
+          @if (diaDetalle.tag === 'asistio' || diaDetalle.tag === 'tardanza') {
+            <div class="det-row" [class.dr-asistio]="diaDetalle.tag === 'asistio'" [class.dr-tardanza]="diaDetalle.tag === 'tardanza'">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
               <div>
-                <p class="dr-title">{{ diaDetalle.tardanza ? 'Tardanza' : 'Asistencia' }}</p>
-                <p class="dr-sub">Ingreso: {{ diaDetalle.horaIngreso ?? '--:--' }} · Salida: {{ diaDetalle.horaSalida ?? '--:--' }}</p>
+                <p class="dr-t">{{ diaDetalle.tag === 'tardanza' ? 'Tardanza registrada' : 'Asistencia completa' }}</p>
+                <p class="dr-s">Ingreso: {{ diaDetalle.horaIngreso || '--:--' }} · Salida: {{ diaDetalle.horaSalida || '--:--' }}</p>
                 @if (diaDetalle.horasTrabajadas > 0) {
-                  <p class="dr-sub">{{ diaDetalle.horasTrabajadas.toFixed(1) }}h trabajadas</p>
+                  <p class="dr-s">{{ diaDetalle.horasTrabajadas.toFixed(1) }}h trabajadas</p>
                 }
               </div>
             </div>
           }
-
-          @if (diaDetalle.falta) {
-            <div class="detail-row row-falta">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          @if (diaDetalle.tag === 'falta') {
+            <div class="det-row dr-falta">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
               <div>
-                <p class="dr-title">Sin marcación</p>
-                <p class="dr-sub">No se registró asistencia este día</p>
+                <p class="dr-t">Sin marcación</p>
+                <p class="dr-s">No se registró asistencia este día</p>
               </div>
             </div>
           }
-
-          @if (diaDetalle.permiso) {
-            <div class="detail-row row-permiso">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          @if (diaDetalle.tag === 'permiso') {
+            <div class="det-row dr-permiso">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
               </svg>
               <div>
-                <p class="dr-title">Permiso</p>
-                <p class="dr-sub">{{ diaDetalle.permisoTipo }}</p>
+                <p class="dr-t">Permiso</p>
+                <p class="dr-s">{{ diaDetalle.permisoTipo }}</p>
               </div>
             </div>
           }
-
-          @if (diaDetalle.horasExtra) {
-            <div class="detail-row row-extra">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-              <div>
-                <p class="dr-title">Horas Extra Aprobadas</p>
-                <p class="dr-sub">{{ diaDetalle.permisoTipo }}</p>
-              </div>
-            </div>
-          }
-
-          @if (diaDetalle.evento) {
-            <div class="detail-row row-evento">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          @if (diaDetalle.eventoOT) {
+            <div class="det-row dr-ot">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="18" height="18">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
               </svg>
               <div>
-                <p class="dr-title">OT Programada</p>
-                <p class="dr-sub">Estado: {{ diaDetalle.estadoEvento }}</p>
+                <p class="dr-t">OT Programada</p>
+                <p class="dr-s">Estado: {{ diaDetalle.estadoOT }}</p>
               </div>
             </div>
-          }
-
-          @if (!diaDetalle.asistio && !diaDetalle.tardanza && !diaDetalle.falta && !diaDetalle.permiso && !diaDetalle.horasExtra && !diaDetalle.evento) {
-            <p class="modal-empty">No hay actividad registrada para este día.</p>
           }
         </div>
       </div>
     </div>
   }
 
-  } <!-- end @else cargando -->
+  } <!-- /else cargando -->
 </div>
