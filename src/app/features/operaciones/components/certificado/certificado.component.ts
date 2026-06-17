@@ -49,12 +49,13 @@ export class CertificadoComponent implements OnInit {
   form = {
     ubicacion:          '',
     // Pozo
-    numero_pozo:        '',
-    fecha_ejecucion:    '',
-    fecha_hora_medicion:'',
+    nombre_pozo:        '',   // va en "CERTIFICADO N°"
+    numero_pozo:        '',   // va solo en columna N° DE POZO de tabla
+    fecha_ejecucion:    '',   // type="date"  → YYYY-MM-DD
+    fecha_hora_medicion:'',   // type="datetime-local" → YYYY-MM-DDTHH:MM
     resultado_medicion: '',
-    hora_inicio:        '',
-    hora_termino:       '',
+    hora_inicio:        '',   // type="time" → HH:MM
+    hora_termino:       '',   // type="time" → HH:MM
     nombre_tecnico:     '',
     // Operatividad (todos auto-completados)
     nombre_tablero:     '',
@@ -180,13 +181,27 @@ export class CertificadoComponent implements OnInit {
     a.click();
   }
 
+  private _fmtDate(val: string): string {
+    if (!val) return '';
+    const [y, m, d] = val.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  private _fmtDatetime(val: string): string {
+    if (!val) return '';
+    const [date, time] = val.split('T');
+    const [y, m, d] = date.split('-');
+    return `${d}/${m}/${y}  ${time ?? ''}`;
+  }
+
   private _payloadPozo(): object {
     return {
+      nombre_pozo:          this.form.nombre_pozo,
       ubicacion:            this.form.ubicacion,
       numero_pozo:          this.form.numero_pozo,
       // fecha_actualizacion se auto-genera en backend (fecha de hoy)
-      fecha_ejecucion:      this.form.fecha_ejecucion,
-      fecha_hora_medicion:  this.form.fecha_hora_medicion,
+      fecha_ejecucion:      this._fmtDate(this.form.fecha_ejecucion),
+      fecha_hora_medicion:  this._fmtDatetime(this.form.fecha_hora_medicion),
       resultado_medicion:   this.form.resultado_medicion,
       hora_inicio:          this.form.hora_inicio,
       hora_termino:         this.form.hora_termino,

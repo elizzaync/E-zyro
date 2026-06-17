@@ -48,6 +48,12 @@
             <input class="field-input" [(ngModel)]="form.ubicacion" placeholder="TALMA - JULIACA">
           </div>
 
+          <div class="field-group">
+            <label class="field-label">Nombre del Pozo <span class="req">*</span></label>
+            <input class="field-input" [(ngModel)]="form.nombre_pozo"
+                   placeholder="POZO A TIERRA - SALA ELÉCTRICA">
+          </div>
+
           <div class="form-row">
             <div class="field-group">
               <label class="field-label">N° de Pozo <span class="req">*</span></label>
@@ -55,14 +61,13 @@
             </div>
             <div class="field-group">
               <label class="field-label">Fecha de ejecución <span class="req">*</span></label>
-              <input class="field-input" [(ngModel)]="form.fecha_ejecucion" placeholder="07/06/2026">
+              <input class="field-input" type="date" [(ngModel)]="form.fecha_ejecucion">
             </div>
           </div>
 
           <div class="field-group">
             <label class="field-label">Fecha y hora de medición <span class="req">*</span></label>
-            <input class="field-input" [(ngModel)]="form.fecha_hora_medicion"
-                   placeholder="07/06/2026  08:30">
+            <input class="field-input" type="datetime-local" [(ngModel)]="form.fecha_hora_medicion">
           </div>
 
           <div class="field-group">
@@ -73,11 +78,11 @@
           <div class="form-row">
             <div class="field-group">
               <label class="field-label">Hora inicio</label>
-              <input class="field-input" [(ngModel)]="form.hora_inicio" placeholder="07:00">
+              <input class="field-input" type="time" [(ngModel)]="form.hora_inicio">
             </div>
             <div class="field-group">
               <label class="field-label">Hora término</label>
-              <input class="field-input" [(ngModel)]="form.hora_termino" placeholder="07:30">
+              <input class="field-input" type="time" [(ngModel)]="form.hora_termino">
             </div>
           </div>
 
