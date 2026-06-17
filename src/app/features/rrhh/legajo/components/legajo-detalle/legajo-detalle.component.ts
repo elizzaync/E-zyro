@@ -377,6 +377,15 @@ export class LegajoDetalleComponent implements OnInit {
 
   // ── Utilidades ────────────────────────────────────────────────────────
 
+  /** Convierte URLs raw de Cloudinary para que el navegador las abra inline en lugar de descargarlas. */
+  pdfUrl(url: string): string {
+    if (!url) return url;
+    if (url.includes('/raw/upload/') && !url.includes('fl_attachment')) {
+      return url.replace('/raw/upload/', '/raw/upload/fl_attachment:false/');
+    }
+    return url;
+  }
+
   tipoClase(tipo: string): string {
     const map: Record<string, string> = {
       'boleta mensual':    'tipo-boleta',
