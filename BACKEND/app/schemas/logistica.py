@@ -287,6 +287,8 @@ class RequerimientoOut(BaseModel):
     firmandoPorNombre:  Optional[str] = None
     firmandoDesde:      Optional[str] = None
     fechaEntrega:       Optional[str] = None
+    # Firma del solicitante al enviar el lote (quién firmó el pedido)
+    firmaSolicitanteUrl: Optional[str] = None
 
 
 class RequerimientosListResponse(BaseModel):

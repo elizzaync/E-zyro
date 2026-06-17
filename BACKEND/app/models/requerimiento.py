@@ -31,6 +31,10 @@ class Requerimiento(Base):
     firmando_por_id   = Column(String(36), nullable=True)
     firmando_desde    = Column(DateTime, nullable=True)
     firma_entregador_url = Column(Text, nullable=True)
+    # Firma del solicitante al ENVIAR el lote a Logística (la pone el técnico/jefe
+    # que confirma el pedido). Distinta de la firma de recepción (firma_receptor_url).
+    firma_solicitante_url   = Column(Text, nullable=True)
+    firma_solicitante_fecha = Column(DateTime, nullable=True)
     created_at           = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at           = Column(DateTime)
 

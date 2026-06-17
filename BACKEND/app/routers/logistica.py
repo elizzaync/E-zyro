@@ -1220,6 +1220,7 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
         firmandoPorNombre=firmando_por_nombre,
         firmandoDesde=firmando_desde_iso,
         fechaEntrega=fecha_entrega,
+        firmaSolicitanteUrl=getattr(req, "firma_solicitante_url", None),
     )
 
 

@@ -1560,6 +1560,7 @@ async def enviar_borrador(
     servicio_id: str,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
+    firma_solicitante_url: str | None = Body(default=None, embed=True),
 ):
     empresa_id = payload["empresa_id"]
 
@@ -1585,6 +1586,11 @@ async def enviar_borrador(
     borrador.estado     = "pendiente"
     borrador.fecha      = date.today()
     borrador.updated_at = datetime.utcnow()
+    # Firma del solicitante al enviar el lote (la exige la app; el backend la
+    # guarda si llega, para no romper builds antiguos en producción).
+    if (firma_solicitante_url or "").strip():
+        borrador.firma_solicitante_url   = firma_solicitante_url.strip()
+        borrador.firma_solicitante_fecha = datetime.utcnow()
     db.commit()
 
     try:
