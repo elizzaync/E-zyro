@@ -234,6 +234,7 @@ class RequerimientoService {
     required String tipo,
     required int cantidad,
     String? motivo,
+    String? clasificacion,   // merma|desmedro|vencido|robo|faltante|error_conteo (pérdidas)
     String? almacenId,
     double? costoUnitario,
   }) async {
@@ -243,6 +244,7 @@ class RequerimientoService {
         'tipo': tipo,
         'cantidad': cantidad,
         if (motivo != null && motivo.isNotEmpty) 'motivo': motivo,
+        if (clasificacion != null && clasificacion.isNotEmpty) 'clasificacion': clasificacion,
         'almacen_id': ?almacenId,
         'costo_unitario': ?costoUnitario,
       });

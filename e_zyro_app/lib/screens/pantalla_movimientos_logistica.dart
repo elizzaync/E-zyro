@@ -283,6 +283,19 @@ class _AjusteSheetState extends State<_AjusteSheet> {
   bool _buscando = false;
   bool _guardando = false;
   String _tipo = 'entrada'; // entrada | salida | ajuste
+  String? _clasificacion;   // null = normal; merma|desmedro|vencido|robo|faltante|error_conteo
+
+  // Clasificación de pérdida → decide la cuenta contable (merma/desmedro=6593,
+  // robo/faltante=6591). 'Normal' deja la salida como costo de ventas (691).
+  static const _clasificaciones = <(String?, String)>[
+    (null, 'Normal (no es pérdida)'),
+    ('merma', 'Merma / deterioro'),
+    ('desmedro', 'Desmedro'),
+    ('vencido', 'Vencido'),
+    ('robo', 'Robo'),
+    ('faltante', 'Faltante de conteo'),
+    ('error_conteo', 'Error de conteo'),
+  ];
 
   @override
   void dispose() {
@@ -337,6 +350,7 @@ class _AjusteSheetState extends State<_AjusteSheet> {
       tipo: _tipo,
       cantidad: cantidad,
       motivo: _motivoCtrl.text.trim(),
+      clasificacion: _tipo == 'entrada' ? null : _clasificacion,
       costoUnitario: costo,
     );
     if (!mounted) return;
@@ -538,6 +552,43 @@ class _AjusteSheetState extends State<_AjusteSheet> {
                     borderSide: BorderSide.none,
                   ),
                 ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── Clasificación (salida/ajuste): si es una pérdida, su cuenta ──
+            if (_tipo != 'entrada') ...[
+              Text(
+                _tipo == 'ajuste'
+                    ? 'Si el conteo da faltante, clasifícalo'
+                    : 'Clasificación de la salida',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String?>(
+                initialValue: _clasificacion,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  helperText: _tipo == 'ajuste'
+                      ? 'El sobrante se registra como ingreso automáticamente'
+                      : 'Una pérdida no es costo de venta',
+                  filled: true,
+                  fillColor: Theme.of(context)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.4),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                items: _clasificaciones
+                    .map((c) => DropdownMenuItem<String?>(
+                          value: c.$1,
+                          child: Text(c.$2, overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _clasificacion = v),
               ),
               const SizedBox(height: 16),
             ],
