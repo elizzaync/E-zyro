@@ -39,8 +39,9 @@ class FinanzasService {
   }
 
   // ── Contabilidad ───────────────────────────────────────────────────────────
-  Future<ApiResult<List<CuentaContable>>> planCuentas({String? nivel, bool soloActivas = true}) {
+  Future<ApiResult<List<CuentaContable>>> planCuentas({String? tipo, String? nivel, bool soloActivas = true}) {
     final params = <String, String>{
+      'tipo': ?tipo,
       'nivel': ?nivel,
       if (soloActivas) 'activo': 'true',
     };
@@ -126,6 +127,7 @@ class FinanzasService {
     required String fechaVencimiento,
     required double subtotal,
     required double igv,
+    String? cuentaGastoId,
   }) async {
     try {
       final r = await _client.post('/cuentas-por-pagar/facturas', {
@@ -136,6 +138,7 @@ class FinanzasService {
         'fecha_vencimiento': fechaVencimiento,
         'subtotal': subtotal,
         'igv': igv,
+        'cuenta_gasto_id': ?cuentaGastoId,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));

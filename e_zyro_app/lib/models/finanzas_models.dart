@@ -76,12 +76,13 @@ class BalanceComprobacion {
 class Factura {
   final String id, numeroDocumento, tipoDocumento, estado, fechaEmision, fechaVencimiento;
   final double subtotal, igv, total, saldoPendiente;
-  final String? asientoId, terceroId;
+  final String? asientoId, terceroId, cuentaGastoCodigo;
   Factura({
     required this.id, required this.numeroDocumento, required this.tipoDocumento,
     required this.estado, required this.fechaEmision, required this.fechaVencimiento,
     required this.subtotal, required this.igv, required this.total,
     required this.saldoPendiente, this.asientoId, this.terceroId,
+    this.cuentaGastoCodigo,
   });
   factory Factura.fromJson(Map<String, dynamic> j) => Factura(
         id: j['id'].toString(),
@@ -96,6 +97,7 @@ class Factura {
         saldoPendiente: _toD(j['saldo_pendiente']),
         asientoId: j['asiento_id']?.toString(),
         terceroId: (j['proveedor_id'] ?? j['cliente_id'])?.toString(),
+        cuentaGastoCodigo: j['cuenta_gasto_codigo']?.toString(),
       );
 }
 

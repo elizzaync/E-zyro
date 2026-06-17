@@ -244,7 +244,8 @@ class _TabFacturas extends StatelessWidget {
             child: ListTile(
               title: Text(f.numeroDocumento),
               subtitle: Text(
-                '${f.tipoDocumento} · Vence ${f.fechaVencimiento}',
+                '${f.tipoDocumento} · Vence ${f.fechaVencimiento}'
+                '${f.cuentaGastoCodigo != null ? ' · Cta ${f.cuentaGastoCodigo}' : ''}',
                 style: const TextStyle(fontSize: 12),
               ),
               trailing: Row(
@@ -411,18 +412,38 @@ class _FormFacturaState extends State<_FormFactura> {
   final _igvCtrl = TextEditingController(text: '18');
   bool _guardando = false;
 
+  // Cuenta de gasto a debitar: 601 mercadería (defecto) o 63/65 para servicios.
+  List<CuentaContable> _cuentasGasto = [];
+  String? _cuentaGastoId;
+
   static const _tipos = ['factura', 'boleta', 'nota_debito', 'nota_credito'];
 
   @override
   void initState() {
     super.initState();
     _cargarProveedores();
+    _cargarCuentasGasto();
   }
 
   Future<void> _cargarProveedores() async {
     final svc = await getFinanzasService();
     final r = await svc.proveedores();
     if (mounted && r.ok) setState(() => _proveedores = r.data!);
+  }
+
+  Future<void> _cargarCuentasGasto() async {
+    final svc = await getFinanzasService();
+    final r = await svc.planCuentas(tipo: 'gasto', nivel: 'detalle');
+    if (!mounted || !r.ok) return;
+    final cuentas = r.data!;
+    setState(() {
+      _cuentasGasto = cuentas;
+      // Predeterminado 601 Mercaderías (editable); si no existe, la primera.
+      final c601 = cuentas.where((c) => c.codigo == '601');
+      _cuentaGastoId = c601.isNotEmpty
+          ? c601.first.id
+          : (cuentas.isNotEmpty ? cuentas.first.id : null);
+    });
   }
 
   Future<void> _guardar() async {
@@ -445,6 +466,7 @@ class _FormFacturaState extends State<_FormFactura> {
       fechaVencimiento: fmt.format(_vencimiento),
       subtotal: subtotal,
       igv: igv,
+      cuentaGastoId: _cuentaGastoId,
     );
     if (!mounted) return;
     setState(() => _guardando = false);
@@ -512,6 +534,25 @@ class _FormFacturaState extends State<_FormFactura> {
                     .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                     .toList(),
                 onChanged: (v) => setState(() => _tipo = v!),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _cuentaGastoId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Cuenta de gasto',
+                  helperText: 'Mercadería (601) o servicios (63/65)',
+                  border: OutlineInputBorder(),
+                ),
+                items: _cuentasGasto
+                    .map((c) => DropdownMenuItem(
+                          value: c.id,
+                          child: Text('${c.codigo} · ${c.nombre}',
+                              overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _cuentaGastoId = v),
+                validator: (v) => v == null ? 'Requerido' : null,
               ),
               const SizedBox(height: 12),
               _DateField(
