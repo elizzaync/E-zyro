@@ -4,7 +4,6 @@
   <div class="plan-header">
     <div class="header-left">
       <h2 class="page-title">Nómina de Personal</h2>
-      <p class="page-subtitle">Cálculo automático basado en asistencia mensual · Régimen Laboral MYPE</p>
     </div>
     <div class="header-actions">
       @if (puedeEditar && esVistaMensual) {
@@ -13,6 +12,17 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
         </svg>
         @if (guardando) { Guardando… } @else { Guardar Sueldos }
+      </button>
+      }
+      @if (isAdmin && esVistaMensual) {
+      <button class="btn-legajo-masivo" [disabled]="enviandoMasivo" (click)="enviarLegajoMasivo()"
+        [title]="selectedLegajoCount > 0 ? 'Enviar boletas de los empleados seleccionados al Legajo Digital' : 'Enviar boletas de todos los empleados al Legajo Digital'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        @if (enviandoMasivo) { {{ masivoProgreso || 'Enviando…' }} }
+        @else if (selectedLegajoCount > 0) { Enviar {{ selectedLegajoCount }} seleccionados }
+        @else { Enviar a Legajo Digital }
       </button>
       }
     </div>
@@ -64,12 +74,6 @@
     </div>
     }
 
-    <div class="config-block config-block-end">
-      <span class="regimen-toggle-label">Tipo de empresa:</span>
-      <button class="regimen-btn" [class.active]="regimenEmpresa === 'micro'" (click)="setRegimen('micro')">Microempresa</button>
-      <button class="regimen-btn" [class.active]="regimenEmpresa === 'pequena'" (click)="setRegimen('pequena')">Pequeña Empresa</button>
-      <button class="regimen-btn" [class.active]="regimenEmpresa === 'general'" (click)="setRegimen('general')">Régimen General</button>
-    </div>
   </div>
 
   @if (kpis.bajoRmvCount > 0) {
@@ -184,6 +188,11 @@
       <table class="plan-table">
         <thead>
           <tr>
+            @if (isAdmin && esVistaMensual) {
+            <th class="th-check text-center">
+              <input type="checkbox" [checked]="allPageSelected" (change)="toggleSelectAllPage()" title="Seleccionar / deseleccionar todos">
+            </th>
+            }
             <th>Empleado</th>
             <th class="text-center">Modalidad</th>
             <th class="th-input">Sueldo Base
@@ -207,6 +216,11 @@
         <tbody>
           @for (emp of empleados; track emp.id) {
           <tr [class.row-falta]="emp.horas_faltantes > 0">
+            @if (isAdmin && esVistaMensual) {
+            <td class="text-center td-check">
+              <input type="checkbox" [checked]="!!selectedLegajoMap[emp.id]" (change)="toggleLegajoSelect(emp.id)">
+            </td>
+            }
             <td>
               <div class="emp-cell">
                 <div class="emp-avatar">
@@ -405,25 +419,6 @@
     }
   </div>
 
-  <!-- ═══ NOTA LEGAL ═══ -->
-  <div class="nota-legal">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="12" y1="8" x2="12" y2="12"/>
-      <line x1="12" y1="16" x2="12.01" y2="16"/>
-    </svg>
-    <span>
-      Configuración actual: tipo de empresa <strong>{{ regimenLabel }}</strong>, esquema de pago <strong>{{ esquemaPago === 'quincenal' ? 'Quincena + Fin de mes' : 'Mensual' }}</strong>
-      @if (esquemaPago === 'quincenal') { (días 01–15 y 16–fin de mes, 50% del sueldo cada una) }.
-      La <strong>boleta oficial es siempre mensual</strong> (PDF + envío a Legajo Digital, vista "Mes Completo"). Vacaciones: {{ diasVacaciones }} días/año.
-      Horas extra con recargo de 25%/35% (D.L. 854) solo para planilla/contrato. Descuento de pensión (ONP/AFP, con entidad seleccionable) obligatorio solo para dependientes — RRHH asigna la modalidad y el sistema de pensión de cada trabajador en esta misma pantalla.
-      Los <strong>practicantes</strong> (Ley 28518) no generan CTS, gratificación ni aporte a pensión.
-      @if (regimenEmpresa === 'micro') { Como <strong>Microempresa</strong>, no corresponde CTS ni gratificación (exoneración legal MYPE). }
-      @else if (regimenEmpresa === 'pequena') { Como <strong>Pequeña Empresa</strong>, corresponde medio CTS y media gratificación (informativo, no se descuenta del neto). }
-      @else { En <strong>Régimen General</strong>, corresponde CTS y gratificación completos (informativo, no se descuenta del neto). }
-      Tasas de ONP/AFP y RMV son referenciales — verificar vigencia ante SBS/SUNAFIL antes de procesar planilla real.
-    </span>
-  </div>
 
 </div>
 

@@ -117,6 +117,11 @@ export class PlanillasComponent implements OnInit {
   boletaEmp: ResumenEmpleadoDto | null = null;
   generandoPdf = false;
 
+  // ── Envío masivo a Legajo Digital ─────────────────────────────────────────
+  selectedLegajoMap: Record<string, boolean> = {};
+  enviandoMasivo = false;
+  masivoProgreso = '';
+
   get puedeEditar(): boolean {
     const rol = (this.auth.getUsuario()?.rol || '').trim().toLowerCase().replace(/\s+/g, '');
     return !['técnicodecampo', 'clienteexterno'].includes(rol);
@@ -624,6 +629,122 @@ export class PlanillasComponent implements OnInit {
   verBoleta(emp: ResumenEmpleadoDto): void { this.boletaEmp = emp; }
   cerrarBoleta(): void { this.boletaEmp = null; }
 
+  // ── Selección masiva para Legajo Digital ──────────────────────────────────
+
+  get selectedLegajoCount(): number {
+    return Object.values(this.selectedLegajoMap).filter(Boolean).length;
+  }
+
+  get allPageSelected(): boolean {
+    return this.empleados.length > 0 && this.empleados.every(e => !!this.selectedLegajoMap[e.id]);
+  }
+
+  toggleLegajoSelect(empId: string): void {
+    this.selectedLegajoMap = { ...this.selectedLegajoMap, [empId]: !this.selectedLegajoMap[empId] };
+  }
+
+  toggleSelectAllPage(): void {
+    const all = this.allPageSelected;
+    const next: Record<string, boolean> = { ...this.selectedLegajoMap };
+    this.empleados.forEach(e => { next[e.id] = !all; });
+    this.selectedLegajoMap = next;
+  }
+
+  async enviarLegajoMasivo(): Promise<void> {
+    if (!this.isAdmin || !this.esVistaMensual) return;
+    this.enviandoMasivo = true;
+
+    if (this.selectedLegajoCount === 0) {
+      this.masivoProgreso = 'Cargando lista de empleados…';
+      this.svc.getResumenAsistencia({
+        fecha_inicio: this.fechaInicio,
+        fecha_fin:    this.fechaFin,
+        page: 1,
+        limit: 1000,
+      }).subscribe({
+        next: async (res) => {
+          const validos = res.empleados.filter(e => this.getSueldo(e.id) > 0);
+          if (validos.length === 0) {
+            this.enviandoMasivo = false;
+            this.masivoProgreso = '';
+            this.toast.mostrar('Ningún empleado tiene sueldo registrado este período', 'error');
+            return;
+          }
+          await this.procesarEnvioMasivo(validos);
+        },
+        error: () => {
+          this.enviandoMasivo = false;
+          this.masivoProgreso = '';
+          this.toast.mostrar('Error al cargar la lista de empleados', 'error');
+        }
+      });
+    } else {
+      const selIds = new Set(
+        Object.entries(this.selectedLegajoMap).filter(([, v]) => v).map(([k]) => k)
+      );
+      const validos = this.empleados.filter(e => selIds.has(e.id) && this.getSueldo(e.id) > 0);
+      if (validos.length === 0) {
+        this.enviandoMasivo = false;
+        this.toast.mostrar('Los empleados seleccionados no tienen sueldo registrado', 'error');
+        return;
+      }
+      await this.procesarEnvioMasivo(validos);
+    }
+  }
+
+  private async procesarEnvioMasivo(emps: ResumenEmpleadoDto[]): Promise<void> {
+    let enviados = 0;
+    let errores = 0;
+    const total = emps.length;
+
+    for (let i = 0; i < emps.length; i++) {
+      const emp = emps[i];
+      this.masivoProgreso = `Procesando ${i + 1} / ${total}…`;
+      let div: HTMLElement | null = null;
+      try {
+        div = await this.crearDivVoucher(emp);
+        const blob: Blob = await html2pdf().set({
+          margin: 20,
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'pt', format: 'a4', orientation: 'landscape' },
+        }).from(div).outputPdf('blob');
+
+        const mesLabel = MESES_ES[this.selectedMonth];
+        const nombreDoc = `Boleta de Pago - ${mesLabel} ${this.selectedYear}`;
+        const archivo = new File([blob], `${nombreDoc}.pdf`, { type: 'application/pdf' });
+        const form = new FormData();
+        form.append('tipo', 'Boleta Mensual');
+        form.append('nombre', nombreDoc);
+        form.append('fecha_emision', `${this.selectedYear}-${String(this.selectedMonth).padStart(2, '0')}-01`);
+        form.append('requiere_firma', 'true');
+        form.append('mes', String(this.selectedMonth));
+        form.append('anio', String(this.selectedYear));
+        form.append('archivo', archivo);
+
+        await new Promise<void>((resolve) => {
+          this.svc.subirDocumento(emp.id, form).subscribe({
+            next: () => { enviados++; resolve(); },
+            error: () => { errores++; resolve(); }
+          });
+        });
+      } catch {
+        errores++;
+      } finally {
+        if (div?.parentNode) div.parentNode.removeChild(div);
+      }
+    }
+
+    this.enviandoMasivo = false;
+    this.masivoProgreso = '';
+    this.selectedLegajoMap = {};
+
+    if (errores === 0) {
+      this.toast.mostrar(`${enviados} boleta(s) enviadas al Legajo Digital`, 'success');
+    } else {
+      this.toast.mostrar(`${enviados} enviadas · ${errores} con error — revisar legajos`, 'error');
+    }
+  }
+
   // ── Generar PDF de la boleta y enviarla a Legajo Digital ────────────────────
 
   private construirVoucherHtml(emp: ResumenEmpleadoDto): string {
@@ -802,14 +923,6 @@ export class PlanillasComponent implements OnInit {
         <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Importe S/.</th></tr></thead>
         <tbody>${filasInformativas}</tbody>
       </table>
-
-      <div class="bol-nota">
-        Cálculo conforme al Régimen ${this.regimenLabel} ${this.esRegimenMype ? '(Ley N.° 28015 / D.L. N.° 1086)' : '(Régimen Laboral General)'} y D.L. N.° 854 (jornada y sobretiempo). Vacaciones: ${this.diasVacaciones} días/año.
-        ${this.esPracticante(emp) ? ' El trabajador se encuentra bajo Convenio de Modalidad Formativa (Ley N.° 28518): no genera CTS, gratificación ni aporte obligatorio a pensión.' : ''}
-        ${dependiente && this.regimenEmpresa === 'micro' ? ' Como Microempresa, no corresponde CTS ni gratificación (exoneración legal MYPE).' : ''}
-        Tasas de AFP/ONP, RMV y Renta de 5ta Categoría son referenciales — corresponde validarlas con el contador de la empresa.
-        ${this.bajoRmv(emp) ? '<br><strong>ATENCIÓN: el sueldo base registrado está por debajo de la RMV vigente (S/ ' + this.rmvVigente + '). Verificar cumplimiento ante SUNAFIL.</strong>' : ''}
-      </div>
 
       <div class="bol-pie">
         Documento emitido por <strong>${razonSocial.toUpperCase()}</strong> y entregado al trabajador como constancia de pago.<br>
