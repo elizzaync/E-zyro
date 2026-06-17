@@ -705,6 +705,10 @@ def obtener_perfil_usuario(current_user: dict = Depends(verificar_token), db: Se
                     "fotoUrl":        usuario.foto_url or "",
                     "rol":            (empleado.cargo if empleado else current_user.get("rol", "Sin Rol")),
                     "area":           (empleado.area if empleado else "") or "",
+                    # Datos no editables del trabajador (solo lectura en el perfil).
+                    "tipoDocumento":  (empleado.tipo_documento if empleado else None) or "DNI",
+                    "dni":            (empleado.numero_documento if empleado else "") or "",
+                    "sexo":           (empleado.sexo if empleado else "") or "",
                     "fechaCreacion":  fecha_txt,
                     "permisos_modulo": modulos_permitidos
                 },

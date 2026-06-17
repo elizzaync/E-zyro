@@ -20,6 +20,8 @@ class Empleado(Base):
     # tipo_documento = DNI | CE (Carné de Extranjería) | PAS (Pasaporte).
     tipo_documento         = Column(String(10), nullable=True, default="DNI")
     numero_documento       = Column(String(20), nullable=True)
+    # Sexo del trabajador: 'M' (Masculino) | 'F' (Femenino). Dato no editable.
+    sexo                   = Column(String(1), nullable=True)
     fecha_ingreso          = Column(Date, nullable=False)
     fecha_fin_contrato     = Column(Date, nullable=True)
     dias_aviso_vencimiento = Column(Integer, nullable=True, default=7)

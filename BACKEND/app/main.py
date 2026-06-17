@@ -1698,6 +1698,9 @@ def _run_migrations():
                 "ALTER TABLE empleado ADD COLUMN IF NOT EXISTS numero_documento VARCHAR(20)"
             ))
             conn.execute(text(
+                "ALTER TABLE empleado ADD COLUMN IF NOT EXISTS sexo VARCHAR(1)"
+            ))
+            conn.execute(text(
                 "ALTER TABLE empresa ADD COLUMN IF NOT EXISTS telefono VARCHAR(20)"
             ))
             conn.execute(text(
