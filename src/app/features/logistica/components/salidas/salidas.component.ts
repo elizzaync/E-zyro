@@ -66,10 +66,27 @@ export class SalidasComponent implements OnInit, OnDestroy {
   cerrarDetalle(): void          { this.salidaDetalle = null; document.body.style.overflow = ''; }
 
   abrirReporte(s: Salida): void {
-    const win = window.open('', '_blank');
-    if (!win) { this.toast.mostrar('El navegador bloqueó la ventana emergente.', 'error'); return; }
-    win.document.write(this.generarHtmlComprobante(s));
-    win.document.close();
+    const ref = s.id.slice(-8).toUpperCase();
+    const div = document.createElement('div');
+    div.innerHTML = this.generarHtmlReporte(s);
+    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:21cm;background:#fff;';
+    document.body.appendChild(div);
+
+    const opt = {
+      margin: [1.2, 1.2, 1.2, 1.2],
+      filename: `reporte-salida-${ref}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false },
+      jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' },
+    };
+
+    (window as any)['html2pdf']().set(opt).from(div).outputPdf('bloburl').then((url: string) => {
+      document.body.removeChild(div);
+      window.open(url, '_blank');
+    }).catch(() => {
+      document.body.removeChild(div);
+      this.toast.mostrar('No se pudo generar el PDF.', 'error');
+    });
   }
 
   get totalPaginas(): number { return Math.ceil(this.total / this.pageSize); }
@@ -98,156 +115,146 @@ export class SalidasComponent implements OnInit, OnDestroy {
     return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  private generarHtmlComprobante(s: Salida): string {
+  private generarHtmlReporte(s: Salida): string {
     const ref   = this.esc(s.id.slice(-8).toUpperCase());
     const ahora = new Date().toLocaleString('es-PE', {
       day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
+
     const itemsHtml = s.items.map((it, i) => `
       <tr>
-        <td class="n">${i + 1}</td>
-        <td>${this.esc(it.nombre)}</td>
-        <td class="u">${this.esc(it.unidad) || '—'}</td>
-        <td class="r">${it.cantidadSolicitada}</td>
-        <td class="r g">${it.cantidadEntregada}</td>
+        <td style="width:28px;color:#9ca3af;padding:5px 7px;border-bottom:1px solid #e5e7eb">${i + 1}</td>
+        <td style="padding:5px 7px;border-bottom:1px solid #e5e7eb">${this.esc(it.nombre)}</td>
+        <td style="width:70px;color:#6b7280;padding:5px 7px;border-bottom:1px solid #e5e7eb">${this.esc(it.unidad) || '—'}</td>
+        <td style="width:110px;text-align:right;padding:5px 7px;border-bottom:1px solid #e5e7eb">${it.cantidadSolicitada}</td>
+        <td style="width:110px;text-align:right;color:#16a34a;font-weight:600;padding:5px 7px;border-bottom:1px solid #e5e7eb">${it.cantidadEntregada}</td>
       </tr>`).join('');
-    const totSol = this.sumCantSolicitada(s.items);
+
     const obsHtml = s.observacion ? `
-      <div class="sec">
-        <h2 class="sec-h">Observaciones</h2>
-        <p class="obs">${this.esc(s.observacion)}</p>
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;padding-bottom:4px;margin-bottom:8px;border-bottom:1px solid #e5e7eb">Observaciones</div>
+        <p style="font-size:12px;color:#374151;border-left:3px solid #ca8a04;padding:6px 10px;background:rgba(234,179,8,.06)">${this.esc(s.observacion)}</p>
       </div>` : '';
+
     const firmaHtml = s.firmaUrl
-      ? `<img src="${this.esc(s.firmaUrl)}" alt="Firma" class="firma-img">`
-      : '<div class="firma-linea"></div>';
+      ? `<img src="${this.esc(s.firmaUrl)}" alt="Firma" style="max-height:60px;max-width:160px;border:1px solid #e5e7eb">`
+      : '<div style="width:100%;height:1px;background:#111;margin-bottom:4px"></div>';
 
-    return `<!DOCTYPE html><html lang="es"><head>
-<meta charset="UTF-8">
-<title>Comprobante Salida — ${ref}</title>
+    return `
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;padding:1.5cm}
-h1{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin:0}
-.hdr{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1.2rem;padding-bottom:.8rem;border-bottom:2px solid #111}
-.logo{width:46px;height:46px;border-radius:8px;background:#111;color:#fff;display:flex;align-items:center;justify-content:center}
-.logo svg{width:22px;height:22px}
-.hdr-mid{text-align:center;flex:1}
-.sub{font-size:11px;color:#6b7280;margin-top:3px}
-.hdr-r{text-align:right;font-size:11px;color:#374151;line-height:1.6}
-.sec{margin-bottom:1rem}
-.sec-h{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;padding-bottom:4px;margin-bottom:8px;border-bottom:1px solid #e5e7eb}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
-.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
-.campo{display:flex;flex-direction:column;gap:1px}
-.campo-l{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af}
-.campo-v{font-size:12px;color:#111;font-weight:500}
-.campo-v.hl{color:#16a34a;font-weight:700}
-.card{border:1px solid #e5e7eb;border-radius:6px;padding:7px 9px;background:#f9fafb}
-.card.hl{border-color:#22c55e;background:rgba(34,197,94,.05)}
-.card-rol{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;display:block}
-.card-nm{font-size:12px;font-weight:700;color:#111;display:block}
-.card-desc{font-size:10px;color:#9ca3af;display:block}
-table{width:100%;border-collapse:collapse;font-size:12px}
-thead th{padding:6px 7px;text-align:left;border-bottom:2px solid #111;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#374151}
-tbody td{padding:5px 7px;border-bottom:1px solid #e5e7eb}
-tfoot td{padding:6px 7px;font-weight:700;border-top:2px solid #111;background:#f9fafb}
-.n{width:28px;color:#9ca3af}
-.u{width:70px;color:#6b7280}
-.r{width:100px;text-align:right}
-.g{color:#16a34a}
-.obs{font-size:12px;color:#374151;border-left:3px solid #ca8a04;padding:6px 10px;background:rgba(234,179,8,.06);border-radius:0 6px 6px 0}
-.firmas{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:1.5rem}
-.firma-blq{display:flex;flex-direction:column;align-items:center;gap:5px}
-.firma-linea{width:100%;height:1px;background:#111;margin-bottom:4px}
-.firma-img{max-height:70px;max-width:180px;border:1px solid #e5e7eb;border-radius:5px}
-.firma-nm{font-size:12px;font-weight:600;color:#111}
-.firma-cargo{font-size:10px;color:#9ca3af}
-.footer{margin-top:1rem;padding-top:.6rem;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#9ca3af}
-@media print{body{padding:0}@page{margin:1.5cm}}
-</style></head><body>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #111; background: #fff; padding: 24px; }
+</style>
 
-<div class="hdr">
-  <div class="logo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-      <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-    </svg>
-  </div>
-  <div class="hdr-mid">
-    <h1>Comprobante de Salida de Materiales</h1>
-    <p class="sub">Registro de entrega a campo</p>
-  </div>
-  <div class="hdr-r">
-    <strong>Impresión:</strong><br>${this.esc(ahora)}<br>
-    <strong>Ref:</strong> ${ref}
-  </div>
+<div style="border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px">
+  <table style="width:100%;border-collapse:collapse">
+    <tr>
+      <td style="width:50px;vertical-align:middle">
+        <div style="width:42px;height:42px;background:#111;border-radius:6px;text-align:center;line-height:42px;color:#fff;font-weight:900;font-size:14px">EZ</div>
+      </td>
+      <td style="text-align:center;vertical-align:middle">
+        <div style="font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:.04em">Comprobante de Salida de Materiales</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:3px">Registro de entrega a campo — E-zyro</div>
+      </td>
+      <td style="text-align:right;vertical-align:middle;font-size:11px;color:#374151;line-height:1.7;width:160px">
+        <strong>Ref:</strong> ${ref}<br>
+        <strong>Fecha:</strong> ${this.esc(ahora)}
+      </td>
+    </tr>
+  </table>
 </div>
 
-<div class="sec">
-  <h2 class="sec-h">Información del Requerimiento</h2>
-  <div class="g2">
-    <div class="campo"><span class="campo-l">Proyecto</span><span class="campo-v">${this.esc(s.proyectoNombre)}</span></div>
-    <div class="campo"><span class="campo-l">Servicio</span><span class="campo-v">${this.esc(s.servicioNombre)}</span></div>
-    <div class="campo"><span class="campo-l">Fecha solicitud</span><span class="campo-v">${this.esc(this.fechaHora(s.fechaSolicitud))}</span></div>
-    <div class="campo"><span class="campo-l">Fecha salida</span><span class="campo-v hl">${this.esc(this.fechaHora(s.fechaSalida))}</span></div>
-  </div>
+<div style="margin-bottom:14px">
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;padding-bottom:4px;margin-bottom:8px;border-bottom:1px solid #e5e7eb">Información del Requerimiento</div>
+  <table style="width:100%;border-collapse:collapse">
+    <tr>
+      <td style="padding:3px 0;width:50%">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Proyecto</div>
+        <div style="font-size:12px;font-weight:500">${this.esc(s.proyectoNombre)}</div>
+      </td>
+      <td style="padding:3px 0;width:50%">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Servicio</div>
+        <div style="font-size:12px;font-weight:500">${this.esc(s.servicioNombre)}</div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:3px 0">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Fecha solicitud</div>
+        <div style="font-size:12px;font-weight:500">${this.esc(this.fechaHora(s.fechaSolicitud))}</div>
+      </td>
+      <td style="padding:3px 0">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af">Fecha salida</div>
+        <div style="font-size:12px;font-weight:700;color:#16a34a">${this.esc(this.fechaHora(s.fechaSalida))}</div>
+      </td>
+    </tr>
+  </table>
 </div>
 
-<div class="sec">
-  <h2 class="sec-h">Personal Involucrado</h2>
-  <div class="g3">
-    <div class="card">
-      <span class="card-rol">Solicitado por</span>
-      <span class="card-nm">${this.esc(s.solicitanteNombre)}</span>
-      <span class="card-desc">Jefe de proyecto / Coordinador</span>
-    </div>
-    <div class="card">
-      <span class="card-rol">Entregado por</span>
-      <span class="card-nm">${this.esc(s.entregadoPorNombre)}</span>
-      <span class="card-desc">Responsable de logística</span>
-    </div>
-    <div class="card hl">
-      <span class="card-rol">Recibido por</span>
-      <span class="card-nm">${this.esc(s.recibidoPorNombre)}</span>
-      <span class="card-desc">Técnico en campo</span>
-    </div>
-  </div>
+<div style="margin-bottom:14px">
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;padding-bottom:4px;margin-bottom:8px;border-bottom:1px solid #e5e7eb">Personal Involucrado</div>
+  <table style="width:100%;border-collapse:collapse">
+    <tr>
+      <td style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;width:33%">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af">Solicitado por</div>
+        <div style="font-size:12px;font-weight:700">${this.esc(s.solicitanteNombre)}</div>
+        <div style="font-size:10px;color:#9ca3af">Jefe de proyecto</div>
+      </td>
+      <td style="padding:5px 8px;border:1px solid #e5e7eb;background:#f9fafb;width:33%">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af">Entregado por</div>
+        <div style="font-size:12px;font-weight:700">${this.esc(s.entregadoPorNombre)}</div>
+        <div style="font-size:10px;color:#9ca3af">Responsable de logística</div>
+      </td>
+      <td style="padding:5px 8px;border:1px solid #22c55e;background:rgba(34,197,94,.04);width:34%">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af">Recibido por</div>
+        <div style="font-size:12px;font-weight:700">${this.esc(s.recibidoPorNombre)}</div>
+        <div style="font-size:10px;color:#9ca3af">Técnico en campo</div>
+      </td>
+    </tr>
+  </table>
 </div>
 
-<div class="sec">
-  <h2 class="sec-h">Materiales Entregados</h2>
-  <table>
-    <thead><tr>
-      <th class="n">#</th><th>Material / Ítem</th><th class="u">Unidad</th>
-      <th class="r">Cant. solicitada</th><th class="r g">Cant. entregada</th>
-    </tr></thead>
+<div style="margin-bottom:14px">
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;padding-bottom:4px;margin-bottom:8px;border-bottom:1px solid #e5e7eb">Materiales Entregados</div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="background:#f9fafb">
+        <th style="padding:6px 7px;text-align:left;border-bottom:2px solid #111;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#374151;width:28px">#</th>
+        <th style="padding:6px 7px;text-align:left;border-bottom:2px solid #111;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#374151">Material / Ítem</th>
+        <th style="padding:6px 7px;text-align:left;border-bottom:2px solid #111;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#374151;width:70px">Unidad</th>
+        <th style="padding:6px 7px;text-align:right;border-bottom:2px solid #111;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#374151;width:110px">Cant. solicitada</th>
+        <th style="padding:6px 7px;text-align:right;border-bottom:2px solid #111;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#16a34a;width:110px">Cant. entregada</th>
+      </tr>
+    </thead>
     <tbody>${itemsHtml}</tbody>
-    <tfoot><tr>
-      <td colspan="3">TOTAL DE ÍTEMS: ${s.totalItems}</td>
-      <td class="r">—</td><td class="r g">${s.totalUnidades}</td>
-    </tr></tfoot>
+    <tfoot>
+      <tr style="background:#f9fafb">
+        <td colspan="3" style="padding:6px 7px;font-weight:700;border-top:2px solid #111">TOTAL DE ÍTEMS: ${s.totalItems}</td>
+        <td style="padding:6px 7px;font-weight:700;border-top:2px solid #111;text-align:right">—</td>
+        <td style="padding:6px 7px;font-weight:700;border-top:2px solid #111;text-align:right;color:#16a34a">${s.totalUnidades}</td>
+      </tr>
+    </tfoot>
   </table>
 </div>
 
 ${obsHtml}
 
-<div class="firmas">
-  <div class="firma-blq">
-    <div class="firma-linea"></div>
-    <span class="firma-nm">${this.esc(s.entregadoPorNombre) || 'Responsable de logística'}</span>
-    <span class="firma-cargo">Entregado por</span>
-  </div>
-  <div class="firma-blq">
-    ${firmaHtml}
-    <span class="firma-nm">${this.esc(s.recibidoPorNombre) || 'Técnico en campo'}</span>
-    <span class="firma-cargo">Recibido por (firma)</span>
-  </div>
-</div>
+<table style="width:100%;border-collapse:collapse;margin-top:24px">
+  <tr>
+    <td style="text-align:center;padding:0 24px;width:50%">
+      <div style="width:100%;height:1px;background:#111;margin-bottom:6px"></div>
+      <div style="font-size:12px;font-weight:600">${this.esc(s.entregadoPorNombre) || 'Responsable de logística'}</div>
+      <div style="font-size:10px;color:#9ca3af">Entregado por</div>
+    </td>
+    <td style="text-align:center;padding:0 24px;width:50%">
+      ${firmaHtml}
+      <div style="font-size:12px;font-weight:600">${this.esc(s.recibidoPorNombre) || 'Técnico en campo'}</div>
+      <div style="font-size:10px;color:#9ca3af">Recibido por (firma)</div>
+    </td>
+  </tr>
+</table>
 
-<div class="footer">
+<div style="margin-top:16px;padding-top:8px;border-top:1px solid #e5e7eb;text-align:center;font-size:10px;color:#9ca3af">
   Documento generado por el sistema de logística E-zyro · ${this.esc(ahora)}
-</div>
-
-<script>window.onload=function(){window.focus();window.print();};<\/script>
-</body></html>`;
+</div>`;
   }
 }
