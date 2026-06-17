@@ -228,10 +228,8 @@
 }
 
 .tabla-fila {
-  cursor: pointer;
   transition: background 0.15s;
 }
-.tabla-fila:hover { background: var(--hover-bg, #f1f5f9); }
 .tabla-fila + .tabla-fila { border-top: 1px solid var(--border-color, #e2e8f0); }
 
 .servicios-table td { padding: 12px 16px; font-size: 13.5px; color: var(--text-main, #1e293b); vertical-align: middle; }

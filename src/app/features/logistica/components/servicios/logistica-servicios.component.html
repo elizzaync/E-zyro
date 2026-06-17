@@ -185,12 +185,11 @@
           <th>Fecha Prog.</th>
           <th>Fecha Fin</th>
           <th>Creado</th>
-          <th></th>
         </tr>
       </thead>
       <tbody>
         @for (s of paginados; track s.id) {
-        <tr class="tabla-fila" (click)="irAServicio(s)">
+        <tr class="tabla-fila">
           <td class="ot-cell">
             @if (s.orden_trabajo) {
               <span class="ot-badge">{{ s.orden_trabajo }}</span>
@@ -237,13 +236,6 @@
           <td class="fecha-cell">{{ s.fecha_programada || '—' }}</td>
           <td class="fecha-cell">{{ s.fecha_fin || '—' }}</td>
           <td class="fecha-cell">{{ s.fecha_creacion || '—' }}</td>
-          <td>
-            <button class="btn-ver" (click)="irAServicio(s); $event.stopPropagation()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-            </button>
-          </td>
         </tr>
         }
       </tbody>
