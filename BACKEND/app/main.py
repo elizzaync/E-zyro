@@ -1711,6 +1711,27 @@ def _run_migrations():
             conn.rollback()
             print(f"[migración] columnas boleta (DNI/dirección) omitidas: {e}")
 
+        # ── Ampliar chk_doc_laboral_tipo para aceptar 'Boleta Mensual' ────────
+        # El constraint original solo incluía: boleta, contrato, certificado_medico,
+        # certificacion, otro. El envío masivo de boletas al Legajo Digital usa el
+        # valor 'Boleta Mensual', que es más específico y autodescriptivo.
+        try:
+            conn.execute(text(
+                "ALTER TABLE documento_laboral "
+                "DROP CONSTRAINT IF EXISTS chk_doc_laboral_tipo"
+            ))
+            conn.execute(text(
+                "ALTER TABLE documento_laboral "
+                "ADD CONSTRAINT chk_doc_laboral_tipo "
+                "CHECK (tipo IN ("
+                "'boleta','contrato','certificado_medico','certificacion','otro','Boleta Mensual'"
+                "))"
+            ))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"[migración] constraint chk_doc_laboral_tipo omitido: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
