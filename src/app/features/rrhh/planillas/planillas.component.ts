@@ -19,40 +19,40 @@ const MESES_ES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
-// ── Parámetros legales (Perú: Ley 28015/D.L. 1086 MYPE, D.L. 854 jornada,
-//    D.L. 19990 ONP, Ley 28518 modalidades formativas). Tasas de AFP/ONP y RMV
-//    son referenciales — deben verificarse vigentes en SBS/SUNAT/SUNAFIL antes
-//    de procesar planilla real. ───────────────────────────────────────────────
-const PENSION_ONP_PCT       = 0.13;    // ONP, tasa fija (D.L. 19990)
-const AFP_APORTE_PCT        = 0.10;    // Aporte obligatorio a cuenta individual
-const AFP_SEGURO_PCT        = 0.0117;  // Prima de seguro (invalidez/sobrevivencia), referencial SBS
-const ESSALUD_PCT           = 0.09;    // Aporte patronal — NO se descuenta al trabajador
-const RMV_VIGENTE           = 1025;    // Remuneración Mínima Vital S/ referencial — verificar vigencia SUNAFIL/MTPE
-const CTS_PEQUENA_FACTOR    = 1 / 24;  // 15 remun. diarias/año, mensualizado (Pequeña Empresa)
-const GRATIF_PEQUENA_FACTOR = 1 / 12;  // medio sueldo × 2 semestres/año, mensualizado (Pequeña Empresa)
-const CTS_GENERAL_FACTOR    = 1 / 12;  // 1 remuneración/año, mensualizado (Régimen General)
-const GRATIF_GENERAL_FACTOR = 1 / 6;   // 1 sueldo × 2 semestres/año, mensualizado (Régimen General)
-const VACACIONES_DIAS_MYPE  = 15;
-const VACACIONES_DIAS_GENERAL = 30;
-const ASIG_FAMILIAR_PCT     = 0.10;    // 10% de la RMV vigente (D.S. 035-90-TR)
-const UIT_VIGENTE           = 5350;    // S/ por UIT, referencial — verificar SUNAT vigente
-const RENTA_5TA_DEDUCCION_UIT = 7;     // deducción anual fija (7 UIT)
-// Tramos progresivos de Renta de 5ta Categoría (sobre la base imponible anual,
-// en UIT). Referencial — confirmar tasas/tramos vigentes con SUNAT.
+// ── Parámetros legales vigentes 2026 (Perú) ───────────────────────────────
+//    Fuentes: SUNAFIL, MTPE, SUNAT, SBS, Ley N.° 32353 (nueva clasificación
+//    empresarial), D.L. 19990 (ONP), D.L. 25897 (AFP), D.L. 854 (jornada),
+//    Ley 28518 (modalidades formativas), D.S. 035-90-TR (asignación familiar).
+//    Verificar vigencia antes de procesar planilla real. ─────────────────────
+const PENSION_ONP_PCT       = 0.13;    // ONP: aporte único fijo (D.L. 19990)
+const AFP_APORTE_PCT        = 0.10;    // AFP: aporte obligatorio a cuenta individual (D.L. 25897)
+const AFP_SEGURO_PCT        = 0.0137;  // AFP: prima de seguro 2026 — 1.37% (tope S/ 12,209.11)
+const ESSALUD_PCT           = 0.09;    // EsSalud: aporte patronal 9% — NO se descuenta al trabajador (Ley 26790)
+const RMV_VIGENTE           = 1130;    // RMV vigente desde enero 2025 (D.S. 001-2025-TR)
+const CTS_PEQUENA_FACTOR    = 1 / 24;  // Pequeña Empresa: 15 rem. diarias/año mensualizado (tope 90 días)
+const GRATIF_PEQUENA_FACTOR = 1 / 12;  // Pequeña Empresa: 2 medias remun./año mensualizado
+const CTS_GENERAL_FACTOR    = 1 / 12;  // Régimen General: 1 remuneración/año mensualizado
+const GRATIF_GENERAL_FACTOR = 1 / 6;   // Régimen General: 2 sueldos completos/año mensualizado
+const VACACIONES_DIAS_MYPE  = 15;      // Micro y Pequeña Empresa: 15 días/año (Ley N.° 32353)
+const VACACIONES_DIAS_GENERAL = 30;    // Régimen General: 30 días/año
+const ASIG_FAMILIAR_PCT     = 0.10;    // 10% RMV = S/ 113.00 — SOLO Régimen General (D.S. 035-90-TR)
+const UIT_VIGENTE           = 5500;    // UIT 2026 (R.M. de SUNAT)
+const RENTA_5TA_DEDUCCION_UIT = 7;     // Deducción anual: 7 UIT = S/ 38,500 (2026)
+// Tramos progresivos Renta de 5ta Categoría (base imponible anual en UIT — SUNAT 2026)
 const RENTA_5TA_TRAMOS: { limiteUit: number; tasa: number }[] = [
-  { limiteUit: 5,  tasa: 0.08 },
-  { limiteUit: 20, tasa: 0.14 },
-  { limiteUit: 35, tasa: 0.17 },
-  { limiteUit: 45, tasa: 0.20 },
+  { limiteUit: 5,        tasa: 0.08 },
+  { limiteUit: 20,       tasa: 0.14 },
+  { limiteUit: 35,       tasa: 0.17 },
+  { limiteUit: 45,       tasa: 0.20 },
   { limiteUit: Infinity, tasa: 0.30 },
 ];
 
-// Comisión por flujo de cada AFP sobre la remuneración (referencial, verificar SBS)
+// Comisión por flujo de cada AFP (2026, modalidad flujo — verificar SBS)
 const AFP_COMISIONES: Record<AfpEntidad, number> = {
-  integra:    0.0155,
-  prima:      0.0160,
-  profuturo:  0.0169,
-  habitat:    0.0147,
+  integra:    0.0155,  // 1.55%
+  prima:      0.0160,  // 1.60%
+  profuturo:  0.0169,  // 1.69%
+  habitat:    0.0147,  // 1.47%
 };
 
 type Regimen = 'micro' | 'pequena' | 'general';
@@ -422,10 +422,13 @@ export class PlanillasComponent implements OnInit {
     localStorage.setItem(ASIGFAM_KEY, JSON.stringify(this.asigFamiliarMap));
   }
 
-  // Monto mensual de Asignación Familiar = 10% de la RMV vigente; en vista de
-  // quincena se prorratea igual que el resto de la remuneración.
+  // Asignación Familiar: 10% de la RMV (S/ 113.00 en 2026).
+  // Según D.S. N.° 035-90-TR y la Ley N.° 32353, solo corresponde al
+  // Régimen General. Micro y Pequeña Empresa están exoneradas.
   asignacionFamiliar(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp) || !this.getAsigFamiliar(emp.id)) return 0;
+    if (!this.esDependiente(emp)) return 0;
+    if (this.regimenEmpresa !== 'general') return 0;
+    if (!this.getAsigFamiliar(emp.id)) return 0;
     const mensual = RMV_VIGENTE * ASIG_FAMILIAR_PCT;
     return this.periodoPago === 'mes' ? mensual : mensual / 2;
   }
@@ -776,7 +779,7 @@ export class PlanillasComponent implements OnInit {
       filasIngresos += fila(`Trabajo en Sobretiempo (${this.formatH(this.horasExtra(emp))})`, detalleExtra, `+${this.formatMonto(extra)}`);
     }
     if (asig > 0) {
-      filasIngresos += fila('Asignación Familiar', '10% de la R.M.V. vigente — Ley N.° 25129', `+${this.formatMonto(asig)}`);
+      filasIngresos += fila('Asignación Familiar', `10% de la R.M.V. (S/ ${RMV_VIGENTE}) — Régimen General · D.S. N.° 035-90-TR`, `+${this.formatMonto(asig)}`);
     }
 
     let filasDescuentos = '';
@@ -790,7 +793,7 @@ export class PlanillasComponent implements OnInit {
         // Desglose en 3 componentes (estándar de boleta peruana, D.L. N.° 25897).
         const afpNom = this.afpEntidadLabel(emp.id);
         filasDescuentos += fila('Aporte Obligatorio al Fondo de Pensiones', `Cuenta Individual de Capitalización — 10.00% · ${afpNom}`, `−${this.formatMonto(this.afpAporteObligatorio(emp))}`);
-        filasDescuentos += fila('Prima de Seguro de Invalidez y Sobrevivencia', `Cobertura previsional SPP — ${(AFP_SEGURO_PCT * 100).toFixed(2)}%`, `−${this.formatMonto(this.afpPrimaSeguro(emp))}`);
+        filasDescuentos += fila('Prima de Seguro de Invalidez y Sobrevivencia', `Cobertura previsional SPP — ${(AFP_SEGURO_PCT * 100).toFixed(2)}% (tope S/ 12,209.11)`, `−${this.formatMonto(this.afpPrimaSeguro(emp))}`);
         filasDescuentos += fila('Comisión de Administración (AFP)', `${afpNom} — comisión sobre flujo ${(this.afpComisionPct(emp) * 100).toFixed(2)}%`, `−${this.formatMonto(this.afpComision(emp))}`);
       } else {
         filasDescuentos += fila('Aporte al Sistema Nacional de Pensiones (ONP)', 'Aporte obligatorio — D.L. N.° 19990 · 13.00%', `−${this.formatMonto(descPension)}`);
@@ -925,8 +928,9 @@ export class PlanillasComponent implements OnInit {
       </table>
 
       <div class="bol-pie">
-        Documento emitido por <strong>${razonSocial.toUpperCase()}</strong> y entregado al trabajador como constancia de pago.<br>
-        Generado a través del Sistema de Gestión Empresarial E-ZYRO &middot; Propiedad de ${razonSocial.toUpperCase()} &middot; Emitido el ${fechaEmision}.
+        Documento emitido por <strong>${razonSocial.toUpperCase()}</strong> conforme al D.S. N.° 001-98-TR (Boleta de Pago) y entregado al trabajador como constancia de haberes del período indicado.<br>
+        R.M.V. 2026: S/ ${RMV_VIGENTE} &middot; UIT 2026: S/ ${UIT_VIGENTE} &middot; EsSalud: ${(ESSALUD_PCT * 100).toFixed(0)}% (cargo empleador) &middot; Ley N.° 32353 — Régimen: ${this.regimenLabel}<br>
+        Generado a través del Sistema de Gestión Empresarial E-ZYRO &middot; Emitido el ${fechaEmision}.
       </div>
     </div>`;
   }

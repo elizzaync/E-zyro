@@ -95,3 +95,24 @@ Frontend (`C:\E-zyro-frontend`, rama `frontend`) — en `construirVoucherHtml`:
 > la empresa están **vacíos** en BD (no hay UI de captura aún). La boleta muestra
 > "—" hasta que se carguen. `empresa.telefono` de Esystemtic ya tiene valor.
 > Próximo paso sugerido: formulario en el legajo para capturar DNI y dirección.
+
+## 6. Tercera iteración (2026-06-17) — actualización normativa 2026
+
+Correcciones aplicadas en `planillas.component.ts` (constantes + lógica):
+
+| Constante / Regla | Valor anterior | Valor correcto 2026 | Norma |
+|---|---|---|---|
+| `RMV_VIGENTE` | 1,025 | **1,130** | D.S. N.° 001-2025-TR |
+| `UIT_VIGENTE` | 5,350 | **5,500** | R.M. SUNAT 2026 |
+| `AFP_SEGURO_PCT` | 1.17% | **1.37%** (tope S/ 12,209.11) | SBS 2026 |
+| Asignación Familiar | Cualquier dependiente | **Solo Régimen General** | Ley N.° 32353 |
+
+**Boleta PDF actualizada:**
+- Pie de página ahora muestra RMV, UIT, EsSalud% y Régimen vigentes.
+- Prima de seguro AFP muestra tope de remuneración asegurable.
+- Asignación Familiar: detalle indica "Régimen General · D.S. N.° 035-90-TR".
+
+**Nuevo archivo creado:**
+- `C:\E-zyro-frontend\SUNAFIL-NORMATIVA-2026.md` — referencia completa de
+  multas SUNAFIL, clasificación empresarial, AFP/ONP, IR 5ta, modalidades
+  formativas y cronograma de beneficios.
