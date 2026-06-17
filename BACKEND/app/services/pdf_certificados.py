@@ -183,52 +183,48 @@ def generar_protocolo_pozo(
 #   Firma GERENTE        : Rect(285, 720, 465, 763)
 
 def generar_certificado_operatividad(
-    nombre_tablero:  str,
-    fecha:           str,          # "07/06/2026"
-    razon_social:    str,
-    ubicacion:       str,
-    personal_tecnico: str,
-    firma_verificador: str | None = None,   # URL o base64
-    firma_gerente:     str | None = None,   # URL o base64
+    nombre_tablero: str,
+    fecha:          str,   # "17/06/2026"
+    razon_social:   str,
+    ubicacion:      str,
+    # parámetros ignorados (conservados por compatibilidad con llamadas antiguas)
+    personal_tecnico:  str       = "",
+    firma_verificador: str | None = None,
+    firma_gerente:     str | None = None,
 ) -> bytes:
     """
-    Inyecta campos en Certificado_Operatividad.pdf y devuelve bytes del PDF.
+    Inyecta los 4 campos sobre Certificado_Operatividad.pdf.
+
+    Coordenadas calibradas con inspect_pdf.py (A4 = 595×842 pt):
+      "Fecha:"        label  y=188-202
+      "Razón Social:" label  y=231-246
+      "Ubicación:"    label  y=275-290
+      "Personal Téc." label  y=319-334  ← hardcodeado en plantilla, no se toca
+    Los valores se insertan en los espacios en blanco que siguen a cada etiqueta.
     """
     doc = fitz.open(_CERT_OPE_TPL)
     page = doc[0]
 
     # ── Nombre del tablero ───────────────────────────────────────────
-    _white_rect(page, fitz.Rect(43, 178, 400, 196))
-    _insert(page, 45, 191, nombre_tablero.upper(), size=12)
+    # Espacio en blanco ANTES de la etiqueta "Fecha:" (y=188).
+    # Cuerpo del texto termina en y≈144; nombre va en y≈152-185.
+    _white_rect(page, fitz.Rect(43, 152, 555, 186))
+    _insert(page, 45, 176, nombre_tablero.upper(), size=12)
 
     # ── Fecha ────────────────────────────────────────────────────────
-    _white_rect(page, fitz.Rect(43, 224, 250, 238))
-    _insert(page, 45, 236, fecha, size=11)
+    # Espacio en blanco entre "Fecha:" (bottom y=202) y "Razón Social:" (top y=231).
+    _white_rect(page, fitz.Rect(43, 203, 300, 229))
+    _insert(page, 45, 222, fecha, size=11)
 
     # ── Razón Social ─────────────────────────────────────────────────
-    _white_rect(page, fitz.Rect(43, 263, 555, 277))
-    _insert(page, 45, 275, razon_social, size=11)
+    # Espacio en blanco entre "Razón Social:" (bottom y=246) y "Ubicación:" (top y=275).
+    _white_rect(page, fitz.Rect(43, 247, 555, 273))
+    _insert(page, 45, 265, razon_social, size=11)
 
-    # ── Ubicación (puede ser larga, max 2 líneas) ─────────────────────
-    _white_rect(page, fitz.Rect(43, 303, 555, 334))
-    _insert(page, 45, 315, ubicacion, size=11)
-
-    # ── Personal Técnico ─────────────────────────────────────────────
-    _white_rect(page, fitz.Rect(43, 360, 555, 374))
-    _insert(page, 45, 372, personal_tecnico, size=11)
-
-    # ── Firmas ───────────────────────────────────────────────────────
-    firma_ver_rect = fitz.Rect(90,  720, 230, 763)
-    firma_ger_rect = fitz.Rect(285, 720, 465, 763)
-
-    for rect, src in [(firma_ver_rect, firma_verificador), (firma_ger_rect, firma_gerente)]:
-        raw = _img_bytes(src)
-        if raw:
-            _white_rect(page, rect)
-            try:
-                page.insert_image(rect, stream=raw, keep_proportion=True)
-            except Exception as e:
-                logger.warning("No se pudo insertar firma en %s: %s", rect, e)
+    # ── Ubicación ────────────────────────────────────────────────────
+    # Espacio en blanco entre "Ubicación:" (bottom y=290) y "Personal Téc." (top y=319).
+    _white_rect(page, fitz.Rect(43, 291, 555, 317))
+    _insert(page, 45, 309, ubicacion, size=11)
 
     buf = io.BytesIO()
     doc.save(buf, garbage=4, deflate=True)
