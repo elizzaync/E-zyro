@@ -19,28 +19,57 @@ export class ProfileAttendanceListComponent implements OnChanges {
     'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11
   };
 
+  // Hora de corte de jornada (17:00)
+  private readonly HORA_CIERRE = 17;
+
   ngOnChanges(changes: SimpleChanges) {
     if (changes['registros'] && this.registros?.length > 0) {
-      const hoy = new Date();
+      const ahora = new Date();
+      const hoy   = new Date(ahora);
       hoy.setHours(0, 0, 0, 0);
+      const pasaronLas17 = ahora.getHours() >= this.HORA_CIERRE;
 
-      // Solo muestra el banner verde si el turno activo corresponde a HOY
+      // Muestra banner "En Servicio" solo si: es hoy + en_curso + no tiene salida + aún no son las 17:00
       this.registroHoy = this.registros.find(r => {
-        if (r.estado !== 'en_curso') return false;
+        if (r.estado !== 'en_curso' || r.salida) return false;
         const fecha = this.parsearFecha(r);
-        return fecha?.getTime() === hoy.getTime();
+        if (!fecha || fecha.getTime() !== hoy.getTime()) return false;
+        return !pasaronLas17;
       }) || null;
     } else {
       this.registroHoy = null;
     }
   }
 
+  /**
+   * Un registro es "incompleto" cuando tiene entrada pero no salida y ya terminó la jornada:
+   * - La fecha es anterior a hoy (días pasados), O
+   * - La fecha es hoy pero ya pasaron las 17:00
+   * También cubre el caso en que el mes no se puede parsear (datos malformados):
+   * si no hay salida y el estado sigue en_curso con fecha irreconocible, lo marca incompleto.
+   */
   esIncompleto(reg: any): boolean {
     if (reg.estado !== 'en_curso') return false;
-    const hoy = new Date();
+    if (reg.salida) return false;
+
+    const ahora = new Date();
+    const hoy   = new Date(ahora);
     hoy.setHours(0, 0, 0, 0);
+
     const fecha = this.parsearFecha(reg);
-    return fecha ? fecha.getTime() < hoy.getTime() : false;
+
+    // Fecha no parseable → asumimos que es un registro viejo sin salida
+    if (!fecha) return true;
+
+    // Día anterior a hoy → definitivamente incompleto
+    if (fecha.getTime() < hoy.getTime()) return true;
+
+    // Mismo día pero ya pasaron las 17:00 → cortar la jornada
+    if (fecha.getTime() === hoy.getTime()) {
+      return ahora.getHours() >= this.HORA_CIERRE;
+    }
+
+    return false;
   }
 
   textoSalida(reg: any): string {
@@ -50,10 +79,36 @@ export class ProfileAttendanceListComponent implements OnChanges {
     return '--:--';
   }
 
+  /**
+   * Parsea la fecha de un registro con múltiples estrategias:
+   * 1. Campo fecha ISO directo (reg.fecha = "2026-06-17")
+   * 2. Nombre de mes en español (reg.mes = "junio")
+   * 3. Mes numérico como string (reg.mes = "06" o "6")
+   */
   private parsearFecha(reg: any): Date | null {
-    const mes = this.MESES[String(reg.mes).toLowerCase().trim()];
-    if (mes === undefined) return null;
-    const fecha = new Date(Number(reg.anio), mes, Number(reg.dia));
+    // Estrategia 1: campo fecha ISO
+    if (reg.fecha) {
+      const iso = String(reg.fecha).split('T')[0];
+      const d   = new Date(iso + 'T00:00:00');
+      if (!isNaN(d.getTime())) { d.setHours(0,0,0,0); return d; }
+    }
+
+    if (!reg.anio || !reg.dia) return null;
+
+    const mesStr = String(reg.mes ?? '').toLowerCase().trim();
+
+    // Estrategia 2: nombre de mes en español
+    let mesNum = this.MESES[mesStr];
+
+    // Estrategia 3: mes numérico ("06", "6", etc.)
+    if (mesNum === undefined) {
+      const n = parseInt(mesStr, 10);
+      if (!isNaN(n) && n >= 1 && n <= 12) mesNum = n - 1;
+    }
+
+    if (mesNum === undefined) return null;
+
+    const fecha = new Date(Number(reg.anio), mesNum, Number(reg.dia));
     fecha.setHours(0, 0, 0, 0);
     return fecha;
   }
