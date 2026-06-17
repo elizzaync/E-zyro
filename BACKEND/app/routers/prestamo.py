@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import func, or_, case
 from sqlalchemy.orm import Session
 
@@ -338,6 +339,182 @@ def equipos_catalogo(
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# Borrador de préstamo (mismo patrón que el borrador de materiales):
+# el equipo/herramienta se acumula en un borrador y recién al confirmar+firmar
+# se envía a Logística (se aplica el split disponibilidad vs compra ahí).
+# ─────────────────────────────────────────────────────────────────────────
+
+class _BorradorItemBody(BaseModel):
+    equipo_id: str
+    cantidad: int = 1
+
+
+class _EnviarBorradorBody(BaseModel):
+    firma_solicitante_url: Optional[str] = None
+
+
+def _get_borrador_prestamo(db: Session, empresa_id: str, servicio_id: str) -> Optional[Prestamo]:
+    return db.query(Prestamo).filter(
+        Prestamo.empresa_id == empresa_id,
+        Prestamo.proyecto_servicio_id == servicio_id,
+        Prestamo.estado == "borrador",
+    ).first()
+
+
+@router.get("/servicio/{servicio_id}/borrador")
+def get_borrador_prestamo(servicio_id: str, payload: dict = Depends(verificar_token),
+                          db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    b = _get_borrador_prestamo(db, empresa_id, servicio_id)
+    if not b:
+        return {"prestamo_id": None, "items": []}
+    activos = _prestamos_activos_por_equipo(db, empresa_id)
+    rows = (
+        db.query(PrestamoItem, Equipo.nombre, Equipo.clase, Equipo.cantidad)
+        .join(Equipo, Equipo.id == PrestamoItem.equipo_id)
+        .filter(PrestamoItem.prestamo_id == b.id)
+        .all()
+    )
+    items = []
+    for it, nombre, clase, cant_total in rows:
+        disponible = max(0, int(cant_total or 0) - activos.get(it.equipo_id, 0))
+        items.append({
+            "id": str(it.id), "equipo_id": str(it.equipo_id), "nombre": nombre,
+            "clase": clase, "cantidad": int(it.cantidad_solicitada or 0),
+            "disponible": disponible,
+        })
+    return {"prestamo_id": str(b.id), "items": items}
+
+
+@router.post("/servicio/{servicio_id}/borrador/item", status_code=status.HTTP_201_CREATED)
+def agregar_item_borrador_prestamo(servicio_id: str, body: _BorradorItemBody,
+                                   payload: dict = Depends(verificar_token),
+                                   db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    emp = _empleado_or_403(db, payload)
+    if body.cantidad <= 0:
+        raise HTTPException(status_code=422, detail="Cantidad debe ser > 0")
+    equipo = db.query(Equipo).filter(
+        Equipo.id == body.equipo_id, Equipo.empresa_id == empresa_id).first()
+    if not equipo:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    b = _get_borrador_prestamo(db, empresa_id, servicio_id)
+    if not b:
+        srv = db.query(ProyectoServicio).filter(ProyectoServicio.id == servicio_id).first()
+        if not srv:
+            raise HTTPException(status_code=404, detail="Servicio no encontrado")
+        b = Prestamo(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            proyecto_servicio_id=servicio_id, solicitante_id=emp.id,
+            estado="borrador", fecha_solicitud=datetime.utcnow(),
+        )
+        db.add(b)
+        db.flush()
+    it = db.query(PrestamoItem).filter(
+        PrestamoItem.prestamo_id == b.id,
+        PrestamoItem.equipo_id == body.equipo_id,
+    ).first()
+    if it:
+        it.cantidad_solicitada = int(it.cantidad_solicitada or 0) + body.cantidad
+    else:
+        db.add(PrestamoItem(
+            id=str(_uuid.uuid4()), prestamo_id=b.id,
+            equipo_id=body.equipo_id, cantidad_solicitada=body.cantidad,
+        ))
+    db.commit()
+    return {"ok": True, "prestamo_id": str(b.id)}
+
+
+@router.delete("/borrador-item/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def quitar_item_borrador_prestamo(item_id: str, payload: dict = Depends(verificar_token),
+                                  db: Session = Depends(get_db)):
+    empresa_id = payload["empresa_id"]
+    it = (
+        db.query(PrestamoItem)
+        .join(Prestamo, Prestamo.id == PrestamoItem.prestamo_id)
+        .filter(PrestamoItem.id == item_id,
+                Prestamo.empresa_id == empresa_id,
+                Prestamo.estado == "borrador")
+        .first()
+    )
+    if not it:
+        raise HTTPException(status_code=404, detail="Ítem no encontrado")
+    pid = it.prestamo_id
+    db.delete(it)
+    db.flush()
+    if db.query(PrestamoItem).filter(PrestamoItem.prestamo_id == pid).count() == 0:
+        b = db.query(Prestamo).filter(Prestamo.id == pid).first()
+        if b:
+            db.delete(b)
+    db.commit()
+
+
+@router.post("/servicio/{servicio_id}/borrador/enviar")
+def enviar_borrador_prestamo(servicio_id: str, body: _EnviarBorradorBody,
+                             payload: dict = Depends(verificar_token),
+                             db: Session = Depends(get_db)):
+    """Envía el borrador de equipos: aplica el split disponibilidad vs compra del
+    faltante (igual que crear_prestamo) y pasa el préstamo a 'solicitado'."""
+    empresa_id = payload["empresa_id"]
+    emp = _empleado_or_403(db, payload)
+    srv = db.query(ProyectoServicio).filter(ProyectoServicio.id == servicio_id).first()
+    if not srv:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+    b = _get_borrador_prestamo(db, empresa_id, servicio_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="No hay borrador de equipos para este servicio")
+    items = db.query(PrestamoItem).filter(PrestamoItem.prestamo_id == b.id).all()
+    if not items:
+        raise HTTPException(status_code=422, detail="El borrador está vacío")
+
+    activos = _prestamos_activos_por_equipo(db, empresa_id)
+    faltantes: list[tuple[Equipo, int]] = []
+    hubo_prestamo = False
+    for it in items:
+        equipo = db.query(Equipo).filter(
+            Equipo.id == it.equipo_id, Equipo.empresa_id == empresa_id).first()
+        if not equipo:
+            db.delete(it)
+            continue
+        pedido     = int(it.cantidad_solicitada or 0)
+        disponible = max(0, int(equipo.cantidad or 0) - activos.get(equipo.id, 0))
+        a_prestar  = min(pedido, disponible)
+        faltante   = pedido - a_prestar
+        if a_prestar > 0:
+            it.cantidad_solicitada = a_prestar
+            hubo_prestamo = True
+        else:
+            db.delete(it)
+        if faltante > 0:
+            faltantes.append((equipo, faltante))
+    db.flush()
+
+    ticket_id = None
+    if faltantes:
+        ticket_id = _crear_ticket_compra_faltante(
+            db, srv, emp, empresa_id, faltantes,
+            prestamo_id=str(b.id) if hubo_prestamo else None,
+        )
+
+    if not hubo_prestamo:
+        db.delete(b)
+    else:
+        b.estado          = "solicitado"
+        b.solicitante_id  = emp.id
+        b.fecha_solicitud = datetime.utcnow()
+        if (body.firma_solicitante_url or "").strip():
+            b.firma_solicitante_url   = body.firma_solicitante_url.strip()
+            b.firma_solicitante_fecha = datetime.utcnow()
+    db.commit()
+    return {
+        "ok": True,
+        "prestamo_id": str(b.id) if hubo_prestamo else None,
+        "ticket_id": ticket_id,
+        "faltantes": [{"equipo": eq.nombre, "cantidad": f} for eq, f in faltantes],
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # POST /prestamos/servicio/{servicio_id} — crear préstamo (técnico)
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -445,6 +622,7 @@ def listar_por_servicio(
         .filter(
             Prestamo.empresa_id == empresa_id,
             Prestamo.proyecto_servicio_id == servicio_id,
+            Prestamo.estado != "borrador",   # el borrador se consulta aparte
         )
         .order_by(Prestamo.created_at.desc())
         .all()
@@ -463,7 +641,10 @@ def listar_prestamos(
     db:      Session = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
-    base = db.query(Prestamo).filter(Prestamo.empresa_id == empresa_id)
+    base = db.query(Prestamo).filter(
+        Prestamo.empresa_id == empresa_id,
+        Prestamo.estado != "borrador",   # logística nunca ve borradores
+    )
     if estado and estado != "todos":
         base = base.filter(Prestamo.estado == estado)
     rows = base.order_by(Prestamo.created_at.desc()).limit(200).all()
