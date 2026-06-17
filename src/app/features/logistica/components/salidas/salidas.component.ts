@@ -65,28 +65,32 @@ export class SalidasComponent implements OnInit, OnDestroy {
   abrirDetalle(s: Salida): void  { this.salidaDetalle = s; document.body.style.overflow = 'hidden'; }
   cerrarDetalle(): void          { this.salidaDetalle = null; document.body.style.overflow = ''; }
 
-  abrirReporte(s: Salida): void {
+  async abrirReporte(s: Salida): Promise<void> {
     const ref = s.id.slice(-8).toUpperCase();
     const div = document.createElement('div');
+    div.style.pointerEvents = 'none';
     div.innerHTML = this.generarHtmlReporte(s);
-    div.style.cssText = 'position:fixed;left:-9999px;top:0;width:21cm;background:#fff;';
     document.body.appendChild(div);
 
-    const opt = {
-      margin: [1.2, 1.2, 1.2, 1.2],
-      filename: `reporte-salida-${ref}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false },
-      jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' },
-    };
+    await new Promise<void>(resolve =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
 
-    (window as any)['html2pdf']().set(opt).from(div).outputPdf('bloburl').then((url: string) => {
+    try {
+      const blob: Blob = await (window as any)['html2pdf']().set({
+        margin: 20,
+        filename: `reporte-salida-${ref}.pdf`,
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      }).from(div).outputPdf('blob');
+
       document.body.removeChild(div);
+      const url = URL.createObjectURL(blob);
       window.open(url, '_blank');
-    }).catch(() => {
+    } catch {
       document.body.removeChild(div);
       this.toast.mostrar('No se pudo generar el PDF.', 'error');
-    });
+    }
   }
 
   get totalPaginas(): number { return Math.ceil(this.total / this.pageSize); }
