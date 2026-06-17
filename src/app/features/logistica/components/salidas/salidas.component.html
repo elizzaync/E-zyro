@@ -1,13 +1,12 @@
 <div class="sl-layout fade-in">
 
-  <!-- ══════════════════════ KPIs ══════════════════════ -->
+  <!-- KPIs -->
   <div class="sl-kpis">
     <div class="sl-kpi">
       <span class="sl-kpi-ico">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 17H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3"/>
-          <rect x="9" y="11" width="14" height="10" rx="2"/>
-          <path d="M16 11v-1"/>
+          <rect x="9" y="11" width="14" height="10" rx="2"/><path d="M16 11v-1"/>
         </svg>
       </span>
       <div class="sl-kpi-data">
@@ -54,9 +53,8 @@
     </div>
   </div>
 
-  <!-- ══════════════════════ FILTROS ══════════════════════ -->
+  <!-- Filtros -->
   <div class="sl-filtros">
-    <!-- búsqueda -->
     <div class="sl-search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -71,19 +69,16 @@
         </button>
       }
     </div>
-
-    <!-- fechas -->
     <label class="sl-fecha-label">Desde</label>
     <input type="date" class="sl-fecha-input" [(ngModel)]="filtroDesde" (change)="buscar()">
     <label class="sl-fecha-label">Hasta</label>
     <input type="date" class="sl-fecha-input" [(ngModel)]="filtroHasta" (change)="buscar()">
-
     @if (busqueda || filtroDesde || filtroHasta) {
       <button class="sl-btn-limpiar" (click)="limpiarFiltros()">Limpiar filtros</button>
     }
   </div>
 
-  <!-- ══════════════════════ TABLA ══════════════════════ -->
+  <!-- Estado -->
   @if (cargando) {
     <div class="sl-spinner-wrap"><app-spinner /></div>
   } @else if (salidas.length === 0) {
@@ -112,7 +107,7 @@
         </thead>
         <tbody>
           @for (s of salidas; track s.id) {
-            <tr class="sl-row" [class.sl-row--expanded]="expandidas.has(s.id)">
+            <tr class="sl-row">
               <td>
                 <span class="sl-fecha">{{ fechaCorta(s.fechaSalida) }}</span>
                 @if (s.fechaSolicitud) {
@@ -125,30 +120,20 @@
                   <span class="sl-servicio">{{ s.servicioNombre }}</span>
                 }
               </td>
-              <td>
-                <span class="sl-persona">{{ s.solicitanteNombre || '—' }}</span>
-              </td>
-              <td>
-                <span class="sl-persona sl-persona--campo">{{ s.recibidoPorNombre || '—' }}</span>
-              </td>
-              <td>
-                <span class="sl-persona sl-persona--log">{{ s.entregadoPorNombre || '—' }}</span>
-              </td>
-              <td class="td-center">
-                <span class="sl-badge">{{ s.totalItems }}</span>
-              </td>
-              <td class="td-center">
-                <span class="sl-badge sl-badge--green">{{ s.totalUnidades }}</span>
-              </td>
+              <td><span class="sl-persona">{{ s.solicitanteNombre || '—' }}</span></td>
+              <td><span class="sl-persona sl-persona--campo">{{ s.recibidoPorNombre || '—' }}</span></td>
+              <td><span class="sl-persona sl-persona--log">{{ s.entregadoPorNombre || '—' }}</span></td>
+              <td class="td-center"><span class="sl-badge">{{ s.totalItems }}</span></td>
+              <td class="td-center"><span class="sl-badge sl-badge--green">{{ s.totalUnidades }}</span></td>
               <td class="td-center">
                 <div class="sl-acciones">
-                  <button class="sl-btn-icon" title="Ver detalle" (click)="toggleExpandir(s.id)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                         [style.transform]="expandidas.has(s.id) ? 'rotate(180deg)' : 'none'">
-                      <polyline points="6 9 12 15 18 9"/>
+                  <button class="sl-btn-icon" title="Ver detalle" (click)="abrirDetalle(s)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
                     </svg>
                   </button>
-                  <button class="sl-btn-reporte" title="Imprimir comprobante" (click)="abrirReporte(s)">
+                  <button class="sl-btn-reporte" title="Generar PDF en nueva pestaña" (click)="abrirReporte(s)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <polyline points="6 9 6 2 18 2 18 9"/>
                       <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
@@ -159,60 +144,11 @@
                 </div>
               </td>
             </tr>
-
-            <!-- Fila expandida: detalle de items -->
-            @if (expandidas.has(s.id)) {
-              <tr class="sl-detalle-row">
-                <td colspan="8">
-                  <div class="sl-detalle">
-                    <table class="sl-items-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Material / Ítem</th>
-                          <th>Unidad</th>
-                          <th class="th-right">Cant. solicitada</th>
-                          <th class="th-right">Cant. entregada</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (item of s.items; track item.id; let i = $index) {
-                          <tr>
-                            <td class="td-idx">{{ i + 1 }}</td>
-                            <td class="td-nombre">{{ item.nombre }}</td>
-                            <td class="td-unidad">{{ item.unidad || '—' }}</td>
-                            <td class="td-right td-cant">{{ item.cantidadSolicitada }}</td>
-                            <td class="td-right td-entregada">{{ item.cantidadEntregada }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td colspan="3" class="td-total-lbl">TOTAL</td>
-                          <td class="td-right td-cant">{{ sumCantSolicitada(s.items) }}</td>
-                          <td class="td-right td-entregada">{{ s.totalUnidades }}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                    @if (s.observacion) {
-                      <p class="sl-obs"><strong>Obs. logística:</strong> {{ s.observacion }}</p>
-                    }
-                    @if (s.firmaUrl) {
-                      <div class="sl-firma-preview">
-                        <span class="sl-firma-lbl">Firma de recepción</span>
-                        <img [src]="s.firmaUrl" alt="Firma" class="sl-firma-img">
-                      </div>
-                    }
-                  </div>
-                </td>
-              </tr>
-            }
           }
         </tbody>
       </table>
     </div>
 
-    <!-- Paginación -->
     @if (totalPaginas > 1) {
       <div class="sl-paginacion">
         <button class="sl-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">
@@ -232,155 +168,110 @@
 
 </div>
 
-<!-- ══════════════════════ MODAL DE REPORTE ══════════════════════ -->
-@if (salidaReporte) {
-  <div class="sl-modal-overlay" (click)="cerrarReporte()">
-    <div class="sl-modal" (click)="$event.stopPropagation()">
+<!-- ══ MODAL DETALLE ══ -->
+@if (salidaDetalle) {
+  <div class="sl-det-overlay" (click)="cerrarDetalle()">
+    <div class="sl-det-modal" (click)="$event.stopPropagation()">
 
-      <!-- Botones de control (solo pantalla) -->
-      <div class="sl-modal-ctrl no-print">
-        <button class="sl-btn-imprimir" (click)="imprimirReporte()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 6 2 18 2 18 9"/>
-            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-            <rect x="6" y="14" width="12" height="8"/>
-          </svg>
-          Imprimir
-        </button>
-        <button class="sl-btn-cerrar-modal" (click)="cerrarReporte()">
+      <!-- Header -->
+      <div class="sl-det-header">
+        <div>
+          <h3 class="sl-det-titulo">Detalle de Salida</h3>
+          <p class="sl-det-sub">{{ salidaDetalle.proyectoNombre }} · {{ fechaCorta(salidaDetalle.fechaSalida) }}</p>
+        </div>
+        <button class="sl-btn-cerrar" (click)="cerrarDetalle()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
       </div>
 
-      <!-- ═══════════ COMPROBANTE (este bloque se imprime) ═══════════ -->
-      <div class="sl-comprobante printable">
-
-        <div class="comp-header">
-          <div class="comp-logo-area">
-            <div class="comp-logo-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-              </svg>
-            </div>
-          </div>
-          <div class="comp-titulo-area">
-            <h1 class="comp-titulo">COMPROBANTE DE SALIDA DE MATERIALES</h1>
-            <p class="comp-subtitulo">Registro de entrega a campo</p>
-          </div>
-          <div class="comp-meta-area">
-            <p class="comp-meta-item"><strong>Fecha de impresión:</strong><br>{{ fechaImpresion() }}</p>
-            <p class="comp-meta-item"><strong>Ref. requerimiento:</strong><br>{{ salidaReporte.id.slice(-8).toUpperCase() }}</p>
-          </div>
-        </div>
-
-        <div class="comp-seccion">
-          <h2 class="comp-sec-titulo">Información del Requerimiento</h2>
-          <div class="comp-grid2">
-            <div class="comp-campo">
-              <span class="comp-campo-lbl">Proyecto</span>
-              <span class="comp-campo-val">{{ salidaReporte.proyectoNombre }}</span>
-            </div>
-            <div class="comp-campo">
-              <span class="comp-campo-lbl">Servicio</span>
-              <span class="comp-campo-val">{{ salidaReporte.servicioNombre || '—' }}</span>
-            </div>
-            <div class="comp-campo">
-              <span class="comp-campo-lbl">Fecha de solicitud</span>
-              <span class="comp-campo-val">{{ fechaHora(salidaReporte.fechaSolicitud) }}</span>
-            </div>
-            <div class="comp-campo">
-              <span class="comp-campo-lbl">Fecha de salida</span>
-              <span class="comp-campo-val comp-campo-val--highlight">{{ fechaHora(salidaReporte.fechaSalida) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="comp-seccion">
-          <h2 class="comp-sec-titulo">Personal Involucrado</h2>
-          <div class="comp-grid3">
-            <div class="comp-persona-card">
-              <span class="comp-persona-rol">Solicitado por</span>
-              <span class="comp-persona-nombre">{{ salidaReporte.solicitanteNombre || '—' }}</span>
-              <span class="comp-persona-desc">Jefe de proyecto / Coordinador</span>
-            </div>
-            <div class="comp-persona-card">
-              <span class="comp-persona-rol">Entregado por</span>
-              <span class="comp-persona-nombre">{{ salidaReporte.entregadoPorNombre || '—' }}</span>
-              <span class="comp-persona-desc">Responsable de logística</span>
-            </div>
-            <div class="comp-persona-card comp-persona-card--highlight">
-              <span class="comp-persona-rol">Recibido por</span>
-              <span class="comp-persona-nombre">{{ salidaReporte.recibidoPorNombre || '—' }}</span>
-              <span class="comp-persona-desc">Técnico en campo</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="comp-seccion">
-          <h2 class="comp-sec-titulo">Materiales Entregados</h2>
-          <table class="comp-items-table">
-            <thead>
-              <tr>
-                <th class="th-n">#</th>
-                <th>Material / Ítem</th>
-                <th class="th-unidad">Unidad</th>
-                <th class="th-cant">Cant. solicitada</th>
-                <th class="th-cant th-entregada">Cant. entregada</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (item of salidaReporte.items; track item.id; let i = $index) {
-                <tr>
-                  <td class="td-n">{{ i + 1 }}</td>
-                  <td>{{ item.nombre }}</td>
-                  <td class="td-unidad">{{ item.unidad || '—' }}</td>
-                  <td class="td-cant">{{ item.cantidadSolicitada }}</td>
-                  <td class="td-cant td-entregada">{{ item.cantidadEntregada }}</td>
-                </tr>
-              }
-            </tbody>
-            <tfoot>
-              <tr class="tr-total">
-                <td colspan="3">TOTAL DE ÍTEMS: {{ salidaReporte.totalItems }}</td>
-                <td class="td-cant">—</td>
-                <td class="td-cant td-entregada">{{ salidaReporte.totalUnidades }}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        @if (salidaReporte.observacion) {
-          <div class="comp-seccion">
-            <h2 class="comp-sec-titulo">Observaciones</h2>
-            <p class="comp-obs-texto">{{ salidaReporte.observacion }}</p>
+      <!-- Info rápida -->
+      <div class="sl-det-info">
+        @if (salidaDetalle.servicioNombre) {
+          <div class="sl-det-field">
+            <span class="sl-det-lbl">Servicio</span>
+            <span class="sl-det-val">{{ salidaDetalle.servicioNombre }}</span>
           </div>
         }
-
-        <div class="comp-seccion comp-firmas">
-          <div class="comp-firma-bloque">
-            <div class="comp-firma-linea"></div>
-            <span class="comp-firma-nombre">{{ salidaReporte.entregadoPorNombre || 'Responsable de logística' }}</span>
-            <span class="comp-firma-cargo">Entregado por</span>
-          </div>
-
-          <div class="comp-firma-bloque">
-            @if (salidaReporte.firmaUrl) {
-              <img [src]="salidaReporte.firmaUrl" alt="Firma" class="comp-firma-img">
-            } @else {
-              <div class="comp-firma-linea"></div>
-            }
-            <span class="comp-firma-nombre">{{ salidaReporte.recibidoPorNombre || 'Técnico en campo' }}</span>
-            <span class="comp-firma-cargo">Recibido por (firma)</span>
-          </div>
+        <div class="sl-det-field">
+          <span class="sl-det-lbl">Fecha solicitud</span>
+          <span class="sl-det-val">{{ fechaHora(salidaDetalle.fechaSolicitud) }}</span>
         </div>
-
-        <div class="comp-footer">
-          <p>Documento generado por el sistema de logística E-zyro · {{ fechaImpresion() }}</p>
+        <div class="sl-det-field">
+          <span class="sl-det-lbl">Fecha salida</span>
+          <span class="sl-det-val sl-det-val--green">{{ fechaHora(salidaDetalle.fechaSalida) }}</span>
         </div>
-
+        <div class="sl-det-field">
+          <span class="sl-det-lbl">Solicitado por</span>
+          <span class="sl-det-val">{{ salidaDetalle.solicitanteNombre || '—' }}</span>
+        </div>
+        <div class="sl-det-field">
+          <span class="sl-det-lbl">Entregado por</span>
+          <span class="sl-det-val sl-det-val--purple">{{ salidaDetalle.entregadoPorNombre || '—' }}</span>
+        </div>
+        <div class="sl-det-field">
+          <span class="sl-det-lbl">Recibido por</span>
+          <span class="sl-det-val sl-det-val--blue">{{ salidaDetalle.recibidoPorNombre || '—' }}</span>
+        </div>
       </div>
+
+      <!-- Tabla de items -->
+      <div class="sl-det-body">
+        <p class="sl-det-section-lbl">Materiales entregados</p>
+        <table class="sl-det-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Material / Ítem</th>
+              <th>Unidad</th>
+              <th class="th-right">Solicitada</th>
+              <th class="th-right">Entregada</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of salidaDetalle.items; track item.id; let i = $index) {
+              <tr>
+                <td class="td-idx">{{ i + 1 }}</td>
+                <td class="td-nombre">{{ item.nombre }}</td>
+                <td class="td-unidad">{{ item.unidad || '—' }}</td>
+                <td class="td-right">{{ item.cantidadSolicitada }}</td>
+                <td class="td-right td-entregada">{{ item.cantidadEntregada }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" class="td-total-lbl">TOTAL</td>
+              <td class="td-right">{{ sumCantSolicitada(salidaDetalle.items) }}</td>
+              <td class="td-right td-entregada">{{ salidaDetalle.totalUnidades }}</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        @if (salidaDetalle.observacion) {
+          <p class="sl-obs"><strong>Observación:</strong> {{ salidaDetalle.observacion }}</p>
+        }
+        @if (salidaDetalle.firmaUrl) {
+          <div class="sl-firma-preview">
+            <span class="sl-firma-lbl">Firma de recepción</span>
+            <img [src]="salidaDetalle.firmaUrl" alt="Firma" class="sl-firma-img">
+          </div>
+        }
+      </div>
+
+      <!-- Footer -->
+      <div class="sl-det-footer">
+        <button class="sl-btn-reporte" (click)="abrirReporte(salidaDetalle)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          Generar Reporte PDF
+        </button>
+      </div>
+
     </div>
   </div>
 }

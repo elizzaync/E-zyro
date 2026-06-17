@@ -49,7 +49,6 @@
       <table class="ing-table">
         <thead>
           <tr>
-            <th class="th-exp"></th>
             <th class="th-fecha">Fecha ingreso</th>
             <th class="th-ticket">Ticket</th>
             <th class="th-proyecto">Proyecto / Servicio</th>
@@ -58,18 +57,12 @@
             <th class="th-tipos">Tipos</th>
             <th class="th-uds">Uds.</th>
             <th class="th-total">Total</th>
+            <th class="th-acc">Acciones</th>
           </tr>
         </thead>
         <tbody>
           @for (ing of ingresos; track ing.id) {
-            <tr class="ing-row" (click)="toggleExpandir(ing.id)" [class.ing-row--open]="expandidos.has(ing.id)">
-              <td class="td-exp">
-                <span class="ing-chevron" [class.ing-chevron--open]="expandidos.has(ing.id)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                </span>
-              </td>
+            <tr class="ing-row">
               <td class="td-fecha">
                 <span class="ing-fecha-main">{{ fechaCorta(ing.fechaIngreso) }}</span>
               </td>
@@ -86,7 +79,7 @@
                 @if (ing.proveedorNombre) {
                   <span class="ing-proveedor">{{ ing.proveedorNombre }}</span>
                 } @else {
-                  <span class="ing-total-nd">—</span>
+                  <span class="ing-nd">—</span>
                 }
               </td>
               <td class="td-items">
@@ -96,7 +89,7 @@
                 <div class="ing-tipos-wrap">
                   @for (b of tiposBadges(ing.items); track b.tipo) {
                     <span class="tipo-badge tipo-badge--{{ b.tipo }}">
-                      {{ tipoLabel(b.tipo) }} {{ b.count > 1 ? '×' + b.count : '' }}
+                      {{ tipoLabel(b.tipo) }}{{ b.count > 1 ? ' ×' + b.count : '' }}
                     </span>
                   }
                 </div>
@@ -108,66 +101,23 @@
                 } @else if (ing.totalEstimado != null) {
                   <span class="ing-total-est">≈ S/ {{ ing.totalEstimado | number:'1.2-2' }}</span>
                 } @else {
-                  <span class="ing-total-nd">—</span>
+                  <span class="ing-nd">—</span>
                 }
               </td>
+              <td class="td-acc">
+                <button class="ing-btn-ver" title="Ver detalle" (click)="abrirDetalle(ing)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </td>
             </tr>
-
-            <!-- Detalle expandido -->
-            @if (expandidos.has(ing.id)) {
-              <tr class="ing-detalle-row">
-                <td colspan="9">
-                  <div class="ing-detalle-box">
-                    <div class="ing-detalle-meta">
-                      <span><strong>Solicitante:</strong> {{ ing.solicitanteNombre }}</span>
-                      <span><strong>Registrado:</strong> {{ fechaHora(ing.fechaIngreso) }}</span>
-                    </div>
-                    <table class="ing-det-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Tipo</th>
-                          <th>Ítem</th>
-                          <th>Unidad</th>
-                          <th class="th-right">Cantidad</th>
-                          <th class="th-right">P. Unit. (S/)</th>
-                          <th class="th-right">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (it of ing.items; track $index; let idx = $index) {
-                          <tr>
-                            <td class="td-idx">{{ idx + 1 }}</td>
-                            <td>
-                              <span class="tipo-badge tipo-badge--{{ it.tipoItem }}">
-                                {{ it.tipoItem === 'material' ? 'Material' : it.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
-                              </span>
-                            </td>
-                            <td class="td-nombre-det">{{ it.nombre }}</td>
-                            <td>{{ it.unidad }}</td>
-                            <td class="td-right">{{ it.cantidad }}</td>
-                            <td class="td-right">
-                              {{ it.precioUnitario != null ? (it.precioUnitario | number:'1.2-2') : '—' }}
-                            </td>
-                            <td class="td-right">
-                              @if (it.precioUnitario != null) {
-                                {{ (it.cantidad * it.precioUnitario) | number:'1.2-2' }}
-                              } @else { — }
-                            </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </td>
-              </tr>
-            }
           }
         </tbody>
       </table>
     </div>
 
-    <!-- Paginación -->
     @if (totalPaginas > 1) {
       <div class="ing-paginacion">
         <button class="ing-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
@@ -178,3 +128,112 @@
   }
 
 </div>
+
+<!-- ══ MODAL DETALLE ══ -->
+@if (ingresoDetalle) {
+  <div class="ing-det-overlay" (click)="cerrarDetalle()">
+    <div class="ing-det-modal" (click)="$event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="ing-det-header">
+        <div>
+          <h3 class="ing-det-titulo">Detalle de Ingreso</h3>
+          <p class="ing-det-sub">
+            {{ ingresoDetalle.ticketCodigo }} · {{ ingresoDetalle.proyectoNombre }} · {{ fechaCorta(ingresoDetalle.fechaIngreso) }}
+          </p>
+        </div>
+        <button class="ing-btn-cerrar" (click)="cerrarDetalle()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Info rápida -->
+      <div class="ing-det-info">
+        @if (ingresoDetalle.servicioNombre) {
+          <div class="ing-det-field">
+            <span class="ing-det-lbl">Servicio</span>
+            <span class="ing-det-val">{{ ingresoDetalle.servicioNombre }}</span>
+          </div>
+        }
+        <div class="ing-det-field">
+          <span class="ing-det-lbl">Fecha ingreso</span>
+          <span class="ing-det-val ing-det-val--green">{{ fechaHora(ingresoDetalle.fechaIngreso) }}</span>
+        </div>
+        <div class="ing-det-field">
+          <span class="ing-det-lbl">Solicitante</span>
+          <span class="ing-det-val">{{ ingresoDetalle.solicitanteNombre }}</span>
+        </div>
+        @if (ingresoDetalle.proveedorNombre) {
+          <div class="ing-det-field">
+            <span class="ing-det-lbl">Proveedor</span>
+            <span class="ing-det-val">{{ ingresoDetalle.proveedorNombre }}</span>
+          </div>
+        }
+        @if (ingresoDetalle.totalReal != null) {
+          <div class="ing-det-field">
+            <span class="ing-det-lbl">Total real</span>
+            <span class="ing-det-val ing-det-val--green">S/ {{ ingresoDetalle.totalReal | number:'1.2-2' }}</span>
+          </div>
+        } @else if (ingresoDetalle.totalEstimado != null) {
+          <div class="ing-det-field">
+            <span class="ing-det-lbl">Total estimado</span>
+            <span class="ing-det-val">≈ S/ {{ ingresoDetalle.totalEstimado | number:'1.2-2' }}</span>
+          </div>
+        }
+      </div>
+
+      <!-- Tabla de items -->
+      <div class="ing-det-body">
+        <p class="ing-det-section-lbl">Ítems recibidos</p>
+        <table class="ing-det-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tipo</th>
+              <th>Ítem</th>
+              <th>Unidad</th>
+              <th class="th-right">Cantidad</th>
+              <th class="th-right">P. Unit. (S/)</th>
+              <th class="th-right">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (it of ingresoDetalle.items; track $index; let idx = $index) {
+              <tr>
+                <td class="td-idx">{{ idx + 1 }}</td>
+                <td>
+                  <span class="tipo-badge tipo-badge--{{ it.tipoItem }}">
+                    {{ tipoLabelFull(it.tipoItem) }}
+                  </span>
+                </td>
+                <td class="td-nombre-det">{{ it.nombre }}</td>
+                <td class="td-unidad-det">{{ it.unidad }}</td>
+                <td class="td-right">{{ it.cantidad }}</td>
+                <td class="td-right">
+                  {{ it.precioUnitario != null ? (it.precioUnitario | number:'1.2-2') : '—' }}
+                </td>
+                <td class="td-right td-sub">
+                  @if (subtotal(it) != null) {
+                    {{ subtotal(it) | number:'1.2-2' }}
+                  } @else { — }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Footer -->
+      <div class="ing-det-footer">
+        <span class="ing-det-resumen">
+          {{ ingresoDetalle.totalItems }} ítem{{ ingresoDetalle.totalItems !== 1 ? 's' : '' }} ·
+          {{ ingresoDetalle.totalUnidades }} unidades
+        </span>
+        <button class="ing-btn-cerrar-footer" (click)="cerrarDetalle()">Cerrar</button>
+      </div>
+
+    </div>
+  </div>
+}

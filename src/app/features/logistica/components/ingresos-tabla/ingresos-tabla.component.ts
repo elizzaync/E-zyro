@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
@@ -13,7 +13,7 @@ import { Ingreso, IngresoItemLog } from '../../logistica.models';
   templateUrl: './ingresos-tabla.component.html',
   styleUrls: ['./ingresos-tabla.component.css'],
 })
-export class IngresosTablaComponent implements OnInit {
+export class IngresosTablaComponent implements OnInit, OnDestroy {
   private svc   = inject(LogisticaService);
   private toast = inject(ToastService);
 
@@ -27,9 +27,11 @@ export class IngresosTablaComponent implements OnInit {
   filtroDesde = this._primerDiaMes();
   filtroHasta = '';
 
-  expandidos = new Set<string>();
+  ingresoDetalle: Ingreso | null = null;
 
   ngOnInit(): void { this.cargar(); }
+
+  ngOnDestroy(): void { document.body.style.overflow = ''; }
 
   cargar(): void {
     this.cargando = true;
@@ -55,19 +57,13 @@ export class IngresosTablaComponent implements OnInit {
     this.cargar();
   }
 
-  toggleExpandir(id: string): void {
-    if (this.expandidos.has(id)) this.expandidos.delete(id);
-    else this.expandidos.add(id);
-  }
+  abrirDetalle(ing: Ingreso): void  { this.ingresoDetalle = ing; document.body.style.overflow = 'hidden'; }
+  cerrarDetalle(): void             { this.ingresoDetalle = null; document.body.style.overflow = ''; }
 
   get totalPaginas(): number { return Math.ceil(this.total / this.pageSize); }
 
   irPagina(p: number): void {
     if (p >= 1 && p <= this.totalPaginas) { this.page = p; this.cargar(); }
-  }
-
-  totalIngreso(ing: Ingreso): number {
-    return ing.totalReal ?? ing.totalEstimado ?? 0;
   }
 
   resumenItems(items: IngresoItemLog[]): string {
@@ -89,18 +85,28 @@ export class IngresosTablaComponent implements OnInit {
     return tipo === 'material' ? 'Mat.' : tipo === 'equipo' ? 'Eqp.' : 'Herr.';
   }
 
+  tipoLabelFull(tipo: string): string {
+    return tipo === 'material' ? 'Material' : tipo === 'equipo' ? 'Equipo' : 'Herramienta';
+  }
+
+  subtotal(it: IngresoItemLog): number | null {
+    if (it.precioUnitario == null) return null;
+    return it.cantidad * it.precioUnitario;
+  }
+
+  totalIngreso(ing: Ingreso): number {
+    return ing.totalReal ?? ing.totalEstimado ?? 0;
+  }
+
   fechaCorta(iso: string | null): string {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString('es-PE', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    });
+    return new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   fechaHora(iso: string | null): string {
     if (!iso) return '—';
     return new Date(iso).toLocaleString('es-PE', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
   }
 
