@@ -140,60 +140,29 @@
 
       @if (esOperatividad) {
         <section class="form-section">
-          <h3 class="form-section-title">Datos del Certificado</h3>
+          <h3 class="form-section-title">
+            Datos del Certificado
+            <span class="badge badge--auto">auto</span>
+          </h3>
 
           <div class="field-group">
-            <label class="field-label">Nombre del Tablero <span class="req">*</span></label>
-            <input class="field-input" [(ngModel)]="form.nombre_tablero" placeholder="TD - RAMPA">
+            <label class="field-label">Nombre del Tablero <span class="badge badge--auto">auto</span></label>
+            <input class="field-input field-readonly" [value]="form.nombre_tablero || '—'" readonly>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Fecha <span class="req">*</span></label>
-            <input class="field-input" [(ngModel)]="form.fecha" placeholder="07/06/2026">
+            <label class="field-label">Fecha <span class="badge badge--auto">auto</span></label>
+            <input class="field-input field-readonly" [value]="form.fecha || fechaHoy" readonly>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Razón Social</label>
-            <input class="field-input" [(ngModel)]="form.razon_social"
-                   placeholder="TALMA SERVICIOS AEROPORTUARIOS S.A.">
+            <label class="field-label">Razón Social <span class="badge badge--auto">auto</span></label>
+            <input class="field-input field-readonly" [value]="form.razon_social || '—'" readonly>
           </div>
 
           <div class="field-group">
-            <label class="field-label">Ubicación</label>
-            <input class="field-input" [(ngModel)]="form.ubicacion"
-                   placeholder="Aeropuerto Internacional...">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">Personal Técnico</label>
-            <select class="field-input" [(ngModel)]="form.personal_tecnico">
-              <option value="">— Selecciona técnico —</option>
-              @for (p of personal; track p.id) {
-                <option [value]="p.nombre">{{ p.nombre }}</option>
-              }
-            </select>
-          </div>
-        </section>
-
-        <section class="form-section">
-          <h3 class="form-section-title">Firmas</h3>
-          <div class="form-row">
-            <div class="field-group">
-              <label class="field-label">Firma Verificador</label>
-              <input type="file" class="field-input" accept="image/*"
-                     (change)="onFirmaFile($event, 'verificador')">
-              @if (firmaVerB64) {
-                <p class="hint hint--ok">✓ Firma cargada</p>
-              }
-            </div>
-            <div class="field-group">
-              <label class="field-label">Firma Gerente</label>
-              <input type="file" class="field-input" accept="image/*"
-                     (change)="onFirmaFile($event, 'gerente')">
-              @if (firmaGerB64) {
-                <p class="hint hint--ok">✓ Firma cargada</p>
-              }
-            </div>
+            <label class="field-label">Ubicación <span class="badge badge--auto">auto</span></label>
+            <input class="field-input field-readonly" [value]="form.ubicacion || '—'" readonly>
           </div>
         </section>
       }

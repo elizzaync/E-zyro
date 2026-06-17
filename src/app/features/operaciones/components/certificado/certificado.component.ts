@@ -42,10 +42,8 @@ export class CertificadoComponent implements OnInit {
   fotoProc4: string | null = null;
   fotoProc7: string | null = null;
 
-  // ── Firmas ────────────────────────────────────────────────────────
-  firmaTecB64: string | null = null;   // pozo: firma técnico
-  firmaVerB64: string | null = null;   // operatividad: verificador
-  firmaGerB64: string | null = null;   // operatividad: gerente
+  // ── Firmas (solo Pozo a Tierra) ───────────────────────────────────
+  firmaTecB64: string | null = null;
 
   // ── Campos del formulario ─────────────────────────────────────────
   form = {
@@ -58,11 +56,10 @@ export class CertificadoComponent implements OnInit {
     hora_inicio:        '',
     hora_termino:       '',
     nombre_tecnico:     '',
-    // Operatividad
+    // Operatividad (todos auto-completados)
     nombre_tablero:     '',
     fecha:              '',
     razon_social:       '',
-    personal_tecnico:   '',
   };
 
   get esPozo(): boolean         { return this.tipo === 'pozo'; }
@@ -116,14 +113,11 @@ export class CertificadoComponent implements OnInit {
     });
   }
 
-  // ── Firma desde archivo ───────────────────────────────────────────
-  async onFirmaFile(event: Event, tipo: 'tecnico' | 'verificador' | 'gerente'): Promise<void> {
+  // ── Firma desde archivo (solo Pozo) ──────────────────────────────
+  async onFirmaFile(event: Event, _tipo: 'tecnico'): Promise<void> {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
-    const b64 = await this._fileToB64(file);
-    if      (tipo === 'tecnico')      this.firmaTecB64 = b64;
-    else if (tipo === 'verificador')  this.firmaVerB64 = b64;
-    else                              this.firmaGerB64 = b64;
+    this.firmaTecB64 = await this._fileToB64(file);
   }
 
   private _fileToB64(file: File): Promise<string> {
@@ -204,13 +198,10 @@ export class CertificadoComponent implements OnInit {
 
   private _payloadOperatividad(): object {
     return {
-      nombre_tablero:   this.form.nombre_tablero,
-      fecha:            this.form.fecha,
-      razon_social:     this.form.razon_social,
-      ubicacion:        this.form.ubicacion,
-      personal_tecnico: this.form.personal_tecnico || this.form.nombre_tecnico,
-      firma_verificador: this.firmaVerB64,
-      firma_gerente:     this.firmaGerB64,
+      nombre_tablero: this.form.nombre_tablero,
+      fecha:          this.form.fecha,
+      razon_social:   this.form.razon_social,
+      ubicacion:      this.form.ubicacion,
     };
   }
 
