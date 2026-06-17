@@ -1021,14 +1021,17 @@ def actualizar_estado_tarea(
         if not emp or tarea.responsable_id != emp.id:
             raise HTTPException(status_code=403, detail="Solo puedes actualizar tus propias tareas")
 
-    # Jefe de Operaciones: requiere justificación
+    # Jefe de Operaciones: si está asignado al proyecto/servicio gestiona libre;
+    # la justificación solo se exige al tocar tareas de un servicio que no es suyo.
     if es_jefe_operaciones(payload):
-        if not (x_justificacion or "").strip():
-            raise HTTPException(
-                status_code=422,
-                detail="Se requiere justificación (X-Justificacion) para modificar tareas como Jefe de Operaciones",
-            )
-        set_justificacion(x_justificacion)
+        if not _jefe_op_asignado_al_servicio(db, payload, empresa_id, tarea.proyecto_servicio_id):
+            if not (x_justificacion or "").strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Se requiere justificación (X-Justificacion) para modificar tareas de un servicio que no tienes asignado",
+                )
+        if (x_justificacion or "").strip():
+            set_justificacion(x_justificacion)
 
     _assert_servicio_abierto(tarea.proyecto_servicio_id, db, empresa_id)
 
@@ -2487,6 +2490,37 @@ def _empleado_ids_admin(db: Session, empresa_id: str) -> set[str]:
     return {str(r[0]) for r in rows}
 
 
+def _jefe_op_asignado_al_servicio(db: Session, payload: dict, empresa_id: str,
+                                  servicio_id: str) -> bool:
+    """True si el usuario está asignado al proyecto del servicio — como Jefe de
+    Operaciones del proyecto o como miembro del equipo.
+
+    Principio de Operaciones: lo que habilita gestionar un servicio NO es solo el
+    rol, sino la **asignación por proyecto/servicio**. Un Jefe de Operaciones
+    asignado al proyecto gestiona sus tareas sin justificación; la justificación
+    solo se exige cuando toca un proyecto que NO es suyo (caso de auditoría).
+    """
+    emp = db.query(Empleado).filter(
+        Empleado.usuario_id == payload.get("id"),
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    if not emp:
+        return False
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        return False
+    proyecto = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+    if proyecto and proyecto.jefe_operaciones_id == emp.id:
+        return True
+    return db.query(ProyectoMiembro).filter(
+        ProyectoMiembro.proyecto_id == ps.proyecto_id,
+        ProyectoMiembro.empleado_id == emp.id,
+    ).first() is not None
+
+
 _TIPOS_DOC_OK = {"OC", "PROF", "SIN_OC"}
 
 
@@ -3273,14 +3307,16 @@ def actualizar_servicio(
 ):
     """Actualiza los metadatos de un servicio (nombre, catálogo, fechas, estado, descripción)."""
     exigir_no_tecnico(payload, "Técnico no puede editar servicios")
-    if es_jefe_operaciones(payload):
-        if not (x_justificacion or "").strip():
-            raise HTTPException(
-                status_code=422,
-                detail="Se requiere justificación (X-Justificacion) para modificar servicios como Jefe de Operaciones",
-            )
-        set_justificacion(x_justificacion)
     empresa_id = payload["empresa_id"]
+    if es_jefe_operaciones(payload):
+        if not _jefe_op_asignado_al_servicio(db, payload, empresa_id, servicio_id):
+            if not (x_justificacion or "").strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Se requiere justificación (X-Justificacion) para modificar un servicio que no tienes asignado",
+                )
+        if (x_justificacion or "").strip():
+            set_justificacion(x_justificacion)
 
     ps = db.query(ProyectoServicio).filter(
         ProyectoServicio.id         == servicio_id,
@@ -3421,14 +3457,18 @@ def configurar_servicio(
       como `procedimientos` por compatibilidad con el frontend Angular.
     """
     exigir_no_tecnico(payload, "Técnico no puede configurar servicios ni asignar miembros")
-    if es_jefe_operaciones(payload):
-        if not (x_justificacion or "").strip():
-            raise HTTPException(
-                status_code=422,
-                detail="Se requiere justificación (X-Justificacion) para configurar servicios como Jefe de Operaciones",
-            )
-        set_justificacion(x_justificacion)
     empresa_id = payload["empresa_id"]
+    # Jefe de Operaciones: si está asignado al proyecto/servicio, gestiona libre;
+    # solo se exige justificación cuando configura un proyecto que NO es suyo.
+    if es_jefe_operaciones(payload):
+        if not _jefe_op_asignado_al_servicio(db, payload, empresa_id, servicio_id):
+            if not (x_justificacion or "").strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Se requiere justificación (X-Justificacion) para configurar un servicio que no tienes asignado",
+                )
+        if (x_justificacion or "").strip():
+            set_justificacion(x_justificacion)
 
     ps = _exigir_servicio_abierto(db, empresa_id, servicio_id)
 
