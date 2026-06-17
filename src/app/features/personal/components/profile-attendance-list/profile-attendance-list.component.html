@@ -44,13 +44,21 @@
                 } @else if (reg.estado === 'en_curso') {
                 <span class="pill-active">Activo</span>
                 } @else {
-                <div class="completed-badge">
-                    <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none"
-                        viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span class="hours-text">{{ reg.horas_trabajadas || '—' }}</span>
+                <div class="completed-col">
+                    <div class="completed-badge">
+                        <svg class="check-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="hours-text">{{ reg.horas_trabajadas || '—' }}</span>
+                    </div>
+                    @if (estadoSalida(reg) === 'tarde') {
+                        <span class="salida-chip chip-tarde">Salida tarde</span>
+                    }
+                    @if (estadoSalida(reg) === 'temprano') {
+                        <span class="salida-chip chip-temprano">Salida temprana</span>
+                    }
                 </div>
                 }
             </div>

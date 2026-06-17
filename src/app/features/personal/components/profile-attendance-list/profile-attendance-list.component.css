@@ -119,11 +119,37 @@
   border-radius: 20px;
 }
 
+.completed-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
 .completed-badge {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+}
+
+/* Chips de salida tarde / temprana */
+.salida-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.chip-tarde {
+  background: #fef9c3;
+  color: #a16207;
+  border: 1px solid #fde047;
+}
+.chip-temprano {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
 }
 
 .check-icon {
@@ -198,6 +224,8 @@
 :host-context([data-theme="dark"]) .empty-state { background: #0f172a; border-color: #334155; color: #64748b; }
 :host-context([data-theme="dark"]) .empty-state svg { color: #334155; }
 :host-context([data-theme="dark"]) .attendance-list::-webkit-scrollbar-thumb { background: #334155; }
+:host-context([data-theme="dark"]) .chip-tarde    { background: rgba(161,98,7,.15);  color: #fbbf24; border-color: rgba(161,98,7,.3); }
+:host-context([data-theme="dark"]) .chip-temprano { background: rgba(220,38,38,.12); color: #f87171; border-color: rgba(220,38,38,.25); }
 
 /* 🌙 MODO OSCURO — Sistema (prefers-color-scheme sin toggle) 🌙 */
 @media (prefers-color-scheme: dark) {
@@ -218,4 +246,6 @@
   :host-context(html:not([data-theme="light"])) .incomplete-badge { background: rgba(194, 65, 12, 0.12); color: #fb923c; border-color: rgba(194, 65, 12, 0.25); }
   :host-context(html:not([data-theme="light"])) .empty-state { background: #0f172a; border-color: #334155; color: #64748b; }
   :host-context(html:not([data-theme="light"])) .empty-state svg { color: #334155; }
+  :host-context(html:not([data-theme="light"])) .chip-tarde    { background: rgba(161,98,7,.15);  color: #fbbf24; border-color: rgba(161,98,7,.3); }
+  :host-context(html:not([data-theme="light"])) .chip-temprano { background: rgba(220,38,38,.12); color: #f87171; border-color: rgba(220,38,38,.25); }
 }

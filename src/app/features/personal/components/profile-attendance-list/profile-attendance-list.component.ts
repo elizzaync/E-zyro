@@ -79,6 +79,18 @@ export class ProfileAttendanceListComponent implements OnChanges {
     return '--:--';
   }
 
+  /** 'tarde' si salió después de 17:00, 'temprano' si salió antes, null si no aplica */
+  estadoSalida(reg: any): 'tarde' | 'temprano' | null {
+    if (!reg.salida) return null;
+    const [h, m] = String(reg.salida).split(':').map(Number);
+    if (isNaN(h)) return null;
+    const minutos = h * 60 + (m || 0);
+    const cierre  = this.HORA_CIERRE * 60; // 17:00 = 1020 min
+    if (minutos > cierre)  return 'tarde';
+    if (minutos < cierre)  return 'temprano';
+    return null;
+  }
+
   /**
    * Parsea la fecha de un registro con múltiples estrategias:
    * 1. Campo fecha ISO directo (reg.fecha = "2026-06-17")
