@@ -1015,3 +1015,60 @@
   flex-shrink: 0;
 }
 .cuspp-eye-btn:hover { color: var(--brand-green, #22c55e); }
+
+/* ── Modal confirmación cambio AFP ─────────────────────────────────────── */
+.afp-confirm-body {
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.afp-confirm-msg {
+  font-size: 14px;
+  color: var(--text-main, #1e293b);
+  line-height: 1.5;
+  margin: 0;
+}
+.afp-confirm-aviso {
+  display:       flex;
+  align-items:   flex-start;
+  gap:           10px;
+  background:    rgba(245,158,11,0.08);
+  border:        1px solid rgba(245,158,11,0.25);
+  border-radius: 10px;
+  padding:       12px 14px;
+  font-size:     13px;
+  color:         #92400e;
+  line-height:   1.5;
+}
+.afp-confirm-aviso svg { flex-shrink: 0; margin-top: 2px; color: #d97706; }
+.afp-confirm-actions {
+  display:         flex;
+  justify-content: flex-end;
+  gap:             10px;
+}
+.btn-afp-cancel {
+  padding:       9px 20px;
+  border-radius: 9px;
+  border:        1.5px solid var(--border-color, #e2e8f0);
+  background:    transparent;
+  color:         var(--text-main, #1e293b);
+  font-size:     13px;
+  font-weight:   600;
+  cursor:        pointer;
+  transition:    all 0.18s;
+}
+.btn-afp-cancel:hover { background: var(--bg-hover, #f1f5f9); }
+.btn-afp-confirm {
+  padding:       9px 22px;
+  border-radius: 9px;
+  border:        none;
+  background:    #d97706;
+  color:         #fff;
+  font-size:     13px;
+  font-weight:   700;
+  cursor:        pointer;
+  transition:    all 0.18s;
+  box-shadow:    0 3px 10px rgba(217,119,6,0.28);
+}
+.btn-afp-confirm:hover { background: #b45309; box-shadow: 0 5px 14px rgba(217,119,6,0.38); }

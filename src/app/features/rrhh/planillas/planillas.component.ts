@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { RrhhService, ResumenEmpleadoDto, PeriodoDto } from '../../../core/services/rrhh.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { AuthService } from '../../../core/services/auth.service';
+import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
 import html2pdf from 'html2pdf.js';
 
 const SUELDO_KEY       = 'ezp_sueldos_v1';
@@ -70,7 +71,7 @@ type EsquemaPago = 'quincenal' | 'mensual';
 @Component({
   selector: 'app-planillas',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './planillas.component.html',
   styleUrls: ['./planillas.component.css']
 })
@@ -122,6 +123,12 @@ export class PlanillasComponent implements OnInit {
 
   // ── Comisión AFP personalizada (% flujo): permite sobrescribir la tabla estándar
   afpComisionCustomMap: Record<string, number> = {};
+
+  // ── Modal confirmación cambio AFP entidad ─────────────────────────────────
+  afpConfirmOpen    = false;
+  afpConfirmEmpId   = '';
+  afpConfirmNewVal: AfpEntidad = 'integra';
+  afpConfirmLabel   = '';
 
   // ── Datos de la empresa (para el encabezado de la Planilla Mensual PDF) ────
   empresaInfo: { razon_social: string; ruc: string; regimen_tributario: string; direccion?: string; telefono?: string } | null = null;
@@ -403,13 +410,24 @@ export class PlanillasComponent implements OnInit {
   onAfpEntidadChange(empId: string, val: AfpEntidad): void {
     const actual = this.getAfpEntidad(empId);
     if (actual === val) return;
-    const label = this.afpEntidades.find(a => a.value === val)?.label ?? val;
-    const ok = confirm(
-      `¿Cambiar AFP a "${label}"?\n\nEste cambio aplica a partir de ahora y afectará el cálculo de la comisión en la boleta de pago. La comisión personalizada guardada (si existe) se conserva.`
-    );
-    if (!ok) return;
-    this.afpEntidadMap[empId] = val;
+    // Abrir modal de confirmación en lugar de confirm() nativo del navegador
+    this.afpConfirmEmpId  = empId;
+    this.afpConfirmNewVal = val;
+    this.afpConfirmLabel  = this.afpEntidades.find(a => a.value === val)?.label ?? val;
+    this.afpConfirmOpen   = true;
+  }
+
+  confirmarCambioAfp(): void {
+    this.afpEntidadMap[this.afpConfirmEmpId] = this.afpConfirmNewVal;
     localStorage.setItem(AFP_KEY, JSON.stringify(this.afpEntidadMap));
+    this.afpConfirmOpen = false;
+    this.toast.mostrar(`AFP actualizada a ${this.afpConfirmLabel} — aplica desde ahora`, 'success');
+  }
+
+  cancelarCambioAfp(): void {
+    // El select vuelve al valor previo al cerrarse el modal (Angular lo re-renderiza
+    // con el valor de afpEntidadMap que no fue modificado).
+    this.afpConfirmOpen = false;
   }
 
   // Retorna la comisión AFP efectiva: personalizada si el usuario la sobreescribió,
@@ -420,10 +438,11 @@ export class PlanillasComponent implements OnInit {
   }
 
   onAfpComisionChange(empId: string, raw: string): void {
-    const pct = parseFloat(raw.replace(/[^0-9.]/g, '')) / 100;
+    const pct = parseFloat(String(raw).replace(/[^0-9.]/g, '')) / 100;
     if (isNaN(pct) || pct < 0 || pct > 0.5) return;
     this.afpComisionCustomMap[empId] = pct;
     localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
+    this.toast.mostrar(`Comisión AFP actualizada a ${(pct * 100).toFixed(2)}% — aplica desde ahora`, 'success');
   }
 
   // ── CUSPP ─────────────────────────────────────────────────────────────────

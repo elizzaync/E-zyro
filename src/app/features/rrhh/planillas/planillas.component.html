@@ -361,11 +361,16 @@
             <td class="text-center td-afp-pct">
               @if (esDependiente(emp) && getPension(emp.id) === 'afp') {
                 <div class="afp-pct-col">
-                  <div class="afp-total-chip" [title]="'Aporte 10% + Seguro 1.37% + Comisión ' + (afpComisionPct(emp) * 100).toFixed(2) + '%'">
-                    {{ (pensionPct(emp) * 100).toFixed(2) }}%
+                  <!-- Chip: total que se descuenta al trabajador -->
+                  <div class="afp-total-chip"
+                    title="Total AFP descontado al trabajador: Aporte Obligatorio 10% + Prima de Seguro 1.37% + Comisión flujo {{ (afpComisionPct(emp) * 100).toFixed(2) }}%">
+                    Total: {{ (pensionPct(emp) * 100).toFixed(2) }}%
                   </div>
+                  <!-- Fila editable: solo la comisión sobre flujo (varía por AFP) -->
                   @if (puedeEditar) {
-                  <div class="afp-pct-row" title="Comisión sobre flujo. Editar solo si la AFP notificó un cambio.">
+                  <div class="afp-pct-row"
+                    title="Comisión sobre flujo que cobra {{ afpEntidadLabel(emp.id) }}. Cámbiala solo si la AFP te notificó una nueva tasa. Se guarda localmente.">
+                    <span class="afp-pct-label">Comis.:</span>
                     <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
                       [value]="(afpComisionPct(emp) * 100).toFixed(2)"
                       (change)="onAfpComisionChange(emp.id, $any($event.target).value)">
@@ -374,7 +379,7 @@
                   }
                 </div>
               } @else if (esDependiente(emp)) {
-              <span class="hrs-cero">13%</span>
+              <span class="hrs-cero" title="ONP: tasa fija 13%">13%</span>
               } @else {
               <span class="hrs-cero">—</span>
               }
@@ -783,3 +788,35 @@
   </div>
 </div>
 }
+
+<!-- ═══ MODAL CONFIRMACIÓN CAMBIO AFP ═══ -->
+<app-modal
+  [open]="afpConfirmOpen"
+  title="Cambiar entidad AFP"
+  [subtitle]="afpConfirmLabel"
+  maxWidth="460px"
+  iconBg="rgba(245,158,11,0.12)"
+  iconColor="#d97706"
+  (closeModal)="cancelarCambioAfp()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+    <path stroke-linecap="round" stroke-linejoin="round"
+      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+  </svg>
+
+  <div class="afp-confirm-body">
+    <p class="afp-confirm-msg">
+      Estás cambiando la AFP de este trabajador a <strong>{{ afpConfirmLabel }}</strong>.
+    </p>
+    <div class="afp-confirm-aviso">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span>Este cambio <strong>aplica a partir de ahora</strong> y se reflejará en la próxima boleta de pago. La comisión se actualizará a la tasa estándar de la nueva AFP.</span>
+    </div>
+    <div class="afp-confirm-actions">
+      <button class="btn-afp-cancel" type="button" (click)="cancelarCambioAfp()">Cancelar</button>
+      <button class="btn-afp-confirm" type="button" (click)="confirmarCambioAfp()">Confirmar cambio</button>
+    </div>
+  </div>
+</app-modal>
