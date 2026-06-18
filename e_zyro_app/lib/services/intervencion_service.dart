@@ -216,6 +216,32 @@ class IntervencionService {
         (_) => true,
       );
 
+  // GET /operaciones/servicio/{id}/equipos-intervenidos/{eiId}/intervenciones-previas
+  // Lista de intervenciones completadas del equipo para elegir el vínculo.
+  Future<ApiResult<List<VinculoInspeccion>>> getIntervencionesPrevias(
+          String servicioId, String eiId) =>
+      _run(
+        () => _client.get(
+            '/operaciones/servicio/$servicioId/equipos-intervenidos/$eiId/intervenciones-previas'),
+        (r) => (jsonDecode(r.body) as List)
+            .map((e) => VinculoInspeccion.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  // POST /operaciones/inspeccion/{id}/vincular
+  // Encadena (o desvincula) la inspección con una anterior del mismo equipo.
+  // padreId == null → desvincula.
+  Future<ApiResult<bool>> vincularInspeccion(
+    String inspeccionId, {
+    String? padreId,
+  }) =>
+      _run(
+        () => _client.post('/operaciones/inspeccion/$inspeccionId/vincular', {
+          'inspeccion_padre_id': padreId,
+        }),
+        (_) => true,
+      );
+
   // POST /operaciones/inspeccion/{id}/foto/{orden}  (multipart, campo 'archivo')
   // Devuelve {url, public_id}; misma sesión + mismo paso = reemplaza la foto.
   Future<ApiResult<({String url, String? publicId})>> subirFotoInspeccion(

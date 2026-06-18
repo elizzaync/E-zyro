@@ -84,6 +84,8 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
   String _filtro = '';
   final Set<String> _seleccionados = {};
   final _filtroCtrl = TextEditingController();
+  // "Otros equipos de la sede" arranca plegado: el foco es el servicio actual.
+  bool _otrosExpandido = false;
 
   @override
   void initState() {
@@ -334,6 +336,10 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
     if (_error) return _ErrorView(onRetry: _cargar);
 
     final filtrados = _filtrados;
+    // Separar lo que se interviene en ESTE servicio (protagonista) del resto
+    // de equipos de la sede (contexto, plegado por defecto).
+    final delServicio = filtrados.where((e) => e.delServicioActual).toList();
+    final otros = filtrados.where((e) => !e.delServicioActual).toList();
     return Column(
       children: [
         // Banner: equipos filtrados por ubicación/zona del servicio
@@ -443,162 +449,214 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
               : RefreshIndicator(
                   onRefresh: _cargar,
                   color: _green,
-                  child: ListView.builder(
+                  child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                    itemCount: filtrados.length,
-                    itemBuilder: (_, i) {
-                      final eq = filtrados[i];
-                      final sel = _seleccionados.contains(eq.id);
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
-                            color: sel
-                                ? _green.withValues(alpha: 0.6)
-                                : Colors.grey.withValues(alpha: 0.2),
-                          ),
+                    children: [
+                      // ── Sección protagonista: equipos de ESTE servicio ──
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.play_circle_outline,
+                                size: 18, color: _green),
+                            const SizedBox(width: 6),
+                            Text('En este servicio (${delServicio.length})',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: _green)),
+                          ],
                         ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () => _inspeccionar(eq),
+                      ),
+                      if (delServicio.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+                          child: Text(
+                            'Aún no abriste ningún equipo en este servicio. '
+                            'Elige uno de la sede para empezar a registrar fotos.',
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey.shade600),
+                          ),
+                        )
+                      else
+                        for (final eq in delServicio) _equipoCard(eq),
+                      // ── Sección secundaria: otros equipos (plegable) ────
+                      if (otros.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => setState(
+                              () => _otrosExpandido = !_otrosExpandido),
                           child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
                               children: [
-                                Row(
-                                  children: [
-                                    InkWell(
-                                      onTap: () => setState(() => sel
-                                          ? _seleccionados.remove(eq.id)
-                                          : _seleccionados.add(eq.id)),
-                                      child: Icon(
-                                        sel
-                                            ? Icons.check_box
-                                            : Icons.check_box_outline_blank,
-                                        size: 20,
-                                        color: sel ? _green : Colors.grey,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(eq.nombre,
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 13.5)),
-                                          if ((eq.codigo ?? '').isNotEmpty)
-                                            Text(eq.codigo!,
-                                                style: TextStyle(
-                                                    fontSize: 11,
-                                                    color:
-                                                        Colors.grey.shade600)),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: _estadoIntervencionColor(
-                                                eq.estadoIntervencion)
-                                            .withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        _estadoIntervencionLabel(
-                                            eq.estadoIntervencion),
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: _estadoIntervencionColor(
-                                              eq.estadoIntervencion),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                Icon(
+                                  _otrosExpandido
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                  size: 20,
+                                  color: Colors.grey.shade600,
                                 ),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 4,
-                                  children: [
-                                    if ((eq.tipoNombre ?? '').isNotEmpty)
-                                      _InfoMini(
-                                          icon: Icons.category_outlined,
-                                          text: eq.tipoNombre!),
-                                    if ((eq.ubicacion ?? '').isNotEmpty)
-                                      _InfoMini(
-                                          icon: Icons.place_outlined,
-                                          text: eq.zona == null
-                                              ? eq.ubicacion!
-                                              : '${eq.ubicacion} / ${eq.zona}'),
-                                    if ((eq.ultimoMantenimiento ?? '')
-                                        .isNotEmpty)
-                                      _InfoMini(
-                                          icon: Icons.history,
-                                          text:
-                                              'Últ.: ${eq.ultimoMantenimiento}'),
-                                    if ((eq.proximoMantenimiento ?? '')
-                                        .isNotEmpty)
-                                      _InfoMini(
-                                          icon: Icons.event_outlined,
-                                          text:
-                                              'Próx.: ${eq.proximoMantenimiento}'),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.push_pin_outlined,
-                                        size: 13, color: Colors.grey),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        (eq.ubicacionReferencia ?? '').isEmpty
-                                            ? 'Sin referencia'
-                                            : eq.ubicacionReferencia!,
-                                        style: TextStyle(
-                                            fontSize: 11.5,
-                                            color: Colors.grey.shade600,
-                                            fontStyle: (eq.ubicacionReferencia ??
-                                                        '')
-                                                    .isEmpty
-                                                ? FontStyle.italic
-                                                : FontStyle.normal),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (!widget.isClosed)
-                                      InkWell(
-                                        onTap: () => _editarReferencia(eq),
-                                        child: const Padding(
-                                          padding: EdgeInsets.all(4),
-                                          child: Icon(Icons.edit_outlined,
-                                              size: 15, color: Colors.grey),
-                                        ),
-                                      ),
-                                    const SizedBox(width: 6),
-                                    const Icon(Icons.chevron_right,
-                                        size: 18, color: Colors.grey),
-                                  ],
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Otros equipos de la sede (${otros.length})',
+                                    style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.grey.shade700),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                      );
-                    },
+                        if (_otrosExpandido)
+                          for (final eq in otros) _equipoCard(eq),
+                      ],
+                    ],
                   ),
                 ),
         ),
       ],
+    );
+  }
+
+  // Tarjeta de un equipo, reutilizada en ambas secciones del listado.
+  Widget _equipoCard(EquipoIntervenidoServicio eq) {
+    final sel = _seleccionados.contains(eq.id);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: sel
+              ? _green.withValues(alpha: 0.6)
+              : Colors.grey.withValues(alpha: 0.2),
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _inspeccionar(eq),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => sel
+                        ? _seleccionados.remove(eq.id)
+                        : _seleccionados.add(eq.id)),
+                    child: Icon(
+                      sel
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
+                      size: 20,
+                      color: sel ? _green : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(eq.nombre,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13.5)),
+                        if ((eq.codigo ?? '').isNotEmpty)
+                          Text(eq.codigo!,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey.shade600)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _estadoIntervencionColor(eq.estadoIntervencion)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      _estadoIntervencionLabel(eq.estadoIntervencion),
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: _estadoIntervencionColor(eq.estadoIntervencion),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 4,
+                children: [
+                  if ((eq.tipoNombre ?? '').isNotEmpty)
+                    _InfoMini(
+                        icon: Icons.category_outlined, text: eq.tipoNombre!),
+                  if ((eq.ubicacion ?? '').isNotEmpty)
+                    _InfoMini(
+                        icon: Icons.place_outlined,
+                        text: eq.zona == null
+                            ? eq.ubicacion!
+                            : '${eq.ubicacion} / ${eq.zona}'),
+                  if ((eq.ultimoMantenimiento ?? '').isNotEmpty)
+                    _InfoMini(
+                        icon: Icons.history,
+                        text: 'Últ.: ${eq.ultimoMantenimiento}'),
+                  if ((eq.proximoMantenimiento ?? '').isNotEmpty)
+                    _InfoMini(
+                        icon: Icons.event_outlined,
+                        text: 'Próx.: ${eq.proximoMantenimiento}'),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.push_pin_outlined,
+                      size: 13, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      (eq.ubicacionReferencia ?? '').isEmpty
+                          ? 'Sin referencia'
+                          : eq.ubicacionReferencia!,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.grey.shade600,
+                          fontStyle: (eq.ubicacionReferencia ?? '').isEmpty
+                              ? FontStyle.italic
+                              : FontStyle.normal),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (!widget.isClosed)
+                    InkWell(
+                      onTap: () => _editarReferencia(eq),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(Icons.edit_outlined,
+                            size: 15, color: Colors.grey),
+                      ),
+                    ),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

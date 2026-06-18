@@ -33,6 +33,10 @@ class EquipoIntervenidoServicio {
   String estadoIntervencion;
   final String? observaciones;
 
+  /// true si el equipo está atado al servicio actual (se interviene aquí ahora);
+  /// false si solo pertenece a la misma sede/zona.
+  final bool delServicioActual;
+
   EquipoIntervenidoServicio({
     required this.id,
     required this.nombre,
@@ -50,6 +54,7 @@ class EquipoIntervenidoServicio {
     this.proximoMantenimiento,
     this.estadoIntervencion = 'sin_inspeccion',
     this.observaciones,
+    this.delServicioActual = false,
   });
 
   factory EquipoIntervenidoServicio.fromJson(Map<String, dynamic> json) =>
@@ -71,6 +76,7 @@ class EquipoIntervenidoServicio {
         estadoIntervencion:
             json['estado_intervencion'] as String? ?? 'sin_inspeccion',
         observaciones: json['observaciones'] as String?,
+        delServicioActual: json['del_servicio_actual'] as bool? ?? false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -90,6 +96,7 @@ class EquipoIntervenidoServicio {
         'proximo_mantenimiento': proximoMantenimiento,
         'estado_intervencion': estadoIntervencion,
         'observaciones': observaciones,
+        'del_servicio_actual': delServicioActual,
       };
 }
 
@@ -178,6 +185,34 @@ class EquipoInspeccionInfo {
       );
 }
 
+/// Resumen ligero de una inspección, usado para mostrar el vínculo con una
+/// intervención anterior del mismo equipo.
+class VinculoInspeccion {
+  final String id;
+  final String estado;
+  final String? fechaFin; // ISO
+  final String? servicioNombre;
+
+  const VinculoInspeccion({
+    required this.id,
+    this.estado = '',
+    this.fechaFin,
+    this.servicioNombre,
+  });
+
+  factory VinculoInspeccion.fromJson(Map<String, dynamic> json) =>
+      VinculoInspeccion(
+        id: json['id']?.toString() ?? '',
+        estado: json['estado'] as String? ?? '',
+        fechaFin: json['fecha_fin'] as String?,
+        servicioNombre: json['servicio_nombre'] as String?,
+      );
+
+  /// Fecha legible (solo yyyy-MM-dd) o '—'.
+  String get fechaCorta =>
+      (fechaFin == null || fechaFin!.isEmpty) ? '—' : fechaFin!.split('T').first;
+}
+
 /// Respuesta de GET .../equipos-intervenidos/{eiId}/inspeccion.
 /// El backend crea la sesión si no existe; si el equipo ya está completado
 /// para este servicio devuelve la última sesión en modo solo lectura.
@@ -189,6 +224,15 @@ class InspeccionActiva {
   final String? proximaFecha;
   final EquipoInspeccionInfo equipo;
 
+  /// Id de la intervención anterior vinculada (null si no hay vínculo).
+  final String? inspeccionPadreId;
+
+  /// Resumen del padre vinculado (si lo hay).
+  final VinculoInspeccion? padre;
+
+  /// Candidata sugerida: última intervención completada del mismo equipo.
+  final VinculoInspeccion? intervencionAnterior;
+
   InspeccionActiva({
     required this.inspeccionId,
     required this.estado,
@@ -196,6 +240,9 @@ class InspeccionActiva {
     this.observaciones,
     this.proximaFecha,
     required this.equipo,
+    this.inspeccionPadreId,
+    this.padre,
+    this.intervencionAnterior,
   });
 
   factory InspeccionActiva.fromJson(Map<String, dynamic> json) =>
@@ -209,6 +256,14 @@ class InspeccionActiva {
         proximaFecha: json['proxima_fecha'] as String?,
         equipo: EquipoInspeccionInfo.fromJson(
             (json['equipo'] as Map<String, dynamic>?) ?? const {}),
+        inspeccionPadreId: json['inspeccion_padre_id']?.toString(),
+        padre: json['padre'] is Map
+            ? VinculoInspeccion.fromJson(json['padre'] as Map<String, dynamic>)
+            : null,
+        intervencionAnterior: json['intervencion_anterior'] is Map
+            ? VinculoInspeccion.fromJson(
+                json['intervencion_anterior'] as Map<String, dynamic>)
+            : null,
       );
 }
 
@@ -223,6 +278,9 @@ class HistorialInspeccionItem {
   final String? fechaInicio;
   final String? fechaFin;
 
+  /// Id de la intervención anterior a la que esta da seguimiento (si la hay).
+  final String? inspeccionPadreId;
+
   HistorialInspeccionItem({
     required this.id,
     required this.estado,
@@ -231,6 +289,7 @@ class HistorialInspeccionItem {
     this.proximaFechaMantenimiento,
     this.fechaInicio,
     this.fechaFin,
+    this.inspeccionPadreId,
   });
 
   factory HistorialInspeccionItem.fromJson(Map<String, dynamic> json) =>
@@ -245,6 +304,7 @@ class HistorialInspeccionItem {
             json['proxima_fecha_mantenimiento'] as String?,
         fechaInicio: json['fecha_inicio'] as String?,
         fechaFin: json['fecha_fin'] as String?,
+        inspeccionPadreId: json['inspeccion_padre_id']?.toString(),
       );
 }
 

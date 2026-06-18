@@ -88,6 +88,9 @@ class _PantallaIntervencionEquipoState
             observaciones: data.observaciones,
             proximaFecha: data.proximaFecha,
             equipo: data.equipo,
+            inspeccionPadreId: data.inspeccionPadreId,
+            padre: data.padre,
+            intervencionAnterior: data.intervencionAnterior,
           );
         }
       }
@@ -313,7 +316,8 @@ class _PantallaIntervencionEquipoState
                       subtitle: Text(
                         '$done/${h.resultado.length} pasos'
                         '${(h.observaciones ?? '').isNotEmpty ? ' · ${h.observaciones}' : ''}'
-                        '${(h.proximaFechaMantenimiento ?? '').isNotEmpty ? '\nPróx. mantenimiento: ${h.proximaFechaMantenimiento}' : ''}',
+                        '${(h.proximaFechaMantenimiento ?? '').isNotEmpty ? '\nPróx. mantenimiento: ${h.proximaFechaMantenimiento}' : ''}'
+                        '${h.inspeccionPadreId != null ? '\n↳ Da seguimiento a una intervención anterior' : ''}',
                         style: const TextStyle(fontSize: 11.5),
                       ),
                     );
@@ -322,6 +326,187 @@ class _PantallaIntervencionEquipoState
         ),
       ),
     );
+  }
+
+  // ── Vínculo con una intervención anterior del mismo equipo ──────────────────
+  Future<void> _vincular(String? padreId) async {
+    if (_data == null) return;
+    final res = await _svc!
+        .vincularInspeccion(_data!.inspeccionId, padreId: padreId);
+    if (!mounted) return;
+    if (res.ok) {
+      _snack(
+          padreId == null
+              ? 'Vínculo eliminado.'
+              : 'Vinculado a la intervención anterior.',
+          _green);
+      await _cargar();
+    } else {
+      _snack(
+          res.errorMessage.isEmpty
+              ? 'No se pudo actualizar el vínculo.'
+              : res.errorMessage,
+          _danger);
+    }
+  }
+
+  /// Abre un selector con TODAS las intervenciones anteriores del equipo para
+  /// que el usuario elija a cuál vincular la inspección actual.
+  Future<void> _abrirSelectorVinculo() async {
+    if (_data == null) return;
+    final res =
+        await _svc!.getIntervencionesPrevias(widget.servicioId, widget.eiId);
+    if (!mounted) return;
+    final items = res.data ?? [];
+    if (items.isEmpty) {
+      _snack('No hay intervenciones anteriores para vincular.', _amber);
+      return;
+    }
+    final elegido = await showModalBottomSheet<VinculoInspeccion>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: Container(
+          constraints:
+              BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text('Elegir servicio anterior',
+                    style:
+                        TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final it = items[i];
+                    final yaEs = _data!.inspeccionPadreId == it.id;
+                    return ListTile(
+                      dense: true,
+                      leading: Icon(Icons.history,
+                          color: yaEs ? _green : Colors.grey),
+                      title: Text(it.servicioNombre ?? 'Servicio',
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
+                      subtitle: Text('Finalizado: ${it.fechaCorta}',
+                          style: const TextStyle(fontSize: 11.5)),
+                      trailing: yaEs
+                          ? const Icon(Icons.check_circle,
+                              color: _green, size: 18)
+                          : null,
+                      onTap: () => Navigator.pop(ctx, it),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (elegido == null || !mounted) return;
+    await _vincular(elegido.id);
+  }
+
+  /// Tarjeta de vínculo: muestra el padre si existe, o sugiere encadenar con la
+  /// última intervención del equipo. Lista vacía si no hay nada que ofrecer.
+  List<Widget> _vinculoCardChildren() {
+    final d = _data;
+    if (d == null) return const [];
+    final padre = d.padre;
+    final anterior = d.intervencionAnterior;
+    if (padre == null && anterior == null) return const [];
+
+    final bool vinculado = padre != null;
+    final Color baseColor =
+        vinculado ? const Color(0xFF3B82F6) : Colors.grey;
+
+    final card = Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: baseColor.withValues(alpha: vinculado ? 0.08 : 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: baseColor.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(vinculado ? Icons.link : Icons.history_toggle_off,
+                  size: 18,
+                  color: vinculado
+                      ? const Color(0xFF3B82F6)
+                      : Colors.grey.shade600),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      vinculado
+                          ? 'Da seguimiento a una intervención anterior'
+                          : '¿Da seguimiento a un trabajo anterior?',
+                      style: const TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      vinculado
+                          ? '${padre.servicioNombre ?? 'Intervención'} · ${padre.fechaCorta}'
+                          : 'Última intervención: '
+                              '${anterior!.servicioNombre ?? 'servicio'} · ${anterior.fechaCorta}',
+                      style: TextStyle(
+                          fontSize: 11.5, color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (!_estaFinalizado) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: vinculado
+                  ? [
+                      TextButton(
+                        onPressed: _abrirSelectorVinculo,
+                        child: const Text('Cambiar',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                      TextButton(
+                        onPressed: () => _vincular(null),
+                        child: const Text('Quitar',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                    ]
+                  : [
+                      TextButton(
+                        onPressed: _abrirSelectorVinculo,
+                        child: const Text('Elegir…',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                      TextButton(
+                        onPressed: () => _vincular(anterior!.id),
+                        child: const Text('Vincular última',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+            ),
+          ],
+        ],
+      ),
+    );
+    return [card, const SizedBox(height: 12)];
   }
 
   void _irACertificado() {
@@ -383,6 +568,7 @@ class _PantallaIntervencionEquipoState
                     children: [
                       _HeaderEquipo(equipo: eq!),
                       const SizedBox(height: 12),
+                      ..._vinculoCardChildren(),
                       // Progreso
                       Row(
                         children: [
