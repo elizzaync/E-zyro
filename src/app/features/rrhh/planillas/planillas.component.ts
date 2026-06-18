@@ -1111,8 +1111,7 @@ export class PlanillasComponent implements OnInit {
       </table>
 
       <div class="bol-pie">
-        Documento emitido por <strong>${razonSocial.toUpperCase()}</strong> conforme al D.S. N.° 001-98-TR (Boleta de Pago) y entregado al trabajador como constancia de haberes del período indicado.<br>
-        R.M.V. 2026: S/ ${RMV_VIGENTE} &middot; UIT 2026: S/ ${UIT_VIGENTE} &middot; EsSalud: ${(ESSALUD_PCT * 100).toFixed(0)}% (cargo empleador) &middot; Ley N.° 32353 — Régimen: ${this.regimenLabel}<br>
+        Documento emitido por <strong>${razonSocial.toUpperCase()}</strong><br>
         Generado a través del Sistema de Gestión Empresarial E-ZYRO &middot; Emitido el ${fechaEmision}.
       </div>
     </div>`;
