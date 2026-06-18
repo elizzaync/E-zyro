@@ -90,10 +90,8 @@ _PZ_FECHA_ACT_X,       _PZ_FECHA_ACT_Y       = 431,  86
 # "Área / Ubicación:"   y=104-114, x=32    → valor a la derecha del ":"
 _PZ_UBICACION_X,       _PZ_UBICACION_Y       = 106, 112
 
-# ── CERTIFICADO Nº — espacio en blanco tras "Nº" (x=330 a x=567, celda y=126-143) ──
-_PZ_CERT_RECT             = fitz.Rect(330, 126, 567, 143)
-_PZ_CERT_X0, _PZ_CERT_X1 = 330.0, 567.0
-_PZ_CERT_Y                = 139
+# ── CERTIFICADO Nº — texto va pegado después de "Nº " (x=333), sin white rect ──
+_PZ_CERT_X, _PZ_CERT_Y   = 333, 139
 
 # ── Fila de medición — columnas exactas (extraídas del template con get_drawings) ──
 # data row: y=290.09–309.05, baseline≈304
@@ -159,9 +157,8 @@ def generar_protocolo_pozo(
     # "Área / Ubicación:" (y=104-114): valor a la derecha del ":"
     page.insert_text(fitz.Point(_PZ_UBICACION_X,  _PZ_UBICACION_Y),  ubicacion.upper(),    **fa7)
 
-    # ── Nombre del pozo — centrado en espacio tras "Nº" (x=330-567) ────
-    _white_rect(page, _PZ_CERT_RECT)
-    _center(page, _PZ_CERT_X0, _PZ_CERT_X1, _PZ_CERT_Y, nombre_pozo.upper(), size=8, bold=True)
+    # ── Nombre del pozo — pegado justo tras "Nº " como continuación de oración ──
+    page.insert_text(fitz.Point(_PZ_CERT_X, _PZ_CERT_Y), nombre_pozo.upper(), **fa8b)
 
     # ── Fila de medición — valores centrados en cada columna ─────────
     _center(page, *_PZ_COL_UBIC,   _PZ_DATA_Y, ubicacion.upper())
