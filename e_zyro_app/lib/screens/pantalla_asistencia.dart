@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/asistencia_models.dart';
@@ -42,6 +43,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   // Estado del backend
   EstadoHoy? _estadoHoy;
   List<RegistroAsistencia> _historial = [];
+  ResumenSemanal? _resumen;
   bool _cargandoInicial = true;
 
   // Registros offline pendientes de sincronización
@@ -191,11 +193,13 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       final results = await Future.wait([
         svc.getEstadoHoy(),
         svc.getHistorial(),
+        svc.getResumenSemanal(),
       ]);
       if (mounted) {
         setState(() {
           _estadoHoy = results[0] as EstadoHoy;
           _historial  = results[1] as List<RegistroAsistencia>;
+          _resumen    = results[2] as ResumenSemanal?;
           _cargandoInicial = false;
         });
       }
@@ -526,6 +530,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 const SizedBox(height: 16),
               ],
               _buildRegisterButton(),
+              const SizedBox(height: 28),
+              _buildReportes(),
               const SizedBox(height: 28),
               _buildHistorySection(),
               const SizedBox(height: 20),
@@ -1100,29 +1106,20 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  // ── Historial ──────────────────────────────────────────────────────────────
+  // ── Historial (tarjetas por día, expandibles) ───────────────────────────────
   Widget _buildHistorySection() {
     final Map<String, List<RegistroAsistencia>> grupos = {};
     for (final r in _historial) {
       grupos.putIfAbsent(_dayKey(r.timestamp), () => []).add(r);
     }
+    final keys = grupos.keys.toList()..sort((a, b) => b.compareTo(a));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Historial', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            if (_historial.isNotEmpty)
-              TextButton.icon(
-                onPressed: _exportarAsistenciaPdf,
-                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                label: const Text('Exportar PDF'),
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFF8FD11B)),
-              ),
-          ],
-        ),
+        Text('Historial',
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
         const SizedBox(height: 12),
         if (_cargandoInicial)
           Container(
@@ -1134,7 +1131,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               ),
             ),
           )
-        else if (grupos.isEmpty)
+        else if (keys.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
             decoration: _cardDecoration(),
@@ -1143,28 +1140,24 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 children: [
                   Icon(Icons.history, size: 44, color: Colors.grey),
                   SizedBox(height: 8),
-                  Text('Sin registros previos', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text('Sin registros previos',
+                      style: TextStyle(color: Colors.grey, fontSize: 13)),
                   SizedBox(height: 4),
-                  Text('Tu primer registro aparecerá aquí', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  Text('Tu primer registro aparecerá aquí',
+                      style: TextStyle(color: Colors.grey, fontSize: 11)),
                 ],
               ),
             ),
           )
         else
-          ...grupos.entries.map((entry) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  _labelForKey(entry.key),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey, letterSpacing: 0.6),
-                ),
-              ),
-              ...entry.value.map(_buildRegistroItem),
-              const SizedBox(height: 12),
-            ],
-          )),
+          ...List.generate(keys.length, (i) {
+            final regs = [...grupos[keys[i]]!]
+              ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _DiaHistorialCard(registros: regs, isFirst: i == 0),
+            );
+          }),
       ],
     );
   }
@@ -1172,94 +1165,260 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   String _dayKey(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
-  String _labelForKey(String key) {
-    final now = DateTime.now();
-    if (key == _dayKey(now)) return 'HOY';
-    if (key == _dayKey(now.subtract(const Duration(days: 1)))) return 'AYER';
-    final p = key.split('-');
-    return '${p[2]}/${p[1]}/${p[0]}';
-  }
+  // ── Reportes (resumen semanal: horas, gráfico y estadísticas) ───────────────
+  Widget _buildReportes() {
+    const green = Color(0xFF8FD11B);
+    final r = _resumen;
 
-  Widget _buildRegistroItem(RegistroAsistencia r) {
-    final aprobado   = r.status == 'APROBADO';
-    final esRevision = r.resultadoIa == 'revision_manual';
-    final isEntrada  = r.tipo == 'ENTRADA';
-    const green      = Color(0xFF8FD11B);
-    final tipoColor  = isEntrada ? green : Colors.blue;
-    final statusColor = aprobado ? green : (esRevision ? Colors.orange : Colors.red);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: _cardDecoration(),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(color: tipoColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-            child: Icon(isEntrada ? Icons.login : Icons.logout, color: tipoColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(r.tipo, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    Text(
-                      '${_pad(r.timestamp.hour)}:${_pad(r.timestamp.minute)}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                    if (r.latitud != null) ...[
-                      const Text(' · ', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      const Icon(Icons.location_on, size: 11, color: Color(0xFF8FD11B)),
-                      Text(
-                        r.precisionM != null
-                            ? ' ±${r.precisionM!.toStringAsFixed(0)}m'
-                            : ' GPS',
-                        style: const TextStyle(color: Color(0xFF8FD11B), fontSize: 11, fontWeight: FontWeight.w500),
-                      ),
-                    ] else ...[
-                      const Text(' · ', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                      const Icon(Icons.location_off, size: 11, color: Colors.grey),
-                      const Text(' Sin GPS', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                    ],
-                  ],
-                ),
-                if (esRevision) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'Requiere revisión manual',
-                      style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
+                Text('Reportes',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3)),
+                Text('Resumen de tu jornada',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12, color: Colors.grey)),
               ],
             ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                child: Text(r.status, style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w600)),
+            if (_historial.isNotEmpty)
+              TextButton.icon(
+                onPressed: _exportarAsistenciaPdf,
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
+                label: const Text('Exportar PDF'),
+                style: TextButton.styleFrom(
+                    foregroundColor: green,
+                    padding: const EdgeInsets.symmetric(horizontal: 4)),
               ),
-              const SizedBox(height: 4),
-              Text('${r.score.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        // Tarjeta resumen semanal
+        Container(
+          decoration: _cardDecoration(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('HORAS ESTA SEMANA',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5)),
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(_durLabel(r?.minutosTrabajadosSemana ?? 0),
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -1)),
+                          const SizedBox(width: 8),
+                          Text('/ ${r?.metaHoras ?? 48}h',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 11, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text('${r?.progresoPct ?? 0}%',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF5E9A1C))),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: r?.progreso ?? 0,
+                  minHeight: 8,
+                  backgroundColor: const Color(0xFFEEF0E8),
+                  valueColor: const AlwaysStoppedAnimation<Color>(green),
+                ),
+              ),
+              const SizedBox(height: 18),
+              _buildWeeklyChart(r),
             ],
           ),
+        ),
+        const SizedBox(height: 11),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatTile(
+                icon: Icons.calendar_month_outlined,
+                iconBg: green.withValues(alpha: 0.12),
+                iconColor: const Color(0xFF5E9A1C),
+                value: '${r?.diasTrabajados ?? 0}',
+                label: 'Días trabajados',
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: _buildStatTile(
+                icon: Icons.access_time_outlined,
+                iconBg: Colors.blue.withValues(alpha: 0.12),
+                iconColor: Colors.blue.shade600,
+                value: _durLabel(r?.promedioMinDiario ?? 0),
+                label: 'Promedio diario',
+              ),
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: _buildStatTile(
+                icon: Icons.task_alt_outlined,
+                iconBg: green.withValues(alpha: 0.12),
+                iconColor: const Color(0xFF5E9A1C),
+                value: r?.puntualidadPct != null ? '${r!.puntualidadPct}%' : '—',
+                label: 'Puntualidad',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeeklyChart(ResumenSemanal? r) {
+    const green = Color(0xFF8FD11B);
+    final dias = r?.dias ?? const [];
+    if (dias.isEmpty) {
+      return const SizedBox(
+        height: 92,
+        child: Center(
+            child: Text('Sin datos de la semana',
+                style: TextStyle(color: Colors.grey, fontSize: 12))),
+      );
+    }
+    final maxH = r!.maxHorasDia;
+    return SizedBox(
+      height: 96,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: dias.map((d) {
+          final tieneDatos = (d.minutosTrabajados ?? 0) > 0;
+          final ratio = maxH == 0 ? 0.0 : (d.horas / maxH).clamp(0.06, 1.0);
+          return Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  tieneDatos ? d.horas.toStringAsFixed(1) : '—',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: d.esHoy ? const Color(0xFF5E9A1C) : Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Flexible(
+                  child: FractionallySizedBox(
+                    heightFactor: ratio.toDouble(),
+                    widthFactor: 1,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: d.esHoy
+                            ? green
+                            : (tieneDatos
+                                ? green.withValues(alpha: 0.30)
+                                : const Color(0xFFEAEDE3)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(7),
+                          bottom: Radius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  d.label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: d.esHoy ? const Color(0xFF5E9A1C) : Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildStatTile({
+    required IconData icon,
+    required Color iconBg,
+    required Color iconColor,
+    required String value,
+    required String label,
+  }) {
+    return Container(
+      decoration: _cardDecoration(),
+      padding: const EdgeInsets.all(13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+                color: iconBg, borderRadius: BorderRadius.circular(9)),
+            child: Icon(icon, color: iconColor, size: 16),
+          ),
+          const SizedBox(height: 9),
+          Text(value,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 1),
+          Text(label,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
+  }
+
+  /// Minutos → "Xh YYm".
+  static String _durLabel(int minutos) {
+    final h = minutos ~/ 60;
+    final m = minutos % 60;
+    return '${h}h ${m.toString().padLeft(2, '0')}m';
   }
 
   BoxDecoration _cardDecoration() {
@@ -1273,6 +1432,364 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       boxShadow: isDark
           ? [BoxShadow(color: green.withValues(alpha: 0.10), blurRadius: 12, spreadRadius: 1)]
           : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Tarjeta de día del historial (expandible): entrada → salida, almuerzo y
+// detalle de marcaciones con GPS. Lee de los RegistroAsistencia del día.
+// ═══════════════════════════════════════════════════════════════════════════
+class _DiaHistorialCard extends StatefulWidget {
+  final List<RegistroAsistencia> registros; // mismo día, orden ascendente
+  final bool isFirst;
+  const _DiaHistorialCard({required this.registros, this.isFirst = false});
+
+  @override
+  State<_DiaHistorialCard> createState() => _DiaHistorialCardState();
+}
+
+class _DiaHistorialCardState extends State<_DiaHistorialCard> {
+  static const _green = Color(0xFF5E9A1C);
+  static const _greenBg = Color(0xFFE9F3DA);
+  static const _blue = Color(0xFF4A90C2);
+  static const _salmon = Color(0xFFA9897A);
+
+  static const _diasSemana = [
+    'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+  ];
+  static const _mesesAbr = [
+    'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
+    'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
+  ];
+
+  bool _expanded = false;
+
+  String _hhmm(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+
+  String _dur(int minutos) {
+    final h = minutos ~/ 60;
+    final m = minutos % 60;
+    return '${h}h ${m.toString().padLeft(2, '0')}m';
+  }
+
+  RegistroAsistencia? _primero(String tipo) =>
+      widget.registros.where((r) => r.tipo == tipo).firstOrNull;
+  RegistroAsistencia? _ultimo(String tipo) =>
+      widget.registros.where((r) => r.tipo == tipo).lastOrNull;
+
+  @override
+  Widget build(BuildContext context) {
+    final regs = widget.registros;
+    final fecha = regs.first.timestamp;
+    final entrada = _primero('ENTRADA');
+    final salida = _ultimo('SALIDA');
+    final iniAlm = _primero('ENTRADA_ALMUERZO'); // inicio del almuerzo
+    final finAlm = _primero('SALIDA_ALMUERZO'); // fin del almuerzo
+
+    int? minAlmuerzo;
+    if (iniAlm != null && finAlm != null) {
+      minAlmuerzo = finAlm.timestamp.difference(iniAlm.timestamp).inMinutes.abs();
+    }
+    int? minTrab;
+    if (entrada != null && salida != null) {
+      final bruto = salida.timestamp.difference(entrada.timestamp).inMinutes;
+      minTrab = (bruto - (minAlmuerzo ?? 0)).clamp(0, 1 << 30);
+    }
+    final totalLabel = minTrab != null ? _dur(minTrab) : '--';
+
+    // Estado del día a partir de las marcaciones
+    final hayRechazo = regs.any((r) => r.status != 'APROBADO' && r.resultadoIa == 'rechazado');
+    final hayRevision = regs.any((r) => r.resultadoIa == 'revision_manual');
+    final estadoLabel = hayRechazo
+        ? 'Con rechazos'
+        : (hayRevision ? 'En revisión' : 'Aprobado');
+    final estadoColor = hayRechazo
+        ? Colors.red
+        : (hayRevision ? Colors.orange : _green);
+
+    final surface = Theme.of(context).colorScheme.surface;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0D282E2A), blurRadius: 10, offset: Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        children: [
+          // ── Encabezado ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 11),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.isFirst ? _greenBg : const Color(0xFFF2F2EA),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_mesesAbr[fecha.month - 1],
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: widget.isFirst ? _green : Colors.grey)),
+                      Text('${fecha.day}',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
+                              color: widget.isFirst ? _green : Colors.grey.shade700)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_diasSemana[fecha.weekday - 1],
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14.5, fontWeight: FontWeight.w700)),
+                      Text('${regs.length} marcaciones',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5, color: Colors.grey)),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(totalLabel,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: estadoColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(estadoLabel,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: estadoColor)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // ── Entrada → Salida ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
+            child: Row(
+              children: [
+                _endpoint('Entrada', entrada != null ? _hhmm(entrada.timestamp) : '--:--', _green, false),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(totalLabel,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFB6BBAE))),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: List.generate(
+                          16,
+                          (i) => Expanded(
+                            child: Container(
+                              height: 2,
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
+                              color: i.isEven
+                                  ? const Color(0xFFD6DACE)
+                                  : Colors.transparent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _endpoint('Salida', salida != null ? _hhmm(salida.timestamp) : '--:--', _blue, true),
+              ],
+            ),
+          ),
+          // ── Fila de almuerzo (si hay marcas) ──
+          if (iniAlm != null || finAlm != null)
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F7F0),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.coffee_outlined, color: _salmon, size: 15),
+                    const SizedBox(width: 9),
+                    Text('Almuerzo',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade700)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        iniAlm != null && finAlm != null
+                            ? '${_hhmm(iniAlm.timestamp)} – ${_hhmm(finAlm.timestamp)} · $minAlmuerzo min'
+                            : (iniAlm != null
+                                ? 'Inició ${_hhmm(iniAlm.timestamp)}'
+                                : 'Fin ${_hhmm(finAlm!.timestamp)}'),
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFB6BBAE)),
+                      ),
+                    ),
+                    Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        color: const Color(0xFFB6BBAE), size: 16),
+                  ],
+                ),
+              ),
+            )
+          else
+            GestureDetector(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_expanded ? 'Ocultar marcaciones' : 'Ver marcaciones',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey)),
+                    Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                        color: Colors.grey, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          // ── Detalle expandido ──
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    child: Column(
+                      children: [
+                        const Divider(color: Color(0xFFEEF0E8), height: 1),
+                        const SizedBox(height: 12),
+                        ...regs.map((r) => Padding(
+                              padding: const EdgeInsets.only(bottom: 11),
+                              child: _eventRow(r),
+                            )),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _endpoint(String label, String time, Color color, bool alignRight) {
+    final dot = Container(
+      width: 9, height: 9,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    );
+    final lbl = Text(label.toUpperCase(),
+        style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Colors.grey.shade700,
+            letterSpacing: 0.3));
+    return Column(
+      crossAxisAlignment:
+          alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: alignRight
+              ? [lbl, const SizedBox(width: 6), dot]
+              : [dot, const SizedBox(width: 6), lbl],
+        ),
+        Padding(
+          padding: EdgeInsets.only(
+              left: alignRight ? 0 : 15, right: alignRight ? 15 : 0, top: 3),
+          child: Text(time,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 20, fontWeight: FontWeight.w800)),
+        ),
+      ],
+    );
+  }
+
+  Widget _eventRow(RegistroAsistencia r) {
+    final esAlmuerzo = r.tipo.contains('ALMUERZO');
+    final esEntrada = r.tipo == 'ENTRADA';
+    final Color color = esAlmuerzo ? _salmon : (esEntrada ? _green : _blue);
+    final label = switch (r.tipo) {
+      'ENTRADA' => 'Entrada',
+      'SALIDA' => 'Salida',
+      'ENTRADA_ALMUERZO' => 'Inicio almuerzo',
+      'SALIDA_ALMUERZO' => 'Fin almuerzo',
+      _ => r.tipo,
+    };
+    final estado = r.status == 'APROBADO'
+        ? 'Aprobado'
+        : (r.resultadoIa == 'revision_manual' ? 'Revisión' : 'Rechazado');
+    final gps = r.precisionM != null
+        ? 'GPS ±${r.precisionM!.toStringAsFixed(0)}m'
+        : (r.latitud != null ? 'GPS' : 'Sin GPS');
+    final meta = '$gps · $estado';
+
+    return Row(
+      children: [
+        Container(
+          width: 30, height: 30,
+          decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(9)),
+          child: Icon(
+            esAlmuerzo
+                ? Icons.coffee_outlined
+                : (esEntrada ? Icons.login_rounded : Icons.logout_rounded),
+            color: color, size: 15,
+          ),
+        ),
+        const SizedBox(width: 11),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13, fontWeight: FontWeight.w700)),
+              Text(meta,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+        ),
+        Text(_hhmm(r.timestamp),
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 13, fontWeight: FontWeight.w700)),
+      ],
     );
   }
 }

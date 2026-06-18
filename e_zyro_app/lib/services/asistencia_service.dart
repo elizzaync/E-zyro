@@ -589,6 +589,20 @@ class AsistenciaService {
     return [];
   }
 
+  // ── Resumen semanal del propio usuario (pantalla personal) ────────────────
+
+  /// Horas de la semana, días trabajados, promedio y puntualidad (vs plan).
+  /// Devuelve null si el servidor no responde (la UI degrada con lo local).
+  Future<ResumenSemanal?> getResumenSemanal() async {
+    try {
+      final r = await _client.get('/asistencia/mi-resumen-semanal');
+      if (r.statusCode == 200) {
+        return ResumenSemanal.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // ── Control de asistencias (supervisión, requiere asistencia:ver) ─────────
 
   /// Resumen del día por empleado (entrada/salida/almuerzo + horas + cumplimiento).

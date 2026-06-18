@@ -84,6 +84,91 @@ class MarcarResponse {
   }
 }
 
+/// Un día dentro del resumen semanal (GET /asistencia/mi-resumen-semanal).
+class DiaResumen {
+  final String fecha; // ISO yyyy-MM-dd
+  final String label; // L M M J V S D
+  final bool esHoy;
+  final int? minutosTrabajados;
+  final String? entradaHora;
+  final String? salidaHora;
+  final bool llegoTarde;
+  final bool esExcepcion;
+
+  const DiaResumen({
+    required this.fecha,
+    required this.label,
+    this.esHoy = false,
+    this.minutosTrabajados,
+    this.entradaHora,
+    this.salidaHora,
+    this.llegoTarde = false,
+    this.esExcepcion = false,
+  });
+
+  factory DiaResumen.fromJson(Map<String, dynamic> j) => DiaResumen(
+        fecha: j['fecha'] as String? ?? '',
+        label: j['label'] as String? ?? '',
+        esHoy: j['es_hoy'] as bool? ?? false,
+        minutosTrabajados: (j['minutos_trabajados'] as num?)?.toInt(),
+        entradaHora: j['entrada_hora'] as String?,
+        salidaHora: j['salida_hora'] as String?,
+        llegoTarde: j['llego_tarde'] as bool? ?? false,
+        esExcepcion: j['es_excepcion'] as bool? ?? false,
+      );
+
+  double get horas => (minutosTrabajados ?? 0) / 60.0;
+}
+
+/// Resumen semanal del empleado (pantalla personal). La puntualidad la calcula
+/// el backend contra el plan/turno designado (respeta excepciones tipo TI).
+class ResumenSemanal {
+  final String semanaInicio; // ISO del lunes
+  final int metaHoras; // p. ej. 48
+  final int minutosTrabajadosSemana;
+  final int diasTrabajados;
+  final int promedioMinDiario;
+  final int? puntualidadPct; // null si no hay días con entrada
+  final List<DiaResumen> dias;
+
+  const ResumenSemanal({
+    this.semanaInicio = '',
+    this.metaHoras = 48,
+    this.minutosTrabajadosSemana = 0,
+    this.diasTrabajados = 0,
+    this.promedioMinDiario = 0,
+    this.puntualidadPct,
+    this.dias = const [],
+  });
+
+  factory ResumenSemanal.fromJson(Map<String, dynamic> j) => ResumenSemanal(
+        semanaInicio: j['semana_inicio'] as String? ?? '',
+        metaHoras: (j['meta_horas'] as num?)?.toInt() ?? 48,
+        minutosTrabajadosSemana:
+            (j['minutos_trabajados_semana'] as num?)?.toInt() ?? 0,
+        diasTrabajados: (j['dias_trabajados'] as num?)?.toInt() ?? 0,
+        promedioMinDiario: (j['promedio_min_diario'] as num?)?.toInt() ?? 0,
+        puntualidadPct: (j['puntualidad_pct'] as num?)?.toInt(),
+        dias: ((j['dias'] as List?) ?? const [])
+            .map((e) => DiaResumen.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  double get horasSemana => minutosTrabajadosSemana / 60.0;
+  double get progreso =>
+      metaHoras == 0 ? 0 : (horasSemana / metaHoras).clamp(0.0, 1.0);
+  int get progresoPct => (progreso * 100).round();
+
+  /// Máximo de horas de la semana (para escalar las barras). Mínimo 8h.
+  double get maxHorasDia {
+    double m = 8;
+    for (final d in dias) {
+      if (d.horas > m) m = d.horas;
+    }
+    return m;
+  }
+}
+
 class EstadoHoy {
   final bool tieneEntrada;
   final bool tieneSalida;
