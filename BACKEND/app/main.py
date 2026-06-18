@@ -144,6 +144,8 @@ from app.models import (  # noqa: F401
     historial_mantenimiento,
     # Tickets de soporte interno (equipo de TI)
     ticket_soporte, ticket_actividad,
+    # Centro de Seguridad: IPs bloqueadas
+    ip_bloqueada,
     # Documentos generados: Carta de Garantía
     carta_garantia,
     # Portal Cliente externo (HU-22)
@@ -1725,6 +1727,23 @@ def _run_migrations():
         ))
         conn.commit()
 
+            # ── Centro de Seguridad: tabla ip_bloqueada ──────────────────────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ip_bloqueada (
+                id VARCHAR(36) PRIMARY KEY,
+                empresa_id VARCHAR(36) NOT NULL,
+                ip VARCHAR(45) NOT NULL,
+                motivo TEXT,
+                bloqueada_por VARCHAR(36),
+                activa BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                desbloqueada_en TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ip_bloqueada_empresa ON ip_bloqueada(empresa_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ip_bloqueada_ip ON ip_bloqueada(ip)"))
+        conn.commit()
+
         # ── Ampliar chk_doc_laboral_tipo para aceptar 'Boleta Mensual' ────────
         # El constraint original solo incluía: boleta, contrato, certificado_medico,
         # certificacion, otro. El envío masivo de boletas al Legajo Digital usa el
@@ -1775,6 +1794,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(AuditContextMiddleware)
+
+# ── Middleware de bloqueo de IP ───────────────────────────────────────────────
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import JSONResponse as StarletteJSONResponse
+
+class IpBlockMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        # Rutas que siempre pasan (login, health, docs)
+        path = request.url.path
+        if path in ("/", "/health", "/docs", "/openapi.json", "/redoc"):
+            return await call_next(request)
+
+        client_ip = request.headers.get("X-Forwarded-For", "").split(",")[0].strip() \
+                    or (request.client.host if request.client else "")
+        if not client_ip:
+            return await call_next(request)
+
+        # Verificar en BD
+        try:
+            from sqlalchemy.orm import Session
+            from app.db.database import SessionLocal
+            from app.models.ip_bloqueada import IpBloqueada
+            db: Session = SessionLocal()
+            try:
+                bloqueada = db.query(IpBloqueada).filter(
+                    IpBloqueada.ip == client_ip,
+                    IpBloqueada.activa == True,
+                ).first()
+                if bloqueada:
+                    return StarletteJSONResponse(
+                        status_code=403,
+                        content={"detail": "Acceso denegado desde esta dirección IP."}
+                    )
+            finally:
+                db.close()
+        except Exception:
+            pass  # Si falla la BD, no bloquear (fail-open para no romper el sistema)
+
+        return await call_next(request)
+
+app.add_middleware(IpBlockMiddleware)
 
 
 def _registrar_log_sistema(request: Request, *, nivel: str, mensaje: str,

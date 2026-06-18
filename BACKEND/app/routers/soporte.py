@@ -526,9 +526,222 @@ def crear_actividad(
     return _act_out(db, a)
 
 
-# ── Monitoreo: Sesiones de usuarios ───────────────────────────────────────────
+# ── Centro de Seguridad: IPs bloqueadas + Sesiones activas ───────────────────
 
 from ..models.sesion_usuario import SesionUsuario
+from ..models.ip_bloqueada import IpBloqueada
+
+
+class IpBloqueadaOut(BaseModel):
+    id: str
+    ip: str
+    motivo: Optional[str]
+    bloqueada_por_nombre: Optional[str]
+    activa: bool
+    created_at: str
+    desbloqueada_en: Optional[str]
+
+
+class BloquearIpBody(BaseModel):
+    ip: str = Field(..., min_length=7, max_length=45)
+    motivo: Optional[str] = None
+
+
+class SesionActivaOut(BaseModel):
+    id: str
+    usuario_id: str
+    usuario_nombre: str
+    ip: Optional[str]
+    dispositivo: Optional[str]
+    user_agent: Optional[str]
+    created_at: str
+    fecha_expiracion: str
+
+
+@router.get("/seguridad/ips", response_model=List[IpBloqueadaOut])
+def listar_ips(
+    mostrar_historial: bool = False,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Lista IPs bloqueadas de la empresa. Solo equipo TI (soporte:gestionar)."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Solo el equipo de TI puede ver IPs bloqueadas")
+
+    empresa_id = payload["empresa_id"]
+    q = db.query(IpBloqueada).filter(IpBloqueada.empresa_id == empresa_id)
+    if not mostrar_historial:
+        q = q.filter(IpBloqueada.activa == True)
+    rows = q.order_by(IpBloqueada.created_at.desc()).all()
+
+    def _fmt(dt: Optional[datetime]) -> Optional[str]:
+        return dt.strftime("%d/%m/%Y %H:%M") if dt else None
+
+    result = []
+    for r in rows:
+        nombre = _nombre_usuario(db, r.bloqueada_por) if r.bloqueada_por else None
+        result.append(IpBloqueadaOut(
+            id=str(r.id),
+            ip=r.ip,
+            motivo=r.motivo,
+            bloqueada_por_nombre=nombre,
+            activa=bool(r.activa),
+            created_at=_fmt(r.created_at) or "",
+            desbloqueada_en=_fmt(r.desbloqueada_en),
+        ))
+    return result
+
+
+@router.post("/seguridad/ips", status_code=201)
+def bloquear_ip(
+    body: BloquearIpBody,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Bloquea una IP para la empresa. Solo equipo TI (soporte:gestionar)."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Solo el equipo de TI puede bloquear IPs")
+
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+    ip = body.ip.strip()
+
+    # Validar que no esté ya bloqueada activamente
+    existente = db.query(IpBloqueada).filter(
+        IpBloqueada.empresa_id == empresa_id,
+        IpBloqueada.ip == ip,
+        IpBloqueada.activa == True,
+    ).first()
+    if existente:
+        raise HTTPException(status_code=409, detail=f"La IP {ip} ya está bloqueada")
+
+    nueva = IpBloqueada(
+        id=str(_uuid.uuid4()),
+        empresa_id=empresa_id,
+        ip=ip,
+        motivo=body.motivo,
+        bloqueada_por=usuario_id,
+        activa=True,
+        created_at=datetime.utcnow(),
+    )
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+
+    return {
+        "id": str(nueva.id),
+        "ip": nueva.ip,
+        "motivo": nueva.motivo,
+        "activa": nueva.activa,
+        "created_at": nueva.created_at.strftime("%d/%m/%Y %H:%M"),
+    }
+
+
+@router.delete("/seguridad/ips/{ip_id}")
+def desbloquear_ip(
+    ip_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Desbloquea una IP (activa = False). Solo equipo TI (soporte:gestionar)."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Solo el equipo de TI puede desbloquear IPs")
+
+    empresa_id = payload["empresa_id"]
+    registro = db.query(IpBloqueada).filter(
+        IpBloqueada.id == ip_id,
+        IpBloqueada.empresa_id == empresa_id,
+    ).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="Registro de IP no encontrado")
+    if not registro.activa:
+        raise HTTPException(status_code=409, detail="La IP ya estaba desbloqueada")
+
+    registro.activa = False
+    registro.desbloqueada_en = datetime.utcnow()
+    db.commit()
+    return {"detail": f"IP {registro.ip} desbloqueada correctamente"}
+
+
+@router.get("/seguridad/sesiones-activas", response_model=List[SesionActivaOut])
+def sesiones_activas(
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Lista sesiones activas de la empresa. Solo equipo TI (soporte:gestionar)."""
+    from ..core.security import es_superadmin
+    es_admin = payload.get("rol", "").lower() in ("administrador", "admin", "superadmin")
+    if not es_superadmin(payload) and not es_admin and not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Sin permiso para ver sesiones activas")
+
+    empresa_id = payload["empresa_id"]
+    ahora = datetime.utcnow()
+
+    rows = (
+        db.query(SesionUsuario)
+        .join(Usuario, Usuario.id == SesionUsuario.usuario_id)
+        .filter(
+            Usuario.empresa_id == empresa_id,
+            SesionUsuario.activa == True,
+            SesionUsuario.fecha_expiracion > ahora,
+        )
+        .order_by(SesionUsuario.created_at.desc())
+        .all()
+    )
+
+    def _fmt(dt: Optional[datetime]) -> str:
+        return dt.strftime("%d/%m/%Y %H:%M") if dt else ""
+
+    result = []
+    for s in rows:
+        nombre = _nombre_usuario(db, s.usuario_id)
+        result.append(SesionActivaOut(
+            id=str(s.id),
+            usuario_id=str(s.usuario_id),
+            usuario_nombre=nombre,
+            ip=s.ip,
+            dispositivo=s.dispositivo,
+            user_agent=s.user_agent,
+            created_at=_fmt(s.created_at),
+            fecha_expiracion=_fmt(s.fecha_expiracion),
+        ))
+    return result
+
+
+@router.post("/seguridad/sesiones/{sesion_id}/cerrar")
+def cerrar_sesion_remota(
+    sesion_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Cierra remotamente una sesión de usuario. Solo equipo TI (soporte:gestionar)."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Solo el equipo de TI puede cerrar sesiones remotas")
+
+    empresa_id = payload["empresa_id"]
+
+    # Verificar que la sesión pertenece a un usuario de la empresa
+    sesion = (
+        db.query(SesionUsuario)
+        .join(Usuario, Usuario.id == SesionUsuario.usuario_id)
+        .filter(
+            SesionUsuario.id == sesion_id,
+            Usuario.empresa_id == empresa_id,
+        )
+        .first()
+    )
+    if not sesion:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    if not sesion.activa:
+        raise HTTPException(status_code=409, detail="La sesión ya estaba cerrada")
+
+    sesion.activa = False
+    sesion.fecha_cierre = datetime.utcnow()
+    db.commit()
+    return {"detail": "Sesión cerrada correctamente"}
+
+
+# ── Monitoreo: Sesiones de usuarios ───────────────────────────────────────────
 
 class SesionOut(BaseModel):
     id: str
