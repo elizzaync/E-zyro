@@ -13,11 +13,11 @@ import 'pantalla_auditoria.dart';
 import 'pantalla_auditoria_general.dart';
 import 'pantalla_comunicados.dart';
 import 'pantalla_soporte.dart';
-import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
 import 'pantalla_preferencias_notificacion.dart';
 import 'pantalla_personal_hub.dart';
 import 'pantalla_mi_espacio.dart';
+import 'pantalla_editar_perfil.dart';
 import 'pantalla_galeria.dart';
 import 'pantalla_calibraciones.dart';
 import 'pantalla_garantias_correctivos.dart';
@@ -261,20 +261,14 @@ class _MoreScreenState extends State<MoreScreen> {
             _buildMenuGroup(
               surface: surface,
               items: [
+                // "Mi perfil" unifica el antiguo "Mi espacio" (autoservicio) con
+                // "Mi Perfil" (edición), que ahora es una sub-acción interna.
                 _MenuItem(
-                  icon: Icons.account_circle_outlined,
-                  label: 'Mi espacio',
+                  icon: Icons.person_outline,
+                  label: 'Mi perfil',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const PantallaMiEspacio()),
-                  ),
-                ),
-                _MenuItem(
-                  icon: Icons.person_outline,
-                  label: 'Mi Perfil',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const EditProfileScreen()),
                   ),
                 ),
                 _MenuItem(

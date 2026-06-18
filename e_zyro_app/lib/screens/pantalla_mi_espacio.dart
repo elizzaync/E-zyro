@@ -25,7 +25,7 @@ class PantallaMiEspacio extends StatelessWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Mi espacio', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text('Mi perfil', style: TextStyle(fontWeight: FontWeight.bold)),
           bottom: const TabBar(isScrollable: true, tabs: [
             Tab(text: 'Resumen'),
             Tab(text: 'Mis vacaciones'),
@@ -353,6 +353,7 @@ class _ResumenTabState extends State<_ResumenTab> with AutomaticKeepAliveClientM
   static const _green = Color(0xFF8FD11B);
   ResumenSemanal? _resumen;
   List<SolicitudLaboral> _solicitudes = [];
+  List<RegistroAsistencia> _marcaciones = [];
   String _nombre = 'Usuario';
   bool _cargando = true;
 
@@ -371,11 +372,13 @@ class _ResumenTabState extends State<_ResumenTab> with AutomaticKeepAliveClientM
     final solSvc = await getSolicitudService();
     final res = await asis.getResumenSemanal();
     final mis = await solSvc.misSolicitudes();
+    final hist = await asis.getHistorial();
     if (!mounted) return;
     setState(() {
       _nombre = prefs.getString('user_name') ?? 'Usuario';
       _resumen = res;
       _solicitudes = mis;
+      _marcaciones = hist.take(6).toList();
       _cargando = false;
     });
   }
@@ -384,6 +387,19 @@ class _ResumenTabState extends State<_ResumenTab> with AutomaticKeepAliveClientM
     final h = min ~/ 60;
     final m = min % 60;
     return '${h}h ${m.toString().padLeft(2, '0')}m';
+  }
+
+  static String _labelMarcacion(String tipo) => switch (tipo) {
+        'ENTRADA' => 'Entrada',
+        'SALIDA' => 'Salida',
+        'ENTRADA_ALMUERZO' => 'Inicio almuerzo',
+        'SALIDA_ALMUERZO' => 'Fin almuerzo',
+        _ => tipo,
+      };
+
+  static String _fechaHora(DateTime d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.day)}/${two(d.month)} · ${two(d.hour)}:${two(d.minute)}';
   }
 
   String get _iniciales {
@@ -467,6 +483,35 @@ class _ResumenTabState extends State<_ResumenTab> with AutomaticKeepAliveClientM
                     r.puntualidadPct != null ? '${r.puntualidadPct}%' : '—', _green),
               ],
             ),
+          const SizedBox(height: 22),
+          // Últimas marcaciones (asistencia)
+          const Text('ÚLTIMAS MARCACIONES',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          if (_marcaciones.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('Sin marcaciones recientes.',
+                  style: TextStyle(color: Colors.black45)),
+            )
+          else
+            ..._marcaciones.map((m) {
+              final esEntrada = m.tipo.startsWith('ENTRADA');
+              final esAlmuerzo = m.tipo.contains('ALMUERZO');
+              final c = esAlmuerzo
+                  ? const Color(0xFFA9897A)
+                  : (esEntrada ? _green : Colors.blue);
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: Icon(esEntrada ? Icons.login : Icons.logout,
+                    color: c, size: 20),
+                title: Text(_labelMarcacion(m.tipo)),
+                subtitle: Text(_fechaHora(m.timestamp)),
+                trailing: Text('${m.score.toStringAsFixed(0)}%',
+                    style: const TextStyle(fontSize: 12, color: Colors.black45)),
+              );
+            }),
           const SizedBox(height: 22),
           // Mis solicitudes
           const Text('MIS SOLICITUDES',
