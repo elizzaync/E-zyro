@@ -1122,7 +1122,7 @@ def _run_migrations():
             ALTER TABLE solicitud_laboral ADD CONSTRAINT chk_solicitud_tipo CHECK (tipo IN (
                 'permiso_personal','comision_trabajo','cita_essalud','permanencia_capacitacion',
                 'permanencia_extra','recuperacion','vacaciones','dias_libres','transferencia','otros',
-                'justificacion_falta','permiso','adelanto','otro'))
+                'justificacion_falta','justificacion_tardanza','permiso','adelanto','otro'))
         """))
         conn.commit()
 

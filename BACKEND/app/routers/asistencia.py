@@ -868,6 +868,7 @@ def mi_resumen_semanal(
         es_exc = False
         llego_tarde = False
         min_trab = None
+        min_tarde = None
 
         if empleado:
             turno = _turnos_por_empleado(db, empresa_id, dia).get(str(empleado.id))
@@ -908,7 +909,9 @@ def mi_resumen_semanal(
                 dias_con_entrada += 1
                 minutos_tarde = max(_min_entre(t_entrada, entrada.fecha_hora.time()), 0)
                 llego_tarde = minutos_tarde > t_tolerancia
-                if not llego_tarde:
+                if llego_tarde:
+                    min_tarde = minutos_tarde
+                else:
                     dias_puntuales += 1
 
         dias_out.append({
@@ -919,6 +922,7 @@ def mi_resumen_semanal(
             "entrada_hora":       entrada.fecha_hora.strftime("%H:%M") if entrada else None,
             "salida_hora":        salida.fecha_hora.strftime("%H:%M")  if salida  else None,
             "llego_tarde":        llego_tarde,
+            "minutos_tarde":      min_tarde,
             "es_excepcion":       es_exc,
         })
 

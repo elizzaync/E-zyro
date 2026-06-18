@@ -35,6 +35,11 @@ TIPOS_LABEL = {
     'dias_libres':              'Día(s) Libre(s)',
     'transferencia':            'Transferencia',
     'otros':                    'Otros',
+    'justificacion_tardanza':   'Justificación de Tardanza',
+    'justificacion_falta':      'Justificación de Falta',
+    'permiso':                  'Permiso',
+    'adelanto':                 'Adelanto',
+    'otro':                     'Otro',
 }
 
 # Mapeo de IDs numéricos de Flutter hacia la Base de Datos
@@ -53,6 +58,88 @@ TIPO_DB_MAP = {
 
 MESES = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun",
          "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+
+
+@router.post("/justificar-tardanza")
+def justificar_tardanza(
+    body: dict,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Justificación RÁPIDA de una tardanza (sin PDF ni firma). Crea una
+    `solicitud_laboral` tipo 'justificacion_tardanza' que RR.HH. revisa en su
+    bandeja (/rrhh/solicitudes). body: {fecha, modalidad, detalle,
+    minutos_tarde, registro_id}."""
+    usuario_id = payload["id"]
+    empresa_id = payload["empresa_id"]
+
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    if not empleado:
+        raise HTTPException(status_code=404, detail="No tienes un empleado asociado a tu usuario")
+
+    modalidad = (body.get("modalidad") or "").strip()
+    detalle   = (body.get("detalle") or "").strip()
+    if not modalidad and not detalle:
+        raise HTTPException(status_code=422, detail="Indica una modalidad o un detalle de la tardanza")
+
+    def _parse_date(s):
+        try:
+            return date.fromisoformat(s) if s else None
+        except (ValueError, TypeError):
+            return None
+
+    fecha_dt = _parse_date(body.get("fecha"))
+    minutos  = body.get("minutos_tarde")
+    try:
+        minutos = int(minutos) if minutos is not None else None
+    except (TypeError, ValueError):
+        minutos = None
+
+    # Una justificación de tardanza por día.
+    if fecha_dt:
+        existente = db.query(SolicitudLaboral).filter(
+            SolicitudLaboral.empleado_id  == empleado.id,
+            SolicitudLaboral.empresa_id   == empresa_id,
+            SolicitudLaboral.tipo         == "justificacion_tardanza",
+            SolicitudLaboral.fecha_inicio == fecha_dt,
+        ).first()
+        if existente:
+            raise HTTPException(status_code=409, detail="Ya enviaste una justificación para esa tardanza")
+
+    partes = ["Justificación de tardanza"]
+    if fecha_dt:
+        partes.append(f"Fecha: {fecha_dt.isoformat()}")
+    if minutos is not None:
+        partes.append(f"Tarde: {minutos} min")
+    if modalidad:
+        partes.append(f"Motivo: {modalidad}")
+    if detalle:
+        partes.append(f"Detalle: {detalle[:300]}")
+    descripcion = " | ".join(partes)[:500]
+
+    sol = SolicitudLaboral(
+        id=str(uuid.uuid4()),
+        empleado_id=empleado.id,
+        empresa_id=empresa_id,
+        tipo="justificacion_tardanza",
+        estado="pendiente",
+        descripcion=descripcion,
+        fecha_inicio=fecha_dt,
+        fecha_fin=fecha_dt,
+    )
+    db.add(sol)
+    db.commit()
+    db.refresh(sol)
+    return {
+        "id":          str(sol.id),
+        "tipo":        sol.tipo,
+        "estado":      sol.estado,
+        "descripcion": sol.descripcion,
+        "fecha":       fecha_dt.isoformat() if fecha_dt else None,
+    }
 
 
 @router.get("/mis-solicitudes")
