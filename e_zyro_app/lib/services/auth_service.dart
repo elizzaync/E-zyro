@@ -53,7 +53,8 @@ class AuthService {
       final deviceId = await _deviceId();
       final r = await _client.postPublic(
         '/auth/login',
-        {'username': username, 'password': password, 'device_id': deviceId},
+        // plataforma:'movil' → el backend emite token de 7 días (offline + push).
+        {'username': username, 'password': password, 'device_id': deviceId, 'plataforma': 'movil'},
       );
       if (r.statusCode == 200) {
         final res = LoginResponse.fromJson(jsonDecode(r.body));
