@@ -24,12 +24,14 @@ export class MonitoreoComponent implements OnInit {
   auditoria: AuditoriaDto[] = [];
   audBusqueda   = '';
   audModulo     = '';
+  audAccion     = '';
   audFechaDesde = '';
   audFechaHasta = '';
   audPage       = 1;
   audTotalPages = 1;
   audTotal      = 0;
   audHayMas     = false;
+  audExpandedIds = new Set<string>();
 
   // Sesiones
   sesiones: SesionDto[] = [];
@@ -73,12 +75,27 @@ export class MonitoreoComponent implements OnInit {
     });
   }
 
+  toggleExpand(id: string): void {
+    if (this.audExpandedIds.has(id)) this.audExpandedIds.delete(id);
+    else this.audExpandedIds.add(id);
+  }
+
+  tieneDetalle(a: AuditoriaDto): boolean {
+    return !!(a.datos_anteriores || a.datos_nuevos || a.registro_id);
+  }
+
+  jsonStr(obj: any): string {
+    if (!obj) return '—';
+    try { return JSON.stringify(obj, null, 2); } catch { return String(obj); }
+  }
+
   cargarAuditoria(reset: boolean): void {
-    if (reset) { this.audPage = 1; this.auditoria = []; }
+    if (reset) { this.audPage = 1; this.auditoria = []; this.audExpandedIds.clear(); }
     this.cargando = true;
     this.svc.getAuditoria({
       q: this.audBusqueda.trim() || undefined,
       modulo: this.audModulo || undefined,
+      accion: this.audAccion || undefined,
       fecha_desde: this.audFechaDesde || undefined,
       fecha_hasta: this.audFechaHasta || undefined,
       page: this.audPage,

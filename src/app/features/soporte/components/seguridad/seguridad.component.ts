@@ -1,7 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SoporteService, IpBloqueadaDto, SesionActivaDto } from '../../../../core/services/soporte.service';
+import { SoporteService, IpBloqueadaDto, SesionActivaDto, IpFrecuenteDto } from '../../../../core/services/soporte.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
@@ -30,6 +30,7 @@ export class SeguridadComponent implements OnInit {
 
   // IPs bloqueadas
   ips: IpBloqueadaDto[] = [];
+  ipsFrequentes: IpFrecuenteDto[] = [];
   mostrarHistorial = false;
   ipForm = { ip: '', motivo: '' };
   ipError = '';
@@ -38,6 +39,7 @@ export class SeguridadComponent implements OnInit {
   // Sesiones activas
   sesiones: SesionActivaDto[] = [];
   cargandoSesiones = false;
+  cerrandoTodasId = '';
 
   // Modal de confirmación
   modal: ModalConfirm = {
@@ -51,12 +53,13 @@ export class SeguridadComponent implements OnInit {
 
   ngOnInit(): void {
     this.cargarIps();
+    this.cargarIpsFrequentes();
   }
 
   setTab(t: TabSeguridad): void {
     this.tab = t;
     if (t === 'sesiones' && this.sesiones.length === 0) this.cargarSesiones();
-    if (t === 'ips') this.cargarIps();
+    if (t === 'ips') { this.cargarIps(); this.cargarIpsFrequentes(); }
   }
 
   // ── IPs Bloqueadas ──────────────────────────────────────────────────────────
@@ -67,6 +70,19 @@ export class SeguridadComponent implements OnInit {
       next: data => { this.ips = data; this.cargando = false; },
       error: () => { this.cargando = false; this.toast.mostrar('Error al cargar IPs bloqueadas.', 'error'); }
     });
+  }
+
+  cargarIpsFrequentes(): void {
+    this.svc.getIpsFrecuentes().subscribe({
+      next: data => { this.ipsFrequentes = data; },
+      error: () => {}
+    });
+  }
+
+  seleccionarIpFrecuente(ip: string): void {
+    this.ipForm.ip = ip;
+    this.ipError = '';
+    document.getElementById('input-ip')?.focus();
   }
 
   toggleHistorial(): void {
@@ -151,7 +167,7 @@ export class SeguridadComponent implements OnInit {
     this.modal = {
       open: true,
       titulo: 'Cerrar Sesión Remota',
-      subtitulo: `¿Cerrar la sesión de ${sesion.usuario_nombre}? El usuario será desconectado inmediatamente.`,
+      subtitulo: `¿Cerrar la sesión de ${sesion.usuario_nombre}? El usuario será desconectado inmediatamente de ese dispositivo.`,
       accion: () => this.ejecutarCerrarSesion(sesion)
     };
     this.setMainModal(true);
@@ -169,6 +185,37 @@ export class SeguridadComponent implements OnInit {
         this.toast.mostrar(msg, 'error');
       }
     });
+  }
+
+  confirmarCerrarTodasSesiones(sesion: SesionActivaDto): void {
+    this.modal = {
+      open: true,
+      titulo: 'Cerrar TODAS las sesiones',
+      subtitulo: `¿Cerrar todas las sesiones de ${sesion.usuario_nombre}? El usuario será desconectado de web y aplicativo móvil.`,
+      accion: () => this.ejecutarCerrarTodas(sesion)
+    };
+    this.setMainModal(true);
+  }
+
+  private ejecutarCerrarTodas(sesion: SesionActivaDto): void {
+    this.cerrarModal();
+    this.cerrandoTodasId = sesion.usuario_id;
+    this.svc.cerrarTodasSesiones(sesion.usuario_id).subscribe({
+      next: (res) => {
+        this.cerrandoTodasId = '';
+        this.toast.mostrar(`Se cerraron ${res.cerradas} sesión(es) de ${sesion.usuario_nombre} (web + móvil).`, 'success');
+        this.cargarSesiones();
+      },
+      error: (err) => {
+        this.cerrandoTodasId = '';
+        const msg = err?.error?.detail || 'Error al cerrar las sesiones.';
+        this.toast.mostrar(msg, 'error');
+      }
+    });
+  }
+
+  plataforma(sesion: SesionActivaDto): 'Web' | 'Móvil' {
+    return (sesion as any).plataforma ?? 'Web';
   }
 
   // ── Modal ───────────────────────────────────────────────────────────────────

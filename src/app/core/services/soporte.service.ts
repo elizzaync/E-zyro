@@ -78,9 +78,17 @@ export interface AuditoriaDto {
   modulo?: string;
   descripcion?: string;
   ip?: string;
+  user_agent?: string;
   fecha: string;
   datos_anteriores?: any;
   datos_nuevos?: any;
+}
+
+export interface IpFrecuenteDto {
+  ip: string;
+  total: number;
+  ultima_vez: string;
+  ya_bloqueada: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -153,6 +161,14 @@ export class SoporteService {
 
   cerrarSesionRemota(sesionId: string): Observable<{ detail: string }> {
     return this.http.post<{ detail: string }>(`${this.base}/soporte/seguridad/sesiones/${sesionId}/cerrar`, {});
+  }
+
+  getIpsFrecuentes(): Observable<IpFrecuenteDto[]> {
+    return this.http.get<IpFrecuenteDto[]>(`${this.base}/soporte/seguridad/ips-frecuentes`);
+  }
+
+  cerrarTodasSesiones(usuarioId: string): Observable<{ detail: string; cerradas: number }> {
+    return this.http.post<{ detail: string; cerradas: number }>(`${this.base}/soporte/seguridad/usuarios/${usuarioId}/cerrar-todas-sesiones`, {});
   }
 
   getAuditoria(params?: {

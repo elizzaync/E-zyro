@@ -63,7 +63,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
             </svg>
-            <input type="text" class="seg-input" placeholder="192.168.1.1"
+            <input id="input-ip" type="text" class="seg-input" placeholder="192.168.1.1"
               [(ngModel)]="ipForm.ip" (ngModelChange)="ipError = ''" (keyup.enter)="bloquearIp()">
           </div>
           <div class="seg-input-wrap flex-2">
@@ -79,6 +79,35 @@
         </div>
         @if (ipError) {
           <p class="seg-form-error">{{ ipError }}</p>
+        }
+
+        <!-- IPs frecuentes del sistema -->
+        @if (ipsFrequentes.length > 0) {
+          <div class="ips-frecuentes-section">
+            <p class="ips-frecuentes-label">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+              IPs más activas en los últimos 30 días — haz clic para seleccionar
+            </p>
+            <div class="ips-frecuentes-chips">
+              @for (ipf of ipsFrequentes; track ipf.ip) {
+                <button
+                  class="ip-chip"
+                  [class.ip-chip-bloqueada]="ipf.ya_bloqueada"
+                  [class.ip-chip-selected]="ipForm.ip === ipf.ip"
+                  [disabled]="ipf.ya_bloqueada"
+                  (click)="seleccionarIpFrecuente(ipf.ip)"
+                  [title]="ipf.ya_bloqueada ? 'Ya bloqueada' : 'Clic para seleccionar'">
+                  <span class="ip-chip-addr">{{ ipf.ip }}</span>
+                  <span class="ip-chip-count">{{ ipf.total }} acciones</span>
+                  @if (ipf.ya_bloqueada) {
+                    <span class="ip-chip-lock">🔒</span>
+                  }
+                </button>
+              }
+            </div>
+          </div>
         }
       </div>
 
@@ -193,33 +222,52 @@
           <table class="seg-table">
             <thead>
               <tr>
-                <th>Estado</th>
+                <th>Plataforma</th>
                 <th>Usuario</th>
                 <th>IP</th>
-                <th>Dispositivo</th>
-                <th>Navegador</th>
+                <th>Navegador / App</th>
                 <th>Desde</th>
                 <th>Expira</th>
-                <th>Acción</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               @for (s of sesiones; track s.id) {
                 <tr class="seg-row">
-                  <td><span class="badge badge-red-pulse">ACTIVA</span></td>
+                  <td>
+                    <span class="plat-badge" [class.plat-web]="plataforma(s) === 'Web'" [class.plat-movil]="plataforma(s) === 'Móvil'">
+                      @if (plataforma(s) === 'Web') {
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                        </svg>
+                      } @else {
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                        </svg>
+                      }
+                      {{ plataforma(s) }}
+                    </span>
+                  </td>
                   <td class="usuario-cell">{{ s.usuario_nombre }}</td>
                   <td class="ip-cell">{{ s.ip || '—' }}</td>
-                  <td>{{ s.dispositivo || '—' }}</td>
                   <td class="ua-cell">{{ truncarUserAgent(s.user_agent) }}</td>
                   <td class="fecha-cell">{{ s.created_at }}</td>
                   <td class="fecha-cell">{{ s.fecha_expiracion }}</td>
-                  <td>
-                    <button class="btn-accion btn-cerrar-sesion" (click)="confirmarCerrarSesion(s)">
+                  <td class="acciones-cell">
+                    <button class="btn-accion btn-cerrar-sesion" (click)="confirmarCerrarSesion(s)" title="Cerrar esta sesión">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
                         <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
                       </svg>
-                      Cerrar sesión
+                      Esta sesión
+                    </button>
+                    <button class="btn-accion btn-cerrar-todas" (click)="confirmarCerrarTodasSesiones(s)"
+                      [disabled]="cerrandoTodasId === s.usuario_id"
+                      title="Cerrar TODAS las sesiones del usuario (web + móvil)">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                      {{ cerrandoTodasId === s.usuario_id ? '...' : 'Todas' }}
                     </button>
                   </td>
                 </tr>

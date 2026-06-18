@@ -62,7 +62,7 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
-          <input type="text" class="filter-input" placeholder="Buscar por usuario o descripción..."
+          <input type="text" class="filter-input" placeholder="Buscar por usuario, descripción o tabla..."
             [(ngModel)]="audBusqueda" (keyup.enter)="buscarAuditoria()">
         </div>
         <div class="filter-item">
@@ -71,6 +71,18 @@
             @for (m of modulosDisponibles.slice(1); track m) {
               <option [value]="m">{{ moduloLabel(m) }}</option>
             }
+          </select>
+        </div>
+        <div class="filter-item">
+          <select class="filter-select" [(ngModel)]="audAccion" (change)="buscarAuditoria()">
+            <option value="">Todas las acciones</option>
+            <option value="CREAR">Crear</option>
+            <option value="EDITAR">Editar</option>
+            <option value="ELIMINAR">Eliminar</option>
+            <option value="VER">Ver</option>
+            <option value="LOGIN">Login</option>
+            <option value="LOGOUT">Logout</option>
+            <option value="SUBIR">Subir archivo</option>
           </select>
         </div>
         <div class="filter-item">
@@ -103,25 +115,74 @@
                 <th>Usuario</th>
                 <th>Módulo</th>
                 <th>Acción</th>
-                <th>Descripción</th>
+                <th>Tabla / Descripción</th>
                 <th>IP</th>
                 <th>Fecha</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               @for (a of auditoria; track a.id) {
-                <tr class="mon-row">
-                  <td>{{ a.usuario_nombre ?? '—' }}</td>
+                <tr class="mon-row" [class.mon-row-expanded]="audExpandedIds.has(a.id)">
+                  <td class="usuario-cell">{{ a.usuario_nombre ?? '—' }}</td>
                   <td>
                     @if (a.modulo) {
                       <span class="mod-badge">{{ moduloLabel(a.modulo) }}</span>
                     } @else { — }
                   </td>
                   <td><span class="accion-badge" [class]="'accion-' + a.accion.toLowerCase()">{{ a.accion }}</span></td>
-                  <td class="desc-cell">{{ a.descripcion ?? '—' }}</td>
+                  <td class="desc-cell">
+                    @if (a.tabla_afectada) {
+                      <span class="tabla-tag">{{ a.tabla_afectada }}</span>
+                    }
+                    {{ a.descripcion ?? '—' }}
+                  </td>
                   <td class="ip-cell">{{ a.ip ?? '—' }}</td>
-                  <td class="fecha-cell">{{ a.fecha | date:'dd/MM/yy HH:mm' }}</td>
+                  <td class="fecha-cell">{{ a.fecha }}</td>
+                  <td>
+                    @if (tieneDetalle(a)) {
+                      <button class="btn-expand" (click)="toggleExpand(a.id)"
+                        [title]="audExpandedIds.has(a.id) ? 'Ocultar detalle' : 'Ver detalle'">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                          [style.transform]="audExpandedIds.has(a.id) ? 'rotate(180deg)' : 'rotate(0)'">
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </button>
+                    }
+                  </td>
                 </tr>
+                @if (audExpandedIds.has(a.id)) {
+                  <tr class="mon-row-detail">
+                    <td colspan="7">
+                      <div class="detail-grid">
+                        @if (a.registro_id) {
+                          <div class="detail-item">
+                            <span class="detail-lbl">ID Registro</span>
+                            <code class="detail-val">{{ a.registro_id }}</code>
+                          </div>
+                        }
+                        @if (a.user_agent) {
+                          <div class="detail-item">
+                            <span class="detail-lbl">Navegador / App</span>
+                            <span class="detail-val">{{ a.user_agent }}</span>
+                          </div>
+                        }
+                        @if (a.datos_anteriores) {
+                          <div class="detail-item detail-full">
+                            <span class="detail-lbl detail-lbl-before">Datos anteriores</span>
+                            <pre class="detail-json detail-json-before">{{ jsonStr(a.datos_anteriores) }}</pre>
+                          </div>
+                        }
+                        @if (a.datos_nuevos) {
+                          <div class="detail-item detail-full">
+                            <span class="detail-lbl detail-lbl-after">Datos nuevos</span>
+                            <pre class="detail-json detail-json-after">{{ jsonStr(a.datos_nuevos) }}</pre>
+                          </div>
+                        }
+                      </div>
+                    </td>
+                  </tr>
+                }
               }
             </tbody>
           </table>

@@ -222,3 +222,43 @@
   .seg-input-wrap, .seg-input-wrap.flex-2 { min-width: 100%; width: 100%; }
   .btn-bloquear { width: 100%; justify-content: center; }
 }
+
+/* ── IPs frecuentes ──────────────────────────────────────────────────────────── */
+.ips-frecuentes-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-color); }
+.ips-frecuentes-label {
+  font-size: 0.78rem; font-weight: 600; color: var(--text-muted);
+  display: flex; align-items: center; gap: 6px; margin: 0 0 10px;
+}
+.ips-frecuentes-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ip-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border-color); background: var(--card-bg);
+  transition: all .15s; font-size: 0.8rem;
+}
+.ip-chip:hover:not(:disabled) { border-color: #ef4444; background: rgba(239,68,68,.06); }
+.ip-chip-selected { border-color: #ef4444 !important; background: rgba(239,68,68,.1) !important; }
+.ip-chip-bloqueada { opacity: .45; cursor: not-allowed; background: var(--bg-hover); }
+.ip-chip-addr { font-weight: 700; color: var(--text-main); font-family: monospace; }
+.ip-chip-count { font-size: 0.72rem; color: var(--text-muted); }
+.ip-chip-lock { font-size: 0.75rem; }
+
+/* ── Plataforma badge ────────────────────────────────────────────────────────── */
+.plat-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+}
+.plat-web   { background: rgba(99,102,241,.1); color: #6366f1; }
+.plat-movil { background: rgba(16,185,129,.1);  color: #059669; }
+
+/* ── Cerrar todas btn ────────────────────────────────────────────────────────── */
+.acciones-cell { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.btn-cerrar-todas {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+  background: rgba(239,68,68,.08); color: #dc2626;
+  border: 1px solid rgba(239,68,68,.25);
+}
+.btn-cerrar-todas:hover:not(:disabled) { background: #dc2626; color: #fff; }
+.btn-cerrar-todas:disabled { opacity: .5; cursor: not-allowed; }
