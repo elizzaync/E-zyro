@@ -259,6 +259,7 @@ def resumen_asistencia(
             "codigo":             emp.codigo,
             "tipo_documento":     emp.tipo_documento or "DNI",
             "numero_documento":   emp.numero_documento,
+            "cuspp":              emp.cuspp,
             "fecha_ingreso":      emp.fecha_ingreso.isoformat() if emp.fecha_ingreso else None,
             "horas_reales":       round(horas_reales,       2),
             "horas_justificadas": round(horas_justificadas, 2),

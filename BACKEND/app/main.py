@@ -1719,6 +1719,12 @@ def _run_migrations():
             conn.rollback()
             print(f"[migración] columnas boleta (DNI/dirección) omitidas: {e}")
 
+        # ── CUSPP: Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR) ─
+        conn.execute(text(
+            "ALTER TABLE empleado ADD COLUMN IF NOT EXISTS cuspp VARCHAR(50)"
+        ))
+        conn.commit()
+
         # ── Ampliar chk_doc_laboral_tipo para aceptar 'Boleta Mensual' ────────
         # El constraint original solo incluía: boleta, contrato, certificado_medico,
         # certificacion, otro. El envío masivo de boletas al Legajo Digital usa el

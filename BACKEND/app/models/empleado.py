@@ -26,5 +26,7 @@ class Empleado(Base):
     fecha_fin_contrato     = Column(Date, nullable=True)
     dias_aviso_vencimiento = Column(Integer, nullable=True, default=7)
     activo                 = Column(Boolean, nullable=False, default=True)
+    # CUSPP: Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR, AFP)
+    cuspp                  = Column(String(50), nullable=True)
     created_at             = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at             = Column(DateTime, nullable=True)
