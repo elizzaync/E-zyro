@@ -176,6 +176,72 @@ def listar_auditoria(
     ]
 
 
+# ── POST /auditoria/{id}/revertir ─────────────────────────────────────────────
+
+from sqlalchemy import text as _sql_text
+
+@router.post("/{auditoria_id}/revertir")
+def revertir_registro(
+    auditoria_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """
+    Revierte un registro a su estado anterior (datos_anteriores) usando un UPDATE raw
+    sobre la tabla afectada. Solo disponible si el registro tiene datos_anteriores y registro_id.
+    Requiere permiso AUDITORIA:VER + rol admin/superadmin.
+    """
+    _verificar_permiso_auditoria(payload, db)
+
+    rol = (payload.get("rol") or "").lower()
+    if rol not in ("administrador", "admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Solo administradores pueden revertir cambios")
+
+    emp_uuid = _to_uuid(payload.get("empresa_id"))
+    aud_uuid = _to_uuid(auditoria_id)
+    if not aud_uuid or not emp_uuid:
+        raise HTTPException(status_code=400, detail="ID inválido")
+
+    registro = db.query(Auditoria).filter(
+        Auditoria.id == aud_uuid,
+        Auditoria.empresa_id == emp_uuid,
+    ).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="Registro de auditoría no encontrado")
+    if not registro.datos_anteriores:
+        raise HTTPException(status_code=422, detail="Este registro no tiene datos anteriores para revertir")
+    if not registro.registro_id:
+        raise HTTPException(status_code=422, detail="No se puede revertir: no hay registro_id")
+    if registro.accion.upper() in ("ELIMINAR", "DELETE"):
+        raise HTTPException(status_code=422, detail="No se puede revertir una eliminación automáticamente")
+
+    tabla = str(registro.tabla_afectada)
+    datos = registro.datos_anteriores
+    reg_id = str(registro.registro_id)
+
+    # Construir SET clause solo con campos presentes en datos_anteriores
+    # Excluir campos que nunca deben sobreescribirse
+    CAMPOS_EXCLUIDOS = {"id", "empresa_id", "created_at", "updated_at"}
+    campos = {k: v for k, v in datos.items() if k not in CAMPOS_EXCLUIDOS}
+    if not campos:
+        raise HTTPException(status_code=422, detail="No hay campos válidos para revertir")
+
+    set_parts = ", ".join([f'"{k}" = :{k}' for k in campos.keys()])
+    params = {**campos, "_reg_id": reg_id}
+
+    try:
+        db.execute(
+            _sql_text(f'UPDATE "{tabla}" SET {set_parts} WHERE id = :_reg_id'),
+            params,
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al revertir: {str(e)}")
+
+    return {"detail": f"Registro revertido correctamente en tabla '{tabla}'."}
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Auditoría General — SOLO SuperAdmin (cross-empresa + logs de sistema + stats)
 # ══════════════════════════════════════════════════════════════════════════════
