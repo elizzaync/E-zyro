@@ -8,11 +8,13 @@ from app.core.session_cache import sesion_activa, hash_token
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 240  # 4 horas
+ACCESS_TOKEN_EXPIRE_MINUTES        = 240    # 4 horas — web
+ACCESS_TOKEN_EXPIRE_MINUTES_MOBILE = 10080  # 7 días  — app móvil
 security = HTTPBearer()
-def crear_token_acceso(data: dict):
+
+def crear_token_acceso(data: dict, expire_minutes: int = ACCESS_TOKEN_EXPIRE_MINUTES):
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire})
     token_codificado = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return token_codificado

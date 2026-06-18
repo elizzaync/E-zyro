@@ -28,7 +28,7 @@ from app.models.recuperacion_password import RecuperacionPassword
 from app.models.sesion_usuario import SesionUsuario
 from app.models.portal_acceso import PortalAcceso
 from app.db.database import get_db
-from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
+from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, ACCESS_TOKEN_EXPIRE_MINUTES_MOBILE, SECRET_KEY, ALGORITHM
 from app.core.email import enviar_correo_otp
 from app.core.session_cache import marcar_activa, invalidar
 from app.core.session_events import manager as session_manager
@@ -195,7 +195,15 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             datos_para_token["cliente_id"] = str(acc.cliente_id)
             datos_para_token["tipo_usuario"] = "cliente"
 
-    token_real = crear_token_acceso(datos_para_token)
+    # Detectar plataforma: campo explícito "mobile" O user-agent de app móvil
+    _ua_login = request.headers.get("user-agent", "").lower()
+    _platform_field = (credenciales.platform or "").lower().strip()
+    _es_movil = _platform_field == "mobile" or any(
+        k in _ua_login for k in ("okhttp", "dart", "flutter", "cfnetwork", "expo")
+    )
+    _expire_minutes = ACCESS_TOKEN_EXPIRE_MINUTES_MOBILE if _es_movil else ACCESS_TOKEN_EXPIRE_MINUTES
+
+    token_real = crear_token_acceso(datos_para_token, expire_minutes=_expire_minutes)
 
     # Registrar / actualizar sesión en sesion_usuario
     token_hash       = hashlib.sha256(token_real.encode()).hexdigest()
@@ -206,7 +214,7 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         ip_cliente  = _ip_real(request)
         user_agent  = request.headers.get("user-agent", "")[:255]
         dispositivo = _describir_dispositivo(user_agent)
-        fecha_exp   = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        fecha_exp   = datetime.now(ZONA_HORARIA) + timedelta(minutes=_expire_minutes)
         device_id   = (credenciales.device_id or "")[:100] or None
 
         # Limpiar sesiones cerradas con más de 30 días (mantenimiento silencioso)
@@ -557,13 +565,19 @@ def refresh_token(
             detail="Sesión inválida o cerrada. Inicia sesión nuevamente.",
         )
 
+    # Mantener el mismo TTL que tuvo la sesión original (web 4h / móvil 7d)
+    _sesion_duracion = int(
+        (sesion.fecha_expiracion - sesion.created_at).total_seconds() / 60
+    ) if sesion.fecha_expiracion and sesion.created_at else ACCESS_TOKEN_EXPIRE_MINUTES
+    _refresh_minutes = ACCESS_TOKEN_EXPIRE_MINUTES_MOBILE if _sesion_duracion > 600 else ACCESS_TOKEN_EXPIRE_MINUTES
+
     new_payload = {k: v for k, v in payload.items() if k != "exp"}
-    new_token   = crear_token_acceso(new_payload)
+    new_token   = crear_token_acceso(new_payload, expire_minutes=_refresh_minutes)
 
     # Actualizar hash en BD con el nuevo token
     nuevo_hash = hashlib.sha256(new_token.encode()).hexdigest()
     sesion.token_hash       = nuevo_hash
-    sesion.fecha_expiracion = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    sesion.fecha_expiracion = datetime.now(ZONA_HORARIA) + timedelta(minutes=_refresh_minutes)
     db.commit()
 
     # Rotación de token: el viejo hash queda revocado, el nuevo pre-cacheado.

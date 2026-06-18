@@ -5,6 +5,7 @@ class LoginData(BaseModel):
     username:  str
     password:  str
     device_id: Optional[str] = None   # UUID persistente generado en el cliente
+    platform:  Optional[str] = None   # "mobile" → token 7 días; web → 4 horas
 # --- RECUPERACIÓN DE CONTRASEÑA ---
 # 1. Para la solicitud inicial
 class PasswordResetRequest(BaseModel):
