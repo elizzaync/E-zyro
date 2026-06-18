@@ -9,8 +9,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/asistencia_models.dart';
+import '../models/solicitud_models.dart';
 import '../repositories/asistencia_local_repo.dart';
 import '../services/asistencia_service.dart';
+import '../services/solicitud_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_notifiers.dart';
 import '../widgets/sync_log_panel.dart';
@@ -45,6 +47,11 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   List<RegistroAsistencia> _historial = [];
   ResumenSemanal? _resumen;
   bool _cargandoInicial = true;
+
+  // Justificaciones de tardanza (servicio RR.HH.)
+  SolicitudService? _solSvc;
+  // fecha (yyyy-MM-dd) → solicitud de justificación de tardanza enviada
+  Map<String, SolicitudLaboral> _justifTardanza = {};
 
   // Registros offline pendientes de sincronización
   int _pendientesSinc = 0;
@@ -123,11 +130,27 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     final svc = await getAsistenciaService();
+    _solSvc = await getSolicitudService();
     if (mounted) setState(() { _service = svc; _userName = prefs.getString('user_name') ?? 'Usuario'; });
     await _cargarDatos(svc);
+    await _cargarJustificaciones();
     await _refreshPendientes();
     // Auto-sync al abrir la pantalla si hay registros pendientes
     if (_pendientesSinc > 0) _triggerSync();
+  }
+
+  /// Carga las justificaciones de tardanza del trabajador y las indexa por día.
+  Future<void> _cargarJustificaciones() async {
+    if (_solSvc == null) return;
+    final todas = await _solSvc!.misSolicitudes();
+    if (!mounted) return;
+    final map = <String, SolicitudLaboral>{};
+    for (final s in todas) {
+      if (s.tipo == 'justificacion_tardanza' && (s.fechaInicio ?? '').isNotEmpty) {
+        map[s.fechaInicio!.split('T').first] = s;
+      }
+    }
+    setState(() => _justifTardanza = map);
   }
 
   /// Sincroniza los registros pendientes verificando primero que Railway es
@@ -533,6 +556,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               const SizedBox(height: 28),
               _buildReportes(),
               const SizedBox(height: 28),
+              ..._buildTardanzasJustificables(),
               _buildHistorySection(),
               const SizedBox(height: 20),
             ],
@@ -1419,6 +1443,250 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     final h = minutos ~/ 60;
     final m = minutos % 60;
     return '${h}h ${m.toString().padLeft(2, '0')}m';
+  }
+
+  // ── Tardanzas por justificar (semana actual) ────────────────────────────────
+  List<Widget> _buildTardanzasJustificables() {
+    final dias = _resumen?.dias ?? const <DiaResumen>[];
+    final tardanzas = dias.where((d) => d.llegoTarde).toList();
+    if (tardanzas.isEmpty) return const [];
+    return [
+      Text('Tardanzas de la semana',
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+      const SizedBox(height: 4),
+      Text('Justifícalas para que RR.HH. las revise',
+          style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+      const SizedBox(height: 10),
+      ...tardanzas.map(_tarjetaTardanza),
+      const SizedBox(height: 28),
+    ];
+  }
+
+  Widget _tarjetaTardanza(DiaResumen d) {
+    final sol = _justifTardanza[d.fecha];
+    final fechaDt = DateTime.tryParse(d.fecha);
+    final fechaLabel =
+        fechaDt != null ? '${_dias[fechaDt.weekday - 1]} ${fechaDt.day}' : d.fecha;
+    final minTxt =
+        d.minutosTarde != null ? '${d.minutosTarde} min tarde' : 'Tardanza';
+
+    final Color estadoColor;
+    final String estadoLabel;
+    final IconData estadoIcon;
+    if (sol == null) {
+      estadoColor = Colors.orange;
+      estadoLabel = 'Sin justificar';
+      estadoIcon = Icons.error_outline;
+    } else if (sol.estado == 'aprobada') {
+      estadoColor = const Color(0xFF8FD11B);
+      estadoLabel = 'Aprobada';
+      estadoIcon = Icons.check_circle;
+    } else if (sol.estado == 'rechazada') {
+      estadoColor = Colors.red;
+      estadoLabel = 'Rechazada';
+      estadoIcon = Icons.cancel;
+    } else {
+      estadoColor = Colors.blue;
+      estadoLabel = 'En revisión';
+      estadoIcon = Icons.hourglass_top;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: _cardDecoration(),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+                color: estadoColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(11)),
+            child: Icon(Icons.running_with_errors_outlined,
+                color: estadoColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(fechaLabel,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(minTxt,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12, color: Colors.grey)),
+                if (sol != null && (sol.observacion ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text('RR.HH.: ${sol.observacion}',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11, color: estadoColor)),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (sol == null)
+            ElevatedButton(
+              onPressed: () => _abrirJustificarTardanza(d),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8FD11B),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Justificar',
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                  color: estadoColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(estadoIcon, size: 13, color: estadoColor),
+                const SizedBox(width: 4),
+                Text(estadoLabel,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: estadoColor)),
+              ]),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _abrirJustificarTardanza(DiaResumen d) async {
+    String? modalidad;
+    final detalleCtrl = TextEditingController();
+    bool enviando = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+          return Container(
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom),
+            decoration: BoxDecoration(
+              color: Theme.of(ctx).scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Justificar tardanza',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text(
+                      '${d.fecha}${d.minutosTarde != null ? ' · ${d.minutosTarde} min tarde' : ''}',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 14),
+                  Text('Motivo',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final m in kModalidadesTardanza)
+                      ChoiceChip(
+                        label: Text(m, style: const TextStyle(fontSize: 12)),
+                        selected: modalidad == m,
+                        selectedColor:
+                            const Color(0xFF8FD11B).withValues(alpha: 0.2),
+                        onSelected: (_) =>
+                            setLocal(() => modalidad = (modalidad == m ? null : m)),
+                      ),
+                  ]),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: detalleCtrl,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Detalle (opcional)',
+                      hintText: 'Explica con más detalle…',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: enviando
+                          ? null
+                          : () async {
+                              if (modalidad == null &&
+                                  detalleCtrl.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Elige un motivo o escribe un detalle')));
+                                return;
+                              }
+                              setLocal(() => enviando = true);
+                              final res = await _solSvc!.justificarTardanza(
+                                fecha: d.fecha,
+                                modalidad: modalidad,
+                                detalle: detalleCtrl.text.trim(),
+                                minutosTarde: d.minutosTarde,
+                              );
+                              if (!ctx.mounted) return;
+                              if (res.ok) {
+                                Navigator.pop(ctx);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                          content: Text(res.mensaje),
+                                          backgroundColor:
+                                              const Color(0xFF8FD11B)));
+                                  await _cargarJustificaciones();
+                                }
+                              } else {
+                                setLocal(() => enviando = false);
+                                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                    content: Text(res.mensaje),
+                                    backgroundColor: Colors.red.shade700));
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8FD11B),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: enviando
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Enviar justificación',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   BoxDecoration _cardDecoration() {

@@ -93,6 +93,7 @@ class DiaResumen {
   final String? entradaHora;
   final String? salidaHora;
   final bool llegoTarde;
+  final int? minutosTarde;
   final bool esExcepcion;
 
   const DiaResumen({
@@ -103,6 +104,7 @@ class DiaResumen {
     this.entradaHora,
     this.salidaHora,
     this.llegoTarde = false,
+    this.minutosTarde,
     this.esExcepcion = false,
   });
 
@@ -114,6 +116,7 @@ class DiaResumen {
         entradaHora: j['entrada_hora'] as String?,
         salidaHora: j['salida_hora'] as String?,
         llegoTarde: j['llego_tarde'] as bool? ?? false,
+        minutosTarde: (j['minutos_tarde'] as num?)?.toInt(),
         esExcepcion: j['es_excepcion'] as bool? ?? false,
       );
 

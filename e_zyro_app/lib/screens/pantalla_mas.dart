@@ -28,6 +28,7 @@ import 'pantalla_plantillas_procedimiento.dart';
 import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
 import 'pantalla_control_asistencias.dart';
+import 'pantalla_bandeja_solicitudes.dart';
 import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
 import 'finanzas/pantalla_manual_finanzas.dart';
@@ -360,6 +361,16 @@ class _MoreScreenState extends State<MoreScreen> {
                         context,
                         MaterialPageRoute(
                             builder: (_) => const PantallaControlAsistencias()),
+                      ),
+                    ),
+                  if (_puedeVerControlAsistencias || _puedeVerPersonal)
+                    _MenuItem(
+                      icon: Icons.fact_check_outlined,
+                      label: 'Solicitudes del personal',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaBandejaSolicitudes()),
                       ),
                     ),
                   if (_puedeVerPersonal)
