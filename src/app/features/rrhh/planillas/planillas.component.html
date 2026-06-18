@@ -223,6 +223,8 @@
             <th class="text-center">Desc. Faltas</th>
             <th class="text-center">+ H. Extra</th>
             <th class="text-center">Pensión</th>
+            <th class="text-center" title="% total AFP (aporte + seguro + comisión). Editable si la AFP notificó cambio.">AFP %</th>
+            <th class="text-center" title="Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR)">CUSPP</th>
             <th class="text-center" [title]="'Cambia según: ' + regimenLabel">CTS</th>
             <th class="text-center" [title]="'Cambia según: ' + regimenLabel">Gratif.</th>
             <th class="text-center" [title]="'Cambia según: ' + regimenLabel">Vac.</th>
@@ -330,7 +332,8 @@
               }
             </td>
 
-            <td class="text-center">
+            <!-- ── Columna: Pensión ──────────────────────────────────── -->
+            <td class="text-center td-pension">
               @if (esDependiente(emp)) {
                 @if (puedeEditar) {
                 <div class="pension-cell">
@@ -344,42 +347,65 @@
                     <option [value]="afp.value">{{ afp.label }}</option>
                     }
                   </select>
-                  <div class="afp-pct-row" title="Comisión sobre flujo (editable). Cambiar solo si la AFP notificó una variación.">
-                    <span class="afp-pct-label">Comisión %:</span>
-                    <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
-                      [value]="(afpComisionPct(emp) * 100).toFixed(2)"
-                      (change)="onAfpComisionChange(emp.id, $any($event.target).value)"
-                      title="Porcentaje de comisión sobre flujo de la AFP ({{ afpEntidadLabel(emp.id) }})">
-                    <span class="afp-pct-label">%</span>
-                  </div>
-                  <div class="afp-total-chip" [title]="'AFP total: aporte 10% + seguro 1.37% + comisión ' + (afpComisionPct(emp) * 100).toFixed(2) + '%'">
-                    Total AFP: {{ (pensionPct(emp) * 100).toFixed(2) }}%
-                  </div>
                   }
-                  <div class="cuspp-row">
-                    <span class="cuspp-label">CUSPP:</span>
-                    <input
-                      [type]="showCusppMap[emp.id] ? 'text' : 'password'"
-                      class="cuspp-input"
-                      [value]="getCuspp(emp.id)"
-                      (input)="setCuspp(emp.id, $any($event.target).value)"
-                      (blur)="guardarCuspp(emp.id, $any($event.target).value)"
-                      placeholder="Ej. 254879VVCTB8"
-                      title="Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR)">
-                    <button class="cuspp-eye-btn" type="button" (click)="toggleShowCuspp(emp.id)" [title]="showCusppMap[emp.id] ? 'Ocultar CUSPP' : 'Mostrar CUSPP'">
-                      @if (showCusppMap[emp.id]) {
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                      } @else {
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      }
-                    </button>
-                  </div>
                 </div>
                 } @else {
                 <span class="pension-readonly">{{ pensionLabel(emp) }}</span>
                 }
               } @else {
               <span class="hrs-cero" title="No aplica para practicantes">N/A</span>
+              }
+            </td>
+
+            <!-- ── Columna: AFP % ────────────────────────────────────── -->
+            <td class="text-center td-afp-pct">
+              @if (esDependiente(emp) && getPension(emp.id) === 'afp') {
+                <div class="afp-pct-col">
+                  <div class="afp-total-chip" [title]="'Aporte 10% + Seguro 1.37% + Comisión ' + (afpComisionPct(emp) * 100).toFixed(2) + '%'">
+                    {{ (pensionPct(emp) * 100).toFixed(2) }}%
+                  </div>
+                  @if (puedeEditar) {
+                  <div class="afp-pct-row" title="Comisión sobre flujo. Editar solo si la AFP notificó un cambio.">
+                    <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
+                      [value]="(afpComisionPct(emp) * 100).toFixed(2)"
+                      (change)="onAfpComisionChange(emp.id, $any($event.target).value)">
+                    <span class="afp-pct-label">%</span>
+                  </div>
+                  }
+                </div>
+              } @else if (esDependiente(emp)) {
+              <span class="hrs-cero">13%</span>
+              } @else {
+              <span class="hrs-cero">—</span>
+              }
+            </td>
+
+            <!-- ── Columna: CUSPP ────────────────────────────────────── -->
+            <td class="text-center td-cuspp">
+              @if (esDependiente(emp)) {
+                @if (puedeEditar) {
+                <div class="cuspp-col">
+                  <input
+                    [type]="showCusppMap[emp.id] ? 'text' : 'password'"
+                    class="cuspp-input"
+                    [value]="getCuspp(emp.id)"
+                    (input)="setCuspp(emp.id, $any($event.target).value)"
+                    (blur)="guardarCuspp(emp.id, $any($event.target).value)"
+                    placeholder="Ej. 254879VVCTB8"
+                    title="CUSPP — Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR)">
+                  <button class="cuspp-eye-btn" type="button" (click)="toggleShowCuspp(emp.id)" [title]="showCusppMap[emp.id] ? 'Ocultar' : 'Mostrar'">
+                    @if (showCusppMap[emp.id]) {
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    } @else {
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                  </button>
+                </div>
+                } @else {
+                <span class="cuspp-readonly">{{ getCuspp(emp.id) || '—' }}</span>
+                }
+              } @else {
+              <span class="hrs-cero">—</span>
               }
             </td>
 
