@@ -272,6 +272,19 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
     except Exception:
         db.rollback()  # No bloqueamos el login si falla el registro de sesión
 
+    # Aviso en tiempo real al panel de Soporte TIC: nueva sesión iniciada.
+    if info_dispositivo:
+        try:
+            from ..routers.soporte_ws import soporte_manager
+            soporte_manager.emit(str(usuario_db.empresa_id), {
+                "tipo": "sesion_nueva",
+                "usuario": f"{usuario_db.nombre} {usuario_db.apellido}".strip(),
+                "dispositivo": dispositivo,
+                "ip": ip_cliente or "—",
+            })
+        except Exception:
+            pass
+
     # Aviso en tiempo real a los equipos ya conectados: "alguien entró a tu cuenta".
     if es_nuevo_equipo and info_dispositivo:
         try:

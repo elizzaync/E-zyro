@@ -1921,6 +1921,8 @@ app.include_router(comunicados_router.router)
 app.include_router(operaciones_router.router)
 app.include_router(chat_ws_router.router)
 app.include_router(session_ws_router.router)
+from app.routers import soporte_ws as soporte_ws_module
+app.include_router(soporte_ws_module.router)
 app.include_router(notificaciones_router.router)
 app.include_router(requerimientos_router.router)
 app.include_router(auditoria_router.router)

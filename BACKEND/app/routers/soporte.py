@@ -27,6 +27,7 @@ from ..models.ticket_actividad import TicketActividad
 from ..models.usuario import Usuario
 from ..services.cloudinary_service import subir_e_indexar
 from ..services.cloudinary_paths import carpeta_soporte
+from ..routers.soporte_ws import soporte_manager
 
 router = APIRouter(prefix="/soporte", tags=["soporte"])
 
@@ -240,6 +241,21 @@ def crear_ticket(
     db.commit()
     db.refresh(t)
 
+    # Notificar en tiempo real a los usuarios TI de la empresa.
+    try:
+        soporte_manager.emit(str(empresa_id), {
+            "tipo": "ticket_nuevo",
+            "ticket": {
+                "id": str(t.id),
+                "codigo": t.codigo,
+                "titulo": t.titulo,
+                "estado": t.estado,
+                "prioridad": t.prioridad,
+            },
+        })
+    except Exception:
+        pass
+
     # Avisar al equipo de soporte (quienes pueden gestionar tickets).
     try:
         from ..services.fcm_service import notificar_usuario
@@ -351,6 +367,20 @@ def gestionar_ticket(
 
     db.commit()
     db.refresh(t)
+
+    # Notificar en tiempo real el cambio de estado/respuesta.
+    try:
+        soporte_manager.emit(str(empresa_id), {
+            "tipo": "ticket_actualizado",
+            "ticket": {
+                "id": str(t.id),
+                "codigo": t.codigo,
+                "estado": t.estado,
+            },
+        })
+    except Exception:
+        pass
+
     return _out(db, t)
 
 
@@ -629,6 +659,12 @@ def bloquear_ip(
     db.commit()
     db.refresh(nueva)
 
+    # Notificar en tiempo real.
+    try:
+        soporte_manager.emit(str(empresa_id), {"tipo": "ip_bloqueada", "ip": nueva.ip})
+    except Exception:
+        pass
+
     return {
         "id": str(nueva.id),
         "ip": nueva.ip,
@@ -658,10 +694,18 @@ def desbloquear_ip(
     if not registro.activa:
         raise HTTPException(status_code=409, detail="La IP ya estaba desbloqueada")
 
+    ip_val = registro.ip
     registro.activa = False
     registro.desbloqueada_en = datetime.utcnow()
     db.commit()
-    return {"detail": f"IP {registro.ip} desbloqueada correctamente"}
+
+    # Notificar en tiempo real.
+    try:
+        soporte_manager.emit(str(empresa_id), {"tipo": "ip_desbloqueada", "ip": ip_val})
+    except Exception:
+        pass
+
+    return {"detail": f"IP {ip_val} desbloqueada correctamente"}
 
 
 @router.get("/seguridad/sesiones-activas", response_model=List[SesionActivaOut])
@@ -749,6 +793,13 @@ def cerrar_sesion_remota(
     sesion.activa = False
     sesion.fecha_cierre = datetime.utcnow()
     db.commit()
+
+    # Notificar en tiempo real.
+    try:
+        soporte_manager.emit(str(empresa_id), {"tipo": "dispositivos_cambio"})
+    except Exception:
+        pass
+
     return {"detail": "Sesión cerrada correctamente"}
 
 
@@ -865,6 +916,13 @@ def limpiar_sesiones_expiradas(
         s.fecha_cierre = ahora
 
     db.commit()
+
+    # Notificar en tiempo real.
+    try:
+        soporte_manager.emit(str(empresa_id), {"tipo": "dispositivos_cambio"})
+    except Exception:
+        pass
+
     return {"detail": f"Se limpiaron {len(expiradas)} sesión(es) expirada(s).", "limpiadas": len(expiradas)}
 
 
@@ -940,6 +998,13 @@ def cerrar_todas_sesiones_usuario(
         s.fecha_cierre = ahora
 
     db.commit()
+
+    # Notificar en tiempo real.
+    try:
+        soporte_manager.emit(str(empresa_id), {"tipo": "dispositivos_cambio"})
+    except Exception:
+        pass
+
     return {"detail": f"Se cerraron {len(sesiones)} sesión(es) del usuario.", "cerradas": len(sesiones)}
 
 
