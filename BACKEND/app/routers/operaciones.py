@@ -3861,7 +3861,44 @@ def _map_hi(hi: HistorialInspeccion) -> dict:
         "proxima_fecha_mantenimiento":  hi.proxima_fecha_mantenimiento.isoformat() if hi.proxima_fecha_mantenimiento else None,
         "fecha_inicio":                 hi.fecha_inicio.isoformat() if hi.fecha_inicio else None,
         "fecha_fin":                    hi.fecha_fin.isoformat() if hi.fecha_fin else None,
+        "inspeccion_padre_id":          str(hi.inspeccion_padre_id) if hi.inspeccion_padre_id else None,
     }
+
+
+def _resumen_vinculo(db: Session, hi: "HistorialInspeccion | None") -> "dict | None":
+    """Resumen ligero de una inspección para mostrar el vínculo en la app."""
+    if hi is None:
+        return None
+    serv_nombre = None
+    if hi.proyecto_servicio_id:
+        _ps = db.query(ProyectoServicio).filter(
+            ProyectoServicio.id == str(hi.proyecto_servicio_id)
+        ).first()
+        if _ps:
+            serv_nombre = _ps.nombre
+    return {
+        "id":              str(hi.id),
+        "estado":          hi.estado,
+        "fecha_fin":       hi.fecha_fin.isoformat() if hi.fecha_fin else None,
+        "servicio_nombre": serv_nombre,
+    }
+
+
+def _ultima_inspeccion_previa(
+    db: Session, empresa_id: str, ei_id: str, excluir_id: str,
+) -> "HistorialInspeccion | None":
+    """Última inspección COMPLETADA del mismo equipo (candidata a 'anterior')."""
+    return (
+        db.query(HistorialInspeccion)
+        .filter(
+            HistorialInspeccion.equipo_intervenido_id == ei_id,
+            HistorialInspeccion.empresa_id            == empresa_id,
+            HistorialInspeccion.estado                == "completado",
+            HistorialInspeccion.id                    != excluir_id,
+        )
+        .order_by(HistorialInspeccion.fecha_fin.desc())
+        .first()
+    )
 
 
 # ── GET /servicio/{id}/equipos-intervenidos ───────────────────────────────────
@@ -3970,6 +4007,9 @@ def list_equipos_intervenidos(
             "proximo_mantenimiento": ei.proximo_mantenimiento.isoformat() if ei.proximo_mantenimiento else None,
             "estado_intervencion":   estado_inspeccion or "sin_inspeccion",
             "observaciones":         ei.observaciones or None,
+            # True si el equipo está atado al servicio que se está viendo
+            # (se interviene ahora aquí) vs. solo pertenece a la misma sede.
+            "del_servicio_actual":   str(ei.proyecto_servicio_id or "") == servicio_id,
         }
         for ei, tipo_nombre, ubicacion_nombre, zona_nombre, estado_inspeccion in rows
     ]
@@ -4248,6 +4288,16 @@ def get_inspeccion_activa(
             "observaciones": hi.observaciones or None if hi else None,
             "proxima_fecha": hi.proxima_fecha_mantenimiento.isoformat() if hi and hi.proxima_fecha_mantenimiento else None,
             "equipo":        _equipo_info_dict(db, ei, tipo),
+            "inspeccion_padre_id": str(hi.inspeccion_padre_id) if hi and hi.inspeccion_padre_id else None,
+            "padre": _resumen_vinculo(
+                db,
+                db.query(HistorialInspeccion).filter(
+                    HistorialInspeccion.id == str(hi.inspeccion_padre_id)
+                ).first(),
+            ) if hi and hi.inspeccion_padre_id else None,
+            "intervencion_anterior": _resumen_vinculo(
+                db, _ultima_inspeccion_previa(db, empresa_id, ei_id, str(hi.id) if hi else "")
+            ),
         }
 
     # Buscar sesión activa (en_proceso) para ESTE servicio — cada ciclo de
@@ -4309,6 +4359,16 @@ def get_inspeccion_activa(
         "observaciones":       hi.observaciones or None,
         "proxima_fecha":       hi.proxima_fecha_mantenimiento.isoformat() if hi.proxima_fecha_mantenimiento else None,
         "equipo": _equipo_info_dict(db, ei, tipo),
+        "inspeccion_padre_id": str(hi.inspeccion_padre_id) if hi.inspeccion_padre_id else None,
+        "padre": _resumen_vinculo(
+            db,
+            db.query(HistorialInspeccion).filter(
+                HistorialInspeccion.id == str(hi.inspeccion_padre_id)
+            ).first(),
+        ) if hi.inspeccion_padre_id else None,
+        "intervencion_anterior": _resumen_vinculo(
+            db, _ultima_inspeccion_previa(db, empresa_id, ei_id, str(hi.id))
+        ),
     }
 
 
@@ -4570,6 +4630,99 @@ def finalizar_inspeccion(
         "inspeccion_id": inspeccion_id,
         "proxima_fecha": proxima_fecha.isoformat() if proxima_fecha else None,
     }
+
+
+# ── POST /inspeccion/{id}/vincular ────────────────────────────────────────────
+# Encadena la inspección actual con una anterior del MISMO equipo (o la desvincula).
+
+@router.post("/inspeccion/{inspeccion_id}/vincular")
+def vincular_inspeccion(
+    inspeccion_id: str,
+    body:          dict,
+    payload:       dict    = Depends(verificar_token),
+    db:            Session = Depends(get_db),
+):
+    """body: {"inspeccion_padre_id": "<id>" | null}. Valida que el padre exista,
+    sea de la misma empresa y del mismo equipo, y no sea la propia inspección."""
+    empresa_id = payload["empresa_id"]
+
+    hi = db.query(HistorialInspeccion).filter(
+        HistorialInspeccion.id         == inspeccion_id,
+        HistorialInspeccion.empresa_id == empresa_id,
+    ).first()
+    if not hi:
+        raise HTTPException(status_code=404, detail="Inspección no encontrada")
+
+    padre_id = body.get("inspeccion_padre_id")
+    if padre_id:
+        padre_id = str(padre_id)
+        if padre_id == inspeccion_id:
+            raise HTTPException(status_code=400, detail="Una inspección no puede vincularse a sí misma")
+        padre = db.query(HistorialInspeccion).filter(
+            HistorialInspeccion.id         == padre_id,
+            HistorialInspeccion.empresa_id == empresa_id,
+        ).first()
+        if not padre:
+            raise HTTPException(status_code=404, detail="Intervención anterior no encontrada")
+        if str(padre.equipo_intervenido_id) != str(hi.equipo_intervenido_id):
+            raise HTTPException(status_code=400, detail="La intervención anterior pertenece a otro equipo")
+        hi.inspeccion_padre_id = padre_id
+    else:
+        hi.inspeccion_padre_id = None
+
+    db.commit()
+
+    padre_row = None
+    if hi.inspeccion_padre_id:
+        padre_row = db.query(HistorialInspeccion).filter(
+            HistorialInspeccion.id == str(hi.inspeccion_padre_id)
+        ).first()
+    return {
+        "ok": True,
+        "inspeccion_padre_id": str(hi.inspeccion_padre_id) if hi.inspeccion_padre_id else None,
+        "padre": _resumen_vinculo(db, padre_row),
+    }
+
+
+# ── GET /servicio/{sid}/equipos-intervenidos/{eiId}/intervenciones-previas ────
+# Lista de intervenciones COMPLETADAS del equipo (de otros servicios) para que
+# el usuario elija a cuál vincular la inspección actual.
+
+@router.get("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/intervenciones-previas")
+def intervenciones_previas(
+    servicio_id: str,
+    ei_id:       str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+
+    # Inspección activa de ESTE servicio (para no ofrecerla como su propio padre).
+    actual = (
+        db.query(HistorialInspeccion)
+        .filter(
+            HistorialInspeccion.equipo_intervenido_id == ei_id,
+            HistorialInspeccion.empresa_id            == empresa_id,
+            HistorialInspeccion.proyecto_servicio_id  == servicio_id,
+        )
+        .order_by(HistorialInspeccion.created_at.desc())
+        .first()
+    )
+    actual_id = str(actual.id) if actual else ""
+
+    registros = (
+        db.query(HistorialInspeccion)
+        .filter(
+            HistorialInspeccion.equipo_intervenido_id == ei_id,
+            HistorialInspeccion.empresa_id            == empresa_id,
+            HistorialInspeccion.estado                == "completado",
+        )
+        .order_by(HistorialInspeccion.fecha_fin.desc())
+        .all()
+    )
+    return [
+        _resumen_vinculo(db, r) for r in registros if str(r.id) != actual_id
+    ]
 
 
 # ── GET /servicio/{sid}/equipos-intervenidos/{eiId}/historial ─────────────────

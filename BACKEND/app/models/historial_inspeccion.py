@@ -24,6 +24,12 @@ class HistorialInspeccion(Base):
                                          ForeignKey("proyecto_servicio.id"), nullable=True)
     empresa_id                  = Column(UUID(as_uuid=False),
                                          ForeignKey("empresa.id"), nullable=False)
+    # Vínculo opcional a una intervención anterior del MISMO equipo: permite
+    # encadenar "este trabajo da seguimiento a aquel". Auto-FK nullable.
+    # NOTA: columna añadida con SQL manual (migrations/2026_06_18_inspeccion_padre.sql);
+    # create_all NO altera tablas vivas.
+    inspeccion_padre_id         = Column(UUID(as_uuid=False),
+                                         ForeignKey("historial_inspeccion.id"), nullable=True)
     estado                      = Column(String(20), nullable=False, default="en_proceso")
     resultado                   = Column(JSONB, nullable=True)
     observaciones               = Column(Text, nullable=True)
