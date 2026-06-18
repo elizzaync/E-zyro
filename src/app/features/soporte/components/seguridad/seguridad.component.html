@@ -122,7 +122,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (ip of ips; track ip.id; trackBy: trackIp) {
+              @for (ip of ips; track ip.id) {
                 <tr class="seg-row">
                   <td class="ip-cell">{{ ip.ip }}</td>
                   <td class="motivo-cell">{{ ip.motivo || '—' }}</td>
@@ -204,7 +204,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (s of sesiones; track s.id; trackBy: trackSesion) {
+              @for (s of sesiones; track s.id) {
                 <tr class="seg-row">
                   <td><span class="badge badge-red-pulse">ACTIVA</span></td>
                   <td class="usuario-cell">{{ s.usuario_nombre }}</td>
