@@ -126,13 +126,28 @@
             </tbody>
           </table>
         </div>
-        @if (audHayMas) {
-          <div class="load-more-wrap">
-            <button class="btn-load-more" (click)="cargarMasAuditoria()" [disabled]="cargando">
-              {{ cargando ? 'Cargando...' : 'Cargar más registros' }}
+        <!-- Paginación auditoría -->
+        <div class="pagination-wrap">
+          <div class="pag-info">
+            Página {{ audPage }} de {{ audTotalPages }} &nbsp;·&nbsp; {{ auditoria.length }} registros en esta página
+          </div>
+          <div class="pag-controls">
+            <button class="pag-btn pag-nav" (click)="irPaginaAud(audPage - 1)" [disabled]="audPage === 1 || cargando">
+              ← Anterior
+            </button>
+            @for (p of audPaginasVisibles; track $index) {
+              @if (p === '...') {
+                <span class="pag-ellipsis">…</span>
+              } @else {
+                <button class="pag-btn" [class.active]="p === audPage"
+                  (click)="irPaginaAud(+p)" [disabled]="cargando">{{ p }}</button>
+              }
+            }
+            <button class="pag-btn pag-nav" (click)="irPaginaAud(audPage + 1)" [disabled]="!audHayMas || cargando">
+              Siguiente →
             </button>
           </div>
-        }
+        </div>
       }
     </div>
   }
@@ -201,13 +216,28 @@
             </tbody>
           </table>
         </div>
-        @if (sesHayMas) {
-          <div class="load-more-wrap">
-            <button class="btn-load-more" (click)="cargarMasSesiones()" [disabled]="cargando">
-              {{ cargando ? 'Cargando...' : 'Cargar más sesiones' }}
+        <!-- Paginación sesiones -->
+        <div class="pagination-wrap">
+          <div class="pag-info">
+            Página {{ sesPage }} de {{ sesTotalPages }} &nbsp;·&nbsp; {{ sesionesVista.length }} sesiones en esta página
+          </div>
+          <div class="pag-controls">
+            <button class="pag-btn pag-nav" (click)="irPaginaSes(sesPage - 1)" [disabled]="sesPage === 1 || cargando">
+              ← Anterior
+            </button>
+            @for (p of sesPaginasVisibles; track $index) {
+              @if (p === '...') {
+                <span class="pag-ellipsis">…</span>
+              } @else {
+                <button class="pag-btn" [class.active]="p === sesPage"
+                  (click)="irPaginaSes(+p)" [disabled]="cargando">{{ p }}</button>
+              }
+            }
+            <button class="pag-btn pag-nav" (click)="irPaginaSes(sesPage + 1)" [disabled]="!sesHayMas || cargando">
+              Siguiente →
             </button>
           </div>
-        }
+        </div>
       }
     </div>
   }

@@ -35,6 +35,27 @@ export interface ActividadDto {
   creado_en: string;
 }
 
+export interface IpBloqueadaDto {
+  id: string;
+  ip: string;
+  motivo?: string;
+  bloqueada_por_nombre?: string;
+  activa: boolean;
+  created_at: string;
+  desbloqueada_en?: string;
+}
+
+export interface SesionActivaDto {
+  id: string;
+  usuario_id: string;
+  usuario_nombre: string;
+  ip?: string;
+  dispositivo?: string;
+  user_agent?: string;
+  created_at: string;
+  fecha_expiracion: string;
+}
+
 export interface SesionDto {
   id: string;
   usuario_id: string;
@@ -108,6 +129,30 @@ export class SoporteService {
     if (params?.page != null) p = p.set('page', params.page.toString());
     if (params?.page_size != null) p = p.set('page_size', params.page_size.toString());
     return this.http.get<SesionDto[]>(`${this.base}/soporte/monitoreo/sesiones`, { params: p });
+  }
+
+  // ── Centro de Seguridad ──────────────────────────────────────────────────
+
+  getIpsBloqueadas(mostrarHistorial = false): Observable<IpBloqueadaDto[]> {
+    let p = new HttpParams();
+    if (mostrarHistorial) p = p.set('mostrar_historial', 'true');
+    return this.http.get<IpBloqueadaDto[]>(`${this.base}/soporte/seguridad/ips`, { params: p });
+  }
+
+  bloquearIp(body: { ip: string; motivo?: string }): Observable<IpBloqueadaDto> {
+    return this.http.post<IpBloqueadaDto>(`${this.base}/soporte/seguridad/ips`, body);
+  }
+
+  desbloquearIp(ipId: string): Observable<{ detail: string }> {
+    return this.http.delete<{ detail: string }>(`${this.base}/soporte/seguridad/ips/${ipId}`);
+  }
+
+  getSesionesActivas(): Observable<SesionActivaDto[]> {
+    return this.http.get<SesionActivaDto[]>(`${this.base}/soporte/seguridad/sesiones-activas`);
+  }
+
+  cerrarSesionRemota(sesionId: string): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(`${this.base}/soporte/seguridad/sesiones/${sesionId}/cerrar`, {});
   }
 
   getAuditoria(params?: {

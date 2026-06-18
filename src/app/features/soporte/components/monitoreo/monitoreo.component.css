@@ -149,18 +149,32 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Paginación ─────────────────────────────────────────────────────────────── */
-.load-more-wrap {
-  display: flex; justify-content: center;
-  padding: 16px; border-top: 1px solid var(--border-color);
+.pagination-wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid var(--border-color);
 }
-.btn-load-more {
-  padding: 8px 24px; border-radius: 8px;
+.pag-info {
+  font-size: 0.8rem; color: var(--text-muted);
+}
+.pag-controls {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+}
+.pag-btn {
+  min-width: 34px; height: 34px;
+  padding: 0 10px; border-radius: 7px;
   border: 1px solid var(--border-color);
   background: var(--card-bg); color: var(--text-muted);
-  font-size: 0.84rem; font-weight: 600; cursor: pointer; transition: all .15s;
+  font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; justify-content: center;
 }
-.btn-load-more:hover:not(:disabled) { border-color: #6366f1; color: #6366f1; }
-.btn-load-more:disabled { opacity: .5; cursor: not-allowed; }
+.pag-btn:hover:not(:disabled):not(.active) { border-color: #6366f1; color: #6366f1; }
+.pag-btn.active { background: #6366f1; color: #fff; border-color: #6366f1; }
+.pag-btn:disabled { opacity: .4; cursor: not-allowed; }
+.pag-nav { min-width: auto; padding: 0 14px; font-size: 0.8rem; white-space: nowrap; }
+.pag-ellipsis {
+  padding: 0 4px; color: var(--text-muted); font-size: 0.9rem; line-height: 34px;
+}
 
 /* ── Animations ─────────────────────────────────────────────────────────────── */
 .fade-in { animation: fadeIn .2s ease; }

@@ -1,0 +1,259 @@
+<div class="seg-layout fade-in">
+
+  <!-- Header -->
+  <div class="seg-header">
+    <div class="seg-header-left">
+      <div class="seg-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="seg-title">Centro de Seguridad</h1>
+        <p class="seg-subtitle">Control de acceso IP y gestión de sesiones activas</p>
+      </div>
+    </div>
+    <div class="seg-kpis">
+      <div class="kpi-chip kpi-red">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <div>
+          <span class="kpi-num">{{ ips.length }}</span>
+          <span class="kpi-lbl">IPs bloqueadas</span>
+        </div>
+      </div>
+      <div class="kpi-chip kpi-blue">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        <div>
+          <span class="kpi-num">{{ sesiones.length }}</span>
+          <span class="kpi-lbl">Sesiones activas</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="seg-tabs">
+    <button class="seg-tab" [class.active]="tab === 'ips'" (click)="setTab('ips')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+      </svg>
+      IPs Bloqueadas
+    </button>
+    <button class="seg-tab" [class.active]="tab === 'sesiones'" (click)="setTab('sesiones')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+      Sesiones Activas
+    </button>
+  </div>
+
+  <!-- ── Tab: IPs Bloqueadas ──────────────────────────────────────────────── -->
+  @if (tab === 'ips') {
+    <div class="seg-card fade-in">
+
+      <!-- Formulario de bloqueo -->
+      <div class="seg-form-section">
+        <p class="seg-form-label">Bloquear nueva IP</p>
+        <div class="seg-form-row">
+          <div class="seg-input-wrap" [class.error]="ipError">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <input type="text" class="seg-input" placeholder="192.168.1.1"
+              [(ngModel)]="ipForm.ip" (ngModelChange)="ipError = ''" (keyup.enter)="bloquearIp()">
+          </div>
+          <div class="seg-input-wrap flex-2">
+            <input type="text" class="seg-input" placeholder="Motivo (opcional)"
+              [(ngModel)]="ipForm.motivo" (keyup.enter)="bloquearIp()">
+          </div>
+          <button class="btn-bloquear" (click)="bloquearIp()" [disabled]="bloqueando">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            {{ bloqueando ? 'Bloqueando...' : 'Bloquear IP' }}
+          </button>
+        </div>
+        @if (ipError) {
+          <p class="seg-form-error">{{ ipError }}</p>
+        }
+      </div>
+
+      <!-- Cabecera con toggle historial -->
+      <div class="seg-table-header">
+        <span class="seg-table-count">
+          {{ ips.length }} IP{{ ips.length !== 1 ? 's' : '' }} {{ mostrarHistorial ? 'en historial' : 'bloqueadas actualmente' }}
+        </span>
+        <button class="btn-toggle-hist" (click)="toggleHistorial()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+          </svg>
+          {{ mostrarHistorial ? 'Ocultar historial' : 'Mostrar historial' }}
+        </button>
+      </div>
+
+      <!-- Tabla IPs -->
+      @if (cargando) {
+        <div class="seg-loading">
+          <div class="spinner-ring"></div>
+          <span>Cargando IPs bloqueadas...</span>
+        </div>
+      } @else if (ips.length === 0) {
+        <div class="seg-empty">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <p>No hay IPs bloqueadas {{ mostrarHistorial ? 'en el historial' : 'actualmente' }}.</p>
+        </div>
+      } @else {
+        <div class="table-wrap">
+          <table class="seg-table">
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>Motivo</th>
+                <th>Bloqueada por</th>
+                <th>Fecha bloqueo</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ip of ips; track ip.id; trackBy: trackIp) {
+                <tr class="seg-row">
+                  <td class="ip-cell">{{ ip.ip }}</td>
+                  <td class="motivo-cell">{{ ip.motivo || '—' }}</td>
+                  <td>{{ ip.bloqueada_por_nombre || '—' }}</td>
+                  <td class="fecha-cell">{{ ip.created_at }}</td>
+                  <td>
+                    @if (ip.activa) {
+                      <span class="badge badge-red">Bloqueada</span>
+                    } @else {
+                      <span class="badge badge-gray">Desbloqueada</span>
+                    }
+                  </td>
+                  <td>
+                    @if (ip.activa) {
+                      <button class="btn-accion btn-desbloquear" (click)="confirmarDesbloquear(ip)">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 019.9-1"/>
+                        </svg>
+                        Desbloquear
+                      </button>
+                    } @else {
+                      <span class="texto-muted">—</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Tab: Sesiones Activas ─────────────────────────────────────────────── -->
+  @if (tab === 'sesiones') {
+    <div class="seg-card fade-in">
+
+      <!-- Info y recarga -->
+      <div class="seg-table-header">
+        <div class="seg-info-note">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Cerrar una sesión desconectará al usuario inmediatamente.
+        </div>
+        <button class="btn-recargar" (click)="cargarSesiones()" [disabled]="cargandoSesiones">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+          </svg>
+          {{ cargandoSesiones ? 'Recargando...' : 'Recargar' }}
+        </button>
+      </div>
+
+      @if (cargandoSesiones) {
+        <div class="seg-loading">
+          <div class="spinner-ring"></div>
+          <span>Cargando sesiones activas...</span>
+        </div>
+      } @else if (sesiones.length === 0) {
+        <div class="seg-empty">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+          <p>No hay sesiones activas en este momento.</p>
+        </div>
+      } @else {
+        <div class="table-wrap">
+          <table class="seg-table">
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>Usuario</th>
+                <th>IP</th>
+                <th>Dispositivo</th>
+                <th>Navegador</th>
+                <th>Desde</th>
+                <th>Expira</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of sesiones; track s.id; trackBy: trackSesion) {
+                <tr class="seg-row">
+                  <td><span class="badge badge-red-pulse">ACTIVA</span></td>
+                  <td class="usuario-cell">{{ s.usuario_nombre }}</td>
+                  <td class="ip-cell">{{ s.ip || '—' }}</td>
+                  <td>{{ s.dispositivo || '—' }}</td>
+                  <td class="ua-cell">{{ truncarUserAgent(s.user_agent) }}</td>
+                  <td class="fecha-cell">{{ s.created_at }}</td>
+                  <td class="fecha-cell">{{ s.fecha_expiracion }}</td>
+                  <td>
+                    <button class="btn-accion btn-cerrar-sesion" (click)="confirmarCerrarSesion(s)">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                      </svg>
+                      Cerrar sesión
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+
+</div>
+
+<!-- Modal de confirmación -->
+<app-modal
+  [open]="modal.open"
+  [title]="modal.titulo"
+  [subtitle]="modal.subtitulo"
+  iconBg="rgba(239,68,68,0.1)"
+  iconColor="#ef4444"
+  maxWidth="480px"
+  (closeModal)="cerrarModal()">
+
+  <ng-container modal-icon>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+  </ng-container>
+
+  <div class="modal-body-confirm">
+    <div class="modal-footer-confirm">
+      <button class="btn-cancel-modal" (click)="cerrarModal()">Cancelar</button>
+      <button class="btn-confirm-modal" (click)="confirmarAccionModal()">Confirmar</button>
+    </div>
+  </div>
+</app-modal>

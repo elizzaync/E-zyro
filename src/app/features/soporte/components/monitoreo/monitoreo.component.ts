@@ -27,6 +27,8 @@ export class MonitoreoComponent implements OnInit {
   audFechaDesde = '';
   audFechaHasta = '';
   audPage       = 1;
+  audTotalPages = 1;
+  audTotal      = 0;
   audHayMas     = false;
 
   // Sesiones
@@ -35,6 +37,8 @@ export class MonitoreoComponent implements OnInit {
   sesFechaDesde = '';
   sesFechaHasta = '';
   sesPage       = 1;
+  sesTotalPages = 1;
+  sesTotal      = 0;
   sesHayMas     = false;
 
   // KPIs
@@ -81,8 +85,15 @@ export class MonitoreoComponent implements OnInit {
       page_size: this.PAGE_SIZE,
     }).subscribe({
       next: data => {
-        this.auditoria = reset ? data : [...this.auditoria, ...data];
+        this.auditoria = data;
         this.audHayMas = data.length === this.PAGE_SIZE;
+        // Estimate total pages: if full page returned, there may be more
+        if (reset) {
+          this.audTotal = data.length;
+          this.audTotalPages = this.audHayMas ? this.audPage + 1 : this.audPage;
+        } else {
+          this.audTotalPages = this.audHayMas ? this.audPage + 1 : this.audPage;
+        }
         this.cargando = false;
       },
       error: () => { this.cargando = false; this.toast.mostrar('Error al cargar auditoría.', 'error'); }
@@ -99,8 +110,13 @@ export class MonitoreoComponent implements OnInit {
       page_size: this.PAGE_SIZE,
     }).subscribe({
       next: data => {
-        this.sesiones = reset ? data : [...this.sesiones, ...data];
+        this.sesiones = data;
         this.sesHayMas = data.length === this.PAGE_SIZE;
+        if (reset) {
+          this.sesTotalPages = this.sesHayMas ? this.sesPage + 1 : this.sesPage;
+        } else {
+          this.sesTotalPages = this.sesHayMas ? this.sesPage + 1 : this.sesPage;
+        }
         this.cargando = false;
       },
       error: () => { this.cargando = false; this.toast.mostrar('Error al cargar sesiones.', 'error'); }
@@ -110,8 +126,48 @@ export class MonitoreoComponent implements OnInit {
   buscarAuditoria(): void { this.cargarAuditoria(true); }
   buscarSesiones(): void { this.cargarSesiones(true); }
 
-  cargarMasAuditoria(): void { this.audPage++; this.cargarAuditoria(false); }
-  cargarMasSesiones(): void { this.sesPage++; this.cargarSesiones(false); }
+  // ── Paginación auditoría ──────────────────────────────────────────────────
+  irPaginaAud(page: number): void {
+    if (page < 1 || page > this.audTotalPages) return;
+    this.audPage = page;
+    this.cargarAuditoria(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  get audPaginasVisibles(): (number | '...')[] {
+    return this._paginasVisibles(this.audPage, this.audTotalPages);
+  }
+
+  // ── Paginación sesiones ───────────────────────────────────────────────────
+  irPaginaSes(page: number): void {
+    if (page < 1 || page > this.sesTotalPages) return;
+    this.sesPage = page;
+    this.cargarSesiones(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  get sesPaginasVisibles(): (number | '...')[] {
+    return this._paginasVisibles(this.sesPage, this.sesTotalPages);
+  }
+
+  private _paginasVisibles(current: number, total: number): (number | '...')[] {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages: (number | '...')[] = [];
+    const delta = 2;
+    const left  = current - delta;
+    const right = current + delta;
+
+    pages.push(1);
+    if (left > 2) pages.push('...');
+    for (let i = Math.max(2, left); i <= Math.min(total - 1, right); i++) {
+      pages.push(i);
+    }
+    if (right < total - 1) pages.push('...');
+    pages.push(total);
+    return pages;
+  }
 
   get sesionesVista(): SesionDto[] {
     const q = this.sesBusqueda.toLowerCase().trim();
