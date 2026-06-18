@@ -32,6 +32,9 @@ export class MonitoreoComponent implements OnInit {
   audTotal      = 0;
   audHayMas     = false;
   audExpandedIds = new Set<string>();
+  audDetalleModal: AuditoriaDto | null = null;
+  audDetalleOpen = false;
+  revirtiendo = false;
 
   // Sesiones
   sesiones: SesionDto[] = [];
@@ -190,6 +193,41 @@ export class MonitoreoComponent implements OnInit {
     const q = this.sesBusqueda.toLowerCase().trim();
     if (!q) return this.sesiones;
     return this.sesiones.filter(s => s.usuario_nombre.toLowerCase().includes(q));
+  }
+
+  abrirDetalle(a: AuditoriaDto): void {
+    this.audDetalleModal = a;
+    this.audDetalleOpen = true;
+    const main = document.querySelector('main');
+    if (main) { main.classList.add('modal-open'); document.body.style.overflow = 'hidden'; }
+  }
+
+  cerrarDetalle(): void {
+    this.audDetalleOpen = false;
+    this.audDetalleModal = null;
+    const main = document.querySelector('main');
+    if (main) { main.classList.remove('modal-open'); document.body.style.overflow = ''; }
+  }
+
+  revertir(a: AuditoriaDto): void {
+    if (!a.datos_anteriores) return;
+    this.revirtiendo = true;
+    this.svc.revertirAuditoria(a.id).subscribe({
+      next: (res) => {
+        this.revirtiendo = false;
+        this.toast.mostrar(res.detail, 'success');
+        this.cerrarDetalle();
+        this.cargarAuditoria(true);
+      },
+      error: (err) => {
+        this.revirtiendo = false;
+        this.toast.mostrar(err?.error?.detail || 'Error al revertir el cambio.', 'error');
+      }
+    });
+  }
+
+  puedeRevertir(a: AuditoriaDto): boolean {
+    return !!(a.datos_anteriores && a.registro_id && !['ELIMINAR', 'DELETE'].includes(a.accion.toUpperCase()));
   }
 
   moduloLabel(m: string): string { return m ? m.charAt(0).toUpperCase() + m.slice(1) : '—'; }

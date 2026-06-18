@@ -91,6 +91,29 @@ export interface IpFrecuenteDto {
   ya_bloqueada: boolean;
 }
 
+export interface DispositivoDto {
+  id: string;
+  dispositivo: string;
+  ip: string;
+  user_agent: string;
+  plataforma: 'Web' | 'Móvil';
+  vigente: boolean;
+  minutos_restantes: number | null;
+  created_at: string;
+  fecha_expiracion: string;
+}
+
+export interface ReporteDispositivosDto {
+  usuario_id: string;
+  usuario_nombre: string;
+  email: string;
+  total_sesiones_activas: number;
+  sesiones_vigentes: number;
+  sesiones_expiradas_sin_cerrar: number;
+  alerta: 'normal' | 'advertencia' | 'critico' | 'expirada';
+  dispositivos: DispositivoDto[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class SoporteService {
   private http = inject(HttpClient);
@@ -167,8 +190,20 @@ export class SoporteService {
     return this.http.get<IpFrecuenteDto[]>(`${this.base}/soporte/seguridad/ips-frecuentes`);
   }
 
+  getReporteDispositivos(): Observable<ReporteDispositivosDto[]> {
+    return this.http.get<ReporteDispositivosDto[]>(`${this.base}/soporte/seguridad/reporte-dispositivos`);
+  }
+
+  limpiarSesionesExpiradas(): Observable<{ detail: string; limpiadas: number }> {
+    return this.http.post<{ detail: string; limpiadas: number }>(`${this.base}/soporte/seguridad/limpiar-sesiones-expiradas`, {});
+  }
+
   cerrarTodasSesiones(usuarioId: string): Observable<{ detail: string; cerradas: number }> {
     return this.http.post<{ detail: string; cerradas: number }>(`${this.base}/soporte/seguridad/usuarios/${usuarioId}/cerrar-todas-sesiones`, {});
+  }
+
+  revertirAuditoria(auditoriaId: string): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(`${this.base}/auditoria/${auditoriaId}/revertir`, {});
   }
 
   getAuditoria(params?: {

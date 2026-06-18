@@ -49,6 +49,15 @@
       </svg>
       Sesiones Activas
     </button>
+    <button class="seg-tab" [class.active]="tab === 'dispositivos'" (click)="setTab('dispositivos')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+      </svg>
+      Dispositivos por Cuenta
+      @if (kpiCriticos > 0) {
+        <span class="tab-alert-dot">{{ kpiCriticos }}</span>
+      }
+    </button>
   </div>
 
   <!-- ── Tab: IPs Bloqueadas ──────────────────────────────────────────────── -->
@@ -280,6 +289,197 @@
   }
 
 </div>
+
+<!-- ── Tab: Dispositivos por Cuenta ────────────────────────────────────────── -->
+@if (tab === 'dispositivos') {
+  <div class="seg-card fade-in">
+
+    <!-- KPIs de alertas -->
+    <div class="disp-kpis">
+      <div class="disp-kpi disp-kpi-red">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div>
+          <span class="disp-kpi-num">{{ kpiCriticos }}</span>
+          <span class="disp-kpi-lbl">Cuentas críticas (3+ dispositivos)</span>
+        </div>
+      </div>
+      <div class="disp-kpi disp-kpi-orange">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <div>
+          <span class="disp-kpi-num">{{ kpiAdvertencias }}</span>
+          <span class="disp-kpi-lbl">Con 2 dispositivos</span>
+        </div>
+      </div>
+      <div class="disp-kpi disp-kpi-amber">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <div>
+          <span class="disp-kpi-num">{{ kpiExpiradas }}</span>
+          <span class="disp-kpi-lbl">Sesiones expiradas sin cerrar</span>
+        </div>
+      </div>
+      <div class="disp-kpi disp-kpi-green">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        <div>
+          <span class="disp-kpi-num">{{ kpiTotalActivos }}</span>
+          <span class="disp-kpi-lbl">Usuarios con sesión activa</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="seg-table-header">
+      <p class="seg-info-note">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        Las sesiones expiran automáticamente a las 4 horas. Una cuenta no debería tener más de 2 dispositivos activos simultáneamente.
+      </p>
+      <div style="display:flex;gap:8px">
+        <button class="btn-recargar" (click)="cargarDispositivos()" [disabled]="cargandoDispositivos">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+          </svg>
+          Recargar
+        </button>
+        @if (kpiExpiradas > 0) {
+          <button class="btn-limpiar" (click)="limpiarExpiradas()" [disabled]="limpiando">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+            </svg>
+            {{ limpiando ? 'Limpiando...' : 'Limpiar expiradas (' + kpiExpiradas + ')' }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (cargandoDispositivos) {
+      <div class="seg-loading">
+        <div class="spinner-ring"></div>
+        <span>Cargando reporte de dispositivos...</span>
+      </div>
+    } @else if (reporteDispositivos.length === 0) {
+      <div class="seg-empty">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+        </svg>
+        <p>No hay usuarios con sesiones activas en este momento.</p>
+      </div>
+    } @else {
+      <div class="disp-lista">
+        @for (r of reporteDispositivos; track r.usuario_id) {
+          <div class="disp-fila" [class.disp-critico]="r.alerta === 'critico'" [class.disp-advertencia]="r.alerta === 'advertencia'" [class.disp-expirada]="r.alerta === 'expirada'">
+
+            <!-- Cabecera usuario -->
+            <div class="disp-user-header">
+              <div class="disp-user-info">
+                <div class="disp-avatar">{{ r.usuario_nombre.charAt(0).toUpperCase() }}</div>
+                <div>
+                  <p class="disp-user-nombre">{{ r.usuario_nombre }}</p>
+                  <p class="disp-user-email">{{ r.email }}</p>
+                </div>
+              </div>
+
+              <div class="disp-badges">
+                <!-- Alerta nivel -->
+                <span class="disp-alerta-badge"
+                  [class.badge-critico]="r.alerta === 'critico'"
+                  [class.badge-advertencia]="r.alerta === 'advertencia'"
+                  [class.badge-expirada]="r.alerta === 'expirada'"
+                  [class.badge-normal]="r.alerta === 'normal'">
+                  @if (r.alerta === 'critico') { ⚠ }
+                  {{ alertaLabel(r.alerta) }}
+                </span>
+
+                <!-- Contador dispositivos -->
+                <span class="disp-count-badge" [class.count-multi]="r.sesiones_vigentes > 1">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="5" y="2" width="14" height="20" rx="2"/>
+                  </svg>
+                  {{ r.sesiones_vigentes }} dispositivo{{ r.sesiones_vigentes !== 1 ? 's' : '' }} activo{{ r.sesiones_vigentes !== 1 ? 's' : '' }}
+                </span>
+
+                @if (r.sesiones_expiradas_sin_cerrar > 0) {
+                  <span class="disp-exp-badge">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    {{ r.sesiones_expiradas_sin_cerrar }} expirada(s) sin cerrar
+                  </span>
+                }
+              </div>
+
+              <div class="disp-actions">
+                <button class="btn-expand-user" (click)="toggleDispositivosUsuario(r.usuario_id)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    [style.transform]="dispositivosExpandidos.has(r.usuario_id) ? 'rotate(180deg)' : 'none'">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                  {{ dispositivosExpandidos.has(r.usuario_id) ? 'Ocultar' : 'Ver dispositivos' }}
+                </button>
+                <button class="btn-accion btn-cerrar-todas" (click)="confirmarCerrarTodasPorUsuario(r)"
+                  [disabled]="cerrandoTodasId === r.usuario_id" title="Cerrar todas las sesiones">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  Cerrar todas
+                </button>
+              </div>
+            </div>
+
+            <!-- Detalle dispositivos (expandible) -->
+            @if (dispositivosExpandidos.has(r.usuario_id)) {
+              <div class="disp-detalle fade-in">
+                @for (d of r.dispositivos; track d.id) {
+                  <div class="disp-device-card" [class.device-expirado]="!d.vigente">
+                    <div class="device-plat">
+                      @if (d.plataforma === 'Web') {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                        </svg>
+                      } @else {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>
+                        </svg>
+                      }
+                      <span class="device-plat-name">{{ d.plataforma }}</span>
+                    </div>
+                    <div class="device-info">
+                      <p class="device-nombre">{{ d.dispositivo }}</p>
+                      <p class="device-meta">IP: <strong>{{ d.ip }}</strong> · Inicio: {{ d.created_at }}</p>
+                    </div>
+                    <div class="device-tiempo" [class.tiempo-critico]="d.minutos_restantes !== null && d.minutos_restantes < 30">
+                      @if (!d.vigente) {
+                        <span class="tiempo-exp-label">Expirada</span>
+                      } @else {
+                        <span class="tiempo-label">Expira en</span>
+                        <span class="tiempo-val">{{ tiempoRestante(d.minutos_restantes) }}</span>
+                        @if (d.minutos_restantes !== null && d.minutos_restantes < 30) {
+                          <span class="tiempo-warn">⚠ Por expirar</span>
+                        }
+                      }
+                    </div>
+                    <span class="device-status-badge" [class.status-vigente]="d.vigente" [class.status-expirado]="!d.vigente">
+                      {{ d.vigente ? 'Activa' : 'Expirada' }}
+                    </span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+}
 
 <!-- Modal de confirmación -->
 <app-modal

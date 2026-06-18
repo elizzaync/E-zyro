@@ -1,11 +1,11 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SoporteService, IpBloqueadaDto, SesionActivaDto, IpFrecuenteDto } from '../../../../core/services/soporte.service';
+import { SoporteService, IpBloqueadaDto, SesionActivaDto, IpFrecuenteDto, ReporteDispositivosDto, DispositivoDto } from '../../../../core/services/soporte.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
-type TabSeguridad = 'ips' | 'sesiones';
+type TabSeguridad = 'ips' | 'sesiones' | 'dispositivos';
 
 interface ModalConfirm {
   open: boolean;
@@ -41,6 +41,12 @@ export class SeguridadComponent implements OnInit {
   cargandoSesiones = false;
   cerrandoTodasId = '';
 
+  // Dispositivos por usuario
+  reporteDispositivos: ReporteDispositivosDto[] = [];
+  cargandoDispositivos = false;
+  limpiando = false;
+  dispositivosExpandidos = new Set<string>();
+
   // Modal de confirmación
   modal: ModalConfirm = {
     open: false,
@@ -60,6 +66,7 @@ export class SeguridadComponent implements OnInit {
     this.tab = t;
     if (t === 'sesiones' && this.sesiones.length === 0) this.cargarSesiones();
     if (t === 'ips') { this.cargarIps(); this.cargarIpsFrequentes(); }
+    if (t === 'dispositivos') this.cargarDispositivos();
   }
 
   // ── IPs Bloqueadas ──────────────────────────────────────────────────────────
@@ -234,6 +241,60 @@ export class SeguridadComponent implements OnInit {
     if (!main) return;
     open ? main.classList.add('modal-open') : main.classList.remove('modal-open');
     document.body.style.overflow = open ? 'hidden' : '';
+  }
+
+  // ── Dispositivos por usuario ─────────────────────────────────────────────────
+
+  cargarDispositivos(): void {
+    this.cargandoDispositivos = true;
+    this.svc.getReporteDispositivos().subscribe({
+      next: data => { this.reporteDispositivos = data; this.cargandoDispositivos = false; },
+      error: () => { this.cargandoDispositivos = false; this.toast.mostrar('Error al cargar reporte de dispositivos.', 'error'); }
+    });
+  }
+
+  toggleDispositivosUsuario(usuarioId: string): void {
+    if (this.dispositivosExpandidos.has(usuarioId)) this.dispositivosExpandidos.delete(usuarioId);
+    else this.dispositivosExpandidos.add(usuarioId);
+  }
+
+  limpiarExpiradas(): void {
+    this.limpiando = true;
+    this.svc.limpiarSesionesExpiradas().subscribe({
+      next: res => {
+        this.limpiando = false;
+        this.toast.mostrar(`${res.limpiadas} sesión(es) expirada(s) limpiada(s).`, 'success');
+        this.cargarDispositivos();
+      },
+      error: () => { this.limpiando = false; this.toast.mostrar('Error al limpiar sesiones.', 'error'); }
+    });
+  }
+
+  get kpiCriticos(): number { return this.reporteDispositivos.filter(r => r.alerta === 'critico').length; }
+  get kpiAdvertencias(): number { return this.reporteDispositivos.filter(r => r.alerta === 'advertencia').length; }
+  get kpiExpiradas(): number { return this.reporteDispositivos.reduce((s, r) => s + r.sesiones_expiradas_sin_cerrar, 0); }
+  get kpiTotalActivos(): number { return this.reporteDispositivos.length; }
+
+  alertaLabel(nivel: string): string {
+    const m: Record<string, string> = { critico: 'Crítico', advertencia: 'Advertencia', expirada: 'Expirada sin cerrar', normal: 'Normal' };
+    return m[nivel] ?? nivel;
+  }
+
+  tiempoRestante(min: number | null): string {
+    if (min === null) return '—';
+    if (min <= 0) return 'Expirada';
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return `${h}h ${m}min`;
+  }
+
+  confirmarCerrarTodasPorUsuario(reporte: ReporteDispositivosDto): void {
+    const fakeSession: SesionActivaDto = {
+      id: '', usuario_id: reporte.usuario_id, usuario_nombre: reporte.usuario_nombre,
+      ip: '', dispositivo: '', user_agent: '', created_at: '', fecha_expiracion: ''
+    };
+    this.confirmarCerrarTodasSesiones(fakeSession);
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────

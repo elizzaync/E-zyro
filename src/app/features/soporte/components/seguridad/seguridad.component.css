@@ -262,3 +262,127 @@
 }
 .btn-cerrar-todas:hover:not(:disabled) { background: #dc2626; color: #fff; }
 .btn-cerrar-todas:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Tab badge de alerta ─────────────────────────────────────────────────────── */
+.tab-alert-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; border-radius: 9px;
+  background: #ef4444; color: #fff; font-size: 0.7rem; font-weight: 700;
+  padding: 0 4px; margin-left: 6px;
+}
+
+/* ── KPIs dispositivos ───────────────────────────────────────────────────────── */
+.disp-kpis {
+  display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+}
+.disp-kpi {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 10px; flex: 1; min-width: 160px;
+}
+.disp-kpi-red    { background: rgba(239,68,68,.08);  border: 1px solid rgba(239,68,68,.2);  color: #dc2626; }
+.disp-kpi-orange { background: rgba(249,115,22,.08); border: 1px solid rgba(249,115,22,.2); color: #ea580c; }
+.disp-kpi-amber  { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.2); color: #d97706; }
+.disp-kpi-green  { background: rgba(16,185,129,.08); border: 1px solid rgba(16,185,129,.2); color: #059669; }
+.disp-kpi-num  { display: block; font-size: 1.5rem; font-weight: 800; line-height: 1; }
+.disp-kpi-lbl  { display: block; font-size: 0.72rem; font-weight: 600; opacity: .8; margin-top: 2px; }
+
+/* ── Lista de usuarios con dispositivos ──────────────────────────────────────── */
+.disp-lista { display: flex; flex-direction: column; gap: 10px; }
+.disp-fila {
+  border: 1px solid var(--border-color); border-radius: 10px;
+  overflow: hidden; background: var(--card-bg);
+}
+.disp-critico    { border-left: 4px solid #ef4444; }
+.disp-advertencia { border-left: 4px solid #f97316; }
+.disp-expirada   { border-left: 4px solid #f59e0b; }
+
+.disp-user-header {
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  flex-wrap: wrap;
+}
+.disp-user-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 200px; }
+.disp-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.95rem; flex-shrink: 0;
+}
+.disp-user-nombre { font-weight: 700; color: var(--text-main); font-size: 0.88rem; margin: 0; }
+.disp-user-email  { font-size: 0.75rem; color: var(--text-muted); margin: 0; }
+
+.disp-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.disp-alerta-badge {
+  font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+}
+.badge-critico    { background: rgba(239,68,68,.1);  color: #dc2626; }
+.badge-advertencia { background: rgba(249,115,22,.1); color: #ea580c; }
+.badge-expirada   { background: rgba(245,158,11,.1); color: #d97706; }
+.badge-normal     { background: rgba(16,185,129,.1); color: #059669; }
+
+.disp-count-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+  background: var(--bg-hover); color: var(--text-muted); border: 1px solid var(--border-color);
+}
+.count-multi { background: rgba(239,68,68,.08); color: #dc2626; border-color: rgba(239,68,68,.2); }
+.disp-exp-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.7rem; padding: 3px 8px; border-radius: 6px;
+  background: rgba(245,158,11,.1); color: #d97706;
+}
+
+.disp-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.btn-expand-user {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 6px; font-size: 0.78rem; font-weight: 600;
+  background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-muted);
+  cursor: pointer; transition: all .15s;
+}
+.btn-expand-user svg { transition: transform .2s; }
+.btn-expand-user:hover { border-color: #6366f1; color: #6366f1; }
+
+/* ── Detalle de dispositivos ─────────────────────────────────────────────────── */
+.disp-detalle {
+  border-top: 1px solid var(--border-color); padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-hover, #f8fafc);
+}
+.disp-device-card {
+  display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+  background: var(--card-bg); border-radius: 8px; border: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+.device-expirado { opacity: .6; }
+
+.device-plat {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  color: var(--text-muted); min-width: 48px;
+}
+.device-plat-name { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+
+.device-info { flex: 1; min-width: 150px; }
+.device-nombre { font-weight: 600; font-size: 0.82rem; color: var(--text-main); margin: 0; }
+.device-meta   { font-size: 0.72rem; color: var(--text-muted); margin: 0; }
+
+.device-tiempo { text-align: right; min-width: 100px; }
+.tiempo-label  { display: block; font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.tiempo-val    { display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-main); }
+.tiempo-warn   { display: block; font-size: 0.7rem; color: #d97706; font-weight: 600; }
+.tiempo-exp-label { display: block; font-size: 0.8rem; font-weight: 700; color: #dc2626; }
+.tiempo-critico .tiempo-val { color: #dc2626; }
+
+.device-status-badge {
+  font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; flex-shrink: 0;
+}
+.status-vigente  { background: rgba(16,185,129,.1); color: #059669; }
+.status-expirado { background: rgba(239,68,68,.1);  color: #dc2626; }
+
+/* ── Botón limpiar ───────────────────────────────────────────────────────────── */
+.btn-limpiar {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 7px; font-size: 0.8rem; font-weight: 600;
+  background: rgba(245,158,11,.08); color: #d97706; border: 1px solid rgba(245,158,11,.3);
+  cursor: pointer; transition: all .15s;
+}
+.btn-limpiar:hover:not(:disabled) { background: #f59e0b; color: #fff; }
+.btn-limpiar:disabled { opacity: .5; cursor: not-allowed; }
