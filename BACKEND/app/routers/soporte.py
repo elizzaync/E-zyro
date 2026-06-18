@@ -752,6 +752,122 @@ def cerrar_sesion_remota(
     return {"detail": "Sesión cerrada correctamente"}
 
 
+@router.get("/seguridad/reporte-dispositivos")
+def reporte_dispositivos(
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Reporte de dispositivos conectados por usuario. Detecta multi-device y sesiones expiradas activas."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+    empresa_id = payload["empresa_id"]
+    ahora = datetime.utcnow()
+
+    # Todas las sesiones activas (incluyendo expiradas sin cerrar) de la empresa
+    sesiones = (
+        db.query(SesionUsuario)
+        .join(Usuario, Usuario.id == SesionUsuario.usuario_id)
+        .filter(
+            Usuario.empresa_id == empresa_id,
+            SesionUsuario.activa == True,
+        )
+        .order_by(SesionUsuario.created_at.desc())
+        .all()
+    )
+
+    # Agrupamos por usuario
+    from collections import defaultdict
+    grupos: dict[str, list] = defaultdict(list)
+    for s in sesiones:
+        grupos[str(s.usuario_id)].append(s)
+
+    resultado = []
+    for usuario_id_str, sess in grupos.items():
+        usuario = db.query(Usuario).filter(Usuario.id == usuario_id_str).first()
+        if not usuario:
+            continue
+
+        activas_vigentes   = [s for s in sess if s.fecha_expiracion and s.fecha_expiracion.replace(tzinfo=None) > ahora]
+        expiradas_sin_cerrar = [s for s in sess if s.fecha_expiracion and s.fecha_expiracion.replace(tzinfo=None) <= ahora]
+
+        n_activas = len(activas_vigentes)
+        alerta = "normal"
+        if len(expiradas_sin_cerrar) > 0:
+            alerta = "expirada"
+        if n_activas == 2:
+            alerta = "advertencia"
+        if n_activas >= 3:
+            alerta = "critico"
+
+        dispositivos = []
+        for s in sess:
+            vigente = s.fecha_expiracion and s.fecha_expiracion.replace(tzinfo=None) > ahora
+            minutos_restantes = None
+            if vigente and s.fecha_expiracion:
+                diff = s.fecha_expiracion.replace(tzinfo=None) - ahora
+                minutos_restantes = max(0, int(diff.total_seconds() / 60))
+            dispositivos.append({
+                "id": str(s.id),
+                "dispositivo": s.dispositivo or "Desconocido",
+                "ip": s.ip or "—",
+                "user_agent": s.user_agent or "",
+                "plataforma": "Móvil" if any(k in (s.dispositivo or "").lower() + (s.user_agent or "").lower()
+                                              for k in ("mobile", "android", "iphone", "ipad", "ios")) else "Web",
+                "vigente": vigente,
+                "minutos_restantes": minutos_restantes,
+                "created_at": s.created_at.strftime("%d/%m/%Y %H:%M") if s.created_at else "",
+                "fecha_expiracion": s.fecha_expiracion.strftime("%d/%m/%Y %H:%M") if s.fecha_expiracion else "",
+            })
+
+        resultado.append({
+            "usuario_id": usuario_id_str,
+            "usuario_nombre": f"{usuario.nombre} {usuario.apellido}".strip(),
+            "email": usuario.email,
+            "total_sesiones_activas": len(sess),
+            "sesiones_vigentes": n_activas,
+            "sesiones_expiradas_sin_cerrar": len(expiradas_sin_cerrar),
+            "alerta": alerta,
+            "dispositivos": dispositivos,
+        })
+
+    # Ordenar: crítico primero, luego advertencia, luego expiradas, luego normal
+    orden = {"critico": 0, "advertencia": 1, "expirada": 2, "normal": 3}
+    resultado.sort(key=lambda x: (orden.get(x["alerta"], 9), -x["sesiones_vigentes"]))
+    return resultado
+
+
+@router.post("/seguridad/limpiar-sesiones-expiradas")
+def limpiar_sesiones_expiradas(
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Cierra forzosamente todas las sesiones activas cuya fecha_expiracion ya pasó."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+    empresa_id = payload["empresa_id"]
+    ahora = datetime.utcnow()
+
+    expiradas = (
+        db.query(SesionUsuario)
+        .join(Usuario, Usuario.id == SesionUsuario.usuario_id)
+        .filter(
+            Usuario.empresa_id == empresa_id,
+            SesionUsuario.activa == True,
+            SesionUsuario.fecha_expiracion <= ahora,
+        )
+        .all()
+    )
+
+    for s in expiradas:
+        s.activa = False
+        s.fecha_cierre = ahora
+
+    db.commit()
+    return {"detail": f"Se limpiaron {len(expiradas)} sesión(es) expirada(s).", "limpiadas": len(expiradas)}
+
+
 @router.get("/seguridad/ips-frecuentes")
 def ips_frecuentes(
     payload: dict = Depends(verificar_token),
