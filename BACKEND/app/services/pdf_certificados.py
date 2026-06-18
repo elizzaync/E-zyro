@@ -79,9 +79,10 @@ _PZ_FECHA_ACT_X,       _PZ_FECHA_ACT_Y       = 431,  86
 # "Área / Ubicación:"   y=104-114, x=32    → valor a la derecha del ":"
 _PZ_UBICACION_X,       _PZ_UBICACION_Y       = 106, 112
 
-# "CERTIFICADO N° (PT – 01)" y=131-143  → sobreescribir "(PT – 01)" desde x=314
-_PZ_NRO_CERT_RECT = fitz.Rect(314, 129, 368, 145)
-_PZ_NRO_CERT_X,   _PZ_NRO_CERT_Y   = 315, 142
+# "CERTIFICADO Nº ___" — el template tiene "Nº" en x=321-329; insertamos DESPUÉS del espacio a x=332
+# White rect cubre solo el área del placeholder (x=332 en adelante), sin pisar "Nº" del template
+_PZ_NRO_CERT_RECT = fitz.Rect(332, 126, 567, 143)
+_PZ_NRO_CERT_X,   _PZ_NRO_CERT_Y   = 333, 140
 
 # ── Fila de medición — blank row entre headers y=282-291 y "EVIDENCIA GRÁFICA" y=314 ──
 # Columnas (headers inspeccionados): UBICACIÓN x=87 | N°POZO x=190 | FECHA x=257 | RESULTADO x=424
@@ -147,9 +148,8 @@ def generar_protocolo_pozo(
     # "Área / Ubicación:" (y=104-114): valor a la derecha del ":"
     page.insert_text(fitz.Point(_PZ_UBICACION_X,  _PZ_UBICACION_Y),  ubicacion.upper(),    **fa7)
 
-    # ── Nombre del pozo — sobreescribe "(PT – 01)" hardcoded en y=131-143 ──
-    # El rect se extiende hasta x=563 para cubrir nombres largos
-    _white_rect(page, fitz.Rect(314, 129, 563, 145))
+    # ── Nombre del pozo — se inserta después de "Nº" (x=332) sin pisar el template ──
+    _white_rect(page, _PZ_NRO_CERT_RECT)
     page.insert_text(fitz.Point(_PZ_NRO_CERT_X, _PZ_NRO_CERT_Y), nombre_pozo.upper(), **fa8b)
 
     # ── Fila de medición (blank row y≈291-313, tras headers y=282-291) ─

@@ -5137,7 +5137,7 @@ def generar_certificado_pozo(
 
     ubicacion            = str(body.get("ubicacion",            ei.ubicacion_referencia or "") or "")
     nombre_pozo          = ei.nombre or ""
-    numero_pozo          = str(body.get("numero_pozo",          "") or "")
+    numero_pozo          = str(body.get("numero_pozo",          "") or "") or (ei.nombre or "")
     fecha_actualizacion  = str(body.get("fecha_actualizacion",  _date_today.today().strftime("%d/%m/%Y")) or "")
     fecha_ejecucion      = str(body.get("fecha_ejecucion",      "") or "")
     fecha_hora_medicion  = str(body.get("fecha_hora_medicion",  "") or "")
