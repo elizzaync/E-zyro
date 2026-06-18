@@ -32,7 +32,7 @@ from ..core.audit_context import set_justificacion
 from ..core.tz import fmt_lima
 from ..db.database import get_db
 import requests as _requests
-from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary
+from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary, subir_bytes_raw_cloudinary
 
 # Modelos ORM
 from ..models.proyecto_servicio import ProyectoServicio
@@ -5103,6 +5103,34 @@ def generar_informe_general(
     tipo_label = cfg.get("tipo_label", tipo_base.upper() if tipo_base else "POZOS")
     filename = f"INFORME_MTTO_{tipo_label}_OC_{oc_safe}.docx"
 
+    # ── Persistir como informe INTERNO (no va al portal del cliente) ──────────
+    # Se sube el .docx a Cloudinary y se enlaza a la carta de garantía más
+    # reciente del mismo servicio (vínculo informe ↔ garantía).
+    try:
+        from ..models.informe_servicio import InformeServicio
+        from ..models.carta_garantia import CartaGarantia as _CG
+        inf_id = str(_uuid.uuid4())
+        pid = f"e-zyro/{empresa_id}/informes-internos/{servicio_id}/general_{inf_id}"
+        url = subir_bytes_raw_cloudinary(docx_bytes, pid, ext="docx")
+        gar = (
+            db.query(_CG)
+            .filter(_CG.empresa_id == empresa_id, _CG.servicio_id == servicio_id)
+            .order_by(_CG.created_at.desc())
+            .first()
+        )
+        db.add(InformeServicio(
+            id=inf_id, empresa_id=empresa_id, servicio_id=servicio_id,
+            tipo="general", ambito="interno",
+            titulo=f"Informe general — {ps.nombre}",
+            url=url, public_id=pid + ".docx",
+            generado_por_id=usuario_id,
+            garantia_id=(str(gar.id) if gar else None),
+        ))
+        db.commit()
+    except Exception as exc_db:
+        db.rollback()
+        logger.warning("[informe-general] No se pudo persistir el informe interno: %s", exc_db)
+
     return StreamingResponse(
         io.BytesIO(docx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -5200,6 +5228,7 @@ def generar_carta_garantia(
             logger.warning("[carta-garantia] No se pudo subir firma gerente a Cloudinary: %s", exc_cl)
 
     # ── Persistir registro en carta_garantia ANTES de generar ─────────────────
+    registro = None
     try:
         from datetime import date as _date
         def _parse_date(s: str):
@@ -5239,6 +5268,17 @@ def generar_carta_garantia(
     except Exception as exc:
         logger.exception("[carta-garantia] Error generando Word: %s", exc)
         raise HTTPException(status_code=500, detail=f"Error generando la carta de garantía: {exc}")
+
+    # ── Subir el .docx a Cloudinary y enlazarlo al registro (portal cliente) ──
+    if registro is not None:
+        try:
+            pid = f"e-zyro/{empresa_id}/garantias/{servicio_id}/{registro.id}"
+            url = subir_bytes_raw_cloudinary(docx_bytes, pid, ext="docx")
+            registro.documento_pdf_url = url
+            db.commit()
+        except Exception as exc_up:
+            db.rollback()
+            logger.warning("[carta-garantia] No se pudo subir el documento: %s", exc_up)
 
     lugar_safe = re.sub(r"[^A-Za-z0-9_\-]", "_", lugar.upper()) if lugar else "LUGAR"
     filename   = f"CARTA_GARANTIA_{lugar_safe}.docx"

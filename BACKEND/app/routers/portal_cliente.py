@@ -410,6 +410,9 @@ def portal_documentos(
 ) -> list[dict[str, Any]]:
     empresa_id, cliente_id = _ctx(payload)
 
+    docs: list[dict[str, Any]] = []
+
+    # ── Informes de ámbito cliente (los internos quedan fuera del portal) ─────
     rows = db.execute(text("""
         SELECT
             iser.id,
@@ -424,22 +427,52 @@ def portal_documentos(
         JOIN proyecto_servicio ps ON ps.id = iser.servicio_id
         JOIN proyecto           p  ON p.id  = ps.proyecto_id
         WHERE iser.empresa_id = :eid AND p.cliente_id = :cid
+          AND iser.ambito = 'cliente'
         ORDER BY iser.fecha DESC NULLS LAST, iser.created_at DESC
     """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
+    for r in rows:
+        docs.append({
+            "id":         str(r[0]),
+            "tipo":       r[1],
+            "titulo":     r[2],
+            "url":        r[3],
+            "fecha":      r[4].isoformat() if r[4] else None,
+            "created_at": r[5].isoformat() if r[5] else None,
+            "proyecto":   r[6],
+            "servicio":   r[7],
+        })
 
-    return [
-        {
-            "id":              str(r[0]),
-            "tipo":            r[1],
-            "titulo":          r[2],
-            "url":             r[3],
-            "fecha":           r[4].isoformat() if r[4] else None,
-            "created_at":      r[5].isoformat() if r[5] else None,
-            "proyecto":        r[6],
-            "servicio":        r[7],
-        }
-        for r in rows
-    ]
+    # ── Cartas de garantía del cliente (descargables) ─────────────────────────
+    gar_rows = db.execute(text("""
+        SELECT
+            cg.id,
+            cg.documento_pdf_url,
+            cg.vigencia_garantia,
+            cg.created_at,
+            p.nombre_proyecto,
+            ps.nombre AS servicio_nombre
+        FROM carta_garantia cg
+        JOIN proyecto_servicio ps ON ps.id = cg.servicio_id
+        JOIN proyecto           p  ON p.id  = ps.proyecto_id
+        WHERE cg.empresa_id::text = :eid AND p.cliente_id::text = :cid
+          AND cg.documento_pdf_url IS NOT NULL
+        ORDER BY cg.created_at DESC
+    """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
+    for r in gar_rows:
+        servicio_nombre = r[5] or ""
+        docs.append({
+            "id":         str(r[0]),
+            "tipo":       "garantia",
+            "titulo":     f"Carta de garantía — {servicio_nombre}".strip(" —"),
+            "url":        r[1],
+            "fecha":      r[2].isoformat() if r[2] else (r[3].isoformat() if r[3] else None),
+            "created_at": r[3].isoformat() if r[3] else None,
+            "proyecto":   r[4],
+            "servicio":   servicio_nombre or None,
+        })
+
+    docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
+    return docs
 
 
 # ── 5. KPIs de equipos intervenidos ──────────────────────────────────────────

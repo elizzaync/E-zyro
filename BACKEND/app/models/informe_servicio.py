@@ -19,7 +19,12 @@ class InformeServicio(Base):
     id              = Column(String(36), primary_key=True, default=_uuid)
     empresa_id      = Column(String(36), ForeignKey("empresa.id"), nullable=False)
     servicio_id     = Column(String(36), ForeignKey("proyecto_servicio.id"), nullable=False)
-    tipo            = Column(String(10), nullable=False, default="pre")  # pre|final
+    tipo            = Column(String(10), nullable=False, default="pre")  # pre|final|general
+    # ambito: 'cliente' (visible en el portal) | 'interno' (solo nosotros).
+    # garantia_id: vínculo opcional al carta_garantia del mismo servicio.
+    # NOTA: columnas añadidas con SQL manual (migrations/2026_06_18_informe_ambito.sql).
+    ambito          = Column(String(10), nullable=False, default="cliente")
+    garantia_id     = Column(String(36), nullable=True)
     titulo          = Column(String(200), nullable=True)
     url             = Column(Text, nullable=True)
     public_id       = Column(String(300), nullable=True)

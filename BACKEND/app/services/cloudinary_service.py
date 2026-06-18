@@ -90,6 +90,30 @@ def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
         raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")
 
 
+def subir_bytes_raw_cloudinary(data: bytes, public_id: str, ext: str = "") -> str:
+    """Sube bytes arbitrarios (docx, pdf, etc.) como recurso raw y devuelve la
+    secure_url. Asegura la extensión en el public_id para que la URL sea
+    descargable directamente."""
+    try:
+        import io
+        pid = public_id
+        if ext:
+            ext = ext.lstrip(".").lower()
+            if not pid.lower().endswith("." + ext):
+                pid = pid + "." + ext
+        upload_result = cloudinary.uploader.upload(
+            io.BytesIO(data),
+            public_id=pid,
+            resource_type="raw",
+            overwrite=True,
+            invalidate=True,
+        )
+        return upload_result["secure_url"]
+    except Exception as e:
+        logging.error(f"Error subiendo bytes raw a Cloudinary: {str(e)}")
+        raise Exception(f"Fallo al subir archivo a Cloudinary: {str(e)}")
+
+
 _ALLOWED_EVIDENCE_TYPES = {
     "image/jpeg", "image/jpg", "image/png", "image/webp",
     "image/gif", "application/pdf",
