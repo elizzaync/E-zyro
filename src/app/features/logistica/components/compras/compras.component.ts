@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -35,7 +35,7 @@ type TabCompra = 'pendiente' | 'en_proceso' | 'completado' | 'cancelado';
   templateUrl: './compras.component.html',
   styleUrls: ['./compras.component.css']
 })
-export class ComprasComponent implements OnInit {
+export class ComprasComponent implements OnInit, OnDestroy {
   private svc    = inject(LogisticaService);
   private toast  = inject(ToastService);
   private router = inject(Router);
@@ -97,6 +97,8 @@ export class ComprasComponent implements OnInit {
     this.cargar();
   }
 
+  ngOnDestroy(): void { this.setMainModal(false); }
+
   setTab(t: TabCompra): void { this.tab = t; this.cargar(); }
 
   cargar(): void {
@@ -157,6 +159,19 @@ export class ComprasComponent implements OnInit {
     return this.itemsIngresadosCount > 0;
   }
 
+  // ── Stacking context: sube <main> sobre el navbar cuando hay modal abierto ──
+  private setMainModal(open: boolean): void {
+    const main = document.querySelector('main');
+    if (!main) return;
+    if (open) {
+      main.classList.add('modal-open');
+      document.body.style.overflow = 'hidden';
+    } else {
+      main.classList.remove('modal-open');
+      document.body.style.overflow = '';
+    }
+  }
+
   // ── Helpers ──
   estadoLabel(e: string): string {
     const m: Record<string, string> = {
@@ -180,7 +195,7 @@ export class ComprasComponent implements OnInit {
 
   // ── Modal proceso ──
   abrirProceso(t: TicketCompra): void {
-    document.body.style.overflow = 'hidden';
+    this.setMainModal(true);
     this.ticketActivo = t;
     this.modoUnificado = t.modoUnificado ?? true;
     this.busquedaItems = '';
@@ -206,7 +221,7 @@ export class ComprasComponent implements OnInit {
     }));
   }
 
-  cerrarProceso(): void { this.ticketActivo = null; this.itemsForm = []; document.body.style.overflow = ''; }
+  cerrarProceso(): void { this.ticketActivo = null; this.itemsForm = []; this.setMainModal(false); }
 
   selProvUnico(p: Proveedor): void {
     if (this.proveedorUnicoId === p.id) {
@@ -336,6 +351,7 @@ export class ComprasComponent implements OnInit {
   }
 
   private _abrirPrimerVinculacion(): void {
+    this.setMainModal(true);
     const item = this.nuevoInvCola[0];
     this.nuevoInvItem    = item;
     this.nuevNombre      = item.nombre;
@@ -351,6 +367,7 @@ export class ComprasComponent implements OnInit {
   cerrarNuevoInv(): void {
     this.nuevoInvItem  = null;
     this.nuevoInvCola  = [];
+    this.setMainModal(false);
   }
 
   confirmarNuevoInv(): void {
@@ -411,7 +428,7 @@ export class ComprasComponent implements OnInit {
     });
   }
 
-  cerrarIngreso(): void { this.ticketIngreso = null; this.itemsIngreso = []; document.body.style.overflow = ''; }
+  cerrarIngreso(): void { this.ticketIngreso = null; this.itemsIngreso = []; this.setMainModal(false); }
 
   get puedeRegistrarIngreso(): boolean {
     return this.itemsIngreso.some(r => r.cantidad > 0);
@@ -440,8 +457,8 @@ export class ComprasComponent implements OnInit {
   }
 
   // ── Modal cancelación ──
-  abrirCancelar(t: TicketCompra): void { this.ticketCancelar = t; this.motivoCancelacion = ''; }
-  cerrarCancelar(): void { this.ticketCancelar = null; this.motivoCancelacion = ''; document.body.style.overflow = ''; }
+  abrirCancelar(t: TicketCompra): void { this.ticketCancelar = t; this.motivoCancelacion = ''; this.setMainModal(true); }
+  cerrarCancelar(): void { this.ticketCancelar = null; this.motivoCancelacion = ''; this.setMainModal(false); }
 
   confirmarCancelacion(): void {
     if (!this.ticketCancelar) return;
@@ -453,8 +470,8 @@ export class ComprasComponent implements OnInit {
   }
 
   // ── Modal detalle ──
-  abrirDetalle(t: TicketCompra): void { this.ticketDetalle = t; document.body.style.overflow = 'hidden'; }
-  cerrarDetalle(): void { this.ticketDetalle = null; document.body.style.overflow = ''; }
+  abrirDetalle(t: TicketCompra): void { this.ticketDetalle = t; this.setMainModal(true); }
+  cerrarDetalle(): void { this.ticketDetalle = null; this.setMainModal(false); }
 
   volverInventario(): void { this.router.navigate(['/logistica']); }
 
