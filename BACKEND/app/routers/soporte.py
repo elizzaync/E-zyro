@@ -524,3 +524,86 @@ def crear_actividad(
             db.rollback()
 
     return _act_out(db, a)
+
+
+# ── Monitoreo: Sesiones de usuarios ───────────────────────────────────────────
+
+from ..models.sesion_usuario import SesionUsuario
+
+class SesionOut(BaseModel):
+    id: str
+    usuario_id: str
+    usuario_nombre: str
+    dispositivo: Optional[str]
+    ip: Optional[str]
+    activa: bool
+    fecha_expiracion: str
+    fecha_cierre: Optional[str]
+    created_at: str
+
+
+@router.get("/monitoreo/sesiones", response_model=List[SesionOut])
+def listar_sesiones(
+    usuario_id:   Optional[str] = None,
+    fecha_desde:  Optional[str] = None,
+    fecha_hasta:  Optional[str] = None,
+    page:         int = 1,
+    page_size:    int = 50,
+    payload:      dict    = Depends(verificar_token),
+    db:           Session = Depends(get_db),
+):
+    """Monitoreo de sesiones de la empresa. Solo equipo TI (soporte:gestionar) o admin/superadmin."""
+    from ..core.security import es_superadmin
+    es_admin = payload.get("rol", "").lower() in ("administrador", "admin", "superadmin")
+    if not es_superadmin(payload) and not es_admin and not tiene_permiso(db, payload, "soporte", "gestionar"):
+        raise HTTPException(status_code=403, detail="Sin permiso para ver sesiones")
+
+    empresa_id = payload["empresa_id"]
+
+    q = (
+        db.query(SesionUsuario)
+        .join(Usuario, Usuario.id == SesionUsuario.usuario_id)
+        .filter(Usuario.empresa_id == empresa_id)
+    )
+
+    if usuario_id:
+        q = q.filter(SesionUsuario.usuario_id == usuario_id)
+
+    if fecha_desde:
+        try:
+            fd = datetime.strptime(fecha_desde, "%Y-%m-%d")
+            q = q.filter(SesionUsuario.created_at >= fd)
+        except ValueError:
+            pass
+
+    if fecha_hasta:
+        try:
+            fh = datetime.strptime(fecha_hasta, "%Y-%m-%d")
+            fh = fh.replace(hour=23, minute=59, second=59)
+            q = q.filter(SesionUsuario.created_at <= fh)
+        except ValueError:
+            pass
+
+    offset = (max(page, 1) - 1) * page_size
+    rows = q.order_by(SesionUsuario.created_at.desc()).offset(offset).limit(page_size).all()
+
+    def _fmt(dt: Optional[datetime]) -> Optional[str]:
+        if not dt:
+            return None
+        return dt.strftime("%d/%m/%Y %H:%M")
+
+    result = []
+    for s in rows:
+        nombre = _nombre_usuario(db, s.usuario_id)
+        result.append(SesionOut(
+            id=str(s.id),
+            usuario_id=str(s.usuario_id),
+            usuario_nombre=nombre,
+            dispositivo=s.dispositivo,
+            ip=s.ip,
+            activa=bool(s.activa),
+            fecha_expiracion=_fmt(s.fecha_expiracion) or "",
+            fecha_cierre=_fmt(s.fecha_cierre),
+            created_at=_fmt(s.created_at) or "",
+        ))
+    return result
