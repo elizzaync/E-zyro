@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Optional
 
 import cloudinary.uploader as _cu
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from sqlalchemy import exists, and_, func
 from sqlalchemy.orm import Session
 
@@ -226,6 +226,47 @@ def detalle_empleado(
             "pendientes_firma": pendientes_count,
         },
     }
+
+
+# ── 2b. PATCH /rrhh/legajo/{empleado_id}/perfil ─────────────────────────────
+
+@router.patch("/rrhh/legajo/{empleado_id}/perfil")
+def actualizar_perfil_empleado(
+    empleado_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    payload: dict = Depends(verificar_token),
+):
+    """Actualiza campos de perfil del empleado: cuspp, numero_documento, tipo_documento, sexo.
+    Solo campos presentes en el body se actualizan (PATCH semántico).
+    """
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id
+    ).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+
+    campos_permitidos = {"cuspp", "numero_documento", "tipo_documento", "sexo"}
+    actualizados = []
+    for campo in campos_permitidos:
+        if campo in body:
+            valor = body[campo]
+            if isinstance(valor, str):
+                valor = valor.strip() or None
+            setattr(emp, campo, valor)
+            actualizados.append(campo)
+
+    if not actualizados:
+        raise HTTPException(status_code=400, detail="No se recibieron campos válidos para actualizar")
+
+    emp.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(emp)
+
+    return {"ok": True, "actualizados": actualizados, "cuspp": emp.cuspp}
 
 
 # ── 2b. GET /rrhh/legajo/{empleado_id}/documentos ───────────────────────────
