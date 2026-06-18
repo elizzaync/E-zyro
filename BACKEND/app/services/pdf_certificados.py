@@ -61,6 +61,17 @@ def _insert(page: fitz.Page, x: float, y: float, text: str, size: float = 7.5) -
     page.insert_text(fitz.Point(x, y), text or "", fontname="helv", fontsize=size, color=(0, 0, 0))
 
 
+def _center(page: fitz.Page, x0: float, x1: float, y: float, text: str,
+            size: float = 7.5, bold: bool = False) -> None:
+    """Inserta texto centrado horizontalmente entre x0 y x1, baseline en y."""
+    if not text:
+        return
+    fn = _PZ_FONT_B if bold else _PZ_FONT
+    tw = fitz.get_text_length(text, fontname=fn, fontsize=size)
+    x = max(x0 + 1.0, (x0 + x1 - tw) / 2.0)
+    page.insert_text(fitz.Point(x, y), text, fontname=fn, fontsize=size, color=_PZ_COLOR)
+
+
 # ────────────────────────────────────────────────────────────────────
 # PROTOCOLO POZO A TIERRA  (plantilla limpia — sin contenido previo)
 # ────────────────────────────────────────────────────────────────────
@@ -79,27 +90,27 @@ _PZ_FECHA_ACT_X,       _PZ_FECHA_ACT_Y       = 431,  86
 # "Área / Ubicación:"   y=104-114, x=32    → valor a la derecha del ":"
 _PZ_UBICACION_X,       _PZ_UBICACION_Y       = 106, 112
 
-# "CERTIFICADO Nº ___" — el template tiene "Nº" en x=321-329; insertamos DESPUÉS del espacio a x=332
-# White rect cubre solo el área del placeholder (x=332 en adelante), sin pisar "Nº" del template
-_PZ_NRO_CERT_RECT = fitz.Rect(332, 126, 567, 143)
-_PZ_NRO_CERT_X,   _PZ_NRO_CERT_Y   = 333, 140
+# ── CERTIFICADO Nº — espacio en blanco tras "Nº" (x=330 a x=567, celda y=126-143) ──
+_PZ_CERT_RECT             = fitz.Rect(330, 126, 567, 143)
+_PZ_CERT_X0, _PZ_CERT_X1 = 330.0, 567.0
+_PZ_CERT_Y                = 139
 
-# ── Fila de medición — blank row entre headers y=282-291 y "EVIDENCIA GRÁFICA" y=314 ──
-# Columnas (headers inspeccionados): UBICACIÓN x=87 | N°POZO x=190 | FECHA x=257 | RESULTADO x=424
-_PZ_UBIC_MED_X,        _PZ_UBIC_MED_Y        =  90, 305   # columna UBICACIÓN
-_PZ_NRO_X,             _PZ_NRO_Y             = 195, 305   # columna N° DE POZO
-_PZ_FECHA_MED_X,       _PZ_FECHA_MED_Y       = 260, 305   # columna FECHA Y HORA
-_PZ_RESULTADO_X,       _PZ_RESULTADO_Y       = 427, 305   # columna RESULTADO
+# ── Fila de medición — columnas exactas (extraídas del template con get_drawings) ──
+# data row: y=290.09–309.05, baseline≈304
+_PZ_DATA_Y     = 304
+_PZ_COL_UBIC   = (28.68,  183.89)   # UBICACIÓN
+_PZ_COL_NRO    = (184.61, 235.01)   # N° DE POZO
+_PZ_COL_FECHA  = (235.73, 376.99)   # FECHA Y HORA
+_PZ_COL_RESULT = (377.71, 567.12)   # RESULTADO
 
-# ── Horas — blank entre label y marca "C" (x=254) ─────────────────────
-# "Hora de inicio"   y=484-494 → valor en x=150-250
-# "Hora de termino"  y=497-507 → valor en x=150-250
-_PZ_H_INICIO_X,        _PZ_H_INICIO_Y        = 150, 492
-_PZ_H_TERMINO_X,       _PZ_H_TERMINO_Y       = 150, 505
+# ── Horas — columna "Valor" (header "Valor" en x=169 → columna x=130-235) ──
+_PZ_HORA_X0, _PZ_HORA_X1 = 130.0, 235.0
+_PZ_H_INICIO_Y            = 492
+_PZ_H_TERMINO_Y           = 505
 
-# ── Técnico ejecutor — área en blanco tras "TECNICO EJECUTOR E-SYSTEM" y=567-576 ──
-# Blank: y=586-654 (antes del pie de página "Fecha de Impresión" y=655-663)
-_PZ_TECNICO_X,         _PZ_TECNICO_Y         = 55, 651
+# ── Técnico ejecutor — columna izquierda (x=28-218), baseline=581 → top≈575 = igual a "(Edward Galindo)" ──
+_PZ_TEC_X0, _PZ_TEC_X1   = 28.68, 218.0
+_PZ_TEC_Y                 = 581
 
 # Firma del técnico — imagen en el área en blanco del técnico ejecutor
 _PZ_FIRMA_RECT = fitz.Rect(50, 587, 215, 647)
@@ -148,23 +159,24 @@ def generar_protocolo_pozo(
     # "Área / Ubicación:" (y=104-114): valor a la derecha del ":"
     page.insert_text(fitz.Point(_PZ_UBICACION_X,  _PZ_UBICACION_Y),  ubicacion.upper(),    **fa7)
 
-    # ── Nombre del pozo — se inserta después de "Nº" (x=332) sin pisar el template ──
-    _white_rect(page, _PZ_NRO_CERT_RECT)
-    page.insert_text(fitz.Point(_PZ_NRO_CERT_X, _PZ_NRO_CERT_Y), nombre_pozo.upper(), **fa8b)
+    # ── Nombre del pozo — centrado en espacio tras "Nº" (x=330-567) ────
+    _white_rect(page, _PZ_CERT_RECT)
+    _center(page, _PZ_CERT_X0, _PZ_CERT_X1, _PZ_CERT_Y, nombre_pozo.upper(), size=8, bold=True)
 
-    # ── Fila de medición (blank row y≈291-313, tras headers y=282-291) ─
-    # Columnas: UBICACIÓN(x=87-190) | N°POZO(x=190-257) | FECHA Y HORA(x=257-424) | RESULTADO(x=424+)
-    page.insert_text(fitz.Point(_PZ_UBIC_MED_X,   _PZ_UBIC_MED_Y),   ubicacion.upper(),    **fa7)
-    page.insert_text(fitz.Point(_PZ_NRO_X,        _PZ_NRO_Y),        numero_pozo,          **fa7)
-    page.insert_text(fitz.Point(_PZ_FECHA_MED_X,  _PZ_FECHA_MED_Y),  fecha_hora_medicion,  **fa7)
-    page.insert_text(fitz.Point(_PZ_RESULTADO_X,  _PZ_RESULTADO_Y),  resultado_medicion,   **fa8b)
+    # ── Fila de medición — valores centrados en cada columna ─────────
+    _center(page, *_PZ_COL_UBIC,   _PZ_DATA_Y, ubicacion.upper())
+    _center(page, *_PZ_COL_NRO,    _PZ_DATA_Y, numero_pozo)
+    _center(page, *_PZ_COL_FECHA,  _PZ_DATA_Y, fecha_hora_medicion)
+    _center(page, *_PZ_COL_RESULT, _PZ_DATA_Y, resultado_medicion, size=8, bold=True)
 
-    # ── Horas (verificación) ──────────────────────────────────────────
-    page.insert_text(fitz.Point(_PZ_H_INICIO_X,   _PZ_H_INICIO_Y),   hora_inicio,          **fa7)
-    page.insert_text(fitz.Point(_PZ_H_TERMINO_X,  _PZ_H_TERMINO_Y),  hora_termino,         **fa7)
+    # ── Horas (verificación) — centradas en columna "Valor" ──────────
+    _center(page, _PZ_HORA_X0, _PZ_HORA_X1, _PZ_H_INICIO_Y,  hora_inicio)
+    _center(page, _PZ_HORA_X0, _PZ_HORA_X1, _PZ_H_TERMINO_Y, hora_termino)
 
-    # ── Técnico ejecutor ──────────────────────────────────────────────
-    page.insert_text(fitz.Point(_PZ_TECNICO_X, _PZ_TECNICO_Y), nombre_tecnico.upper(), **fa7b)
+    # ── Técnico ejecutor — "(NOMBRE)" centrado bajo "TECNICO EJECUTOR E-SYSTEM" ──
+    if nombre_tecnico:
+        _center(page, _PZ_TEC_X0, _PZ_TEC_X1, _PZ_TEC_Y,
+                f"({nombre_tecnico.upper()})", size=6)
 
     # ── Firma del técnico ─────────────────────────────────────────────
     raw_firma = _img_bytes(firma_tecnico)
