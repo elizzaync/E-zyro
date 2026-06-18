@@ -15,6 +15,12 @@
     </div>
 
     <div class="tk-kpis">
+      @if (wsConectado) {
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          En vivo
+        </div>
+      }
       <div class="kpi-chip kpi-blue">
         <span class="kpi-num">{{ kpiAbiertos }}</span>
         <span class="kpi-lbl">Abiertos</span>

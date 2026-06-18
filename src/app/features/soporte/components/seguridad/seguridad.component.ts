@@ -1,9 +1,13 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { SoporteService, IpBloqueadaDto, SesionActivaDto, IpFrecuenteDto, ReporteDispositivosDto, DispositivoDto } from '../../../../core/services/soporte.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
+import { SoporteWsService } from '../../../../core/services/soporte-ws.service';
+import { AuthService } from '../../../../core/services/auth.service';
 
 type TabSeguridad = 'ips' | 'sesiones' | 'dispositivos';
 
@@ -21,9 +25,14 @@ interface ModalConfirm {
   templateUrl: './seguridad.component.html',
   styleUrls: ['./seguridad.component.css']
 })
-export class SeguridadComponent implements OnInit {
-  private svc   = inject(SoporteService);
-  private toast = inject(ToastService);
+export class SeguridadComponent implements OnInit, OnDestroy {
+  private svc      = inject(SoporteService);
+  private toast    = inject(ToastService);
+  private wsSvc    = inject(SoporteWsService);
+  private auth     = inject(AuthService);
+  private destroy$ = new Subject<void>();
+
+  wsConectado = false;
 
   tab: TabSeguridad = 'ips';
   cargando = false;
@@ -60,6 +69,28 @@ export class SeguridadComponent implements OnInit {
   ngOnInit(): void {
     this.cargarIps();
     this.cargarIpsFrequentes();
+    // Conectar WebSocket y suscribirse a eventos de seguridad.
+    const token = this.auth.getToken();
+    if (token) {
+      this.wsSvc.connect(token);
+      this.wsConectado = true;
+      this.wsSvc.evento$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(e => {
+          if (e.tipo === 'ip_bloqueada' || e.tipo === 'ip_desbloqueada') {
+            this.cargarIps();
+          }
+          if (e.tipo === 'dispositivos_cambio') {
+            if (this.tab === 'dispositivos') this.cargarDispositivos();
+            if (this.tab === 'sesiones') this.cargarSesiones();
+          }
+        });
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   setTab(t: TabSeguridad): void {

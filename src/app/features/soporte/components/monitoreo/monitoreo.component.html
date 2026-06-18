@@ -15,6 +15,12 @@
     </div>
 
     <div class="mon-kpis">
+      @if (wsConectado) {
+        <div class="live-badge">
+          <span class="live-dot"></span>
+          En vivo
+        </div>
+      }
       <div class="kpi-chip kpi-green">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
@@ -44,12 +50,18 @@
         <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
       </svg>
       Registro de Actividad
+      @if (hayNuevaAuditoria && tab !== 'actividad') {
+        <span class="tab-new-dot"></span>
+      }
     </button>
     <button class="mon-tab" [class.active]="tab === 'sesiones'" (click)="setTab('sesiones')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
       </svg>
       Sesiones de Usuarios
+      @if (hayNuevasSesiones && tab !== 'sesiones') {
+        <span class="tab-new-dot"></span>
+      }
     </button>
   </div>
 

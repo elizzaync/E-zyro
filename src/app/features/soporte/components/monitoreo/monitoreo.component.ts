@@ -1,8 +1,12 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { SoporteService, AuditoriaDto, SesionDto } from '../../../../core/services/soporte.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { SoporteWsService } from '../../../../core/services/soporte-ws.service';
+import { AuthService } from '../../../../core/services/auth.service';
 
 type TabMonitoreo = 'actividad' | 'sesiones';
 
@@ -13,9 +17,16 @@ type TabMonitoreo = 'actividad' | 'sesiones';
   templateUrl: './monitoreo.component.html',
   styleUrls: ['./monitoreo.component.css']
 })
-export class MonitoreoComponent implements OnInit {
-  private svc   = inject(SoporteService);
-  private toast = inject(ToastService);
+export class MonitoreoComponent implements OnInit, OnDestroy {
+  private svc      = inject(SoporteService);
+  private toast    = inject(ToastService);
+  private wsSvc    = inject(SoporteWsService);
+  private auth     = inject(AuthService);
+  private destroy$ = new Subject<void>();
+
+  wsConectado = false;
+  hayNuevasSesiones = false;
+  hayNuevaAuditoria = false;
 
   tab: TabMonitoreo = 'actividad';
   cargando = false;
@@ -60,12 +71,35 @@ export class MonitoreoComponent implements OnInit {
   ngOnInit(): void {
     this.cargarKpis();
     this.cargarAuditoria(true);
+    // Conectar WebSocket y suscribirse a eventos de monitoreo.
+    const token = this.auth.getToken();
+    if (token) {
+      this.wsSvc.connect(token);
+      this.wsConectado = true;
+      this.wsSvc.evento$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(e => {
+          if (e.tipo === 'sesion_nueva') {
+            this.hayNuevasSesiones = true;
+            if (this.tab === 'sesiones') this.cargarSesiones(true);
+          }
+          if (e.tipo === 'auditoria_nueva') {
+            this.hayNuevaAuditoria = true;
+            if (this.tab === 'actividad') this.cargarAuditoria(true);
+          }
+        });
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   setTab(t: TabMonitoreo): void {
     this.tab = t;
-    if (t === 'sesiones' && this.sesiones.length === 0) this.cargarSesiones(true);
-    if (t === 'actividad' && this.auditoria.length === 0) this.cargarAuditoria(true);
+    if (t === 'sesiones') { this.hayNuevasSesiones = false; if (this.sesiones.length === 0) this.cargarSesiones(true); }
+    if (t === 'actividad') { this.hayNuevaAuditoria = false; if (this.auditoria.length === 0) this.cargarAuditoria(true); }
   }
 
   cargarKpis(): void {

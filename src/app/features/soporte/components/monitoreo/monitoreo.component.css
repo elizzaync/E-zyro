@@ -320,3 +320,55 @@
 }
 .btn-aud-revertir:hover:not(:disabled) { background: #f59e0b; color: #fff; }
 .btn-aud-revertir:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Indicador En Vivo ──────────────────────────────────────────────────────── */
+.live-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.72rem; font-weight: 700; color: #16a34a;
+  background: rgba(22,163,74,.1); border: 1px solid rgba(22,163,74,.25);
+  padding: 3px 10px; border-radius: 20px;
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #16a34a;
+  animation: pulse-dot 1.4s ease-in-out infinite; flex-shrink: 0;
+}
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(0.7)} }
+
+/* ── Skeleton Loader ─────────────────────────────────────────────────────────── */
+.skeleton-rows { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.skeleton-row { display: flex; gap: 12px; align-items: center; }
+.sk-cell { height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--bg-hover,#f1f5f9) 25%, rgba(148,163,184,.2) 50%, var(--bg-hover,#f1f5f9) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+.sk-sm  { width: 60px; }
+.sk-md  { width: 180px; }
+.sk-lg  { flex: 1; }
+.sk-xs  { width: 80px; }
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ── Tabla mejorada ──────────────────────────────────────────────────────────── */
+.mon-card {
+  box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  border-radius: 12px;
+}
+.mon-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.mon-table thead th {
+  background: var(--bg-hover, #f8fafc);
+  font-size: 0.7rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); padding: 10px 14px;
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap; position: sticky; top: 0; z-index: 1; text-align: left;
+}
+.mon-table tbody tr { border-bottom: 1px solid var(--border-color); transition: background 0.1s; }
+.mon-table tbody tr:hover { background: rgba(99,102,241,0.04); }
+.mon-table tbody tr:last-child { border-bottom: none; }
+.mon-table tbody td { padding: 12px 14px; font-size: 0.83rem; color: var(--text-main); vertical-align: middle; }
+
+/* Badge nueva sesión */
+.tab-new-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: #f97316; margin-left: 4px; animation: pulse-dot 1.4s ease-in-out infinite;
+}

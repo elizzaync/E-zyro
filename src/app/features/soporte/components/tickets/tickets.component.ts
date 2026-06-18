@@ -1,8 +1,12 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { SoporteService, TicketSoporteDto, ActividadDto } from '../../../../core/services/soporte.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { SoporteWsService } from '../../../../core/services/soporte-ws.service';
+import { AuthService } from '../../../../core/services/auth.service';
 
 type TabEstado = 'abierto' | 'en_proceso' | 'resuelto' | 'cerrado';
 
@@ -14,8 +18,13 @@ type TabEstado = 'abierto' | 'en_proceso' | 'resuelto' | 'cerrado';
   styleUrls: ['./tickets.component.css']
 })
 export class TicketsSoporteComponent implements OnInit, OnDestroy {
-  private svc   = inject(SoporteService);
-  private toast = inject(ToastService);
+  private svc    = inject(SoporteService);
+  private toast  = inject(ToastService);
+  private wsSvc  = inject(SoporteWsService);
+  private auth   = inject(AuthService);
+  private destroy$ = new Subject<void>();
+
+  wsConectado = false;
 
   tab: TabEstado = 'abierto';
   cargando = true;
@@ -37,8 +46,29 @@ export class TicketsSoporteComponent implements OnInit, OnDestroy {
   nuevoComentario = '';
   enviandoComentario = false;
 
-  ngOnInit(): void { this.cargarTodos(); }
-  ngOnDestroy(): void { this.setMainModal(false); }
+  ngOnInit(): void {
+    this.cargarTodos();
+    // Conectar WebSocket y suscribirse a eventos de tickets.
+    const token = this.auth.getToken();
+    if (token) {
+      this.wsSvc.connect(token);
+      this.wsConectado = true;
+      this.wsSvc.evento$
+        .pipe(takeUntil(this.destroy$))
+        .subscribe(e => {
+          if (e.tipo === 'ticket_nuevo' || e.tipo === 'ticket_actualizado') {
+            this.toast.mostrar('Tickets actualizados', 'info');
+            this.cargarTodos();
+          }
+        });
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.setMainModal(false);
+  }
 
   cargarTodos(): void {
     this.cargando = true;
