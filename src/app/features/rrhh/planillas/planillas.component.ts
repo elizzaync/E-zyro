@@ -6,13 +6,19 @@ import { ToastService } from '../../../core/services/toast.service';
 import { AuthService } from '../../../core/services/auth.service';
 import html2pdf from 'html2pdf.js';
 
-const SUELDO_KEY   = 'ezp_sueldos_v1';
-const REGIMEN_KEY  = 'ezp_regimen_v1';
-const PENSION_KEY  = 'ezp_pensiones_v1';
-const AFP_KEY      = 'ezp_afp_entidad_v1';
-const ESQUEMA_KEY  = 'ezp_esquema_pago_v1';
-const ASIGFAM_KEY  = 'ezp_asigfam_v1';
-const PER_PAGE     = 10;
+const SUELDO_KEY       = 'ezp_sueldos_v1';
+const REGIMEN_KEY      = 'ezp_regimen_v1';
+const PENSION_KEY      = 'ezp_pensiones_v1';
+const AFP_KEY          = 'ezp_afp_entidad_v1';
+const AFP_COMISION_KEY = 'ezp_afp_comision_v1';
+const ESQUEMA_KEY      = 'ezp_esquema_pago_v1';
+const ASIGFAM_KEY      = 'ezp_asigfam_v1';
+const CUSPP_KEY        = 'ezp_cuspp_v1';
+const PER_PAGE         = 10;
+
+// Divisores legales peruanos (D.L. 854, MTPE) — fijos por norma, no por calendario.
+const DIVISOR_DIA  = 30;   // valor día = sueldo mensual / 30, siempre
+const HORAS_JORNADA = 8;   // jornada ordinaria máxima diaria
 
 const MESES_ES = [
   '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -110,6 +116,13 @@ export class PlanillasComponent implements OnInit {
   // ── Asignación Familiar (10% RMV, trabajadores con hijos a cargo) ──────────
   asigFamiliarMap: Record<string, boolean> = {};
 
+  // ── CUSPP: Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR) ─
+  cusppMap: Record<string, string> = {};
+  showCusppMap: Record<string, boolean> = {};
+
+  // ── Comisión AFP personalizada (% flujo): permite sobrescribir la tabla estándar
+  afpComisionCustomMap: Record<string, number> = {};
+
   // ── Datos de la empresa (para el encabezado de la Planilla Mensual PDF) ────
   empresaInfo: { razon_social: string; ruc: string; regimen_tributario: string; direccion?: string; telefono?: string } | null = null;
 
@@ -135,10 +148,12 @@ export class PlanillasComponent implements OnInit {
   // ── Ciclo de vida ─────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    this.sueldoMap      = JSON.parse(localStorage.getItem(SUELDO_KEY) ?? '{}');
-    this.pensionMap     = JSON.parse(localStorage.getItem(PENSION_KEY) ?? '{}');
-    this.afpEntidadMap  = JSON.parse(localStorage.getItem(AFP_KEY) ?? '{}');
-    this.asigFamiliarMap = JSON.parse(localStorage.getItem(ASIGFAM_KEY) ?? '{}');
+    this.sueldoMap           = JSON.parse(localStorage.getItem(SUELDO_KEY) ?? '{}');
+    this.pensionMap          = JSON.parse(localStorage.getItem(PENSION_KEY) ?? '{}');
+    this.afpEntidadMap       = JSON.parse(localStorage.getItem(AFP_KEY) ?? '{}');
+    this.afpComisionCustomMap = JSON.parse(localStorage.getItem(AFP_COMISION_KEY) ?? '{}');
+    this.asigFamiliarMap     = JSON.parse(localStorage.getItem(ASIGFAM_KEY) ?? '{}');
+    this.cusppMap            = JSON.parse(localStorage.getItem(CUSPP_KEY) ?? '{}');
     this.regimenEmpresa = (localStorage.getItem(REGIMEN_KEY) as Regimen) || 'micro';
     this.esquemaPago    = (localStorage.getItem(ESQUEMA_KEY) as EsquemaPago) || 'quincenal';
     if (this.esquemaPago === 'mensual') this.periodoPago = 'mes';
@@ -244,6 +259,12 @@ export class PlanillasComponent implements OnInit {
         this.totalRegistros = res.total;
         this.totalPaginas   = res.total_paginas;
         this.cargando       = false;
+        // Pre-poblar CUSPP desde BD solo si el empleado aún no tiene valor local
+        for (const emp of res.empleados) {
+          if (emp.cuspp && !this.cusppMap[emp.id]) {
+            this.cusppMap[emp.id] = emp.cuspp;
+          }
+        }
       },
       error: () => {
         this.error   = 'No se pudo cargar la nómina de este período.';
@@ -380,8 +401,44 @@ export class PlanillasComponent implements OnInit {
   }
 
   onAfpEntidadChange(empId: string, val: AfpEntidad): void {
+    const actual = this.getAfpEntidad(empId);
+    if (actual === val) return;
+    const label = this.afpEntidades.find(a => a.value === val)?.label ?? val;
+    const ok = confirm(
+      `¿Cambiar AFP a "${label}"?\n\nEste cambio aplica a partir de ahora y afectará el cálculo de la comisión en la boleta de pago. La comisión personalizada guardada (si existe) se conserva.`
+    );
+    if (!ok) return;
     this.afpEntidadMap[empId] = val;
     localStorage.setItem(AFP_KEY, JSON.stringify(this.afpEntidadMap));
+  }
+
+  // Retorna la comisión AFP efectiva: personalizada si el usuario la sobreescribió,
+  // de lo contrario la tasa estándar de la entidad seleccionada.
+  getAfpComisionPct(empId: string): number {
+    if (this.afpComisionCustomMap[empId] !== undefined) return this.afpComisionCustomMap[empId];
+    return AFP_COMISIONES[this.getAfpEntidad(empId)];
+  }
+
+  onAfpComisionChange(empId: string, raw: string): void {
+    const pct = parseFloat(raw.replace(/[^0-9.]/g, '')) / 100;
+    if (isNaN(pct) || pct < 0 || pct > 0.5) return;
+    this.afpComisionCustomMap[empId] = pct;
+    localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
+  }
+
+  // ── CUSPP ─────────────────────────────────────────────────────────────────
+
+  getCuspp(empId: string): string {
+    return this.cusppMap[empId] ?? '';
+  }
+
+  setCuspp(empId: string, val: string): void {
+    this.cusppMap[empId] = val.trim().toUpperCase();
+    localStorage.setItem(CUSPP_KEY, JSON.stringify(this.cusppMap));
+  }
+
+  toggleShowCuspp(empId: string): void {
+    this.showCusppMap = { ...this.showCusppMap, [empId]: !this.showCusppMap[empId] };
   }
 
   afpEntidadLabel(empId: string): string {
@@ -463,11 +520,35 @@ export class PlanillasComponent implements OnInit {
   }
 
   // ── Cálculos de nómina (MYPE Perú: DL 854 + Ley 28015/DL 1086 + Ley 28518) ──
+  // Divisores legales fijos: valor día = sueldo / 30, valor hora = valor día / 8,
+  // valor minuto = valor hora / 60. El divisor 30 es fijo por norma (no varía según
+  // los días del mes) y aplica tanto en quincena como en mes completo.
+
+  valorDia(emp: ResumenEmpleadoDto): number {
+    return this.getSueldo(emp.id) / DIVISOR_DIA;
+  }
 
   valorHora(emp: ResumenEmpleadoDto): number {
-    const sueldo = this.sueldoPeriodo(emp.id);
-    const meta   = emp.meta_horas || 1;
-    return sueldo / meta;
+    return this.valorDia(emp) / HORAS_JORNADA;
+  }
+
+  valorMinuto(emp: ResumenEmpleadoDto): number {
+    return this.valorHora(emp) / 60;
+  }
+
+  // Días de ausencia completa (jornada = 8h). Tardanzas son la fracción restante.
+  diasFaltantes(emp: ResumenEmpleadoDto): number {
+    return Math.floor(emp.horas_faltantes / HORAS_JORNADA);
+  }
+
+  minutosTardanza(emp: ResumenEmpleadoDto): number {
+    return Math.round((emp.horas_faltantes % HORAS_JORNADA) * 60);
+  }
+
+  // Descuento dominical: por cada día de inasistencia injustificada se pierde
+  // el descanso dominical de esa semana (D.S. 001-96-TR). Monto = valorDía / 30.
+  descuentoDominical(emp: ResumenEmpleadoDto): number {
+    return this.diasFaltantes(emp) * this.valorDia(emp) / DIVISOR_DIA;
   }
 
   horasExtra(emp: ResumenEmpleadoDto): number {
@@ -480,14 +561,23 @@ export class PlanillasComponent implements OnInit {
     const vh     = this.valorHora(emp);
     const extras = this.horasExtra(emp);
     if (extras <= 0) return 0;
-    if (this.esPracticante(emp)) return extras * vh; // tarifa simple, sin recargo
+    if (this.esPracticante(emp)) return extras * vh;
     const h1 = Math.min(extras, 2) * vh * 1.25;
     const h2 = Math.max(0, extras - 2) * vh * 1.35;
     return h1 + h2;
   }
 
+  // Descuento total por faltas y tardanzas:
+  //   · diasFaltantes × valorDía          (jornadas no laboradas)
+  //   · diasFaltantes × valorDía / 30     (castigo dominical, D.S. 001-96-TR)
+  //   · minutosTardanza × valorMinuto     (tardanzas parciales)
   descuentoFaltas(emp: ResumenEmpleadoDto): number {
-    return emp.horas_faltantes * this.valorHora(emp);
+    if (emp.horas_faltantes <= 0) return 0;
+    const vd = this.valorDia(emp);
+    const diasDesc    = this.diasFaltantes(emp) * vd;
+    const dominical   = this.descuentoDominical(emp);
+    const tardanzaDesc = this.minutosTardanza(emp) * this.valorMinuto(emp);
+    return diasDesc + dominical + tardanzaDesc;
   }
 
   // Descuento por sistema de pensiones (ONP/AFP): obligatorio solo para
@@ -523,11 +613,11 @@ export class PlanillasComponent implements OnInit {
   }
 
   afpComision(emp: ResumenEmpleadoDto): number {
-    return this.esAfp(emp) ? this.basePension(emp) * AFP_COMISIONES[this.getAfpEntidad(emp.id)] : 0;
+    return this.esAfp(emp) ? this.basePension(emp) * this.getAfpComisionPct(emp.id) : 0;
   }
 
   afpComisionPct(emp: ResumenEmpleadoDto): number {
-    return AFP_COMISIONES[this.getAfpEntidad(emp.id)];
+    return this.getAfpComisionPct(emp.id);
   }
 
   // Aporte EsSalud: costo del empleador, NO se descuenta del trabajador.
@@ -784,7 +874,20 @@ export class PlanillasComponent implements OnInit {
 
     let filasDescuentos = '';
     if (descFaltas > 0) {
-      filasDescuentos += fila('Descuento por Inasistencias y Tardanzas', `${this.formatH(emp.horas_faltantes)} no laboradas × ${this.formatMonto(this.valorHora(emp))} valor hora`, `−${this.formatMonto(descFaltas)}`);
+      const diasAus  = this.diasFaltantes(emp);
+      const minsAus  = this.minutosTardanza(emp);
+      const dominical = this.descuentoDominical(emp);
+      const vd = this.valorDia(emp);
+      const vm = this.valorMinuto(emp);
+      let detalleAus = `Valor día S/ ${this.formatMonto(vd)} (sueldo / 30)`;
+      if (diasAus > 0 && minsAus > 0) {
+        detalleAus += ` · ${diasAus} día(s) + castigo dominical + ${minsAus} min. tardanza`;
+      } else if (diasAus > 0) {
+        detalleAus += ` · ${diasAus} día(s) ausente(s) + castigo dominical S/ ${this.formatMonto(dominical)}`;
+      } else {
+        detalleAus += ` · ${minsAus} min. tardanza × S/ ${this.formatMonto(vm)}/min`;
+      }
+      filasDescuentos += fila('Descuento por Inasistencias y Tardanzas', detalleAus, `−${this.formatMonto(descFaltas)}`);
     } else {
       filasDescuentos += filaSinMonto('Descuento por Inasistencias y Tardanzas', 'Sin faltas ni tardanzas registradas en el período');
     }
@@ -827,6 +930,7 @@ export class PlanillasComponent implements OnInit {
     // Documento de identidad del trabajador (DNI / Carné de Extranjería).
     const docTipo = (emp.tipo_documento || 'DNI').toUpperCase();
     const docNum  = (emp.numero_documento || '').trim() || '—';
+    const cusppVal = (this.getCuspp(emp.id) || emp.cuspp || '').trim() || '—';
     // Fecha de ingreso (vital para el cálculo de beneficios sociales).
     const fechaIngreso = emp.fecha_ingreso
       ? new Date(emp.fecha_ingreso + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -888,8 +992,8 @@ export class PlanillasComponent implements OnInit {
         <tr>
           <td style="width:25%;"><strong>Cargo u Ocupación:</strong> ${emp.cargo}</td>
           <td style="width:25%;"><strong>Área / Centro de Costo:</strong> ${emp.area || '—'}</td>
-          <td style="width:25%;"><strong>Días Laborados:</strong> ${diasLaborados}</td>
-          <td style="width:25%;"><strong>Horas Laboradas:</strong> ${horasLaboradas}</td>
+          <td style="width:25%;"><strong>CUSPP:</strong> ${cusppVal}</td>
+          <td style="width:25%;"><strong>Días / Horas Laboradas:</strong> ${diasLaborados}d · ${horasLaboradas}</td>
         </tr>
       </table>
 

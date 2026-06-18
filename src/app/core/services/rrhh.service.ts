@@ -90,6 +90,7 @@ export interface ResumenEmpleadoDto {
   codigo: string | null;
   tipo_documento?: string | null;
   numero_documento?: string | null;
+  cuspp?: string | null;
   fecha_ingreso: string | null;
   horas_reales: number;
   horas_justificadas: number;

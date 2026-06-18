@@ -947,3 +947,63 @@
   .kpi-grid       { grid-template-columns: 1fr; }
   .plan-header    { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── AFP porcentaje + CUSPP en celda pensión ───────────────────────────── */
+.afp-pct-row {
+  display:     flex;
+  align-items: center;
+  gap:         4px;
+  font-size:   10px;
+  margin-top:  2px;
+}
+.afp-pct-label { color: var(--text-muted, #64748b); white-space: nowrap; }
+.afp-pct-input {
+  width:         54px;
+  padding:       3px 5px;
+  border-radius: 6px;
+  border:        1.5px solid var(--border-color, #e2e8f0);
+  font-size:     10px;
+  text-align:    right;
+  background:    var(--input-bg, #f8fafc);
+  color:         var(--text-main, #1e293b);
+}
+.afp-pct-input:focus { border-color: var(--brand-green, #22c55e); outline: none; }
+.afp-total-chip {
+  font-size:     10px;
+  font-weight:   700;
+  color:         #0f766e;
+  background:    rgba(20,184,166,0.08);
+  border-radius: 6px;
+  padding:       2px 6px;
+  margin-top:    2px;
+  cursor:        help;
+}
+
+.cuspp-row {
+  display:     flex;
+  align-items: center;
+  gap:         4px;
+  margin-top:  4px;
+}
+.cuspp-label { font-size: 10px; color: var(--text-muted, #64748b); white-space: nowrap; }
+.cuspp-input {
+  width:         110px;
+  padding:       3px 6px;
+  border-radius: 6px;
+  border:        1.5px solid var(--border-color, #e2e8f0);
+  font-size:     10px;
+  background:    var(--input-bg, #f8fafc);
+  color:         var(--text-main, #1e293b);
+  letter-spacing: 1px;
+}
+.cuspp-input:focus { border-color: var(--brand-green, #22c55e); outline: none; }
+.cuspp-eye-btn {
+  background:  transparent;
+  border:      none;
+  cursor:      pointer;
+  padding:     2px;
+  color:       var(--text-muted, #64748b);
+  display:     flex;
+  align-items: center;
+}
+.cuspp-eye-btn:hover { color: var(--brand-green, #22c55e); }

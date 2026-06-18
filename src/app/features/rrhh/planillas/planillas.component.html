@@ -74,6 +74,24 @@
     </div>
     }
 
+    @if (puedeEditar) {
+    <div class="config-block">
+      <span class="regimen-toggle-label">Régimen empresa:</span>
+      <button class="pago-btn" [class.active]="regimenEmpresa === 'micro'" (click)="setRegimen('micro')"
+        title="Microempresa MYPE: 15 días vacaciones, sin CTS ni gratificación (Ley N.° 32353)">
+        Microempresa
+      </button>
+      <button class="pago-btn" [class.active]="regimenEmpresa === 'pequena'" (click)="setRegimen('pequena')"
+        title="Pequeña Empresa MYPE: 15 días vacaciones, media CTS, media gratificación (Ley N.° 32353)">
+        Peq. Empresa
+      </button>
+      <button class="pago-btn" [class.active]="regimenEmpresa === 'general'" (click)="setRegimen('general')"
+        title="Régimen General: 30 días vacaciones, CTS completa, gratificación completa">
+        Reg. General
+      </button>
+    </div>
+    }
+
   </div>
 
   @if (kpis.bajoRmvCount > 0) {
@@ -326,7 +344,35 @@
                     <option [value]="afp.value">{{ afp.label }}</option>
                     }
                   </select>
+                  <div class="afp-pct-row" title="Comisión sobre flujo (editable). Cambiar solo si la AFP notificó una variación.">
+                    <span class="afp-pct-label">Comisión %:</span>
+                    <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
+                      [value]="(afpComisionPct(emp) * 100).toFixed(2)"
+                      (change)="onAfpComisionChange(emp.id, $any($event.target).value)"
+                      title="Porcentaje de comisión sobre flujo de la AFP ({{ afpEntidadLabel(emp.id) }})">
+                    <span class="afp-pct-label">%</span>
+                  </div>
+                  <div class="afp-total-chip" [title]="'AFP total: aporte 10% + seguro 1.37% + comisión ' + (afpComisionPct(emp) * 100).toFixed(2) + '%'">
+                    Total AFP: {{ (pensionPct(emp) * 100).toFixed(2) }}%
+                  </div>
                   }
+                  <div class="cuspp-row">
+                    <span class="cuspp-label">CUSPP:</span>
+                    <input
+                      [type]="showCusppMap[emp.id] ? 'text' : 'password'"
+                      class="cuspp-input"
+                      [value]="getCuspp(emp.id)"
+                      (input)="setCuspp(emp.id, $any($event.target).value)"
+                      placeholder="Ej. 254879VVCTB8"
+                      title="Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR)">
+                    <button class="cuspp-eye-btn" type="button" (click)="toggleShowCuspp(emp.id)" [title]="showCusppMap[emp.id] ? 'Ocultar CUSPP' : 'Mostrar CUSPP'">
+                      @if (showCusppMap[emp.id]) {
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      } @else {
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      }
+                    </button>
+                  </div>
                 </div>
                 } @else {
                 <span class="pension-readonly">{{ pensionLabel(emp) }}</span>
