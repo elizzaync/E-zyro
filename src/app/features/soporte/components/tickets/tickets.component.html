@@ -1,0 +1,257 @@
+<div class="tk-layout fade-in">
+
+  <!-- Header -->
+  <div class="tk-header">
+    <div class="tk-header-left">
+      <div class="tk-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="tk-title">Tickets de Soporte TIC</h1>
+        <p class="tk-subtitle">Gestión interna de incidencias y requerimientos</p>
+      </div>
+    </div>
+
+    <div class="tk-kpis">
+      <div class="kpi-chip kpi-blue">
+        <span class="kpi-num">{{ kpiAbiertos }}</span>
+        <span class="kpi-lbl">Abiertos</span>
+      </div>
+      <div class="kpi-chip kpi-orange">
+        <span class="kpi-num">{{ kpiEnProceso }}</span>
+        <span class="kpi-lbl">En proceso</span>
+      </div>
+      <div class="kpi-chip kpi-red">
+        <span class="kpi-num">{{ kpiUrgentes }}</span>
+        <span class="kpi-lbl">Urgentes</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="tk-toolbar">
+    <div class="tk-tabs">
+      <button class="tk-tab" [class.active]="tab === 'abierto'" (click)="setTab('abierto')">
+        Abiertos <span class="tab-badge">{{ tabCount('abierto') }}</span>
+      </button>
+      <button class="tk-tab" [class.active]="tab === 'en_proceso'" (click)="setTab('en_proceso')">
+        En Proceso <span class="tab-badge">{{ tabCount('en_proceso') }}</span>
+      </button>
+      <button class="tk-tab" [class.active]="tab === 'resuelto'" (click)="setTab('resuelto')">
+        Resueltos <span class="tab-badge">{{ tabCount('resuelto') }}</span>
+      </button>
+      <button class="tk-tab" [class.active]="tab === 'cerrado'" (click)="setTab('cerrado')">
+        Cerrados <span class="tab-badge">{{ tabCount('cerrado') }}</span>
+      </button>
+    </div>
+
+    <div class="tk-search-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input class="tk-search" type="text" placeholder="Buscar por código, título, reportante..." [(ngModel)]="busqueda">
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <div class="tk-card">
+    @if (cargando) {
+      <div class="tk-loading">
+        <div class="spinner-ring"></div>
+        <span>Cargando tickets...</span>
+      </div>
+    } @else if (listaFiltrada.length === 0) {
+      <div class="tk-empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <p>No hay tickets {{ estadoLabel(tab).toLowerCase() }}s</p>
+      </div>
+    } @else {
+      <div class="tk-table-wrap">
+        <table class="tk-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Título</th>
+              <th>Categoría</th>
+              <th>Prioridad</th>
+              <th>Reportante</th>
+              <th>Atendido por</th>
+              <th>Fecha</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of listaFiltrada; track t.id) {
+              <tr class="tk-row" (click)="abrirTicket(t)">
+                <td><span class="tk-codigo">{{ t.codigo }}</span></td>
+                <td class="tk-titulo-cell">{{ t.titulo }}</td>
+                <td>{{ categoriaLabel(t.categoria) }}</td>
+                <td>
+                  <span class="badge-prio" [ngClass]="prioridadClase(t.prioridad)">
+                    {{ prioridadLabel(t.prioridad) }}
+                  </span>
+                </td>
+                <td>{{ t.reportante_nombre }}</td>
+                <td>{{ t.atendido_por_nombre ?? '—' }}</td>
+                <td class="tk-fecha">{{ t.creado_en | date:'dd/MM/yy HH:mm' }}</td>
+                <td>
+                  <button class="btn-ver" (click)="abrirTicket(t); $event.stopPropagation()">Ver</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Drawer de detalle -->
+@if (ticketActivo) {
+  <div class="drawer-overlay fade-in" (click)="cerrarTicket()"></div>
+  <div class="drawer fade-in-right">
+    <div class="drawer-header">
+      <div class="drawer-title-wrap">
+        <span class="tk-codigo">{{ ticketActivo.codigo }}</span>
+        <span class="badge-estado" [ngClass]="estadoClase(ticketActivo.estado)">{{ estadoLabel(ticketActivo.estado) }}</span>
+      </div>
+      <button class="drawer-close" (click)="cerrarTicket()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="drawer-body">
+      <!-- Info básica -->
+      <div class="drawer-section">
+        <h3 class="drawer-ticket-titulo">{{ ticketActivo.titulo }}</h3>
+        <div class="drawer-meta-grid">
+          <div class="meta-item">
+            <span class="meta-label">Prioridad</span>
+            <span class="badge-prio" [ngClass]="prioridadClase(ticketActivo.prioridad)">{{ prioridadLabel(ticketActivo.prioridad) }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Categoría</span>
+            <span class="meta-val">{{ categoriaLabel(ticketActivo.categoria) }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Reportante</span>
+            <span class="meta-val">{{ ticketActivo.reportante_nombre }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Atendido por</span>
+            <span class="meta-val">{{ ticketActivo.atendido_por_nombre ?? 'Sin asignar' }}</span>
+          </div>
+          @if (ticketActivo.pantalla) {
+            <div class="meta-item">
+              <span class="meta-label">Pantalla</span>
+              <span class="meta-val">{{ ticketActivo.pantalla }}</span>
+            </div>
+          }
+          @if (ticketActivo.dispositivo) {
+            <div class="meta-item">
+              <span class="meta-label">Dispositivo</span>
+              <span class="meta-val">{{ ticketActivo.dispositivo }}</span>
+            </div>
+          }
+        </div>
+
+        <div class="desc-box">
+          <p class="meta-label" style="margin-bottom:6px">Descripción</p>
+          <p class="desc-text">{{ ticketActivo.descripcion }}</p>
+        </div>
+
+        @if (ticketActivo.adjunto_url) {
+          <a [href]="ticketActivo.adjunto_url" target="_blank" class="adj-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66L9.41 17.41a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+            Ver adjunto
+          </a>
+        }
+      </div>
+
+      <!-- Gestión TI -->
+      <div class="drawer-section">
+        <h4 class="section-label">Gestión TI</h4>
+
+        @if (puedeTomarTicket) {
+          <button class="btn-tomar" (click)="tomarTicket()" [disabled]="procesando">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/>
+              <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+            </svg>
+            Tomar ticket
+          </button>
+        }
+
+        <div class="form-row">
+          <label class="form-lbl">Cambiar estado</label>
+          <select class="form-select" [(ngModel)]="nuevoEstado">
+            <option value="abierto">Abierto</option>
+            <option value="en_proceso">En Proceso</option>
+            <option value="resuelto">Resuelto</option>
+            <option value="cerrado">Cerrado</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label class="form-lbl">Respuesta TI</label>
+          <textarea class="form-ta" rows="3" placeholder="Escribe la respuesta oficial al ticket..." [(ngModel)]="nuevaRespuesta"></textarea>
+        </div>
+
+        <button class="btn-guardar" (click)="guardarGestion()" [disabled]="procesando || !puedeGuardar">
+          {{ procesando ? 'Guardando...' : 'Guardar cambios' }}
+        </button>
+      </div>
+
+      <!-- Timeline -->
+      <div class="drawer-section">
+        <h4 class="section-label">Timeline de actividad</h4>
+
+        @if (cargandoActividades) {
+          <div class="tk-loading small"><div class="spinner-ring"></div></div>
+        } @else if (actividades.length === 0) {
+          <p class="empty-timeline">Sin actividad registrada aún.</p>
+        } @else {
+          <div class="timeline">
+            @for (a of actividades; track a.id) {
+              <div class="tl-item" [class.tl-solucion]="a.es_solucion">
+                <div class="tl-dot"></div>
+                <div class="tl-content">
+                  <div class="tl-meta">
+                    <span class="tl-tipo">{{ actividadLabel(a.tipo) }}</span>
+                    @if (a.es_solucion) {
+                      <span class="tl-sol-badge">v{{ a.version_solucion }}</span>
+                    }
+                    <span class="tl-autor">{{ a.autor_nombre }}</span>
+                    <span class="tl-fecha">{{ a.creado_en | date:'dd/MM/yy HH:mm' }}</span>
+                  </div>
+                  @if (a.texto) {
+                    <p class="tl-texto">{{ a.texto }}</p>
+                  }
+                  @if (a.adjunto_url) {
+                    <a [href]="a.adjunto_url" target="_blank" class="adj-link small">Ver adjunto</a>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Nuevo comentario -->
+        <div class="comentario-form">
+          <textarea class="form-ta" rows="2" placeholder="Escribe un comentario..." [(ngModel)]="nuevoComentario"></textarea>
+          <button class="btn-comentar" (click)="enviarComentario()" [disabled]="enviandoComentario || !nuevoComentario.trim()">
+            {{ enviandoComentario ? 'Enviando...' : 'Comentar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

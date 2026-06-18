@@ -1,0 +1,214 @@
+<div class="mon-layout fade-in">
+
+  <!-- Header -->
+  <div class="mon-header">
+    <div class="mon-header-left">
+      <div class="mon-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="mon-title">Monitoreo del Sistema</h1>
+        <p class="mon-subtitle">Auditoría de acciones y sesiones de usuarios</p>
+      </div>
+    </div>
+
+    <div class="mon-kpis">
+      <div class="kpi-chip kpi-green">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <div>
+          <span class="kpi-num">{{ kpiSesionesHoy }}</span>
+          <span class="kpi-lbl">Sesiones activas hoy</span>
+        </div>
+      </div>
+      <div class="kpi-chip kpi-blue">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <div>
+          <span class="kpi-num">{{ kpiAccionesHoy }}</span>
+          <span class="kpi-lbl">Acciones registradas hoy</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="mon-tabs">
+    <button class="mon-tab" [class.active]="tab === 'actividad'" (click)="setTab('actividad')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+      </svg>
+      Registro de Actividad
+    </button>
+    <button class="mon-tab" [class.active]="tab === 'sesiones'" (click)="setTab('sesiones')">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+      Sesiones de Usuarios
+    </button>
+  </div>
+
+  <!-- Tab: Actividad -->
+  @if (tab === 'actividad') {
+    <div class="mon-card fade-in">
+      <!-- Filtros -->
+      <div class="mon-filters">
+        <div class="filter-item flex-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" class="filter-input" placeholder="Buscar por usuario o descripción..."
+            [(ngModel)]="audBusqueda" (keyup.enter)="buscarAuditoria()">
+        </div>
+        <div class="filter-item">
+          <select class="filter-select" [(ngModel)]="audModulo" (change)="buscarAuditoria()">
+            <option value="">Todos los módulos</option>
+            @for (m of modulosDisponibles.slice(1); track m) {
+              <option [value]="m">{{ moduloLabel(m) }}</option>
+            }
+          </select>
+        </div>
+        <div class="filter-item">
+          <input type="date" class="filter-input" [(ngModel)]="audFechaDesde" (change)="buscarAuditoria()">
+        </div>
+        <div class="filter-item">
+          <input type="date" class="filter-input" [(ngModel)]="audFechaHasta" (change)="buscarAuditoria()">
+        </div>
+        <button class="btn-buscar" (click)="buscarAuditoria()">Filtrar</button>
+      </div>
+
+      <!-- Tabla auditoría -->
+      @if (cargando && auditoria.length === 0) {
+        <div class="mon-loading">
+          <div class="spinner-ring"></div>
+          <span>Cargando registros...</span>
+        </div>
+      } @else if (auditoria.length === 0) {
+        <div class="mon-empty">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          </svg>
+          <p>Sin registros de actividad para los filtros aplicados.</p>
+        </div>
+      } @else {
+        <div class="table-wrap">
+          <table class="mon-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>Módulo</th>
+                <th>Acción</th>
+                <th>Descripción</th>
+                <th>IP</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of auditoria; track a.id) {
+                <tr class="mon-row">
+                  <td>{{ a.usuario_nombre ?? '—' }}</td>
+                  <td>
+                    @if (a.modulo) {
+                      <span class="mod-badge">{{ moduloLabel(a.modulo) }}</span>
+                    } @else { — }
+                  </td>
+                  <td><span class="accion-badge" [class]="'accion-' + a.accion.toLowerCase()">{{ a.accion }}</span></td>
+                  <td class="desc-cell">{{ a.descripcion ?? '—' }}</td>
+                  <td class="ip-cell">{{ a.ip ?? '—' }}</td>
+                  <td class="fecha-cell">{{ a.fecha | date:'dd/MM/yy HH:mm' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (audHayMas) {
+          <div class="load-more-wrap">
+            <button class="btn-load-more" (click)="cargarMasAuditoria()" [disabled]="cargando">
+              {{ cargando ? 'Cargando...' : 'Cargar más registros' }}
+            </button>
+          </div>
+        }
+      }
+    </div>
+  }
+
+  <!-- Tab: Sesiones -->
+  @if (tab === 'sesiones') {
+    <div class="mon-card fade-in">
+      <!-- Filtros -->
+      <div class="mon-filters">
+        <div class="filter-item flex-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" class="filter-input" placeholder="Buscar por nombre de usuario..."
+            [(ngModel)]="sesBusqueda">
+        </div>
+        <div class="filter-item">
+          <input type="date" class="filter-input" [(ngModel)]="sesFechaDesde" (change)="buscarSesiones()">
+        </div>
+        <div class="filter-item">
+          <input type="date" class="filter-input" [(ngModel)]="sesFechaHasta" (change)="buscarSesiones()">
+        </div>
+        <button class="btn-buscar" (click)="buscarSesiones()">Filtrar</button>
+      </div>
+
+      @if (cargando && sesiones.length === 0) {
+        <div class="mon-loading">
+          <div class="spinner-ring"></div>
+          <span>Cargando sesiones...</span>
+        </div>
+      } @else if (sesionesVista.length === 0) {
+        <div class="mon-empty">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+          <p>Sin sesiones registradas para los filtros aplicados.</p>
+        </div>
+      } @else {
+        <div class="table-wrap">
+          <table class="mon-table">
+            <thead>
+              <tr>
+                <th>Usuario</th>
+                <th>IP</th>
+                <th>Dispositivo</th>
+                <th>Estado</th>
+                <th>Inicio</th>
+                <th>Cierre</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (s of sesionesVista; track s.id) {
+                <tr class="mon-row">
+                  <td class="usuario-cell">{{ s.usuario_nombre }}</td>
+                  <td class="ip-cell">{{ s.ip ?? '—' }}</td>
+                  <td>{{ s.dispositivo ?? '—' }}</td>
+                  <td>
+                    <span class="ses-badge" [class.ses-activa]="s.activa" [class.ses-cerrada]="!s.activa">
+                      {{ s.activa ? 'Activa' : 'Cerrada' }}
+                    </span>
+                  </td>
+                  <td class="fecha-cell">{{ s.created_at }}</td>
+                  <td class="fecha-cell">{{ s.fecha_cierre ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (sesHayMas) {
+          <div class="load-more-wrap">
+            <button class="btn-load-more" (click)="cargarMasSesiones()" [disabled]="cargando">
+              {{ cargando ? 'Cargando...' : 'Cargar más sesiones' }}
+            </button>
+          </div>
+        }
+      }
+    </div>
+  }
+</div>

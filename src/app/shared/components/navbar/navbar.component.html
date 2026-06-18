@@ -260,6 +260,56 @@
         </div>
         }
 
+        @if (puedeSoporte) {
+        <div class="nav-dropdown">
+            @if (soporteOpen) {
+            <div class="nav-submenu-backdrop" (click)="soporteOpen = false; cerrarMobileNav()"></div>
+            }
+            <a href="javascript:void(0)" class="nav-item" [class.active]="soporteOpen || enSoporte"
+                (click)="soporteOpen = !soporteOpen; rrhhOpen = false; logisticaOpen = false; operacionesOpen = false">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/>
+                    <path d="M8 21h8M12 17v4"/>
+                </svg>
+                <span>Soporte TIC</span>
+                <svg class="nav-caret" [class.open]="soporteOpen" width="14" height="14" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9" />
+                </svg>
+            </a>
+            @if (soporteOpen) {
+            <div class="nav-submenu">
+                <a routerLink="/soporte/tickets" routerLinkActive="active" class="nav-subitem"
+                    (click)="soporteOpen = false; cerrarMobileNav()">
+                    <span class="nav-subitem-ic">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </span>
+                    <div class="nav-subitem-txt">
+                        <span class="nav-subitem-title">Tickets TI</span>
+                        <span class="nav-subitem-desc">Gestión de incidencias internas</span>
+                    </div>
+                </a>
+                <a routerLink="/soporte/monitoreo" routerLinkActive="active" class="nav-subitem"
+                    (click)="soporteOpen = false; cerrarMobileNav()">
+                    <span class="nav-subitem-ic">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </span>
+                    <div class="nav-subitem-txt">
+                        <span class="nav-subitem-title">Monitoreo</span>
+                        <span class="nav-subitem-desc">Auditoría y sesiones de usuarios</span>
+                    </div>
+                </a>
+            </div>
+            }
+        </div>
+        }
+
         <a routerLink="/personal" routerLinkActive="active" class="nav-item" (click)="cerrarMobileNav()">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24"
                 stroke="currentColor" stroke-width="2">
