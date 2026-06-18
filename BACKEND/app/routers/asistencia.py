@@ -834,6 +834,108 @@ def _resumen_dia(db: Session, empresa_id: str, dia: date) -> dict:
     }
 
 
+@router.get("/mi-resumen-semanal")
+def mi_resumen_semanal(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Resumen semanal del empleado autenticado (pantalla personal de asistencia).
+    Reusa la lógica de turno + excepción de _resumen_dia: la puntualidad se mide
+    contra el plan designado (hora de entrada + tolerancia del turno), respetando
+    excepciones (p. ej. TI). Semana = lunes→domingo en zona América/Lima."""
+    usuario_id = payload["id"]
+    empresa_id = payload["empresa_id"]
+
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+
+    hoy   = datetime.now(ZoneInfo("America/Lima")).date()
+    lunes = hoy - timedelta(days=hoy.weekday())
+    _LABELS = ["L", "M", "M", "J", "V", "S", "D"]
+    META_HORAS = 48
+
+    dias_out: list[dict] = []
+    total_trab = 0
+    dias_trabajados = 0
+    dias_puntuales = 0
+    dias_con_entrada = 0
+
+    for i in range(7):
+        dia = lunes + timedelta(days=i)
+        entrada = salida = ini_alm = fin_alm = None
+        es_exc = False
+        llego_tarde = False
+        min_trab = None
+
+        if empleado:
+            turno = _turnos_por_empleado(db, empresa_id, dia).get(str(empleado.id))
+            if turno:
+                t_entrada    = turno.hora_entrada
+                t_tolerancia = turno.tolerancia_minutos or 0
+                es_exc       = True
+            else:
+                t_entrada    = _DEF_ENTRADA
+                t_tolerancia = _DEF_TOLERANCIA_MIN
+
+            regs = (
+                db.query(RegistroAsistencia)
+                .filter(
+                    RegistroAsistencia.empleado_id == empleado.id,
+                    RegistroAsistencia.empresa_id  == empresa_id,
+                    cast(RegistroAsistencia.fecha_hora, Date) == dia,
+                )
+                .order_by(RegistroAsistencia.fecha_hora.asc())
+                .all()
+            )
+            entrada = next((r for r in regs if r.tipo == "entrada"), None)
+            salida  = next((r for r in regs if r.tipo == "salida"),  None)
+            ini_alm = next((r for r in regs if r.tipo == "entrada_almuerzo"), None)
+            fin_alm = next((r for r in regs if r.tipo == "salida_almuerzo"),  None)
+
+            min_alm = None
+            if ini_alm and fin_alm:
+                min_alm = int((fin_alm.fecha_hora - ini_alm.fecha_hora).total_seconds() // 60)
+
+            if entrada and salida:
+                bruto = int((salida.fecha_hora - entrada.fecha_hora).total_seconds() // 60)
+                min_trab = max(bruto - (min_alm or 0), 0)
+                total_trab += min_trab
+                dias_trabajados += 1
+
+            if entrada:
+                dias_con_entrada += 1
+                minutos_tarde = max(_min_entre(t_entrada, entrada.fecha_hora.time()), 0)
+                llego_tarde = minutos_tarde > t_tolerancia
+                if not llego_tarde:
+                    dias_puntuales += 1
+
+        dias_out.append({
+            "fecha":              dia.isoformat(),
+            "label":              _LABELS[i],
+            "es_hoy":             dia == hoy,
+            "minutos_trabajados": min_trab,
+            "entrada_hora":       entrada.fecha_hora.strftime("%H:%M") if entrada else None,
+            "salida_hora":        salida.fecha_hora.strftime("%H:%M")  if salida  else None,
+            "llego_tarde":        llego_tarde,
+            "es_excepcion":       es_exc,
+        })
+
+    promedio    = int(total_trab / dias_trabajados) if dias_trabajados else 0
+    puntualidad = round(dias_puntuales / dias_con_entrada * 100) if dias_con_entrada else None
+
+    return {
+        "semana_inicio":             lunes.isoformat(),
+        "meta_horas":                META_HORAS,
+        "minutos_trabajados_semana": total_trab,
+        "dias_trabajados":           dias_trabajados,
+        "promedio_min_diario":       promedio,
+        "puntualidad_pct":           puntualidad,
+        "dias":                      dias_out,
+    }
+
+
 @router.get("/control-diario")
 def control_diario(
     fecha:   Optional[str] = None,
