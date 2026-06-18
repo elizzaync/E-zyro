@@ -123,12 +123,20 @@ export class PlanillasComponent implements OnInit {
 
   // ── Comisión AFP personalizada (% flujo): permite sobrescribir la tabla estándar
   afpComisionCustomMap: Record<string, number> = {};
+  // Valor que se muestra en el input (puede diferir del guardado mientras edita)
+  comisionDisplayMap: Record<string, string> = {};
 
   // ── Modal confirmación cambio AFP entidad ─────────────────────────────────
   afpConfirmOpen    = false;
   afpConfirmEmpId   = '';
   afpConfirmNewVal: AfpEntidad = 'integra';
   afpConfirmLabel   = '';
+
+  // ── Modal confirmación cambio comisión AFP ────────────────────────────────
+  comisionConfirmOpen    = false;
+  comisionConfirmEmpId   = '';
+  comisionConfirmNewPct  = 0;   // nuevo valor en decimal (ej. 0.0160)
+  comisionConfirmOldPct  = 0;   // valor oficial de la AFP en decimal
 
   // ── Datos de la empresa (para el encabezado de la Planilla Mensual PDF) ────
   empresaInfo: { razon_social: string; ruc: string; regimen_tributario: string; direccion?: string; telefono?: string } | null = null;
@@ -266,11 +274,13 @@ export class PlanillasComponent implements OnInit {
         this.totalRegistros = res.total;
         this.totalPaginas   = res.total_paginas;
         this.cargando       = false;
-        // Pre-poblar CUSPP desde BD solo si el empleado aún no tiene valor local
         for (const emp of res.empleados) {
+          // Pre-poblar CUSPP desde BD solo si el empleado aún no tiene valor local
           if (emp.cuspp && !this.cusppMap[emp.id]) {
             this.cusppMap[emp.id] = emp.cuspp;
           }
+          // Sincronizar display del input de comisión con el valor efectivo actual
+          this.comisionDisplayMap[emp.id] = (this.getAfpComisionPct(emp.id) * 100).toFixed(2);
         }
       },
       error: () => {
@@ -418,10 +428,16 @@ export class PlanillasComponent implements OnInit {
   }
 
   confirmarCambioAfp(): void {
-    this.afpEntidadMap[this.afpConfirmEmpId] = this.afpConfirmNewVal;
+    const empId = this.afpConfirmEmpId;
+    this.afpEntidadMap[empId] = this.afpConfirmNewVal;
     localStorage.setItem(AFP_KEY, JSON.stringify(this.afpEntidadMap));
+    // Limpiar comisión custom: la nueva AFP tiene su propia tasa oficial
+    delete this.afpComisionCustomMap[empId];
+    localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
+    const defaultPct = AFP_COMISIONES[this.afpConfirmNewVal];
+    this.comisionDisplayMap[empId] = (defaultPct * 100).toFixed(2);
     this.afpConfirmOpen = false;
-    this.toast.mostrar(`AFP actualizada a ${this.afpConfirmLabel} — aplica desde ahora`, 'success');
+    this.toast.mostrar(`AFP actualizada a ${this.afpConfirmLabel} (comisión: ${(defaultPct * 100).toFixed(2)}%)`, 'success');
   }
 
   cancelarCambioAfp(): void {
@@ -437,12 +453,46 @@ export class PlanillasComponent implements OnInit {
     return AFP_COMISIONES[this.getAfpEntidad(empId)];
   }
 
-  onAfpComisionChange(empId: string, raw: string): void {
-    const pct = parseFloat(String(raw).replace(/[^0-9.]/g, '')) / 100;
-    if (isNaN(pct) || pct < 0 || pct > 0.5) return;
-    this.afpComisionCustomMap[empId] = pct;
+  isComisionCustomizada(empId: string): boolean {
+    return this.afpComisionCustomMap[empId] !== undefined;
+  }
+
+  onAfpComisionBlur(empId: string, displayVal: string): void {
+    const newPct = parseFloat(String(displayVal).replace(/[^0-9.]/g, '')) / 100;
+    const currentPct = this.getAfpComisionPct(empId);
+    // Entrada inválida o sin cambio: restablecer display al valor actual
+    if (isNaN(newPct) || newPct < 0 || newPct > 0.5 || Math.abs(newPct - currentPct) < 0.00001) {
+      this.comisionDisplayMap[empId] = (currentPct * 100).toFixed(2);
+      return;
+    }
+    // Guardar pending y abrir modal de confirmación
+    this.comisionConfirmEmpId  = empId;
+    this.comisionConfirmNewPct = newPct;
+    this.comisionConfirmOldPct = AFP_COMISIONES[this.getAfpEntidad(empId)];
+    this.comisionConfirmOpen   = true;
+  }
+
+  confirmarCambioComision(): void {
+    const empId = this.comisionConfirmEmpId;
+    this.afpComisionCustomMap[empId] = this.comisionConfirmNewPct;
     localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
-    this.toast.mostrar(`Comisión AFP actualizada a ${(pct * 100).toFixed(2)}% — aplica desde ahora`, 'success');
+    this.comisionDisplayMap[empId] = (this.comisionConfirmNewPct * 100).toFixed(2);
+    this.comisionConfirmOpen = false;
+    this.toast.mostrar(`Comisión actualizada a ${(this.comisionConfirmNewPct * 100).toFixed(2)}% — aplica desde ahora`, 'success');
+  }
+
+  cancelarCambioComision(): void {
+    // Revertir el display al valor guardado real (sin modificar)
+    this.comisionDisplayMap[this.comisionConfirmEmpId] = (this.getAfpComisionPct(this.comisionConfirmEmpId) * 100).toFixed(2);
+    this.comisionConfirmOpen = false;
+  }
+
+  resetComisionAfp(empId: string): void {
+    delete this.afpComisionCustomMap[empId];
+    localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
+    const defaultPct = AFP_COMISIONES[this.getAfpEntidad(empId)];
+    this.comisionDisplayMap[empId] = (defaultPct * 100).toFixed(2);
+    this.toast.mostrar(`Comisión restablecida al valor oficial: ${(defaultPct * 100).toFixed(2)}%`, 'success');
   }
 
   // ── CUSPP ─────────────────────────────────────────────────────────────────

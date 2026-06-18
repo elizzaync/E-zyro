@@ -369,13 +369,27 @@
                   <!-- Fila editable: solo la comisión sobre flujo (varía por AFP) -->
                   @if (puedeEditar) {
                   <div class="afp-pct-row"
-                    title="Comisión sobre flujo que cobra {{ afpEntidadLabel(emp.id) }}. Cámbiala solo si la AFP te notificó una nueva tasa. Se guarda localmente.">
+                    [class.comision-custom]="isComisionCustomizada(emp.id)"
+                    title="Comisión sobre flujo oficial de {{ afpEntidadLabel(emp.id) }}. Editar SOLO si la AFP te notificó un cambio de tasa.">
                     <span class="afp-pct-label">Comis.:</span>
                     <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
-                      [value]="(afpComisionPct(emp) * 100).toFixed(2)"
-                      (change)="onAfpComisionChange(emp.id, $any($event.target).value)">
+                      [(ngModel)]="comisionDisplayMap[emp.id]"
+                      (blur)="onAfpComisionBlur(emp.id, comisionDisplayMap[emp.id])">
                     <span class="afp-pct-label">%</span>
+                    @if (isComisionCustomizada(emp.id)) {
+                      <button class="comision-reset-btn"
+                        title="Restablecer a la tasa oficial de {{ afpEntidadLabel(emp.id) }}"
+                        type="button"
+                        (click)="resetComisionAfp(emp.id)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.9-3.4M20 15A9 9 0 015.1 18.4"/>
+                        </svg>
+                      </button>
+                    }
                   </div>
+                  @if (isComisionCustomizada(emp.id)) {
+                    <span class="comision-custom-badge" title="Tasa modificada manualmente — no es la tasa oficial de {{ afpEntidadLabel(emp.id) }}">personalizada</span>
+                  }
                   }
                 </div>
               } @else if (esDependiente(emp)) {
@@ -817,6 +831,53 @@
     <div class="afp-confirm-actions">
       <button class="btn-afp-cancel" type="button" (click)="cancelarCambioAfp()">Cancelar</button>
       <button class="btn-afp-confirm" type="button" (click)="confirmarCambioAfp()">Confirmar cambio</button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- ═══ MODAL CONFIRMACIÓN CAMBIO COMISIÓN AFP ═══ -->
+<app-modal
+  [open]="comisionConfirmOpen"
+  title="Cambiar comisión sobre flujo"
+  [subtitle]="afpEntidadLabel(comisionConfirmEmpId)"
+  maxWidth="480px"
+  iconBg="rgba(239,68,68,0.10)"
+  iconColor="#dc2626"
+  (closeModal)="cancelarCambioComision()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+    <path stroke-linecap="round" stroke-linejoin="round"
+      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+  </svg>
+
+  <div class="afp-confirm-body">
+    <p class="afp-confirm-msg">
+      Estás sobreescribiendo la tasa de comisión oficial de
+      <strong>{{ afpEntidadLabel(comisionConfirmEmpId) }}</strong>:
+    </p>
+    <div class="comision-cambio-grid">
+      <div class="comision-cambio-item">
+        <span class="comision-cambio-label">Tasa oficial AFP</span>
+        <span class="comision-cambio-val oficial">{{ (comisionConfirmOldPct * 100).toFixed(2) }}%</span>
+      </div>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="color:#94a3b8;flex-shrink:0">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+      </svg>
+      <div class="comision-cambio-item">
+        <span class="comision-cambio-label">Nueva tasa</span>
+        <span class="comision-cambio-val nueva">{{ (comisionConfirmNewPct * 100).toFixed(2) }}%</span>
+      </div>
+    </div>
+    <div class="afp-confirm-aviso" style="border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);color:#991b1b">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#dc2626">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      <span>Haz esto <strong>únicamente si la AFP te notificó un cambio de tasa de forma oficial</strong>. La columna mostrará una etiqueta <em>"personalizada"</em> para que no haya confusión.</span>
+    </div>
+    <div class="afp-confirm-actions">
+      <button class="btn-afp-cancel" type="button" (click)="cancelarCambioComision()">Cancelar</button>
+      <button class="btn-afp-confirm" type="button" (click)="confirmarCambioComision()">Confirmar cambio</button>
     </div>
   </div>
 </app-modal>
