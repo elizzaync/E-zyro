@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api_result.dart';
+import '../models/asistencia_models.dart';
 import '../models/evaluacion_models.dart';
+import '../models/solicitud_models.dart';
 import '../models/vacaciones_models.dart';
+import '../services/solicitud_service.dart';
 import '../services/vacaciones_service.dart';
 import '../utils/api_provider.dart';
+import '../utils/app_session.dart';
 import '../widgets/vacaciones_gauge.dart';
+import 'pantalla_editar_perfil.dart';
 import 'pantalla_evaluaciones.dart' show DetalleEvaluacionScreen;
 
 /// "Mi espacio" — vista de autoservicio del empleado (sin permisos de RR.HH.):
@@ -16,16 +22,18 @@ class PantallaMiEspacio extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Mi espacio', style: TextStyle(fontWeight: FontWeight.bold)),
-          bottom: const TabBar(tabs: [
+          bottom: const TabBar(isScrollable: true, tabs: [
+            Tab(text: 'Resumen'),
             Tab(text: 'Mis vacaciones'),
             Tab(text: 'Mis evaluaciones'),
           ]),
         ),
         body: const TabBarView(children: [
+          _ResumenTab(),
           _MisVacacionesTab(),
           _MisEvaluacionesTab(),
         ]),
@@ -329,4 +337,171 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab> with Automatic
       ),
     );
   }
+}
+
+// ─── Resumen / Perfil del usuario ──────────────────────────────────────────────
+// Guiado por el detalle de empleado de RR.HH., pero con datos propios del usuario
+// (sesión + mi-resumen-semanal + mis-solicitudes), sin requerir permisos de RR.HH.
+class _ResumenTab extends StatefulWidget {
+  const _ResumenTab();
+
+  @override
+  State<_ResumenTab> createState() => _ResumenTabState();
+}
+
+class _ResumenTabState extends State<_ResumenTab> with AutomaticKeepAliveClientMixin {
+  static const _green = Color(0xFF8FD11B);
+  ResumenSemanal? _resumen;
+  List<SolicitudLaboral> _solicitudes = [];
+  String _nombre = 'Usuario';
+  bool _cargando = true;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    final prefs = await SharedPreferences.getInstance();
+    final asis = await getAsistenciaService();
+    final solSvc = await getSolicitudService();
+    final res = await asis.getResumenSemanal();
+    final mis = await solSvc.misSolicitudes();
+    if (!mounted) return;
+    setState(() {
+      _nombre = prefs.getString('user_name') ?? 'Usuario';
+      _resumen = res;
+      _solicitudes = mis;
+      _cargando = false;
+    });
+  }
+
+  String _dur(int min) {
+    final h = min ~/ 60;
+    final m = min % 60;
+    return '${h}h ${m.toString().padLeft(2, '0')}m';
+  }
+
+  String get _iniciales {
+    final partes = _nombre.trim().split(RegExp(r'\s+'));
+    final a = partes.isNotEmpty && partes[0].isNotEmpty ? partes[0][0] : '';
+    final b = partes.length > 1 && partes[1].isNotEmpty ? partes[1][0] : '';
+    final ini = (a + b).toUpperCase();
+    return ini.isEmpty ? '?' : ini;
+  }
+
+  Color _colorEstado(String e) => switch (e) {
+        'aprobada' => Colors.green,
+        'rechazada' => Colors.red,
+        _ => Colors.orange,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_cargando) return const Center(child: CircularProgressIndicator());
+    final r = _resumen;
+    final recientes = _solicitudes.take(6).toList();
+
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Identidad
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: _green.withValues(alpha: 0.18),
+                child: Text(_iniciales,
+                    style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF5E9A1C))),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_nombre,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 2),
+                    Text(AppSession.i.rol.isEmpty ? 'Colaborador' : AppSession.i.rol,
+                        style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Editar perfil',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const EditProfileScreen())),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          // Asistencia de la semana
+          const Text('ASISTENCIA DE LA SEMANA',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          const SizedBox(height: 10),
+          if (r == null)
+            const Text('Sin datos de asistencia.',
+                style: TextStyle(color: Colors.black45))
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _mini('Horas', _dur(r.minutosTrabajadosSemana), Colors.indigo),
+                _mini('Días', '${r.diasTrabajados}', Colors.blueGrey),
+                _mini('Puntualidad',
+                    r.puntualidadPct != null ? '${r.puntualidadPct}%' : '—', _green),
+              ],
+            ),
+          const SizedBox(height: 22),
+          // Mis solicitudes
+          const Text('MIS SOLICITUDES',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+          if (recientes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('Aún no tienes solicitudes.',
+                  style: TextStyle(color: Colors.black45)),
+            )
+          else
+            ...recientes.map((s) {
+              final c = _colorEstado(s.estado);
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.event_note_outlined, color: c),
+                title: Text(s.tipoLabel),
+                subtitle: Text(s.descripcion,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: Chip(
+                  label: Text(s.estado, style: TextStyle(color: c, fontSize: 11)),
+                  backgroundColor: c.withValues(alpha: 0.12),
+                  side: BorderSide.none,
+                  visualDensity: VisualDensity.compact,
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _mini(String k, String v, Color c) => Column(children: [
+        Text(v, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: c)),
+        Text(k, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+      ]);
 }

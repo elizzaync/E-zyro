@@ -13,6 +13,9 @@ import '../utils/app_session.dart';
 import 'pantalla_evaluaciones.dart' show ConfigEvaluacionesScreen, CrearEvaluacionScreen, DetalleEvaluacionScreen;
 import 'pantalla_vacaciones.dart';
 import 'pantalla_indicadores.dart';
+import 'pantalla_control_asistencias.dart';
+import 'pantalla_bandeja_solicitudes.dart';
+import 'pantalla_personal.dart';
 
 /// Hub de Personal / RR.HH. (Punto 3): lista de empleados + accesos a los
 /// dashboards de empresa (Indicadores, Vacaciones, Evaluaciones). Al tocar un
@@ -70,7 +73,7 @@ class _PantallaPersonalHubState extends State<PantallaPersonalHub> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Personal / RR.HH.', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Recursos Humanos', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
       ),
       body: Column(
@@ -104,23 +107,34 @@ class _PantallaPersonalHubState extends State<PantallaPersonalHub> {
     );
   }
 
+  void _push(Widget pantalla) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => pantalla));
+
   Widget _accesosEmpresa() {
-    final chips = <Widget>[];
-    if (AppSession.i.canVerIndicadores) {
-      chips.add(_chip('Indicadores', Icons.insights_outlined, Colors.indigo,
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PantallaIndicadores()))));
-    }
-    if (AppSession.i.canVerVacaciones) {
-      chips.add(_chip('Vacaciones', Icons.beach_access_outlined, Colors.teal,
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PantallaVacaciones()))));
-    }
-    if (AppSession.i.canVerEvaluacion) {
-      chips.add(_chip('Config. Eval.', Icons.assessment_outlined, Colors.deepPurple,
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfigEvaluacionesScreen()))));
-    }
+    final s = AppSession.i;
+    final chips = <Widget>[
+      if (s.canVerControlAsistencias)
+        _chip('Asistencias', Icons.how_to_reg_outlined, Colors.green.shade700,
+            () => _push(const PantallaControlAsistencias())),
+      if (s.canVerControlAsistencias || s.canVerPersonal)
+        _chip('Solicitudes', Icons.fact_check_outlined, Colors.orange.shade800,
+            () => _push(const PantallaBandejaSolicitudes())),
+      if (s.canVerIndicadores)
+        _chip('Indicadores', Icons.insights_outlined, Colors.indigo,
+            () => _push(const PantallaIndicadores())),
+      if (s.canVerVacaciones)
+        _chip('Vacaciones', Icons.beach_access_outlined, Colors.teal,
+            () => _push(const PantallaVacaciones())),
+      if (s.canVerEvaluacion)
+        _chip('Config. Eval.', Icons.assessment_outlined, Colors.deepPurple,
+            () => _push(const ConfigEvaluacionesScreen())),
+      if (s.canVerPersonal)
+        _chip('Sesiones', Icons.phonelink_lock_outlined, Colors.blueGrey,
+            () => _push(const PantallaPersonal())),
+    ];
     if (chips.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Wrap(spacing: 8, runSpacing: 8, children: chips),

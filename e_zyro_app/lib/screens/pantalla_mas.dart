@@ -16,7 +16,6 @@ import 'pantalla_soporte.dart';
 import 'pantalla_editar_perfil.dart';
 import 'pantalla_mis_sesiones.dart';
 import 'pantalla_preferencias_notificacion.dart';
-import 'pantalla_personal.dart';
 import 'pantalla_personal_hub.dart';
 import 'pantalla_mi_espacio.dart';
 import 'pantalla_galeria.dart';
@@ -27,8 +26,6 @@ import 'pantalla_catalogos.dart';
 import 'pantalla_plantillas_procedimiento.dart';
 import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
-import 'pantalla_control_asistencias.dart';
-import 'pantalla_bandeja_solicitudes.dart';
 import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
 import 'finanzas/pantalla_manual_finanzas.dart';
@@ -353,42 +350,15 @@ class _MoreScreenState extends State<MoreScreen> {
                             builder: (_) => const PantallaGestionUsuarios()),
                       ),
                     ),
-                  if (_puedeVerControlAsistencias)
-                    _MenuItem(
-                      icon: Icons.how_to_reg_outlined,
-                      label: 'Control de Asistencias',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const PantallaControlAsistencias()),
-                      ),
-                    ),
+                  // RR.HH. unifica Asistencias, Solicitudes, Personal,
+                  // Evaluaciones, Vacaciones, Indicadores y Sesiones en un hub.
                   if (_puedeVerControlAsistencias || _puedeVerPersonal)
                     _MenuItem(
-                      icon: Icons.fact_check_outlined,
-                      label: 'Solicitudes del personal',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const PantallaBandejaSolicitudes()),
-                      ),
-                    ),
-                  if (_puedeVerPersonal)
-                    _MenuItem(
-                      icon: Icons.badge_outlined,
-                      label: 'Personal / RR.HH.',
+                      icon: Icons.diversity_3_outlined,
+                      label: 'Recursos Humanos',
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const PantallaPersonalHub()),
-                      ),
-                    ),
-                  if (_puedeVerPersonal)
-                    _MenuItem(
-                      icon: Icons.phonelink_lock_outlined,
-                      label: 'Sesiones de personal',
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PantallaPersonal()),
                       ),
                     ),
                   if (_puedeVerDashboards)
