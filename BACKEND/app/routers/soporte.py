@@ -554,6 +554,7 @@ class SesionActivaOut(BaseModel):
     ip: Optional[str]
     dispositivo: Optional[str]
     user_agent: Optional[str]
+    plataforma: str
     created_at: str
     fecha_expiracion: str
 
@@ -692,6 +693,15 @@ def sesiones_activas(
     def _fmt(dt: Optional[datetime]) -> str:
         return dt.strftime("%d/%m/%Y %H:%M") if dt else ""
 
+    def _plataforma(dispositivo: Optional[str], ua: Optional[str]) -> str:
+        d = (dispositivo or "").lower()
+        u = (ua or "").lower()
+        if "mobile" in d or "android" in d or "ios" in d or "iphone" in d:
+            return "Móvil"
+        if "android" in u or "iphone" in u or "ipad" in u or "mobile" in u:
+            return "Móvil"
+        return "Web"
+
     result = []
     for s in rows:
         nombre = _nombre_usuario(db, s.usuario_id)
@@ -702,6 +712,7 @@ def sesiones_activas(
             ip=s.ip,
             dispositivo=s.dispositivo,
             user_agent=s.user_agent,
+            plataforma=_plataforma(s.dispositivo, s.user_agent),
             created_at=_fmt(s.created_at),
             fecha_expiracion=_fmt(s.fecha_expiracion),
         ))
@@ -739,6 +750,81 @@ def cerrar_sesion_remota(
     sesion.fecha_cierre = datetime.utcnow()
     db.commit()
     return {"detail": "Sesión cerrada correctamente"}
+
+
+@router.get("/seguridad/ips-frecuentes")
+def ips_frecuentes(
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Top 20 IPs más vistas en auditoría (últimos 30 días), con flag si ya está bloqueada."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+    empresa_id = payload["empresa_id"]
+    emp_uuid = str(empresa_id)
+
+    from sqlalchemy import text as _text
+    rows = db.execute(_text("""
+        SELECT ip, COUNT(*) AS total, MAX(fecha) AS ultima_vez
+        FROM auditoria
+        WHERE empresa_id = :eid
+          AND ip IS NOT NULL
+          AND fecha >= NOW() - INTERVAL '30 days'
+        GROUP BY ip
+        ORDER BY total DESC
+        LIMIT 20
+    """), {"eid": emp_uuid}).fetchall()
+
+    bloqueadas_activas = {
+        r.ip for r in db.query(IpBloqueada.ip).filter(
+            IpBloqueada.empresa_id == empresa_id,
+            IpBloqueada.activa == True,
+        ).all()
+    }
+
+    return [
+        {
+            "ip": r.ip,
+            "total": r.total,
+            "ultima_vez": r.ultima_vez.strftime("%d/%m/%Y %H:%M") if r.ultima_vez else "",
+            "ya_bloqueada": r.ip in bloqueadas_activas,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/seguridad/usuarios/{usuario_id}/cerrar-todas-sesiones")
+def cerrar_todas_sesiones_usuario(
+    usuario_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Cierra todas las sesiones activas de un usuario (web + móvil)."""
+    if not _puede_gestionar(db, payload):
+        raise HTTPException(status_code=403, detail="Sin permiso")
+
+    empresa_id = payload["empresa_id"]
+    usuario = (
+        db.query(Usuario)
+        .filter(Usuario.id == usuario_id, Usuario.empresa_id == empresa_id)
+        .first()
+    )
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado en esta empresa")
+
+    ahora = datetime.utcnow()
+    sesiones = db.query(SesionUsuario).filter(
+        SesionUsuario.usuario_id == usuario_id,
+        SesionUsuario.activa == True,
+    ).all()
+
+    for s in sesiones:
+        s.activa = False
+        s.fecha_cierre = ahora
+
+    db.commit()
+    return {"detail": f"Se cerraron {len(sesiones)} sesión(es) del usuario.", "cerradas": len(sesiones)}
 
 
 # ── Monitoreo: Sesiones de usuarios ───────────────────────────────────────────
