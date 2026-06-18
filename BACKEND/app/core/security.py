@@ -8,11 +8,16 @@ from app.core.session_cache import sesion_activa, hash_token
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 240  # 4 horas
+ACCESS_TOKEN_EXPIRE_MINUTES = 240          # 4 horas  → web (mayor exposición a XSS)
+ACCESS_TOKEN_EXPIRE_MINUTES_MOVIL = 10080  # 7 días   → app móvil (offline-first + push)
 security = HTTPBearer()
-def crear_token_acceso(data: dict):
+def crear_token_acceso(data: dict, expires_minutes: int | None = None):
+    """Crea el JWT de acceso. `expires_minutes` permite un TTL distinto por
+    plataforma (web corto / móvil largo). La seguridad del token largo móvil se
+    apoya en la revocación de sesión en BD (verificar_token → sesion_activa)."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    minutos = expires_minutes if expires_minutes is not None else ACCESS_TOKEN_EXPIRE_MINUTES
+    expire = datetime.utcnow() + timedelta(minutes=minutos)
     to_encode.update({"exp": expire})
     token_codificado = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return token_codificado

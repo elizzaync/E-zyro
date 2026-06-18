@@ -28,7 +28,7 @@ from app.models.recuperacion_password import RecuperacionPassword
 from app.models.sesion_usuario import SesionUsuario
 from app.models.portal_acceso import PortalAcceso
 from app.db.database import get_db
-from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY, ALGORITHM
+from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, ACCESS_TOKEN_EXPIRE_MINUTES_MOVIL, SECRET_KEY, ALGORITHM
 from app.core.email import enviar_correo_otp
 from app.core.session_cache import marcar_activa, invalidar
 from app.core.session_events import manager as session_manager
@@ -180,11 +180,17 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         )
     nombre_rol_real, lista_permisos = _rol_y_permisos(db, usuario_db.id)
 
+    # Plataforma: la app móvil manda plataforma='movil' → token largo (7d) para
+    # operar offline y recibir push; la web (no la manda) → token corto (4h).
+    es_movil = (credenciales.plataforma or "").lower() in {"movil", "móvil", "mobile", "android", "ios"}
+    token_minutos = ACCESS_TOKEN_EXPIRE_MINUTES_MOVIL if es_movil else ACCESS_TOKEN_EXPIRE_MINUTES
+
     datos_para_token = {
         "sub": usuario_db.username,
         "id": str(usuario_db.id),
         "empresa_id": str(usuario_db.empresa_id),
         "rol": nombre_rol_real,
+        "plataforma": "movil" if es_movil else "web",
     }
     # Para usuarios del portal cliente, embebbe el cliente_id en el token
     if (nombre_rol_real or "").lower().replace(" ", "") == "clienteexterno":
@@ -195,7 +201,7 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             datos_para_token["cliente_id"] = str(acc.cliente_id)
             datos_para_token["tipo_usuario"] = "cliente"
 
-    token_real = crear_token_acceso(datos_para_token)
+    token_real = crear_token_acceso(datos_para_token, expires_minutes=token_minutos)
 
     # Registrar / actualizar sesión en sesion_usuario
     token_hash       = hashlib.sha256(token_real.encode()).hexdigest()
@@ -206,7 +212,7 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         ip_cliente  = _ip_real(request)
         user_agent  = request.headers.get("user-agent", "")[:255]
         dispositivo = _describir_dispositivo(user_agent)
-        fecha_exp   = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        fecha_exp   = datetime.now(ZONA_HORARIA) + timedelta(minutes=token_minutos)
         device_id   = (credenciales.device_id or "")[:100] or None
 
         # Limpiar sesiones cerradas con más de 30 días (mantenimiento silencioso)
@@ -536,8 +542,13 @@ def refresh_token(
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
 
+    # Ventana de refresh según plataforma del token: móvil 30 días, web 24h.
+    es_movil = (payload.get("plataforma") or "").lower() == "movil"
+    ventana_refresh = (30 * 24 * 3600) if es_movil else (24 * 3600)
+    token_minutos   = ACCESS_TOKEN_EXPIRE_MINUTES_MOVIL if es_movil else ACCESS_TOKEN_EXPIRE_MINUTES
+
     exp = payload.get("exp", 0)
-    if (time.time() - exp) > (24 * 3600):
+    if (time.time() - exp) > ventana_refresh:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Sesión expirada. Inicia sesión con tu contraseña para continuar.",
@@ -558,12 +569,12 @@ def refresh_token(
         )
 
     new_payload = {k: v for k, v in payload.items() if k != "exp"}
-    new_token   = crear_token_acceso(new_payload)
+    new_token   = crear_token_acceso(new_payload, expires_minutes=token_minutos)
 
     # Actualizar hash en BD con el nuevo token
     nuevo_hash = hashlib.sha256(new_token.encode()).hexdigest()
     sesion.token_hash       = nuevo_hash
-    sesion.fecha_expiracion = datetime.now(ZONA_HORARIA) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    sesion.fecha_expiracion = datetime.now(ZONA_HORARIA) + timedelta(minutes=token_minutos)
     db.commit()
 
     # Rotación de token: el viejo hash queda revocado, el nuevo pre-cacheado.
