@@ -363,6 +363,7 @@
                       class="cuspp-input"
                       [value]="getCuspp(emp.id)"
                       (input)="setCuspp(emp.id, $any($event.target).value)"
+                      (blur)="guardarCuspp(emp.id, $any($event.target).value)"
                       placeholder="Ej. 254879VVCTB8"
                       title="Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR)">
                     <button class="cuspp-eye-btn" type="button" (click)="toggleShowCuspp(emp.id)" [title]="showCusppMap[emp.id] ? 'Ocultar CUSPP' : 'Mostrar CUSPP'">

@@ -437,6 +437,17 @@ export class PlanillasComponent implements OnInit {
     localStorage.setItem(CUSPP_KEY, JSON.stringify(this.cusppMap));
   }
 
+  // Guarda el CUSPP al backend cuando el campo pierde el foco
+  guardarCuspp(empId: string, val: string): void {
+    const cuspp = val.trim().toUpperCase();
+    this.cusppMap[empId] = cuspp;
+    localStorage.setItem(CUSPP_KEY, JSON.stringify(this.cusppMap));
+    this.svc.actualizarPerfilEmpleado(empId, { cuspp }).subscribe({
+      next: () => this.toast.mostrar('CUSPP guardado', 'success'),
+      error: () => this.toast.mostrar('Error al guardar el CUSPP — se mantiene localmente', 'error'),
+    });
+  }
+
   toggleShowCuspp(empId: string): void {
     this.showCusppMap = { ...this.showCusppMap, [empId]: !this.showCusppMap[empId] };
   }

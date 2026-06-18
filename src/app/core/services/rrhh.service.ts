@@ -333,6 +333,10 @@ export class RrhhService {
     return this.http.put<any>(`${this.api}/planilla/empleados/${empleadoId}/modalidad`, { tipo });
   }
 
+  actualizarPerfilEmpleado(empleadoId: string, datos: Partial<{ cuspp: string; numero_documento: string; tipo_documento: string; sexo: string }>): Observable<any> {
+    return this.http.patch<any>(`${this.api}/rrhh/legajo/${empleadoId}/perfil`, datos);
+  }
+
   getEmpresaInfo(): Observable<{ razon_social: string; ruc: string; regimen_tributario: string; direccion?: string; telefono?: string }> {
     return this.http.get<any>(`${this.api}/planilla/empresa-info`);
   }
