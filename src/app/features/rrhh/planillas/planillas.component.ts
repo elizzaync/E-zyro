@@ -483,8 +483,7 @@ export class PlanillasComponent implements OnInit {
 
   pensionPct(emp: ResumenEmpleadoDto): number {
     if (this.getPension(emp.id) === 'onp') return PENSION_ONP_PCT;
-    const comision = AFP_COMISIONES[this.getAfpEntidad(emp.id)];
-    return AFP_APORTE_PCT + AFP_SEGURO_PCT + comision;
+    return AFP_APORTE_PCT + AFP_SEGURO_PCT + this.getAfpComisionPct(emp.id);
   }
 
   // ── Cumplimiento SUNAFIL: Remuneración Mínima Vital ─────────────────────────
