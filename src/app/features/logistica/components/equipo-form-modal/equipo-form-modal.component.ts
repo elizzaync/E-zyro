@@ -48,16 +48,6 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
 
   // Inputs "+ Nuevo"
   showAddTipo   = false; nuevoTipo   = ''; creandoTipo   = false;
-  // Procedimientos del nuevo tipo (obligatorio al crear)
-  nuevosProcsTipo: { nombre: string; descripcion: string }[] = [];
-  npNombre = ''; npDesc = '';
-
-  agregarProcNuevoTipo(): void {
-    const n = this.npNombre.trim(); if (!n) return;
-    this.nuevosProcsTipo.push({ nombre: n, descripcion: this.npDesc.trim() });
-    this.npNombre = ''; this.npDesc = '';
-  }
-  quitarProcNuevoTipo(i: number): void { this.nuevosProcsTipo.splice(i, 1); }
   showAddMarca  = false; nuevaMarca  = ''; creandoMarca  = false;
   showAddModelo = false; nuevoModelo = ''; creandoModelo = false;
   showAddAlmacen = false; nuevoAlmacen = ''; creandoAlmacen = false;
@@ -145,25 +135,19 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   // ── Crear catálogos inline ──
   toggleAddTipo(): void {
     this.showAddTipo = !this.showAddTipo;
-    this.nuevoTipo = ''; this.nuevosProcsTipo = []; this.npNombre = ''; this.npDesc = '';
+    this.nuevoTipo = '';
   }
   confirmarNuevoTipo(): void {
     const n = this.nuevoTipo.trim();
-    if (!n || this.nuevosProcsTipo.length === 0) return;
+    if (!n || this.creandoTipo) return;
     this.creandoTipo = true;
     this.svc.crearTipoEquipo(n).subscribe({
       next: (t) => {
         this.tipos = [...this.tipos.filter(x => x.id !== t.id), t].sort((a, b) => a.nombre.localeCompare(b.nombre));
         this.form.patchValue({ tipoId: t.id });
-        const procs = this.nuevosProcsTipo.map((p, i) => ({ orden: i + 1, nombre: p.nombre, descripcion: p.descripcion || undefined }));
-        this.svc.actualizarProcedimientosTipoEquipo(t.id, procs).subscribe({
-          complete: () => {
-            this.showAddTipo = false; this.nuevoTipo = '';
-            this.nuevosProcsTipo = []; this.npNombre = ''; this.npDesc = '';
-            this.creandoTipo = false;
-          },
-          error: () => { this.showAddTipo = false; this.nuevoTipo = ''; this.nuevosProcsTipo = []; this.creandoTipo = false; },
-        });
+        this.showAddTipo = false;
+        this.nuevoTipo = '';
+        this.creandoTipo = false;
       },
       error: () => (this.creandoTipo = false),
     });

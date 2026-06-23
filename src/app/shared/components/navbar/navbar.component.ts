@@ -8,6 +8,7 @@ import { DashboardService } from '../../../core/services/dashboard.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
 import { ThemeService } from '../../../core/services/theme.service';
+import { EvaluacionesService, Evaluacion, EmpleadoEval, CriterioEval } from '../../../core/services/evaluaciones.service';
 
 @Component({
   selector: 'app-navbar',
@@ -138,6 +139,289 @@ get enRRHH(): boolean {
   }
 
   // ... resto de tu código (cargarDatosDeUsuario, etc.) ...
+  // ── Ver mis evaluaciones ──────────────────────────────────────────────────
+  showEvalModal   = false;
+  misEvaluaciones: Evaluacion[] = [];
+  cargandoEvals   = false;
+  evalDetalle: Evaluacion | null = null;
+  cargandoDetalle = false;
+
+  // ── Crear evaluación ──────────────────────────────────────────────────────
+  showCrearEvalModal = false;
+  crearPaso: 1 | 2 | 3 = 1;
+  crearTipo = '';
+  crearPeriodo = '';
+  crearFecha = '';
+  crearDestinatarios: 'todos' | 'seleccion' = 'todos';
+  crearBusquedaEmp = '';
+  crearEmpleadosSeleccionados: string[] = [];
+  crearCriteriosSeleccionados: string[] = [];
+  cev3AddOpen = false;
+  cev3Nombre = '';
+  cev3Peso = 1;
+  cev3Guardando = false;
+  creandoEval = false;
+  crearResultado: { creadas: number } | null = null;
+
+  personal: EmpleadoEval[] = [];
+  cargandoPersonal = false;
+  criteriosDisponibles: CriterioEval[] = [];
+  cargandoCriterios = false;
+
+  readonly tiposEval = [
+    { key: 'companero',   label: 'Compañerismo',  desc: 'Evalúa trabajo en equipo y relaciones interpersonales', emoji: '🤝' },
+    { key: 'rrhh',        label: 'Conocimiento',  desc: 'Evalúa competencias técnicas y desempeño laboral',       emoji: '📚' },
+    { key: 'psicologico', label: 'Psicológica',   desc: 'Evalúa bienestar emocional y aptitudes psicológicas',    emoji: '🧠' },
+  ];
+
+  get personalFiltrado(): EmpleadoEval[] {
+    const q = this.crearBusquedaEmp.toLowerCase().trim();
+    if (!q) return this.personal;
+    return this.personal.filter(e =>
+      (e.nombre ?? '').toLowerCase().includes(q) ||
+      (e.cargo  ?? '').toLowerCase().includes(q)
+    );
+  }
+
+  abrirCrearEval(): void {
+    this.isMenuOpen = false;
+    this.showCrearEvalModal = true;
+    this.crearPaso = 1;
+    this.crearTipo = '';
+    const hoy = new Date();
+    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    this.crearPeriodo = `${meses[hoy.getMonth()]} ${hoy.getFullYear()}`;
+    this.crearFecha   = hoy.toISOString().slice(0, 10);
+    this.crearDestinatarios = 'todos';
+    this.crearBusquedaEmp = '';
+    this.crearEmpleadosSeleccionados = [];
+    this.crearCriteriosSeleccionados = [];
+    this.crearResultado = null;
+    document.body.style.overflow = 'hidden';
+
+    if (this.personal.length === 0) {
+      this.cargandoPersonal = true;
+      this.evalSvc.getPersonal().subscribe({
+        next: (r) => { this.personal = r; this.cargandoPersonal = false; },
+        error: ()  => { this.cargandoPersonal = false; },
+      });
+    }
+  }
+
+  cerrarCrearEval(): void {
+    this.showCrearEvalModal = false;
+    document.body.style.overflow = '';
+  }
+
+  seleccionarTipoEval(key: string): void {
+    this.crearTipo = key;
+    this.criteriosDisponibles = [];
+    this.crearCriteriosSeleccionados = [];
+    this.cev3AddOpen = false;
+    this.cev3Nombre = '';
+    this.cev3Peso = 1;
+    this.cargandoCriterios = true;
+    this.evalSvc.getCriterios(key).subscribe({
+      next: (r) => { this.criteriosDisponibles = r; this.cargandoCriterios = false; },
+      error: ()  => { this.cargandoCriterios = false; },
+    });
+  }
+
+  agregarCev3Criterio(): void {
+    if (!this.cev3Nombre.trim() || this.cev3Peso <= 0 || this.cev3Guardando || !this.crearTipo) return;
+    this.cev3Guardando = true;
+    this.evalSvc.crearCriterio({ nombre: this.cev3Nombre.trim(), peso: this.cev3Peso, tipo: this.crearTipo }).subscribe({
+      next: (c) => {
+        this.criteriosDisponibles = [...this.criteriosDisponibles, c];
+        this.crearCriteriosSeleccionados = [...this.crearCriteriosSeleccionados, c.id];
+        if (this.gcTab === this.crearTipo) this.gcCriterios = [...this.gcCriterios, c];
+        this.cev3Nombre = '';
+        this.cev3Peso = 1;
+        this.cev3AddOpen = false;
+        this.cev3Guardando = false;
+      },
+      error: () => { this.cev3Guardando = false; },
+    });
+  }
+
+  eliminarCev3Criterio(id: string): void {
+    if (this.gcEliminando) return;
+    this.gcEliminando = id;
+    this.evalSvc.eliminarCriterio(id).subscribe({
+      next: () => {
+        this.criteriosDisponibles = this.criteriosDisponibles.filter(c => c.id !== id);
+        this.crearCriteriosSeleccionados = this.crearCriteriosSeleccionados.filter(x => x !== id);
+        this.gcCriterios = this.gcCriterios.filter(c => c.id !== id);
+        this.gcEliminando = null;
+      },
+      error: () => { this.gcEliminando = null; },
+    });
+  }
+
+  siguientePaso(): void {
+    if (this.crearPaso === 1 && !this.crearTipo) return;
+    if (this.crearPaso === 1 && !this.crearPeriodo.trim()) return;
+    if (this.crearPaso < 3) this.crearPaso = (this.crearPaso + 1) as 1 | 2 | 3;
+  }
+
+  anteriorPaso(): void {
+    if (this.crearPaso > 1) this.crearPaso = (this.crearPaso - 1) as 1 | 2 | 3;
+  }
+
+  toggleEmpleado(id: string): void {
+    const idx = this.crearEmpleadosSeleccionados.indexOf(id);
+    if (idx >= 0) this.crearEmpleadosSeleccionados.splice(idx, 1);
+    else this.crearEmpleadosSeleccionados.push(id);
+  }
+
+  toggleCriterio(id: string): void {
+    const idx = this.crearCriteriosSeleccionados.indexOf(id);
+    if (idx >= 0) this.crearCriteriosSeleccionados.splice(idx, 1);
+    else this.crearCriteriosSeleccionados.push(id);
+  }
+
+  enviarEvaluaciones(): void {
+    if (!this.crearTipo || !this.crearPeriodo.trim()) return;
+    if (this.crearDestinatarios === 'seleccion' && this.crearEmpleadosSeleccionados.length === 0) return;
+
+    this.creandoEval = true;
+    this.evalSvc.crearLote({
+      tipo:         this.crearTipo,
+      periodo:      this.crearPeriodo.trim(),
+      fecha:        this.crearFecha || null,
+      todos:        this.crearDestinatarios === 'todos',
+      empleado_ids: this.crearDestinatarios === 'seleccion' ? this.crearEmpleadosSeleccionados : [],
+      criterio_ids: this.crearCriteriosSeleccionados,
+    }).subscribe({
+      next: (r) => {
+        this.creandoEval = false;
+        this.crearResultado = { creadas: r.creadas };
+        this.misEvaluaciones = [];
+        this.toastService.mostrar(`✓ ${r.creadas} evaluación(es) enviadas correctamente.`, 'success');
+      },
+      error: () => {
+        this.creandoEval = false;
+        this.toastService.mostrar('Error al crear las evaluaciones.', 'error');
+      },
+    });
+  }
+
+  // ── Gestionar criterios ───────────────────────────────────────────────────
+  showGcModal = false;
+  gcTab: 'companero' | 'rrhh' | 'psicologico' = 'companero';
+  gcCriterios: CriterioEval[] = [];
+  gcCargando = false;
+  gcNombre = '';
+  gcPeso = 1;
+  gcGuardando = false;
+  gcEliminando: string | null = null;
+
+  abrirGcModal(): void {
+    this.isMenuOpen = false;
+    this.showGcModal = true;
+    document.body.style.overflow = 'hidden';
+    this.gcTab = 'companero';
+    this.cargarGcCriterios();
+  }
+
+  cerrarGcModal(): void {
+    this.showGcModal = false;
+    document.body.style.overflow = '';
+    this.gcNombre = '';
+    this.gcPeso = 1;
+  }
+
+  cambiarGcTab(tab: 'companero' | 'rrhh' | 'psicologico'): void {
+    this.gcTab = tab;
+    this.gcNombre = '';
+    this.gcPeso = 1;
+    this.cargarGcCriterios();
+  }
+
+  cargarGcCriterios(): void {
+    this.gcCargando = true;
+    this.evalSvc.getCriterios(this.gcTab).subscribe({
+      next: (r) => { this.gcCriterios = r; this.gcCargando = false; },
+      error: ()  => { this.gcCargando = false; },
+    });
+  }
+
+  agregarGcCriterio(): void {
+    if (!this.gcNombre.trim() || this.gcPeso <= 0 || this.gcGuardando) return;
+    this.gcGuardando = true;
+    this.evalSvc.crearCriterio({ nombre: this.gcNombre.trim(), peso: this.gcPeso, tipo: this.gcTab }).subscribe({
+      next: (c) => {
+        this.gcCriterios = [...this.gcCriterios, c];
+        this.gcNombre = '';
+        this.gcPeso = 1;
+        this.gcGuardando = false;
+        if (this.gcTab === this.crearTipo) {
+          this.criteriosDisponibles = [...this.criteriosDisponibles, c];
+        }
+      },
+      error: () => { this.gcGuardando = false; },
+    });
+  }
+
+  eliminarGcCriterio(id: string): void {
+    if (this.gcEliminando) return;
+    this.gcEliminando = id;
+    this.evalSvc.eliminarCriterio(id).subscribe({
+      next: () => {
+        this.gcCriterios = this.gcCriterios.filter(c => c.id !== id);
+        this.criteriosDisponibles = this.criteriosDisponibles.filter(c => c.id !== id);
+        this.crearCriteriosSeleccionados = this.crearCriteriosSeleccionados.filter(x => x !== id);
+        this.gcEliminando = null;
+      },
+      error: () => { this.gcEliminando = null; },
+    });
+  }
+
+  tipoEvalLabel(t: string): string {
+    return { rrhh: 'RRHH', jefe_directo: 'Jefe Directo', companero: 'Compañero' }[t] ?? t;
+  }
+
+  estadoEvalLabel(e: string): string {
+    return { borrador: 'Borrador', enviada: 'Enviada', completada: 'Completada' }[e] ?? e;
+  }
+
+  promedioColor(p: number | null): string {
+    if (p === null) return '#9ca3af';
+    if (p >= 8)  return '#10b981';
+    if (p >= 6)  return '#f59e0b';
+    return '#ef4444';
+  }
+
+  abrirModalEvaluaciones(): void {
+    this.isMenuOpen = false;
+    this.showEvalModal = true;
+    this.evalDetalle = null;
+    document.body.style.overflow = 'hidden';
+    if (this.misEvaluaciones.length === 0) {
+      this.cargandoEvals = true;
+      this.evalSvc.getMisEvaluaciones().subscribe({
+        next: (r) => { this.misEvaluaciones = r; this.cargandoEvals = false; },
+        error: ()  => { this.cargandoEvals = false; },
+      });
+    }
+  }
+
+  cerrarModalEvaluaciones(): void {
+    this.showEvalModal = false;
+    this.evalDetalle   = null;
+    document.body.style.overflow = '';
+  }
+
+  abrirDetalleEval(ev: Evaluacion): void {
+    if (this.evalDetalle?.id === ev.id) { this.evalDetalle = null; return; }
+    this.cargandoDetalle = true;
+    this.evalSvc.getDetalle(ev.id).subscribe({
+      next: (r) => { this.evalDetalle = r; this.cargandoDetalle = false; },
+      error: ()  => { this.cargandoDetalle = false; },
+    });
+  }
+
   constructor(
     private authService: AuthService,
     private dashboardService: DashboardService,
@@ -145,6 +429,7 @@ get enRRHH(): boolean {
     private router: Router,
     private portalService: PortalClienteService,
     private themeService: ThemeService,
+    private evalSvc: EvaluacionesService,
   ) {}
 
   /** True cuando la ruta actual pertenece al módulo de Logística. */

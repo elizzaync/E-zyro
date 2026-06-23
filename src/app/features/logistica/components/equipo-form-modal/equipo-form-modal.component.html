@@ -50,7 +50,9 @@
             <div class="lf-select-row">
               <select class="lf-input lf-input-flex" formControlName="tipoId">
                 <option value="">— Sin asignar —</option>
-                @for (t of tipos; track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+                @for (t of tipos; track t.id) {
+                  @if (t.nombre?.trim()) { <option [value]="t.id">{{ t.nombre }}</option> }
+                }
               </select>
               @if (ctrl('tipoId')?.value) {
                 <button type="button" class="lf-btn-procs"
@@ -65,68 +67,19 @@
               }
             </div>
           } @else {
-            <!-- ── Formulario nuevo tipo con procedimientos obligatorios ── -->
-            <div class="lf-tipo-nuevo-wrap">
-
-              <!-- Nombre del tipo -->
-              <input class="lf-input" [(ngModel)]="nuevoTipo" [ngModelOptions]="{ standalone: true }"
-                     placeholder="Ej: Instrumento de medición" autocomplete="off">
-
-              <!-- Mini-lista de procedimientos -->
-              <div class="lf-procs-header">
-                <span class="lf-procs-label">Procedimientos
-                  <span class="lf-procs-req">* obligatorio</span>
-                </span>
-                <span class="lf-procs-count">{{ nuevosProcsTipo.length }} agregado(s)</span>
-              </div>
-
-              @for (p of nuevosProcsTipo; track $index; let i = $index) {
-                <div class="lf-proc-row">
-                  <span class="lf-proc-num">{{ i + 1 }}</span>
-                  <div class="lf-proc-body">
-                    <span class="lf-proc-nombre">{{ p.nombre }}</span>
-                    @if (p.descripcion) { <span class="lf-proc-desc">{{ p.descripcion }}</span> }
-                  </div>
-                  <button type="button" class="lf-proc-del" (click)="quitarProcNuevoTipo(i)" title="Quitar">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                  </button>
-                </div>
-              }
-
-              <!-- Input para agregar un procedimiento -->
-              <div class="lf-proc-add-row">
-                <input class="lf-input lf-input-sm" [(ngModel)]="npNombre"
-                       [ngModelOptions]="{ standalone: true }"
-                       placeholder="Nombre del paso (Enter para agregar)"
-                       (keydown.enter)="agregarProcNuevoTipo()">
-                <input class="lf-input lf-input-sm" [(ngModel)]="npDesc"
-                       [ngModelOptions]="{ standalone: true }"
-                       placeholder="Descripción (opcional)"
-                       (keydown.enter)="agregarProcNuevoTipo()">
-                <button type="button" class="lf-proc-add-btn" (click)="agregarProcNuevoTipo()"
-                        [disabled]="!npNombre.trim()">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                </button>
-              </div>
-
-              @if (nuevosProcsTipo.length === 0) {
-                <p class="lf-procs-warn">Debes agregar al menos un procedimiento para guardar el tipo.</p>
-              }
-
-              <!-- Acción final -->
-              <div class="lf-tipo-nuevo-footer">
-                <button type="button" class="lf-add-btn"
-                        (click)="confirmarNuevoTipo()"
-                        [disabled]="!nuevoTipo.trim() || nuevosProcsTipo.length === 0 || creandoTipo">
-                  @if (creandoTipo) { <app-spinner [size]="14" theme="light"></app-spinner> Guardando… }
-                  @else { Guardar tipo }
-                </button>
-              </div>
-
+            <!-- ── Formulario nuevo tipo ── -->
+            <div class="lf-add-inline">
+              <input class="lf-input lf-input-flex" [(ngModel)]="nuevoTipo"
+                     [ngModelOptions]="{ standalone: true }"
+                     placeholder="Nombre del tipo / familia"
+                     autocomplete="off"
+                     (keydown.enter)="confirmarNuevoTipo()">
+              <button type="button" class="lf-add-btn"
+                      (click)="confirmarNuevoTipo()"
+                      [disabled]="!nuevoTipo.trim() || creandoTipo">
+                @if (creandoTipo) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                @else { Guardar }
+              </button>
             </div>
           }
         </div>

@@ -31,6 +31,7 @@ import { PlanillasComponent } from './features/rrhh/planillas/planillas.componen
 import { AsistenciaDashboardComponent } from './features/rrhh/asistencia/asistencia-dashboard.component';
 import { AsistenciaComponent } from './features/asistencia/asistencia.component';
 import { DocumentosSstComponent } from './features/rrhh/documentos-sst/documentos-sst.component';
+import { CalibracionesComponent } from './features/operaciones/components/calibraciones/calibraciones.component';
 import { CalendarioComponent } from './features/home/pages/calendario/calendario.component';
 import { TicketsSoporteComponent } from './features/soporte/components/tickets/tickets.component';
 import { MonitoreoComponent } from './features/soporte/components/monitoreo/monitoreo.component';
@@ -188,6 +189,12 @@ export const routes: Routes = [
     path: 'operaciones/mantenimiento',
     component: LogisticaMantenimientoComponent,
     title: 'Mantenimiento de Equipos | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'operaciones/calibraciones',
+    component: CalibracionesComponent,
+    title: 'Calibraciones | e-zyro TIC',
     canActivate: [authGuard]
   },
   {

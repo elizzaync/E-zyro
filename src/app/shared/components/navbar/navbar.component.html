@@ -105,6 +105,19 @@
                         <span class="nav-subitem-desc">Equipos intervenidos globales</span>
                     </div>
                 </a>
+                <a routerLink="/operaciones/calibraciones" routerLinkActive="active" class="nav-subitem"
+                    (click)="operacionesOpen = false; cerrarMobileNav()">
+                    <span class="nav-subitem-ic">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </span>
+                    <div class="nav-subitem-txt">
+                        <span class="nav-subitem-title">Calibraciones</span>
+                        <span class="nav-subitem-desc">Control de calibraciones y vigencias</span>
+                    </div>
+                </a>
                 }
             </div>
             }
@@ -536,6 +549,30 @@
                             <span class="item-subtitle">Repositorio de planos técnicos</span>
                         </div>
                     </button>
+                    <button class="dropdown-item" (click)="abrirModalEvaluaciones()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <div class="item-text">
+                            <span class="item-title">Mis Evaluaciones</span>
+                            <span class="item-subtitle">Ver evaluaciones asignadas</span>
+                        </div>
+                    </button>
+                    @if (!isClienteExterno) {
+                    <button class="dropdown-item" (click)="abrirCrearEval()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div class="item-text">
+                            <span class="item-title">Crear Evaluación</span>
+                            <span class="item-subtitle">Asignar examen a empleados</span>
+                        </div>
+                    </button>
+                    }
                     } <button class="dropdown-item">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24"
                             stroke="currentColor" stroke-width="2">
@@ -680,6 +717,7 @@
                 <input type="text" [value]="sexoLabel" disabled>
             </div>
         </div>
+
     </div>
 
     <div class="modal-footer-pro">
@@ -693,5 +731,481 @@
         <button class="btn-save-main" (click)="guardarPerfil()">Guardar Cambios</button>
         }
     </div>
+</div>
+}
+
+<!-- ══ MODAL EVALUACIONES ═════════════════════════════════════════════════════ -->
+@if (showEvalModal) {
+<div class="modal-backdrop-pro" (click)="cerrarModalEvaluaciones()"></div>
+<div class="ev-modal fade-in-up">
+
+    <div class="ev-modal-header">
+        <div class="ev-modal-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+        </div>
+        <div>
+            <h4 class="ev-modal-title">Mis Evaluaciones</h4>
+            <p class="ev-modal-sub">Evaluaciones de desempeño asignadas a ti</p>
+        </div>
+        <button class="mh-close" (click)="cerrarModalEvaluaciones()">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="22" height="22">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    <div class="ev-modal-body">
+        @if (cargandoEvals) {
+            <div class="ev-loading">
+                <div class="ev-spinner"></div>
+                <span>Cargando evaluaciones…</span>
+            </div>
+        } @else if (misEvaluaciones.length === 0) {
+            <div class="ev-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="48" height="48">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span>Sin evaluaciones asignadas aún.</span>
+            </div>
+        } @else {
+            <div class="ev-list">
+                @for (ev of misEvaluaciones; track ev.id) {
+                <div class="ev-card" [class.ev-card-active]="evalDetalle?.id === ev.id"
+                     (click)="abrirDetalleEval(ev)">
+                    <div class="ev-card-row">
+                        <div class="ev-card-info">
+                            <span class="ev-periodo">{{ ev.periodo }}</span>
+                            <span class="ev-tipo">{{ tipoEvalLabel(ev.tipo) }}</span>
+                        </div>
+                        <div class="ev-card-right">
+                            <span class="ev-badge" [class]="'ev-badge--' + ev.estado">
+                                {{ estadoEvalLabel(ev.estado) }}
+                            </span>
+                            @if (ev.promedio !== null) {
+                            <span class="ev-score" [style.color]="promedioColor(ev.promedio)">
+                                {{ ev.promedio | number:'1.1-1' }}<small>/10</small>
+                            </span>
+                            }
+                            <svg class="ev-chevron" [class.ev-chevron-open]="evalDetalle?.id === ev.id"
+                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    @if (evalDetalle?.id === ev.id) {
+                    <div class="ev-detail" (click)="$event.stopPropagation()">
+                        @if (cargandoDetalle) {
+                            <div class="ev-loading"><div class="ev-spinner ev-spinner-sm"></div></div>
+                        } @else {
+                            @if (evalDetalle!.evaluador_nombre) {
+                            <p class="ev-evaluador">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                                </svg>
+                                Evaluador: {{ evalDetalle!.evaluador_nombre }}
+                            </p>
+                            }
+                            @if (evalDetalle!.fecha) {
+                            <p class="ev-evaluador">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                                    <rect x="3" y="4" width="18" height="18" rx="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                                    <line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                                Fecha: {{ evalDetalle!.fecha }}
+                            </p>
+                            }
+                            @if (evalDetalle!.detalles.length > 0) {
+                            <div class="ev-criterios">
+                                @for (d of evalDetalle!.detalles; track d.id) {
+                                <div class="ev-criterio-row">
+                                    <div class="ev-crit-info">
+                                        <span class="ev-crit-nombre">{{ d.criterio_nombre ?? '—' }}</span>
+                                        @if (d.comentario) {
+                                        <span class="ev-crit-coment">{{ d.comentario }}</span>
+                                        }
+                                    </div>
+                                    <div class="ev-crit-score">
+                                        <div class="ev-bar-bg">
+                                            <div class="ev-bar-fill"
+                                                 [style.width]="(d.puntaje * 10) + '%'"
+                                                 [style.background]="promedioColor(d.puntaje)">
+                                            </div>
+                                        </div>
+                                        <span class="ev-crit-num" [style.color]="promedioColor(d.puntaje)">
+                                            {{ d.puntaje }}<small>/10</small>
+                                        </span>
+                                    </div>
+                                </div>
+                                }
+                            </div>
+                            @if (evalDetalle!.promedio !== null) {
+                            <div class="ev-promedio-row">
+                                <span>Promedio ponderado</span>
+                                <span class="ev-promedio-val" [style.color]="promedioColor(evalDetalle!.promedio)">
+                                    {{ evalDetalle!.promedio | number:'1.1-1' }} / 10
+                                </span>
+                            </div>
+                            }
+                            } @else {
+                                <p class="ev-evaluador">Sin criterios registrados.</p>
+                            }
+                        }
+                    </div>
+                    }
+                </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="ev-modal-footer">
+        <button class="btn-cancel-pro" (click)="cerrarModalEvaluaciones()">Cerrar</button>
+    </div>
+</div>
+}
+
+<!-- ══ MODAL CREAR EVALUACIÓN ════════════════════════════════════════════════ -->
+@if (showCrearEvalModal) {
+<div class="modal-backdrop-pro" (click)="cerrarCrearEval()"></div>
+<div class="cev-modal fade-in-up" (click)="$event.stopPropagation()">
+
+  <div class="cev-header">
+    <div class="cev-header-left">
+      <div class="cev-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div>
+        <h4 class="cev-title">Crear Evaluación</h4>
+        <div class="cev-steps">
+          <span [class.cev-step-active]="crearPaso >= 1" [class.cev-step-done]="crearPaso > 1">1. Tipo</span>
+          <span class="cev-step-sep">›</span>
+          <span [class.cev-step-active]="crearPaso >= 2" [class.cev-step-done]="crearPaso > 2">2. Destinatarios</span>
+          <span class="cev-step-sep">›</span>
+          <span [class.cev-step-active]="crearPaso >= 3">3. Criterios</span>
+        </div>
+      </div>
+    </div>
+    <button class="mh-close" (click)="cerrarCrearEval()">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="22" height="22">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="cev-body">
+
+    @if (crearPaso === 1) {
+    <p class="cev-section-title">Tipo de evaluación</p>
+    <div class="cev-tipos">
+      @for (t of tiposEval; track t.key) {
+      <button class="cev-tipo-card" [class.cev-tipo-active]="crearTipo === t.key"
+              (click)="seleccionarTipoEval(t.key)">
+        <span class="cev-tipo-emoji">{{ t.emoji }}</span>
+        <span class="cev-tipo-label">{{ t.label }}</span>
+        <span class="cev-tipo-desc">{{ t.desc }}</span>
+        @if (crearTipo === t.key) {
+        <span class="cev-tipo-check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </span>
+        }
+      </button>
+      }
+    </div>
+    <div class="cev-auto-info">
+      <span>📅 Período: <strong>{{ crearPeriodo }}</strong></span>
+      <span>· Fecha: <strong>{{ crearFecha }}</strong></span>
+    </div>
+    }
+
+    @if (crearPaso === 2) {
+    <p class="cev-section-title">¿Quiénes resolverán esta evaluación?</p>
+    <div class="cev-dest-opts">
+      <button class="cev-dest-btn" [class.cev-dest-active]="crearDestinatarios === 'todos'"
+              (click)="crearDestinatarios = 'todos'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        Todos los empleados
+      </button>
+      <button class="cev-dest-btn" [class.cev-dest-active]="crearDestinatarios === 'seleccion'"
+              (click)="crearDestinatarios = 'seleccion'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        Seleccionar empleados
+      </button>
+    </div>
+
+    @if (crearDestinatarios === 'seleccion') {
+      <div class="cev-search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" [(ngModel)]="crearBusquedaEmp" placeholder="Buscar por nombre o cargo…"/>
+      </div>
+      @if (cargandoPersonal) {
+        <div class="ev-loading"><div class="ev-spinner"></div><span>Cargando…</span></div>
+      } @else {
+        <div class="cev-emp-list">
+          @for (e of personalFiltrado; track e.id) {
+          <div class="cev-emp-row" [class.cev-emp-sel]="crearEmpleadosSeleccionados.includes(e.id)"
+               (click)="toggleEmpleado(e.id)">
+            <div class="cev-emp-avatar">
+              @if (e.foto_url) { <img [src]="e.foto_url" alt=""> }
+              @else { <span>{{ (e.nombre ?? 'U')[0].toUpperCase() }}</span> }
+            </div>
+            <div class="cev-emp-info">
+              <span class="cev-emp-nombre">{{ e.nombre ?? '—' }}</span>
+              <span class="cev-emp-cargo">{{ e.cargo ?? '' }}{{ e.area ? ' · ' + e.area : '' }}</span>
+            </div>
+            <div class="cev-emp-check" [class.cev-emp-check-on]="crearEmpleadosSeleccionados.includes(e.id)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="11" height="11">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+          </div>
+          }
+          @if (personalFiltrado.length === 0) {
+            <div class="ev-empty" style="padding: 18px 0"><span>Sin resultados.</span></div>
+          }
+        </div>
+        <p class="cev-sel-count">{{ crearEmpleadosSeleccionados.length }} seleccionado(s)</p>
+      }
+    }
+    }
+
+    @if (crearPaso === 3) {
+      @if (crearResultado) {
+        <div class="cev-exito">
+          <div class="cev-exito-icon">✓</div>
+          <h3>¡Evaluaciones enviadas!</h3>
+          <p>Se crearon <strong>{{ crearResultado.creadas }}</strong> evaluación(es).<br>Cada destinatario recibirá una notificación.</p>
+          <button class="cev-btn-primary" (click)="cerrarCrearEval()">Cerrar</button>
+        </div>
+      } @else {
+        <!-- Cabecera criterios + botón nuevo -->
+        <div class="cev-crit-header">
+          <p class="cev-section-title" style="margin:0">
+            Criterios <span class="cev-section-hint"> — selecciona los que incluirás</span>
+          </p>
+          <button class="cev-crit-add-toggle" [class.cev-crit-add-toggle-on]="cev3AddOpen"
+                  (click)="cev3AddOpen = !cev3AddOpen" title="Agregar criterio nuevo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="11" height="11">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Nuevo criterio
+          </button>
+        </div>
+
+        <!-- Mini-formulario inline colapsable -->
+        @if (cev3AddOpen) {
+        <div class="cev-inline-add">
+          <input class="cev-inline-input" type="text" [(ngModel)]="cev3Nombre"
+                 placeholder="Nombre del criterio…" (keyup.enter)="agregarCev3Criterio()" autofocus/>
+          <input class="cev-inline-peso" type="number" [(ngModel)]="cev3Peso" min="0.1" step="0.5" title="Peso"/>
+          <button class="cev-inline-btn" (click)="agregarCev3Criterio()"
+                  [disabled]="!cev3Nombre.trim() || cev3Guardando">
+            @if (cev3Guardando) {
+              <div class="ev-spinner ev-spinner-sm" style="border-top-color:#fff"></div>
+            } @else { Agregar }
+          </button>
+          <button class="cev-inline-cancel" (click)="cev3AddOpen=false; cev3Nombre=''; cev3Peso=1">✕</button>
+        </div>
+        }
+
+        @if (cargandoCriterios) {
+          <div class="ev-loading"><div class="ev-spinner"></div><span>Cargando…</span></div>
+        } @else if (criteriosDisponibles.length === 0) {
+          <div class="ev-empty" style="padding:14px 0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="30" height="30">
+              <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+            </svg>
+            <span>Sin criterios aún. Usa "+ Nuevo criterio" para agregar.</span>
+          </div>
+        } @else {
+          <div class="cev-crit-list">
+            @for (c of criteriosDisponibles; track c.id) {
+            <div class="cev-crit-row" [class.cev-crit-sel]="crearCriteriosSeleccionados.includes(c.id)">
+              <div class="cev-crit-check" [class.cev-crit-check-on]="crearCriteriosSeleccionados.includes(c.id)"
+                   (click)="toggleCriterio(c.id)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="11" height="11">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <div class="cev-crit-info" style="cursor:pointer" (click)="toggleCriterio(c.id)">
+                <span class="cev-crit-nombre">{{ c.nombre }}</span>
+                @if (c.descripcion) { <span class="cev-crit-desc">{{ c.descripcion }}</span> }
+              </div>
+              <span class="cev-crit-peso" (click)="toggleCriterio(c.id)" style="cursor:pointer">×{{ c.peso }}</span>
+              <button class="cev-crit-del" [class.cev-crit-del-spin]="gcEliminando === c.id"
+                      (click)="$event.stopPropagation(); eliminarCev3Criterio(c.id)"
+                      [disabled]="!!gcEliminando" title="Eliminar criterio">
+                @if (gcEliminando === c.id) {
+                  <div class="ev-spinner ev-spinner-sm" style="border-top-color:#ef4444"></div>
+                } @else {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                    <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+                  </svg>
+                }
+              </button>
+            </div>
+            }
+          </div>
+        }
+
+        <div class="cev-resumen">
+          <div class="cev-res-row"><span>Tipo</span>
+            <strong>{{ tiposEval.find(t => t.key === crearTipo)?.label ?? crearTipo }}</strong></div>
+          <div class="cev-res-row"><span>Período</span><strong>{{ crearPeriodo }}</strong></div>
+          <div class="cev-res-row"><span>Destinatarios</span>
+            <strong>{{ crearDestinatarios === 'todos' ? 'Todos los empleados' : crearEmpleadosSeleccionados.length + ' seleccionados' }}</strong>
+          </div>
+          <div class="cev-res-row"><span>Criterios</span>
+            <strong>{{ crearCriteriosSeleccionados.length > 0 ? crearCriteriosSeleccionados.length + ' seleccionados' : 'Sin criterios' }}</strong>
+          </div>
+        </div>
+      }
+    }
+
+  </div>
+
+  <div class="cev-footer">
+    @if (!crearResultado) {
+      @if (crearPaso > 1) {
+        <button class="btn-cancel-pro" (click)="anteriorPaso()">← Atrás</button>
+      } @else {
+        <button class="btn-cancel-pro" (click)="cerrarCrearEval()">Cancelar</button>
+      }
+      @if (crearPaso < 3) {
+        <button class="cev-btn-primary" (click)="siguientePaso()"
+                [disabled]="(crearPaso === 1 && (!crearTipo || !crearPeriodo.trim())) ||
+                            (crearPaso === 2 && crearDestinatarios === 'seleccion' && crearEmpleadosSeleccionados.length === 0)">
+          Siguiente →
+        </button>
+      } @else {
+        <button class="cev-btn-primary" (click)="enviarEvaluaciones()" [disabled]="creandoEval"
+                style="display:flex;align-items:center;gap:6px">
+          @if (creandoEval) {
+            <div class="ev-spinner ev-spinner-sm" style="border-top-color:#fff"></div> Enviando…
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            Crear y enviar
+          }
+        </button>
+      }
+    }
+  </div>
+
+</div>
+}
+
+<!-- ══ MODAL BANCO DE CRITERIOS ══════════════════════════════════════════════ -->
+@if (showGcModal) {
+<div class="modal-backdrop-pro" (click)="cerrarGcModal()"></div>
+<div class="gc-modal fade-in-up" (click)="$event.stopPropagation()">
+
+  <div class="gc-header">
+    <div class="gc-header-left">
+      <div class="gc-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <h4 class="gc-title">Banco de Criterios</h4>
+        <p class="gc-sub">Preguntas/criterios que aparecen en cada tipo de evaluación</p>
+      </div>
+    </div>
+    <button class="mh-close" (click)="cerrarGcModal()">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="22" height="22">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="gc-tabs">
+    <button class="gc-tab" [class.gc-tab-active]="gcTab === 'companero'"   (click)="cambiarGcTab('companero')">🤝 Compañerismo</button>
+    <button class="gc-tab" [class.gc-tab-active]="gcTab === 'rrhh'"        (click)="cambiarGcTab('rrhh')">📚 Conocimiento</button>
+    <button class="gc-tab" [class.gc-tab-active]="gcTab === 'psicologico'" (click)="cambiarGcTab('psicologico')">🧠 Psicológica</button>
+  </div>
+
+  <div class="gc-body">
+
+    @if (gcCargando) {
+      <div class="ev-loading"><div class="ev-spinner"></div><span>Cargando…</span></div>
+    } @else if (gcCriterios.length === 0) {
+      <div class="ev-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="36" height="36">
+          <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+        </svg>
+        <span>Sin criterios aún. Agrega el primero.</span>
+      </div>
+    } @else {
+      <div class="gc-list">
+        @for (c of gcCriterios; track c.id) {
+        <div class="gc-row">
+          <div class="gc-row-info">
+            <span class="gc-row-nombre">{{ c.nombre }}</span>
+            @if (c.descripcion) { <span class="gc-row-desc">{{ c.descripcion }}</span> }
+          </div>
+          <span class="gc-row-peso" title="Peso/ponderación">×{{ c.peso }}</span>
+          <button class="gc-del-btn" [class.gc-del-loading]="gcEliminando === c.id"
+                  (click)="eliminarGcCriterio(c.id)" [disabled]="!!gcEliminando" title="Eliminar">
+            @if (gcEliminando === c.id) {
+              <div class="ev-spinner ev-spinner-sm" style="border-top-color:#ef4444"></div>
+            } @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+              </svg>
+            }
+          </button>
+        </div>
+        }
+      </div>
+    }
+
+    <!-- Formulario rápido -->
+    <div class="gc-add-form">
+      <p class="gc-add-label">Agregar criterio</p>
+      <div class="gc-add-row">
+        <input class="gc-add-input" type="text" [(ngModel)]="gcNombre"
+               placeholder="Nombre del criterio…" (keyup.enter)="agregarGcCriterio()"/>
+        <input class="gc-add-peso" type="number" [(ngModel)]="gcPeso" min="0.1" step="0.5"
+               title="Peso (ponderación)"/>
+        <button class="gc-add-btn" (click)="agregarGcCriterio()"
+                [disabled]="!gcNombre.trim() || gcPeso <= 0 || gcGuardando">
+          @if (gcGuardando) {
+            <div class="ev-spinner ev-spinner-sm" style="border-top-color:#fff"></div>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          }
+        </button>
+      </div>
+      <p class="gc-add-hint">El <strong>peso</strong> pondera el criterio en el promedio final (default 1).</p>
+    </div>
+
+  </div>
+
 </div>
 }

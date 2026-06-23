@@ -71,6 +71,7 @@ export class EquiposTablaComponent implements OnInit {
   get equiposFiltrados(): EquipoHerramienta[] {
     const q = this.busqueda.toLowerCase().trim();
     return this.equipos.filter(e => {
+
       const matchTexto = !q
         || e.nombre.toLowerCase().includes(q)
         || e.codigo.toLowerCase().includes(q)
@@ -185,7 +186,11 @@ export class EquiposTablaComponent implements OnInit {
         this.cargar();
         this.cambio.emit();
       },
-      error: () => { this.eliminando = false; this.toast.mostrar('No se pudo eliminar.', 'error'); }
+      error: (err) => {
+        this.eliminando = false;
+        const msg = err?.error?.detail ?? 'No se pudo eliminar.';
+        this.toast.mostrar(msg, 'error');
+      }
     });
   }
 }

@@ -1,0 +1,306 @@
+<div class="cal-page">
+
+  <!-- ── Header ── -->
+  <div class="cal-header">
+    <div class="cal-header-left">
+      <div class="cal-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </div>
+      <div>
+        <h2 class="cal-title">Calibraciones</h2>
+        <p class="cal-sub">Control de calibraciones y vigencias de equipos</p>
+      </div>
+    </div>
+    <button class="cal-btn-nuevo" (click)="abrirNuevoEquipo()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Agregar equipo
+    </button>
+  </div>
+
+  <!-- ── Filtros ── -->
+  <div class="cal-filtros">
+    <div class="cal-search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" [(ngModel)]="busqueda" placeholder="Buscar equipo…"/>
+    </div>
+    <button class="cal-toggle" [class.cal-toggle-on]="soloPorVencer"
+            (click)="soloPorVencer = !soloPorVencer; cargar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      Por vencer / Vencidas
+    </button>
+  </div>
+
+  <!-- ── Tabla ── -->
+  @if (cargando) {
+    <div class="cal-loading">
+      <div class="cal-spinner"></div>
+      <span>Cargando calibraciones…</span>
+    </div>
+  } @else if (filtradas.length === 0) {
+    <div class="cal-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" width="48" height="48">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+      </svg>
+      <p>{{ busqueda ? 'Sin resultados para "' + busqueda + '"' : 'No hay calibraciones registradas.' }}</p>
+      <button class="cal-btn-nuevo" (click)="abrirNuevoEquipo()">+ Agregar primer equipo</button>
+    </div>
+  } @else {
+    <div class="cal-table-wrap">
+      <table class="cal-table">
+        <thead>
+          <tr>
+            <th>Equipo</th>
+            <th>Última calibración</th>
+            <th>Próxima calibración</th>
+            <th>Empresa responsable</th>
+            <th>Estado</th>
+            <th>Eventos</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (c of filtradas; track c.equipo_id) {
+          <tr class="cal-row" (click)="abrirModal(c)">
+            <td class="cal-nombre">{{ c.equipo_nombre ?? '—' }}</td>
+            <td class="cal-fecha">{{ formatFecha(c.fecha_ultima) }}</td>
+            <td class="cal-fecha">
+              {{ formatFecha(c.fecha_proxima) }}
+              @if (diasRestantes(c) !== null && estado(c) !== 'ok') {
+                <span class="cal-dias" [class]="'cal-dias--' + estado(c)">
+                  {{ diasRestantes(c)! < 0 ? 'vencida hace ' + (-diasRestantes(c)!) + 'd' : 'en ' + diasRestantes(c) + 'd' }}
+                </span>
+              }
+            </td>
+            <td class="cal-empresa">{{ c.empresa_responsable ?? '—' }}</td>
+            <td>
+              <span class="cal-badge" [class]="'cal-badge--' + estado(c)">
+                {{ estadoLabel(estado(c)) }}
+              </span>
+            </td>
+            <td class="cal-count">{{ c.total_eventos }}</td>
+            <td class="cal-actions" (click)="$event.stopPropagation()">
+              <button class="cal-btn-hist" (click)="abrirModal(c)" title="Ver historial">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+                Historial
+              </button>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+</div>
+
+<!-- ══ MODAL HISTORIAL ════════════════════════════════════════════════════════ -->
+@if (showModal && modalCal) {
+<div class="cal-modal-backdrop" (click)="cerrarModal()"></div>
+<div class="cal-modal fade-in-up" (click)="$event.stopPropagation()">
+
+  <!-- Header modal -->
+  <div class="cal-modal-header">
+    <div class="cal-modal-header-left">
+      <span class="cal-badge" [class]="'cal-badge--' + estado(modalCal)" style="margin-right:8px">
+        {{ estadoLabel(estado(modalCal)) }}
+      </span>
+      <div>
+        <h4 class="cal-modal-title">{{ modalCal.equipo_nombre ?? 'Equipo' }}</h4>
+        <p class="cal-modal-sub">
+          Última: <strong>{{ formatFecha(modalCal.fecha_ultima) }}</strong> ·
+          Próxima: <strong>{{ formatFecha(modalCal.fecha_proxima) }}</strong>
+        </p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="cal-btn-agregar" (click)="addOpen = !addOpen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Nueva calibración
+      </button>
+      <button class="cal-modal-close" (click)="cerrarModal()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Formulario nueva calibración -->
+  @if (addOpen) {
+  <div class="cal-add-form">
+    <p class="cal-form-title">Registrar nueva calibración</p>
+    <div class="cal-form-grid">
+      <div class="cal-field">
+        <label>Fecha realizada <span class="cal-req">*</span></label>
+        <input type="date" [(ngModel)]="form.fecha_realizada"/>
+      </div>
+      <div class="cal-field">
+        <label>Periodicidad (meses)</label>
+        <input type="number" [(ngModel)]="form.periodicidad_meses" min="1" placeholder="12"/>
+      </div>
+      <div class="cal-field">
+        <label>Realizada por</label>
+        <input type="text" [(ngModel)]="form.realizada_por" placeholder="Nombre del técnico"/>
+      </div>
+      <div class="cal-field">
+        <label>Empresa responsable</label>
+        <input type="text" [(ngModel)]="form.empresa_responsable" placeholder="Empresa calibradora"/>
+      </div>
+      <div class="cal-field">
+        <label>N° certificado</label>
+        <input type="text" [(ngModel)]="form.numero_certificado" placeholder="Número de certificado"/>
+      </div>
+      <div class="cal-field">
+        <label>Resultado</label>
+        <input type="text" [(ngModel)]="form.resultado" placeholder="Ej: Aprobado, Conforme…"/>
+      </div>
+    </div>
+    <div class="cal-field" style="margin-top:6px">
+      <label>Observaciones</label>
+      <textarea [(ngModel)]="form.observacion" rows="2" placeholder="Notas adicionales…"></textarea>
+    </div>
+    <div class="cal-field" style="margin-top:6px">
+      <label>Certificado (PDF / imagen)</label>
+      <input type="file" accept=".pdf,.png,.jpg,.jpeg" (change)="onArchivo($event)"/>
+      @if (archivoCert) { <span class="cal-file-ok">✓ Archivo listo para subir</span> }
+    </div>
+    <div class="cal-form-footer">
+      <button class="cal-btn-cancel" (click)="addOpen=false">Cancelar</button>
+      <button class="cal-btn-save" (click)="guardarEvento()" [disabled]="!form.fecha_realizada || guardando">
+        @if (guardando) { <div class="cal-spinner-sm"></div> Guardando… }
+        @else { Guardar calibración }
+      </button>
+    </div>
+  </div>
+  }
+
+  <!-- Historial de eventos -->
+  <div class="cal-modal-body">
+    @if (cargandoEventos) {
+      <div class="cal-loading" style="padding:30px 0">
+        <div class="cal-spinner"></div><span>Cargando historial…</span>
+      </div>
+    } @else if (eventos.length === 0) {
+      <div class="cal-empty-hist">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" width="36" height="36">
+          <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+        </svg>
+        <p>Sin eventos registrados. Agrega la primera calibración.</p>
+      </div>
+    } @else {
+      <div class="cal-eventos">
+        @for (ev of eventos; track ev.id) {
+        <div class="cal-evento">
+          <div class="cal-evento-dot"></div>
+          <div class="cal-evento-card">
+            <div class="cal-evento-top">
+              <div>
+                <span class="cal-evento-fecha">{{ formatFecha(ev.fecha_realizada) }}</span>
+                @if (ev.resultado) {
+                  <span class="cal-evento-resultado">{{ ev.resultado }}</span>
+                }
+              </div>
+              <button class="cal-ev-del" (click)="eliminarEvento(ev.id)"
+                      [disabled]="!!eliminandoEvento" title="Eliminar">
+                @if (eliminandoEvento === ev.id) {
+                  <div class="cal-spinner-sm" style="border-top-color:#ef4444"></div>
+                } @else {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+                  </svg>
+                }
+              </button>
+            </div>
+            <div class="cal-evento-meta">
+              @if (ev.realizada_por) {
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> {{ ev.realizada_por }}</span>
+              }
+              @if (ev.empresa_responsable) {
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg> {{ ev.empresa_responsable }}</span>
+              }
+              @if (ev.numero_certificado) {
+                <span>Cert. #{{ ev.numero_certificado }}</span>
+              }
+              @if (ev.periodicidad_meses) {
+                <span>Cada {{ ev.periodicidad_meses }} meses</span>
+              }
+              @if (ev.fecha_proxima) {
+                <span>Próxima: {{ formatFecha(ev.fecha_proxima) }}</span>
+              }
+            </div>
+            @if (ev.observacion) {
+              <p class="cal-evento-obs">{{ ev.observacion }}</p>
+            }
+            @if (ev.certificado_url) {
+              <a class="cal-cert-link" [href]="ev.certificado_url" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Ver certificado
+              </a>
+            }
+          </div>
+        </div>
+        }
+      </div>
+    }
+  </div>
+
+</div>
+}
+
+<!-- ══ MODAL BUSCAR EQUIPO ═══════════════════════════════════════════════════ -->
+@if (showNuevoEquipo) {
+<div class="cal-modal-backdrop" (click)="cerrarNuevoEquipo()"></div>
+<div class="cal-eq-modal fade-in-up" (click)="$event.stopPropagation()">
+  <div class="cal-eq-header">
+    <h4>Seleccionar equipo</h4>
+    <button class="cal-modal-close" (click)="cerrarNuevoEquipo()">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <div class="cal-search-wrap" style="margin:0 0 10px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" [(ngModel)]="busqEquipo" placeholder="Filtrar por nombre, código o tipo…" autofocus/>
+  </div>
+  @if (cargandoEquipos) {
+    <div class="cal-loading" style="padding:24px 0">
+      <div class="cal-spinner"></div><span>Cargando equipos…</span>
+    </div>
+  } @else if (equiposFiltrados.length === 0) {
+    <div class="cal-empty-hist" style="padding:16px 0">
+      <p>{{ busqEquipo.trim() ? 'Sin resultados para "' + busqEquipo + '"' : 'No hay equipos registrados en inventario.' }}</p>
+    </div>
+  } @else {
+    <div class="cal-eq-list">
+      @for (eq of equiposFiltrados; track eq.id) {
+      <button class="cal-eq-row" (click)="seleccionarEquipoNuevo(eq)">
+        <div class="cal-eq-icon">{{ eq.clase === 'herramienta' ? '🔧' : '⚙️' }}</div>
+        <div>
+          <span class="cal-eq-nombre">{{ eq.nombre }}</span>
+          <span class="cal-eq-codigo">{{ eq.codigo }}{{ eq.tipo ? ' · ' + eq.tipo : '' }}</span>
+        </div>
+      </button>
+      }
+    </div>
+  }
+</div>
+}
