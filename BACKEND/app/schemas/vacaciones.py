@@ -31,11 +31,32 @@ class SaldoOut(BaseModel):
     empleado_nombre: Optional[str] = None
     fecha_ingreso:  Optional[str] = None
     meses_servicio: int = 0
+    anos_servicio:  int = 0        # años completos (devengado se otorga por año completo)
     dias_por_anio:  int = 0
-    devengado:      float = 0.0    # días ganados desde el ingreso
-    gozado:         int = 0        # días aprobados
-    disponible:     float = 0.0    # min(devengado - gozado, tope)
+    devengado:      float = 0.0    # días ganados (años completos × dias_por_anio)
+    ajuste_dias:    int = 0        # ajuste de migración (puede ser negativo)
+    gozado:         int = 0        # días aprobados en el sistema
+    disponible:     float = 0.0    # min(devengado + ajuste - gozado, tope)
     tope_acumulacion: int = 0
+
+
+# ── Ajuste saldo inicial (migración) ─────────────────────────────────────────
+class AjusteSaldoIn(BaseModel):
+    dias_disponibles: float          # días disponibles reales al momento del ajuste
+    notas: Optional[str] = None
+
+    @field_validator("dias_disponibles")
+    @classmethod
+    def _no_neg(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("dias_disponibles no puede ser negativo")
+        return v
+
+
+class AjusteSaldoOut(BaseModel):
+    empleado_id:  str
+    ajuste_dias:  int
+    notas:        Optional[str] = None
 
 
 # ── Solicitudes ──────────────────────────────────────────────────────────────

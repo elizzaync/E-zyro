@@ -42,3 +42,21 @@ class SolicitudVacaciones(Base):
     resuelto_por_id   = Column(String(36), nullable=True)
     fecha_resolucion  = Column(DateTime, nullable=True)
     created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class AjusteSaldoVacaciones(Base):
+    """Saldo inicial de vacaciones por empleado, para migración desde un
+    sistema anterior. Almacena la diferencia (ajuste_dias) entre los días
+    disponibles reales en la fecha de ajuste y el devengado calculado a esa
+    fecha. El router lo aplica como: disponible = min(devengado + ajuste_dias
+    - gozado, tope). Un ajuste negativo absorbe días ya gozados sin registro."""
+    __tablename__ = "ajuste_saldo_vacaciones"
+
+    id             = Column(String(36), primary_key=True, default=_uuid)
+    empresa_id     = Column(String(36), ForeignKey("empresa.id"), nullable=False)
+    empleado_id    = Column(String(36), ForeignKey("empleado.id"), nullable=False, unique=True)
+    ajuste_dias    = Column(Integer, nullable=False)          # puede ser negativo
+    notas          = Column(String(500), nullable=True)
+    creado_por_id  = Column(String(36), nullable=True)
+    created_at     = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at     = Column(DateTime, nullable=True)

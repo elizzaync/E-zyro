@@ -457,6 +457,18 @@ def _pre_create_migrations():
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_solicitud_vacaciones_emp ON solicitud_vacaciones (empresa_id, empleado_id, estado)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS ajuste_saldo_vacaciones (
+                id            uuid PRIMARY KEY,
+                empresa_id    uuid NOT NULL REFERENCES empresa(id),
+                empleado_id   uuid NOT NULL UNIQUE REFERENCES empleado(id),
+                ajuste_dias   INTEGER NOT NULL,
+                notas         VARCHAR(500),
+                creado_por_id uuid,
+                created_at    TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMP
+            )
+        """))
 
         # ── Correctivos + observaciones (Fase 4). FK uuid a proyecto_servicio ─
         conn.execute(text("""

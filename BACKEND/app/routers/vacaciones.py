@@ -20,10 +20,10 @@ from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
-from ..models.vacaciones import ConfigVacaciones, SolicitudVacaciones
+from ..models.vacaciones import AjusteSaldoVacaciones, ConfigVacaciones, SolicitudVacaciones
 from ..services.fcm_service import notificar_usuario
 from ..schemas.vacaciones import (
-    ConfigIn, ConfigOut, SaldoOut, SolicitudIn, SolicitudOut,
+    AjusteSaldoIn, AjusteSaldoOut, ConfigIn, ConfigOut, SaldoOut, SolicitudIn, SolicitudOut,
 )
 
 router = APIRouter(prefix="/vacaciones", tags=["vacaciones"])
@@ -74,20 +74,28 @@ def _gozado(db: Session, empresa_id: str, empleado_id: str) -> int:
     return int(total or 0)
 
 
+def _ajuste(db: Session, empleado_id: str) -> int:
+    row = db.query(AjusteSaldoVacaciones).filter(
+        AjusteSaldoVacaciones.empleado_id == empleado_id).first()
+    return row.ajuste_dias if row else 0
+
+
 def _saldo(db: Session, empresa_id: str, emp: Empleado, cfg: ConfigVacaciones) -> SaldoOut:
     hoy = date.today()
     meses = _meses_servicio(emp.fecha_ingreso, hoy)
-    devengado = round(cfg.dias_por_anio * meses / 12.0, 2)
+    # Derecho a vacaciones al completar cada año de servicio (art. 10 D.Leg. 713).
+    anos = meses // 12
+    devengado = float(anos * cfg.dias_por_anio)
+    ajuste_dias = _ajuste(db, str(emp.id))
     gozado = _gozado(db, empresa_id, str(emp.id))
-    disponible = min(devengado - gozado, float(cfg.tope_acumulacion))
-    if disponible < 0:
-        disponible = 0.0
+    acumulado = devengado + ajuste_dias - gozado
+    disponible = round(min(acumulado, float(cfg.tope_acumulacion)), 2) if acumulado > 0 else 0.0
     return SaldoOut(
         empleado_id=str(emp.id), empleado_nombre=_nombre(db, emp),
         fecha_ingreso=(str(emp.fecha_ingreso) if emp.fecha_ingreso else None),
-        meses_servicio=meses, dias_por_anio=cfg.dias_por_anio,
-        devengado=devengado, gozado=gozado, disponible=round(disponible, 2),
-        tope_acumulacion=cfg.tope_acumulacion,
+        meses_servicio=meses, anos_servicio=anos, dias_por_anio=cfg.dias_por_anio,
+        devengado=devengado, ajuste_dias=ajuste_dias, gozado=gozado,
+        disponible=disponible, tope_acumulacion=cfg.tope_acumulacion,
     )
 
 
@@ -204,6 +212,11 @@ def crear_solicitud(body: SolicitudIn, payload: dict = Depends(verificar_token),
     if fin < ini:
         raise HTTPException(status_code=422, detail="fecha_fin no puede ser anterior a fecha_inicio")
     dias = (fin - ini).days + 1
+    saldo = _saldo(db, empresa_id, emp, _get_config(db, empresa_id))
+    if dias > saldo.disponible:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Saldo insuficiente: solicitas {dias} d, disponible {saldo.disponible:.1f} d")
     s = SolicitudVacaciones(
         id=str(_uuid.uuid4()), empresa_id=empresa_id, empleado_id=str(emp.id),
         fecha_inicio=ini, fecha_fin=fin, dias=dias, estado="pendiente",
@@ -296,3 +309,45 @@ def aprobar(sol_id: str, payload: dict = Depends(verificar_token), db: Session =
 def rechazar(sol_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     exigir_permiso(db, payload, "vacaciones", "rechazar")
     return _resolver(db, payload, sol_id, "rechazada")
+
+
+# ── Ajuste de saldo inicial (migración) ──────────────────────────────────────
+@router.put("/saldo-inicial/{empleado_id}", response_model=AjusteSaldoOut)
+def fijar_saldo_inicial(
+    empleado_id: str,
+    body: AjusteSaldoIn,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Fija el saldo de vacaciones disponibles de un empleado a `dias_disponibles`,
+    calculando el ajuste necesario según el devengado actual (años completos).
+    Requiere permiso vacaciones:configurar. Idempotente (upsert)."""
+    exigir_permiso(db, payload, "vacaciones", "configurar")
+    empresa_id = payload["empresa_id"]
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    cfg = _get_config(db, empresa_id)
+    meses = _meses_servicio(emp.fecha_ingreso, date.today())
+    anos = meses // 12
+    devengado_actual = float(anos * cfg.dias_por_anio)
+    # ajuste = diferencia entre lo que queremos que tenga y lo que ya tiene por devengo
+    ajuste = int(round(body.dias_disponibles - devengado_actual))
+    row = db.query(AjusteSaldoVacaciones).filter(
+        AjusteSaldoVacaciones.empleado_id == empleado_id).first()
+    if row:
+        row.ajuste_dias = ajuste
+        row.notas = body.notas
+        row.creado_por_id = payload.get("id")
+        row.updated_at = datetime.utcnow()
+    else:
+        row = AjusteSaldoVacaciones(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            empleado_id=empleado_id, ajuste_dias=ajuste,
+            notas=body.notas, creado_por_id=payload.get("id"),
+        )
+        db.add(row)
+    db.commit()
+    return AjusteSaldoOut(
+        empleado_id=empleado_id, ajuste_dias=ajuste, notas=row.notas)
