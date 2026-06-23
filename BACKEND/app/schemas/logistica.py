@@ -218,6 +218,16 @@ class CatalogoIn(BaseModel):
     nombre: str
 
 
+class ProcedimientoItem(BaseModel):
+    orden: int
+    nombre: str
+    descripcion: Optional[str] = None
+
+
+class ProcedimientosTemplateIn(BaseModel):
+    procedimientos: List["ProcedimientoItem"]
+
+
 class AlmacenOut(CatalogoItem):
     ubicacion: Optional[str] = None
     predeterminado: bool = False

@@ -80,6 +80,7 @@ from ..schemas.logistica import (
     IncidenciaOut, IncidenciasListResponse, EquipoStockDesglose,
     FormFieldDef, FormSchemaOut,
     IngresoDirectoIn, IngresoDirectoResult, IngresoItemResult,
+    ProcedimientosTemplateIn,
 )
 from ..models.correctivo import ServicioCorrectivo
 from ..schemas.cuentas_por_pagar import FacturaCreate
@@ -493,6 +494,31 @@ def crear_tipo_equipo(body: CatalogoIn, payload: dict = Depends(verificar_token)
     db.add(t)
     db.commit()
     return CatalogoItem(id=str(t.id), nombre=t.nombre)
+
+
+@router.patch("/tipos-equipo/{tipo_id}/procedimientos")
+def actualizar_procedimientos_tipo_equipo(
+    tipo_id: str,
+    body:    ProcedimientosTemplateIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Reemplaza la plantilla de procedimientos (checklist) de un tipo de equipo."""
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    te = db.query(TipoEquipo).filter(
+        TipoEquipo.id         == tipo_id,
+        TipoEquipo.empresa_id == empresa_id,
+    ).first()
+    if not te:
+        raise HTTPException(status_code=404, detail="Tipo de equipo no encontrado")
+    te.procedimientos_template = [p.model_dump() for p in body.procedimientos]
+    db.commit()
+    return {
+        "tipo_equipo_id": tipo_id,
+        "nombre":         te.nombre,
+        "procedimientos": te.procedimientos_template,
+    }
 
 
 # ── Marcas ─────────────────────────────────────────────────────────────────
