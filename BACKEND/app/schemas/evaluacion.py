@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import List, Optional
 from pydantic import BaseModel, field_validator
 
-TIPOS_EVALUACION = ("rrhh", "jefe_directo", "companero")
+TIPOS_EVALUACION = ("rrhh", "jefe_directo", "companero", "psicologico")
 
 
 def _validar_tipo(v: str) -> str:

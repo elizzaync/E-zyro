@@ -20,10 +20,12 @@ from ..db.database import get_db
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.evaluacion import CriterioEvaluacion, Evaluacion, DetalleEvaluacion
+from ..models.notificacion import Notificacion
 from ..schemas.evaluacion import (
     CriterioIn, CriterioOut, DetalleIn, DetalleOut,
     EvaluacionIn, EvaluacionOut, EstadoUpdate,
 )
+from pydantic import BaseModel as _BaseModel
 
 router = APIRouter(prefix="/evaluaciones", tags=["evaluaciones"])
 
@@ -252,17 +254,34 @@ def cambiar_estado(eval_id: str, body: EstadoUpdate, payload: dict = Depends(ver
         Evaluacion.id == eval_id, Evaluacion.empresa_id == empresa_id).first()
     if not ev:
         raise HTTPException(status_code=404, detail="Evaluación no encontrada")
-    # Transiciones permitidas: borrador→enviada, enviada→completada
     if body.estado == "enviada":
         exigir_permiso(db, payload, "evaluacion", "enviar")
         if ev.estado != "borrador":
             raise HTTPException(status_code=409, detail="Solo se envía desde borrador")
-    else:  # completada
+    else:
         exigir_permiso(db, payload, "evaluacion", "completar")
         if ev.estado != "enviada":
             raise HTTPException(status_code=409, detail="Solo se completa desde enviada")
     ev.estado = body.estado
     db.commit()
+
+    # Notificar al evaluador cuando el empleado completa la evaluación
+    if body.estado == "completada":
+        evaluador_emp = db.query(Empleado).filter(Empleado.id == ev.evaluador_id).first()
+        emp_nombre = _nombre_empleado(db, str(ev.empleado_id)) or "Un empleado"
+        tipo_label = {"rrhh": "Conocimiento", "jefe_directo": "Jefe Directo",
+                      "companero": "Compañerismo", "psicologico": "Psicológica"}.get(ev.tipo, ev.tipo)
+        if evaluador_emp and evaluador_emp.usuario_id:
+            db.add(Notificacion(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                usuario_id=str(evaluador_emp.usuario_id),
+                tipo="evaluacion", categoria="Evaluación Completada",
+                titulo="Evaluación completada",
+                mensaje=f"{emp_nombre} completó la evaluación de {tipo_label} — Período {ev.periodo}.",
+                leido=False,
+            ))
+            db.commit()
+
     return _eval_out(db, ev)
 
 
@@ -277,3 +296,91 @@ def eliminar(eval_id: str, payload: dict = Depends(verificar_token), db: Session
     db.query(DetalleEvaluacion).filter(DetalleEvaluacion.evaluacion_id == ev.id).delete()
     db.delete(ev)
     db.commit()
+
+
+# ── Lote: crear evaluaciones para múltiples empleados ────────────────────────
+class LoteIn(_BaseModel):
+    tipo:          str
+    periodo:       str
+    fecha:         Optional[str] = None
+    empleado_ids:  List[str] = []   # vacío = todos
+    todos:         bool = False
+    criterio_ids:  List[str] = []
+
+
+class LoteOut(_BaseModel):
+    creadas: int
+    evaluaciones: List[EvaluacionOut]
+
+
+@router.post("/lote", response_model=LoteOut, status_code=201)
+def crear_lote(body: LoteIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    exigir_permiso(db, payload, "evaluacion", "crear")
+    empresa_id = payload["empresa_id"]
+    evaluador  = _empleado_actual(db, payload)
+    if not evaluador:
+        raise HTTPException(400, "El usuario no tiene ficha de empleado")
+
+    # Resolver lista de empleados
+    if body.todos:
+        emps = db.query(Empleado).filter(
+            Empleado.empresa_id == empresa_id,
+            Empleado.activo == True,          # noqa: E712
+            Empleado.id != str(evaluador.id), # no evaluarse a sí mismo
+        ).all()
+        ids_objetivo = [str(e.id) for e in emps]
+    else:
+        ids_objetivo = list(set(body.empleado_ids))
+
+    if not ids_objetivo:
+        raise HTTPException(400, "Debes seleccionar al menos un empleado")
+
+    fecha_obj = _parse_date(body.fecha) or date.today()
+    tipo_label = {"rrhh": "Conocimiento", "jefe_directo": "Jefe Directo",
+                  "companero": "Compañerismo", "psicologico": "Psicológica"}.get(body.tipo, body.tipo)
+
+    # Cargar criterios seleccionados
+    criterios = []
+    if body.criterio_ids:
+        criterios = db.query(CriterioEvaluacion).filter(
+            CriterioEvaluacion.id.in_(body.criterio_ids),
+            CriterioEvaluacion.empresa_id == empresa_id,
+        ).all()
+
+    resultados: List[EvaluacionOut] = []
+    for emp_id in ids_objetivo:
+        emp = db.query(Empleado).filter(
+            Empleado.id == emp_id, Empleado.empresa_id == empresa_id).first()
+        if not emp:
+            continue
+
+        ev = Evaluacion(
+            id=str(_uuid.uuid4()), empresa_id=empresa_id,
+            empleado_id=emp_id, evaluador_id=str(evaluador.id),
+            tipo=body.tipo, periodo=body.periodo,
+            estado="enviada", fecha=fecha_obj,
+        )
+        db.add(ev)
+        db.flush()
+
+        for c in criterios:
+            db.add(DetalleEvaluacion(
+                id=str(_uuid.uuid4()), evaluacion_id=ev.id,
+                criterio_id=str(c.id), puntaje=1, comentario=None,
+            ))
+
+        # Notificar al empleado
+        if emp.usuario_id:
+            db.add(Notificacion(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                usuario_id=str(emp.usuario_id),
+                tipo="evaluacion", categoria="Nueva Evaluación",
+                titulo="Nueva evaluación asignada",
+                mensaje=f"Tienes una evaluación de {tipo_label} pendiente — Período {body.periodo}.",
+                leido=False,
+            ))
+
+        resultados.append(_eval_out(db, ev, con_detalles=True))
+
+    db.commit()
+    return LoteOut(creadas=len(resultados), evaluaciones=resultados)

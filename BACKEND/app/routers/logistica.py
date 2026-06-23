@@ -17,6 +17,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from ..core.security import verificar_token
 from ..core.permisos import es_tecnico, es_jefe_operaciones, exigir_no_roles_operativos
@@ -1058,8 +1059,15 @@ def eliminar_equipo(
     ).first()
     if not e:
         raise HTTPException(status_code=404, detail="Equipo/Herramienta no encontrada")
-    db.delete(e)
-    db.commit()
+    try:
+        db.delete(e)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar porque tiene registros asociados (movimientos, calibraciones, préstamos u otro historial). Puedes marcarlo como 'De baja' en su lugar.",
+        )
     return
 
 
