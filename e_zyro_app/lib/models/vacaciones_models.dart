@@ -23,8 +23,10 @@ class SaldoVacaciones {
   final String? empleadoNombre;
   final String? fechaIngreso;
   final int mesesServicio;
+  final int anosServicio;
   final int diasPorAnio;
   final double devengado;
+  final int ajusteDias;
   final int gozado;
   final double disponible;
   final int topeAcumulacion;
@@ -34,8 +36,10 @@ class SaldoVacaciones {
     this.empleadoNombre,
     this.fechaIngreso,
     this.mesesServicio = 0,
+    this.anosServicio = 0,
     this.diasPorAnio = 0,
     this.devengado = 0,
+    this.ajusteDias = 0,
     this.gozado = 0,
     this.disponible = 0,
     this.topeAcumulacion = 0,
@@ -46,8 +50,10 @@ class SaldoVacaciones {
         empleadoNombre: j['empleado_nombre']?.toString(),
         fechaIngreso: j['fecha_ingreso']?.toString(),
         mesesServicio: (j['meses_servicio'] as num?)?.toInt() ?? 0,
+        anosServicio: (j['anos_servicio'] as num?)?.toInt() ?? 0,
         diasPorAnio: (j['dias_por_anio'] as num?)?.toInt() ?? 0,
         devengado: (j['devengado'] as num?)?.toDouble() ?? 0,
+        ajusteDias: (j['ajuste_dias'] as num?)?.toInt() ?? 0,
         gozado: (j['gozado'] as num?)?.toInt() ?? 0,
         disponible: (j['disponible'] as num?)?.toDouble() ?? 0,
         topeAcumulacion: (j['tope_acumulacion'] as num?)?.toInt() ?? 0,

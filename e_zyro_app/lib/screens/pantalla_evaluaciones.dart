@@ -5,6 +5,7 @@ import '../models/personal_models.dart';
 import '../services/evaluacion_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
+import 'pantalla_plantillas_evaluacion.dart';
 
 /// Evaluaciones de desempeño (Punto 3.2): lista, creación con puntuación de
 /// criterios y flujo borrador → enviada → completada.
@@ -65,16 +66,21 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Evaluaciones', style: TextStyle(fontWeight: FontWeight.bold)),
-          bottom: const TabBar(tabs: [Tab(text: 'Evaluaciones'), Tab(text: 'Criterios')]),
+          bottom: const TabBar(tabs: [
+            Tab(text: 'Evaluaciones'),
+            Tab(text: 'Plantillas'),
+            Tab(text: 'Criterios'),
+          ]),
           actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
         ),
-        body: TabBarView(children: [
-          _evaluacionesTab(),
-          const CriteriosTab(),
+        body: const TabBarView(children: [
+          _EvaluacionesTabBody(),
+          PantallaPlantillasEvaluacion(),
+          CriteriosTab(),
         ]),
       ),
     );

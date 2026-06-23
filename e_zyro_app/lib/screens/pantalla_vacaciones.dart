@@ -134,6 +134,60 @@ class _PantallaVacacionesState extends State<PantallaVacaciones> {
     res.ok ? _cargar() : _snack(res.errorMessage, error: true);
   }
 
+  Future<void> _fijarSaldoInicial(SaldoVacaciones s) async {
+    final ctrl = TextEditingController(
+        text: s.disponible > 0 ? s.disponible.toStringAsFixed(0) : '');
+    final notasCtrl = TextEditingController(text: '');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Saldo inicial · ${s.empleadoNombre ?? s.empleadoId}'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(
+            'Años de servicio: ${s.anosServicio}  ·  Devengado: ${s.devengado.toStringAsFixed(0)} d',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Días disponibles actuales',
+              helperText: 'Ingresa los días reales que tiene el trabajador',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: notasCtrl,
+            decoration: const InputDecoration(labelText: 'Notas (opcional)'),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final dias = double.tryParse(ctrl.text.trim());
+    if (dias == null || dias < 0) {
+      _snack('Ingresa un número válido de días', error: true);
+      return;
+    }
+    final res = await _svc!.setSaldoInicial(
+      empleadoId: s.empleadoId,
+      diasDisponibles: dias,
+      notas: notasCtrl.text.trim().isEmpty ? null : notasCtrl.text.trim(),
+    );
+    if (!mounted) return;
+    if (res.ok) {
+      _snack('Saldo inicial guardado');
+      _cargar();
+    } else {
+      _snack(res.errorMessage, error: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -180,6 +234,7 @@ class _PantallaVacacionesState extends State<PantallaVacaciones> {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) {
                       final s = _saldos[i];
+                      final tieneAjuste = s.ajusteDias != 0;
                       return ListTile(
                         leading: CircleAvatar(
                           backgroundColor: Colors.green.withValues(alpha: 0.15),
@@ -188,9 +243,19 @@ class _PantallaVacacionesState extends State<PantallaVacaciones> {
                         ),
                         title: Text(s.empleadoNombre ?? s.empleadoId),
                         subtitle: Text(
-                            'Disponible: ${s.disponible.toStringAsFixed(1)} d · Devengado: ${s.devengado.toStringAsFixed(1)} · Gozado: ${s.gozado}\n'
-                            '${s.mesesServicio} meses de servicio'),
+                            'Disponible: ${s.disponible.toStringAsFixed(1)} d · '
+                            'Devengado: ${s.devengado.toStringAsFixed(0)} d · '
+                            'Gozado: ${s.gozado} d'
+                            '${tieneAjuste ? ' · Ajuste: ${s.ajusteDias > 0 ? '+' : ''}${s.ajusteDias}' : ''}\n'
+                            '${s.anosServicio} año(s) · ${s.mesesServicio} meses'),
                         isThreeLine: true,
+                        trailing: AppSession.i.canConfigurarVacaciones
+                            ? IconButton(
+                                icon: const Icon(Icons.edit_calendar_outlined, size: 20),
+                                tooltip: 'Fijar saldo inicial',
+                                onPressed: () => _fijarSaldoInicial(s),
+                              )
+                            : null,
                       );
                     },
                   ),

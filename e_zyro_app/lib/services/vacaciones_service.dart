@@ -129,4 +129,23 @@ class VacacionesService {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));
     }
   }
+
+  /// Fija el saldo inicial de vacaciones de un empleado (para migración).
+  /// [diasDisponibles] = días disponibles reales que el empleado tiene ahora.
+  Future<ApiResult<void>> setSaldoInicial({
+    required String empleadoId,
+    required double diasDisponibles,
+    String? notas,
+  }) async {
+    try {
+      final r = await _client.put('/vacaciones/saldo-inicial/$empleadoId', {
+        'dias_disponibles': diasDisponibles,
+        'notas': ?notas,
+      });
+      if (r.statusCode == 200) return const ApiResult.ok(null);
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
 }
