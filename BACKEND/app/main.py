@@ -470,6 +470,44 @@ def _pre_create_migrations():
             )
         """))
 
+        # ── Categorías de equipo (inventario propio). FK uuid → empresa ────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS categoria_equipo (
+                id         uuid PRIMARY KEY,
+                empresa_id uuid NOT NULL REFERENCES empresa(id),
+                nombre     VARCHAR(100) NOT NULL,
+                clase      VARCHAR(30),
+                activo     BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cat_equipo_empresa ON categoria_equipo (empresa_id)"))
+
+        # ── Plantillas de evaluación y sus criterios. FKs uuid → aquí ─────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS plantilla_evaluacion (
+                id          uuid PRIMARY KEY,
+                empresa_id  uuid NOT NULL REFERENCES empresa(id),
+                nombre      VARCHAR(150) NOT NULL,
+                descripcion TEXT,
+                tipo        VARCHAR(20) NOT NULL DEFAULT 'rrhh',
+                activo      BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at  TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at  TIMESTAMP
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS plantilla_evaluacion_criterio (
+                id           uuid PRIMARY KEY,
+                plantilla_id uuid NOT NULL REFERENCES plantilla_evaluacion(id) ON DELETE CASCADE,
+                criterio_id  uuid NOT NULL REFERENCES criterio_evaluacion(id),
+                peso         NUMERIC(5,2),
+                orden        INTEGER NOT NULL DEFAULT 0
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_plantilla_ev_empresa ON plantilla_evaluacion (empresa_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_plantilla_ev_crit ON plantilla_evaluacion_criterio (plantilla_id)"))
+
         # ── Correctivos + observaciones (Fase 4). FK uuid a proyecto_servicio ─
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS servicio_correctivo (
@@ -1793,6 +1831,29 @@ def _run_migrations():
         except Exception as e:
             conn.rollback()
             print(f"[migración] constraint chk_doc_laboral_tipo omitido: {e}")
+
+        # ── Evaluaciones: plantilla_id + notas_evaluador en evaluacion ─────────
+        conn.execute(text(
+            "ALTER TABLE evaluacion ADD COLUMN IF NOT EXISTS plantilla_id uuid REFERENCES plantilla_evaluacion(id)"
+        ))
+        conn.execute(text(
+            "ALTER TABLE evaluacion ADD COLUMN IF NOT EXISTS notas_evaluador TEXT"
+        ))
+        conn.commit()
+
+        # ── Equipo: categoria_equipo_id + DROP estado_operativo redundante ─────
+        conn.execute(text(
+            "ALTER TABLE equipo ADD COLUMN IF NOT EXISTS categoria_equipo_id uuid REFERENCES categoria_equipo(id)"
+        ))
+        # estado_operativo fue siempre 'operativo' (nunca se usó el rango parcial/inoperativo).
+        # Se elimina para dejar un único campo de estado: `estado`.
+        try:
+            conn.execute(text("ALTER TABLE equipo DROP CONSTRAINT IF EXISTS chk_equipo_estado_op"))
+            conn.execute(text("ALTER TABLE equipo DROP COLUMN IF EXISTS estado_operativo"))
+        except Exception as e:
+            conn.rollback()
+            print(f"[migración] DROP estado_operativo omitido: {e}")
+        conn.commit()
 
 
 @asynccontextmanager

@@ -32,8 +32,11 @@ class Equipo(Base):
     marca_id         = Column(String(36), ForeignKey("marca.id"), nullable=True)
     modelo_id        = Column(String(36), ForeignKey("modelo_equipo.id"), nullable=True)
     # FK al almacén donde reside el equipo/herramienta
-    almacen_id       = Column(String(36), ForeignKey("almacen.id"), nullable=True)
-    estado           = Column(String(20), nullable=False, default="operativo")  # operativo|en_mantenimiento|fuera_de_servicio|baja
+    almacen_id           = Column(String(36), ForeignKey("almacen.id"), nullable=True)
+    # Categoría general de inventario (herramienta de mano, equipo eléctrico, etc.)
+    # Distinta de tipo_equipo_id que es exclusivo del módulo de Equipos Intervenidos.
+    categoria_equipo_id  = Column(String(36), ForeignKey("categoria_equipo.id"), nullable=True)
+    estado               = Column(String(20), nullable=False, default="operativo")  # operativo|en_mantenimiento|fuera_de_servicio|baja
 
     # ── Logística (HU-15) ──────────────────────────────────────────────────
     # Taxonomía de activos propios de la empresa (3 clases):
@@ -60,8 +63,8 @@ class Equipo(Base):
     proxima_fecha_mantenimiento = Column(Date,       nullable=True)
 
     # ── Estado operativo / averiados (Fase 3) ──────────────────────────────
-    cantidad_inoperativa = Column(Integer,    nullable=False, default=0)
-    estado_operativo     = Column(String(20), nullable=True, default="operativo")  # operativo|parcial|inoperativo
+    cantidad_inoperativa = Column(Integer, nullable=False, default=0)
+    # estado_operativo eliminado — era redundante con `estado`; columna dropeada en migración.
 
     # ── Ingreso Directo: specs flexibles + datos de compra/asignación ───────
     # `atributos` guarda los campos específicos por tipo (procesador, RAM,

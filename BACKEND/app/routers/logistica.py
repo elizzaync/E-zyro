@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel as _BaseModel
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -33,6 +34,7 @@ from ..models.categoria_material import CategoriaMaterial
 from ..models.almacen import Almacen
 from ..models.equipo import Equipo
 from ..models.tipo_equipo import TipoEquipo
+from ..models.categoria_equipo import CategoriaEquipo
 from ..models.marca import Marca
 from ..models.modelo_equipo import ModeloEquipo
 from ..models.unidad_medida import UnidadMedida
@@ -520,6 +522,80 @@ def actualizar_procedimientos_tipo_equipo(
         "nombre":         te.nombre,
         "procedimientos": te.procedimientos_template,
     }
+
+
+# ── Categorías de equipo (inventario propio) ───────────────────────────────
+class CategoriaEquipoIn(_BaseModel):
+    nombre: str
+    clase: Optional[str] = None   # equipo|herramienta|equipo_tecnologico (orientativo)
+
+
+class CategoriaEquipoOut(_BaseModel):
+    id:     str
+    nombre: str
+    clase:  Optional[str] = None
+    activo: bool
+
+
+@router.get("/categorias-equipo", response_model=List[CategoriaEquipoOut])
+def listar_categorias_equipo(
+    clase: Optional[str] = Query(None),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    qry = db.query(CategoriaEquipo).filter(
+        CategoriaEquipo.empresa_id == payload["empresa_id"],
+        CategoriaEquipo.activo.is_(True),
+    )
+    if clase:
+        qry = qry.filter(CategoriaEquipo.clase == clase)
+    return [CategoriaEquipoOut(id=str(r.id), nombre=r.nombre, clase=r.clase, activo=bool(r.activo))
+            for r in qry.order_by(CategoriaEquipo.nombre).all()]
+
+
+@router.post("/categorias-equipo", response_model=CategoriaEquipoOut, status_code=201)
+def crear_categoria_equipo(body: CategoriaEquipoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    empresa_id = payload["empresa_id"]
+    nombre = body.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=422, detail="nombre es requerido")
+    existe = db.query(CategoriaEquipo).filter(
+        CategoriaEquipo.empresa_id == empresa_id,
+        func.lower(CategoriaEquipo.nombre) == nombre.lower(),
+    ).first()
+    if existe:
+        raise HTTPException(status_code=409, detail="Ya existe una categoría con ese nombre")
+    c = CategoriaEquipo(
+        id=str(_uuid.uuid4()), empresa_id=empresa_id,
+        nombre=nombre, clase=body.clase, activo=True,
+    )
+    db.add(c)
+    db.commit()
+    return CategoriaEquipoOut(id=str(c.id), nombre=c.nombre, clase=c.clase, activo=True)
+
+
+@router.put("/categorias-equipo/{cat_id}", response_model=CategoriaEquipoOut)
+def editar_categoria_equipo(cat_id: str, body: CategoriaEquipoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    c = db.query(CategoriaEquipo).filter(
+        CategoriaEquipo.id == cat_id, CategoriaEquipo.empresa_id == payload["empresa_id"]).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    c.nombre = body.nombre.strip()
+    c.clase  = body.clase
+    db.commit()
+    return CategoriaEquipoOut(id=str(c.id), nombre=c.nombre, clase=c.clase, activo=bool(c.activo))
+
+
+@router.delete("/categorias-equipo/{cat_id}", status_code=204)
+def eliminar_categoria_equipo(cat_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    _autorizar_logistica(payload)
+    c = db.query(CategoriaEquipo).filter(
+        CategoriaEquipo.id == cat_id, CategoriaEquipo.empresa_id == payload["empresa_id"]).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    c.activo = False
+    db.commit()
 
 
 # ── Marcas ─────────────────────────────────────────────────────────────────
@@ -2960,7 +3036,7 @@ def _form_schema(clase: str) -> FormSchemaOut:
         FormFieldDef(key="codigo", label="Código de Equipo", inputType="text", nativo=True, grupo=G_BAS, placeholder="Autogenerado si se deja vacío"),
         FormFieldDef(key="descripcion", label="Descripción / Ficha técnica", inputType="textarea", nativo=True, grupo=G_BAS),
         FormFieldDef(key="cantidad", label="Cantidad", inputType="number", required=True, nativo=True, grupo=G_BAS),
-        FormFieldDef(key="tipoId", label="Tipo de Equipo", inputType="select", required=True, nativo=True, grupo=G_BAS),
+        FormFieldDef(key="categoriaEquipoId", label="Categoría", inputType="select", required=False, nativo=True, grupo=G_BAS),
         FormFieldDef(key="marcaId", label="Marca", inputType="select", nativo=True, grupo=G_BAS),
         FormFieldDef(key="modeloId", label="Modelo", inputType="select", nativo=True, grupo=G_BAS),
         FormFieldDef(key="numeroSerie", label="Número de Serie", inputType="text", nativo=True, grupo=G_BAS),
@@ -3080,11 +3156,11 @@ def form_schema(
     empresa_id = payload["empresa_id"]
 
     catalogos = {
-        "categoriaId": db.query(CategoriaMaterial).filter(CategoriaMaterial.empresa_id == empresa_id).order_by(CategoriaMaterial.nombre).all(),
-        "unidadId":    db.query(UnidadMedida).filter(UnidadMedida.empresa_id == empresa_id).order_by(UnidadMedida.nombre).all(),
-        "marcaId":     db.query(Marca).filter(Marca.empresa_id == empresa_id).order_by(Marca.nombre).all(),
-        "tipoId":      db.query(TipoEquipo).filter(TipoEquipo.empresa_id == empresa_id).order_by(TipoEquipo.nombre).all(),
-        "almacenId":   db.query(Almacen).filter(Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)).order_by(Almacen.nombre).all(),
+        "categoriaId":       db.query(CategoriaMaterial).filter(CategoriaMaterial.empresa_id == empresa_id).order_by(CategoriaMaterial.nombre).all(),
+        "unidadId":          db.query(UnidadMedida).filter(UnidadMedida.empresa_id == empresa_id).order_by(UnidadMedida.nombre).all(),
+        "marcaId":           db.query(Marca).filter(Marca.empresa_id == empresa_id).order_by(Marca.nombre).all(),
+        "categoriaEquipoId": db.query(CategoriaEquipo).filter(CategoriaEquipo.empresa_id == empresa_id, CategoriaEquipo.activo.is_(True)).order_by(CategoriaEquipo.nombre).all(),
+        "almacenId":         db.query(Almacen).filter(Almacen.empresa_id == empresa_id, Almacen.activo.is_(True)).order_by(Almacen.nombre).all(),
     }
     for campo in schema.campos:
         if campo.opciones is None and campo.key in catalogos:
@@ -3281,9 +3357,14 @@ def ingreso_directo(
             else:
                 if not item.nombre:
                     raise HTTPException(status_code=422, detail="nombre es requerido para un equipo nuevo")
-                tipo_nombre = None
-                if item.tipoId:
-                    tipo_nombre = _tipo_or_404(db, empresa_id, item.tipoId).nombre
+                cat_equipo_nombre = None
+                if item.categoriaEquipoId:
+                    cat = db.query(CategoriaEquipo).filter(
+                        CategoriaEquipo.id == item.categoriaEquipoId,
+                        CategoriaEquipo.empresa_id == empresa_id,
+                    ).first()
+                    if cat:
+                        cat_equipo_nombre = cat.nombre
                 marca_nombre = item.marca
                 if item.marcaId:
                     marca_nombre = _marca_or_404(db, empresa_id, item.marcaId).nombre
@@ -3303,13 +3384,14 @@ def ingreso_directo(
                 eq = Equipo(
                     id=str(_uuid.uuid4()), empresa_id=empresa_id,
                     nombre=item.nombre.strip(), codigo=codigo, clase=clase,
-                    tipo_equipo_id=item.tipoId, tipo=tipo_nombre,
+                    categoria_equipo_id=item.categoriaEquipoId or None,
+                    tipo=cat_equipo_nombre,  # caché denorm del nombre de categoría
                     marca_id=item.marcaId, marca=marca_nombre,
                     modelo_id=item.modeloId, modelo=modelo_nombre,
                     numero_serie=(item.numeroSerie or "").strip() or None,
                     almacen_id=almacen_id, ubicacion=alm_obj.nombre if alm_obj else None,
                     ubicacion_id=item.ubicacionId or None, zona_id=item.zonaId or None, area_id=item.areaId or None,
-                    cantidad=cant, estado=item.estado or "operativo", estado_operativo="operativo",
+                    cantidad=cant, estado=item.estado or "operativo",
                     ficha_tecnica=(item.descripcion or "").strip() or None,
                     asignado_a=item.asignadoA, proveedor=body.proveedor,
                     precio_compra=precio, fecha_garantia=item.fechaGarantia,

@@ -798,8 +798,8 @@ class IngresoItemIn(BaseModel):
     unidadId:     Optional[str] = None
     stockMinimo:  Optional[int] = None
     # equipo / herramienta / equipo_tecnologico
-    tipoId:       Optional[str] = None     # tipo_equipo
-    marcaId:      Optional[str] = None
+    categoriaEquipoId: Optional[str] = None  # FK → categoria_equipo.id
+    marcaId:           Optional[str] = None
     modeloId:     Optional[str] = None
     marca:        Optional[str] = None     # texto libre (materiales / sin catálogo)
     numeroSerie:  Optional[str] = None
