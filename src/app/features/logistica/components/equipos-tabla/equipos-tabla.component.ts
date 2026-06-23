@@ -5,6 +5,8 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { EquipoFormModalComponent } from '../equipo-form-modal/equipo-form-modal.component';
+import { EquipoMovimientosModalComponent } from '../equipo-movimientos-modal/equipo-movimientos-modal.component';
+import { RellenarStockModalComponent } from '../rellenar-stock-modal/rellenar-stock-modal.component';
 import {
   EquipoHerramienta, ClaseArticulo, EstadoEquipo, FrecuenciaMantenimiento,
   EquipoStockDesglose,
@@ -13,7 +15,7 @@ import {
 @Component({
   selector: 'app-equipos-tabla',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, EquipoFormModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, EquipoFormModalComponent, EquipoMovimientosModalComponent, RellenarStockModalComponent],
   templateUrl: './equipos-tabla.component.html',
   styleUrls: ['./equipos-tabla.component.css']
 })
@@ -48,6 +50,13 @@ export class EquiposTablaComponent implements OnInit {
   tooltipEquipoId:   string | null   = null;
   tooltipDesglose:   EquipoStockDesglose | null = null;
   tooltipCargando    = false;
+
+  // Historial de movimientos
+  movimientosEquipoId:   string | null = null;
+  movimientosEquipoNombre = '';
+
+  // Rellenar stock
+  showRellenarStock = false;
 
   ngOnInit(): void { this.cargar(); }
 
@@ -128,6 +137,18 @@ export class EquiposTablaComponent implements OnInit {
   tieneIncidencias(e: EquipoHerramienta): boolean {
     return e.estado === 'en_mantenimiento' || e.estado === 'fuera_de_servicio';
   }
+
+  onRellenarStockClosed(r: { guardado: boolean }): void {
+    this.showRellenarStock = false;
+    if (r.guardado) { this.cargar(); this.cambio.emit(); }
+  }
+
+  // ── Historial ──
+  verHistorial(e: EquipoHerramienta): void {
+    this.movimientosEquipoId     = e.id;
+    this.movimientosEquipoNombre = e.nombre;
+  }
+  cerrarHistorial(): void { this.movimientosEquipoId = null; this.movimientosEquipoNombre = ''; }
 
   // ── CRUD ──
   abrirCrear(): void { this.equipoEnEdicion = null; this.showModal = true; }

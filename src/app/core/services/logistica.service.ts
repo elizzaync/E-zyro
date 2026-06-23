@@ -446,4 +446,35 @@ export class LogisticaService {
   getMantenimientoGlobal(): Observable<any[]> {
     return this.http.get<any[]>(`${this.api}/logistica/mantenimiento`);
   }
+
+  // ── Historial de movimientos de un equipo/herramienta ─────────────────
+  getMovimientosEquipo(equipoId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/logistica/equipos/${equipoId}/movimientos`);
+  }
+
+  // ── Firmas digitales de un requerimiento ──────────────────────────────
+  getFirmasRequerimiento(reqId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/logistica/requerimientos/${reqId}/firmas`);
+  }
+
+  verificarFirma(eventoId: string): Observable<any> {
+    return this.http.get<any>(`${this.api}/logistica/firmas/${eventoId}/verificar`);
+  }
+
+  // ── Búsqueda por código de artículo ───────────────────────────────────
+  getArticuloPorCodigo(codigo: string): Observable<any> {
+    return this.http.get<any>(`${this.api}/logistica/articulos/by-codigo/${encodeURIComponent(codigo)}`);
+  }
+
+  // ── Ingreso directo de inventario ─────────────────────────────────────
+  ingresarDirecto(body: any): Observable<any> {
+    return this.http.post<any>(`${this.api}/logistica/ingreso-directo`, body);
+  }
+
+  // ── Ajuste / reposición de stock de material ──────────────────────────
+  ajustarStockMaterial(materialId: string, cantidad: number, motivo: string): Observable<any> {
+    return this.http.post<any>(`${this.api}/logistica/inventario/ajuste`, {
+      material_id: materialId, tipo: 'entrada', cantidad, motivo,
+    });
+  }
 }

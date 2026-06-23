@@ -47,6 +47,7 @@ export class OperacionesServiciosListaComponent implements OnInit {
   isLoading    = true;
   errorMessage: string | null = null;
 
+
   filtros      = ['Todos', 'Pendiente', 'En_Proceso', 'Completado'];
   filtroActual = 'Todos';
 

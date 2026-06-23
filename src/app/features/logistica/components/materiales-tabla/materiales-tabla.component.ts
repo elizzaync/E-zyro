@@ -5,12 +5,13 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { MaterialFormModalComponent } from '../material-form-modal/material-form-modal.component';
+import { RellenarStockModalComponent } from '../rellenar-stock-modal/rellenar-stock-modal.component';
 import { MaterialLog } from '../../logistica.models';
 
 @Component({
   selector: 'app-materiales-tabla',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, MaterialFormModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, MaterialFormModalComponent, RellenarStockModalComponent],
   templateUrl: './materiales-tabla.component.html',
   styleUrls: ['./materiales-tabla.component.css']
 })
@@ -36,6 +37,9 @@ export class MaterialesTablaComponent implements OnInit {
   showModal = false;
   guardando = false;
   materialEnEdicion: MaterialLog | null = null;
+
+  // Modal rellenar stock
+  showRellenarStock = false;
 
   // Confirmación de eliminación
   materialAEliminar: MaterialLog | null = null;
@@ -87,6 +91,11 @@ export class MaterialesTablaComponent implements OnInit {
   }
 
   stockBajo(m: MaterialLog): boolean { return m.cantidad <= m.stockMinimo; }
+
+  onRellenarStockClosed(r: { guardado: boolean }): void {
+    this.showRellenarStock = false;
+    if (r.guardado) { this.cargar(); this.cambio.emit(); }
+  }
 
   // ── CRUD ──
   abrirCrear(): void { this.materialEnEdicion = null; this.showModal = true; }

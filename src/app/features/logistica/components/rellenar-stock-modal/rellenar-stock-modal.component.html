@@ -1,0 +1,105 @@
+<app-modal
+  [open]="true"
+  [title]="titulo"
+  [subtitle]="subtitulo"
+  maxWidth="640px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrar()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+
+  <div class="rs-body">
+
+    @if (cargando) {
+      <div class="rs-loading"><app-spinner></app-spinner><span>Cargando…</span></div>
+    } @else {
+
+      <!-- Buscador + motivo -->
+      <div class="rs-top">
+        <div class="rs-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" [(ngModel)]="busqueda" placeholder="Buscar por nombre o código…">
+        </div>
+        <div class="rs-motivo-field">
+          <label class="rs-label">Motivo</label>
+          <input class="rs-input" type="text" [(ngModel)]="motivo" placeholder="Motivo del ajuste">
+        </div>
+      </div>
+
+      <!-- Tabla de items -->
+      <div class="rs-table-wrap">
+        <table class="rs-table">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th class="th-num">Stock actual</th>
+              <th class="th-num">Agregar +</th>
+              <th class="th-num">Nuevo total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of filasFiltradas; track f.id) {
+            <tr [class.fila-activa]="f.delta > 0">
+              <td class="td-codigo">{{ f.codigo }}</td>
+              <td class="td-nombre">{{ f.nombre }}</td>
+              <td class="th-num td-stock">{{ f.cantidadActual }}</td>
+              <td class="th-num">
+                <input class="input-delta"
+                  type="number" min="0" step="1"
+                  [(ngModel)]="f.delta"
+                  [class.delta-positivo]="f.delta > 0">
+              </td>
+              <td class="th-num td-nuevo" [class.td-nuevo--activo]="f.delta > 0">
+                {{ f.cantidadActual + (f.delta || 0) }}
+              </td>
+            </tr>
+            }
+            @if (filasFiltradas.length === 0) {
+            <tr>
+              <td colspan="5" class="td-empty">Sin resultados para "{{ busqueda }}"</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (errorMsg) {
+      <div class="rs-error">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        {{ errorMsg }}
+      </div>
+      }
+
+      <div class="rs-footer">
+        <span class="rs-resumen">
+          @if (totalConDelta > 0) { {{ totalConDelta }} ítem{{ totalConDelta !== 1 ? 's' : '' }} con cambios }
+          @else { Ningún cambio aún }
+        </span>
+        <div class="rs-actions">
+          @if (totalConDelta > 0) {
+            <button class="btn-limpiar" (click)="limpiar()">Limpiar</button>
+          }
+          <button class="btn-cancel" (click)="cerrar()">Cancelar</button>
+          <button class="btn-save" (click)="guardar()" [disabled]="guardando || totalConDelta === 0">
+            @if (guardando) { <app-spinner></app-spinner> Guardando… }
+            @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Aplicar Stock ({{ totalConDelta }})
+            }
+          </button>
+        </div>
+      </div>
+    }
+
+  </div>
+</app-modal>

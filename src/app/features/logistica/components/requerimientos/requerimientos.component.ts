@@ -69,6 +69,11 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
   // ── Reporte / comprobante ──
   reqReporte: Requerimiento | null = null;
 
+  // ── Panel de firmas ──
+  firmasReqId:  string | null = null;
+  firmasData:   any[]         = [];
+  firmasCargando = false;
+
   ngOnInit(): void { this.cargar(); }
 
   ngOnDestroy(): void { this._clearTimer(this.padFirma); }
@@ -404,6 +409,24 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
   abrirReporte(r: Requerimiento): void { this.reqReporte = r; }
   cerrarReporte(): void { this.reqReporte = null; }
   imprimirReporte(): void { window.print(); }
+
+  // ── Firmas ──
+  verFirmas(r: Requerimiento): void {
+    this.firmasReqId  = r.id;
+    this.firmasData   = [];
+    this.firmasCargando = true;
+    this.svc.getFirmasRequerimiento(r.id).subscribe({
+      next:  d => { this.firmasData = d; this.firmasCargando = false; },
+      error: () => { this.firmasCargando = false; this.toast.mostrar('Error al cargar firmas.', 'error'); },
+    });
+  }
+  cerrarFirmas(): void { this.firmasReqId = null; this.firmasData = []; }
+  formatFechaFirma(f: string | null): string {
+    if (!f) return '—';
+    const d = new Date(f);
+    return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
+      + ' ' + d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+  }
 
   volverInventario(): void { this.router.navigate(['/logistica']); }
 

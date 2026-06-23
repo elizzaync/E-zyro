@@ -1,0 +1,124 @@
+<app-modal
+  [open]="true"
+  title="Ingreso Directo de Inventario"
+  subtitle="Registra artículos al stock sin necesidad de un requerimiento previo"
+  maxWidth="680px"
+  iconBg="rgba(141,198,63,0.12)"
+  iconColor="#5a8a20"
+  (closeModal)="cerrar()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+    <path d="M2 17l10 5 10-5"/>
+    <path d="M2 12l10 5 10-5"/>
+  </svg>
+
+  <div class="id-body">
+
+    <!-- Búsqueda por código -->
+    <div class="id-section">
+      <label class="id-label">Buscar artículo por código</label>
+      <div class="id-code-row">
+        <input class="id-input" type="text" [(ngModel)]="codigoBusqueda"
+          placeholder="Ej: MAT-0042 o EQ-0010"
+          (keydown.enter)="buscarPorCodigo()">
+        <button class="btn-buscar" (click)="buscarPorCodigo()" [disabled]="buscando || !codigoBusqueda.trim()">
+          @if (buscando) { <app-spinner></app-spinner> } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          }
+          Buscar
+        </button>
+      </div>
+      @if (busquedaError) { <span class="id-field-error">{{ busquedaError }}</span> }
+    </div>
+
+    <div class="id-divider"><span>o agrega manualmente</span></div>
+
+    <!-- Lista de ítems -->
+    <div class="id-items">
+      @for (item of items; track $index) {
+      <div class="id-item">
+        <div class="id-item-header">
+          <span class="id-item-num">#{{ $index + 1 }}</span>
+          @if (items.length > 1) {
+          <button class="btn-quitar" (click)="quitarItem($index)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+          }
+        </div>
+        <div class="id-row-3">
+          <div class="id-field">
+            <label class="id-label">Clase *</label>
+            <select class="id-select" [(ngModel)]="item.clase">
+              <option value="material">Material</option>
+              <option value="equipo">Equipo</option>
+              <option value="herramienta">Herramienta</option>
+            </select>
+          </div>
+          <div class="id-field id-field--wide">
+            <label class="id-label">Nombre *</label>
+            <input class="id-input" type="text" [(ngModel)]="item.nombre" placeholder="Nombre del artículo">
+          </div>
+          <div class="id-field id-field--sm">
+            <label class="id-label">Cantidad *</label>
+            <input class="id-input" type="number" [(ngModel)]="item.cantidad" min="1" step="1">
+          </div>
+          <div class="id-field id-field--sm">
+            <label class="id-label">Precio unit.</label>
+            <input class="id-input" type="number" [(ngModel)]="item.precioCompra" min="0" step="0.01" placeholder="0.00">
+          </div>
+        </div>
+      </div>
+      }
+    </div>
+
+    <button class="btn-agregar-item" (click)="agregarItem()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Agregar otro ítem
+    </button>
+
+    <div class="id-divider"></div>
+
+    <!-- Datos generales -->
+    <div class="id-row-2">
+      <div class="id-field">
+        <label class="id-label">Proveedor</label>
+        <input class="id-input" type="text" [(ngModel)]="proveedor" placeholder="Nombre del proveedor (opcional)">
+      </div>
+      <div class="id-field">
+        <label class="id-label">Notas</label>
+        <input class="id-input" type="text" [(ngModel)]="notas" placeholder="Observaciones (opcional)">
+      </div>
+    </div>
+
+    @if (errorMsg) {
+    <div class="id-error">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      {{ errorMsg }}
+    </div>
+    }
+
+    <div class="id-footer-actions">
+      <button class="btn-cancel" (click)="cerrar()">Cancelar</button>
+      <button class="btn-save" (click)="guardar()" [disabled]="guardando">
+        @if (guardando) { <app-spinner></app-spinner> Registrando… }
+        @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+          </svg>
+          Registrar Ingreso ({{ items.length }} ítem{{ items.length !== 1 ? 's' : '' }})
+        }
+      </button>
+    </div>
+
+  </div>
+</app-modal>

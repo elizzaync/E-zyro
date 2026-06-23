@@ -1,0 +1,61 @@
+<app-modal
+  [open]="true"
+  [title]="equipoNombre || 'Historial de Movimientos'"
+  subtitle="Registro de entradas, salidas y eventos del equipo"
+  maxWidth="620px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#3b82f6"
+  (closeModal)="cerrar()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+  </svg>
+
+  <div class="mov-body">
+    @if (cargando) {
+      <div class="mov-loading"><app-spinner></app-spinner><span>Cargando historial…</span></div>
+    } @else if (error) {
+      <div class="mov-empty mov-error">{{ error }}</div>
+    } @else if (movimientos.length === 0) {
+      <div class="mov-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+        </svg>
+        <p>Sin movimientos registrados aún.</p>
+      </div>
+    } @else {
+      <div class="mov-timeline">
+        @for (m of movimientos; track m.id) {
+        <div class="mov-item">
+          <div class="mov-icon" [class]="'mov-icon--' + tipoIcono(m.tipo)">
+            @if (tipoIcono(m.tipo) === 'in') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="17 11 12 6 7 11"/><line x1="12" y1="6" x2="12" y2="18"/></svg>
+            } @else if (tipoIcono(m.tipo) === 'out') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="7 13 12 18 17 13"/><line x1="12" y1="18" x2="12" y2="6"/></svg>
+            } @else if (tipoIcono(m.tipo) === 'maint') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            } @else if (tipoIcono(m.tipo) === 'ret') {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.68"/></svg>
+            } @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            }
+          </div>
+          <div class="mov-content">
+            <div class="mov-header-row">
+              <span class="mov-tipo-badge" [class]="'badge--' + tipoIcono(m.tipo)">{{ tipoLabel(m.tipo) }}</span>
+              <span class="mov-fecha">{{ formatFecha(m.fecha) }}</span>
+            </div>
+            <p class="mov-detalle">{{ m.detalle || '—' }}</p>
+            @if (m.responsable_nombre) {
+              <span class="mov-responsable">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                {{ m.responsable_nombre }}
+              </span>
+            }
+          </div>
+        </div>
+        }
+      </div>
+    }
+  </div>
+</app-modal>

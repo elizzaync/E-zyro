@@ -65,32 +65,30 @@ export class SalidasComponent implements OnInit, OnDestroy {
   abrirDetalle(s: Salida): void  { this.salidaDetalle = s; document.body.style.overflow = 'hidden'; }
   cerrarDetalle(): void          { this.salidaDetalle = null; document.body.style.overflow = ''; }
 
-  async abrirReporte(s: Salida): Promise<void> {
+  abrirReporte(s: Salida): void {
     const ref = s.id.slice(-8).toUpperCase();
-    const div = document.createElement('div');
-    div.style.pointerEvents = 'none';
-    div.innerHTML = this.generarHtmlReporte(s);
-    document.body.appendChild(div);
-
-    await new Promise<void>(resolve =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    );
-
-    try {
-      const blob: Blob = await (window as any)['html2pdf']().set({
-        margin: 20,
-        filename: `reporte-salida-${ref}.pdf`,
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-      }).from(div).outputPdf('blob');
-
-      document.body.removeChild(div);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-    } catch {
-      document.body.removeChild(div);
-      this.toast.mostrar('No se pudo generar el PDF.', 'error');
+    const win = window.open('', '_blank');
+    if (!win) {
+      this.toast.mostrar('Permite ventanas emergentes en el navegador para generar el reporte.', 'error');
+      return;
     }
+    const body = this.generarHtmlReporte(s);
+    win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Salida-${ref}</title>
+  <style>
+    @media print {
+      body { margin: 0; padding: 20pt; }
+      @page { margin: 20pt; }
+    }
+    body { font-family: Arial, sans-serif; }
+  </style>
+</head>
+<body style="padding:24px">${body}<script>window.onload=function(){window.print();}<\/script></body>
+</html>`);
+    win.document.close();
   }
 
   get totalPaginas(): number { return Math.ceil(this.total / this.pageSize); }

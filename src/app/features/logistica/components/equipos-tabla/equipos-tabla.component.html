@@ -24,6 +24,13 @@
       <option value="baja">De baja</option>
     </select>
 
+    <button class="tt-restock" (click)="showRellenarStock = true" title="Rellenar stock de varios equipos a la vez">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Rellenar Stock
+    </button>
+
     <button class="tt-nuevo" (click)="abrirCrear()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -161,6 +168,11 @@
             </td>
             <td class="th-acc">
               <div class="acciones">
+                <button class="btn-icon btn-icon-hist" (click)="verHistorial(e)" title="Ver historial de movimientos">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/>
+                  </svg>
+                </button>
                 <button class="btn-icon" (click)="abrirEditar(e)" title="Editar">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -194,6 +206,23 @@
     </div>
   }
 </section>
+
+<!-- ── Modal rellenar stock ── -->
+@if (showRellenarStock) {
+  <app-rellenar-stock-modal
+    tipo="equipo"
+    (closed)="onRellenarStockClosed($event)">
+  </app-rellenar-stock-modal>
+}
+
+<!-- ── Modal historial de movimientos ── -->
+@if (movimientosEquipoId) {
+  <app-equipo-movimientos-modal
+    [equipoId]="movimientosEquipoId"
+    [equipoNombre]="movimientosEquipoNombre"
+    (closed)="cerrarHistorial()">
+  </app-equipo-movimientos-modal>
+}
 
 <!-- ── Modal crear / editar ── -->
 @if (showModal) {

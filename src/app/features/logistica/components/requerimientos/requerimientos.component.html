@@ -131,6 +131,14 @@
               </svg>
               Ver solicitud
             </button>
+            @if (cuentaEstado(grupo, 'entregado') > 0 || cuentaEstado(grupo, 'aprobado') > 0) {
+              <button class="svc-btn-firmas" (click)="verFirmas(grupo.reqs[0])">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
+                  <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+                </svg>
+                Firmas
+              </button>
+            }
             @if (cuentaEstado(grupo, 'entregado') > 0) {
               <button class="svc-btn-pdf" (click)="generarPDFSalida(grupo)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px">
@@ -698,6 +706,53 @@
 
       </div><!-- /.rm-comprobante -->
     </div><!-- /.rm-comprobante-scroll -->
+  </div>
+</div>
+}
+
+<!-- ═══════════════════════ PANEL FIRMAS ═══════════════════════ -->
+@if (firmasReqId) {
+<div class="rm-overlay" (click)="cerrarFirmas()">
+  <div class="rm-modal rm-modal-firmas" (click)="$event.stopPropagation()">
+    <header class="rm-header">
+      <div>
+        <h2 class="rm-title">Registro de Firmas</h2>
+        <p class="rm-subtitle">Requerimiento {{ firmasReqId.slice(0,8).toUpperCase() }}</p>
+      </div>
+      <button class="rm-close" (click)="cerrarFirmas()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="firmas-body">
+      @if (firmasCargando) {
+        <div class="firmas-empty"><app-spinner></app-spinner><span>Cargando firmas…</span></div>
+      } @else if (firmasData.length === 0) {
+        <div class="firmas-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="42" height="42">
+            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+          </svg>
+          <p>No hay firmas registradas aún.</p>
+        </div>
+      } @else {
+        <div class="firmas-list">
+          @for (f of firmasData; track f.id) {
+          <div class="firma-item">
+            <div class="firma-meta">
+              <span class="firma-tipo-badge">{{ f.tipo ?? f.rol ?? 'Firma' }}</span>
+              <span class="firma-fecha">{{ formatFechaFirma(f.fecha ?? f.created_at) }}</span>
+            </div>
+            <p class="firma-nombre">{{ f.nombre ?? f.firmante_nombre ?? '—' }}</p>
+            @if (f.url || f.firma_url) {
+              <img class="firma-img" [src]="f.url ?? f.firma_url" alt="Firma">
+            }
+          </div>
+          }
+        </div>
+      }
+    </div>
   </div>
 </div>
 }

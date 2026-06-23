@@ -26,6 +26,10 @@ export class OperacionesService {
     return this.http.get<any[]>(`${this.api}/operaciones/proyecto/${proyectoId}/servicios`);
   }
 
+  getEquiposProyecto(proyectoId: string): Observable<any[]> {
+    return this.http.get<any[]>(`${this.api}/operaciones/proyecto/${proyectoId}/equipos`);
+  }
+
   getDetalleServicio(id: string): Observable<any> {
     return this.http.get(`${this.api}/operaciones/servicio/${id}`);
   }
