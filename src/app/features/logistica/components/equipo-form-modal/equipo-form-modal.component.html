@@ -47,19 +47,86 @@
             </button>
           </label>
           @if (!showAddTipo) {
-            <select class="lf-input" formControlName="tipoId">
-              <option value="">— Sin asignar —</option>
-              @for (t of tipos; track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
-            </select>
+            <div class="lf-select-row">
+              <select class="lf-input lf-input-flex" formControlName="tipoId">
+                <option value="">— Sin asignar —</option>
+                @for (t of tipos; track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+              </select>
+              @if (ctrl('tipoId')?.value) {
+                <button type="button" class="lf-btn-procs"
+                        (click)="abrirProcedimientos()"
+                        title="Editar procedimientos de este tipo">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+                    <rect x="9" y="3" width="6" height="4" rx="1"/>
+                    <path d="M9 12h6M9 16h4"/>
+                  </svg>
+                </button>
+              }
+            </div>
           } @else {
-            <div class="lf-add-row">
+            <!-- ── Formulario nuevo tipo con procedimientos obligatorios ── -->
+            <div class="lf-tipo-nuevo-wrap">
+
+              <!-- Nombre del tipo -->
               <input class="lf-input" [(ngModel)]="nuevoTipo" [ngModelOptions]="{ standalone: true }"
-                     placeholder="Ej: Instrumento de medición">
-              <button type="button" class="lf-add-btn" (click)="confirmarNuevoTipo()"
-                      [disabled]="!nuevoTipo.trim() || creandoTipo">
-                @if (creandoTipo) { <app-spinner [size]="14" theme="light"></app-spinner> }
-                @else { Guardar }
-              </button>
+                     placeholder="Ej: Instrumento de medición" autocomplete="off">
+
+              <!-- Mini-lista de procedimientos -->
+              <div class="lf-procs-header">
+                <span class="lf-procs-label">Procedimientos
+                  <span class="lf-procs-req">* obligatorio</span>
+                </span>
+                <span class="lf-procs-count">{{ nuevosProcsTipo.length }} agregado(s)</span>
+              </div>
+
+              @for (p of nuevosProcsTipo; track $index; let i = $index) {
+                <div class="lf-proc-row">
+                  <span class="lf-proc-num">{{ i + 1 }}</span>
+                  <div class="lf-proc-body">
+                    <span class="lf-proc-nombre">{{ p.nombre }}</span>
+                    @if (p.descripcion) { <span class="lf-proc-desc">{{ p.descripcion }}</span> }
+                  </div>
+                  <button type="button" class="lf-proc-del" (click)="quitarProcNuevoTipo(i)" title="Quitar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              }
+
+              <!-- Input para agregar un procedimiento -->
+              <div class="lf-proc-add-row">
+                <input class="lf-input lf-input-sm" [(ngModel)]="npNombre"
+                       [ngModelOptions]="{ standalone: true }"
+                       placeholder="Nombre del paso (Enter para agregar)"
+                       (keydown.enter)="agregarProcNuevoTipo()">
+                <input class="lf-input lf-input-sm" [(ngModel)]="npDesc"
+                       [ngModelOptions]="{ standalone: true }"
+                       placeholder="Descripción (opcional)"
+                       (keydown.enter)="agregarProcNuevoTipo()">
+                <button type="button" class="lf-proc-add-btn" (click)="agregarProcNuevoTipo()"
+                        [disabled]="!npNombre.trim()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+              </div>
+
+              @if (nuevosProcsTipo.length === 0) {
+                <p class="lf-procs-warn">Debes agregar al menos un procedimiento para guardar el tipo.</p>
+              }
+
+              <!-- Acción final -->
+              <div class="lf-tipo-nuevo-footer">
+                <button type="button" class="lf-add-btn"
+                        (click)="confirmarNuevoTipo()"
+                        [disabled]="!nuevoTipo.trim() || nuevosProcsTipo.length === 0 || creandoTipo">
+                  @if (creandoTipo) { <app-spinner [size]="14" theme="light"></app-spinner> Guardando… }
+                  @else { Guardar tipo }
+                </button>
+              </div>
+
             </div>
           }
         </div>
@@ -209,3 +276,10 @@
 
   </div>
 </div>
+
+@if (showProcedimientos) {
+  <app-tipo-equipo-procedimientos-modal
+    [tipoIdInicial]="ctrl('tipoId')?.value"
+    (closed)="showProcedimientos = false">
+  </app-tipo-equipo-procedimientos-modal>
+}

@@ -1,0 +1,275 @@
+<div class="dsst-layout fade-in">
+
+  <!-- ── Header ── -->
+  <div class="dsst-header">
+    <div>
+      <h2 class="dsst-title">Homologación / SST</h2>
+      <p class="dsst-sub">Repositorio de documentos de cumplimiento — PETAR, ATS y Homologaciones</p>
+    </div>
+    <button class="dsst-btn-nuevo" (click)="abrirNuevo()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Subir documento
+    </button>
+  </div>
+
+  <!-- ── Tabs ── -->
+  <div class="dsst-tabs">
+    <button class="dsst-tab" [class.dsst-tab-active]="tab === 'homologacion'" (click)="setTab('homologacion')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      Homologación
+    </button>
+    <button class="dsst-tab" [class.dsst-tab-active]="tab === 'petar'" (click)="setTab('petar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      PETAR
+    </button>
+    <button class="dsst-tab" [class.dsst-tab-active]="tab === 'ats'" (click)="setTab('ats')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+      ATS
+    </button>
+  </div>
+
+  <!-- ── Buscador ── -->
+  <div class="dsst-toolbar">
+    <div class="dsst-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" [(ngModel)]="busqueda"
+             placeholder="Buscar por título, cliente, entidad o código…">
+    </div>
+    <span class="dsst-count">{{ docsFiltrados.length }} documento{{ docsFiltrados.length !== 1 ? 's' : '' }}</span>
+  </div>
+
+  <!-- ── Contenido ── -->
+  @if (cargando) {
+    <div class="dsst-estado"><app-spinner [size]="32"></app-spinner><span>Cargando…</span></div>
+  } @else if (docsFiltrados.length === 0) {
+    <div class="dsst-estado">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="48" height="48">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <p>No hay documentos de {{ tabLabel }} registrados.</p>
+      <button class="dsst-btn-nuevo" (click)="abrirNuevo()">Subir el primero</button>
+    </div>
+  } @else {
+    <div class="dsst-grid">
+      @for (d of docsFiltrados; track d.id) {
+        <div class="dsst-card">
+
+          <!-- Miniatura / ícono -->
+          <div class="dsst-card-thumb" [class.dsst-thumb-img]="esImagen(d) && d.archivo_url">
+            @if (esImagen(d) && d.archivo_url) {
+              <img [src]="d.archivo_url" alt="preview" />
+            } @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              @if (d.formato) { <span class="dsst-fmt">{{ d.formato | uppercase }}</span> }
+            }
+          </div>
+
+          <!-- Info -->
+          <div class="dsst-card-body">
+            <div class="dsst-card-top">
+              <h3 class="dsst-card-title">{{ d.titulo }}</h3>
+              <span class="dsst-badge" [class]="'dsst-badge--' + d.estado">{{ estadoLabel(d.estado) }}</span>
+            </div>
+
+            @if (d.cliente_nombre) {
+              <p class="dsst-card-meta">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                {{ d.cliente_nombre }}
+              </p>
+            }
+            @if (d.entidad_emisora) {
+              <p class="dsst-card-meta">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                  <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+                </svg>
+                {{ d.entidad_emisora }}
+              </p>
+            }
+            @if (d.fecha_vencimiento) {
+              <p class="dsst-card-meta" [class.dsst-meta-warn]="d.estado === 'vencida'" [class.dsst-meta-alert]="d.estado === 'por_vencer'">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Vence: {{ d.fecha_vencimiento }}
+                @if (d.dias_para_vencer !== null && d.estado === 'por_vencer') {
+                  <strong>· {{ d.dias_para_vencer }}d</strong>
+                }
+                @if (d.estado === 'vencida') { <strong>· VENCIDO</strong> }
+              </p>
+            }
+          </div>
+
+          <!-- Acciones -->
+          <div class="dsst-card-actions">
+            @if (d.archivo_url) {
+              <button class="dsst-act dsst-act-view" (click)="abrirArchivo(d.archivo_url)" title="Ver / descargar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            }
+            <button class="dsst-act dsst-act-edit" (click)="abrirEditar(d)" title="Editar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="dsst-act dsst-act-del" (click)="pedirEliminar(d)" title="Eliminar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+              </svg>
+            </button>
+          </div>
+
+        </div>
+      }
+    </div>
+  }
+
+</div>
+
+<!-- ══ MODAL SUBIR / EDITAR ══════════════════════════════════════════════════ -->
+@if (showForm) {
+  <div class="modal-backdrop-pro dsst-backdrop" (click)="cerrarForm()"></div>
+  <div class="dsst-modal" (click)="$event.stopPropagation()">
+
+    <div class="dsst-modal-header">
+      <div class="dsst-modal-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div>
+        <h3 class="dsst-modal-title">{{ editandoId ? 'Editar' : 'Subir' }} {{ tabLabel }}</h3>
+        <p class="dsst-modal-sub">Formatos aceptados: PDF, PNG, JPG · máx. 15 MB</p>
+      </div>
+      <button class="dsst-modal-close" (click)="cerrarForm()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="dsst-modal-body">
+
+      <!-- Archivo primero (zona drag visual) -->
+      <div class="dsst-upload-zone">
+        <input type="file" id="archivo-input" accept=".pdf,.png,.jpg,.jpeg"
+               (change)="onArchivo($event)" hidden>
+        <label for="archivo-input" class="dsst-upload-label">
+          @if (form.archivoNombre) {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="dsst-upload-icon dsst-upload-ok">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span class="dsst-upload-name">{{ form.archivoNombre }}</span>
+            <span class="dsst-upload-change">Cambiar archivo</span>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="dsst-upload-icon">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span class="dsst-upload-text">Haz clic para seleccionar archivo</span>
+            <span class="dsst-upload-hint">PDF · PNG · JPG</span>
+          }
+        </label>
+        @if (archivoError) { <p class="dsst-upload-error">{{ archivoError }}</p> }
+      </div>
+
+      <!-- Campos del formulario -->
+      <div class="dsst-form-grid">
+        <div class="dsst-field dsst-field-full">
+          <label>Título <span class="dsst-req">*</span></label>
+          <input type="text" [(ngModel)]="form.titulo" placeholder="Ej: Homologación Talma 2025" />
+        </div>
+
+        <div class="dsst-field">
+          <label>Cliente</label>
+          <select [(ngModel)]="form.clienteId">
+            <option value="">— Sin asignar —</option>
+            @for (c of clientes; track c.id) {
+              <option [value]="c.id">{{ c.nombre }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="dsst-field">
+          <label>Entidad emisora</label>
+          <input type="text" [(ngModel)]="form.entidadEmisora" placeholder="Ej: SUNAFIL, Cliente, Empresa" />
+        </div>
+
+        <div class="dsst-field">
+          <label>Código / N° de documento</label>
+          <input type="text" [(ngModel)]="form.codigo" placeholder="Ej: HOM-2025-001" />
+        </div>
+
+        <div class="dsst-field">
+          <label>Fecha de emisión</label>
+          <input type="date" [(ngModel)]="form.fechaEmision" />
+        </div>
+
+        <div class="dsst-field">
+          <label>Fecha de vencimiento</label>
+          <input type="date" [(ngModel)]="form.fechaVencimiento" />
+        </div>
+
+        <div class="dsst-field dsst-field-full">
+          <label>Observaciones</label>
+          <textarea rows="2" [(ngModel)]="form.observaciones" placeholder="Notas adicionales…"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="dsst-modal-footer">
+      <button class="dsst-btn-cancel" (click)="cerrarForm()">Cancelar</button>
+      <button class="dsst-btn-save" (click)="guardar()" [disabled]="guardando">
+        @if (guardando) { <app-spinner [size]="15" theme="light"></app-spinner> Guardando… }
+        @else { {{ editandoId ? 'Guardar cambios' : 'Subir documento' }} }
+      </button>
+    </div>
+
+  </div>
+}
+
+<!-- ══ CONFIRMAR ELIMINAR ═════════════════════════════════════════════════════ -->
+@if (docAEliminar) {
+  <div class="modal-backdrop-pro" (click)="cancelarEliminar()"></div>
+  <div class="dsst-confirm">
+    <div class="dsst-confirm-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+        <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+      </svg>
+    </div>
+    <h3>Eliminar documento</h3>
+    <p>¿Seguro que deseas eliminar <strong>{{ docAEliminar.titulo }}</strong>? El archivo también se borrará de la nube.</p>
+    <div class="dsst-confirm-actions">
+      <button class="dsst-btn-cancel" (click)="cancelarEliminar()">Cancelar</button>
+      <button class="dsst-btn-del" (click)="confirmarEliminar()" [disabled]="eliminando">
+        @if (eliminando) { <app-spinner [size]="14" theme="light"></app-spinner> } @else { Eliminar }
+      </button>
+    </div>
+  </div>
+}

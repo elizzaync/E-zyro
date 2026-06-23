@@ -1,0 +1,263 @@
+<div class="modal-backdrop-pro pm-backdrop" (click)="cerrar()"></div>
+<div class="pm-dialog" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="pm-header">
+      <div class="pm-header-left">
+        <div class="pm-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+            <rect x="9" y="3" width="6" height="4" rx="1"/>
+            <path d="M9 12h6M9 16h4"/>
+          </svg>
+        </div>
+        <div>
+          <h2 class="pm-title">Procedimientos por tipo de equipo</h2>
+          <p class="pm-sub">Plantilla de checklist para inspecciones y mantenimientos</p>
+        </div>
+      </div>
+      <button class="pm-close" (click)="cerrar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="pm-body">
+
+      <!-- Panel izquierdo: lista de tipos -->
+      <aside class="pm-sidebar">
+        <div class="pm-sidebar-header">
+          <span class="pm-sidebar-title">Tipos de equipo</span>
+          @if (!showNuevoTipo) {
+            <button class="pm-btn-nuevo-tipo" (click)="abrirNuevoTipo()" title="Crear nuevo tipo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Nuevo
+            </button>
+          }
+        </div>
+
+        @if (cargandoTipos) {
+          <div class="pm-sidebar-loading"><app-spinner [size]="20"></app-spinner></div>
+        } @else {
+
+          <!-- Formulario nuevo tipo inline -->
+          @if (showNuevoTipo) {
+            <div class="pm-nuevo-tipo-form">
+              <div class="pm-nt-field">
+                <label class="pm-nt-label">Nombre del tipo</label>
+                <input class="pm-nt-input" [(ngModel)]="nuevoTipoNombre"
+                       placeholder="Ej: Compresor de aire"
+                       (keydown.escape)="cancelarNuevoTipo()" />
+              </div>
+
+              <div class="pm-nt-procs-header">
+                <span class="pm-nt-procs-label">Procedimientos <span class="pm-nt-req">*</span></span>
+                <span class="pm-nt-procs-count">{{ ntProcs.length }}</span>
+              </div>
+
+              @for (p of ntProcs; track $index; let i = $index) {
+                <div class="pm-nt-proc-row">
+                  <span class="pm-nt-num">{{ i + 1 }}</span>
+                  <span class="pm-nt-proc-nombre">{{ p.nombre }}</span>
+                  <button class="pm-nt-del" (click)="quitarProcNuevoTipo(i)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              }
+
+              <div class="pm-nt-add-row">
+                <input class="pm-nt-input pm-nt-input-sm" [(ngModel)]="ntNombre"
+                       placeholder="Nombre del paso…"
+                       (keydown.enter)="agregarProcNuevoTipo()" />
+                <input class="pm-nt-input pm-nt-input-sm" [(ngModel)]="ntDesc"
+                       placeholder="Descripción (opcional)"
+                       (keydown.enter)="agregarProcNuevoTipo()" />
+                <button class="pm-nt-add-btn" (click)="agregarProcNuevoTipo()" [disabled]="!ntNombre.trim()">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                </button>
+              </div>
+
+              @if (ntProcs.length === 0) {
+                <p class="pm-nt-warn">Agrega al menos un procedimiento</p>
+              }
+
+              <div class="pm-nt-actions">
+                <button class="pm-nt-btn-cancel" (click)="cancelarNuevoTipo()">Cancelar</button>
+                <button class="pm-nt-btn-save"
+                        (click)="confirmarNuevoTipo()"
+                        [disabled]="!nuevoTipoNombre.trim() || ntProcs.length === 0 || creandoTipo">
+                  @if (creandoTipo) { <app-spinner [size]="12" theme="light"></app-spinner> }
+                  @else { Crear tipo }
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (tipos.length === 0 && !showNuevoTipo) {
+            <div class="pm-sidebar-empty">Sin tipos. Crea uno.</div>
+          } @else if (!showNuevoTipo) {
+            <ul class="pm-tipo-list">
+              @for (t of tipos; track t.id) {
+                <li class="pm-tipo-item"
+                    [class.pm-tipo-active]="tipoIdSeleccionado === t.id"
+                    (click)="seleccionarTipo(t.id)">
+                  <span class="pm-tipo-dot"></span>
+                  <span class="pm-tipo-name">{{ t.nombre }}</span>
+                  @if (tipoIdSeleccionado === t.id) {
+                    <svg class="pm-tipo-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        }
+      </aside>
+
+      <!-- Panel derecho: procedimientos del tipo seleccionado -->
+      <section class="pm-content">
+        @if (!tipoIdSeleccionado) {
+          <div class="pm-empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="44" height="44">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+              <rect x="9" y="3" width="6" height="4" rx="1"/>
+            </svg>
+            <span>Selecciona un tipo de equipo</span>
+          </div>
+        } @else {
+          <!-- Cabecera del panel -->
+          <div class="pm-content-header">
+            <span class="pm-content-tipo">{{ nombreTipoSeleccionado }}</span>
+            <span class="pm-content-count">
+              {{ procedimientos.length }} procedimiento{{ procedimientos.length !== 1 ? 's' : '' }}
+            </span>
+          </div>
+
+          @if (cargandoProcs) {
+            <div class="pm-loading"><app-spinner [size]="28"></app-spinner><span>Cargando…</span></div>
+          } @else {
+            <!-- Lista de procedimientos -->
+            <div class="pm-proc-list">
+              @if (procedimientos.length === 0 && !agregando) {
+                <div class="pm-proc-empty">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+                  </svg>
+                  <span>Este tipo no tiene procedimientos. Agrega el primero.</span>
+                </div>
+              }
+
+              @for (p of procedimientos; track p.orden; let i = $index) {
+                <div class="pm-proc-row" [class.pm-proc-editing]="p.editando">
+                  <!-- Número de orden -->
+                  <span class="pm-proc-num">{{ i + 1 }}</span>
+
+                  <!-- Contenido -->
+                  <div class="pm-proc-body">
+                    @if (p.editando) {
+                      <input class="pm-input pm-input-nombre"
+                             [(ngModel)]="p.nombre" placeholder="Nombre del paso" />
+                      <textarea class="pm-textarea" rows="2"
+                                [(ngModel)]="p.descripcion"
+                                placeholder="Descripción (opcional)"></textarea>
+                    } @else {
+                      <span class="pm-proc-nombre">{{ p.nombre }}</span>
+                      @if (p.descripcion) {
+                        <span class="pm-proc-desc">{{ p.descripcion }}</span>
+                      }
+                    }
+                  </div>
+
+                  <!-- Acciones de fila -->
+                  <div class="pm-proc-actions">
+                    <button class="pm-act-btn" (click)="moverArriba(i)" [disabled]="i === 0" title="Subir">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                        <polyline points="18 15 12 9 6 15"/>
+                      </svg>
+                    </button>
+                    <button class="pm-act-btn" (click)="moverAbajo(i)" [disabled]="i === procedimientos.length - 1" title="Bajar">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
+                    </button>
+                    <button class="pm-act-btn pm-act-edit" (click)="toggleEditar(p)" [title]="p.editando ? 'Listo' : 'Editar'">
+                      @if (p.editando) {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      } @else {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                      }
+                    </button>
+                    <button class="pm-act-btn pm-act-del" (click)="eliminar(i)" title="Eliminar">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                        <path d="M10 11v6M14 11v6M9 6V4h6v2"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              }
+
+              <!-- Formulario de agregar -->
+              @if (agregando) {
+                <div class="pm-add-form">
+                  <input class="pm-input pm-input-nombre"
+                         [(ngModel)]="nuevoNombre"
+                         placeholder="Nombre del procedimiento *"
+                         (keydown.enter)="agregarProcedimiento()" />
+                  <textarea class="pm-textarea" rows="2"
+                            [(ngModel)]="nuevoDescripcion"
+                            placeholder="Descripción (opcional)"></textarea>
+                  <div class="pm-add-actions">
+                    <button class="pm-btn-confirm" (click)="agregarProcedimiento()" [disabled]="!nuevoNombre.trim()">
+                      Agregar
+                    </button>
+                    <button class="pm-btn-cancel-sm" (click)="cancelarAgregado()">Cancelar</button>
+                  </div>
+                </div>
+              }
+            </div>
+
+            <!-- Botón agregar -->
+            @if (!agregando) {
+              <button class="pm-btn-add" (click)="agregando = true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Agregar procedimiento
+              </button>
+            }
+          }
+        }
+      </section>
+    </div>
+
+    <!-- Footer -->
+    <div class="pm-footer">
+      <span class="pm-footer-hint">Los cambios se aplican a nuevas inspecciones; las existentes no se modifican.</span>
+      <div class="pm-footer-actions">
+        <button class="pm-btn-cancel" (click)="cerrar()">Cerrar</button>
+        @if (tipoIdSeleccionado) {
+          <button class="pm-btn-save" (click)="guardar()" [disabled]="guardando">
+            @if (guardando) { <app-spinner [size]="14" theme="light"></app-spinner> Guardando… }
+            @else { Guardar cambios }
+          </button>
+        }
+      </div>
+    </div>
+
+  </div>
+

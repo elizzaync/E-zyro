@@ -7,6 +7,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } 
 import { Subject, takeUntil } from 'rxjs';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { TipoEquipoProcedimientosModalComponent } from '../tipo-equipo-procedimientos-modal/tipo-equipo-procedimientos-modal.component';
 import {
   EquipoHerramienta, ClaseArticulo,
   CLASES_ARTICULO, ESTADOS_EQUIPO, FRECUENCIAS_MANTENIMIENTO,
@@ -16,7 +17,7 @@ import {
 @Component({
   selector: 'app-equipo-form-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, TipoEquipoProcedimientosModalComponent],
   templateUrl: './equipo-form-modal.component.html',
   styleUrls: ['./equipo-form-modal.component.css']
 })
@@ -41,8 +42,22 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   modelos:   ModeloItem[]   = [];   // filtrado por marca seleccionada
   almacenes: AlmacenItem[]  = [];
 
+  // Modal de procedimientos por tipo
+  showProcedimientos = false;
+  abrirProcedimientos(): void { this.showProcedimientos = true; }
+
   // Inputs "+ Nuevo"
   showAddTipo   = false; nuevoTipo   = ''; creandoTipo   = false;
+  // Procedimientos del nuevo tipo (obligatorio al crear)
+  nuevosProcsTipo: { nombre: string; descripcion: string }[] = [];
+  npNombre = ''; npDesc = '';
+
+  agregarProcNuevoTipo(): void {
+    const n = this.npNombre.trim(); if (!n) return;
+    this.nuevosProcsTipo.push({ nombre: n, descripcion: this.npDesc.trim() });
+    this.npNombre = ''; this.npDesc = '';
+  }
+  quitarProcNuevoTipo(i: number): void { this.nuevosProcsTipo.splice(i, 1); }
   showAddMarca  = false; nuevaMarca  = ''; creandoMarca  = false;
   showAddModelo = false; nuevoModelo = ''; creandoModelo = false;
   showAddAlmacen = false; nuevoAlmacen = ''; creandoAlmacen = false;
@@ -128,15 +143,27 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   }
 
   // ── Crear catálogos inline ──
-  toggleAddTipo(): void { this.showAddTipo = !this.showAddTipo; this.nuevoTipo = ''; }
+  toggleAddTipo(): void {
+    this.showAddTipo = !this.showAddTipo;
+    this.nuevoTipo = ''; this.nuevosProcsTipo = []; this.npNombre = ''; this.npDesc = '';
+  }
   confirmarNuevoTipo(): void {
-    const n = this.nuevoTipo.trim(); if (!n) return;
+    const n = this.nuevoTipo.trim();
+    if (!n || this.nuevosProcsTipo.length === 0) return;
     this.creandoTipo = true;
     this.svc.crearTipoEquipo(n).subscribe({
       next: (t) => {
         this.tipos = [...this.tipos.filter(x => x.id !== t.id), t].sort((a, b) => a.nombre.localeCompare(b.nombre));
         this.form.patchValue({ tipoId: t.id });
-        this.showAddTipo = false; this.nuevoTipo = ''; this.creandoTipo = false;
+        const procs = this.nuevosProcsTipo.map((p, i) => ({ orden: i + 1, nombre: p.nombre, descripcion: p.descripcion || undefined }));
+        this.svc.actualizarProcedimientosTipoEquipo(t.id, procs).subscribe({
+          complete: () => {
+            this.showAddTipo = false; this.nuevoTipo = '';
+            this.nuevosProcsTipo = []; this.npNombre = ''; this.npDesc = '';
+            this.creandoTipo = false;
+          },
+          error: () => { this.showAddTipo = false; this.nuevoTipo = ''; this.nuevosProcsTipo = []; this.creandoTipo = false; },
+        });
       },
       error: () => (this.creandoTipo = false),
     });

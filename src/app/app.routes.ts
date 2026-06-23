@@ -30,6 +30,7 @@ import { SolicitudesListaComponent } from './features/rrhh/solicitudes/solicitud
 import { PlanillasComponent } from './features/rrhh/planillas/planillas.component';
 import { AsistenciaDashboardComponent } from './features/rrhh/asistencia/asistencia-dashboard.component';
 import { AsistenciaComponent } from './features/asistencia/asistencia.component';
+import { DocumentosSstComponent } from './features/rrhh/documentos-sst/documentos-sst.component';
 import { CalendarioComponent } from './features/home/pages/calendario/calendario.component';
 import { TicketsSoporteComponent } from './features/soporte/components/tickets/tickets.component';
 import { MonitoreoComponent } from './features/soporte/components/monitoreo/monitoreo.component';
@@ -98,6 +99,12 @@ export const routes: Routes = [
     path: 'rrhh/asistencia',
     component: AsistenciaDashboardComponent,
     title: 'Asistencia | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'rrhh/homologacion',
+    component: DocumentosSstComponent,
+    title: 'Homologación / SST | e-zyro TIC',
     canActivate: [authGuard]
   },
   {

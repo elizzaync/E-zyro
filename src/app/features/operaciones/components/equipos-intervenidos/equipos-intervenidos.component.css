@@ -69,10 +69,12 @@
 }
 .btn-accion svg { width: 15px; height: 15px; }
 .btn-accion:disabled { opacity: .4; cursor: not-allowed; }
-.btn-informe  { background: rgba(239,68,68,.08);  border-color: rgba(239,68,68,.3);  color: #ef4444; }
-.btn-garantia { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.3); color: #3b82f6; }
-.btn-informe:not(:disabled):hover  { background: rgba(239,68,68,.15); }
-.btn-garantia:not(:disabled):hover { background: rgba(59,130,246,.15); }
+.btn-informe    { background: rgba(239,68,68,.08);  border-color: rgba(239,68,68,.3);  color: #ef4444; }
+.btn-garantia   { background: rgba(59,130,246,.08); border-color: rgba(59,130,246,.3); color: #3b82f6; }
+.btn-tipos-proc { background: rgba(124,58,237,.08); border-color: rgba(124,58,237,.3); color: #7c3aed; }
+.btn-informe:not(:disabled):hover    { background: rgba(239,68,68,.15); }
+.btn-garantia:not(:disabled):hover   { background: rgba(59,130,246,.15); }
+.btn-tipos-proc:not(:disabled):hover { background: rgba(124,58,237,.15); }
 
 /* ── Loading / Empty ─────────────────────────────────────────────── */
 .ei-loading, .ei-empty {

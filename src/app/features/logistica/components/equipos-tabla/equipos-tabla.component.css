@@ -39,7 +39,7 @@
   background: transparent; color: #2563eb;
   border: 1.5px solid #93c5fd; border-radius: 9px;
   font-size: 13px; font-weight: 700; cursor: pointer;
-  font-family: 'Inter', sans-serif; margin-left: auto;
+  font-family: 'Inter', sans-serif;
   transition: background .15s;
 }
 .tt-restock svg { width: 15px; height: 15px; }

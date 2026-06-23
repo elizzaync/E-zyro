@@ -5,8 +5,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ToastService } from '../../../../core/services/toast.service';
+import { TipoEquipoProcedimientosModalComponent } from '../../../logistica/components/tipo-equipo-procedimientos-modal/tipo-equipo-procedimientos-modal.component';
 import {
   EPPS_CONFIG, MATERIALES_CONFIG, HERRAMIENTAS_CONFIG, determinarTipoBase,
   MaterialItem, HerramientaItem, TipoBase,
@@ -46,7 +48,7 @@ export interface EquipoIntervenido {
 @Component({
   selector: 'app-equipos-intervenidos',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, TipoEquipoProcedimientosModalComponent],
   templateUrl: './equipos-intervenidos.component.html',
   styleUrls: ['./equipos-intervenidos.component.css'],
 })
@@ -55,8 +57,21 @@ export class EquiposIntervenidosComponent implements OnInit, OnDestroy {
   private router   = inject(Router);
   private location = inject(Location);
   private svc      = inject(OperacionesService);
+  private auth     = inject(AuthService);
   private toast    = inject(ToastService);
   private doc      = inject(DOCUMENT);
+
+  get isTecnico(): boolean {
+    return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
+  }
+
+  showGestionarTipos = false;
+  tipoIdGestion: string | null = null;
+
+  abrirProcedimientosDeTipo(tipoId: string | null = null): void {
+    this.tipoIdGestion    = tipoId;
+    this.showGestionarTipos = true;
+  }
 
   servicioId = '';
   cargando   = true;
