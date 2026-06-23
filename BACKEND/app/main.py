@@ -1192,6 +1192,23 @@ def _run_migrations():
         conn.execute(text(
             "ALTER TABLE auditoria ADD COLUMN IF NOT EXISTS descripcion VARCHAR(500)"
         ))
+        # Amplía el constraint de acciones válidas para incluir acciones del
+        # módulo portal (crear, reset_password, revocar). DROP+ADD es idempotente
+        # porque IF NOT EXISTS no aplica a constraints CHECK en PG.
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                ALTER TABLE auditoria DROP CONSTRAINT IF EXISTS chk_auditoria_accion;
+                ALTER TABLE auditoria ADD CONSTRAINT chk_auditoria_accion CHECK (
+                    accion = ANY(ARRAY[
+                        'INSERT', 'UPDATE', 'DELETE',
+                        'LOGIN', 'LOGOUT',
+                        'EXPORT', 'ACCESO_DENEGADO',
+                        'crear', 'reset_password', 'revocar'
+                    ])
+                );
+            END $$;
+        """))
         # datos_anteriores / datos_nuevos: se agregan como JSONB si no existen.
         # Si existen como TEXT, el bloque posterior las convierte a JSONB.
         conn.execute(text("""
