@@ -36,6 +36,7 @@ import time
 
 from app.db.database import SessionLocal
 from app.models.sesion_usuario import SesionUsuario
+from app.models.usuario import Usuario
 
 # TTL de la caché en segundos. Equilibra carga de BD vs. ventana de propagación
 # de un cierre de sesión entre workers.
@@ -124,3 +125,51 @@ def _podar(ahora: float) -> None:
     # es seguro (solo provoca MISS y revalidación contra BD).
     if len(_cache) >= _MAX_ENTRADAS:
         _cache.clear()
+
+
+# ── Caché de estado activo/inactivo por usuario ───────────────────────────
+# Detecta desactivación de cuenta en < TTL sin consultar BD en cada request.
+# Clave: usuario_id (str) → (activo: bool, expira_en: float[monotonic])
+
+_activo_cache: dict[str, tuple[bool, float]] = {}
+_activo_lock = threading.Lock()
+
+
+def usuario_activo(usuario_id: str) -> bool:
+    """True si el usuario existe y su campo `activo` es True en BD.
+
+    Usa el mismo TTL que sesion_activa. Invalidar con `invalidar_activo`
+    para propagación instantánea al desactivar la cuenta.
+    """
+    ahora = time.monotonic()
+    with _activo_lock:
+        entry = _activo_cache.get(usuario_id)
+        if entry is not None and entry[1] > ahora:
+            return entry[0]
+
+    db = SessionLocal()
+    try:
+        activo = (
+            db.query(Usuario.activo)
+            .filter(Usuario.id == usuario_id)
+            .scalar()
+        )
+        resultado = bool(activo) if activo is not None else False
+    except Exception:
+        return True  # fail-open ante fallo transitorio de BD
+    finally:
+        db.close()
+
+    with _activo_lock:
+        _activo_cache[usuario_id] = (resultado, time.monotonic() + _TTL_SEGUNDOS)
+    return resultado
+
+
+def invalidar_activo(usuario_id: str) -> None:
+    """Marca la cuenta como inactiva en caché al instante.
+
+    Llamar desde el endpoint que desactiva la cuenta para que el siguiente
+    request del usuario devuelva 403 sin esperar el TTL.
+    """
+    with _activo_lock:
+        _activo_cache[usuario_id] = (False, time.monotonic() + _TTL_SEGUNDOS)

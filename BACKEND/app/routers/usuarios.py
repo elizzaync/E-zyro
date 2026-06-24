@@ -22,7 +22,9 @@ from sqlalchemy.orm import Session
 
 from ..core.permisos import exigir_permiso
 from ..core.security import verificar_token
+from ..core.session_cache import invalidar_activo
 from ..db.database import get_db
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -217,13 +219,17 @@ def cambiar_activo(usuario_id: str, body: CambiarActivoIn,
     empresa_id = payload["empresa_id"]
     if usuario_id == str(payload.get("id")) and not body.activo:
         raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta")
-    res = db.execute(text("""
-        UPDATE usuario SET activo = :a
-         WHERE id::text = :id AND empresa_id::text = :emp
-    """), {"a": body.activo, "id": usuario_id, "emp": empresa_id})
-    if res.rowcount == 0:
+    usuario = (
+        db.query(Usuario)
+        .filter(Usuario.id == usuario_id, Usuario.empresa_id == empresa_id)
+        .first()
+    )
+    if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    usuario.activo = body.activo
     db.commit()
+    if not body.activo:
+        invalidar_activo(usuario_id)
     return _get_one(db, usuario_id, empresa_id)
 
 

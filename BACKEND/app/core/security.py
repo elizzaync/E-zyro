@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from fastapi import HTTPException, Request, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from app.core.session_cache import sesion_activa, hash_token
+from app.core.session_cache import sesion_activa, hash_token, usuario_activo
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
@@ -66,6 +66,12 @@ def verificar_token(request: Request, credentials: HTTPAuthorizationCredentials 
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Tu sesión fue cerrada. Inicia sesión nuevamente.",
                 headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        if not usuario_activo(usuario_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="cuenta_desactivada",
             )
 
         # Devolvemos los datos del usuario si todo está bien
