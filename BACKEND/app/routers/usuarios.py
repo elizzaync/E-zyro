@@ -53,12 +53,17 @@ class CrearUsuarioIn(BaseModel):
     username: str
     password: str
     rol_id: str
+    telefono: Optional[str] = None
     # Ficha de empleado opcional (necesaria para asistencia, vacaciones, etc.)
     crear_ficha: bool = False
     cargo: Optional[str] = None
     area: Optional[str] = None
     tipo: Optional[str] = "planilla"
     codigo: Optional[str] = None
+    tipo_documento: Optional[str] = "DNI"
+    numero_documento: Optional[str] = None
+    sexo: Optional[str] = None
+    fecha_ingreso: Optional[str] = None
 
 
 class CambiarRolIn(BaseModel):
@@ -154,24 +159,31 @@ def crear(body: CrearUsuarioIn, payload: dict = Depends(verificar_token), db: Se
     uid = str(uuid.uuid4())
     db.execute(text("""
         INSERT INTO usuario (id, empresa_id, email, username, nombre, apellido,
-                             password_hash, activo, email_verificado,
+                             password_hash, telefono, activo, email_verificado,
                              debe_cambiar_password, created_at)
-        VALUES (:id, :emp, :e, :un, :n, :a, :pwd, true, false, true, now())
+        VALUES (:id, :emp, :e, :un, :n, :a, :pwd, :tel, true, false, true, now())
     """), {"id": uid, "emp": empresa_id, "e": body.email, "un": body.username,
-           "n": body.nombre, "a": body.apellido, "pwd": pwd_context.hash(body.password)})
+           "n": body.nombre, "a": body.apellido, "pwd": pwd_context.hash(body.password),
+           "tel": body.telefono})
     db.execute(text("""
         INSERT INTO usuario_rol (usuario_id, rol_id, empresa_id)
         VALUES (:u, :r, :emp)
     """), {"u": uid, "r": body.rol_id, "emp": empresa_id})
 
     if body.crear_ficha:
+        from datetime import date
+        fi = body.fecha_ingreso or str(date.today())
+        eid = str(uuid.uuid4())
         db.execute(text("""
-            INSERT INTO empleado (usuario_id, empresa_id, codigo, cargo, area,
-                                  tipo, fecha_ingreso, activo)
-            VALUES (:u, :emp, :cod, :cargo, :area, :tipo, CURRENT_DATE, true)
-        """), {"u": uid, "emp": empresa_id, "cod": body.codigo,
+            INSERT INTO empleado (id, usuario_id, empresa_id, codigo, cargo, area,
+                                  tipo, tipo_documento, numero_documento, sexo,
+                                  fecha_ingreso, activo)
+            VALUES (:eid, :u, :emp, :cod, :cargo, :area, :tipo,
+                    :tdoc, :ndoc, :sexo, :fi, true)
+        """), {"eid": eid, "u": uid, "emp": empresa_id, "cod": body.codigo,
                "cargo": (body.cargo or "Sin cargo"), "area": body.area,
-               "tipo": (body.tipo or "planilla")})
+               "tipo": (body.tipo or "planilla"), "tdoc": (body.tipo_documento or "DNI"),
+               "ndoc": body.numero_documento, "sexo": body.sexo, "fi": fi})
 
     db.commit()
     return _get_one(db, uid, empresa_id)
