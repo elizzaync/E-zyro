@@ -183,6 +183,13 @@ export class LogisticaService {
   crearTipoEquipo(nombre: string): Observable<CatalogoItem> {
     return this.http.post<CatalogoItem>(`${this.api}/logistica/tipos-equipo`, { nombre });
   }
+
+  getCategoriasEquipo(): Observable<CatalogoItem[]> {
+    return this.http.get<CatalogoItem[]>(`${this.api}/logistica/categorias-equipo`);
+  }
+  crearCategoriaEquipo(nombre: string): Observable<CatalogoItem> {
+    return this.http.post<CatalogoItem>(`${this.api}/logistica/categorias-equipo`, { nombre });
+  }
   getProcedimientosTipoEquipo(tipoId: string): Observable<{ tipo_equipo_id: string; nombre: string; procedimientos: any[] }> {
     return this.http.get<any>(`${this.api}/logistica/tipos-equipo/${tipoId}/procedimientos`);
   }

@@ -38,46 +38,32 @@
           </div>
         </div>
 
-        <!-- ── Tipo / familia (select + nuevo inline) ── -->
+        <!-- ── Categoría (select + nueva inline) ── -->
         <div class="lf-field">
           <label class="lf-label">
-            Tipo / familia
-            <button type="button" class="lf-add-link" (click)="toggleAddTipo()">
-              {{ showAddTipo ? 'Cancelar' : '+ Nuevo' }}
+            Categoría
+            <button type="button" class="lf-add-link" (click)="toggleAddCategoria()">
+              {{ showAddCategoria ? 'Cancelar' : '+ Nueva' }}
             </button>
           </label>
-          @if (!showAddTipo) {
-            <div class="lf-select-row">
-              <select class="lf-input lf-input-flex" formControlName="tipoId">
-                <option value="">— Sin asignar —</option>
-                @for (t of tipos; track t.id) {
-                  @if (t.nombre?.trim()) { <option [value]="t.id">{{ t.nombre }}</option> }
-                }
-              </select>
-              @if (ctrl('tipoId')?.value) {
-                <button type="button" class="lf-btn-procs"
-                        (click)="abrirProcedimientos()"
-                        title="Editar procedimientos de este tipo">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-                    <rect x="9" y="3" width="6" height="4" rx="1"/>
-                    <path d="M9 12h6M9 16h4"/>
-                  </svg>
-                </button>
+          @if (!showAddCategoria) {
+            <select class="lf-input" formControlName="categoriaId">
+              <option value="">— Sin categoría —</option>
+              @for (c of categorias; track c.id) {
+                @if (c.nombre?.trim()) { <option [value]="c.id">{{ c.nombre }}</option> }
               }
-            </div>
+            </select>
           } @else {
-            <!-- ── Formulario nuevo tipo ── -->
             <div class="lf-add-inline">
-              <input class="lf-input lf-input-flex" [(ngModel)]="nuevoTipo"
+              <input class="lf-input lf-input-flex" [(ngModel)]="nuevaCategoria"
                      [ngModelOptions]="{ standalone: true }"
-                     placeholder="Nombre del tipo / familia"
+                     placeholder="Ej: Herramientas Eléctricas"
                      autocomplete="off"
-                     (keydown.enter)="confirmarNuevoTipo()">
+                     (keydown.enter)="confirmarNuevaCategoria()">
               <button type="button" class="lf-add-btn"
-                      (click)="confirmarNuevoTipo()"
-                      [disabled]="!nuevoTipo.trim() || creandoTipo">
-                @if (creandoTipo) { <app-spinner [size]="14" theme="light"></app-spinner> }
+                      (click)="confirmarNuevaCategoria()"
+                      [disabled]="!nuevaCategoria.trim() || creandoCategoria">
+                @if (creandoCategoria) { <app-spinner [size]="14" theme="light"></app-spinner> }
                 @else { Guardar }
               </button>
             </div>
@@ -230,9 +216,3 @@
   </div>
 </div>
 
-@if (showProcedimientos) {
-  <app-tipo-equipo-procedimientos-modal
-    [tipoIdInicial]="ctrl('tipoId')?.value"
-    (closed)="showProcedimientos = false">
-  </app-tipo-equipo-procedimientos-modal>
-}

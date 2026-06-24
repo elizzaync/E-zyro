@@ -34,8 +34,8 @@ export interface EquipoHerramienta {
   codigo: string;                  // autogenerado por backend (EQ-NNNN / HR-NNNN)
   nombre: string;
   clase: ClaseArticulo;            // equipo | herramienta
-  tipoId: string | null;
-  tipo: string;                    // nombre de familia/tipo (denormalizado)
+  categoriaId: string | null;
+  categoria: string;               // nombre de categoría (denormalizado)
   marcaId: string | null;
   marca: string | null;            // nombre denormalizado
   modeloId: string | null;

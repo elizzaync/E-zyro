@@ -7,7 +7,6 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } 
 import { Subject, takeUntil } from 'rxjs';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
-import { TipoEquipoProcedimientosModalComponent } from '../tipo-equipo-procedimientos-modal/tipo-equipo-procedimientos-modal.component';
 import {
   EquipoHerramienta, ClaseArticulo,
   CLASES_ARTICULO, ESTADOS_EQUIPO, FRECUENCIAS_MANTENIMIENTO,
@@ -17,7 +16,7 @@ import {
 @Component({
   selector: 'app-equipo-form-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, TipoEquipoProcedimientosModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent],
   templateUrl: './equipo-form-modal.component.html',
   styleUrls: ['./equipo-form-modal.component.css']
 })
@@ -37,17 +36,13 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   frecuencias  = FRECUENCIAS_MANTENIMIENTO.filter(f => f.value !== 'ninguno');
 
   // Catálogos
-  tipos:     CatalogoItem[] = [];
-  marcas:    CatalogoItem[] = [];
-  modelos:   ModeloItem[]   = [];   // filtrado por marca seleccionada
-  almacenes: AlmacenItem[]  = [];
-
-  // Modal de procedimientos por tipo
-  showProcedimientos = false;
-  abrirProcedimientos(): void { this.showProcedimientos = true; }
+  categorias: CatalogoItem[] = [];
+  marcas:     CatalogoItem[] = [];
+  modelos:    ModeloItem[]   = [];   // filtrado por marca seleccionada
+  almacenes:  AlmacenItem[]  = [];
 
   // Inputs "+ Nuevo"
-  showAddTipo   = false; nuevoTipo   = ''; creandoTipo   = false;
+  showAddCategoria = false; nuevaCategoria = ''; creandoCategoria = false;
   showAddMarca  = false; nuevaMarca  = ''; creandoMarca  = false;
   showAddModelo = false; nuevoModelo = ''; creandoModelo = false;
   showAddAlmacen = false; nuevoAlmacen = ''; creandoAlmacen = false;
@@ -63,7 +58,7 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
     this.form = this.fb.group({
       nombre:      [e?.nombre ?? '', [Validators.required, Validators.maxLength(200)]],
       clase:       [e?.clase ?? 'equipo' as ClaseArticulo, Validators.required],
-      tipoId:      [e?.tipoId ?? ''],
+      categoriaId: [e?.categoriaId ?? ''],
       marcaId:     [e?.marcaId ?? ''],
       modeloId:    [e?.modeloId ?? ''],
       numeroSerie: [e?.numeroSerie ?? ''],
@@ -121,7 +116,7 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   get requiereMant(): boolean { return !!this.form?.get('requiereMantenimiento')?.value; }
 
   private _cargarCatalogos(): void {
-    this.svc.getTiposEquipo().subscribe({ next: r => (this.tipos = r) });
+    this.svc.getCategoriasEquipo().subscribe({ next: r => (this.categorias = r) });
     this.svc.getMarcas().subscribe({ next: r => (this.marcas = r) });
     this.svc.getAlmacenes().subscribe({ next: r => (this.almacenes = r) });
     this._cargarModelos(this.form.get('marcaId')?.value);
@@ -133,23 +128,23 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   }
 
   // ── Crear catálogos inline ──
-  toggleAddTipo(): void {
-    this.showAddTipo = !this.showAddTipo;
-    this.nuevoTipo = '';
+  toggleAddCategoria(): void {
+    this.showAddCategoria = !this.showAddCategoria;
+    this.nuevaCategoria = '';
   }
-  confirmarNuevoTipo(): void {
-    const n = this.nuevoTipo.trim();
-    if (!n || this.creandoTipo) return;
-    this.creandoTipo = true;
-    this.svc.crearTipoEquipo(n).subscribe({
-      next: (t) => {
-        this.tipos = [...this.tipos.filter(x => x.id !== t.id), t].sort((a, b) => a.nombre.localeCompare(b.nombre));
-        this.form.patchValue({ tipoId: t.id });
-        this.showAddTipo = false;
-        this.nuevoTipo = '';
-        this.creandoTipo = false;
+  confirmarNuevaCategoria(): void {
+    const n = this.nuevaCategoria.trim();
+    if (!n || this.creandoCategoria) return;
+    this.creandoCategoria = true;
+    this.svc.crearCategoriaEquipo(n).subscribe({
+      next: (c) => {
+        this.categorias = [...this.categorias.filter(x => x.id !== c.id), c].sort((a, b) => a.nombre.localeCompare(b.nombre));
+        this.form.patchValue({ categoriaId: c.id });
+        this.showAddCategoria = false;
+        this.nuevaCategoria = '';
+        this.creandoCategoria = false;
       },
-      error: () => (this.creandoTipo = false),
+      error: () => (this.creandoCategoria = false),
     });
   }
 
@@ -205,7 +200,7 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
     this.guardar.emit({
       nombre:      v.nombre.trim(),
       clase:       v.clase,
-      tipoId:      v.tipoId || null,
+      categoriaId: v.categoriaId || null,
       marcaId:     v.marcaId || null,
       modeloId:    v.modeloId || null,
       numeroSerie: v.numeroSerie?.trim() || null,
