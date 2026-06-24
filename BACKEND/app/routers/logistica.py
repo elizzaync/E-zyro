@@ -181,6 +181,16 @@ def _categoria_or_404(db: Session, empresa_id: str, categoria_id: str) -> Catego
     return cat
 
 
+def _cat_equipo_or_404(db: Session, empresa_id: str, cat_id: str) -> CategoriaEquipo:
+    c = db.query(CategoriaEquipo).filter(
+        CategoriaEquipo.id == cat_id,
+        CategoriaEquipo.empresa_id == empresa_id,
+    ).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Categoría de equipo no encontrada")
+    return c
+
+
 def _almacen_or_404(db: Session, empresa_id: str, almacen_id: str) -> Almacen:
     alm = db.query(Almacen).filter(
         Almacen.id == almacen_id, Almacen.empresa_id == empresa_id
@@ -281,8 +291,8 @@ def _equipo_out(e: Equipo) -> EquipoOut:
     return EquipoOut(
         id=str(e.id), codigo=e.codigo or "", nombre=e.nombre,
         clase=clase,
-        tipoId=str(e.tipo_equipo_id) if e.tipo_equipo_id else None,
-        tipo=e.tipo or "",
+        categoriaId=str(e.categoria_equipo_id) if e.categoria_equipo_id else None,
+        categoria=e.tipo or "",
         marcaId=str(e.marca_id) if e.marca_id else None,
         marca=e.marca,
         modeloId=str(e.modelo_id) if e.modelo_id else None,
@@ -926,10 +936,10 @@ def crear_equipo(
     empresa_id = payload["empresa_id"]
 
     # Resolver FKs opcionales (cache denormalizado por nombre)
-    tipo_nombre = None
-    if body.tipoId:
-        t = _tipo_or_404(db, empresa_id, body.tipoId)
-        tipo_nombre = t.nombre
+    cat_nombre = None
+    if body.categoriaId:
+        cat = _cat_equipo_or_404(db, empresa_id, body.categoriaId)
+        cat_nombre = cat.nombre
 
     marca_nombre = None
     if body.marcaId:
@@ -956,8 +966,8 @@ def crear_equipo(
         nombre       = body.nombre.strip(),
         codigo       = codigo,
         clase        = body.clase,
-        tipo_equipo_id = body.tipoId,
-        tipo         = tipo_nombre,
+        categoria_equipo_id = body.categoriaId,
+        tipo         = cat_nombre,
         marca_id     = body.marcaId,
         marca        = marca_nombre,
         modelo_id    = body.modeloId,
@@ -1013,12 +1023,12 @@ def actualizar_equipo(
     if body.fechaAdquisicion is not None: e.fecha_adquisicion = body.fechaAdquisicion
     if body.fichaTecnica     is not None: e.ficha_tecnica     = (body.fichaTecnica or "").strip() or None
 
-    if body.tipoId is not None:
-        if body.tipoId == "":
-            e.tipo_equipo_id = None; e.tipo = None
+    if body.categoriaId is not None:
+        if body.categoriaId == "":
+            e.categoria_equipo_id = None; e.tipo = None
         else:
-            t = _tipo_or_404(db, empresa_id, body.tipoId)
-            e.tipo_equipo_id = t.id; e.tipo = t.nombre
+            cat = _cat_equipo_or_404(db, empresa_id, body.categoriaId)
+            e.categoria_equipo_id = cat.id; e.tipo = cat.nombre
     if body.marcaId is not None:
         if body.marcaId == "":
             e.marca_id = None; e.marca = None
