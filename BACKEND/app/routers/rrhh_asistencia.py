@@ -803,7 +803,7 @@ def _export_response(buf: io.BytesIO, fmt: str, filename: str):
 def reporte_global(
     fecha_inicio: date = Query(...),
     fecha_fin:    date = Query(...),
-    fmt:          str  = Query("xlsx", regex="^(xlsx|pdf)$"),
+    fmt:          str  = Query("xlsx", pattern="^(xlsx|pdf)$"),
     db:           Session = Depends(get_db),
     payload:      dict    = Depends(verificar_token),
 ):
@@ -840,7 +840,7 @@ def reporte_global(
 def reporte_semanal(
     fecha_inicio: Optional[date] = Query(None),
     fecha_fin:    Optional[date] = Query(None),
-    fmt:          str            = Query("xlsx", regex="^(xlsx|pdf)$"),
+    fmt:          str            = Query("xlsx", pattern="^(xlsx|pdf)$"),
     db:           Session        = Depends(get_db),
     payload:      dict           = Depends(verificar_token),
 ):
@@ -877,7 +877,7 @@ def reporte_semanal(
 def reporte_mensual(
     anio: int = Query(..., ge=2020, le=2100),
     mes:  int = Query(..., ge=1, le=12),
-    fmt:  str = Query("xlsx", regex="^(xlsx|pdf)$"),
+    fmt:  str = Query("xlsx", pattern="^(xlsx|pdf)$"),
     db:   Session = Depends(get_db),
     payload: dict = Depends(verificar_token),
 ):
@@ -915,7 +915,7 @@ def reporte_mensual(
 def reporte_tardanzas(
     fecha_inicio: date = Query(...),
     fecha_fin:    date = Query(...),
-    fmt:          str  = Query("xlsx", regex="^(xlsx|pdf)$"),
+    fmt:          str  = Query("xlsx", pattern="^(xlsx|pdf)$"),
     db:           Session = Depends(get_db),
     payload:      dict    = Depends(verificar_token),
 ):
@@ -946,7 +946,7 @@ def reporte_individual(
     empleado_id:  str  = Query(...),
     fecha_inicio: date = Query(...),
     fecha_fin:    date = Query(...),
-    fmt:          str  = Query("xlsx", regex="^(xlsx|pdf)$"),
+    fmt:          str  = Query("xlsx", pattern="^(xlsx|pdf)$"),
     db:           Session = Depends(get_db),
     payload:      dict    = Depends(verificar_token),
 ):
@@ -1015,7 +1015,7 @@ def reporte_individual(
 def reporte_horas_extra(
     fecha_inicio: Optional[date] = Query(None),
     fecha_fin:    Optional[date] = Query(None),
-    fmt:          str            = Query("xlsx", regex="^(xlsx|pdf)$"),
+    fmt:          str            = Query("xlsx", pattern="^(xlsx|pdf)$"),
     db:           Session        = Depends(get_db),
     payload:      dict           = Depends(verificar_token),
 ):
