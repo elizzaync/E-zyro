@@ -164,6 +164,29 @@ export class AuthService {
   private showNewDeviceWarningSubject = new BehaviorSubject<boolean>(false);
   showNewDeviceWarning$ = this.showNewDeviceWarningSubject.asObservable();
 
+  // ==========================================
+  // CUENTA DESACTIVADA
+  // ==========================================
+  private showCuentaDesactivadaSubject = new BehaviorSubject<boolean>(false);
+  showCuentaDesactivada$ = this.showCuentaDesactivadaSubject.asObservable();
+
+  triggerCuentaDesactivada(): void {
+    this.clearSessionTimers();
+    this.disconnectSessionSocket();
+    this.showSessionWarningSubject.next(false);
+    this.showNewDeviceWarningSubject.next(false);
+    localStorage.removeItem('ezyro_token');
+    localStorage.removeItem('ezyro_user');
+    this.showCuentaDesactivadaSubject.next(true);
+    document.body.style.overflow = 'hidden';
+  }
+
+  confirmarCuentaDesactivada(): void {
+    this.showCuentaDesactivadaSubject.next(false);
+    document.body.style.overflow = '';
+    this.router.navigate(['/']);
+  }
+
   newDeviceInfo: any = null;
 
   // ── WebSocket de sesiones (reemplaza el polling de 60s) ───────────────────

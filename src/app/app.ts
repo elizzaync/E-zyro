@@ -20,6 +20,7 @@ export class App implements OnInit {
   showLogoutModal = false;
   showSessionWarning = false;
   showNewDeviceWarning = false;
+  showCuentaDesactivada = false;
   extendingSession = false;
 
   constructor(
@@ -45,6 +46,10 @@ export class App implements OnInit {
 
     this.authService.showNewDeviceWarning$.subscribe(estado => {
       this.showNewDeviceWarning = estado;
+    });
+
+    this.authService.showCuentaDesactivada$.subscribe(estado => {
+      this.showCuentaDesactivada = estado;
     });
 
     if (this.authService.isAuthenticated()) {
@@ -99,5 +104,9 @@ export class App implements OnInit {
 
   noSoyYo() {
     this.authService.cerrarSesionDesconocida();
+  }
+
+  confirmarCuentaDesactivada() {
+    this.authService.confirmarCuentaDesactivada();
   }
 }

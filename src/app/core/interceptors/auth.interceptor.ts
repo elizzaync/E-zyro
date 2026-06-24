@@ -27,9 +27,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       }
     }),
     catchError((error: HttpErrorResponse) => {
-      // Token rechazado por el backend → cerrar sesión automáticamente
-      // Excluir rutas /auth/ para evitar bucles en login/logout/refresh
-      if (error.status === 401 && !req.url.includes('/auth/')) {
+      if (error.status === 403 && error.error?.detail === 'cuenta_desactivada') {
+        authService.triggerCuentaDesactivada();
+      } else if (error.status === 401 && !req.url.includes('/auth/')) {
+        // Token rechazado por el backend → cerrar sesión automáticamente
+        // Excluir rutas /auth/ para evitar bucles en login/logout/refresh
         authService.logout();
       }
       return throwError(() => error);

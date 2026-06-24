@@ -280,6 +280,25 @@ main.portal-mode {
 }
 .device-warn-dialog .modal-body-pro p strong { color: var(--text-main); }
 
+.cuenta-desactivada-backdrop { cursor: default !important; }
+.cuenta-desactivada-icon {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #ef4444 !important;
+  width: 72px !important; height: 72px !important;
+}
+.cuenta-desactivada-icon svg { width: 38px !important; height: 38px !important; }
+.cuenta-desactivada-dialog .modal-body-pro h3 { color: #dc2626; }
+.cuenta-desactivada-dialog .modal-body-pro p { line-height: 1.65; }
+.cuenta-desactivada-dialog .modal-footer-pro { justify-content: center; }
+.cuenta-desactivada-dialog .btn-save-main {
+  background-color: #ef4444 !important;
+  min-width: 200px;
+}
+.cuenta-desactivada-dialog .btn-save-main:hover {
+  background-color: #dc2626 !important;
+  box-shadow: 0 6px 15px rgba(239, 68, 68, 0.35) !important;
+}
+
 .fade-in-up { animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 @keyframes modalPop {
   from { opacity: 0; transform: translate(-50%, -45%) scale(0.96); }
