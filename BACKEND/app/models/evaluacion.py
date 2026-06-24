@@ -15,6 +15,7 @@ class CriterioEvaluacion(Base):
     tipo        = Column(String(20), nullable=False, default="rrhh")
     nombre      = Column(String(150), nullable=False)
     descripcion = Column(String(255), nullable=True)
+    pregunta    = Column(Text, nullable=True)   # texto de la pregunta que verá el evaluado
     peso        = Column(Numeric(5, 2), nullable=False)
     activo      = Column(Boolean, nullable=False, default=True)
 

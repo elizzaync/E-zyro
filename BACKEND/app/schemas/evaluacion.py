@@ -17,6 +17,7 @@ def _validar_tipo(v: str) -> str:
 class CriterioIn(BaseModel):
     nombre:      str
     descripcion: Optional[str] = None
+    pregunta:    Optional[str] = None   # p. ej. "¿Cómo evalúas la puntualidad?"
     peso:        float = 1.0
     tipo:        str = "rrhh"
 
@@ -37,6 +38,7 @@ class CriterioOut(BaseModel):
     id:          str
     nombre:      str
     descripcion: Optional[str] = None
+    pregunta:    Optional[str] = None
     peso:        float
     tipo:        str = "rrhh"
     activo:      bool = True
@@ -57,12 +59,13 @@ class DetalleIn(BaseModel):
 
 
 class DetalleOut(BaseModel):
-    id:              str
-    criterio_id:     str
-    criterio_nombre: Optional[str] = None
-    peso:            Optional[float] = None
-    puntaje:         int
-    comentario:      Optional[str] = None
+    id:               str
+    criterio_id:      str
+    criterio_nombre:  Optional[str] = None
+    criterio_pregunta: Optional[str] = None   # pregunta que vio el evaluado
+    peso:             Optional[float] = None
+    puntaje:          int
+    comentario:       Optional[str] = None
 
 
 # ── Plantillas de evaluación ──────────────────────────────────────────────────
@@ -85,12 +88,13 @@ class PlantillaIn(BaseModel):
 
 
 class PlantillaItemOut(BaseModel):
-    id:                   str
-    criterio_id:          str
-    criterio_nombre:      Optional[str] = None
-    criterio_descripcion: Optional[str] = None
-    peso:                 float           # peso efectivo (override o del criterio)
-    orden:                int
+    id:                    str
+    criterio_id:           str
+    criterio_nombre:       Optional[str] = None
+    criterio_descripcion:  Optional[str] = None
+    criterio_pregunta:     Optional[str] = None
+    peso:                  float           # peso efectivo (override o del criterio)
+    orden:                 int
 
 
 class PlantillaOut(BaseModel):

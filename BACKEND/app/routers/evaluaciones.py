@@ -81,6 +81,7 @@ def listar_criterios(
         qry = qry.filter(CriterioEvaluacion.activo == True)  # noqa: E712
     return [
         CriterioOut(id=str(c.id), nombre=c.nombre, descripcion=c.descripcion,
+                    pregunta=getattr(c, "pregunta", None),
                     peso=float(c.peso), tipo=c.tipo, activo=bool(c.activo))
         for c in qry.order_by(CriterioEvaluacion.nombre).all()
     ]
@@ -91,13 +92,14 @@ def crear_criterio(body: CriterioIn, payload: dict = Depends(verificar_token), d
     exigir_permiso(db, payload, "evaluacion", "crear")
     c = CriterioEvaluacion(
         id=str(_uuid.uuid4()), empresa_id=payload["empresa_id"],
-        nombre=body.nombre, descripcion=body.descripcion, peso=body.peso,
+        nombre=body.nombre, descripcion=body.descripcion,
+        pregunta=body.pregunta, peso=body.peso,
         tipo=body.tipo, activo=True,
     )
     db.add(c)
     db.commit()
     return CriterioOut(id=str(c.id), nombre=c.nombre, descripcion=c.descripcion,
-                       peso=float(c.peso), tipo=c.tipo, activo=True)
+                       pregunta=c.pregunta, peso=float(c.peso), tipo=c.tipo, activo=True)
 
 
 @router.put("/criterios/{crit_id}", response_model=CriterioOut)
@@ -110,11 +112,12 @@ def editar_criterio(crit_id: str, body: CriterioIn, payload: dict = Depends(veri
         raise HTTPException(status_code=404, detail="Criterio no encontrado")
     c.nombre = body.nombre
     c.descripcion = body.descripcion
+    c.pregunta = body.pregunta
     c.peso = body.peso
     c.tipo = body.tipo
     db.commit()
     return CriterioOut(id=str(c.id), nombre=c.nombre, descripcion=c.descripcion,
-                       peso=float(c.peso), tipo=c.tipo, activo=bool(c.activo))
+                       pregunta=c.pregunta, peso=float(c.peso), tipo=c.tipo, activo=bool(c.activo))
 
 
 @router.delete("/criterios/{crit_id}", status_code=204)
@@ -142,6 +145,7 @@ def _plantilla_items_out(db: Session, plantilla_id: str) -> List[PlantillaItemOu
         PlantillaItemOut(
             id=str(pc.id), criterio_id=str(pc.criterio_id),
             criterio_nombre=c.nombre, criterio_descripcion=c.descripcion,
+            criterio_pregunta=getattr(c, "pregunta", None),
             peso=float(pc.peso) if pc.peso is not None else float(c.peso),
             orden=int(pc.orden),
         )
@@ -336,15 +340,21 @@ def _eval_out(db: Session, ev: Evaluacion, con_detalles: bool = True) -> Evaluac
     suma_peso = 0.0
     if con_detalles:
         rows = (
-            db.query(DetalleEvaluacion, CriterioEvaluacion.nombre, CriterioEvaluacion.peso)
+            db.query(
+                DetalleEvaluacion,
+                CriterioEvaluacion.nombre,
+                CriterioEvaluacion.peso,
+                CriterioEvaluacion.pregunta,
+            )
             .outerjoin(CriterioEvaluacion, CriterioEvaluacion.id == DetalleEvaluacion.criterio_id)
             .filter(DetalleEvaluacion.evaluacion_id == ev.id)
             .all()
         )
-        for d, cnombre, cpeso in rows:
+        for d, cnombre, cpeso, cpregunta in rows:
             peso = float(cpeso) if cpeso is not None else 1.0
             detalles_out.append(DetalleOut(
                 id=str(d.id), criterio_id=str(d.criterio_id), criterio_nombre=cnombre,
+                criterio_pregunta=cpregunta,
                 peso=peso, puntaje=int(d.puntaje), comentario=d.comentario,
             ))
             # Para evaluaciones asignadas el puntaje 0 es placeholder; no computa promedio
