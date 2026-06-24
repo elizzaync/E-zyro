@@ -1151,8 +1151,80 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab>
     return completadas[0].promedio! - completadas[1].promedio!;
   }
 
+  Widget _evalCardAsignada(Evaluacion e) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kOrange.withValues(alpha: 0.35)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A28302A), blurRadius: 8, offset: Offset(0, 2))
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+                color: _kOrangeBg, borderRadius: BorderRadius.circular(12)),
+            child: const Center(
+              child: Icon(Icons.pending_actions_outlined,
+                  color: _kOrange, size: 20),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  e.plantillaNombre ??
+                      (e.tipo.isNotEmpty
+                          ? e.tipo[0].toUpperCase() + e.tipo.substring(1)
+                          : 'Evaluación'),
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextDark),
+                ),
+                const SizedBox(height: 1),
+                Text(e.periodo,
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: _kTextMuted)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: _kOrange,
+              visualDensity: VisualDensity.compact,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            onPressed: () async {
+              final done = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => CompletarEvaluacionScreen(evaluacion: e)),
+              );
+              if (done == true) _cargar();
+            },
+            child: const Text('Completar',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
   ({Color scCol, Color scBg}) _scoreColors(Evaluacion e) {
-    if (e.estado == 'borrador' || e.estado == 'enviada') {
+    if (e.estado == 'borrador' || e.estado == 'enviada' || e.estado == 'asignada') {
       return (scCol: _kOrange, scBg: _kOrangeBg);
     }
     final p = e.promedio ?? 0;
@@ -1174,6 +1246,8 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab>
 
     final prom = _promedioGeneral;
     final tend = _tendencia;
+    final asignadas = _items.where((e) => e.esAsignada).toList();
+    final historial = _items.where((e) => !e.esAsignada).toList();
 
     return RefreshIndicator(
       color: _kGreen,
@@ -1259,7 +1333,22 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab>
 
           const SizedBox(height: 20),
 
-          // ── Lista evaluaciones ────────────────────────────────────
+          // ── Evaluaciones por completar (asignadas) ───────────────────
+          if (asignadas.isNotEmpty) ...[
+            const Text(
+              'POR COMPLETAR',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _kOrange,
+                  letterSpacing: 0.8),
+            ),
+            const SizedBox(height: 9),
+            ...asignadas.map(_evalCardAsignada),
+            const SizedBox(height: 20),
+          ],
+
+          // ── Historial evaluaciones ────────────────────────────────────
           const Text(
             'EVALUACIONES',
             style: TextStyle(
@@ -1279,11 +1368,13 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab>
                     style: TextStyle(color: _kTextMuted, fontSize: 13)),
               ),
             )
+          else if (historial.isEmpty)
+            const SizedBox.shrink()
           else
-            ...(_items.map((e) {
-              final c       = _scoreColors(e);
-              final pending = e.estado != 'completada';
-              final barPct  = e.promedio != null ? e.promedio! / 10 : 0.0;
+            ...historial.map((e) {
+              final c = _scoreColors(e);
+              final esPend = e.esPendiente;
+              final barPct = e.promedio != null ? e.promedio! / 10 : 0.0;
               return GestureDetector(
                 onTap: () => Navigator.push(
                     context,
@@ -1340,7 +1431,7 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab>
                               ],
                             ),
                           ),
-                          if (pending)
+                          if (esPend)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 3),
@@ -1359,7 +1450,7 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab>
                                 size: 17, color: Color(0xFFC2C7BB)),
                         ],
                       ),
-                      if (!pending && e.promedio != null) ...[
+                      if (!esPend && e.promedio != null) ...[
                         const SizedBox(height: 12),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(6),
@@ -1376,8 +1467,263 @@ class _MisEvaluacionesTabState extends State<_MisEvaluacionesTab>
                   ),
                 ),
               );
-            })),
+            }),
         ],
+      ),
+    );
+  }
+}
+
+// ── Completar evaluación asignada (autoservicio) ──────────────────────────────
+class CompletarEvaluacionScreen extends StatefulWidget {
+  final Evaluacion evaluacion;
+  const CompletarEvaluacionScreen({super.key, required this.evaluacion});
+
+  @override
+  State<CompletarEvaluacionScreen> createState() =>
+      _CompletarEvaluacionScreenState();
+}
+
+class _CompletarEvaluacionScreenState
+    extends State<CompletarEvaluacionScreen> {
+  late Map<String, int> _puntajes;
+  final _notas = TextEditingController();
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _puntajes = {
+      for (final d in widget.evaluacion.detalles)
+        d.criterioId: d.puntaje > 0 ? d.puntaje : 7,
+    };
+  }
+
+  @override
+  void dispose() {
+    _notas.dispose();
+    super.dispose();
+  }
+
+  void _snack(String m, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(m),
+        backgroundColor: error ? Colors.red.shade700 : null));
+  }
+
+  Future<void> _enviar() async {
+    setState(() => _guardando = true);
+    final svc = await getEvaluacionService();
+    final detalles = widget.evaluacion.detalles
+        .map((d) => DetalleEvaluacion(
+              criterioId: d.criterioId,
+              puntaje: _puntajes[d.criterioId] ?? 7,
+            ))
+        .toList();
+    final r = await svc.completarPropia(
+      evaluacionId: widget.evaluacion.id,
+      detalles: detalles,
+      notasEvaluador:
+          _notas.text.trim().isEmpty ? null : _notas.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (r.ok) {
+      Navigator.pop(context, true);
+    } else {
+      _snack(r.errorMessage, error: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.evaluacion;
+    return Scaffold(
+      backgroundColor: _kBg,
+      appBar: AppBar(
+        backgroundColor: _kBg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: const Text('Completar evaluación',
+            style: TextStyle(
+                fontSize: 17, fontWeight: FontWeight.w800, color: _kTextDark)),
+        iconTheme: const IconThemeData(color: _kTextDark),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: _cardDeco(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (e.plantillaNombre != null)
+                  Text(e.plantillaNombre!,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: _kTextDark)),
+                Text('Periodo: ${e.periodo}',
+                    style: const TextStyle(
+                        color: _kTextMuted, fontSize: 13)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          if (e.detalles.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: _cardDeco(),
+              child: const Center(
+                child: Text('Sin criterios cargados.',
+                    style: TextStyle(color: _kTextMuted)),
+              ),
+            )
+          else
+            ...e.detalles.map((d) {
+              final v = _puntajes[d.criterioId] ?? 7;
+              final color = v >= 8
+                  ? _kGreen
+                  : v >= 6
+                      ? _kBlue
+                      : _kOrange;
+              // Muestra la pregunta si existe, si no el nombre del criterio
+              final pregunta = d.criterioPreg?.isNotEmpty == true
+                  ? d.criterioPreg!
+                  : d.criterioNombre ?? d.criterioId;
+              final tienePreguntaExtra = d.criterioPreg?.isNotEmpty == true &&
+                  d.criterioNombre != null;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                decoration: _cardDeco(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Pregunta principal
+                    Text(
+                      pregunta,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _kTextDark),
+                    ),
+                    if (tienePreguntaExtra) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        d.criterioNombre!,
+                        style: const TextStyle(
+                            fontSize: 11, color: _kTextMuted, fontStyle: FontStyle.italic),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    // Escala visual 1-10
+                    Row(children: [
+                      const Text('1', style: TextStyle(fontSize: 11, color: _kTextMuted)),
+                      Expanded(
+                        child: Slider(
+                          value: v.toDouble(),
+                          min: 1,
+                          max: 10,
+                          divisions: 9,
+                          label: '$v',
+                          activeColor: color,
+                          onChanged: (nv) => setState(
+                              () => _puntajes[d.criterioId] = nv.round()),
+                        ),
+                      ),
+                      const Text('10', style: TextStyle(fontSize: 11, color: _kTextMuted)),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 38, height: 38,
+                        decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10)),
+                        child: Center(
+                          child: Text('$v',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: color)),
+                        ),
+                      ),
+                    ]),
+                    // Etiqueta verbal
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24, bottom: 2),
+                      child: Text(
+                        v >= 9 ? 'Excelente' : v >= 7 ? 'Bueno' : v >= 5 ? 'Regular' : 'Necesita mejora',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: _cardDeco(),
+            child: TextField(
+              controller: _notas,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Notas (opcional)',
+                border: InputBorder.none,
+                isDense: true,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: GestureDetector(
+            onTap: _guardando ? null : _enviar,
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [_kGreenLight, _kGreen],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                      color: _kGreen.withValues(alpha: 0.45),
+                      blurRadius: 22,
+                      offset: const Offset(0, 10),
+                      spreadRadius: -8),
+                ],
+              ),
+              child: _guardando
+                  ? const Center(
+                      child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2.5, color: Colors.white)))
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle_outline,
+                            color: Colors.white, size: 20),
+                        SizedBox(width: 9),
+                        Text('Enviar evaluación',
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white)),
+                      ],
+                    ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -41,6 +41,7 @@ class CriterioEvaluacion {
   final String id;
   final String nombre;
   final String? descripcion;
+  final String? pregunta;   // texto de pregunta que verá el evaluado
   final double peso;
   final String tipo;
   final bool activo;
@@ -49,6 +50,7 @@ class CriterioEvaluacion {
     required this.id,
     required this.nombre,
     this.descripcion,
+    this.pregunta,
     this.peso = 1.0,
     this.tipo = TipoEvaluacion.rrhh,
     this.activo = true,
@@ -58,6 +60,7 @@ class CriterioEvaluacion {
         id: j['id']?.toString() ?? '',
         nombre: j['nombre']?.toString() ?? '',
         descripcion: j['descripcion']?.toString(),
+        pregunta: j['pregunta']?.toString(),
         peso: (j['peso'] as num?)?.toDouble() ?? 1.0,
         tipo: j['tipo']?.toString() ?? TipoEvaluacion.rrhh,
         activo: j['activo'] as bool? ?? true,
@@ -68,6 +71,7 @@ class DetalleEvaluacion {
   final String? id;
   final String criterioId;
   final String? criterioNombre;
+  final String? criterioPreg;   // pregunta que vio el evaluado (del criterio)
   final double? peso;
   final int puntaje;
   final String? comentario;
@@ -76,6 +80,7 @@ class DetalleEvaluacion {
     this.id,
     required this.criterioId,
     this.criterioNombre,
+    this.criterioPreg,
     this.peso,
     required this.puntaje,
     this.comentario,
@@ -85,6 +90,7 @@ class DetalleEvaluacion {
         id: j['id']?.toString(),
         criterioId: j['criterio_id']?.toString() ?? '',
         criterioNombre: j['criterio_nombre']?.toString(),
+        criterioPreg: j['criterio_pregunta']?.toString(),
         peso: (j['peso'] as num?)?.toDouble(),
         puntaje: (j['puntaje'] as num?)?.toInt() ?? 0,
         comentario: j['comentario']?.toString(),
@@ -104,6 +110,7 @@ class PlantillaEvaluacionItem {
   final String criterioId;
   final String? criterioNombre;
   final String? criterioDescripcion;
+  final String? criterioPreg;
   final double peso;
   final int orden;
 
@@ -112,6 +119,7 @@ class PlantillaEvaluacionItem {
     required this.criterioId,
     this.criterioNombre,
     this.criterioDescripcion,
+    this.criterioPreg,
     required this.peso,
     this.orden = 0,
   });
@@ -121,6 +129,7 @@ class PlantillaEvaluacionItem {
         criterioId: j['criterio_id']?.toString() ?? '',
         criterioNombre: j['criterio_nombre']?.toString(),
         criterioDescripcion: j['criterio_descripcion']?.toString(),
+        criterioPreg: j['criterio_pregunta']?.toString(),
         peso: (j['peso'] as num?)?.toDouble() ?? 1.0,
         orden: (j['orden'] as num?)?.toInt() ?? 0,
       );

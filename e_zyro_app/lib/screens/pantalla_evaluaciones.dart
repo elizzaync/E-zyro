@@ -17,7 +17,39 @@ class PantallaEvaluaciones extends StatefulWidget {
 }
 
 class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
-  EvaluacionService? _svc;
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Evaluaciones',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          bottom: const TabBar(tabs: [
+            Tab(text: 'Evaluaciones'),
+            Tab(text: 'Plantillas'),
+            Tab(text: 'Criterios'),
+          ]),
+        ),
+        body: const TabBarView(children: [
+          _EvaluacionesTabBody(),
+          PantallaPlantillasEvaluacion(),
+          CriteriosTab(),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─── Tab Evaluaciones (lista + FAB nueva libre) ────────────────────────────────
+class _EvaluacionesTabBody extends StatefulWidget {
+  const _EvaluacionesTabBody();
+
+  @override
+  State<_EvaluacionesTabBody> createState() => _EvaluacionesTabBodyState();
+}
+
+class _EvaluacionesTabBodyState extends State<_EvaluacionesTabBody> {
   List<Evaluacion> _items = [];
   bool _cargando = true;
   String? _error;
@@ -25,21 +57,16 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
   @override
   void initState() {
     super.initState();
-    _init();
-  }
-
-  Future<void> _init() async {
-    _svc = await getEvaluacionService();
-    await _cargar();
+    _cargar();
   }
 
   Future<void> _cargar() async {
-    if (_svc == null) return;
     setState(() {
       _cargando = true;
       _error = null;
     });
-    final r = await _svc!.listar();
+    final svc = await getEvaluacionService();
+    final r = await svc.listar();
     if (!mounted) return;
     setState(() {
       _cargando = false;
@@ -53,11 +80,13 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
 
   Future<void> _nueva() async {
     final creada = await Navigator.push<bool>(
-      context, MaterialPageRoute(builder: (_) => const CrearEvaluacionScreen()));
+        context,
+        MaterialPageRoute(
+            builder: (_) => const CrearEvaluacionScreen()));
     if (creada == true) _cargar();
   }
 
-  Color _colorEstado(String e) => switch (e) {
+  Color _color(String e) => switch (e) {
         'completada' => Colors.green,
         'enviada' => Colors.blue,
         _ => Colors.orange,
@@ -65,31 +94,12 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Evaluaciones', style: TextStyle(fontWeight: FontWeight.bold)),
-          bottom: const TabBar(tabs: [
-            Tab(text: 'Evaluaciones'),
-            Tab(text: 'Plantillas'),
-            Tab(text: 'Criterios'),
-          ]),
-          actions: [IconButton(onPressed: _cargar, icon: const Icon(Icons.refresh))],
-        ),
-        body: const TabBarView(children: [
-          _EvaluacionesTabBody(),
-          PantallaPlantillasEvaluacion(),
-          CriteriosTab(),
-        ]),
-      ),
-    );
-  }
-
-  Widget _evaluacionesTab() {
     return Scaffold(
       floatingActionButton: AppSession.i.canCrearEvaluacion
-          ? FloatingActionButton.extended(onPressed: _nueva, icon: const Icon(Icons.add), label: const Text('Nueva'))
+          ? FloatingActionButton.extended(
+              onPressed: _nueva,
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva libre'))
           : null,
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
@@ -97,38 +107,56 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
               ? Center(child: Text(_error!))
               : _items.isEmpty
                   ? const Center(child: Text('Sin evaluaciones.'))
-                  : RefreshIndicator(onRefresh: _cargar, child: _lista()),
-    );
-  }
-
-  Widget _lista() {
-    return ListView.separated(
-      itemCount: _items.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (_, i) {
-        final e = _items[i];
-        final color = _colorEstado(e.estado);
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: color.withValues(alpha: 0.15),
-            child: Text(e.promedio?.toStringAsFixed(1) ?? '—',
-                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
-          ),
-          title: Text(e.empleadoNombre ?? e.empleadoId),
-          subtitle: Text('Periodo: ${e.periodo} · ${e.fecha ?? '-'}'),
-          trailing: Chip(
-            label: Text(e.estado, style: TextStyle(color: color, fontSize: 11)),
-            backgroundColor: color.withValues(alpha: 0.12),
-            side: BorderSide.none,
-            visualDensity: VisualDensity.compact,
-          ),
-          onTap: () async {
-            final cambio = await Navigator.push<bool>(
-              context, MaterialPageRoute(builder: (_) => DetalleEvaluacionScreen(evaluacionId: e.id)));
-            if (cambio == true) _cargar();
-          },
-        );
-      },
+                  : RefreshIndicator(
+                      onRefresh: _cargar,
+                      child: ListView.separated(
+                        itemCount: _items.length,
+                        separatorBuilder: (_, _) =>
+                            const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final e = _items[i];
+                          final color = _color(e.estado);
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  color.withValues(alpha: 0.15),
+                              child: Text(
+                                e.promedio?.toStringAsFixed(1) ?? '—',
+                                style: TextStyle(
+                                    color: color,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12),
+                              ),
+                            ),
+                            title: Text(
+                                e.empleadoNombre ?? e.empleadoId),
+                            subtitle: Text(
+                                'Periodo: ${e.periodo} · ${e.fecha ?? '-'}'),
+                            trailing: Chip(
+                              label: Text(e.estado,
+                                  style: TextStyle(
+                                      color: color, fontSize: 11)),
+                              backgroundColor:
+                                  color.withValues(alpha: 0.12),
+                              side: BorderSide.none,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                            onTap: () async {
+                              final cambio =
+                                  await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      DetalleEvaluacionScreen(
+                                          evaluacionId: e.id),
+                                ),
+                              );
+                              if (cambio == true) _cargar();
+                            },
+                          );
+                        },
+                      ),
+                    ),
     );
   }
 }
@@ -530,23 +558,52 @@ class _CriteriosTabState extends State<CriteriosTab> {
         SnackBar(content: Text(m), backgroundColor: error ? Colors.red.shade700 : null));
   }
 
-  Future<void> _nuevo() async {
-    final nombre = TextEditingController();
-    final desc = TextEditingController();
-    final peso = TextEditingController(text: '1.0');
+  Future<void> _nuevo([CriterioEvaluacion? existing]) async {
+    final nombre   = TextEditingController(text: existing?.nombre ?? '');
+    final desc     = TextEditingController(text: existing?.descripcion ?? '');
+    final pregunta = TextEditingController(text: existing?.pregunta ?? '');
+    final peso     = TextEditingController(text: existing?.peso.toStringAsFixed(1) ?? '1.0');
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nuevo criterio'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: nombre, decoration: const InputDecoration(labelText: 'Nombre')),
-          TextField(controller: desc, decoration: const InputDecoration(labelText: 'Descripción (opcional)')),
-          TextField(
-            controller: peso,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Peso (ponderación)'),
-          ),
-        ]),
+        title: Text(existing == null ? 'Nuevo criterio' : 'Editar criterio'),
+        scrollable: true,
+        content: SizedBox(
+          width: 400,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: nombre,
+              decoration: const InputDecoration(
+                labelText: 'Nombre del criterio *',
+                helperText: 'Ej: Puntualidad, Trabajo en equipo',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: pregunta,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Pregunta que verá el colaborador',
+                helperText: 'Ej: ¿Cómo evalúas tu puntualidad este periodo?',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: desc,
+              decoration: const InputDecoration(labelText: 'Descripción interna (opcional)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: peso,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Peso (ponderación)',
+                helperText: 'Ej: 2.0 = vale el doble que un criterio con peso 1.0',
+              ),
+            ),
+          ]),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
@@ -559,12 +616,17 @@ class _CriteriosTabState extends State<CriteriosTab> {
       return;
     }
     final svc = await getEvaluacionService();
-    final r = await svc.crearCriterio(
-      nombre: nombre.text.trim(),
-      descripcion: desc.text.trim().isEmpty ? null : desc.text.trim(),
-      peso: double.tryParse(peso.text.trim()) ?? 1.0,
-      tipo: widget.tipo,
-    );
+    final preguntaVal = pregunta.text.trim().isEmpty ? null : pregunta.text.trim();
+    final descVal = desc.text.trim().isEmpty ? null : desc.text.trim();
+    final pesoVal = double.tryParse(peso.text.trim()) ?? 1.0;
+
+    final r = existing == null
+        ? await svc.crearCriterio(
+            nombre: nombre.text.trim(), descripcion: descVal,
+            pregunta: preguntaVal, peso: pesoVal, tipo: widget.tipo)
+        : await svc.editarCriterio(
+            id: existing.id, nombre: nombre.text.trim(), descripcion: descVal,
+            pregunta: preguntaVal, peso: pesoVal, tipo: widget.tipo);
     if (!mounted) return;
     r.ok ? _cargar() : _snack(r.errorMessage, error: true);
   }
@@ -611,14 +673,29 @@ class _CriteriosTabState extends State<CriteriosTab> {
                           final c = _items[i];
                           return ListTile(
                             leading: const Icon(Icons.checklist_outlined),
-                            title: Text(c.nombre),
-                            subtitle: c.descripcion != null ? Text(c.descripcion!) : null,
+                            title: Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (c.pregunta != null)
+                                  Text('❓ ${c.pregunta}',
+                                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                                if (c.descripcion != null)
+                                  Text(c.descripcion!, style: const TextStyle(fontSize: 12)),
+                              ],
+                            ),
+                            isThreeLine: c.pregunta != null || c.descripcion != null,
                             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                               Chip(
-                                label: Text('peso ${c.peso.toStringAsFixed(1)}', style: const TextStyle(fontSize: 11)),
+                                label: Text('peso ${c.peso.toStringAsFixed(1)}',
+                                    style: const TextStyle(fontSize: 11)),
                                 visualDensity: VisualDensity.compact,
                                 side: BorderSide.none,
                               ),
+                              if (AppSession.i.canEditarEvaluacion)
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  onPressed: () => _nuevo(c)),
                               if (AppSession.i.canEliminarEvaluacion)
                                 IconButton(
                                   icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 20),

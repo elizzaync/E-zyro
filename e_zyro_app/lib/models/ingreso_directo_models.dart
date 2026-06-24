@@ -158,7 +158,7 @@ class IngresoItem {
   final int? stockMinimo;
 
   // Equipo / herramienta / equipo_tecnologico
-  final String? tipoId;
+  final String? categoriaEquipoId;
   final String? marcaId;
   final String? modeloId;
   final String? marca;
@@ -188,7 +188,7 @@ class IngresoItem {
     this.categoriaId,
     this.unidadId,
     this.stockMinimo,
-    this.tipoId,
+    this.categoriaEquipoId,
     this.marcaId,
     this.modeloId,
     this.marca,
@@ -217,7 +217,7 @@ class IngresoItem {
     String? categoriaId,
     String? unidadId,
     int? stockMinimo,
-    String? tipoId,
+    String? categoriaEquipoId,
     String? marcaId,
     String? modeloId,
     String? marca,
@@ -245,7 +245,7 @@ class IngresoItem {
         categoriaId: categoriaId ?? this.categoriaId,
         unidadId: unidadId ?? this.unidadId,
         stockMinimo: stockMinimo ?? this.stockMinimo,
-        tipoId: tipoId ?? this.tipoId,
+        categoriaEquipoId: categoriaEquipoId ?? this.categoriaEquipoId,
         marcaId: marcaId ?? this.marcaId,
         modeloId: modeloId ?? this.modeloId,
         marca: marca ?? this.marca,
@@ -274,7 +274,7 @@ class IngresoItem {
         if (categoriaId != null) 'categoriaId': categoriaId,
         if (unidadId != null) 'unidadId': unidadId,
         if (stockMinimo != null) 'stockMinimo': stockMinimo,
-        if (tipoId != null) 'tipoId': tipoId,
+        if (categoriaEquipoId != null) 'categoriaEquipoId': categoriaEquipoId,
         if (marcaId != null) 'marcaId': marcaId,
         if (modeloId != null) 'modeloId': modeloId,
         if (marca != null) 'marca': marca,

@@ -24,17 +24,39 @@ class EvaluacionService {
   }
 
   Future<ApiResult<CriterioEvaluacion>> crearCriterio({
-    required String nombre, String? descripcion, double peso = 1.0,
-    String tipo = 'rrhh',
+    required String nombre, String? descripcion, String? pregunta,
+    double peso = 1.0, String tipo = 'rrhh',
   }) async {
     try {
       final r = await _client.post('/evaluaciones/criterios', {
         'nombre': nombre,
         'descripcion': ?descripcion,
+        'pregunta': ?pregunta,
         'peso': peso,
         'tipo': tipo,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(CriterioEvaluacion.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<CriterioEvaluacion>> editarCriterio({
+    required String id, required String nombre, String? descripcion,
+    String? pregunta, double peso = 1.0, String tipo = 'rrhh',
+  }) async {
+    try {
+      final r = await _client.put('/evaluaciones/criterios/$id', {
+        'nombre': nombre,
+        'descripcion': ?descripcion,
+        'pregunta': ?pregunta,
+        'peso': peso,
+        'tipo': tipo,
+      });
+      if (r.statusCode == 200) {
         return ApiResult.ok(CriterioEvaluacion.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
       }
       return ApiResult.fail(ApiError.fromResponse(r));

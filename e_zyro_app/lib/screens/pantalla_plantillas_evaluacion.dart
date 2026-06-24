@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/api_result.dart';
 import '../models/evaluacion_models.dart';
 import '../models/personal_models.dart';
 import '../services/evaluacion_service.dart';
@@ -231,11 +232,11 @@ class _PantallaPlantillasEvaluacionState extends State<PantallaPlantillasEvaluac
               const Text('Seleccionar empleados', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
               const SizedBox(height: 4),
               ...empleados.map((e) {
-                final nombre = '${e.nombre ?? ''} ${e.apellido ?? ''}'.trim();
+                final nombre = e.nombre ?? e.id;
                 return CheckboxListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
-                  title: Text(nombre.isEmpty ? e.id : nombre, style: const TextStyle(fontSize: 13)),
+                  title: Text(nombre, style: const TextStyle(fontSize: 13)),
                   value: selIds.contains(e.id),
                   onChanged: (v) => setLocal(() {
                     if (v == true) selIds.add(e.id);
