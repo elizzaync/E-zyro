@@ -19,10 +19,10 @@
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
-    <input class="cc-search-input" type="text" [(ngModel)]="busqueda"
+    <input class="cc-search-input" type="text" [(ngModel)]="busqueda" (ngModelChange)="onFiltro()"
            placeholder="Buscar por nombre, usuario, correo o rol…">
     @if (busqueda) {
-      <button class="cc-search-clear" (click)="busqueda = ''">✕</button>
+      <button class="cc-search-clear" (click)="busqueda = ''; onFiltro()">✕</button>
     }
   </div>
 
@@ -48,7 +48,7 @@
           <tr>
             <th>Usuario</th>
             <th>Correo</th>
-            <th>Nombre de usuario</th>
+            <th>@Username</th>
             <th class="text-center">Rol</th>
             <th class="text-center">Ficha</th>
             <th class="text-center">Estado</th>
@@ -56,14 +56,12 @@
           </tr>
         </thead>
         <tbody>
-          @for (u of usuariosFiltrados; track u.id) {
+          @for (u of usuariosPagina; track u.id) {
           <tr [class.row-inactivo]="!u.activo">
             <td>
               <div class="cc-emp-cell">
                 <div class="cc-avatar">{{ iniciales(u) }}</div>
-                <div>
-                  <span class="cc-nombre">{{ u.nombre }} {{ u.apellido }}</span>
-                </div>
+                <span class="cc-nombre">{{ u.nombre }} {{ u.apellido }}</span>
               </div>
             </td>
             <td><span class="cc-email">{{ u.email }}</span></td>
@@ -79,26 +77,34 @@
               }
             </td>
             <td class="text-center">
-              <button class="cc-toggle-btn" [class.activo]="u.activo" [class.inactivo]="!u.activo"
-                      (click)="toggleActivo(u)" [disabled]="toggling"
-                      [title]="u.activo ? 'Desactivar cuenta' : 'Activar cuenta'">
-                {{ u.activo ? 'Activo' : 'Inactivo' }}
-              </button>
+              <span class="cc-status-dot" [class.dot-active]="u.activo" [class.dot-inactive]="!u.activo"></span>
+              <span class="cc-status-txt">{{ u.activo ? 'Activo' : 'Inactivo' }}</span>
             </td>
             <td class="text-center">
               <div class="cc-actions">
                 <button class="cc-action-btn" title="Cambiar rol" (click)="abrirRolModal(u)">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="9" cy="7" r="4"/>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
                   </svg>
                 </button>
                 <button class="cc-action-btn" title="Restablecer contraseña" (click)="abrirResetModal(u)">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
+                </button>
+                <button class="cc-action-btn" [class.btn-activar]="!u.activo" [class.btn-desactivar]="u.activo"
+                        [title]="u.activo ? 'Desactivar acceso' : 'Activar acceso'"
+                        (click)="abrirToggleModal(u)">
+                  @if (u.activo) {
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                    </svg>
+                  } @else {
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  }
                 </button>
               </div>
             </td>
@@ -106,6 +112,26 @@
           }
         </tbody>
       </table>
+
+      <!-- Paginación -->
+      @if (totalPaginas > 1) {
+      <div class="cc-pagination">
+        <span class="cc-page-info">
+          {{ (pagina-1)*porPagina + 1 }}–{{ minVal(pagina*porPagina, usuariosFiltrados.length) }} de {{ usuariosFiltrados.length }}
+        </span>
+        <div class="cc-page-btns">
+          <button class="cc-page-btn" (click)="irPagina(pagina-1)" [disabled]="pagina === 1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          @for (p of paginasArray; track p) {
+            <button class="cc-page-btn cc-page-num" [class.active]="p === pagina" (click)="irPagina(p)">{{ p }}</button>
+          }
+          <button class="cc-page-btn" (click)="irPagina(pagina+1)" [disabled]="pagina === totalPaginas">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+      }
     }
   </div>
 
@@ -115,24 +141,19 @@
      MODAL CREAR CUENTA
 ═══════════════════════════════════════════════════════════ -->
 @if (showModal) {
-<div class="modal-backdrop-pro" (click)="cerrarModal()"></div>
-<div class="cc-modal fade-in-up" (click)="$event.stopPropagation()">
+<div class="cc-overlay" (click)="cerrarModal()"></div>
+<div class="cc-modal cc-modal-lg fade-in-up" (click)="$event.stopPropagation()">
 
   <div class="cc-modal-head">
     <div>
       <h3 class="cc-modal-title">Nueva cuenta de acceso</h3>
-      <p class="cc-modal-sub">Completa los datos — la contraseña se genera automáticamente</p>
+      <p class="cc-modal-sub">La contraseña se genera automáticamente con el DNI</p>
     </div>
-    <button class="cc-close-btn" (click)="cerrarModal()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
+    <button class="cc-close-btn" (click)="cerrarModal()">✕</button>
   </div>
 
   <div class="cc-modal-body">
 
-    <!-- Sección 1: Identidad -->
     <p class="cc-section-label">Datos personales</p>
     <div class="cc-grid-2">
       <div class="cc-field">
@@ -155,15 +176,13 @@
       </div>
     </div>
 
-    <!-- Sección 2: Acceso al sistema -->
-    <p class="cc-section-label">Acceso al sistema</p>
+    <p class="cc-section-label" style="margin-top:4px">Acceso al sistema</p>
     <div class="cc-grid-2">
       <div class="cc-field">
         <label class="cc-label">Nombre de usuario <span class="req">*</span></label>
         <div class="cc-input-prefix-wrap">
           <span class="cc-input-prefix">@</span>
-          <input class="cc-input cc-input-with-prefix" type="text" [(ngModel)]="form.username"
-                 placeholder="nombre.apellido">
+          <input class="cc-input-with-prefix" type="text" [(ngModel)]="form.username" placeholder="nombre.apellido">
         </div>
       </div>
       <div class="cc-field">
@@ -177,28 +196,26 @@
       </div>
     </div>
 
-    <!-- Password preview -->
     <div class="cc-pwd-preview">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
       </svg>
       <span>Contraseña generada:</span>
       <strong class="cc-pwd-val">{{ passwordPreview }}</strong>
-      <span class="cc-pwd-hint">= DNI + inicial nombre + año</span>
+      <span class="cc-pwd-hint">= N° documento + inicial nombre + año</span>
     </div>
 
-    <!-- Sección 3: Ficha de empleado -->
     <div class="cc-ficha-toggle">
       <label class="cc-check-label">
         <input type="checkbox" [(ngModel)]="form.crear_ficha" class="cc-checkbox">
-        <span>Crear ficha de empleado</span>
+        Crear ficha de empleado
       </label>
       <span class="cc-ficha-hint">Necesaria para asistencia, planillas y vacaciones</span>
     </div>
 
     @if (form.crear_ficha) {
     <div class="cc-ficha-box">
-      <p class="cc-section-label">Ficha del empleado</p>
+      <p class="cc-section-label">Datos del empleado</p>
       <div class="cc-grid-2">
         <div class="cc-field">
           <label class="cc-label">Tipo de documento</label>
@@ -252,7 +269,6 @@
     @if (errorMsg) {
       <div class="cc-error-msg">{{ errorMsg }}</div>
     }
-
   </div>
 
   <div class="cc-modal-foot">
@@ -261,7 +277,6 @@
       @if (guardando) { Creando… } @else { Crear cuenta }
     </button>
   </div>
-
 </div>
 }
 
@@ -269,20 +284,17 @@
      MODAL CAMBIAR ROL
 ═══════════════════════════════════════════════════════════ -->
 @if (showRolModal && rolTarget) {
-<div class="modal-backdrop-pro" (click)="cerrarRolModal()"></div>
-<div class="cc-mini-modal fade-in-up" (click)="$event.stopPropagation()">
+<div class="cc-overlay" (click)="cerrarRolModal()"></div>
+<div class="cc-modal cc-modal-sm fade-in-up" (click)="$event.stopPropagation()">
   <div class="cc-modal-head">
     <h3 class="cc-modal-title">Cambiar rol</h3>
-    <button class="cc-close-btn" (click)="cerrarRolModal()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
+    <button class="cc-close-btn" (click)="cerrarRolModal()">✕</button>
   </div>
   <div class="cc-modal-body">
     <p class="cc-info-txt">Cambiando rol de <strong>{{ rolTarget.nombre }} {{ rolTarget.apellido }}</strong></p>
+    <p class="cc-muted-txt">Rol actual: <strong>{{ rolTarget.rol ?? 'Sin rol' }}</strong></p>
     <div class="cc-field">
-      <label class="cc-label">Nuevo rol</label>
+      <label class="cc-label">Nuevo rol <span class="req">*</span></label>
       <select class="cc-input" [(ngModel)]="nuevoRolId">
         @for (r of roles; track r.id) {
           <option [value]="r.id">{{ r.nombre }}</option>
@@ -293,7 +305,54 @@
   <div class="cc-modal-foot">
     <button class="cc-btn-cancel" (click)="cerrarRolModal()">Cancelar</button>
     <button class="cc-btn-save" (click)="confirmarRol()" [disabled]="cambiandoRol || !nuevoRolId">
-      @if (cambiandoRol) { Guardando… } @else { Guardar }
+      @if (cambiandoRol) { Guardando… } @else { Confirmar }
+    </button>
+  </div>
+</div>
+}
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL ACTIVAR / DESACTIVAR
+═══════════════════════════════════════════════════════════ -->
+@if (showToggleModal && toggleTarget) {
+<div class="cc-overlay" (click)="cerrarToggleModal()"></div>
+<div class="cc-modal cc-modal-sm fade-in-up" (click)="$event.stopPropagation()">
+  <div class="cc-modal-head">
+    <h3 class="cc-modal-title">
+      {{ toggleTarget.activo ? 'Desactivar cuenta' : 'Activar cuenta' }}
+    </h3>
+    <button class="cc-close-btn" (click)="cerrarToggleModal()">✕</button>
+  </div>
+  <div class="cc-modal-body">
+    @if (toggleTarget.activo) {
+      <div class="cc-warn-box">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <div>
+          <strong>¿Desactivar acceso?</strong>
+          <p>{{ toggleTarget.nombre }} {{ toggleTarget.apellido }} no podrá iniciar sesión en el sistema. Sus datos se conservan.</p>
+        </div>
+      </div>
+    } @else {
+      <div class="cc-ok-box">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div>
+          <strong>¿Reactivar acceso?</strong>
+          <p>{{ toggleTarget.nombre }} {{ toggleTarget.apellido }} podrá volver a iniciar sesión con su contraseña actual.</p>
+        </div>
+      </div>
+    }
+  </div>
+  <div class="cc-modal-foot">
+    <button class="cc-btn-cancel" (click)="cerrarToggleModal()">Cancelar</button>
+    <button [class]="toggleTarget.activo ? 'cc-btn-danger' : 'cc-btn-save'"
+            (click)="confirmarToggle()" [disabled]="toggling">
+      @if (toggling) { Procesando… }
+      @else { {{ toggleTarget.activo ? 'Sí, desactivar' : 'Sí, activar' }} }
     </button>
   </div>
 </div>
@@ -303,36 +362,93 @@
      MODAL RESET PASSWORD
 ═══════════════════════════════════════════════════════════ -->
 @if (showResetModal && resetTarget) {
-<div class="modal-backdrop-pro" (click)="cerrarResetModal()"></div>
-<div class="cc-mini-modal fade-in-up" (click)="$event.stopPropagation()">
+<div class="cc-overlay" (click)="cerrarResetModal()"></div>
+<div class="cc-modal cc-modal-sm fade-in-up" (click)="$event.stopPropagation()">
   <div class="cc-modal-head">
     <h3 class="cc-modal-title">Restablecer contraseña</h3>
-    <button class="cc-close-btn" (click)="cerrarResetModal()">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-      </svg>
-    </button>
+    <button class="cc-close-btn" (click)="cerrarResetModal()">✕</button>
   </div>
   <div class="cc-modal-body">
-    <p class="cc-info-txt">Usuario: <strong>{{ resetTarget.nombre }} {{ resetTarget.apellido }}</strong></p>
-    <div class="cc-field">
-      <label class="cc-label">Nueva contraseña</label>
-      <input #resetPwdInput class="cc-input" type="text"
-             [placeholder]="'Ej: ' + (resetTarget.username ?? '') + '2026'"
-             (keyup.enter)="resetConPassword(resetPwdInput.value)">
-    </div>
-    <p class="cc-reset-hint">
-      Fórmula sugerida: <strong>DNI + inicial + año</strong>
+    <p class="cc-info-txt">
+      Usuario: <strong>{{ resetTarget.nombre }} {{ resetTarget.apellido }}</strong>
+      <span class="cc-muted-txt"> — @{{ resetTarget.username }}</span>
     </p>
+
+    <div class="cc-warn-box cc-warn-amber">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <p>El usuario deberá usar esta nueva contraseña en su próximo inicio de sesión.</p>
+    </div>
+
+    <!-- Generar desde DNI -->
+    <div class="cc-gen-box">
+      <p class="cc-gen-label">Generar contraseña automática (fórmula original)</p>
+      <div class="cc-gen-row">
+        <input class="cc-input cc-input-flex" type="text" [(ngModel)]="resetDni"
+               placeholder="Ingresa el DNI del empleado" maxlength="20">
+        <button class="cc-btn-gen" (click)="usarSugerida()" [disabled]="!resetPwdSugerida">
+          Usar esta
+        </button>
+      </div>
+      @if (resetPwdSugerida) {
+        <span class="cc-gen-preview">→ <strong>{{ resetPwdSugerida }}</strong></span>
+      }
+    </div>
+
+    <div class="cc-divider-label">o ingresa una contraseña manual</div>
+
+    <div class="cc-field">
+      <label class="cc-label">Nueva contraseña <span class="req">*</span></label>
+      <div class="cc-input-eye-wrap">
+        <input class="cc-input cc-input-flex" [type]="resetShowPwd ? 'text' : 'password'"
+               [(ngModel)]="resetPwd" placeholder="Mínimo 6 caracteres" autocomplete="new-password">
+        <button class="cc-eye-btn" type="button" (click)="resetShowPwd = !resetShowPwd" tabindex="-1">
+          @if (resetShowPwd) {
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          } @else {
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          }
+        </button>
+      </div>
+      <!-- Indicador de fortaleza -->
+      @if (resetPwd) {
+        <div class="cc-strength-bar">
+          <div class="cc-strength-fill" [class]="'strength-' + resetPwdStrength"></div>
+        </div>
+        <span class="cc-strength-lbl" [class]="'strength-' + resetPwdStrength">
+          {{ resetPwdStrength === 'debil' ? 'Débil' : resetPwdStrength === 'media' ? 'Media' : 'Fuerte' }}
+        </span>
+      }
+    </div>
+
+    <div class="cc-field">
+      <label class="cc-label">Confirmar contraseña <span class="req">*</span></label>
+      <input class="cc-input" [type]="resetShowPwd ? 'text' : 'password'"
+             [(ngModel)]="resetConfirm" placeholder="Repite la contraseña" autocomplete="new-password"
+             [class.input-match-ok]="resetPwd && resetConfirm && resetPwd === resetConfirm"
+             [class.input-match-err]="resetConfirm && resetPwd !== resetConfirm">
+      @if (resetConfirm && resetPwd !== resetConfirm) {
+        <span class="cc-match-hint err">Las contraseñas no coinciden</span>
+      }
+      @if (resetPwd && resetConfirm && resetPwd === resetConfirm) {
+        <span class="cc-match-hint ok">✓ Coinciden</span>
+      }
+    </div>
+
     @if (resetMsg) {
       <div class="cc-error-msg">{{ resetMsg }}</div>
     }
   </div>
   <div class="cc-modal-foot">
     <button class="cc-btn-cancel" (click)="cerrarResetModal()">Cancelar</button>
-    <button class="cc-btn-save" (click)="resetConPassword(resetPwdInput.value)"
-            [disabled]="resetandoPass">
-      @if (resetandoPass) { Restableciendo… } @else { Restablecer }
+    <button class="cc-btn-save" (click)="confirmarReset()" [disabled]="resetandoPass || !resetPwd || resetPwd !== resetConfirm">
+      @if (resetandoPass) { Restableciendo… } @else { Restablecer contraseña }
     </button>
   </div>
 </div>
