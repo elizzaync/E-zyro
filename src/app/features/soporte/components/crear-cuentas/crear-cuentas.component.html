@@ -1,0 +1,339 @@
+<div class="cc-page">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="cc-header">
+    <div>
+      <h2 class="cc-title">Gestión de Cuentas</h2>
+      <p class="cc-subtitle">Crea y administra las cuentas de acceso al sistema</p>
+    </div>
+    <button class="cc-btn-new" (click)="abrirModal()">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nueva cuenta
+    </button>
+  </div>
+
+  <!-- ═══ BARRA BÚSQUEDA ═══ -->
+  <div class="cc-searchbar card">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input class="cc-search-input" type="text" [(ngModel)]="busqueda"
+           placeholder="Buscar por nombre, usuario, correo o rol…">
+    @if (busqueda) {
+      <button class="cc-search-clear" (click)="busqueda = ''">✕</button>
+    }
+  </div>
+
+  <!-- ═══ TABLA ═══ -->
+  <div class="cc-table-wrap card">
+    @if (cargando) {
+      <div class="cc-state">
+        <div class="cc-spinner"></div>
+        <p>Cargando usuarios…</p>
+      </div>
+    } @else if (!usuariosFiltrados.length) {
+      <div class="cc-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".35">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <line x1="23" y1="11" x2="17" y2="11"/>
+        </svg>
+        <p>{{ busqueda ? 'Sin resultados para "' + busqueda + '"' : 'Aún no hay cuentas registradas' }}</p>
+      </div>
+    } @else {
+      <table class="cc-table">
+        <thead>
+          <tr>
+            <th>Usuario</th>
+            <th>Correo</th>
+            <th>Nombre de usuario</th>
+            <th class="text-center">Rol</th>
+            <th class="text-center">Ficha</th>
+            <th class="text-center">Estado</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of usuariosFiltrados; track u.id) {
+          <tr [class.row-inactivo]="!u.activo">
+            <td>
+              <div class="cc-emp-cell">
+                <div class="cc-avatar">{{ iniciales(u) }}</div>
+                <div>
+                  <span class="cc-nombre">{{ u.nombre }} {{ u.apellido }}</span>
+                </div>
+              </div>
+            </td>
+            <td><span class="cc-email">{{ u.email }}</span></td>
+            <td><span class="cc-username">@{{ u.username }}</span></td>
+            <td class="text-center">
+              <span class="cc-rol-badge">{{ u.rol ?? 'Sin rol' }}</span>
+            </td>
+            <td class="text-center">
+              @if (u.tiene_ficha) {
+                <span class="cc-badge cc-badge-ok">Sí</span>
+              } @else {
+                <span class="cc-badge cc-badge-no">No</span>
+              }
+            </td>
+            <td class="text-center">
+              <button class="cc-toggle-btn" [class.activo]="u.activo" [class.inactivo]="!u.activo"
+                      (click)="toggleActivo(u)" [disabled]="toggling"
+                      [title]="u.activo ? 'Desactivar cuenta' : 'Activar cuenta'">
+                {{ u.activo ? 'Activo' : 'Inactivo' }}
+              </button>
+            </td>
+            <td class="text-center">
+              <div class="cc-actions">
+                <button class="cc-action-btn" title="Cambiar rol" (click)="abrirRolModal(u)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </button>
+                <button class="cc-action-btn" title="Restablecer contraseña" (click)="abrirResetModal(u)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL CREAR CUENTA
+═══════════════════════════════════════════════════════════ -->
+@if (showModal) {
+<div class="modal-backdrop-pro" (click)="cerrarModal()"></div>
+<div class="cc-modal fade-in-up" (click)="$event.stopPropagation()">
+
+  <div class="cc-modal-head">
+    <div>
+      <h3 class="cc-modal-title">Nueva cuenta de acceso</h3>
+      <p class="cc-modal-sub">Completa los datos — la contraseña se genera automáticamente</p>
+    </div>
+    <button class="cc-close-btn" (click)="cerrarModal()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="cc-modal-body">
+
+    <!-- Sección 1: Identidad -->
+    <p class="cc-section-label">Datos personales</p>
+    <div class="cc-grid-2">
+      <div class="cc-field">
+        <label class="cc-label">Nombre <span class="req">*</span></label>
+        <input class="cc-input" type="text" [(ngModel)]="form.nombre"
+               (blur)="sugerirUsername(); onDniChange()" placeholder="Ej: Juan">
+      </div>
+      <div class="cc-field">
+        <label class="cc-label">Apellido <span class="req">*</span></label>
+        <input class="cc-input" type="text" [(ngModel)]="form.apellido"
+               (blur)="sugerirUsername()" placeholder="Ej: Pérez">
+      </div>
+      <div class="cc-field">
+        <label class="cc-label">Correo electrónico <span class="req">*</span></label>
+        <input class="cc-input" type="email" [(ngModel)]="form.email" placeholder="Ej: jperez@empresa.com">
+      </div>
+      <div class="cc-field">
+        <label class="cc-label">Teléfono</label>
+        <input class="cc-input" type="text" [(ngModel)]="form.telefono" placeholder="Ej: 999888777">
+      </div>
+    </div>
+
+    <!-- Sección 2: Acceso al sistema -->
+    <p class="cc-section-label">Acceso al sistema</p>
+    <div class="cc-grid-2">
+      <div class="cc-field">
+        <label class="cc-label">Nombre de usuario <span class="req">*</span></label>
+        <div class="cc-input-prefix-wrap">
+          <span class="cc-input-prefix">@</span>
+          <input class="cc-input cc-input-with-prefix" type="text" [(ngModel)]="form.username"
+                 placeholder="nombre.apellido">
+        </div>
+      </div>
+      <div class="cc-field">
+        <label class="cc-label">Rol del sistema <span class="req">*</span></label>
+        <select class="cc-input" [(ngModel)]="form.rol_id">
+          <option value="">— Selecciona un rol —</option>
+          @for (r of roles; track r.id) {
+            <option [value]="r.id">{{ r.nombre }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <!-- Password preview -->
+    <div class="cc-pwd-preview">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      <span>Contraseña generada:</span>
+      <strong class="cc-pwd-val">{{ passwordPreview }}</strong>
+      <span class="cc-pwd-hint">= DNI + inicial nombre + año</span>
+    </div>
+
+    <!-- Sección 3: Ficha de empleado -->
+    <div class="cc-ficha-toggle">
+      <label class="cc-check-label">
+        <input type="checkbox" [(ngModel)]="form.crear_ficha" class="cc-checkbox">
+        <span>Crear ficha de empleado</span>
+      </label>
+      <span class="cc-ficha-hint">Necesaria para asistencia, planillas y vacaciones</span>
+    </div>
+
+    @if (form.crear_ficha) {
+    <div class="cc-ficha-box">
+      <p class="cc-section-label">Ficha del empleado</p>
+      <div class="cc-grid-2">
+        <div class="cc-field">
+          <label class="cc-label">Tipo de documento</label>
+          <select class="cc-input" [(ngModel)]="form.tipo_documento">
+            <option value="DNI">DNI</option>
+            <option value="CE">Carné de Extranjería</option>
+            <option value="PAS">Pasaporte</option>
+          </select>
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">N° de documento <span class="req">*</span></label>
+          <input class="cc-input" type="text" [(ngModel)]="form.numero_documento"
+                 (input)="onDniChange()" placeholder="Ej: 74123456" maxlength="20">
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">Sexo</label>
+          <select class="cc-input" [(ngModel)]="form.sexo">
+            <option value="">— Sin especificar —</option>
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+          </select>
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">Cargo</label>
+          <input class="cc-input" type="text" [(ngModel)]="form.cargo" placeholder="Ej: Técnico de Campo">
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">Área</label>
+          <input class="cc-input" type="text" [(ngModel)]="form.area" placeholder="Ej: Operaciones">
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">Tipo de contrato</label>
+          <select class="cc-input" [(ngModel)]="form.tipo">
+            <option value="planilla">Planilla</option>
+            <option value="contrato">Contrato</option>
+            <option value="practicante">Practicante</option>
+          </select>
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">Fecha de ingreso</label>
+          <input class="cc-input" type="date" [(ngModel)]="form.fecha_ingreso">
+        </div>
+        <div class="cc-field">
+          <label class="cc-label">Código empleado</label>
+          <input class="cc-input" type="text" [(ngModel)]="form.codigo" placeholder="Ej: EMP-001">
+        </div>
+      </div>
+    </div>
+    }
+
+    @if (errorMsg) {
+      <div class="cc-error-msg">{{ errorMsg }}</div>
+    }
+
+  </div>
+
+  <div class="cc-modal-foot">
+    <button class="cc-btn-cancel" (click)="cerrarModal()">Cancelar</button>
+    <button class="cc-btn-save" (click)="guardar()" [disabled]="guardando">
+      @if (guardando) { Creando… } @else { Crear cuenta }
+    </button>
+  </div>
+
+</div>
+}
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL CAMBIAR ROL
+═══════════════════════════════════════════════════════════ -->
+@if (showRolModal && rolTarget) {
+<div class="modal-backdrop-pro" (click)="cerrarRolModal()"></div>
+<div class="cc-mini-modal fade-in-up" (click)="$event.stopPropagation()">
+  <div class="cc-modal-head">
+    <h3 class="cc-modal-title">Cambiar rol</h3>
+    <button class="cc-close-btn" (click)="cerrarRolModal()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="cc-modal-body">
+    <p class="cc-info-txt">Cambiando rol de <strong>{{ rolTarget.nombre }} {{ rolTarget.apellido }}</strong></p>
+    <div class="cc-field">
+      <label class="cc-label">Nuevo rol</label>
+      <select class="cc-input" [(ngModel)]="nuevoRolId">
+        @for (r of roles; track r.id) {
+          <option [value]="r.id">{{ r.nombre }}</option>
+        }
+      </select>
+    </div>
+  </div>
+  <div class="cc-modal-foot">
+    <button class="cc-btn-cancel" (click)="cerrarRolModal()">Cancelar</button>
+    <button class="cc-btn-save" (click)="confirmarRol()" [disabled]="cambiandoRol || !nuevoRolId">
+      @if (cambiandoRol) { Guardando… } @else { Guardar }
+    </button>
+  </div>
+</div>
+}
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL RESET PASSWORD
+═══════════════════════════════════════════════════════════ -->
+@if (showResetModal && resetTarget) {
+<div class="modal-backdrop-pro" (click)="cerrarResetModal()"></div>
+<div class="cc-mini-modal fade-in-up" (click)="$event.stopPropagation()">
+  <div class="cc-modal-head">
+    <h3 class="cc-modal-title">Restablecer contraseña</h3>
+    <button class="cc-close-btn" (click)="cerrarResetModal()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="cc-modal-body">
+    <p class="cc-info-txt">Usuario: <strong>{{ resetTarget.nombre }} {{ resetTarget.apellido }}</strong></p>
+    <div class="cc-field">
+      <label class="cc-label">Nueva contraseña</label>
+      <input #resetPwdInput class="cc-input" type="text"
+             [placeholder]="'Ej: ' + (resetTarget.username ?? '') + '2026'"
+             (keyup.enter)="resetConPassword(resetPwdInput.value)">
+    </div>
+    <p class="cc-reset-hint">
+      Fórmula sugerida: <strong>DNI + inicial + año</strong>
+    </p>
+    @if (resetMsg) {
+      <div class="cc-error-msg">{{ resetMsg }}</div>
+    }
+  </div>
+  <div class="cc-modal-foot">
+    <button class="cc-btn-cancel" (click)="cerrarResetModal()">Cancelar</button>
+    <button class="cc-btn-save" (click)="resetConPassword(resetPwdInput.value)"
+            [disabled]="resetandoPass">
+      @if (resetandoPass) { Restableciendo… } @else { Restablecer }
+    </button>
+  </div>
+</div>
+}

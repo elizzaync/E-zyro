@@ -36,6 +36,7 @@ import { CalendarioComponent } from './features/home/pages/calendario/calendario
 import { TicketsSoporteComponent } from './features/soporte/components/tickets/tickets.component';
 import { MonitoreoComponent } from './features/soporte/components/monitoreo/monitoreo.component';
 import { SeguridadComponent } from './features/soporte/components/seguridad/seguridad.component';
+import { CrearCuentasComponent } from './features/soporte/components/crear-cuentas/crear-cuentas.component';
 
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
 const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico de Campo', 'Jefe de Operaciones'];
@@ -292,6 +293,12 @@ export const routes: Routes = [
     path: 'soporte/seguridad',
     component: SeguridadComponent,
     title: 'Seguridad | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'soporte/cuentas',
+    component: CrearCuentasComponent,
+    title: 'Creación de Cuentas | e-zyro TIC',
     canActivate: [authGuard]
   },
   {
