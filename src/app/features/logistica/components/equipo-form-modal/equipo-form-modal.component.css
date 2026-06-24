@@ -203,3 +203,109 @@
 @media (max-width: 560px) {
   .mant-grid, .lf-grid { grid-template-columns: 1fr !important; }
 }
+
+/* ── Combobox buscador (Marca) ──────────────────────────────────────── */
+.lf-combo {
+  position: relative;
+}
+.lf-combo-trigger {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; box-sizing: border-box;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid var(--input-border, #d1d5db);
+  border-radius: 9px;
+  background: var(--input-bg, #f9fafb);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+  user-select: none;
+  min-width: 0;
+}
+.lf-combo--open .lf-combo-trigger,
+.lf-combo-trigger:focus-within {
+  border-color: var(--brand-green, #91d337);
+  box-shadow: 0 0 0 3px rgba(145, 211, 55, .15);
+}
+.lf-combo-value {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 13.5px; font-family: 'Inter', sans-serif;
+  color: var(--input-text, #111827);
+}
+.lf-combo-placeholder { color: var(--text-muted, #9ca3af); }
+.lf-combo-actions {
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: 6px;
+}
+.lf-combo-clear {
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 4px; border: none;
+  background: var(--hover-bg, #f1f5f9); color: var(--text-muted, #94a3b8);
+  cursor: pointer; padding: 0; transition: .12s;
+}
+.lf-combo-clear svg { width: 10px; height: 10px; }
+.lf-combo-clear:hover { background: #fee2e2; color: #ef4444; }
+.lf-combo-arrow {
+  width: 16px; height: 16px; flex-shrink: 0;
+  color: var(--text-muted, #9ca3af);
+  transition: transform .18s ease;
+}
+.lf-combo-arrow--up { transform: rotate(180deg); }
+
+.lf-combo-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  z-index: 200;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+  overflow: hidden;
+}
+.lf-combo-search-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color, #e7eae6);
+}
+.lf-combo-search-row svg {
+  width: 14px; height: 14px; flex-shrink: 0;
+  color: var(--text-muted, #9ca3af);
+}
+.lf-combo-search-input {
+  flex: 1; border: none; background: transparent; outline: none;
+  font-size: 13px; font-family: 'Inter', sans-serif;
+  color: var(--input-text, #111827);
+}
+.lf-combo-search-input::placeholder { color: var(--text-muted, #9ca3af); }
+.lf-combo-list {
+  list-style: none; margin: 0; padding: 4px 0;
+  max-height: 200px; overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.lf-combo-list::-webkit-scrollbar { width: 4px; }
+.lf-combo-list::-webkit-scrollbar-track { background: transparent; }
+.lf-combo-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.lf-combo-opt {
+  padding: 8px 14px; font-size: 13px; cursor: pointer;
+  color: var(--text-main, #0f172a);
+  transition: background .1s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.lf-combo-opt:hover { background: var(--hover-bg, #f1f5f9); }
+.lf-combo-opt--active {
+  background: rgba(145, 211, 55, .12);
+  color: var(--brand-green, #5a8a20); font-weight: 700;
+}
+.lf-combo-opt--none { color: var(--text-muted, #94a3b8); font-size: 12.5px; }
+.lf-combo-empty {
+  padding: 10px 14px; font-size: 12.5px;
+  color: var(--text-muted, #94a3b8); text-align: center;
+}
+
+:host-context([data-theme="dark"]) .lf-combo-trigger {
+  background: #1e293b; border-color: #334155; color: #e2e8f0;
+}
+:host-context([data-theme="dark"]) .lf-combo-panel {
+  background: #1e293b; border-color: #334155;
+}
+:host-context([data-theme="dark"]) .lf-combo-opt { color: #e2e8f0; }
+:host-context([data-theme="dark"]) .lf-combo-opt:hover { background: #0f172a; }
+:host-context([data-theme="dark"]) .lf-combo-search-input { color: #e2e8f0; }
+:host-context([data-theme="dark"]) .lf-combo-search-row { border-color: #334155; }

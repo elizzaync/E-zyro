@@ -70,7 +70,7 @@
           }
         </div>
 
-        <!-- ── Marca (select + nueva inline) ── -->
+        <!-- ── Marca (combobox buscador + nueva inline) ── -->
         <div class="lf-field">
           <label class="lf-label">
             Marca
@@ -79,10 +79,54 @@
             </button>
           </label>
           @if (!showAddMarca) {
-            <select class="lf-input" formControlName="marcaId">
-              <option value="">— Sin asignar —</option>
-              @for (m of marcas; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
-            </select>
+            <div class="lf-combo" [class.lf-combo--open]="showMarcaDrop">
+              <div class="lf-combo-trigger" (click)="abrirMarcaDrop($event)">
+                <span class="lf-combo-value" [class.lf-combo-placeholder]="!marcaNombre">
+                  {{ marcaNombre || '— Seleccionar marca —' }}
+                </span>
+                <div class="lf-combo-actions">
+                  @if (marcaNombre) {
+                    <button type="button" class="lf-combo-clear" (click)="limpiarMarca($event)" title="Quitar marca">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                      </svg>
+                    </button>
+                  }
+                  <svg class="lf-combo-arrow" [class.lf-combo-arrow--up]="showMarcaDrop"
+                       viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+              </div>
+              @if (showMarcaDrop) {
+                <div class="lf-combo-panel" (click)="$event.stopPropagation()">
+                  <div class="lf-combo-search-row">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <input class="lf-combo-search-input"
+                           [(ngModel)]="marcaSearch"
+                           [ngModelOptions]="{standalone: true}"
+                           placeholder="Buscar marca…"
+                           autocomplete="off">
+                  </div>
+                  <ul class="lf-combo-list">
+                    <li class="lf-combo-opt lf-combo-opt--none"
+                        (click)="limpiarMarca($event)">— Sin asignar —</li>
+                    @for (m of marcasFiltradas; track m.id) {
+                      <li class="lf-combo-opt"
+                          [class.lf-combo-opt--active]="ctrl('marcaId')?.value === m.id"
+                          (click)="seleccionarMarca(m, $event)">
+                        {{ m.nombre }}
+                      </li>
+                    }
+                    @if (marcasFiltradas.length === 0) {
+                      <li class="lf-combo-empty">Sin resultados para "{{ marcaSearch }}"</li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
           } @else {
             <div class="lf-add-row">
               <input class="lf-input" [(ngModel)]="nuevaMarca" [ngModelOptions]="{ standalone: true }"

@@ -47,6 +47,19 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   showAddModelo = false; nuevoModelo = ''; creandoModelo = false;
   showAddAlmacen = false; nuevoAlmacen = ''; creandoAlmacen = false;
 
+  // Marca: combobox buscador
+  marcaSearch   = '';
+  showMarcaDrop = false;
+
+  get marcasFiltradas(): CatalogoItem[] {
+    const q = this.marcaSearch.toLowerCase().trim();
+    return q ? this.marcas.filter(m => m.nombre.toLowerCase().includes(q)) : this.marcas;
+  }
+  get marcaNombre(): string {
+    const id = this.form?.get('marcaId')?.value;
+    return id ? (this.marcas.find(m => m.id === id)?.nombre ?? '') : '';
+  }
+
   codigoPreview = '';
 
   get esEdicion(): boolean { return !!this.equipo; }
@@ -111,6 +124,26 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   }
 
   @HostListener('document:keydown.escape') onEsc() { this.cerrar.emit(); }
+  @HostListener('document:click') onDocClick() { this.showMarcaDrop = false; }
+
+  abrirMarcaDrop(e: MouseEvent): void {
+    e.stopPropagation();
+    this.showMarcaDrop = !this.showMarcaDrop;
+    if (this.showMarcaDrop) this.marcaSearch = '';
+  }
+  seleccionarMarca(m: CatalogoItem, e: MouseEvent): void {
+    e.stopPropagation();
+    this.form.patchValue({ marcaId: m.id || '' });
+    this.showMarcaDrop = false;
+    this.marcaSearch = '';
+  }
+  limpiarMarca(e: MouseEvent): void {
+    e.stopPropagation();
+    this.form.patchValue({ marcaId: '', modeloId: '' });
+    this.modelos = [];
+    this.showMarcaDrop = false;
+    this.marcaSearch = '';
+  }
 
   ctrl(n: string) { return this.form.get(n); }
   get requiereMant(): boolean { return !!this.form?.get('requiereMantenimiento')?.value; }
