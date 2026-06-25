@@ -270,17 +270,33 @@ def _material_out(db: Session, mat: Material, empresa_id: str) -> MaterialOut:
         ).first()
         unidad_id = str(u.id) if u else None
 
+    # Nombre de marca desde FK directo en material
+    marca_nombre = None
+    if mat.marca_id:
+        _m = db.query(Marca).filter(Marca.id == mat.marca_id).first()
+        if _m:
+            marca_nombre = _m.nombre
+
     return MaterialOut(
         id=str(mat.id), codigo=mat.codigo or "", nombre=mat.nombre,
         categoriaId=str(mat.categoria_id) if mat.categoria_id else None,
         categoria=cat_nombre,
         unidadId=unidad_id, unidad=mat.unidad,
         descripcion=mat.descripcion,
-        cantidad=total, stockMinimo=minimo,
+        cantidad=total,
+        stockMinimo=int((mat.atributos or {}).get("stock_minimo", minimo)),
         almacenId=alm_id, almacen=alm_nombre or "",
         precio=float(mat.precio) if mat.precio is not None else None,
         activo=bool(mat.activo),
         tipo=getattr(mat, "tipo", "consumible") or "consumible",
+        marca=marca_nombre or (mat.atributos or {}).get("marca"),
+        imagenUrl=mat.imagen_url,
+        atributos=dict(mat.atributos) if mat.atributos else None,
+        # Nuevos campos HU-15 v2
+        precioCompra=float(mat.precio_compra) if mat.precio_compra is not None else None,
+        serie=mat.serie or None,
+        marcaId=str(mat.marca_id) if mat.marca_id else None,
+        almacenMaterialId=str(mat.almacen_id) if mat.almacen_id else None,
     )
 
 
@@ -703,7 +719,7 @@ def listar_materiales(
     estado:    str = Query("todos", description="todos|activos|inactivos|stock_bajo"),
     tipo:      str = Query("consumible", description="consumible|herramienta|todos"),
     page:      int = Query(1, ge=1),
-    page_size: int = Query(30, ge=1, le=200),
+    page_size: int = Query(30, ge=1, le=2000),
     payload:   dict    = Depends(verificar_token),
     db:        Session = Depends(get_db),
 ):
@@ -739,7 +755,93 @@ def listar_materiales(
         .limit(page_size)
         .all()
     )
-    items = [_material_out(db, m, empresa_id) for m in rows]
+
+    # ── Bulk-load para evitar N+1 queries ────────────────────────────────────
+    mat_ids = [m.id for m in rows]
+
+    cats_map: dict = {}
+    if mat_ids:
+        cat_ids = list({m.categoria_id for m in rows if m.categoria_id})
+        if cat_ids:
+            for c in db.query(CategoriaMaterial).filter(CategoriaMaterial.id.in_(cat_ids)).all():
+                cats_map[c.id] = c.nombre
+
+    marcas_map: dict = {}
+    if mat_ids:
+        marca_ids = list({m.marca_id for m in rows if m.marca_id})
+        if marca_ids:
+            for m2 in db.query(Marca).filter(Marca.id.in_(marca_ids)).all():
+                marcas_map[m2.id] = m2.nombre
+
+    unidades_map: dict = {}
+    unidad_names = list({(m.unidad or "").lower() for m in rows if m.unidad})
+    if unidad_names:
+        for u in db.query(UnidadMedida).filter(
+            UnidadMedida.empresa_id == empresa_id,
+            func.lower(UnidadMedida.nombre).in_(unidad_names),
+        ).all():
+            unidades_map[u.nombre.lower()] = str(u.id)
+
+    stock_totals: dict = {}
+    stock_minimos: dict = {}
+    alm_map: dict = {}
+    if mat_ids:
+        for row_s in (
+            db.query(
+                Stock.material_id,
+                func.sum(Stock.cantidad).label("total"),
+                func.max(Stock.cantidad_minima).label("minimo"),
+            )
+            .filter(Stock.material_id.in_(mat_ids), Stock.empresa_id == empresa_id)
+            .group_by(Stock.material_id)
+            .all()
+        ):
+            mid = str(row_s.material_id)
+            stock_totals[mid]  = int(row_s.total or 0)
+            stock_minimos[mid] = int(row_s.minimo or 0)
+
+        seen_alm: set = set()
+        for row_a in (
+            db.query(Stock.material_id, Stock.almacen_id, Almacen.nombre)
+            .outerjoin(Almacen, Almacen.id == Stock.almacen_id)
+            .filter(Stock.material_id.in_(mat_ids), Stock.empresa_id == empresa_id)
+            .all()
+        ):
+            mid = str(row_a.material_id)
+            if mid not in seen_alm:
+                seen_alm.add(mid)
+                alm_map[mid] = (
+                    str(row_a.almacen_id) if row_a.almacen_id else None,
+                    row_a.nombre or "",
+                )
+
+    items = []
+    for m in rows:
+        mid = str(m.id)
+        cant = stock_totals.get(mid, 0)
+        stk_min_stock = stock_minimos.get(mid, 0)
+        alm_id, alm_nom = alm_map.get(mid, (None, ""))
+        items.append(MaterialOut(
+            id=mid, codigo=m.codigo or "", nombre=m.nombre,
+            categoriaId=str(m.categoria_id) if m.categoria_id else None,
+            categoria=cats_map.get(m.categoria_id, "Sin categoría"),
+            unidadId=unidades_map.get((m.unidad or "").lower()),
+            unidad=m.unidad,
+            descripcion=m.descripcion,
+            cantidad=cant,
+            stockMinimo=int((m.atributos or {}).get("stock_minimo", stk_min_stock)),
+            almacenId=alm_id, almacen=alm_nom,
+            precio=float(m.precio) if m.precio is not None else None,
+            activo=bool(m.activo),
+            tipo=getattr(m, "tipo", "consumible") or "consumible",
+            marca=marcas_map.get(m.marca_id) or (m.atributos or {}).get("marca"),
+            imagenUrl=m.imagen_url,
+            atributos=dict(m.atributos) if m.atributos else None,
+            precioCompra=float(m.precio_compra) if m.precio_compra is not None else None,
+            serie=m.serie or None,
+            marcaId=str(m.marca_id) if m.marca_id else None,
+            almacenMaterialId=str(m.almacen_id) if m.almacen_id else None,
+        ))
 
     # Técnico y Jefe no ven precios
     if es_tecnico(payload) or es_jefe_operaciones(payload):
@@ -765,7 +867,19 @@ def crear_material(
     alm = _almacen_or_404(db, empresa_id, body.almacenId)
     uni = _unidad_or_404(db, empresa_id, body.unidadId)
 
+    # Validar FK opcionales de marca y almacén directo en material
+    if body.marcaId:
+        _marca_or_404(db, empresa_id, body.marcaId)
+    alm_material = None
+    if body.almacenMaterialId:
+        alm_material = _almacen_or_404(db, empresa_id, body.almacenMaterialId)
+
     codigo = (body.codigo or "").strip() or _siguiente_codigo(db, empresa_id, "MAT", Material)
+
+    # Construir atributos; stock_minimo puede venir también por aquí
+    _attrs = dict(body.atributos) if body.atributos else {}
+    if body.stockMinimo and int(body.stockMinimo) > 0:
+        _attrs["stock_minimo"] = int(body.stockMinimo)
 
     mat = Material(
         id           = str(_uuid.uuid4()),
@@ -777,6 +891,13 @@ def crear_material(
         descripcion  = (body.descripcion or "").strip() or None,
         precio       = body.precio,
         activo       = body.activo,
+        atributos    = _attrs or None,
+        imagen_url   = (body.imagenUrl or "").strip() or None,
+        # Nuevos campos HU-15 v2
+        precio_compra = _Decimal(str(body.precioCompra)) if body.precioCompra else None,
+        serie         = (body.serie or "").strip() or None,
+        marca_id      = body.marcaId or None,
+        almacen_id    = alm_material.id if alm_material else None,
     )
     db.add(mat)
     db.flush()
@@ -867,6 +988,24 @@ def actualizar_material(
             stock.almacen_id = alm.id
         stock.updated_at = datetime.utcnow()
 
+    # ── Nuevos campos HU-15 v2 ────────────────────────────────────────────────
+    if body.precioCompra is not None:
+        mat.precio_compra = _Decimal(str(body.precioCompra)) if body.precioCompra else None
+    if body.serie is not None:
+        mat.serie = (body.serie or "").strip() or None
+    if body.marcaId is not None:
+        if body.marcaId == "":
+            mat.marca_id = None
+        else:
+            _marca_or_404(db, empresa_id, body.marcaId)
+            mat.marca_id = body.marcaId
+    if body.almacenMaterialId is not None:
+        if body.almacenMaterialId == "":
+            mat.almacen_id = None
+        else:
+            _alm_m = _almacen_or_404(db, empresa_id, body.almacenMaterialId)
+            mat.almacen_id = _alm_m.id
+
     db.commit()
     return _material_out(db, mat, empresa_id)
 
@@ -902,7 +1041,7 @@ def listar_equipos(
     clase:    str = Query("todas", description="todas|equipo|herramienta|equipo_tecnologico"),
     estado:   str = Query("todos", description="todos|operativo|en_mantenimiento|fuera_de_servicio|baja"),
     page:     int = Query(1, ge=1),
-    page_size: int = Query(30, ge=1, le=200),
+    page_size: int = Query(30, ge=1, le=2000),
     payload:  dict    = Depends(verificar_token),
     db:       Session = Depends(get_db),
 ):

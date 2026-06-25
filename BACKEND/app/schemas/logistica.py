@@ -36,6 +36,11 @@ class MaterialOut(BaseModel):
     marca:       Optional[str] = None         # conveniencia: leído de atributos.marca
     imagenUrl:   Optional[str] = None
     atributos:   Optional[Dict[str, Any]] = None
+    # ── Nuevos campos HU-15 v2 ────────────────────────────────────────────────
+    precioCompra:    Optional[float] = None
+    serie:           Optional[str] = None
+    marcaId:         Optional[str] = None   # FK → marca.id
+    almacenMaterialId: Optional[str] = None  # FK directo en material (distinto del almacen de stock)
 
     class Config:
         populate_by_name = True
@@ -56,6 +61,11 @@ class MaterialIn(BaseModel):
     marca:       Optional[str] = None         # opcional; se guarda dentro de atributos
     imagenUrl:   Optional[str] = None
     atributos:   Optional[Dict[str, Any]] = None
+    # ── Nuevos campos HU-15 v2 ────────────────────────────────────────────────
+    precioCompra:    Optional[float] = None
+    serie:           Optional[str] = None
+    marcaId:         Optional[str] = None   # FK → marca.id
+    almacenMaterialId: Optional[str] = None  # FK directo en material
 
 
 class MaterialPatch(BaseModel):
@@ -73,6 +83,11 @@ class MaterialPatch(BaseModel):
     marca:       Optional[str] = None
     imagenUrl:   Optional[str] = None
     atributos:   Optional[Dict[str, Any]] = None
+    # ── Nuevos campos HU-15 v2 ────────────────────────────────────────────────
+    precioCompra:    Optional[float] = None
+    serie:           Optional[str] = None
+    marcaId:         Optional[str] = None
+    almacenMaterialId: Optional[str] = None
 
 
 class MaterialesListResponse(BaseModel):
