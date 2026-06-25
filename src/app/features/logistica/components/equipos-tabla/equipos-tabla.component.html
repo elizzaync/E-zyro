@@ -57,10 +57,11 @@
             <th>Código</th>
             <th>Nombre</th>
             <th>Clase</th>
-            <th>Tipo</th>
+            <th>Categoría</th>
             <th>Marca / Modelo</th>
             <th>N° Serie</th>
             <th class="th-num">Cant.</th>
+            <th class="th-num">Costo</th>
             <th>Estado</th>
             <th>Mantenimiento</th>
             <th class="th-acc">Acciones</th>
@@ -72,7 +73,10 @@
             <td class="td-codigo">{{ e.codigo }}</td>
             <td><div class="td-nombre">{{ e.nombre }}</div></td>
             <td>
-              <span class="clase-badge" [class.cl-equipo]="e.clase === 'equipo'" [class.cl-herr]="e.clase === 'herramienta'">
+              <span class="clase-badge"
+                    [class.cl-equipo]="e.clase === 'equipo'"
+                    [class.cl-herr]="e.clase === 'herramienta'"
+                    [class.cl-ti]="e.clase === 'equipo_tecnologico'">
                 {{ claseLabel(e.clase) }}
               </span>
             </td>
@@ -98,11 +102,18 @@
                    (mouseenter)="mostrarTooltip(e)"
                    (mouseleave)="ocultarTooltip()">
                 <!-- Número de stock con indicador de alerta -->
-                <span class="stock-num" [class.stock-num--warn]="tieneIncidencias(e)">
+                <span class="stock-num" [class.stock-num--warn]="tieneIncidencias(e)"
+                      [class.stock-num--bajo]="e.stockMinimo > 0 && e.cantidad <= e.stockMinimo">
                   {{ e.cantidad }}
                 </span>
                 @if (tieneIncidencias(e)) {
                   <span class="stock-warn-dot">!</span>
+                }
+                @if (e.stockMinimo > 0) {
+                  <span class="stk-min-badge" [class.stk-min-alerta]="e.cantidad <= e.stockMinimo"
+                        title="Stock mínimo configurado">
+                    mín {{ e.stockMinimo }}
+                  </span>
                 }
                 <!-- Tooltip: visible siempre al hover -->
                 @if (tooltipEquipoId === e.id) {
@@ -143,6 +154,13 @@
                   </div>
                 }
               </div>
+            </td>
+            <td class="th-num td-costo">
+              @if (e.precioCompra != null) {
+                <span class="costo-valor">S/ {{ e.precioCompra | number:'1.2-2' }}</span>
+              } @else {
+                <span class="td-muted" style="font-size:12px">—</span>
+              }
             </td>
             <td>
               <span class="badge-estado" [class]="estadoClase(e.estado)">{{ estadoLabel(e.estado) }}</span>

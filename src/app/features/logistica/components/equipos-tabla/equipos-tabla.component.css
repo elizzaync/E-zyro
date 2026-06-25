@@ -65,7 +65,7 @@
 
 /* ── Tabla ── */
 .tabla-scroll { overflow-x: auto; }
-.tabla { width: 100%; border-collapse: collapse; min-width: 1020px; }
+.tabla { width: 100%; border-collapse: collapse; min-width: 1180px; }
 .tabla thead th {
   text-align: left; padding: 11px 14px;
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
@@ -95,6 +95,7 @@
 }
 .cl-equipo { background: rgba(59, 130, 246, .14); color: #2563eb; }
 .cl-herr   { background: rgba(139, 92, 246, .14); color: #7c3aed; }
+.cl-ti     { background: rgba(14, 165, 233, .13); color: #0284c7; }
 
 /* ── Badge de estado ── */
 .badge-estado {
@@ -197,6 +198,18 @@
   cursor: default; user-select: none;
 }
 .stock-num { font-weight: 700; font-size: .9rem; color: var(--text-main,#1e293b); }
+.stock-num--bajo { color: #d97706; }
+
+/* Stock mínimo badge (debajo del número) */
+.stk-min-badge {
+  display: block; font-size: 10px; font-weight: 600; color: var(--text-muted,#94a3b8);
+  white-space: nowrap; margin-top: 1px; text-align: right;
+}
+.stk-min-alerta { color: #d97706; }
+
+/* Columna Costo */
+.td-costo { white-space: nowrap; }
+.costo-valor { font-size: 13px; font-weight: 600; color: var(--text-main,#334155); }
 .stock-num--warn { color: #dc2626; }
 .stock-warn-dot {
   width: 17px; height: 17px; border-radius: 50%;

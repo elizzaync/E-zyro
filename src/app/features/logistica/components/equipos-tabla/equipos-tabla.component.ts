@@ -94,7 +94,11 @@ export class EquiposTablaComponent implements OnInit {
   irPagina(p: number): void { this.pagina = Math.min(Math.max(1, p), this.totalPaginas); }
 
   // ── Helpers de presentación ──
-  claseLabel(c: ClaseArticulo): string { return c === 'equipo' ? 'Equipo' : 'Herramienta'; }
+  claseLabel(c: ClaseArticulo): string {
+    if (c === 'equipo') return 'Equipo';
+    if (c === 'equipo_tecnologico') return 'Eq. TI';
+    return 'Herramienta';
+  }
 
   estadoLabel(e: EstadoEquipo): string {
     const m: Record<EstadoEquipo, string> = {

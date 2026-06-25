@@ -33,17 +33,20 @@ export interface EquipoHerramienta {
   id: string;
   codigo: string;                  // autogenerado por backend (EQ-NNNN / HR-NNNN)
   nombre: string;
-  clase: ClaseArticulo;            // equipo | herramienta
+  clase: ClaseArticulo;            // equipo | herramienta | equipo_tecnologico
   categoriaId: string | null;
   categoria: string;               // nombre de categoría (denormalizado)
   marcaId: string | null;
   marca: string | null;            // nombre denormalizado
   modeloId: string | null;
-  modelo: string | null;
+  modelo: string | null;           // variante específica del producto bajo la marca
   numeroSerie: string | null;
   almacenId: string | null;
   ubicacion: string | null;
   cantidad: number;
+  stockMinimo: number;             // extraído de atributos.stock_minimo
+  precioCompra: number | null;
+  observaciones: string | null;
   estado: EstadoEquipo;
   // ── Mantenimiento ──
   requiereMantenimiento: boolean;
@@ -51,6 +54,7 @@ export interface EquipoHerramienta {
   proximaFechaMantenimiento: string | null;
   fechaAdquisicion: string | null;
   fichaTecnica: string | null;
+  atributos: Record<string, any> | null;
 }
 
 /** Item simple para selects de catálogo. */
@@ -214,7 +218,7 @@ export interface ProcesarCompraPayload {
   items: ProcesarCompraItemPayload[];
 }
 
-export type ClaseArticulo = 'equipo' | 'herramienta';
+export type ClaseArticulo = 'equipo' | 'herramienta' | 'equipo_tecnologico';
 
 export type EstadoEquipo =
   | 'operativo'
@@ -252,8 +256,9 @@ export const FRECUENCIAS_MANTENIMIENTO: { value: FrecuenciaMantenimiento; label:
 ];
 
 export const CLASES_ARTICULO: { value: ClaseArticulo; label: string }[] = [
-  { value: 'equipo',      label: 'Equipo' },
-  { value: 'herramienta', label: 'Herramienta' },
+  { value: 'equipo',              label: 'Equipo' },
+  { value: 'herramienta',         label: 'Herramienta' },
+  { value: 'equipo_tecnologico',  label: 'Equipo TI' },
 ];
 
 // ── Salidas de Materiales (HU-18) ──────────────────────────────────────────
