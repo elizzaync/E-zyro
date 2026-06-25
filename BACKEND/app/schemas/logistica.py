@@ -96,8 +96,8 @@ class EquipoOut(BaseModel):
     codigo:      str
     nombre:      str
     clase:       ClaseArticulo
-    tipoId:      Optional[str] = None
-    tipo:        str
+    categoriaId: Optional[str] = None
+    categoria:   str = ""
     marcaId:     Optional[str] = None
     marca:       Optional[str] = None
     modeloId:    Optional[str] = None
@@ -110,6 +110,7 @@ class EquipoOut(BaseModel):
     zonaId:      Optional[str] = None
     areaId:      Optional[str] = None
     cantidad:    int
+    stockMinimo: int = 0
     estado:      EstadoEquipo
     requiereMantenimiento:     bool
     frecuenciaMantenimiento:   FrecuenciaMant
@@ -131,7 +132,7 @@ class EquipoIn(BaseModel):
     codigo:      Optional[str] = None
     nombre:      str
     clase:       ClaseArticulo = "equipo"
-    tipoId:      Optional[str] = None      # FK → tipo_equipo.id (familia)
+    categoriaId: Optional[str] = None     # FK → categoria_equipo.id
     marcaId:     Optional[str] = None
     modeloId:    Optional[str] = None
     numeroSerie: Optional[str] = None
@@ -160,7 +161,7 @@ class EquipoPatch(BaseModel):
     codigo:      Optional[str] = None
     nombre:      Optional[str] = None
     clase:       Optional[ClaseArticulo] = None
-    tipoId:      Optional[str] = None
+    categoriaId: Optional[str] = None
     marcaId:     Optional[str] = None
     modeloId:    Optional[str] = None
     numeroSerie: Optional[str] = None
