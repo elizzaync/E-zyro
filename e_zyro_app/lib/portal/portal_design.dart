@@ -92,6 +92,9 @@ abstract final class PortalTipografia {
 /// + dashboard) para un look coherente. Construido sobre la paleta
 /// [PortalColores]; se envuelve en los puntos de navegación del portal sin
 /// afectar al resto de la app (que sigue en tema claro).
+// Construido una sola vez al cargar el módulo (no en cada navegación al portal).
+final portalThemeCached = portalTemaOscuro();
+
 ThemeData portalTemaOscuro() {
   final base = ThemeData.dark(useMaterial3: true);
   final scheme = ColorScheme.fromSeed(

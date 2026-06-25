@@ -12,6 +12,7 @@ import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
 import 'pantalla_notificaciones.dart';
 import 'almuerzo/tarjeta_almuerzo.dart';
+import 'pantalla_camara_campo.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -383,6 +384,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildProximosServicios(),
+                        const SizedBox(height: 28),
+                        _buildCamaraCampoBtn(),
                         const SizedBox(height: 28),
                         const Text(
                           'Acciones Rápidas',
@@ -844,6 +847,79 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Text(
         mensaje,
         style: const TextStyle(color: Colors.grey, fontSize: 13),
+      ),
+    );
+  }
+
+  // ── Cámara de Campo (hero button) ──────────────────────────────────────────
+  Widget _buildCamaraCampoBtn() {
+    return GestureDetector(
+      onTap: () => CamaraCampoScreen.open(context),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF5A9A00), Color(0xFF8FD11B)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8FD11B).withValues(alpha: 0.35),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.18),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.camera_alt_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Cámara de Campo',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Fotografía evidencias sin salir de la cámara',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.white70,
+              size: 16,
+            ),
+          ],
+        ),
       ),
     );
   }

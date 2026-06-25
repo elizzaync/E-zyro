@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:image/image.dart' as img;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -7,6 +8,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/asistencia_models.dart';
 import '../models/solicitud_models.dart';
@@ -258,9 +260,22 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
         if (mounted) setState(() { _fetchingLocation = false; _locationStatus = 'Permiso denegado permanentemente'; });
         return;
       }
+      // Mostrar última posición conocida de inmediato como fallback offline
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null && mounted) {
+        setState(() {
+          _position       = lastKnown;
+          _locationStatus = '${lastKnown.latitude.toStringAsFixed(5)}, ${lastKnown.longitude.toStringAsFixed(5)}';
+          _fetchingLocation = false;
+        });
+        _resolveAddress(lastKnown.latitude, lastKnown.longitude);
+      }
+      // Intentar posición fresca (fused provider funciona también sin internet)
       final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      ).timeout(const Duration(seconds: 20));
+        locationSettings: Platform.isAndroid
+            ? AndroidSettings(accuracy: LocationAccuracy.high)
+            : AppleSettings(accuracy: LocationAccuracy.high),
+      ).timeout(const Duration(seconds: 30));
       if (!mounted) return;
       setState(() {
         _position       = pos;
@@ -269,7 +284,10 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       });
       _resolveAddress(pos.latitude, pos.longitude);
     } catch (_) {
-      if (mounted) setState(() { _fetchingLocation = false; _locationStatus = 'Error al obtener ubicación'; });
+      if (mounted) setState(() {
+        _fetchingLocation = false;
+        if (_position == null) _locationStatus = 'Error al obtener ubicación';
+      });
     }
   }
 

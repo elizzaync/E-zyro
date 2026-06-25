@@ -412,7 +412,7 @@ class _PortalShellState extends State<PortalShell> {
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => Theme(
-                  data: portalTemaOscuro(),
+                  data: portalThemeCached,
                   child: PortalProyectoDetalleScreen(
                     proyectoId: p.id,
                     nombre: p.nombreProyecto,

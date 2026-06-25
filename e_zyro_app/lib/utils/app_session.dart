@@ -58,6 +58,7 @@ class AppSession {
   // Gestión de usuarios (roles, alta, activar/desactivar). Admin por bypass;
   // delegable a otros roles vía el permiso 'usuarios:gestionar'.
   bool get canGestionarUsuarios     => hasPerm('usuarios:gestionar');
+  bool get canGestionarPrivilegios  => hasPerm('privilegios:gestionar');
   // RBAC: el permiso 'comunicados:enviar' decide quién publica.
   // (hasPerm ya concede acceso a Admin por bypass; el Jefe de Operaciones lo
   //  recibe por la matriz rol→permiso.)

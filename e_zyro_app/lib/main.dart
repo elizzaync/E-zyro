@@ -73,6 +73,11 @@ void main() async {
 const Color _kLime = Color(0xFF8FD11B); // verde lima (acento neón)
 const Color _kForest = Color(0xFF5A9A00); // verde bosque (acento profundo)
 
+// Temas pre-construidos una sola vez al cargar el módulo. Evita reconstruir
+// ColorScheme.fromSeed + sub-temas en cada toggle del modo oscuro.
+final _lightTheme = _buildTheme(Brightness.light);
+final _darkTheme  = _buildTheme(Brightness.dark);
+
 ThemeData _buildTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
 
@@ -249,7 +254,7 @@ class ESystemApp extends StatelessWidget {
         '/recovery': (context) => const PasswordRecoveryScreen(),
         '/': (context) => const MainShell(),
         '/portal': (context) =>
-            Theme(data: portalTemaOscuro(), child: const PortalShell()),
+            Theme(data: portalThemeCached, child: const PortalShell()),
         '/home': (context) => const MainShell(initialIndex: 0),
         '/operations': (context) => const MainShell(initialIndex: 1),
         '/logistics': (context) => const MainShell(initialIndex: 2),
@@ -292,6 +297,7 @@ class ESystemApp extends StatelessWidget {
       themeMode: themeMode,
       theme: theme,
       darkTheme: darkTheme,
+      themeAnimationDuration: Duration.zero,
       builder: builder,
       initialRoute: '/splash',
       routes: _routes(),
@@ -303,8 +309,8 @@ class ESystemApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeNotifier,
       builder: (_, mode, _) => _materialApp(
-        theme: _buildTheme(Brightness.light),
-        darkTheme: _buildTheme(Brightness.dark),
+        theme: _lightTheme,
+        darkTheme: _darkTheme,
         themeMode: mode,
       ),
     );

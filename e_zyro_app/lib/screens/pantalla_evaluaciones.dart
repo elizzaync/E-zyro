@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/evaluacion_models.dart';
 import '../models/personal_models.dart';
-import '../services/evaluacion_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
 import 'pantalla_plantillas_evaluacion.dart';
@@ -23,19 +22,25 @@ class _PantallaEvaluacionesState extends State<PantallaEvaluaciones> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Evaluaciones',
-              style: TextStyle(fontWeight: FontWeight.bold)),
-          bottom: const TabBar(tabs: [
-            Tab(text: 'Evaluaciones'),
-            Tab(text: 'Plantillas'),
-            Tab(text: 'Criterios'),
-          ]),
+          title: const Text(
+            'Evaluaciones',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Evaluaciones'),
+              Tab(text: 'Plantillas'),
+              Tab(text: 'Criterios'),
+            ],
+          ),
         ),
-        body: const TabBarView(children: [
-          _EvaluacionesTabBody(),
-          PantallaPlantillasEvaluacion(),
-          CriteriosTab(),
-        ]),
+        body: const TabBarView(
+          children: [
+            _EvaluacionesTabBody(),
+            PantallaPlantillasEvaluacion(),
+            CriteriosTab(),
+          ],
+        ),
       ),
     );
   }
@@ -80,17 +85,17 @@ class _EvaluacionesTabBodyState extends State<_EvaluacionesTabBody> {
 
   Future<void> _nueva() async {
     final creada = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-            builder: (_) => const CrearEvaluacionScreen()));
+      context,
+      MaterialPageRoute(builder: (_) => const CrearEvaluacionScreen()),
+    );
     if (creada == true) _cargar();
   }
 
   Color _color(String e) => switch (e) {
-        'completada' => Colors.green,
-        'enviada' => Colors.blue,
-        _ => Colors.orange,
-      };
+    'completada' => Colors.green,
+    'enviada' => Colors.blue,
+    _ => Colors.orange,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -99,64 +104,60 @@ class _EvaluacionesTabBodyState extends State<_EvaluacionesTabBody> {
           ? FloatingActionButton.extended(
               onPressed: _nueva,
               icon: const Icon(Icons.add),
-              label: const Text('Nueva libre'))
+              label: const Text('Nueva libre'),
+            )
           : null,
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!))
-              : _items.isEmpty
-                  ? const Center(child: Text('Sin evaluaciones.'))
-                  : RefreshIndicator(
-                      onRefresh: _cargar,
-                      child: ListView.separated(
-                        itemCount: _items.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final e = _items[i];
-                          final color = _color(e.estado);
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  color.withValues(alpha: 0.15),
-                              child: Text(
-                                e.promedio?.toStringAsFixed(1) ?? '—',
-                                style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12),
-                              ),
-                            ),
-                            title: Text(
-                                e.empleadoNombre ?? e.empleadoId),
-                            subtitle: Text(
-                                'Periodo: ${e.periodo} · ${e.fecha ?? '-'}'),
-                            trailing: Chip(
-                              label: Text(e.estado,
-                                  style: TextStyle(
-                                      color: color, fontSize: 11)),
-                              backgroundColor:
-                                  color.withValues(alpha: 0.12),
-                              side: BorderSide.none,
-                              visualDensity: VisualDensity.compact,
-                            ),
-                            onTap: () async {
-                              final cambio =
-                                  await Navigator.push<bool>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      DetalleEvaluacionScreen(
-                                          evaluacionId: e.id),
-                                ),
-                              );
-                              if (cambio == true) _cargar();
-                            },
-                          );
-                        },
+          ? Center(child: Text(_error!))
+          : _items.isEmpty
+          ? const Center(child: Text('Sin evaluaciones.'))
+          : RefreshIndicator(
+              onRefresh: _cargar,
+              child: ListView.separated(
+                itemCount: _items.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final e = _items[i];
+                  final color = _color(e.estado);
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: color.withValues(alpha: 0.15),
+                      child: Text(
+                        e.promedio?.toStringAsFixed(1) ?? '—',
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
+                    title: Text(e.empleadoNombre ?? e.empleadoId),
+                    subtitle: Text('Periodo: ${e.periodo} · ${e.fecha ?? '-'}'),
+                    trailing: Chip(
+                      label: Text(
+                        e.estado,
+                        style: TextStyle(color: color, fontSize: 11),
+                      ),
+                      backgroundColor: color.withValues(alpha: 0.12),
+                      side: BorderSide.none,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onTap: () async {
+                      final cambio = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              DetalleEvaluacionScreen(evaluacionId: e.id),
+                        ),
+                      );
+                      if (cambio == true) _cargar();
+                    },
+                  );
+                },
+              ),
+            ),
     );
   }
 }
@@ -168,7 +169,11 @@ class CrearEvaluacionScreen extends StatefulWidget {
 
   /// Tipo de evaluación a realizar (rrhh|jefe_directo|companero).
   final String tipo;
-  const CrearEvaluacionScreen({super.key, this.empleadoPre, this.tipo = TipoEvaluacion.rrhh});
+  const CrearEvaluacionScreen({
+    super.key,
+    this.empleadoPre,
+    this.tipo = TipoEvaluacion.rrhh,
+  });
 
   @override
   State<CrearEvaluacionScreen> createState() => _CrearEvaluacionScreenState();
@@ -214,7 +219,8 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
       final pre = widget.empleadoPre;
       if (pre != null) {
         _sel = _empleados.where((e) => e.id == pre.id).firstOrNull ?? pre;
-        if (_empleados.where((e) => e.id == pre.id).isEmpty) _empleados = [pre, ..._empleados];
+        if (_empleados.where((e) => e.id == pre.id).isEmpty)
+          _empleados = [pre, ..._empleados];
       } else {
         _sel = _empleados.isNotEmpty ? _empleados.first : null;
       }
@@ -225,7 +231,11 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
   void _snack(String m, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(m), backgroundColor: error ? Colors.red.shade700 : null));
+      SnackBar(
+        content: Text(m),
+        backgroundColor: error ? Colors.red.shade700 : null,
+      ),
+    );
   }
 
   Future<void> _guardar() async {
@@ -238,17 +248,28 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
       return;
     }
     if (_criterios.isEmpty) {
-      _snack('No hay criterios definidos. Crea criterios primero.', error: true);
+      _snack(
+        'No hay criterios definidos. Crea criterios primero.',
+        error: true,
+      );
       return;
     }
     setState(() => _guardando = true);
     final svc = await getEvaluacionService();
     final detalles = _criterios
-        .map((c) => DetalleEvaluacion(criterioId: c.id, puntaje: _puntajes[c.id] ?? 7))
+        .map(
+          (c) => DetalleEvaluacion(
+            criterioId: c.id,
+            puntaje: _puntajes[c.id] ?? 7,
+          ),
+        )
         .toList();
     final r = await svc.crear(
-      empleadoId: _sel!.id, periodo: _periodo.text.trim(),
-      tipo: widget.tipo, detalles: detalles);
+      empleadoId: _sel!.id,
+      periodo: _periodo.text.trim(),
+      tipo: widget.tipo,
+      detalles: detalles,
+    );
     if (!mounted) return;
     setState(() => _guardando = false);
     if (r.ok) {
@@ -265,36 +286,53 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!))
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    DropdownButtonFormField<Empleado>(
-                      initialValue: _sel,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Empleado a evaluar'),
-                      items: _empleados
-                          .map((e) => DropdownMenuItem(value: e, child: Text(e.nombre ?? e.id, overflow: TextOverflow.ellipsis)))
-                          .toList(),
-                      onChanged: (v) => setState(() => _sel = v),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _periodo,
-                      decoration: const InputDecoration(labelText: 'Periodo (ej. 2026-S1)'),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text('Criterios', style: TextStyle(fontWeight: FontWeight.bold)),
-                    if (_criterios.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Text('No hay criterios definidos para la empresa.',
-                            style: TextStyle(color: Colors.black54)),
+          ? Center(child: Text(_error!))
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                DropdownButtonFormField<Empleado>(
+                  initialValue: _sel,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Empleado a evaluar',
+                  ),
+                  items: _empleados
+                      .map(
+                        (e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(
+                            e.nombre ?? e.id,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       )
-                    else
-                      ..._criterios.map(_criterioTile),
-                  ],
+                      .toList(),
+                  onChanged: (v) => setState(() => _sel = v),
                 ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _periodo,
+                  decoration: const InputDecoration(
+                    labelText: 'Periodo (ej. 2026-S1)',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Criterios',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                if (_criterios.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No hay criterios definidos para la empresa.',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                  )
+                else
+                  ..._criterios.map(_criterioTile),
+              ],
+            ),
       bottomNavigationBar: _criterios.isEmpty
           ? null
           : SafeArea(
@@ -303,7 +341,11 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
                 child: FilledButton.icon(
                   onPressed: _guardando ? null : _guardar,
                   icon: _guardando
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.save),
                   label: const Text('Guardar borrador'),
                 ),
@@ -321,17 +363,36 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
         children: [
           Row(
             children: [
-              Expanded(child: Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.w600))),
-              Text('peso ${c.peso.toStringAsFixed(1)}', style: const TextStyle(fontSize: 11, color: Colors.black45)),
+              Expanded(
+                child: Text(
+                  c.nombre,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Text(
+                'peso ${c.peso.toStringAsFixed(1)}',
+                style: const TextStyle(fontSize: 11, color: Colors.black45),
+              ),
               const SizedBox(width: 8),
               Container(
-                width: 34, alignment: Alignment.center,
-                child: Text('$v', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                width: 34,
+                alignment: Alignment.center,
+                child: Text(
+                  '$v',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             ],
           ),
           Slider(
-            value: v.toDouble(), min: 1, max: 10, divisions: 9, label: '$v',
+            value: v.toDouble(),
+            min: 1,
+            max: 10,
+            divisions: 9,
+            label: '$v',
             onChanged: (nv) => setState(() => _puntajes[c.id] = nv.round()),
           ),
         ],
@@ -346,7 +407,8 @@ class DetalleEvaluacionScreen extends StatefulWidget {
   const DetalleEvaluacionScreen({super.key, required this.evaluacionId});
 
   @override
-  State<DetalleEvaluacionScreen> createState() => _DetalleEvaluacionScreenState();
+  State<DetalleEvaluacionScreen> createState() =>
+      _DetalleEvaluacionScreenState();
 }
 
 class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
@@ -382,7 +444,11 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
   void _snack(String m, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(m), backgroundColor: error ? Colors.red.shade700 : null));
+      SnackBar(
+        content: Text(m),
+        backgroundColor: error ? Colors.red.shade700 : null,
+      ),
+    );
   }
 
   Future<void> _transicion(String estado) async {
@@ -391,7 +457,9 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
     if (!mounted) return;
     if (r.ok) {
       _cambio = true;
-      _snack(estado == 'enviada' ? 'Evaluación enviada' : 'Evaluación completada');
+      _snack(
+        estado == 'enviada' ? 'Evaluación enviada' : 'Evaluación completada',
+      );
       _cargar();
     } else {
       _snack(r.errorMessage, error: true);
@@ -405,10 +473,15 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
         title: const Text('Eliminar evaluación'),
         content: const Text('¿Eliminar esta evaluación?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-            onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
         ],
       ),
     );
@@ -439,16 +512,19 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
           ),
           actions: [
             if (_e != null && AppSession.i.canEliminarEvaluacion)
-              IconButton(onPressed: _eliminar, icon: const Icon(Icons.delete_outline)),
+              IconButton(
+                onPressed: _eliminar,
+                icon: const Icon(Icons.delete_outline),
+              ),
           ],
         ),
         body: _cargando
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Center(child: Text(_error!))
-                : _e == null
-                    ? const Center(child: Text('Sin datos.'))
-                    : _contenido(_e!),
+            ? Center(child: Text(_error!))
+            : _e == null
+            ? const Center(child: Text('Sin datos.'))
+            : _contenido(_e!),
         bottomNavigationBar: _e == null ? null : _acciones(_e!),
       ),
     );
@@ -458,28 +534,47 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(e.empleadoNombre ?? e.empleadoId,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(
+          e.empleadoNombre ?? e.empleadoId,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 4),
         Text('Periodo: ${e.periodo} · Estado: ${e.estado}'),
-        Text('Evaluador: ${e.evaluadorNombre ?? '-'} · Fecha: ${e.fecha ?? '-'}'),
+        Text(
+          'Evaluador: ${e.evaluadorNombre ?? '-'} · Fecha: ${e.fecha ?? '-'}',
+        ),
         const SizedBox(height: 8),
-        Row(children: [
-          const Text('Promedio ponderado: ', style: TextStyle(fontWeight: FontWeight.bold)),
-          Text(e.promedio?.toStringAsFixed(2) ?? '—',
-              style: const TextStyle(fontSize: 18, color: Colors.green, fontWeight: FontWeight.bold)),
-          const Text(' / 10'),
-        ]),
+        Row(
+          children: [
+            const Text(
+              'Promedio ponderado: ',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(
+              e.promedio?.toStringAsFixed(2) ?? '—',
+              style: const TextStyle(
+                fontSize: 18,
+                color: Colors.green,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Text(' / 10'),
+          ],
+        ),
         const Divider(height: 24),
         const Text('Criterios', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        ...e.detalles.map((d) => ListTile(
-              dense: true,
-              title: Text(d.criterioNombre ?? d.criterioId),
-              subtitle: d.comentario != null ? Text(d.comentario!) : null,
-              trailing: Text('${d.puntaje}/10',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            )),
+        ...e.detalles.map(
+          (d) => ListTile(
+            dense: true,
+            title: Text(d.criterioNombre ?? d.criterioId),
+            subtitle: d.comentario != null ? Text(d.comentario!) : null,
+            trailing: Text(
+              '${d.puntaje}/10',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -487,19 +582,29 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
   Widget? _acciones(Evaluacion e) {
     final botones = <Widget>[];
     if (e.estado == 'borrador' && AppSession.i.canEnviarEvaluacion) {
-      botones.add(Expanded(
-        child: FilledButton.icon(
-          onPressed: () => _transicion('enviada'),
-          icon: const Icon(Icons.send), label: const Text('Enviar')),
-      ));
+      botones.add(
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: () => _transicion('enviada'),
+            icon: const Icon(Icons.send),
+            label: const Text('Enviar'),
+          ),
+        ),
+      );
     }
     if (e.estado == 'enviada' && AppSession.i.canCompletarEvaluacion) {
-      botones.add(Expanded(
-        child: FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
-          onPressed: () => _transicion('completada'),
-          icon: const Icon(Icons.check_circle_outline), label: const Text('Completar')),
-      ));
+      botones.add(
+        Expanded(
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+            ),
+            onPressed: () => _transicion('completada'),
+            icon: const Icon(Icons.check_circle_outline),
+            label: const Text('Completar'),
+          ),
+        ),
+      );
     }
     if (botones.isEmpty) return null;
     return SafeArea(
@@ -555,14 +660,20 @@ class _CriteriosTabState extends State<CriteriosTab> {
   void _snack(String m, {bool error = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(m), backgroundColor: error ? Colors.red.shade700 : null));
+      SnackBar(
+        content: Text(m),
+        backgroundColor: error ? Colors.red.shade700 : null,
+      ),
+    );
   }
 
   Future<void> _nuevo([CriterioEvaluacion? existing]) async {
-    final nombre   = TextEditingController(text: existing?.nombre ?? '');
-    final desc     = TextEditingController(text: existing?.descripcion ?? '');
+    final nombre = TextEditingController(text: existing?.nombre ?? '');
+    final desc = TextEditingController(text: existing?.descripcion ?? '');
     final pregunta = TextEditingController(text: existing?.pregunta ?? '');
-    final peso     = TextEditingController(text: existing?.peso.toStringAsFixed(1) ?? '1.0');
+    final peso = TextEditingController(
+      text: existing?.peso.toStringAsFixed(1) ?? '1.0',
+    );
 
     final ok = await showDialog<bool>(
       context: context,
@@ -571,42 +682,56 @@ class _CriteriosTabState extends State<CriteriosTab> {
         scrollable: true,
         content: SizedBox(
           width: 400,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-              controller: nombre,
-              decoration: const InputDecoration(
-                labelText: 'Nombre del criterio *',
-                helperText: 'Ej: Puntualidad, Trabajo en equipo',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nombre,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre del criterio *',
+                  helperText: 'Ej: Puntualidad, Trabajo en equipo',
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: pregunta,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Pregunta que verá el colaborador',
-                helperText: 'Ej: ¿Cómo evalúas tu puntualidad este periodo?',
+              const SizedBox(height: 10),
+              TextField(
+                controller: pregunta,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Pregunta que verá el colaborador',
+                  helperText: 'Ej: ¿Cómo evalúas tu puntualidad este periodo?',
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: desc,
-              decoration: const InputDecoration(labelText: 'Descripción interna (opcional)'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: peso,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Peso (ponderación)',
-                helperText: 'Ej: 2.0 = vale el doble que un criterio con peso 1.0',
+              const SizedBox(height: 10),
+              TextField(
+                controller: desc,
+                decoration: const InputDecoration(
+                  labelText: 'Descripción interna (opcional)',
+                ),
               ),
-            ),
-          ]),
+              const SizedBox(height: 10),
+              TextField(
+                controller: peso,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Peso (ponderación)',
+                  helperText:
+                      'Ej: 2.0 = vale el doble que un criterio con peso 1.0',
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Guardar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Guardar'),
+          ),
         ],
       ),
     );
@@ -616,17 +741,28 @@ class _CriteriosTabState extends State<CriteriosTab> {
       return;
     }
     final svc = await getEvaluacionService();
-    final preguntaVal = pregunta.text.trim().isEmpty ? null : pregunta.text.trim();
+    final preguntaVal = pregunta.text.trim().isEmpty
+        ? null
+        : pregunta.text.trim();
     final descVal = desc.text.trim().isEmpty ? null : desc.text.trim();
     final pesoVal = double.tryParse(peso.text.trim()) ?? 1.0;
 
     final r = existing == null
         ? await svc.crearCriterio(
-            nombre: nombre.text.trim(), descripcion: descVal,
-            pregunta: preguntaVal, peso: pesoVal, tipo: widget.tipo)
+            nombre: nombre.text.trim(),
+            descripcion: descVal,
+            pregunta: preguntaVal,
+            peso: pesoVal,
+            tipo: widget.tipo,
+          )
         : await svc.editarCriterio(
-            id: existing.id, nombre: nombre.text.trim(), descripcion: descVal,
-            pregunta: preguntaVal, peso: pesoVal, tipo: widget.tipo);
+            id: existing.id,
+            nombre: nombre.text.trim(),
+            descripcion: descVal,
+            pregunta: preguntaVal,
+            peso: pesoVal,
+            tipo: widget.tipo,
+          );
     if (!mounted) return;
     r.ok ? _cargar() : _snack(r.errorMessage, error: true);
   }
@@ -636,12 +772,19 @@ class _CriteriosTabState extends State<CriteriosTab> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar criterio'),
-        content: Text('¿Eliminar "${c.nombre}"? Las evaluaciones pasadas lo conservan.'),
+        content: Text(
+          '¿Eliminar "${c.nombre}"? Las evaluaciones pasadas lo conservan.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-            onPressed: () => Navigator.pop(ctx, true), child: const Text('Eliminar')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
         ],
       ),
     );
@@ -656,55 +799,83 @@ class _CriteriosTabState extends State<CriteriosTab> {
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: AppSession.i.canCrearEvaluacion
-          ? FloatingActionButton.extended(onPressed: _nuevo, icon: const Icon(Icons.add), label: const Text('Criterio'))
+          ? FloatingActionButton.extended(
+              onPressed: _nuevo,
+              icon: const Icon(Icons.add),
+              label: const Text('Criterio'),
+            )
           : null,
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(child: Text(_error!))
-              : _items.isEmpty
-                  ? const Center(child: Text('Sin criterios. Crea el primero con el botón +.'))
-                  : RefreshIndicator(
-                      onRefresh: _cargar,
-                      child: ListView.separated(
-                        itemCount: _items.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (_, i) {
-                          final c = _items[i];
-                          return ListTile(
-                            leading: const Icon(Icons.checklist_outlined),
-                            title: Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (c.pregunta != null)
-                                  Text('❓ ${c.pregunta}',
-                                      style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-                                if (c.descripcion != null)
-                                  Text(c.descripcion!, style: const TextStyle(fontSize: 12)),
-                              ],
-                            ),
-                            isThreeLine: c.pregunta != null || c.descripcion != null,
-                            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Chip(
-                                label: Text('peso ${c.peso.toStringAsFixed(1)}',
-                                    style: const TextStyle(fontSize: 11)),
-                                visualDensity: VisualDensity.compact,
-                                side: BorderSide.none,
-                              ),
-                              if (AppSession.i.canEditarEvaluacion)
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined, size: 18),
-                                  onPressed: () => _nuevo(c)),
-                              if (AppSession.i.canEliminarEvaluacion)
-                                IconButton(
-                                  icon: Icon(Icons.delete_outline, color: Colors.red.shade400, size: 20),
-                                  onPressed: () => _eliminar(c)),
-                            ]),
-                          );
-                        },
-                      ),
+          ? Center(child: Text(_error!))
+          : _items.isEmpty
+          ? const Center(
+              child: Text('Sin criterios. Crea el primero con el botón +.'),
+            )
+          : RefreshIndicator(
+              onRefresh: _cargar,
+              child: ListView.separated(
+                itemCount: _items.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final c = _items[i];
+                  return ListTile(
+                    leading: const Icon(Icons.checklist_outlined),
+                    title: Text(
+                      c.nombre,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (c.pregunta != null)
+                          Text(
+                            '❓ ${c.pregunta}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        if (c.descripcion != null)
+                          Text(
+                            c.descripcion!,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                      ],
+                    ),
+                    isThreeLine: c.pregunta != null || c.descripcion != null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Chip(
+                          label: Text(
+                            'peso ${c.peso.toStringAsFixed(1)}',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          side: BorderSide.none,
+                        ),
+                        if (AppSession.i.canEditarEvaluacion)
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            onPressed: () => _nuevo(c),
+                          ),
+                        if (AppSession.i.canEliminarEvaluacion)
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: Colors.red.shade400,
+                              size: 20,
+                            ),
+                            onPressed: () => _eliminar(c),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }
@@ -722,8 +893,10 @@ class ConfigEvaluacionesScreen extends StatelessWidget {
       length: TipoEvaluacion.todos.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Config. Evaluaciones',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Config. Evaluaciones',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           bottom: TabBar(
             isScrollable: true,
             tabs: [

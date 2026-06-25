@@ -3,7 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_accesos_portal.dart';
@@ -12,9 +11,9 @@ import 'pantalla_drive.dart';
 import 'pantalla_auditoria.dart';
 import 'pantalla_auditoria_general.dart';
 import 'pantalla_comunicados.dart';
-import 'pantalla_soporte.dart';
-import 'pantalla_mis_sesiones.dart';
-import 'pantalla_preferencias_notificacion.dart';
+import 'pantalla_privacidad_seguridad.dart';
+import 'pantalla_configuracion.dart';
+import 'pantalla_centro_ayuda.dart';
 import 'pantalla_personal_hub.dart';
 import 'pantalla_mi_espacio.dart';
 import 'pantalla_editar_perfil.dart';
@@ -28,8 +27,8 @@ import 'pantalla_equipos_intervenidos.dart';
 import 'pantalla_dashboards.dart';
 import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
-import 'finanzas/pantalla_manual_finanzas.dart';
 import 'pantalla_documentos_sst.dart';
+import 'pantalla_privilegios.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -49,6 +48,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _puedeVerDashboards = false;
   bool _puedeVerControlAsistencias = false;
   bool _puedeGestionarUsuarios = false;
+  bool _puedeGestionarPrivilegios = false;
   // Visibilidad de módulos por permiso (admin ve todos).
   bool _canCalibracion = false;
   bool _canCorrectivo = false;
@@ -79,7 +79,8 @@ class _MoreScreenState extends State<MoreScreen> {
         _puedeVerPersonal    = AppSession.i.canVerPersonal;
         _puedeVerDashboards  = AppSession.i.canVerDashboards;
         _puedeVerControlAsistencias = AppSession.i.canVerControlAsistencias;
-        _puedeGestionarUsuarios = AppSession.i.canGestionarUsuarios;
+        _puedeGestionarUsuarios     = AppSession.i.canGestionarUsuarios;
+        _puedeGestionarPrivilegios  = AppSession.i.canGestionarPrivilegios;
         _canCalibracion  = AppSession.i.canVerCalibracion;
         _canCorrectivo   = AppSession.i.canVerCorrectivo;
         _canItse         = AppSession.i.canVerItse;
@@ -119,82 +120,6 @@ class _MoreScreenState extends State<MoreScreen> {
     await prefs.remove('user_name');
     await prefs.remove('user_rol');
     if (mounted) Navigator.pushReplacementNamed(context, '/login');
-  }
-
-  void _abrirDocumentacion() {
-    if (!_canFinanzas) {
-      _showInfoDialog(
-        'Documentación',
-        'Por ahora no hay manuales disponibles para los módulos a los que tienes acceso. '
-            'Para soporte y guías generales, contáctanos en soporte@esystemtic.com.',
-      );
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2)),
-              ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Manuales disponibles',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.account_balance_outlined,
-                    color: Color(0xFF5A9A00)),
-                title: const Text('Manual de Usuario · Finanzas'),
-                subtitle: const Text(
-                    'Qué hacer en cada pantalla y cómo se forma el asiento contable PCGE'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PantallaManualFinanzas()),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showInfoDialog(String title, String body) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -261,32 +186,12 @@ class _MoreScreenState extends State<MoreScreen> {
             _buildMenuGroup(
               surface: surface,
               items: [
-                // "Mi perfil" unifica el antiguo "Mi espacio" (autoservicio) con
-                // "Mi Perfil" (edición), que ahora es una sub-acción interna.
                 _MenuItem(
                   icon: Icons.person_outline,
                   label: 'Mi perfil',
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const PantallaMiEspacio()),
-                  ),
-                ),
-                _MenuItem(
-                  icon: Icons.devices_other_outlined,
-                  label: 'Mis conexiones',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PantallaMisSesiones()),
-                  ),
-                ),
-                _MenuItem(
-                  icon: Icons.notifications_active_outlined,
-                  label: 'Notificaciones',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PreferenciasNotificacionScreen(),
-                    ),
                   ),
                 ),
               ],
@@ -327,13 +232,24 @@ class _MoreScreenState extends State<MoreScreen> {
             ),
 
             // ── 3. Administración (según permisos) ──────────────────────
-            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _esAdmin || _puedeVerAuditoria || _esSuperAdmin || _puedeGestionarUsuarios) ...[
+            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _esAdmin || _puedeVerAuditoria || _esSuperAdmin || _puedeGestionarUsuarios || _puedeGestionarPrivilegios) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
+                  if (_puedeGestionarPrivilegios)
+                    _MenuItem(
+                      icon: Icons.admin_panel_settings_outlined,
+                      label: 'Privilegios',
+                      iconColor: const Color(0xFFFFB300),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const PantallaPrivilegios()),
+                      ),
+                    ),
                   if (_puedeGestionarUsuarios)
                     _MenuItem(
                       icon: Icons.manage_accounts_outlined,
@@ -496,89 +412,41 @@ class _MoreScreenState extends State<MoreScreen> {
                     MaterialPageRoute(builder: (_) => const PantallaPlanos()),
                   ),
                 ),
-                _MenuItem(
-                  icon: Icons.description_outlined,
-                  label: 'Documentación',
-                  onTap: _abrirDocumentacion,
-                ),
               ],
             ),
             const SizedBox(height: 20),
 
-            // ── 6. Preferencias (siempre) ──────────────────────────────
-            _buildSectionTitle('Preferencias'),
-            const SizedBox(height: 10),
-            _buildCard(
-              surface: surface,
-              child: ValueListenableBuilder<ThemeMode>(
-                valueListenable: themeNotifier,
-                builder: (_, mode, _) => SwitchListTile(
-                  secondary: Icon(
-                    mode == ThemeMode.dark
-                        ? Icons.dark_mode_outlined
-                        : Icons.light_mode_outlined,
-                    size: 22,
-                  ),
-                  title: const Text(
-                    'Modo Oscuro',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                  ),
-                  value: mode == ThemeMode.dark,
-                  activeThumbColor: const Color(0xFF8FD11B),
-                  onChanged: (val) async {
-                    themeNotifier.value = val
-                        ? ThemeMode.dark
-                        : ThemeMode.light;
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setBool('dark_mode', val);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildMenuGroup(
-              surface: surface,
-              items: [
-                _MenuItem(
-                  icon: Icons.settings_outlined,
-                  label: 'Configuración',
-                  onTap: () => _showInfoDialog(
-                    'Configuración',
-                    'Las opciones de configuración avanzada estarán disponibles próximamente.',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // ── 7. Ayuda y soporte (siempre) ───────────────────────────
+            // ── 6. Ayuda y soporte (siempre) ──────────────────────────
             _buildSectionTitle('Ayuda y soporte'),
             const SizedBox(height: 10),
             _buildMenuGroup(
               surface: surface,
               items: [
                 _MenuItem(
-                  icon: Icons.support_agent_outlined,
-                  label: 'Soporte TI',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PantallaSoporte()),
-                  ),
-                ),
-                _MenuItem(
                   icon: Icons.help_outline,
                   label: 'Centro de Ayuda',
-                  onTap: () => _showInfoDialog(
-                    'Centro de Ayuda',
-                    'Para soporte técnico contáctanos:\nsoporte@esystemtic.com',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PantallaCentroAyuda()),
                   ),
                 ),
                 _MenuItem(
                   icon: Icons.security_outlined,
                   label: 'Privacidad y Seguridad',
-                  onTap: () => _showInfoDialog(
-                    'Privacidad y Seguridad',
-                    'Tu información está protegida. Los datos son cifrados y almacenados de forma segura conforme a nuestra política de privacidad.',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PantallaPrivacidadSeguridad()),
+                  ),
+                ),
+                _MenuItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Configuración',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const PantallaConfiguracion()),
                   ),
                 ),
               ],
@@ -867,11 +735,13 @@ class _MenuItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final Color? iconColor;
 
   const _MenuItem({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.iconColor,
   });
 
   @override
@@ -879,7 +749,7 @@ class _MenuItem extends StatelessWidget {
     return ListTile(
       leading: Icon(
         icon,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        color: iconColor ?? Theme.of(context).colorScheme.onSurfaceVariant,
         size: 22,
       ),
       title: Text(

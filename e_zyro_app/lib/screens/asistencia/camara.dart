@@ -17,6 +17,8 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
   bool _ready = false;
   bool _confirming = false;
   XFile? _captured;
+  String? _initError;
+  bool _permDeniedForever = false;
 
   @override
   void initState() {
@@ -31,9 +33,27 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
   }
 
   Future<void> _initCamera() async {
+    if (mounted) setState(() { _initError = null; _permDeniedForever = false; });
+    final status = await Permission.camera.request();
+    if (status.isPermanentlyDenied) {
+      if (mounted) setState(() {
+        _initError = 'Permiso de cámara bloqueado permanentemente.\nVe a Ajustes del dispositivo y habilítalo.';
+        _permDeniedForever = true;
+      });
+      return;
+    }
+    if (status.isDenied) {
+      if (mounted) setState(() {
+        _initError = 'Se necesita permiso de cámara para continuar.';
+      });
+      return;
+    }
     try {
       final cameras = await availableCameras();
-      if (cameras.isEmpty) { if (mounted) Navigator.pop(context); return; }
+      if (cameras.isEmpty) {
+        if (mounted) setState(() => _initError = 'No se encontró ninguna cámara en este dispositivo.');
+        return;
+      }
       final front = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
@@ -47,7 +67,9 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
       if (!mounted) { ctrl.dispose(); return; }
       setState(() { _ctrl = ctrl; _ready = true; });
     } catch (_) {
-      if (mounted) Navigator.pop(context);
+      if (mounted) setState(() {
+        _initError = 'No se pudo iniciar la cámara.\nCierra otras apps que la estén usando e intenta de nuevo.';
+      });
     }
   }
 
@@ -63,23 +85,37 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
     if (mounted) setState(() => _captured = null);
   }
 
-  /// Comprime y normaliza la selfie (aplica rotación EXIF) antes de retornar.
+  /// Comprime, normaliza la selfie (aplica rotación EXIF) y aplica flip horizontal
+  /// para que la foto quede igual a lo que el usuario vio en la vista previa de cámara frontal.
   Future<void> _confirm() async {
     final photo = _captured;
     if (photo == null || _confirming) return;
     setState(() => _confirming = true);
     try {
-      final dir = await getTemporaryDirectory();
+      final dir  = await getTemporaryDirectory();
       final dest = '${dir.path}/selfie_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final result = await FlutterImageCompress.compressAndGetFile(
-        photo.path,
-        dest,
-        quality: 88,
-        minWidth: 800,
-        minHeight: 600,
+
+      // Primer paso: comprimir con corrección EXIF de rotación.
+      final compressed = await FlutterImageCompress.compressAndGetFile(
+        photo.path, dest,
+        quality: 88, minWidth: 800, minHeight: 600,
       );
+      final srcPath = compressed?.path ?? photo.path;
+
+      // Segundo paso: flip horizontal para que coincida con la vista de espejo
+      // que la cámara frontal muestra en la previsualización.
+      final bytes   = await File(srcPath).readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded != null) {
+        final flipped   = img.flipHorizontal(decoded);
+        final jpegBytes = img.encodeJpg(flipped, quality: 88);
+        await File(dest).writeAsBytes(jpegBytes);
+        if (mounted) Navigator.pop(context, XFile(dest));
+        return;
+      }
+
       if (mounted) {
-        Navigator.pop(context, result != null ? XFile(result.path) : photo);
+        Navigator.pop(context, compressed != null ? XFile(compressed.path) : photo);
       }
     } catch (_) {
       if (mounted) Navigator.pop(context, photo);
@@ -89,6 +125,59 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
   @override
   Widget build(BuildContext context) {
     const green = Color(0xFF8FD11B);
+
+    if (_initError != null) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.no_photography_outlined, color: Colors.white38, size: 80),
+                const SizedBox(height: 24),
+                Text(
+                  _initError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+                ),
+                const SizedBox(height: 32),
+                if (_permDeniedForever)
+                  ElevatedButton.icon(
+                    onPressed: openAppSettings,
+                    icon: const Icon(Icons.settings_outlined, size: 18),
+                    label: const Text('Abrir Ajustes'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: _initCamera,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Reintentar'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: green,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     if (!_ready || _ctrl == null) {
       return const Scaffold(
@@ -103,7 +192,12 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            Image.file(File(_captured!.path), fit: BoxFit.cover),
+            // Transform para previsualizar con el mismo flip que aplicará _confirm()
+            Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
+              child: Image.file(File(_captured!.path), fit: BoxFit.cover),
+            ),
             Positioned(
               top: 0, left: 0, right: 0,
               child: SafeArea(
