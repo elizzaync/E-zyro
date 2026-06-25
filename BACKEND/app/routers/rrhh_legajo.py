@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.security import verificar_token
+from app.services.cloudinary_paths import carpeta_legajo
 from app.core.permisos import exigir_no_tecnico, exigir_solo_admin
 from app.models.empleado import Empleado
 from app.models.usuario import Usuario
@@ -366,7 +367,7 @@ async def subir_documento(
     try:
         result = _cu.upload(
             io.BytesIO(contenido),
-            folder=f"e-zyro/{empresa_id}/legajos/{empleado_id}",
+            folder=carpeta_legajo(empresa_id, empleado_id),
             resource_type="auto",   # PDFs se sirven inline en el navegador
         )
         url = result.get("secure_url", "")

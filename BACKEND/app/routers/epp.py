@@ -26,7 +26,7 @@ from ..services import costeo_inventario_service as costeo
 from ..services.cloudinary_service import (
     subir_e_indexar, eliminar_imagen_cloudinary, subir_pdf_bytes_cloudinary, registrar_recurso,
 )
-from ..services.cloudinary_paths import carpeta_epp, carpeta_epp_entrega
+from ..services.cloudinary_paths import carpeta_epp, carpeta_epp_entrega, carpeta_epp_reportes
 from ..services.pdf_docs import generar_constancia_epp, generar_reporte_epp_empleado
 from ..models.usuario import Usuario
 from ..models.empresa import Empresa
@@ -378,7 +378,7 @@ def reporte_empleado(empleado_id: str, payload: dict = Depends(verificar_token),
     url = subir_pdf_bytes_cloudinary(pdf, pid)
     registrar_recurso(
         db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
-        folder=f"e-zyro/{empresa_id}/epp-reportes/{empleado_id}", recurso_tipo="pdf",
+        folder=carpeta_epp_reportes(empresa_id, empleado_id), recurso_tipo="pdf",
         entidad_tipo="empleado", entidad_id=empleado_id,
         descripcion=f"Reporte EPP de {tecnico}", creado_por_id=payload.get("id"),
     )

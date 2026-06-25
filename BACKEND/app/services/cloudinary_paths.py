@@ -70,3 +70,31 @@ def carpeta_planos(empresa_id: str) -> str:
 
 def carpeta_soporte(empresa_id: str, ticket_id: str) -> str:
     return f"{_emp(empresa_id)}/soporte/{ticket_id}"
+
+
+def carpeta_drive(empresa_id: str) -> str:
+    return f"{_emp(empresa_id)}/drive"
+
+
+def carpeta_legajo(empresa_id: str, empleado_id: str) -> str:
+    return f"{_emp(empresa_id)}/legajos/{empleado_id}"
+
+
+def carpeta_informes(empresa_id: str, servicio_id: str) -> str:
+    return f"{_emp(empresa_id)}/informes/{servicio_id}"
+
+
+def carpeta_documentos_sst(empresa_id: str) -> str:
+    return f"{_emp(empresa_id)}/documentos-sst"
+
+
+def carpeta_epp_reportes(empresa_id: str, empleado_id: str) -> str:
+    return f"{_emp(empresa_id)}/epp-reportes/{empleado_id}"
+
+
+def carpeta_garantias(empresa_id: str) -> str:
+    return f"{_emp(empresa_id)}/garantias"
+
+
+def carpeta_mantenimiento_inspeccion(empresa_id: str, equipo_id: str, inspeccion_id: str) -> str:
+    return f"{_emp(empresa_id)}/mantenimiento/{equipo_id}/{inspeccion_id}"

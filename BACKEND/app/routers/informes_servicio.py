@@ -23,6 +23,7 @@ from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..models.empresa import Empresa
 from ..services.pdf_informe_servicio import generar_informe_servicio_pdf
 from ..services.cloudinary_service import subir_pdf_bytes_cloudinary, registrar_recurso
+from ..services.cloudinary_paths import carpeta_informes
 
 router = APIRouter(prefix="/servicios", tags=["informes-servicio"])
 
@@ -87,7 +88,7 @@ def _generar(db: Session, payload: dict, servicio_id: str, tipo: str) -> Informe
 
     registrar_recurso(
         db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
-        folder=f"e-zyro/{empresa_id}/informes/{servicio_id}", recurso_tipo="pdf",
+        folder=carpeta_informes(empresa_id, servicio_id), recurso_tipo="pdf",
         entidad_tipo="informe_servicio", entidad_id=servicio_id,
         descripcion=("Informe final" if tipo == "final" else "Pre-informe"),
         creado_por_id=payload.get("id"),
