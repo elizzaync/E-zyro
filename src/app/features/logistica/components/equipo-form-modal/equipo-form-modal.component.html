@@ -179,10 +179,25 @@
                  [class.invalid]="ctrl('cantidad')?.invalid && ctrl('cantidad')?.touched">
         </div>
         <div class="lf-field">
+          <label class="lf-label">Stock mínimo</label>
+          <input class="lf-input" type="number" min="0" formControlName="stockMinimo"
+                 placeholder="0 = sin límite">
+        </div>
+
+        <div class="lf-field">
           <label class="lf-label">Estado</label>
           <select class="lf-input" formControlName="estado">
             @for (s of estados; track s.value) { <option [value]="s.value">{{ s.label }}</option> }
           </select>
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Costo de compra (S/)</label>
+          <input class="lf-input" type="number" min="0" step="0.01" formControlName="precioCompra"
+                 placeholder="Ej: 250.00">
+        </div>
+        <div class="lf-field">
+          <label class="lf-label">Fecha de adquisición</label>
+          <input class="lf-input" type="date" formControlName="fechaAdquisicion">
         </div>
 
         <!-- ── Almacén (select + nuevo inline) ── -->
@@ -210,14 +225,15 @@
             </div>
           }
         </div>
-
-        <div class="lf-field">
-          <label class="lf-label">Fecha de adquisición</label>
-          <input class="lf-input" type="date" formControlName="fechaAdquisicion">
+        <div class="lf-field lf-col-2">
+          <label class="lf-label">Ficha técnica / Especificaciones</label>
+          <input class="lf-input" formControlName="fichaTecnica" placeholder="Ej: 550W, chuck 13mm, velocidad 0-2800rpm">
         </div>
-        <div class="lf-field">
-          <label class="lf-label">Ficha técnica</label>
-          <input class="lf-input" formControlName="fichaTecnica" placeholder="Ej: 550W, 13mm">
+
+        <div class="lf-field lf-col-3">
+          <label class="lf-label">Observaciones</label>
+          <textarea class="lf-input lf-textarea" formControlName="observaciones" rows="2"
+                    placeholder="Ej: Adquirido en 2022, requiere cambio de carbones al siguiente mantenimiento…"></textarea>
         </div>
 
         <!-- ── Mantenimiento ── -->

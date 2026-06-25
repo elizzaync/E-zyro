@@ -31,8 +31,9 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   form!: FormGroup;
 
-  clases       = CLASES_ARTICULO;
-  estados      = ESTADOS_EQUIPO;
+  // equipo_tecnologico no se crea desde esta sección; tiene su propio flujo
+  clases  = CLASES_ARTICULO.filter(c => c.value !== 'equipo_tecnologico');
+  estados = ESTADOS_EQUIPO;
   frecuencias  = FRECUENCIAS_MANTENIMIENTO.filter(f => f.value !== 'ninguno');
 
   // Catálogos
@@ -77,7 +78,10 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
       numeroSerie: [e?.numeroSerie ?? ''],
       almacenId:   [e?.almacenId ?? ''],
       cantidad:    [e?.cantidad ?? 1, [Validators.required, Validators.min(0)]],
+      stockMinimo: [e?.stockMinimo ?? 0, [Validators.min(0)]],
+      precioCompra:[e?.precioCompra ?? null],
       estado:      [e?.estado ?? 'operativo', Validators.required],
+      observaciones:[e?.observaciones ?? ''],
       requiereMantenimiento:    [e?.requiereMantenimiento ?? false],
       frecuenciaMantenimiento:  [e?.frecuenciaMantenimiento && e.frecuenciaMantenimiento !== 'ninguno' ? e.frecuenciaMantenimiento : 'mensual'],
       proximaFechaMantenimiento:[e?.proximaFechaMantenimiento ?? null],
@@ -230,16 +234,21 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
     if (this.form.invalid) return;
     const v = this.form.getRawValue();
     const requiere = !!v.requiereMantenimiento;
+    const stockMin = Number(v.stockMinimo ?? 0);
     this.guardar.emit({
-      nombre:      v.nombre.trim(),
-      clase:       v.clase,
-      categoriaId: v.categoriaId || null,
-      marcaId:     v.marcaId || null,
-      modeloId:    v.modeloId || null,
-      numeroSerie: v.numeroSerie?.trim() || null,
-      almacenId:   v.almacenId || null,
-      cantidad:    Number(v.cantidad),
-      estado:      v.estado,
+      nombre:       v.nombre.trim(),
+      clase:        v.clase,
+      categoriaId:  v.categoriaId || null,
+      marcaId:      v.marcaId || null,
+      modeloId:     v.modeloId || null,
+      numeroSerie:  v.numeroSerie?.trim() || null,
+      almacenId:    v.almacenId || null,
+      cantidad:     Number(v.cantidad),
+      stockMinimo:  stockMin,
+      precioCompra: v.precioCompra ? Number(v.precioCompra) : null,
+      observaciones:v.observaciones?.trim() || null,
+      estado:       v.estado,
+      atributos:    stockMin > 0 ? { stock_minimo: stockMin } : null,
       requiereMantenimiento:     requiere,
       frecuenciaMantenimiento:   requiere ? v.frecuenciaMantenimiento : 'ninguno',
       proximaFechaMantenimiento: requiere ? (v.proximaFechaMantenimiento || null) : null,
