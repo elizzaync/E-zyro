@@ -62,11 +62,12 @@ export class MaterialesTablaComponent implements OnInit {
   get materialesFiltrados(): MaterialLog[] {
     const q = this.busqueda.toLowerCase().trim();
     return this.materiales.filter(m => {
+      const cat = m.categoria ?? '';
       const matchTexto = !q
         || m.nombre.toLowerCase().includes(q)
         || m.codigo.toLowerCase().includes(q)
-        || m.categoria.toLowerCase().includes(q);
-      const matchCat = this.filtroCategoria === 'Todas' || m.categoria === this.filtroCategoria;
+        || cat.toLowerCase().includes(q);
+      const matchCat = this.filtroCategoria === 'Todas' || cat === this.filtroCategoria;
       const matchEstado =
         this.filtroEstado === 'todos' ||
         (this.filtroEstado === 'activos'    && m.activo) ||
