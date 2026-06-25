@@ -226,6 +226,67 @@ def revocar_permiso(
     return {"ok": True}
 
 
+@router.post("/usuarios/{usuario_id}/permisos/todos")
+def otorgar_todos_permisos(
+    usuario_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Asigna directamente TODOS los permisos del catálogo al usuario (bulk)."""
+    exigir_permiso(db, payload, "privilegios", "gestionar")
+    empresa_id   = payload["empresa_id"]
+    otorgado_por = payload["id"]
+
+    row = db.execute(
+        text("SELECT id FROM usuario WHERE id = :uid AND empresa_id = :emp"),
+        {"uid": usuario_id, "emp": empresa_id},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    db.execute(
+        text(
+            """
+            INSERT INTO usuario_permiso (usuario_id, permiso_id, asignado_por)
+            SELECT :uid, p.id, :por FROM permiso p
+            ON CONFLICT (usuario_id, permiso_id) DO NOTHING
+            """
+        ),
+        {"uid": usuario_id, "por": otorgado_por},
+    )
+    db.commit()
+    total = db.execute(
+        text("SELECT COUNT(*) FROM usuario_permiso WHERE usuario_id = :uid"),
+        {"uid": usuario_id},
+    ).scalar()
+    return {"ok": True, "permisos_directos": total}
+
+
+@router.delete("/usuarios/{usuario_id}/permisos")
+def revocar_todos_permisos(
+    usuario_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+):
+    """Elimina todos los permisos directos del usuario (deja solo los del rol)."""
+    exigir_permiso(db, payload, "privilegios", "gestionar")
+    empresa_id = payload["empresa_id"]
+
+    row = db.execute(
+        text("SELECT id FROM usuario WHERE id = :uid AND empresa_id = :emp"),
+        {"uid": usuario_id, "emp": empresa_id},
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    db.execute(
+        text("DELETE FROM usuario_permiso WHERE usuario_id = :uid"),
+        {"uid": usuario_id},
+    )
+    db.commit()
+    return {"ok": True, "permisos_directos": 0}
+
+
 @router.get("/modulos")
 def listar_modulos(
     payload: dict = Depends(verificar_token),
