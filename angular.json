@@ -20,6 +20,14 @@
             "polyfills": [
               "zone.js"
             ],
+            "allowedCommonJsDependencies": [
+              "exceljs",
+              "xlsx",
+              "html2pdf.js",
+              "pdf-lib",
+              "leaflet",
+              "pako"
+            ],
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
             "assets": [

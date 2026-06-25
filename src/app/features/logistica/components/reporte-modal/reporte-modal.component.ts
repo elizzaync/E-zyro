@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialLog, EquipoHerramienta } from '../../logistica.models';
+import * as ExcelJSLib from 'exceljs';
 
 // ── ARGB color palette ─────────────────────────────────────────────────────
 const C = {
@@ -102,9 +103,9 @@ export class ReporteModalComponent {
   // EXCEL MATERIALES — 5 hojas
   // ══════════════════════════════════════════════════════════════════════════
   private async excelMateriales(): Promise<void> {
-    const { Workbook } = await import('exceljs');
+    const WB = ((ExcelJSLib as any).default?.Workbook ?? (ExcelJSLib as any).Workbook) as typeof ExcelJSLib.Workbook;
     const mats = this.datosFiltrados as MaterialLog[];
-    const wb   = new Workbook() as Workbook;
+    const wb   = new WB() as Workbook;
     wb.creator  = 'E-zyro';
     wb.created  = new Date();
     wb.modified = new Date();
@@ -556,9 +557,9 @@ export class ReporteModalComponent {
   // EXCEL EQUIPOS — 4 hojas
   // ══════════════════════════════════════════════════════════════════════════
   private async excelEquipos(): Promise<void> {
-    const { Workbook } = await import('exceljs');
+    const WB = ((ExcelJSLib as any).default?.Workbook ?? (ExcelJSLib as any).Workbook) as typeof ExcelJSLib.Workbook;
     const eq  = this.datosFiltrados as EquipoHerramienta[];
-    const wb  = new Workbook() as Workbook;
+    const wb  = new WB() as Workbook;
     wb.creator = 'E-zyro'; wb.created = new Date();
     const fecha = new Date().toLocaleDateString('es-PE', { year:'numeric', month:'long', day:'numeric' });
     const cl = (c: string) => c === 'equipo_tecnologico' ? 'Eq. TI' : c === 'herramienta' ? 'Herramienta' : 'Equipo';
