@@ -968,9 +968,13 @@ def crear_equipo(
     if body.almacenId:
         _almacen_or_404(db, empresa_id, body.almacenId)
 
-    # Autogeneración de código: EQ-NNNN o HR-NNNN según clase
-    prefijo = "EQ" if body.clase == "equipo" else "HR"
+    # Autogeneración de código: EQ-NNNN (equipo/equipo_tecnologico) o HR-NNNN (herramienta)
+    prefijo = "HR" if body.clase == "herramienta" else "EQ"
     codigo = (body.codigo or "").strip() or _siguiente_codigo(db, empresa_id, prefijo, Equipo)
+
+    attrs = dict(body.atributos) if body.atributos else {}
+    if body.stockMinimo and int(body.stockMinimo) > 0:
+        attrs["stock_minimo"] = int(body.stockMinimo)
 
     e = Equipo(
         id           = str(_uuid.uuid4()),
@@ -996,6 +1000,9 @@ def crear_equipo(
         proxima_fecha_mantenimiento= body.proximaFechaMantenimiento if body.requiereMantenimiento else None,
         fecha_adquisicion          = body.fechaAdquisicion,
         ficha_tecnica              = (body.fichaTecnica or "").strip() or None,
+        precio_compra              = _Decimal(str(body.precioCompra)) if body.precioCompra else None,
+        observaciones              = (body.observaciones or "").strip() or None,
+        atributos                  = attrs or None,
     )
     db.add(e)
     db.flush()
@@ -1090,6 +1097,13 @@ def actualizar_equipo(
         e.frecuencia_mantenimiento = body.frecuenciaMantenimiento
     if body.proximaFechaMantenimiento is not None and e.requiere_mantenimiento:
         e.proxima_fecha_mantenimiento = body.proximaFechaMantenimiento
+
+    if body.precioCompra is not None:
+        e.precio_compra = _Decimal(str(body.precioCompra)) if body.precioCompra > 0 else None
+    if body.observaciones is not None:
+        e.observaciones = (body.observaciones or "").strip() or None
+    if body.atributos is not None:
+        e.atributos = {**(e.atributos or {}), **body.atributos}
 
     e.updated_at = datetime.utcnow()
 
@@ -1224,11 +1238,11 @@ def siguiente_codigo(
     t = tipo.lower()
     if t == "material":
         return {"codigo": _siguiente_codigo(db, empresa_id, "MAT", Material)}
-    if t == "equipo":
+    if t in ("equipo", "equipo_tecnologico"):
         return {"codigo": _siguiente_codigo(db, empresa_id, "EQ",  Equipo)}
     if t == "herramienta":
         return {"codigo": _siguiente_codigo(db, empresa_id, "HR",  Equipo)}
-    raise HTTPException(status_code=400, detail="tipo debe ser material|equipo|herramienta")
+    raise HTTPException(status_code=400, detail="tipo debe ser material|equipo|herramienta|equipo_tecnologico")
 
 
 # ══════════════════════════════════════════════════════════════════════════
