@@ -29,6 +29,7 @@ export class MaterialFormModalComponent implements OnInit, OnDestroy {
   categorias: CatalogoItem[] = [];
   unidades:   UnidadItem[]   = [];
   almacenes:  AlmacenItem[]  = [];
+  marcas:     CatalogoItem[] = [];
   cargandoCatalogos = false;
 
   // Inputs "+ Nueva …"
@@ -52,6 +53,9 @@ export class MaterialFormModalComponent implements OnInit, OnDestroy {
       cantidad:     [this.material?.cantidad ?? 0, [Validators.required, Validators.min(0)]],
       stockMinimo:  [this.material?.stockMinimo ?? 0, [Validators.required, Validators.min(0)]],
       precio:       [this.material?.precio ?? null, [Validators.min(0)]],
+      precioCompra: [this.material?.precioCompra ?? null as number | null, [Validators.min(0)]],
+      serie:        [this.material?.serie ?? ''],
+      marcaId:      [this.material?.marcaId ?? ''],
       activo:       [this.material?.activo ?? true],
     });
     this._cargarCatalogos();
@@ -72,6 +76,7 @@ export class MaterialFormModalComponent implements OnInit, OnDestroy {
     this.cargandoCatalogos = true;
     this.svc.getCategorias().subscribe({ next: r => (this.categorias = r) });
     this.svc.getUnidades().subscribe({   next: r => (this.unidades   = r) });
+    this.svc.getMarcas().subscribe({     next: r => (this.marcas     = r) });
     this.svc.getAlmacenes().subscribe({
       next: r => { this.almacenes = r; this.cargandoCatalogos = false; },
       error: () => (this.cargandoCatalogos = false),
@@ -131,16 +136,21 @@ export class MaterialFormModalComponent implements OnInit, OnDestroy {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
     const v = this.form.getRawValue();
+    const stockMin = Number(v.stockMinimo ?? 0);
     this.guardar.emit({
-      nombre:      v.nombre.trim(),
-      categoriaId: v.categoriaId,
-      unidadId:    v.unidadId,
-      almacenId:   v.almacenId,
-      descripcion: v.descripcion?.trim() || null,
-      cantidad:    Number(v.cantidad),
-      stockMinimo: Number(v.stockMinimo),
-      precio:      v.precio === null || v.precio === '' ? null : Number(v.precio),
-      activo:      !!v.activo,
+      nombre:       v.nombre.trim(),
+      categoriaId:  v.categoriaId,
+      unidadId:     v.unidadId,
+      almacenId:    v.almacenId || null,
+      descripcion:  v.descripcion?.trim() || null,
+      cantidad:     Number(v.cantidad),
+      stockMinimo:  stockMin,
+      precio:       v.precio === null || v.precio === '' ? null : Number(v.precio),
+      precioCompra: v.precioCompra ? Number(v.precioCompra) : null,
+      serie:        v.serie?.trim() || null,
+      marcaId:      v.marcaId || null,
+      atributos:    stockMin > 0 ? { stock_minimo: stockMin } : null,
+      activo:       !!v.activo,
     });
   }
 }

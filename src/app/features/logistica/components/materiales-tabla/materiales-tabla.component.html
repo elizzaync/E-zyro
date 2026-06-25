@@ -57,7 +57,8 @@
             <th>Unidad</th>
             <th class="th-num">Stock</th>
             <th class="th-num">Mín.</th>
-            <th class="th-num">Precio</th>
+            <th>Marca</th>
+            <th class="th-num">Costo</th>
             <th>Almacén</th>
             <th>Estado</th>
             <th class="th-acc">Acciones</th>
@@ -79,8 +80,24 @@
                 <span class="stock-alerta" title="Stock por debajo del mínimo">▼</span>
               }
             </td>
-            <td class="th-num td-muted">{{ m.stockMinimo }}</td>
-            <td class="th-num">{{ m.precio !== null ? ('S/ ' + m.precio) : '—' }}</td>
+            <td class="th-num td-muted">
+              @if (m.stockMinimo > 0) {
+                <span class="stk-min-badge" [class.stk-min-alerta]="m.cantidad <= m.stockMinimo"
+                      title="Stock mínimo configurado">
+                  {{ m.stockMinimo }}
+                </span>
+              } @else {
+                <span class="td-muted">—</span>
+              }
+            </td>
+            <td class="td-muted">{{ m.marca || '—' }}</td>
+            <td class="th-num td-costo">
+              @if (m.precioCompra != null) {
+                <span class="costo-valor">S/ {{ m.precioCompra | number:'1.2-2' }}</span>
+              } @else {
+                <span class="td-muted" style="font-size:12px">—</span>
+              }
+            </td>
             <td class="td-muted">{{ m.almacen }}</td>
             <td>
               <span class="badge" [class.badge-ok]="m.activo" [class.badge-off]="!m.activo">

@@ -123,6 +123,29 @@
           <input class="lf-input" type="number" min="0" step="0.01" formControlName="precio" placeholder="0.00">
         </div>
 
+        <!-- ── Marca ── -->
+        <div class="lf-field">
+          <label class="lf-label">Marca</label>
+          <select class="lf-input" formControlName="marcaId">
+            <option value="">— Sin marca —</option>
+            @for (m of marcas; track m.id) {
+              <option [value]="m.id">{{ m.nombre }}</option>
+            }
+          </select>
+        </div>
+
+        <!-- ── N° de Serie ── -->
+        <div class="lf-field">
+          <label class="lf-label">N° de Serie</label>
+          <input class="lf-input" formControlName="serie" placeholder="—">
+        </div>
+
+        <!-- ── Costo de compra ── -->
+        <div class="lf-field">
+          <label class="lf-label">Costo de compra (S/)</label>
+          <input class="lf-input" type="number" min="0" step="0.01" formControlName="precioCompra" placeholder="0.00">
+        </div>
+
         <div class="lf-field lf-col-3">
           <label class="lf-label">Descripción</label>
           <textarea class="lf-input" rows="2" formControlName="descripcion"

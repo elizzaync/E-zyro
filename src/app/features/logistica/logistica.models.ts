@@ -25,6 +25,10 @@ export interface MaterialLog {
   almacenId: string | null;
   almacen: string;                 // nombre denormalizado
   precio: number | null;
+  precioCompra: number | null;
+  serie: string | null;
+  marcaId: string | null;
+  marca: string | null;            // nombre denormalizado
   activo: boolean;
 }
 
