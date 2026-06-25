@@ -288,6 +288,7 @@ def _equipo_out(e: Equipo) -> EquipoOut:
     clase_raw = (e.clase or "equipo").lower()
     clases_validas = ("equipo", "herramienta", "equipo_tecnologico")
     clase = clase_raw if clase_raw in clases_validas else "equipo"
+    attrs = e.atributos or {}
     return EquipoOut(
         id=str(e.id), codigo=e.codigo or "", nombre=e.nombre,
         clase=clase,
@@ -304,12 +305,20 @@ def _equipo_out(e: Equipo) -> EquipoOut:
         zonaId=str(e.zona_id) if e.zona_id else None,
         areaId=str(e.area_id) if e.area_id else None,
         cantidad=int(e.cantidad or 1),
+        stockMinimo=int(attrs.get("stock_minimo", 0)),
         estado=(e.estado if e.estado in ("operativo","en_mantenimiento","fuera_de_servicio","baja") else "operativo"),
         requiereMantenimiento=bool(e.requiere_mantenimiento),
         frecuenciaMantenimiento=(e.frecuencia_mantenimiento if e.frecuencia_mantenimiento in ("ninguno","mensual","trimestral","semestral","anual") else "ninguno"),
         proximaFechaMantenimiento=e.proxima_fecha_mantenimiento.isoformat() if e.proxima_fecha_mantenimiento else None,
         fechaAdquisicion=e.fecha_adquisicion.isoformat() if e.fecha_adquisicion else None,
         fichaTecnica=e.ficha_tecnica,
+        precioCompra=float(e.precio_compra) if e.precio_compra is not None else None,
+        observaciones=e.observaciones,
+        atributos=dict(attrs) if attrs else None,
+        asignadoA=e.asignado_a,
+        proveedor=e.proveedor,
+        fechaGarantia=e.fecha_garantia.isoformat() if e.fecha_garantia else None,
+        imagenUrl=e.imagen_url,
     )
 
 
@@ -910,6 +919,9 @@ def listar_equipos(
         ))
     if clase in ("equipo", "herramienta", "equipo_tecnologico"):
         base = base.filter(Equipo.clase == clase)
+    else:
+        # "todas" → solo equipo y herramienta; equipo_tecnologico tiene su propia sección
+        base = base.filter(Equipo.clase.in_(["equipo", "herramienta"]))
     if estado != "todos":
         base = base.filter(Equipo.estado == estado)
 

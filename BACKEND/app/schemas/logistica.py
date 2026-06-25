@@ -110,6 +110,7 @@ class EquipoOut(BaseModel):
     zonaId:      Optional[str] = None
     areaId:      Optional[str] = None
     cantidad:    int
+    stockMinimo: int = 0
     estado:      EstadoEquipo
     requiereMantenimiento:     bool
     frecuenciaMantenimiento:   FrecuenciaMant
