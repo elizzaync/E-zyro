@@ -755,7 +755,93 @@ def listar_materiales(
         .limit(page_size)
         .all()
     )
-    items = [_material_out(db, m, empresa_id) for m in rows]
+
+    # ── Bulk-load para evitar N+1 queries ────────────────────────────────────
+    mat_ids = [m.id for m in rows]
+
+    cats_map: dict = {}
+    if mat_ids:
+        cat_ids = list({m.categoria_id for m in rows if m.categoria_id})
+        if cat_ids:
+            for c in db.query(CategoriaMaterial).filter(CategoriaMaterial.id.in_(cat_ids)).all():
+                cats_map[c.id] = c.nombre
+
+    marcas_map: dict = {}
+    if mat_ids:
+        marca_ids = list({m.marca_id for m in rows if m.marca_id})
+        if marca_ids:
+            for m2 in db.query(Marca).filter(Marca.id.in_(marca_ids)).all():
+                marcas_map[m2.id] = m2.nombre
+
+    unidades_map: dict = {}
+    unidad_names = list({(m.unidad or "").lower() for m in rows if m.unidad})
+    if unidad_names:
+        for u in db.query(UnidadMedida).filter(
+            UnidadMedida.empresa_id == empresa_id,
+            func.lower(UnidadMedida.nombre).in_(unidad_names),
+        ).all():
+            unidades_map[u.nombre.lower()] = str(u.id)
+
+    stock_totals: dict = {}
+    stock_minimos: dict = {}
+    alm_map: dict = {}
+    if mat_ids:
+        for row_s in (
+            db.query(
+                Stock.material_id,
+                func.sum(Stock.cantidad).label("total"),
+                func.max(Stock.cantidad_minima).label("minimo"),
+            )
+            .filter(Stock.material_id.in_(mat_ids), Stock.empresa_id == empresa_id)
+            .group_by(Stock.material_id)
+            .all()
+        ):
+            mid = str(row_s.material_id)
+            stock_totals[mid]  = int(row_s.total or 0)
+            stock_minimos[mid] = int(row_s.minimo or 0)
+
+        seen_alm: set = set()
+        for row_a in (
+            db.query(Stock.material_id, Stock.almacen_id, Almacen.nombre)
+            .outerjoin(Almacen, Almacen.id == Stock.almacen_id)
+            .filter(Stock.material_id.in_(mat_ids), Stock.empresa_id == empresa_id)
+            .all()
+        ):
+            mid = str(row_a.material_id)
+            if mid not in seen_alm:
+                seen_alm.add(mid)
+                alm_map[mid] = (
+                    str(row_a.almacen_id) if row_a.almacen_id else None,
+                    row_a.nombre or "",
+                )
+
+    items = []
+    for m in rows:
+        mid = str(m.id)
+        cant = stock_totals.get(mid, 0)
+        stk_min_stock = stock_minimos.get(mid, 0)
+        alm_id, alm_nom = alm_map.get(mid, (None, ""))
+        items.append(MaterialOut(
+            id=mid, codigo=m.codigo or "", nombre=m.nombre,
+            categoriaId=str(m.categoria_id) if m.categoria_id else None,
+            categoria=cats_map.get(m.categoria_id, "Sin categoría"),
+            unidadId=unidades_map.get((m.unidad or "").lower()),
+            unidad=m.unidad,
+            descripcion=m.descripcion,
+            cantidad=cant,
+            stockMinimo=int((m.atributos or {}).get("stock_minimo", stk_min_stock)),
+            almacenId=alm_id, almacen=alm_nom,
+            precio=float(m.precio) if m.precio is not None else None,
+            activo=bool(m.activo),
+            tipo=getattr(m, "tipo", "consumible") or "consumible",
+            marca=marcas_map.get(m.marca_id) or (m.atributos or {}).get("marca"),
+            imagenUrl=m.imagen_url,
+            atributos=dict(m.atributos) if m.atributos else None,
+            precioCompra=float(m.precio_compra) if m.precio_compra is not None else None,
+            serie=m.serie or None,
+            marcaId=str(m.marca_id) if m.marca_id else None,
+            almacenMaterialId=str(m.almacen_id) if m.almacen_id else None,
+        ))
 
     # Técnico y Jefe no ven precios
     if es_tecnico(payload) or es_jefe_operaciones(payload):
