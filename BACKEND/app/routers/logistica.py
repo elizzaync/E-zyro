@@ -1224,11 +1224,11 @@ def siguiente_codigo(
     t = tipo.lower()
     if t == "material":
         return {"codigo": _siguiente_codigo(db, empresa_id, "MAT", Material)}
-    if t == "equipo":
+    if t in ("equipo", "equipo_tecnologico"):
         return {"codigo": _siguiente_codigo(db, empresa_id, "EQ",  Equipo)}
     if t == "herramienta":
         return {"codigo": _siguiente_codigo(db, empresa_id, "HR",  Equipo)}
-    raise HTTPException(status_code=400, detail="tipo debe ser material|equipo|herramienta")
+    raise HTTPException(status_code=400, detail="tipo debe ser material|equipo|herramienta|equipo_tecnologico")
 
 
 # ══════════════════════════════════════════════════════════════════════════
