@@ -52,7 +52,7 @@ export class CalibracionesComponent implements OnInit {
       .filter(e => !q ||
         e.nombre.toLowerCase().includes(q) ||
         (e.codigo ?? '').toLowerCase().includes(q) ||
-        (e.tipo   ?? '').toLowerCase().includes(q)
+        (e.categoria ?? '').toLowerCase().includes(q)
       );
   }
 

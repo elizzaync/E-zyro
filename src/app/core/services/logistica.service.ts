@@ -213,8 +213,10 @@ export class LogisticaService {
     return this.http.post<ModeloItem>(`${this.api}/logistica/modelos`, { nombre, marcaId });
   }
 
-  getSiguienteCodigo(tipo: 'material' | 'equipo' | 'herramienta'): Observable<{ codigo: string }> {
-    const params = new HttpParams().set('tipo', tipo);
+  getSiguienteCodigo(tipo: 'material' | 'equipo' | 'herramienta' | 'equipo_tecnologico'): Observable<{ codigo: string }> {
+    // equipo_tecnologico comparte prefijo EQ con equipo
+    const t = tipo === 'equipo_tecnologico' ? 'equipo' : tipo;
+    const params = new HttpParams().set('tipo', t);
     return this.http.get<{ codigo: string }>(`${this.api}/logistica/siguiente-codigo`, { params });
   }
 
