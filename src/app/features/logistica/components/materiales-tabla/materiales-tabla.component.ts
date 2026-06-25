@@ -6,12 +6,13 @@ import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { MaterialFormModalComponent } from '../material-form-modal/material-form-modal.component';
 import { RellenarStockModalComponent } from '../rellenar-stock-modal/rellenar-stock-modal.component';
+import { ReporteModalComponent } from '../reporte-modal/reporte-modal.component';
 import { MaterialLog } from '../../logistica.models';
 
 @Component({
   selector: 'app-materiales-tabla',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, MaterialFormModalComponent, RellenarStockModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, MaterialFormModalComponent, RellenarStockModalComponent, ReporteModalComponent],
   templateUrl: './materiales-tabla.component.html',
   styleUrls: ['./materiales-tabla.component.css']
 })
@@ -40,6 +41,9 @@ export class MaterialesTablaComponent implements OnInit {
 
   // Modal rellenar stock
   showRellenarStock = false;
+
+  // Modal reportes
+  showReporte = false;
 
   // Confirmación de eliminación
   materialAEliminar: MaterialLog | null = null;

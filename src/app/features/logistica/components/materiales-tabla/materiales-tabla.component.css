@@ -33,13 +33,29 @@
   color: var(--input-text, #111827);
   font-size: 13px; font-family: 'Inter', sans-serif; cursor: pointer;
 }
+.tt-right-group {
+  display: flex; align-items: center; gap: 8px; margin-left: auto;
+}
+
+.tt-reporte {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 14px;
+  background: transparent; color: #7c3aed;
+  border: 1.5px solid #c4b5fd; border-radius: 9px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  transition: background .15s;
+}
+.tt-reporte svg { width: 15px; height: 15px; }
+.tt-reporte:hover { background: rgba(124,58,237,.08); }
+
 .tt-restock {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 9px 14px;
   background: transparent; color: #2563eb;
   border: 1.5px solid #93c5fd; border-radius: 9px;
   font-size: 13px; font-weight: 700; cursor: pointer;
-  font-family: 'Inter', sans-serif; margin-left: auto;
+  font-family: 'Inter', sans-serif;
   transition: background .15s;
 }
 .tt-restock svg { width: 15px; height: 15px; }

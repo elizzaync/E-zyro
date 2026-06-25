@@ -7,6 +7,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { EquipoFormModalComponent } from '../equipo-form-modal/equipo-form-modal.component';
 import { EquipoMovimientosModalComponent } from '../equipo-movimientos-modal/equipo-movimientos-modal.component';
 import { RellenarStockModalComponent } from '../rellenar-stock-modal/rellenar-stock-modal.component';
+import { ReporteModalComponent } from '../reporte-modal/reporte-modal.component';
 import {
   EquipoHerramienta, ClaseArticulo, EstadoEquipo, FrecuenciaMantenimiento,
   EquipoStockDesglose,
@@ -15,7 +16,7 @@ import {
 @Component({
   selector: 'app-equipos-tabla',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, EquipoFormModalComponent, EquipoMovimientosModalComponent, RellenarStockModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, EquipoFormModalComponent, EquipoMovimientosModalComponent, RellenarStockModalComponent, ReporteModalComponent],
   templateUrl: './equipos-tabla.component.html',
   styleUrls: ['./equipos-tabla.component.css']
 })
@@ -57,6 +58,9 @@ export class EquiposTablaComponent implements OnInit {
 
   // Rellenar stock
   showRellenarStock = false;
+
+  // Modal reportes
+  showReporte = false;
 
   ngOnInit(): void { this.cargar(); }
 
