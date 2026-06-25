@@ -21,7 +21,7 @@ import {
   SalidasKpis,
   RegistrarIngresoPayload,
   Retorno,
-  Incidencia, EquipoStockDesglose,
+  Incidencia, EquipoStockDesglose, CategoriaEquipoItem,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -184,8 +184,8 @@ export class LogisticaService {
     return this.http.post<CatalogoItem>(`${this.api}/logistica/tipos-equipo`, { nombre });
   }
 
-  getCategoriasEquipo(): Observable<CatalogoItem[]> {
-    return this.http.get<CatalogoItem[]>(`${this.api}/logistica/categorias-equipo`);
+  getCategoriasEquipo(): Observable<CategoriaEquipoItem[]> {
+    return this.http.get<CategoriaEquipoItem[]>(`${this.api}/logistica/categorias-equipo`);
   }
   crearCategoriaEquipo(nombre: string): Observable<CatalogoItem> {
     return this.http.post<CatalogoItem>(`${this.api}/logistica/categorias-equipo`, { nombre });

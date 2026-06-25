@@ -62,6 +62,10 @@ export interface CatalogoItem {
   id: string;
   nombre: string;
 }
+/** Categoría de equipo/herramienta con clase para filtrado */
+export interface CategoriaEquipoItem extends CatalogoItem {
+  clase?: string | null;  // 'equipo' | 'herramienta' | null (null = aplica a ambos)
+}
 export interface AlmacenItem extends CatalogoItem { ubicacion?: string | null; }
 export interface UnidadItem  extends CatalogoItem { abreviatura?: string | null; }
 export interface ModeloItem  extends CatalogoItem { marcaId: string; }

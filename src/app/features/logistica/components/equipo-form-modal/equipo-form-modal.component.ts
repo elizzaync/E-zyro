@@ -10,7 +10,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import {
   EquipoHerramienta, ClaseArticulo,
   CLASES_ARTICULO, ESTADOS_EQUIPO, FRECUENCIAS_MANTENIMIENTO,
-  CatalogoItem, AlmacenItem, ModeloItem,
+  CatalogoItem, CategoriaEquipoItem, AlmacenItem, ModeloItem,
 } from '../../logistica.models';
 
 @Component({
@@ -37,8 +37,8 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   frecuencias  = FRECUENCIAS_MANTENIMIENTO.filter(f => f.value !== 'ninguno');
 
   // Catálogos
-  categorias: CatalogoItem[] = [];
-  marcas:     CatalogoItem[] = [];
+  todasCategorias: CategoriaEquipoItem[] = [];
+  marcas:          CatalogoItem[] = [];
   modelos:    ModeloItem[]   = [];   // filtrado por marca seleccionada
   almacenes:  AlmacenItem[]  = [];
 
@@ -152,8 +152,15 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
   ctrl(n: string) { return this.form.get(n); }
   get requiereMant(): boolean { return !!this.form?.get('requiereMantenimiento')?.value; }
 
+  /** Filtra categorías según la clase seleccionada; clase=null significa "aplica a ambos" */
+  get categorias(): CategoriaEquipoItem[] {
+    const clase = this.form?.get('clase')?.value as ClaseArticulo | undefined;
+    if (!clase) return this.todasCategorias;
+    return this.todasCategorias.filter(c => !c.clase || c.clase === clase);
+  }
+
   private _cargarCatalogos(): void {
-    this.svc.getCategoriasEquipo().subscribe({ next: r => (this.categorias = r) });
+    this.svc.getCategoriasEquipo().subscribe({ next: r => (this.todasCategorias = r) });
     this.svc.getMarcas().subscribe({ next: r => (this.marcas = r) });
     this.svc.getAlmacenes().subscribe({ next: r => (this.almacenes = r) });
     this._cargarModelos(this.form.get('marcaId')?.value);
@@ -175,7 +182,7 @@ export class EquipoFormModalComponent implements OnInit, OnDestroy {
     this.creandoCategoria = true;
     this.svc.crearCategoriaEquipo(n).subscribe({
       next: (c) => {
-        this.categorias = [...this.categorias.filter(x => x.id !== c.id), c].sort((a, b) => a.nombre.localeCompare(b.nombre));
+        this.todasCategorias = [...this.todasCategorias.filter(x => x.id !== c.id), c].sort((a, b) => a.nombre.localeCompare(b.nombre));
         this.form.patchValue({ categoriaId: c.id });
         this.showAddCategoria = false;
         this.nuevaCategoria = '';
