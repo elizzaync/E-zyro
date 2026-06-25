@@ -66,12 +66,17 @@
 .rp-fmt-active svg    { color: #7c3aed; }
 .rp-fmt-active strong { color: #7c3aed; }
 
+/* ── Filtros grid ── */
+.rp-filtros-grid { display: flex; gap: 12px; }
+.rp-filtro-col  { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.rp-sublabel { font-size: 11px; font-weight: 600; color: var(--text-muted, #64748b); }
+
 /* ── Select ── */
 .rp-select {
   width: 100%; padding: 10px 12px;
   border: 1.5px solid var(--border-color, #e2e8f0); border-radius: 9px;
   background: var(--input-bg, #f9fafb); color: var(--text-main, #1e293b);
-  font-size: 13.5px; font-family: 'Inter', sans-serif; cursor: pointer; outline: none;
+  font-size: 13px; font-family: 'Inter', sans-serif; cursor: pointer; outline: none;
   transition: border-color .15s;
 }
 .rp-select:focus { border-color: #7c3aed; }
@@ -84,7 +89,16 @@
   font-size: 13px; color: var(--text-main, #334155); line-height: 1.5;
 }
 .rp-info-box svg { width: 16px; height: 16px; color: #7c3aed; flex-shrink: 0; margin-top: 1px; }
+.rp-info-warn { background: rgba(220,38,38,.06); }
+.rp-info-warn svg { color: #dc2626; }
 .rp-nota-rojo { display: inline-block; margin-top: 4px; font-size: 12px; color: #dc2626; font-weight: 600; }
+
+/* ── Spinner animado en botón ── */
+.rp-spin {
+  width: 16px; height: 16px;
+  animation: rp-rotate 0.8s linear infinite;
+}
+@keyframes rp-rotate { to { transform: rotate(360deg); } }
 
 /* ── Actions ── */
 .rp-actions {

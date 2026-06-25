@@ -46,8 +46,9 @@ export class ReporteModalComponent {
   @Output() cerrar = new EventEmitter<void>();
 
   formato: 'excel' | 'pdf' = 'excel';
-  filtro   = 'todos';
-  generando = false;
+  filtro          = 'todos';
+  filtroCategoria = 'todas';
+  generando       = false;
 
   get opcionesFiltro(): { valor: string; label: string }[] {
     if (this.tipo === 'materiales') return [
@@ -57,28 +58,47 @@ export class ReporteModalComponent {
       { valor: 'stock_bajo', label: 'Solo con stock bajo'   },
     ];
     return [
-      { valor: 'todos',            label: 'Equipos y herramientas'  },
+      { valor: 'todos',            label: 'Todos'                   },
       { valor: 'equipo',           label: 'Solo equipos'             },
       { valor: 'herramienta',      label: 'Solo herramientas'        },
       { valor: 'operativo',        label: 'Solo operativos'          },
       { valor: 'en_mantenimiento', label: 'Solo en mantenimiento'    },
+      { valor: 'fuera_de_servicio',label: 'Fuera de servicio'        },
+      { valor: 'baja',             label: 'De baja'                  },
     ];
   }
 
+  get categorias(): string[] {
+    const items = this.datos as any[];
+    return ['todas', ...new Set(items.map(x => x.categoria).filter(Boolean))].sort((a, b) =>
+      a === 'todas' ? -1 : b === 'todas' ? 1 : a.localeCompare(b, 'es')
+    );
+  }
+
   get datosFiltrados(): any[] {
+    let result: any[];
+
     if (this.tipo === 'materiales') {
       const m = this.datos as MaterialLog[];
-      if (this.filtro === 'activos')    return m.filter(x => x.activo);
-      if (this.filtro === 'inactivos')  return m.filter(x => !x.activo);
-      if (this.filtro === 'stock_bajo') return m.filter(x => x.cantidad <= x.stockMinimo && x.stockMinimo > 0);
-      return m;
+      if (this.filtro === 'activos')    result = m.filter(x => x.activo);
+      else if (this.filtro === 'inactivos')  result = m.filter(x => !x.activo);
+      else if (this.filtro === 'stock_bajo') result = m.filter(x => x.cantidad <= x.stockMinimo && x.stockMinimo > 0);
+      else result = [...m];
+    } else {
+      const e = this.datos as EquipoHerramienta[];
+      if (this.filtro === 'equipo')            result = e.filter(x => x.clase !== 'herramienta');
+      else if (this.filtro === 'herramienta')  result = e.filter(x => x.clase === 'herramienta');
+      else if (this.filtro === 'operativo')    result = e.filter(x => x.estado === 'operativo');
+      else if (this.filtro === 'en_mantenimiento') result = e.filter(x => x.estado === 'en_mantenimiento');
+      else if (this.filtro === 'fuera_de_servicio') result = e.filter(x => x.estado === 'fuera_de_servicio');
+      else if (this.filtro === 'baja')         result = e.filter(x => x.estado === 'baja');
+      else result = [...e];
     }
-    const e = this.datos as EquipoHerramienta[];
-    if (this.filtro === 'equipo')           return e.filter(x => x.clase !== 'herramienta');
-    if (this.filtro === 'herramienta')      return e.filter(x => x.clase === 'herramienta');
-    if (this.filtro === 'operativo')        return e.filter(x => x.estado === 'operativo');
-    if (this.filtro === 'en_mantenimiento') return e.filter(x => x.estado === 'en_mantenimiento');
-    return e;
+
+    if (this.filtroCategoria !== 'todas') {
+      result = result.filter(x => x.categoria === this.filtroCategoria);
+    }
+    return result;
   }
 
   get totalRegistros(): number { return this.datosFiltrados.length; }
@@ -90,8 +110,8 @@ export class ReporteModalComponent {
         if (this.tipo === 'materiales') await this.excelMateriales();
         else await this.excelEquipos();
       } else {
-        if (this.tipo === 'materiales') this.pdfMateriales();
-        else this.pdfEquipos();
+        if (this.tipo === 'materiales') await this.pdfMateriales();
+        else await this.pdfEquipos();
       }
       this.cerrar.emit();
     } finally {
@@ -1059,60 +1079,194 @@ export class ReporteModalComponent {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // PDF MATERIALES
+  // PDF MATERIALES — descarga directa
   // ══════════════════════════════════════════════════════════════════════════
-  private pdfMateriales(): void {
+  private async pdfMateriales(): Promise<void> {
     const mats  = this.datosFiltrados as MaterialLog[];
     const fecha = new Date().toLocaleDateString('es-PE', { year:'numeric', month:'long', day:'numeric' });
-    const rows = mats.map(m => {
+    const catLabel = this.filtroCategoria !== 'todas' ? ` · Categoría: ${this.filtroCategoria}` : '';
+
+    const alertas  = mats.filter(m => m.stockMinimo > 0 && m.cantidad <= m.stockMinimo).length;
+    const valorTotal = mats.filter(m => m.precioCompra != null).reduce((s,m)=>s+(m.precioCompra!*m.cantidad),0);
+
+    const rows = mats.map((m, i) => {
       const alerta = m.stockMinimo > 0 && m.cantidad <= m.stockMinimo;
-      return `<tr style="${alerta ? 'background:#fef2f2' : ''}">
-        <td>${this.esc(m.nombre)}</td><td>${this.esc(m.marca??'—')}</td>
-        <td>${this.esc(m.categoria)}</td><td>${this.esc(m.unidad??'')}</td>
-        <td style="text-align:center;${alerta?'color:#dc2626;font-weight:700':''}">${m.cantidad}</td>
-        <td style="text-align:center">${m.stockMinimo||'—'}</td>
-        <td>${this.esc(m.serie??'—')}</td><td>${this.esc(m.almacen)}</td>
+      const bg = alerta ? '#fff1f2' : i % 2 === 1 ? '#f8fafc' : '#ffffff';
+      return `<tr style="background:${bg}">
+        <td class="td-name">${this.esc(m.nombre)}</td>
+        <td>${this.esc(m.marca ?? '—')}</td>
+        <td><span class="chip">${this.esc(m.categoria)}</span></td>
+        <td class="center">${this.esc(m.unidad ?? '')}</td>
+        <td class="center ${alerta ? 'red bold' : ''}">${m.cantidad}</td>
+        <td class="center muted">${m.stockMinimo || '—'}</td>
+        <td class="muted">${this.esc(m.serie ?? '—')}</td>
+        <td class="muted">${this.esc(m.almacen)}</td>
+        <td class="right ${alerta ? 'red' : ''}">${alerta ? '⚠ BAJO' : m.stockMinimo === 0 ? '—' : '✓ OK'}</td>
       </tr>`;
     }).join('');
-    this.imprimirHtml(`
-      <h2>Reporte de Inventario · Materiales</h2>
-      <div class="sub">${fecha} &nbsp;·&nbsp; ${mats.length} registros &nbsp;·&nbsp; Filtro: ${this.filtroLabel()}
-        <span class="leg-red">■ Stock bajo el mínimo</span>
-      </div>
-      <table><thead><tr>
-        <th>Nombre</th><th>Marca</th><th>Categoría</th><th>Unidad</th>
-        <th>Cant.</th><th>Mín.</th><th>N° Serie</th><th>Zona / Almacén</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-    `);
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;color:#1e293b;background:#fff}
+  .cover{background:linear-gradient(135deg,#1e3a5f 0%,#2d5b8e 100%);color:#fff;padding:22px 28px 18px;margin-bottom:0}
+  .cover h1{font-size:18px;font-weight:800;letter-spacing:.02em;margin-bottom:4px}
+  .cover .sub{font-size:9px;opacity:.75;margin-bottom:14px}
+  .kpis{display:flex;gap:14px;margin-top:4px}
+  .kpi{background:rgba(255,255,255,.12);border-radius:8px;padding:8px 14px;min-width:90px}
+  .kpi .val{font-size:20px;font-weight:800;line-height:1}
+  .kpi .lbl{font-size:8px;opacity:.8;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+  .kpi.red .val{color:#fca5a5}
+  .kpi.grn .val{color:#86efac}
+  .accent{height:3px;background:#3b82f6;margin-bottom:0}
+  .content{padding:14px 18px}
+  .filtros{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+  .ftag{background:#e8f0fb;color:#1e3a5f;border-radius:4px;padding:2px 8px;font-size:8.5px;font-weight:700}
+  .ftag.cat{background:#ede9fe;color:#6d28d9}
+  .leg{display:inline-flex;align-items:center;gap:4px;background:#fff1f2;color:#dc2626;border-radius:4px;padding:2px 8px;font-size:8px;font-weight:700}
+  table{width:100%;border-collapse:collapse}
+  thead tr{background:#1e3a5f}
+  thead th{color:#fff;padding:6px 8px;text-align:left;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+  thead th.center,td.center{text-align:center}
+  thead th.right,td.right{text-align:right}
+  tbody td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  .td-name{font-weight:600;max-width:160px}
+  .chip{background:#e8f0fb;color:#1e3a5f;border-radius:3px;padding:1px 5px;font-size:8px;font-weight:600;white-space:nowrap}
+  .muted{color:#64748b}
+  .red{color:#dc2626}
+  .bold{font-weight:700}
+  .right{text-align:right}
+  .footer{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7.5px;color:#94a3b8}
+  @page{size:A4 landscape;margin:10mm 12mm}
+  @media print{.content{padding:0}}
+</style></head><body>
+<div class="cover">
+  <h1>Reporte de Inventario · Materiales</h1>
+  <div class="sub">E-zyro — Sistema de Gestión de Inventarios &nbsp;·&nbsp; ${fecha}</div>
+  <div class="kpis">
+    <div class="kpi"><div class="val">${mats.length.toLocaleString('es-PE')}</div><div class="lbl">Registros</div></div>
+    <div class="kpi grn"><div class="val">${(mats.length - alertas).toLocaleString('es-PE')}</div><div class="lbl">Stock OK</div></div>
+    <div class="kpi red"><div class="val">${alertas.toLocaleString('es-PE')}</div><div class="lbl">Stock bajo</div></div>
+    ${valorTotal > 0 ? `<div class="kpi"><div class="val">S/${valorTotal.toLocaleString('es-PE',{minimumFractionDigits:0,maximumFractionDigits:0})}</div><div class="lbl">Valor estimado</div></div>` : ''}
+  </div>
+</div>
+<div class="accent"></div>
+<div class="content">
+  <div class="filtros">
+    <span class="ftag">Filtro: ${this.filtroLabel()}</span>
+    ${this.filtroCategoria !== 'todas' ? `<span class="ftag cat">Categoría: ${this.esc(this.filtroCategoria)}</span>` : ''}
+    ${alertas > 0 ? `<span class="leg">⚠ Filas en rojo = stock bajo el mínimo</span>` : ''}
+  </div>
+  <table>
+    <thead><tr>
+      <th>Nombre</th><th>Marca</th><th>Categoría</th><th class="center">Unidad</th>
+      <th class="center">Cant.</th><th class="center">Mín.</th>
+      <th>N° Serie</th><th>Almacén / Zona</th><th class="right">Estado</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">
+    <span>E-zyro · Reporte generado el ${fecha}</span>
+    <span>Total: ${mats.length} materiales${catLabel}</span>
+  </div>
+</div>
+</body></html>`;
+
+    await this.descargarPdf(html, `Materiales_${this.fechaHoy()}.pdf`);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // PDF EQUIPOS
+  // PDF EQUIPOS — descarga directa
   // ══════════════════════════════════════════════════════════════════════════
-  private pdfEquipos(): void {
+  private async pdfEquipos(): Promise<void> {
     const eq    = this.datosFiltrados as EquipoHerramienta[];
     const fecha = new Date().toLocaleDateString('es-PE', { year:'numeric', month:'long', day:'numeric' });
     const cl = (c: string) => c==='equipo_tecnologico'?'Eq. TI':c==='herramienta'?'Herramienta':'Equipo';
     const el = (s: string) => ({ operativo:'Operativo', en_mantenimiento:'En mantenimiento', fuera_de_servicio:'Fuera de servicio', baja:'De baja' }[s]??s);
-    const ec = (s: string) => ({ operativo:'#16a34a', en_mantenimiento:'#d97706', fuera_de_servicio:'#dc2626', baja:'#94a3b8' }[s]??'');
-    const rows = eq.map(e => {
-      const bajo = e.stockMinimo>0&&e.cantidad<=e.stockMinimo;
-      return `<tr style="${bajo?'background:#fef2f2':''}">
-        <td>${this.esc(e.codigo)}</td><td>${this.esc(e.nombre)}</td><td>${cl(e.clase)}</td>
-        <td>${this.esc(e.marca??'—')}${e.modelo?'<br><small style="color:#94a3b8">'+this.esc(e.modelo)+'</small>':''}</td>
-        <td>${this.esc(e.numeroSerie??'—')}</td>
-        <td style="text-align:center;${bajo?'color:#dc2626;font-weight:700':''}">${e.cantidad}</td>
+    const ec = (s: string) => ({ operativo:'#16a34a', en_mantenimiento:'#d97706', fuera_de_servicio:'#dc2626', baja:'#94a3b8' }[s]??'#1e293b');
+    const catLabel = this.filtroCategoria !== 'todas' ? ` · Categoría: ${this.filtroCategoria}` : '';
+    const operativos = eq.filter(e => e.estado === 'operativo').length;
+    const enMant     = eq.filter(e => e.estado === 'en_mantenimiento').length;
+
+    const rows = eq.map((e, i) => {
+      const bajo = e.stockMinimo > 0 && e.cantidad <= e.stockMinimo;
+      const bg   = i % 2 === 1 ? '#f8fafc' : '#ffffff';
+      return `<tr style="background:${bg}">
+        <td class="mono">${this.esc(e.codigo)}</td>
+        <td class="td-name">${this.esc(e.nombre)}</td>
+        <td><span class="clase-chip cl-${e.clase}">${cl(e.clase)}</span></td>
+        <td class="muted">${this.esc(e.marca ?? '—')}${e.modelo ? `<br><span style="font-size:7.5px;color:#94a3b8">${this.esc(e.modelo)}</span>` : ''}</td>
+        <td class="muted mono">${this.esc(e.numeroSerie ?? '—')}</td>
+        <td class="center ${bajo ? 'red bold' : ''}">${e.cantidad}</td>
         <td style="color:${ec(e.estado)};font-weight:600">${el(e.estado)}</td>
       </tr>`;
     }).join('');
-    this.imprimirHtml(`
-      <h2>Reporte de Inventario · Equipos y Herramientas</h2>
-      <div class="sub">${fecha} &nbsp;·&nbsp; ${eq.length} registros &nbsp;·&nbsp; Filtro: ${this.filtroLabel()}</div>
-      <table><thead><tr>
-        <th>Código</th><th>Nombre</th><th>Clase</th><th>Marca/Modelo</th>
-        <th>N° Serie</th><th>Cant.</th><th>Estado</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-    `);
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:9.5px;color:#1e293b;background:#fff}
+  .cover{background:linear-gradient(135deg,#1e3a5f 0%,#2d5b8e 100%);color:#fff;padding:22px 28px 18px}
+  .cover h1{font-size:18px;font-weight:800;letter-spacing:.02em;margin-bottom:4px}
+  .cover .sub{font-size:9px;opacity:.75;margin-bottom:14px}
+  .kpis{display:flex;gap:14px;margin-top:4px}
+  .kpi{background:rgba(255,255,255,.12);border-radius:8px;padding:8px 14px;min-width:90px}
+  .kpi .val{font-size:20px;font-weight:800;line-height:1}
+  .kpi .lbl{font-size:8px;opacity:.8;margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
+  .kpi.amb .val{color:#fde68a}
+  .accent{height:3px;background:#3b82f6}
+  .content{padding:14px 18px}
+  .filtros{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .ftag{background:#e8f0fb;color:#1e3a5f;border-radius:4px;padding:2px 8px;font-size:8.5px;font-weight:700}
+  .ftag.cat{background:#ede9fe;color:#6d28d9}
+  table{width:100%;border-collapse:collapse}
+  thead tr{background:#1e3a5f}
+  thead th{color:#fff;padding:6px 8px;text-align:left;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+  td.center,th.center{text-align:center}
+  tbody td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  .td-name{font-weight:600}
+  .mono{font-family:monospace;font-size:8.5px}
+  .muted{color:#64748b}
+  .red{color:#dc2626}.bold{font-weight:700}
+  .clase-chip{border-radius:3px;padding:2px 5px;font-size:8px;font-weight:600}
+  .cl-equipo{background:#dbeafe;color:#1d4ed8}
+  .cl-herramienta{background:#d1fae5;color:#065f46}
+  .cl-equipo_tecnologico{background:#ede9fe;color:#6d28d9}
+  .footer{margin-top:12px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:7.5px;color:#94a3b8}
+  @page{size:A4 landscape;margin:10mm 12mm}
+</style></head><body>
+<div class="cover">
+  <h1>Reporte de Inventario · Equipos y Herramientas</h1>
+  <div class="sub">E-zyro — Sistema de Gestión de Inventarios &nbsp;·&nbsp; ${fecha}</div>
+  <div class="kpis">
+    <div class="kpi"><div class="val">${eq.length.toLocaleString('es-PE')}</div><div class="lbl">Registros</div></div>
+    <div class="kpi"><div class="val">${operativos}</div><div class="lbl">Operativos</div></div>
+    <div class="kpi amb"><div class="val">${enMant}</div><div class="lbl">En mantenimiento</div></div>
+  </div>
+</div>
+<div class="accent"></div>
+<div class="content">
+  <div class="filtros">
+    <span class="ftag">Filtro: ${this.filtroLabel()}</span>
+    ${this.filtroCategoria !== 'todas' ? `<span class="ftag cat">Categoría: ${this.esc(this.filtroCategoria)}</span>` : ''}
+  </div>
+  <table>
+    <thead><tr>
+      <th>Código</th><th>Nombre</th><th>Clase</th><th>Marca / Modelo</th>
+      <th>N° Serie</th><th class="center">Cant.</th><th>Estado</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="footer">
+    <span>E-zyro · Reporte generado el ${fecha}</span>
+    <span>Total: ${eq.length} registros${catLabel}</span>
+  </div>
+</div>
+</body></html>`;
+
+    await this.descargarPdf(html, `Equipos_Herramientas_${this.fechaHoy()}.pdf`);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1137,24 +1291,24 @@ export class ReporteModalComponent {
     document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
-  private imprimirHtml(contenido: string): void {
-    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Reporte E-zyro</title>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:Arial,sans-serif;font-size:10px;color:#1e293b;padding:16px 20px}
-  h2{font-size:14px;font-weight:800;color:#0f172a;margin-bottom:3px}
-  .sub{font-size:9.5px;color:#64748b;margin-bottom:14px}
-  .leg-red{margin-left:14px;background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px}
-  table{width:100%;border-collapse:collapse}
-  thead th{background:#1e3a5f;color:#fff;padding:6px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-  tbody td{padding:5px 8px;border-bottom:1px solid #e2e8f0;font-size:9.5px;vertical-align:middle}
-  tbody tr:nth-child(even):not([style*="background"]){background:#f8fafc}
-  @page{size:A4 landscape;margin:12mm 14mm}
-  @media print{body{padding:0}}
-</style></head><body>${contenido}
-<script>window.onload=function(){setTimeout(function(){window.print();},250);}</script>
-</body></html>`;
-    const win = window.open('','_blank','width=1000,height=720');
-    if (win) { win.document.write(html); win.document.close(); }
+  private async descargarPdf(html: string, nombre: string): Promise<void> {
+    const html2pdf = (await import('html2pdf.js') as any).default ?? (await import('html2pdf.js') as any);
+    const el = document.createElement('div');
+    el.innerHTML = html;
+    el.style.position = 'absolute';
+    el.style.left = '-9999px';
+    document.body.appendChild(el);
+    await html2pdf()
+      .set({
+        margin:       [8, 8, 8, 8],
+        filename:     nombre,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        pagebreak:    { mode: ['avoid-all', 'css'] },
+      })
+      .from(el)
+      .save();
+    document.body.removeChild(el);
   }
 }

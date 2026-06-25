@@ -36,7 +36,7 @@
           </svg>
           <span>
             <strong>Excel (.xlsx)</strong>
-            <small>Detalle completo + resumen de costos</small>
+            <small>5 hojas: portada, inventario, categorías, valorización y alertas</small>
           </span>
         </button>
         <button class="rp-fmt-btn" [class.rp-fmt-active]="formato === 'pdf'" (click)="formato = 'pdf'">
@@ -45,44 +45,66 @@
             <polyline points="14 2 14 8 20 8"/>
           </svg>
           <span>
-            <strong>PDF (impresión)</strong>
-            <small>Tabla compacta para imprimir / guardar</small>
+            <strong>PDF (.pdf)</strong>
+            <small>Descarga directa · tabla compacta con cabecera ejecutiva</small>
           </span>
         </button>
       </div>
     </div>
 
-    <!-- Filtro de registros -->
+    <!-- Filtros -->
     <div class="rp-section">
-      <div class="rp-label">Filtro global</div>
-      <select class="rp-select" [(ngModel)]="filtro">
-        @for (op of opcionesFiltro; track op.valor) {
-          <option [value]="op.valor">{{ op.label }}</option>
-        }
-      </select>
+      <div class="rp-label">Filtros del reporte</div>
+      <div class="rp-filtros-grid">
+
+        <div class="rp-filtro-col">
+          <label class="rp-sublabel">Estado / Tipo</label>
+          <select class="rp-select" [(ngModel)]="filtro">
+            @for (op of opcionesFiltro; track op.valor) {
+              <option [value]="op.valor">{{ op.label }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="rp-filtro-col">
+          <label class="rp-sublabel">Categoría</label>
+          <select class="rp-select" [(ngModel)]="filtroCategoria">
+            @for (cat of categorias; track cat) {
+              <option [value]="cat">
+                {{ cat === 'todas' ? 'Todas las categorías' : cat }}
+              </option>
+            }
+          </select>
+        </div>
+
+      </div>
     </div>
 
-    <!-- Descripción del reporte -->
-    <div class="rp-info-box">
+    <!-- Resumen del reporte -->
+    <div class="rp-info-box" [class.rp-info-warn]="totalRegistros === 0">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
         <line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
       <div>
         @if (totalRegistros === 0) {
-          No hay registros con el filtro seleccionado.
+          <strong>Sin resultados.</strong> No hay registros con los filtros seleccionados.
         } @else {
           Se exportarán <strong>{{ totalRegistros }}</strong> registro{{ totalRegistros !== 1 ? 's' : '' }}.
+          @if (filtroCategoria !== 'todas') {
+            Categoría: <strong>{{ filtroCategoria }}</strong>.
+          }
           @if (formato === 'excel') {
             @if (tipo === 'materiales') {
-              Incluye 2 hojas: <em>Inventario Materiales</em> y <em>Resumen Costos</em>.
+              Excel con <em>portada KPI, inventario completo, por categoría, valorización y alertas de stock</em>.
             } @else {
-              Incluye 2 hojas: <em>Inventario Equipos</em> y <em>Resumen por Estado</em>.
+              Excel con <em>portada KPI, inventario, por estado y plan de mantenimiento</em>.
             }
           } @else {
-            Se abrirá una vista previa para imprimir / guardar como PDF.
+            PDF de descarga directa en A4 horizontal.
             @if (tipo === 'materiales') {
-              <span class="rp-nota-rojo">Las filas con stock bajo el mínimo aparecerán en rojo.</span>
+              <span class="rp-nota-rojo">Filas con stock bajo el mínimo aparecen en rojo.</span>
             }
           }
         }
@@ -91,14 +113,22 @@
 
     <!-- Acciones -->
     <div class="rp-actions">
-      <button class="rp-btn-cancel" (click)="cerrar.emit()">Cancelar</button>
-      <button class="rp-btn-generate" (click)="generarReporte()" [disabled]="totalRegistros === 0">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        Generar {{ formato === 'excel' ? 'Excel' : 'PDF' }}
+      <button class="rp-btn-cancel" (click)="cerrar.emit()" [disabled]="generando">Cancelar</button>
+      <button class="rp-btn-generate" (click)="generarReporte()" [disabled]="totalRegistros === 0 || generando">
+        @if (generando) {
+          <svg class="rp-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10" stroke-opacity=".25"/>
+            <path d="M12 2a10 10 0 0 1 10 10"/>
+          </svg>
+          Generando…
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Descargar {{ formato === 'excel' ? 'Excel' : 'PDF' }}
+        }
       </button>
     </div>
 
