@@ -95,7 +95,7 @@ export class LogisticaService {
   getMateriales(filtros: MaterialesFiltros = {}): Observable<MaterialLog[]> {
     let params = new HttpParams()
       .set('page',      String(filtros.page ?? 1))
-      .set('page_size', String(filtros.pageSize ?? 200));
+      .set('page_size', String(filtros.pageSize ?? 2000));
     if (filtros.q)         params = params.set('q', filtros.q);
     if (filtros.categoria) params = params.set('categoria', filtros.categoria);
     if (filtros.estado)    params = params.set('estado', filtros.estado);
@@ -123,7 +123,7 @@ export class LogisticaService {
   getEquipos(filtros: EquiposFiltros = {}): Observable<EquipoHerramienta[]> {
     let params = new HttpParams()
       .set('page',      String(filtros.page ?? 1))
-      .set('page_size', String(filtros.pageSize ?? 200));
+      .set('page_size', String(filtros.pageSize ?? 2000));
     if (filtros.q)      params = params.set('q', filtros.q);
     if (filtros.clase)  params = params.set('clase', filtros.clase);
     if (filtros.estado) params = params.set('estado', filtros.estado);
