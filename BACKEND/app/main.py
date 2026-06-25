@@ -47,6 +47,7 @@ from app.routers import planos            as planos_router
 from app.routers import drive             as drive_router
 from app.routers import personal          as personal_router
 from app.routers import usuarios          as usuarios_router
+from app.routers import privilegios       as privilegios_router
 from app.routers import evaluaciones      as evaluaciones_router
 from app.routers import vacaciones        as vacaciones_router
 from app.routers import indicadores       as indicadores_router
@@ -999,6 +1000,9 @@ def _run_migrations():
         # ── Gestión de usuarios (Admin / delegable): roles, alta, activar ─────
         sembrar_permisos(conn, "usuarios", ["ver", "gestionar"],
                          descripcion_base="Gestión de usuarios:")
+        # ── Privilegios directos por usuario (delegar permisos sin cambiar rol) ─
+        sembrar_permisos(conn, "privilegios", ["gestionar"],
+                         descripcion_base="Dar privilegios directos a usuarios:")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──
@@ -2036,6 +2040,7 @@ app.include_router(planos_router.router)
 app.include_router(drive_router.router)
 app.include_router(personal_router.router)
 app.include_router(usuarios_router.router)
+app.include_router(privilegios_router.router)
 app.include_router(evaluaciones_router.router)
 app.include_router(vacaciones_router.router)
 app.include_router(indicadores_router.router)
