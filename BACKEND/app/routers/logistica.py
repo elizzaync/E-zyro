@@ -719,7 +719,7 @@ def listar_materiales(
     estado:    str = Query("todos", description="todos|activos|inactivos|stock_bajo"),
     tipo:      str = Query("consumible", description="consumible|herramienta|todos"),
     page:      int = Query(1, ge=1),
-    page_size: int = Query(30, ge=1, le=200),
+    page_size: int = Query(30, ge=1, le=2000),
     payload:   dict    = Depends(verificar_token),
     db:        Session = Depends(get_db),
 ):
@@ -955,7 +955,7 @@ def listar_equipos(
     clase:    str = Query("todas", description="todas|equipo|herramienta|equipo_tecnologico"),
     estado:   str = Query("todos", description="todos|operativo|en_mantenimiento|fuera_de_servicio|baja"),
     page:     int = Query(1, ge=1),
-    page_size: int = Query(30, ge=1, le=200),
+    page_size: int = Query(30, ge=1, le=2000),
     payload:  dict    = Depends(verificar_token),
     db:       Session = Depends(get_db),
 ):
