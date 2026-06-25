@@ -141,6 +141,7 @@ class EquipoIn(BaseModel):
     zonaId:      Optional[str] = None
     areaId:      Optional[str] = None
     cantidad:    int = 1
+    stockMinimo: Optional[int] = None
     estado:      EstadoEquipo = "operativo"
     requiereMantenimiento:     bool = False
     frecuenciaMantenimiento:   FrecuenciaMant = "ninguno"
