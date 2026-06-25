@@ -90,8 +90,8 @@
             </button>
           </label>
           @if (!showAddAlmacen) {
-            <select class="lf-input" formControlName="almacenId"
-                    [class.invalid]="ctrl('almacenId')?.invalid && ctrl('almacenId')?.touched">
+            <select class="lf-input" formControlName="almacenMaterialId"
+                    [class.invalid]="ctrl('almacenMaterialId')?.invalid && ctrl('almacenMaterialId')?.touched">
               <option value="" disabled>— Seleccionar —</option>
               @for (a of almacenes; track a.id) { <option [value]="a.id">{{ a.nombre }}</option> }
             </select>

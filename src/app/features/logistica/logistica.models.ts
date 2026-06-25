@@ -22,7 +22,7 @@ export interface MaterialLog {
   descripcion: string | null;
   cantidad: number;                // stock actual
   stockMinimo: number;
-  almacenId: string | null;
+  almacenMaterialId: string | null;
   almacen: string;                 // nombre denormalizado
   precio: number | null;
   precioCompra: number | null;

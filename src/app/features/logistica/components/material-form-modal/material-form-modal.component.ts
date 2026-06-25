@@ -48,7 +48,7 @@ export class MaterialFormModalComponent implements OnInit, OnDestroy {
       nombre:       [this.material?.nombre ?? '', [Validators.required, Validators.maxLength(200)]],
       categoriaId:  [this.material?.categoriaId ?? '', Validators.required],
       unidadId:     [this.material?.unidadId ?? '', Validators.required],
-      almacenId:    [this.material?.almacenId ?? '', Validators.required],
+      almacenMaterialId: [this.material?.almacenMaterialId ?? '', Validators.required],
       descripcion:  [this.material?.descripcion ?? ''],
       cantidad:     [this.material?.cantidad ?? 0, [Validators.required, Validators.min(0)]],
       stockMinimo:  [this.material?.stockMinimo ?? 0, [Validators.required, Validators.min(0)]],
@@ -125,7 +125,7 @@ export class MaterialFormModalComponent implements OnInit, OnDestroy {
       next: (a) => {
         this.almacenes = [...this.almacenes.filter(x => x.id !== a.id), a]
           .sort((x, y) => x.nombre.localeCompare(y.nombre));
-        this.form.patchValue({ almacenId: a.id });
+        this.form.patchValue({ almacenMaterialId: a.id });
         this.showAddAlmacen = false; this.nuevoAlmacen = ''; this.creandoAlmacen = false;
       },
       error: () => { this.creandoAlmacen = false; },
@@ -139,9 +139,9 @@ export class MaterialFormModalComponent implements OnInit, OnDestroy {
     const stockMin = Number(v.stockMinimo ?? 0);
     this.guardar.emit({
       nombre:       v.nombre.trim(),
-      categoriaId:  v.categoriaId,
-      unidadId:     v.unidadId,
-      almacenId:    v.almacenId || null,
+      categoriaId:       v.categoriaId,
+      unidadId:          v.unidadId,
+      almacenMaterialId: v.almacenMaterialId || null,
       descripcion:  v.descripcion?.trim() || null,
       cantidad:     Number(v.cantidad),
       stockMinimo:  stockMin,
