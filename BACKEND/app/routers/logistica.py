@@ -270,17 +270,33 @@ def _material_out(db: Session, mat: Material, empresa_id: str) -> MaterialOut:
         ).first()
         unidad_id = str(u.id) if u else None
 
+    # Nombre de marca desde FK directo en material
+    marca_nombre = None
+    if mat.marca_id:
+        _m = db.query(Marca).filter(Marca.id == mat.marca_id).first()
+        if _m:
+            marca_nombre = _m.nombre
+
     return MaterialOut(
         id=str(mat.id), codigo=mat.codigo or "", nombre=mat.nombre,
         categoriaId=str(mat.categoria_id) if mat.categoria_id else None,
         categoria=cat_nombre,
         unidadId=unidad_id, unidad=mat.unidad,
         descripcion=mat.descripcion,
-        cantidad=total, stockMinimo=minimo,
+        cantidad=total,
+        stockMinimo=int((mat.atributos or {}).get("stock_minimo", minimo)),
         almacenId=alm_id, almacen=alm_nombre or "",
         precio=float(mat.precio) if mat.precio is not None else None,
         activo=bool(mat.activo),
         tipo=getattr(mat, "tipo", "consumible") or "consumible",
+        marca=marca_nombre or (mat.atributos or {}).get("marca"),
+        imagenUrl=mat.imagen_url,
+        atributos=dict(mat.atributos) if mat.atributos else None,
+        # Nuevos campos HU-15 v2
+        precioCompra=float(mat.precio_compra) if mat.precio_compra is not None else None,
+        serie=mat.serie or None,
+        marcaId=str(mat.marca_id) if mat.marca_id else None,
+        almacenMaterialId=str(mat.almacen_id) if mat.almacen_id else None,
     )
 
 
@@ -765,7 +781,19 @@ def crear_material(
     alm = _almacen_or_404(db, empresa_id, body.almacenId)
     uni = _unidad_or_404(db, empresa_id, body.unidadId)
 
+    # Validar FK opcionales de marca y almacén directo en material
+    if body.marcaId:
+        _marca_or_404(db, empresa_id, body.marcaId)
+    alm_material = None
+    if body.almacenMaterialId:
+        alm_material = _almacen_or_404(db, empresa_id, body.almacenMaterialId)
+
     codigo = (body.codigo or "").strip() or _siguiente_codigo(db, empresa_id, "MAT", Material)
+
+    # Construir atributos; stock_minimo puede venir también por aquí
+    _attrs = dict(body.atributos) if body.atributos else {}
+    if body.stockMinimo and int(body.stockMinimo) > 0:
+        _attrs["stock_minimo"] = int(body.stockMinimo)
 
     mat = Material(
         id           = str(_uuid.uuid4()),
@@ -777,6 +805,13 @@ def crear_material(
         descripcion  = (body.descripcion or "").strip() or None,
         precio       = body.precio,
         activo       = body.activo,
+        atributos    = _attrs or None,
+        imagen_url   = (body.imagenUrl or "").strip() or None,
+        # Nuevos campos HU-15 v2
+        precio_compra = _Decimal(str(body.precioCompra)) if body.precioCompra else None,
+        serie         = (body.serie or "").strip() or None,
+        marca_id      = body.marcaId or None,
+        almacen_id    = alm_material.id if alm_material else None,
     )
     db.add(mat)
     db.flush()
@@ -866,6 +901,24 @@ def actualizar_material(
         if alm and stock.almacen_id != alm.id:
             stock.almacen_id = alm.id
         stock.updated_at = datetime.utcnow()
+
+    # ── Nuevos campos HU-15 v2 ────────────────────────────────────────────────
+    if body.precioCompra is not None:
+        mat.precio_compra = _Decimal(str(body.precioCompra)) if body.precioCompra else None
+    if body.serie is not None:
+        mat.serie = (body.serie or "").strip() or None
+    if body.marcaId is not None:
+        if body.marcaId == "":
+            mat.marca_id = None
+        else:
+            _marca_or_404(db, empresa_id, body.marcaId)
+            mat.marca_id = body.marcaId
+    if body.almacenMaterialId is not None:
+        if body.almacenMaterialId == "":
+            mat.almacen_id = None
+        else:
+            _alm_m = _almacen_or_404(db, empresa_id, body.almacenMaterialId)
+            mat.almacen_id = _alm_m.id
 
     db.commit()
     return _material_out(db, mat, empresa_id)

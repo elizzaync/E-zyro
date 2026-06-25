@@ -28,6 +28,11 @@ class Material(Base):
     atributos    = Column(JSONB, nullable=True)
     imagen_url   = Column(Text,  nullable=True)
     created_at   = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # ── Nuevos campos HU-15 v2 ────────────────────────────────────────────────
+    precio_compra = Column(Numeric(10, 2), nullable=True)
+    serie         = Column(String(100), nullable=True)
+    marca_id      = Column(String(36), ForeignKey("marca.id"), nullable=True)
+    almacen_id    = Column(String(36), ForeignKey("almacen.id"), nullable=True)
 
 
 class Stock(Base):
