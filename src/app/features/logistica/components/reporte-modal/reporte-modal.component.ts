@@ -124,114 +124,259 @@ export class ReporteModalComponent {
     const marcas       = [...new Set(mats.filter(m => m.marca).map(m => m.marca!))];
 
     // ──────────────────────────────────────────────────────────────────────
-    // HOJA 1 — PORTADA
+    // HOJA 1 — PORTADA (diseño ejecutivo)
     // ──────────────────────────────────────────────────────────────────────
     const wsP = wb.addWorksheet('Portada');
     wsP.views = [{ showGridLines: false }];
-    wsP.getColumn('A').width = 4;
-    wsP.getColumn('B').width = 28;
-    wsP.getColumn('C').width = 20;
-    wsP.getColumn('D').width = 5;
-    wsP.getColumn('E').width = 28;
-    wsP.getColumn('F').width = 20;
-    wsP.getColumn('G').width = 5;
-    wsP.getColumn('H').width = 28;
-    wsP.getColumn('I').width = 20;
 
-    // Título principal
-    wsP.mergeCells('A1:I1'); wsP.getRow(1).height = 52;
-    this.cell(wsP, 'A1', 'REPORTE DE INVENTARIO · MATERIALES', { sz:22, bold:true, color:C.WHITE }, C.NAV, 'center', 'middle');
-    wsP.mergeCells('A2:I2'); wsP.getRow(2).height = 22;
+    // Columnas: A(margen) B-D(col1) E(sep) F-H(col2) I(sep) J-L(col3) M(margen)
+    ['A','M'].forEach(c => { wsP.getColumn(c).width = 2; });
+    ['B','C','D'].forEach(c => { wsP.getColumn(c).width = c==='B' ? 5 : c==='C' ? 17 : 10; });
+    wsP.getColumn('E').width = 3;
+    ['F','G','H'].forEach(c => { wsP.getColumn(c).width = c==='F' ? 5 : c==='G' ? 17 : 10; });
+    wsP.getColumn('I').width = 3;
+    ['J','K','L'].forEach(c => { wsP.getColumn(c).width = c==='J' ? 5 : c==='K' ? 17 : 10; });
+
     const fecha = new Date().toLocaleDateString('es-PE', { year:'numeric', month:'long', day:'numeric' });
-    this.cell(wsP, 'A2', `E-zyro — Sistema de Gestión de Inventarios  ·  Generado: ${fecha}`, { sz:11, color:C.WHITE }, C.NAV2, 'center', 'middle');
-    wsP.getRow(3).height = 14;
+    const now   = new Date();
 
-    // ── Sección: Resumen General ──
-    wsP.mergeCells('A4:I4'); wsP.getRow(4).height = 26;
-    this.cell(wsP, 'A4', '  RESUMEN GENERAL', { sz:12, bold:true, color:C.WHITE }, C.NAV, 'left', 'middle');
-    wsP.getRow(5).height = 12;
-
-    const kpis = [
-      ['Total de materiales', mats.length,          'Materiales activos',    activos.length,    'Materiales inactivos', inactivos.length],
-      ['Con stock disponible', activos.filter(m => m.cantidad > 0).length, 'Sin stock (activos)', sinStock.length, 'Con stock bajo', alerta.length],
-      ['Categorías',          categorias.length,    'Marcas registradas',    marcas.length,     'Total unidades',       totalUnid],
-    ] as [string, number, string, number, string, number][];
-
-    const alertaCols = new Set(['Con stock bajo', 'Sin stock (activos)']);
-    for (const [r, kpiRow] of kpis.entries()) {
-      const rn = 6 + r; wsP.getRow(rn).height = 22;
-      wsP.mergeCells(`B${rn}:C${rn}`);
-      wsP.mergeCells(`E${rn}:F${rn}`);
-      wsP.mergeCells(`H${rn}:I${rn}`);
-      this.cell(wsP, `B${rn}`, kpiRow[0], { sz:10, color:C.GRAY });
-      this.kpiValue(wsP, `C${rn}`, kpiRow[1], alertaCols.has(kpiRow[0]) ? C.RED : C.DARK);
-      this.cell(wsP, `E${rn}`, kpiRow[2], { sz:10, color:C.GRAY });
-      this.kpiValue(wsP, `F${rn}`, kpiRow[3], alertaCols.has(kpiRow[2]) ? C.RED : C.DARK);
-      this.cell(wsP, `H${rn}`, kpiRow[4], { sz:10, color:C.GRAY });
-      this.kpiValue(wsP, `I${rn}`, kpiRow[5], alertaCols.has(kpiRow[4]) ? C.RED : C.DARK);
+    // ── BANNER PRINCIPAL (filas 1-5) ──────────────────────────────────────
+    // Franja izquierda oscura (A:E)
+    for (let r = 1; r <= 5; r++) {
+      wsP.getRow(r).height = r === 1 ? 8 : r === 2 ? 50 : r === 3 ? 32 : r === 4 ? 22 : 8;
+      wsP.mergeCells(`A${r}:E${r}`);
+      wsP.getCell(`A${r}`).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+      wsP.mergeCells(`F${r}:M${r}`);
+      wsP.getCell(`F${r}`).fill = { type:'pattern', pattern:'solid', fgColor:{ argb: r <= 3 ? C.NAV2 : 'FF243F6E' } };
     }
-    wsP.getRow(9).height = 14;
 
-    // ── Sección: Indicadores Financieros ──
-    wsP.mergeCells('A10:I10'); wsP.getRow(10).height = 26;
-    this.cell(wsP, 'A10', '  INDICADORES FINANCIEROS', { sz:12, bold:true, color:C.WHITE }, C.NAV, 'left', 'middle');
+    // Logo-texto "E-zyro" en franja izquierda
+    wsP.getRow(2).height = 50;
+    wsP.getCell('A2').value = 'E-ZYRO';
+    wsP.getCell('A2').font  = { name:'Calibri', size:28, bold:true, color:{ argb:C.WHITE } };
+    wsP.getCell('A2').alignment = { horizontal:'center', vertical:'middle' };
 
-    const financieros: [string, string | number, string][] = [
-      ['Total de unidades en inventario',         totalUnid,                   'numeric'],
-      ['Materiales con precio registrado',         conPrecio.length,            'numeric'],
-      ['Valor total estimado del inventario',      valorTotal,                  'currency'],
-      ['Costo estimado de reposición (stock bajo)',valorRepos,                  'currency'],
-      ['Costo promedio por material',             conPrecio.length ? valorTotal / conPrecio.length : 0, 'currency'],
+    wsP.getRow(3).height = 28;
+    wsP.getCell('A3').value = 'Sistema de Gestión de Inventarios';
+    wsP.getCell('A3').font  = { name:'Calibri', size:10, color:{ argb:'FFAAC4E8' } };
+    wsP.getCell('A3').alignment = { horizontal:'center', vertical:'middle' };
+
+    // Título del reporte en franja derecha
+    const titleCell = wsP.getCell('F2');
+    titleCell.value = 'REPORTE DE INVENTARIO';
+    titleCell.font  = { name:'Calibri', size:20, bold:true, color:{ argb:C.WHITE } };
+    titleCell.alignment = { horizontal:'center', vertical:'bottom' };
+
+    const subtitleCell = wsP.getCell('F3');
+    subtitleCell.value = 'MATERIALES & CONSUMIBLES';
+    subtitleCell.font  = { name:'Calibri', size:13, color:{ argb:'FFAAC4E8' }, italic:true };
+    subtitleCell.alignment = { horizontal:'center', vertical:'top' };
+
+    const dateCell = wsP.getCell('F4');
+    dateCell.value = fecha;
+    dateCell.font  = { name:'Calibri', size:10, color:{ argb:'FF7FB3E8' } };
+    dateCell.alignment = { horizontal:'center', vertical:'middle' };
+
+    // ── LÍNEA ACENTO ─────────────────────────────────────────────────────
+    wsP.getRow(6).height = 4;
+    wsP.mergeCells('A6:M6');
+    wsP.getCell('A6').fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF3B82F6' } };
+
+    // ── ESPACIO ───────────────────────────────────────────────────────────
+    wsP.getRow(7).height = 10;
+
+    // ── SECCIÓN: TARJETAS KPI (filas 8-12) ───────────────────────────────
+    // Títulos de sección
+    wsP.mergeCells('A8:M8'); wsP.getRow(8).height = 18;
+    const secLabel1 = wsP.getCell('A8');
+    secLabel1.value = 'INDICADORES CLAVE DE INVENTARIO';
+    secLabel1.font  = { name:'Calibri', size:8, bold:true, color:{ argb:C.GRAY } };
+    secLabel1.alignment = { horizontal:'left', vertical:'middle' };
+
+    // 6 tarjetas en 2 filas × 3 columnas
+    const kpiCards: { label:string; value:number; fmt:string; color:string; bg:string; icon:string }[] = [
+      { label:'Total Materiales',   value:mats.length,         fmt:'#,##0',        color:C.NAV,   bg:'FFE8F0FB', icon:'📦' },
+      { label:'Activos',            value:activos.length,      fmt:'#,##0',        color:C.GRN,   bg:C.GLIGHT,   icon:'✅' },
+      { label:'Inactivos',          value:inactivos.length,    fmt:'#,##0',        color:C.GRAY,  bg:C.ALT,      icon:'⏸' },
+      { label:'Stock Bajo / Alerta',value:alerta.length,       fmt:'#,##0',        color:C.RED,   bg:C.RLIGHT,   icon:'⚠' },
+      { label:'Sin Stock (activos)',value:sinStock.length,      fmt:'#,##0',        color:C.AMB,   bg:C.ALIGHT,   icon:'🔴' },
+      { label:'Total Unidades',     value:totalUnid,           fmt:'#,##0',        color:C.BLU,   bg:C.BLIGHT,   icon:'🔢' },
     ];
-    for (const [i, [label, val, fmt]] of financieros.entries()) {
-      const rn = 11 + i; wsP.getRow(rn).height = 22;
-      wsP.mergeCells(`B${rn}:G${rn}`);
-      wsP.mergeCells(`H${rn}:I${rn}`);
-      this.cell(wsP, `B${rn}`, label, { sz:10.5, color:C.DARK, bold: i === 2 || i === 3 });
-      const vc = wsP.getCell(`H${rn}`);
-      vc.value  = typeof val === 'number' ? val : val;
-      vc.font   = { name:'Calibri', size:12, bold:true, color:{ argb: i === 2 ? C.GRN : i === 3 ? C.AMB : C.DARK } };
+
+    const cardCols: [string, string, string][] = [['B','C','D'],['F','G','H'],['J','K','L']];
+    for (let i = 0; i < 6; i++) {
+      const row  = i < 3 ? 9 : 11;
+      const cols = cardCols[i % 3];
+      const k    = kpiCards[i];
+      if (i === 0 || i === 3) wsP.getRow(row).height = 36;
+
+      // Icono
+      const ic = wsP.getCell(`${cols[0]}${row}`);
+      ic.value = k.icon; ic.font = { name:'Calibri', size:14 };
+      ic.alignment = { horizontal:'center', vertical:'middle' };
+      ic.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:k.bg } };
+      this.thinBorder(ic);
+
+      // Label + valor en merge
+      wsP.mergeCells(`${cols[1]}${row}:${cols[2]}${row}`);
+      const vc = wsP.getCell(`${cols[1]}${row}`);
+      vc.value = k.value; vc.numFmt = k.fmt;
+      vc.font  = { name:'Calibri', size:18, bold:true, color:{ argb:k.color } };
       vc.alignment = { horizontal:'right', vertical:'middle' };
-      if (fmt === 'currency') vc.numFmt = '"S/"#,##0.00';
-      else vc.numFmt = '#,##0';
-      wsP.getRow(rn).getCell('B').fill = { type:'pattern', pattern:'solid', fgColor:{ argb: i % 2 === 0 ? C.LGRAY : C.WHITE } };
-      wsP.getRow(rn).getCell('H').fill = { type:'pattern', pattern:'solid', fgColor:{ argb: i % 2 === 0 ? C.LGRAY : C.WHITE } };
-    }
-    wsP.getRow(16).height = 14;
+      vc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:k.bg } };
+      this.thinBorder(vc);
 
-    // ── Sección: Estado del Inventario ──
-    wsP.mergeCells('A17:I17'); wsP.getRow(17).height = 26;
-    this.cell(wsP, 'A17', '  ESTADO DEL INVENTARIO', { sz:12, bold:true, color:C.WHITE }, C.NAV, 'left', 'middle');
-    const estHdrs = ['', 'Estado', '', '', 'Materiales', '', '', 'Unidades', ''];
-    ['B','C','D','E','F','G','H','I'].forEach((col,i) => {
-      if (estHdrs[i+1]) this.cell(wsP, `${col}18`, estHdrs[i+1], { sz:9, bold:true, color:C.WHITE }, C.NAV2, 'center', 'middle');
-    });
-    wsP.getRow(18).height = 18;
-    const estados: [string, number, number, string][] = [
-      ['Con stock OK',   activos.filter(m => m.cantidad > m.stockMinimo || m.stockMinimo === 0).length, activos.filter(m => m.cantidad > m.stockMinimo || m.stockMinimo === 0).reduce((s,m)=>s+m.cantidad,0), C.GRN ],
-      ['Con stock bajo', alerta.length, alerta.reduce((s,m)=>s+m.cantidad,0), C.RED ],
-      ['Sin stock',      sinStock.length, 0, C.AMB ],
-      ['Inactivos',      inactivos.length, inactivos.reduce((s,m)=>s+m.cantidad,0), C.GRAY],
+      // Label (fila siguiente)
+      const lr  = row + 1;
+      wsP.getRow(lr).height = 16;
+      wsP.mergeCells(`${cols[0]}${lr}:${cols[2]}${lr}`);
+      const lc = wsP.getCell(`${cols[0]}${lr}`);
+      lc.value = k.label;
+      lc.font  = { name:'Calibri', size:8.5, bold:true, color:{ argb:k.color } };
+      lc.alignment = { horizontal:'center', vertical:'middle' };
+      lc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:k.bg } };
+      this.thinBorder(lc);
+    }
+
+    // ── ESPACIO ───────────────────────────────────────────────────────────
+    wsP.getRow(13).height = 10;
+    wsP.mergeCells('A13:M13');
+    wsP.getCell('A13').fill = { type:'pattern', pattern:'solid', fgColor:{ argb:C.WHITE } };
+
+    // ── SECCIÓN: FINANCIERO + ESTADO (lado a lado, filas 14-23) ──────────
+    wsP.mergeCells('A14:M14'); wsP.getRow(14).height = 18;
+    const secLabel2 = wsP.getCell('A14');
+    secLabel2.value = 'ANÁLISIS FINANCIERO';
+    secLabel2.font  = { name:'Calibri', size:8, bold:true, color:{ argb:C.GRAY } };
+    secLabel2.alignment = { horizontal:'left', vertical:'middle' };
+
+    // Cabecera bloque financiero
+    wsP.mergeCells('B15:H15'); wsP.getRow(15).height = 20;
+    const fh = wsP.getCell('B15');
+    fh.value = 'VALORIZACIÓN DEL INVENTARIO';
+    fh.font  = { name:'Calibri', size:9, bold:true, color:{ argb:C.WHITE } };
+    fh.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+    fh.alignment = { horizontal:'center', vertical:'middle' };
+
+    // Cabecera bloque estado
+    wsP.mergeCells('J15:M15');
+    const sh = wsP.getCell('J15');
+    sh.value = 'ESTADO DEL INVENTARIO';
+    sh.font  = { name:'Calibri', size:9, bold:true, color:{ argb:C.WHITE } };
+    sh.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+    sh.alignment = { horizontal:'center', vertical:'middle' };
+
+    // Filas financieras
+    const finRows: [string, number, string, string][] = [
+      ['Valor total estimado',           valorTotal,                                              '"S/"#,##0.00', C.GRN  ],
+      ['Costo de reposición stock bajo', valorRepos,                                              '"S/"#,##0.00', C.AMB  ],
+      ['Costo promedio por material',    conPrecio.length ? valorTotal/conPrecio.length : 0,     '"S/"#,##0.00', C.BLU  ],
+      ['Materiales con precio',          conPrecio.length,                                        '#,##0',        C.DARK ],
+      ['Total unidades en inventario',   totalUnid,                                               '#,##0',        C.DARK ],
     ];
-    for (const [i, [label, cnt, unid, color]] of estados.entries()) {
-      const rn = 19 + i; wsP.getRow(rn).height = 20;
-      wsP.mergeCells(`B${rn}:D${rn}`); wsP.mergeCells(`E${rn}:G${rn}`); wsP.mergeCells(`H${rn}:I${rn}`);
+    for (const [i, [lbl, val, fmt, clr]] of finRows.entries()) {
+      const rn = 16 + i; wsP.getRow(rn).height = 20;
+      wsP.mergeCells(`B${rn}:F${rn}`);
       const bg = i % 2 === 0 ? C.LGRAY : C.WHITE;
-      this.cell(wsP, `B${rn}`, label, { sz:10.5, bold:true, color }, bg);
-      const nc = wsP.getCell(`E${rn}`);
-      nc.value = cnt; nc.font = { name:'Calibri', size:11, bold:true, color:{ argb:color } };
-      nc.alignment = { horizontal:'center', vertical:'middle' }; nc.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
-      nc.numFmt = '#,##0';
-      const uc = wsP.getCell(`H${rn}`);
-      uc.value = unid; uc.font = { name:'Calibri', size:11, color:{ argb:C.DARK } };
-      uc.alignment = { horizontal:'right', vertical:'middle' }; uc.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
-      uc.numFmt = '#,##0';
+      const lc = wsP.getCell(`B${rn}`);
+      lc.value = lbl; lc.font = { name:'Calibri', size:9.5, color:{ argb:C.DARK }, bold: i < 2 };
+      lc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      lc.alignment = { horizontal:'left', vertical:'middle' };
+      this.thinBorder(lc);
+      wsP.mergeCells(`G${rn}:H${rn}`);
+      const vc = wsP.getCell(`G${rn}`);
+      vc.value = val; vc.numFmt = fmt;
+      vc.font  = { name:'Calibri', size:11, bold:true, color:{ argb:clr } };
+      vc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      vc.alignment = { horizontal:'right', vertical:'middle' };
+      this.thinBorder(vc);
     }
 
-    // ── Footer ──
-    wsP.getRow(24).height = 10;
-    wsP.mergeCells('A25:I25'); wsP.getRow(25).height = 16;
-    this.cell(wsP, 'A25', `Este reporte fue generado automáticamente por E-zyro el ${fecha}. Los valores de inventario son estimados basados en los precios de compra registrados.`, { sz:8.5, italic:true, color:C.GRAY }, C.WHITE, 'center', 'middle');
+    // Filas de estado
+    const estRows: [string, number, number, string, string][] = [
+      ['✅  Stock OK',   activos.filter(m=>m.cantidad>m.stockMinimo||m.stockMinimo===0).length, Math.round(activos.filter(m=>m.cantidad>m.stockMinimo||m.stockMinimo===0).length/Math.max(mats.length,1)*100), C.GRN,  C.GLIGHT],
+      ['⚠  Stock bajo', alerta.length,   Math.round(alerta.length/Math.max(mats.length,1)*100),   C.AMB,  C.ALIGHT],
+      ['🔴  Sin stock',  sinStock.length, Math.round(sinStock.length/Math.max(mats.length,1)*100), C.RED,  C.RLIGHT],
+      ['⏸  Inactivos',  inactivos.length,Math.round(inactivos.length/Math.max(mats.length,1)*100),C.GRAY, C.ALT   ],
+    ];
+    // Cabeceras mini
+    wsP.getRow(15).height = 20;
+    wsP.mergeCells('J16:K16'); wsP.getCell('J16').value = 'Estado';
+    wsP.mergeCells('L16:M16'); wsP.getCell('L16').value = 'Cant.  / %';
+    ['J16','L16'].forEach(ref => {
+      const c = wsP.getCell(ref);
+      c.font = { name:'Calibri', size:8.5, bold:true, color:{ argb:C.GRAY } };
+      c.alignment = { horizontal:'center', vertical:'middle' };
+    });
+    wsP.getRow(16).height = 16;
+
+    for (const [i, [lbl, cnt, pct, clr, bg]] of estRows.entries()) {
+      const rn = 17 + i; wsP.getRow(rn).height = 22;
+      wsP.mergeCells(`J${rn}:K${rn}`);
+      const lc = wsP.getCell(`J${rn}`);
+      lc.value = lbl; lc.font = { name:'Calibri', size:9.5, bold:true, color:{ argb:clr } };
+      lc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      lc.alignment = { horizontal:'left', vertical:'middle' };
+      this.thinBorder(lc);
+      wsP.mergeCells(`L${rn}:M${rn}`);
+      const vc = wsP.getCell(`L${rn}`);
+      vc.value = `${cnt.toLocaleString('es-PE')}  (${pct}%)`;
+      vc.font  = { name:'Calibri', size:10, bold:true, color:{ argb:clr } };
+      vc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      vc.alignment = { horizontal:'center', vertical:'middle' };
+      this.thinBorder(vc);
+    }
+
+    // ── ESPACIO ───────────────────────────────────────────────────────────
+    wsP.getRow(21).height = 10;
+
+    // ── SECCIÓN: TOP 5 CATEGORÍAS ─────────────────────────────────────────
+    const topCats = [...new Map(mats.reduce((acc, m) => {
+      const k = m.categoria || 'Sin categoría';
+      acc.set(k, (acc.get(k) || 0) + 1); return acc;
+    }, new Map<string,number>())).entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+    wsP.mergeCells('A22:M22'); wsP.getRow(22).height = 18;
+    const secLabel3 = wsP.getCell('A22');
+    secLabel3.value = 'TOP 5 CATEGORÍAS POR NÚMERO DE MATERIALES';
+    secLabel3.font  = { name:'Calibri', size:8, bold:true, color:{ argb:C.GRAY } };
+    secLabel3.alignment = { horizontal:'left', vertical:'middle' };
+
+    const barColors = [C.NAV, C.BLU, C.NAV2, 'FF3B82F6', 'FF60A5FA'];
+    const maxCat = topCats[0]?.[1] ?? 1;
+    for (const [i, [cat, cnt]] of topCats.entries()) {
+      const rn = 23 + i; wsP.getRow(rn).height = 18;
+      // Nombre
+      wsP.mergeCells(`B${rn}:D${rn}`);
+      const nc = wsP.getCell(`B${rn}`);
+      nc.value = cat; nc.font = { name:'Calibri', size:9, color:{ argb:C.DARK } };
+      nc.alignment = { horizontal:'left', vertical:'middle' };
+
+      // Barra visual proporcional (columnas E-L)
+      const barLen = Math.round((cnt / maxCat) * 8);
+      const allCols = ['E','F','G','H','I','J','K','L'];
+      for (let b = 0; b < 8; b++) {
+        const bc = wsP.getCell(`${allCols[b]}${rn}`);
+        bc.fill = { type:'pattern', pattern:'solid', fgColor:{ argb: b < barLen ? barColors[i] : 'FFEEEEEE' } };
+      }
+
+      // Número
+      const vc = wsP.getCell(`M${rn}`);
+      vc.value = cnt; vc.numFmt = '#,##0';
+      vc.font  = { name:'Calibri', size:9, bold:true, color:{ argb:barColors[i] } };
+      vc.alignment = { horizontal:'right', vertical:'middle' };
+    }
+
+    // ── FOOTER ────────────────────────────────────────────────────────────
+    wsP.getRow(28).height = 8;
+    wsP.mergeCells('A29:M29'); wsP.getRow(29).height = 4;
+    wsP.getCell('A29').fill = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+
+    wsP.mergeCells('A30:M30'); wsP.getRow(30).height = 18;
+    const fc = wsP.getCell('A30');
+    fc.value = `Generado por E-zyro el ${fecha} a las ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}  ·  Documento confidencial — uso interno`;
+    fc.font  = { name:'Calibri', size:8, italic:true, color:{ argb:C.GRAY } };
+    fc.alignment = { horizontal:'center', vertical:'middle' };
 
     // ──────────────────────────────────────────────────────────────────────
     // HOJA 2 — INVENTARIO COMPLETO
@@ -572,58 +717,208 @@ export class ReporteModalComponent {
     const valorTotal = conPrecio.reduce((s,e) => s + (e.precioCompra! * e.cantidad), 0);
     const totalUnid  = eq.reduce((s,e) => s + e.cantidad, 0);
 
-    // ── PORTADA ──────────────────────────────────────────────────────────
+    // ── PORTADA (diseño ejecutivo) ────────────────────────────────────────
     const wsP = wb.addWorksheet('Portada');
     wsP.views = [{ showGridLines:false }];
-    ['A','B','C','D','E','F','G','H','I'].forEach((c,i) => { wsP.getColumn(c).width = [4,28,20,5,28,20,5,28,20][i]; });
+    ['A','M'].forEach(c => { wsP.getColumn(c).width = 2; });
+    ['B','C','D'].forEach(c => { wsP.getColumn(c).width = c==='B'?5:c==='C'?17:10; });
+    wsP.getColumn('E').width = 3;
+    ['F','G','H'].forEach(c => { wsP.getColumn(c).width = c==='F'?5:c==='G'?17:10; });
+    wsP.getColumn('I').width = 3;
+    ['J','K','L'].forEach(c => { wsP.getColumn(c).width = c==='J'?5:c==='K'?17:10; });
 
-    wsP.mergeCells('A1:I1'); wsP.getRow(1).height = 52;
-    this.cell(wsP, 'A1', 'REPORTE DE INVENTARIO · EQUIPOS Y HERRAMIENTAS', { sz:20, bold:true, color:C.WHITE }, C.NAV, 'center', 'middle');
-    wsP.mergeCells('A2:I2'); wsP.getRow(2).height = 22;
-    this.cell(wsP, 'A2', `E-zyro — Sistema de Gestión de Inventarios  ·  Generado: ${fecha}`, { sz:11, color:C.WHITE }, C.NAV2, 'center', 'middle');
-    wsP.getRow(3).height = 14;
+    const now2 = new Date();
 
-    wsP.mergeCells('A4:I4'); wsP.getRow(4).height = 26;
-    this.cell(wsP, 'A4', '  RESUMEN GENERAL', { sz:12, bold:true, color:C.WHITE }, C.NAV, 'left', 'middle');
+    // Banner
+    for (let r = 1; r <= 5; r++) {
+      wsP.getRow(r).height = r===1?8:r===2?50:r===3?32:r===4?22:8;
+      wsP.mergeCells(`A${r}:E${r}`);
+      wsP.getCell(`A${r}`).fill = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+      wsP.mergeCells(`F${r}:M${r}`);
+      wsP.getCell(`F${r}`).fill = { type:'pattern', pattern:'solid', fgColor:{ argb: r<=3?C.NAV2:'FF243F6E' } };
+    }
+    wsP.getCell('A2').value = 'E-ZYRO';
+    wsP.getCell('A2').font  = { name:'Calibri', size:28, bold:true, color:{ argb:C.WHITE } };
+    wsP.getCell('A2').alignment = { horizontal:'center', vertical:'middle' };
+    wsP.getCell('A3').value = 'Sistema de Gestión de Inventarios';
+    wsP.getCell('A3').font  = { name:'Calibri', size:10, color:{ argb:'FFAAC4E8' } };
+    wsP.getCell('A3').alignment = { horizontal:'center', vertical:'middle' };
+    wsP.getCell('F2').value = 'REPORTE DE INVENTARIO';
+    wsP.getCell('F2').font  = { name:'Calibri', size:20, bold:true, color:{ argb:C.WHITE } };
+    wsP.getCell('F2').alignment = { horizontal:'center', vertical:'bottom' };
+    wsP.getCell('F3').value = 'EQUIPOS Y HERRAMIENTAS';
+    wsP.getCell('F3').font  = { name:'Calibri', size:13, color:{ argb:'FFAAC4E8' }, italic:true };
+    wsP.getCell('F3').alignment = { horizontal:'center', vertical:'top' };
+    wsP.getCell('F4').value = fecha;
+    wsP.getCell('F4').font  = { name:'Calibri', size:10, color:{ argb:'FF7FB3E8' } };
+    wsP.getCell('F4').alignment = { horizontal:'center', vertical:'middle' };
+
+    // Línea acento
+    wsP.getRow(6).height = 4;
+    wsP.mergeCells('A6:M6');
+    wsP.getCell('A6').fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF3B82F6' } };
+    wsP.getRow(7).height = 10;
+
+    // Tarjetas KPI equipos
+    wsP.mergeCells('A8:M8'); wsP.getRow(8).height = 18;
+    const eqSec1 = wsP.getCell('A8');
+    eqSec1.value = 'INDICADORES CLAVE DE INVENTARIO';
+    eqSec1.font  = { name:'Calibri', size:8, bold:true, color:{ argb:C.GRAY } };
+    eqSec1.alignment = { horizontal:'left', vertical:'middle' };
+
     const eqs2 = eq.filter(e => e.clase !== 'herramienta');
-    const herr = eq.filter(e => e.clase === 'herramienta');
-    const eKpis: [string, number, string, number, string, number][] = [
-      ['Total registros', eq.length, 'Equipos', eqs2.length, 'Herramientas', herr.length],
-      ['Operativos', operativos.length, 'En mantenimiento', eq.filter(e=>e.estado==='en_mantenimiento').length, 'Fuera de servicio', eq.filter(e=>e.estado==='fuera_de_servicio').length],
-      ['Con mantenimiento prog.', mantenimiento.length, 'Total unidades', totalUnid, 'Con precio registrado', conPrecio.length],
+    const herr  = eq.filter(e => e.clase === 'herramienta');
+    const eqKpiCards: { label:string; value:number; fmt:string; color:string; bg:string; icon:string }[] = [
+      { label:'Total Registros',       value:eq.length,                                    fmt:'#,##0', color:C.NAV,  bg:'FFE8F0FB', icon:'🗂' },
+      { label:'Equipos',               value:eqs2.length,                                  fmt:'#,##0', color:C.BLU,  bg:C.BLIGHT,   icon:'⚙' },
+      { label:'Herramientas',          value:herr.length,                                  fmt:'#,##0', color:C.GRN,  bg:C.GLIGHT,   icon:'🔧' },
+      { label:'Operativos',            value:operativos.length,                            fmt:'#,##0', color:C.GRN,  bg:C.GLIGHT,   icon:'✅' },
+      { label:'En Mantenimiento',      value:eq.filter(e=>e.estado==='en_mantenimiento').length, fmt:'#,##0', color:C.AMB, bg:C.ALIGHT, icon:'🔨' },
+      { label:'Fuera de Servicio',     value:eq.filter(e=>e.estado==='fuera_de_servicio').length, fmt:'#,##0', color:C.RED, bg:C.RLIGHT, icon:'⛔' },
     ];
-    for (const [r, row] of eKpis.entries()) {
-      const rn = 5 + r; wsP.getRow(rn).height = 22;
-      wsP.mergeCells(`B${rn}:C${rn}`); wsP.mergeCells(`E${rn}:F${rn}`); wsP.mergeCells(`H${rn}:I${rn}`);
-      const alertSet = new Set(['En mantenimiento','Fuera de servicio']);
-      this.cell(wsP, `B${rn}`, row[0], { sz:10, color:C.GRAY });
-      this.kpiValue(wsP, `C${rn}`, row[1], C.DARK);
-      this.cell(wsP, `E${rn}`, row[2], { sz:10, color:C.GRAY });
-      this.kpiValue(wsP, `F${rn}`, row[3], alertSet.has(row[2]) ? C.AMB : C.DARK);
-      this.cell(wsP, `H${rn}`, row[4], { sz:10, color:C.GRAY });
-      this.kpiValue(wsP, `I${rn}`, row[5], alertSet.has(row[4]) ? C.RED : C.DARK);
-    }
-    wsP.getRow(8).height = 14;
-
-    wsP.mergeCells('A9:I9'); wsP.getRow(9).height = 26;
-    this.cell(wsP, 'A9', '  INDICADORES FINANCIEROS', { sz:12, bold:true, color:C.WHITE }, C.NAV, 'left', 'middle');
-    const eFin: [string, number, string][] = [
-      ['Total de unidades en inventario',      totalUnid,                                              '#,##0'],
-      ['Equipos con precio registrado',        conPrecio.length,                                       '#,##0'],
-      ['Valor total estimado del inventario',  +valorTotal.toFixed(2),                                 '"S/"#,##0.00'],
-      ['Costo promedio por equipo/herramienta',conPrecio.length ? +(valorTotal/conPrecio.length).toFixed(2) : 0, '"S/"#,##0.00'],
-    ];
-    for (const [i, [lbl,val,fmt]] of eFin.entries()) {
-      const rn = 10 + i; wsP.getRow(rn).height = 22;
-      wsP.mergeCells(`B${rn}:G${rn}`); wsP.mergeCells(`H${rn}:I${rn}`);
-      const bg = i%2===0 ? C.LGRAY : C.WHITE;
-      this.cell(wsP, `B${rn}`, lbl, { sz:10, color:C.DARK, bold:i===2 }, bg, 'left', 'middle');
-      const vc = wsP.getCell(`H${rn}`);
-      vc.value = val; vc.numFmt = fmt;
-      vc.font = { name:'Calibri', size:12, bold:true, color:{ argb:i===2?C.GRN:C.DARK } };
+    const eqCardCols: [string,string,string][] = [['B','C','D'],['F','G','H'],['J','K','L']];
+    for (let i = 0; i < 6; i++) {
+      const row  = i < 3 ? 9 : 11;
+      const cols = eqCardCols[i % 3];
+      const k    = eqKpiCards[i];
+      if (i===0||i===3) wsP.getRow(row).height = 36;
+      const ic = wsP.getCell(`${cols[0]}${row}`);
+      ic.value = k.icon; ic.font = { name:'Calibri', size:14 };
+      ic.alignment = { horizontal:'center', vertical:'middle' };
+      ic.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:k.bg } };
+      this.thinBorder(ic);
+      wsP.mergeCells(`${cols[1]}${row}:${cols[2]}${row}`);
+      const vc = wsP.getCell(`${cols[1]}${row}`);
+      vc.value = k.value; vc.numFmt = k.fmt;
+      vc.font  = { name:'Calibri', size:18, bold:true, color:{ argb:k.color } };
       vc.alignment = { horizontal:'right', vertical:'middle' };
-      vc.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      vc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:k.bg } };
+      this.thinBorder(vc);
+      const lr = row + 1; wsP.getRow(lr).height = 16;
+      wsP.mergeCells(`${cols[0]}${lr}:${cols[2]}${lr}`);
+      const lc = wsP.getCell(`${cols[0]}${lr}`);
+      lc.value = k.label; lc.font = { name:'Calibri', size:8.5, bold:true, color:{ argb:k.color } };
+      lc.alignment = { horizontal:'center', vertical:'middle' };
+      lc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:k.bg } };
+      this.thinBorder(lc);
     }
+
+    wsP.getRow(13).height = 10;
+    wsP.mergeCells('A13:M13');
+    wsP.getCell('A13').fill = { type:'pattern', pattern:'solid', fgColor:{ argb:C.WHITE } };
+
+    // Financiero
+    wsP.mergeCells('A14:M14'); wsP.getRow(14).height = 18;
+    const eqSec2 = wsP.getCell('A14');
+    eqSec2.value = 'ANÁLISIS FINANCIERO';
+    eqSec2.font  = { name:'Calibri', size:8, bold:true, color:{ argb:C.GRAY } };
+    eqSec2.alignment = { horizontal:'left', vertical:'middle' };
+
+    wsP.mergeCells('B15:H15'); wsP.getRow(15).height = 20;
+    const efh = wsP.getCell('B15');
+    efh.value = 'VALORIZACIÓN DEL INVENTARIO';
+    efh.font  = { name:'Calibri', size:9, bold:true, color:{ argb:C.WHITE } };
+    efh.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+    efh.alignment = { horizontal:'center', vertical:'middle' };
+
+    wsP.mergeCells('J15:M15');
+    const esh = wsP.getCell('J15');
+    esh.value = 'DISTRIBUCIÓN POR ESTADO';
+    esh.font  = { name:'Calibri', size:9, bold:true, color:{ argb:C.WHITE } };
+    esh.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+    esh.alignment = { horizontal:'center', vertical:'middle' };
+
+    const eFin2: [string, number, string, string][] = [
+      ['Valor total estimado del inventario', +valorTotal.toFixed(2), '"S/"#,##0.00', C.GRN ],
+      ['Costo prom. por equipo/herramienta',  conPrecio.length ? +(valorTotal/conPrecio.length).toFixed(2) : 0, '"S/"#,##0.00', C.BLU ],
+      ['Con precio de compra registrado',     conPrecio.length,  '#,##0',         C.DARK],
+      ['Total unidades en inventario',        totalUnid,         '#,##0',         C.DARK],
+      ['Con plan de mantenimiento',           mantenimiento.length, '#,##0',      C.NAV2],
+    ];
+    for (const [i, [lbl,val,fmt,clr]] of eFin2.entries()) {
+      const rn = 16+i; wsP.getRow(rn).height = 20;
+      wsP.mergeCells(`B${rn}:F${rn}`);
+      const bg = i%2===0 ? C.LGRAY : C.WHITE;
+      const lc = wsP.getCell(`B${rn}`);
+      lc.value = lbl; lc.font = { name:'Calibri', size:9.5, color:{ argb:C.DARK }, bold:i===0 };
+      lc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      lc.alignment = { horizontal:'left', vertical:'middle' };
+      this.thinBorder(lc);
+      wsP.mergeCells(`G${rn}:H${rn}`);
+      const vc = wsP.getCell(`G${rn}`);
+      vc.value = val; vc.numFmt = fmt;
+      vc.font  = { name:'Calibri', size:11, bold:true, color:{ argb:clr } };
+      vc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      vc.alignment = { horizontal:'right', vertical:'middle' };
+      this.thinBorder(vc);
+    }
+
+    // Estado col derecha
+    wsP.getRow(16).height = 16;
+    const estEqs: [string, number, string, string][] = [
+      ['✅  Operativo',         operativos.length,                                  C.GRN,  C.GLIGHT],
+      ['🔨  En mantenimiento',  eq.filter(e=>e.estado==='en_mantenimiento').length,  C.AMB,  C.ALIGHT],
+      ['⛔  Fuera de servicio', eq.filter(e=>e.estado==='fuera_de_servicio').length, C.RED,  C.RLIGHT],
+      ['⏸  De baja',           eq.filter(e=>e.estado==='baja').length,              C.GRAY, C.ALT   ],
+    ];
+    for (const [i, [lbl,cnt,clr,bg]] of estEqs.entries()) {
+      const rn = 17+i; wsP.getRow(rn).height = 22;
+      const pct = Math.round(cnt/Math.max(eq.length,1)*100);
+      wsP.mergeCells(`J${rn}:K${rn}`);
+      const lc = wsP.getCell(`J${rn}`);
+      lc.value = lbl; lc.font = { name:'Calibri', size:9.5, bold:true, color:{ argb:clr } };
+      lc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      lc.alignment = { horizontal:'left', vertical:'middle' };
+      this.thinBorder(lc);
+      wsP.mergeCells(`L${rn}:M${rn}`);
+      const vc = wsP.getCell(`L${rn}`);
+      vc.value = `${cnt.toLocaleString('es-PE')}  (${pct}%)`;
+      vc.font  = { name:'Calibri', size:10, bold:true, color:{ argb:clr } };
+      vc.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:bg } };
+      vc.alignment = { horizontal:'center', vertical:'middle' };
+      this.thinBorder(vc);
+    }
+
+    // Top 5 categorías
+    const topEqCats = [...new Map(eq.reduce((acc, e) => {
+      const k = e.categoria || 'Sin categoría';
+      acc.set(k, (acc.get(k)||0)+1); return acc;
+    }, new Map<string,number>())).entries()].sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+    wsP.getRow(22).height = 10;
+    wsP.mergeCells('A23:M23'); wsP.getRow(23).height = 18;
+    const eqSec3 = wsP.getCell('A23');
+    eqSec3.value = 'TOP 5 CATEGORÍAS POR NÚMERO DE REGISTROS';
+    eqSec3.font  = { name:'Calibri', size:8, bold:true, color:{ argb:C.GRAY } };
+    eqSec3.alignment = { horizontal:'left', vertical:'middle' };
+
+    const barColors2 = [C.NAV, C.BLU, C.NAV2, 'FF3B82F6', 'FF60A5FA'];
+    const maxEqCat = topEqCats[0]?.[1] ?? 1;
+    for (const [i, [cat, cnt]] of topEqCats.entries()) {
+      const rn = 24+i; wsP.getRow(rn).height = 18;
+      wsP.mergeCells(`B${rn}:D${rn}`);
+      const nc = wsP.getCell(`B${rn}`);
+      nc.value = cat; nc.font = { name:'Calibri', size:9, color:{ argb:C.DARK } };
+      nc.alignment = { horizontal:'left', vertical:'middle' };
+      const barLen = Math.round((cnt/maxEqCat)*8);
+      ['E','F','G','H','I','J','K','L'].forEach((col,b) => {
+        wsP.getCell(`${col}${rn}`).fill = { type:'pattern', pattern:'solid', fgColor:{ argb: b < barLen ? barColors2[i] : 'FFEEEEEE' } };
+      });
+      const vc = wsP.getCell(`M${rn}`);
+      vc.value = cnt; vc.numFmt = '#,##0';
+      vc.font  = { name:'Calibri', size:9, bold:true, color:{ argb:barColors2[i] } };
+      vc.alignment = { horizontal:'right', vertical:'middle' };
+    }
+
+    // Footer
+    wsP.getRow(29).height = 8;
+    wsP.mergeCells('A30:M30'); wsP.getRow(30).height = 4;
+    wsP.getCell('A30').fill = { type:'pattern', pattern:'solid', fgColor:{ argb:C.NAV } };
+    wsP.mergeCells('A31:M31'); wsP.getRow(31).height = 18;
+    const eqfc = wsP.getCell('A31');
+    eqfc.value = `Generado por E-zyro el ${fecha} a las ${now2.getHours().toString().padStart(2,'0')}:${now2.getMinutes().toString().padStart(2,'0')}  ·  Documento confidencial — uso interno`;
+    eqfc.font  = { name:'Calibri', size:8, italic:true, color:{ argb:C.GRAY } };
+    eqfc.alignment = { horizontal:'center', vertical:'middle' };
 
     // ── INVENTARIO COMPLETO ───────────────────────────────────────────────
     const wsI = wb.addWorksheet('Inventario Completo');
