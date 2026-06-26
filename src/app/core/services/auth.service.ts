@@ -173,6 +173,11 @@ export class AuthService {
     return (u?.rol || '').trim() === 'Logística';
   }
 
+  isAdministracion(): boolean {
+    const u = this.getUsuario();
+    return (u?.rol || '').trim() === 'Administración';
+  }
+
   // ==========================================
   // MULTI-DEVICE SECURITY
   // ==========================================

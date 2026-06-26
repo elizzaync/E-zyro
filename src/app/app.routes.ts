@@ -23,7 +23,7 @@ import { EquiposIntervenidosComponent } from './features/operaciones/components/
 import { IntervencionEquipoComponent } from './features/operaciones/components/intervencion-equipo/intervencion-equipo.component';
 import { CertificadoComponent } from './features/operaciones/components/certificado/certificado.component';
 import { clientPortalGuard } from './core/guards/client-portal.guard';
-import { bloquearRolesGuard } from './core/guards/roles.guard';
+import { bloquearRolesGuard, rolesGuard } from './core/guards/roles.guard';
 import { LegajoListaComponent } from './features/rrhh/legajo/legajo-lista.component';
 import { LegajoDetalleComponent } from './features/rrhh/legajo/components/legajo-detalle/legajo-detalle.component';
 import { SolicitudesListaComponent } from './features/rrhh/solicitudes/solicitudes-lista.component';
@@ -315,7 +315,7 @@ export const routes: Routes = [
     path: 'administracion',
     component: AdministracionComponent,
     title: 'Administración | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, rolesGuard(['Administración'])]
   },
   {
     path: '**',

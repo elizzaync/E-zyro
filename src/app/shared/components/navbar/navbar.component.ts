@@ -42,6 +42,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.rolNombre.trim() === 'Logística';
   }
 
+  get isAdministracion(): boolean {
+    return this.rolNombre.trim() === 'Administración';
+  }
+
   /** Puede ver la sección Nube de Planos */
   get puedeVerPlanos(): boolean {
     return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
@@ -94,7 +98,7 @@ get puedeAdministrarRRHH(): boolean {
   }
 
   get puedeAdministracion(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
+    return this.isAdministracion;
   }
 
 get enRRHH(): boolean {
