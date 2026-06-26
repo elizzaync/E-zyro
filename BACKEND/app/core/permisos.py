@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 _ROLES_ADMIN = {"superadmin", "admin", "administrador"}
 
 # Nombres exactos de roles en BD (normalizados a minúsculas sin espacios extra)
-_ROL_TECNICO          = "técnicodecampo"
+# Rol en BD: "Técnico"  →  normalizado: "técnico"
+_ROL_TECNICO          = "técnico"
 _ROL_JEFE_OPERACIONES = "jefedeoperaciones"
 
 
