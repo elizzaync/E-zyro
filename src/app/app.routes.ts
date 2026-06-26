@@ -292,31 +292,31 @@ export const routes: Routes = [
     path: 'soporte/tickets',
     component: TicketsSoporteComponent,
     title: 'Tickets TI | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'soporte/monitoreo',
     component: MonitoreoComponent,
     title: 'Monitoreo | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'soporte/seguridad',
     component: SeguridadComponent,
     title: 'Seguridad | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'soporte/cuentas',
     component: CrearCuentasComponent,
     title: 'Creación de Cuentas | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'soporte/gestion-permisos',
     component: GestionPermisosComponent,
     title: 'Gestión de Permisos | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
 
   // ── Módulo Administración ────────────────────────────────────────────────

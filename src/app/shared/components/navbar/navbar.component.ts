@@ -81,7 +81,7 @@ get puedeAdministrarRRHH(): boolean {
   }
 
   get puedeSoporte(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno && !this.isAdministracion;
   }
 
   /** Solo el rol que tenga privilegios:gestionar puede ver Gestión de Permisos */
