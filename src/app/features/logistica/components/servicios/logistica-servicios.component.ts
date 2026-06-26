@@ -36,13 +36,8 @@ export class LogisticaServiciosComponent implements OnInit {
   showCrearProyectoModal = false;
   showCrearServicioModal = false;
 
-  get isTecnico(): boolean {
-    return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
-  }
-
-  get isJefeOperaciones(): boolean {
-    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
-  }
+  get isTecnico(): boolean { return this.auth.isTecnico(); }
+  get isJefeOperaciones(): boolean { return this.auth.isJefeOperaciones(); }
 
   get puedeCrear(): boolean {
     return !this.isTecnico && !this.isJefeOperaciones;
