@@ -788,9 +788,11 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
     for te, turno in asigns:
         asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
 
-    def _turno_dia(emp_id: str, dia: date):
-        """(hora_entrada, hora_salida, almuerzo_min, tolerancia, nombre) del día."""
-        for te, turno in asigns_por_emp.get(emp_id, []):
+    def _turno_dia(emp_id, dia: date):
+        """(hora_entrada, hora_salida, almuerzo_min, tolerancia, nombre) del día.
+        Normaliza emp_id a str: las claves del dict son str(empleado_id) y los
+        ids de SQLAlchemy pueden venir como UUID nativo (no matchearían)."""
+        for te, turno in asigns_por_emp.get(str(emp_id), []):
             if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
                 return (turno.hora_entrada, turno.hora_salida,
                         turno.duracion_almuerzo_minutos or 0,
