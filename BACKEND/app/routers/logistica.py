@@ -5375,11 +5375,14 @@ def get_servicios_global(
         )
         if not empleado:
             return []
-        q = (
-            q.join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
+        # Subquery para evitar DISTINCT + ORDER BY incompatibles en PostgreSQL
+        servicios_asignados = (
+            db.query(Tarea.proyecto_servicio_id)
             .filter(Tarea.responsable_id == empleado.id)
             .distinct()
+            .subquery()
         )
+        q = q.filter(ProyectoServicio.id.in_(servicios_asignados))
 
     rows = q.order_by(Proyecto.created_at.desc(), ProyectoServicio.orden.asc()).all()
 
