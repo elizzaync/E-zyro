@@ -260,7 +260,7 @@ export class RrhhService {
 
   getTodosEmpleados(): Observable<PaginatedEmpleados> {
     return this.http.get<PaginatedEmpleados>(
-      `${this.api}/rrhh/legajo/empleados?page=1&limit=500`
+      `${this.api}/rrhh/legajo/empleados?page=1&limit=100`
     );
   }
 

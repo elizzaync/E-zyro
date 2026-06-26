@@ -46,11 +46,29 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   // ── Reportes (colapsable) ──────────────────────────────────────────────────
   showReportes = true;
 
-  rptGlobal = { fechaInicio: '', fechaFin: '', loading: false };
-  rptIndividual = { fechaInicio: '', fechaFin: '', empleadoId: '', loading: false };
-  rptHorasExtra = { fechaInicio: '', fechaFin: '', loading: false };
+  rptGlobal      = { fechaInicio: '', fechaFin: '', loading: false };
+  rptSemanal     = { fechaInicio: '', fechaFin: '', loading: false };
+  rptMensual     = { anio: new Date().getFullYear().toString(), mes: (new Date().getMonth() + 1).toString().padStart(2, '0'), loading: false };
+  rptTardanzas   = { fechaInicio: '', fechaFin: '', loading: false };
+  rptIndividual  = { fechaInicio: '', fechaFin: '', empleadoId: '', search: '', loading: false };
+  rptHorasExtra  = { fechaInicio: '', fechaFin: '', loading: false };
+
+  readonly MESES = [
+    { v: '01', l: 'Enero' }, { v: '02', l: 'Febrero' }, { v: '03', l: 'Marzo' },
+    { v: '04', l: 'Abril' }, { v: '05', l: 'Mayo' },    { v: '06', l: 'Junio' },
+    { v: '07', l: 'Julio' }, { v: '08', l: 'Agosto' },  { v: '09', l: 'Septiembre' },
+    { v: '10', l: 'Octubre' }, { v: '11', l: 'Noviembre' }, { v: '12', l: 'Diciembre' },
+  ];
 
   listaEmpleados: EmpleadoLegajoDto[] = [];
+
+  get listaEmpleadosFiltrada(): EmpleadoLegajoDto[] {
+    const q = this.rptIndividual.search.toLowerCase().trim();
+    if (!q) return this.listaEmpleados;
+    return this.listaEmpleados.filter(e =>
+      e.nombreCompleto.toLowerCase().includes(q) || e.cargo.toLowerCase().includes(q)
+    );
+  }
 
   // ── Tab Semanal ────────────────────────────────────────────────────────────
   cargando   = true;
@@ -132,12 +150,16 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.cargar();
     this.cargarListaEmpleados();
     // Inicializar filtros de reportes con la semana actual
-    this.rptGlobal.fechaInicio     = this.fechaInicio;
-    this.rptGlobal.fechaFin        = this.fechaFin;
-    this.rptHorasExtra.fechaInicio = this.fechaInicio;
-    this.rptHorasExtra.fechaFin    = this.fechaFin;
-    this.rptIndividual.fechaInicio = this.fechaInicio;
-    this.rptIndividual.fechaFin    = this.fechaFin;
+    this.rptGlobal.fechaInicio      = this.fechaInicio;
+    this.rptGlobal.fechaFin         = this.fechaFin;
+    this.rptSemanal.fechaInicio     = this.fechaInicio;
+    this.rptSemanal.fechaFin        = this.fechaFin;
+    this.rptTardanzas.fechaInicio   = this.fechaInicio;
+    this.rptTardanzas.fechaFin      = this.fechaFin;
+    this.rptHorasExtra.fechaInicio  = this.fechaInicio;
+    this.rptHorasExtra.fechaFin     = this.fechaFin;
+    this.rptIndividual.fechaInicio  = this.fechaInicio;
+    this.rptIndividual.fechaFin     = this.fechaFin;
   }
 
   ngOnDestroy(): void {
@@ -540,8 +562,53 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
       fecha_fin:    this.rptGlobal.fechaFin,
       fmt,
     }).subscribe({
-      next: (blob) => { this._triggerDownload(blob, fmt, `reporte_global`); this.rptGlobal.loading = false; },
-      error: () => { alert('Error al generar reporte global.'); this.rptGlobal.loading = false; },
+      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_global'); this.rptGlobal.loading = false; },
+      error: (err)  => { this._blobError(err, 'reporte global'); this.rptGlobal.loading = false; },
+    });
+  }
+
+  descargarSemanal(fmt: 'xlsx' | 'pdf'): void {
+    if (!this.rptSemanal.fechaInicio || !this.rptSemanal.fechaFin) {
+      alert('Selecciona el rango de fechas para el reporte semanal.'); return;
+    }
+    this.rptSemanal.loading = true;
+    this.rrhhService.descargarReporte('semanal', {
+      fecha_inicio: this.rptSemanal.fechaInicio,
+      fecha_fin:    this.rptSemanal.fechaFin,
+      fmt,
+    }).subscribe({
+      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_semanal'); this.rptSemanal.loading = false; },
+      error: (err)  => { this._blobError(err, 'reporte semanal'); this.rptSemanal.loading = false; },
+    });
+  }
+
+  descargarMensual(fmt: 'xlsx' | 'pdf'): void {
+    if (!this.rptMensual.anio || !this.rptMensual.mes) {
+      alert('Selecciona el año y mes.'); return;
+    }
+    this.rptMensual.loading = true;
+    this.rrhhService.descargarReporte('mensual', {
+      anio: this.rptMensual.anio,
+      mes:  this.rptMensual.mes,
+      fmt,
+    }).subscribe({
+      next:  (blob) => { this._triggerDownload(blob, fmt, `reporte_mensual_${this.rptMensual.anio}_${this.rptMensual.mes}`); this.rptMensual.loading = false; },
+      error: (err)  => { this._blobError(err, 'reporte mensual'); this.rptMensual.loading = false; },
+    });
+  }
+
+  descargarTardanzas(fmt: 'xlsx' | 'pdf'): void {
+    if (!this.rptTardanzas.fechaInicio || !this.rptTardanzas.fechaFin) {
+      alert('Selecciona el rango de fechas para el reporte de tardanzas.'); return;
+    }
+    this.rptTardanzas.loading = true;
+    this.rrhhService.descargarReporte('tardanzas', {
+      fecha_inicio: this.rptTardanzas.fechaInicio,
+      fecha_fin:    this.rptTardanzas.fechaFin,
+      fmt,
+    }).subscribe({
+      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_tardanzas'); this.rptTardanzas.loading = false; },
+      error: (err)  => { this._blobError(err, 'reporte de tardanzas'); this.rptTardanzas.loading = false; },
     });
   }
 
@@ -557,8 +624,8 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
       fecha_fin:    this.rptIndividual.fechaFin,
       fmt,
     }).subscribe({
-      next: (blob) => { this._triggerDownload(blob, fmt, `reporte_individual`); this.rptIndividual.loading = false; },
-      error: () => { alert('Error al generar reporte individual.'); this.rptIndividual.loading = false; },
+      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_individual'); this.rptIndividual.loading = false; },
+      error: (err)  => { this._blobError(err, 'reporte individual'); this.rptIndividual.loading = false; },
     });
   }
 
@@ -572,9 +639,24 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
       fecha_fin:    this.rptHorasExtra.fechaFin,
       fmt,
     }).subscribe({
-      next: (blob) => { this._triggerDownload(blob, fmt, `reporte_horas_extra`); this.rptHorasExtra.loading = false; },
-      error: () => { alert('Error al generar reporte de horas extra.'); this.rptHorasExtra.loading = false; },
+      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_horas_extra'); this.rptHorasExtra.loading = false; },
+      error: (err)  => { this._blobError(err, 'reporte de horas extra'); this.rptHorasExtra.loading = false; },
     });
+  }
+
+  private _blobError(err: any, label: string): void {
+    if (err.error instanceof Blob) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const json = JSON.parse(reader.result as string);
+          alert(json.detail ?? `Error al generar ${label}.`);
+        } catch { alert(`Error al generar ${label}.`); }
+      };
+      reader.readAsText(err.error);
+    } else {
+      alert(err?.error?.detail ?? `Error al generar ${label}.`);
+    }
   }
 
   private _triggerDownload(blob: Blob, fmt: 'xlsx' | 'pdf', nombre: string): void {
@@ -656,5 +738,9 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   turnoNombre(id: string): string {
     return this.turnos.find(t => t.id === id)?.nombre ?? id;
+  }
+
+  empleadoNombre(id: string): string {
+    return this.listaEmpleados.find(e => e.id === id)?.nombreCompleto ?? '';
   }
 }

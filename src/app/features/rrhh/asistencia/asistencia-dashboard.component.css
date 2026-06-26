@@ -17,8 +17,8 @@
     flex-direction: column;
     gap: 20px;
     padding: 24px;
-    max-width: 1300px;
-    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* ── Encabezado ─────────────────────────────────────────────────────────── */
@@ -788,6 +788,37 @@
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .icon-purple { background: rgba(168,85,247,.1); color: #9333ea; }
+.icon-teal   { background: rgba(20,184,166,.1); color: #0d9488; }
+.icon-orange { background: rgba(249,115,22,.1); color: #ea580c; }
+
+/* ── Selector de empleado (reporte individual) ───────────────────── */
+.emp-search-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.emp-search-input {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.emp-search-wrap select {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: none;
+}
+.emp-selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brand-green, #22c55e);
+  padding: 3px 8px;
+  background: rgba(34,197,94,.1);
+  border-radius: 20px;
+  margin-top: 4px;
+  width: fit-content;
+}
 
 .reporte-nombre { font-size: 14px; font-weight: 700; color: var(--text-main); }
 .reporte-desc   { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
@@ -1013,6 +1044,8 @@
   .btn-export.excel { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.3); color: #4ade80; }
   .btn-export.pdf   { background: rgba(239,68,68,.1); border-color: rgba(239,68,68,.3); color: #f87171; }
   .icon-purple      { background: rgba(168,85,247,.15); color: #c084fc; }
+  .icon-teal        { background: rgba(20,184,166,.15); color: #2dd4bf; }
+  .icon-orange      { background: rgba(249,115,22,.15); color: #fb923c; }
 
   .detalle-panel-header { border-color: #1e293b; }
   .detalle-emp-nombre   { color: #4ade80; }
