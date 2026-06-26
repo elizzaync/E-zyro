@@ -190,6 +190,9 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         "id": str(usuario_db.id),
         "empresa_id": str(usuario_db.empresa_id),
         "rol": nombre_rol_real,
+        # Bypass híbrido: el permiso meta 'sistema:admin_total' (vía rol o directo)
+        # se embebe como claim para que es_admin/es_superadmin lo resuelvan sin BD.
+        "admin_total": "sistema:admin_total" in lista_permisos,
         "plataforma": "movil" if es_movil else "web",
     }
     # Para usuarios del portal cliente, embebbe el cliente_id en el token
@@ -582,6 +585,15 @@ def refresh_token(
         )
 
     new_payload = {k: v for k, v in payload.items() if k != "exp"}
+    # Re-derivar rol + bypass híbrido desde la BD para que un cambio de
+    # privilegios (p. ej. otorgar/revocar 'sistema:admin_total' o cambio de rol)
+    # se refleje al refrescar el token, SIN obligar a re-login con contraseña.
+    try:
+        _rol_actual, _permisos_actuales = _rol_y_permisos(db, usuario_id)
+        new_payload["rol"]         = _rol_actual
+        new_payload["admin_total"] = "sistema:admin_total" in _permisos_actuales
+    except Exception:
+        pass
     new_token   = crear_token_acceso(new_payload, expires_minutes=token_minutos)
 
     # Actualizar hash en BD con el nuevo token

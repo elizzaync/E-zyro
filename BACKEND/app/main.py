@@ -1003,6 +1003,12 @@ def _run_migrations():
         # ── Privilegios directos por usuario (delegar permisos sin cambiar rol) ─
         sembrar_permisos(conn, "privilegios", ["gestionar"],
                          descripcion_base="Dar privilegios directos a usuarios:")
+        # ── Nube de Planos (HU-21): lectura + gestión documental ─────────────
+        sembrar_permisos(conn, "planos", ["ver", "gestionar"],
+                         descripcion_base="Nube de planos:")
+        # ── Bypass híbrido: permiso meta de administración total (delegable) ──
+        sembrar_permisos(conn, "sistema", ["admin_total"],
+                         descripcion_base="Administración total (bypass):")
         # ── Roles de sistema (p.ej. "TI") en cada empresa, ANTES de vincular ──
         sembrar_roles_sistema(conn)
         # ── RBAC: asignación rol→permiso según matriz aprobada (idempotente) ──

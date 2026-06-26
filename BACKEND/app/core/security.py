@@ -24,8 +24,12 @@ def crear_token_acceso(data: dict, expires_minutes: int | None = None):
 _ROLES_ADMIN = {"superadmin", "admin", "administrador"}
 
 def es_superadmin(payload: dict) -> bool:
-    """SuperAdmin siempre tiene permiso absoluto — sin consulta a BD.
-    Normaliza espacios para reconocer "Super Admin" además de "SuperAdmin"."""
+    """Bypass de administración (admin/superadmin) — sin consulta a BD.
+    Modelo híbrido: concede acceso a quien tenga el permiso meta
+    'sistema:admin_total' (claim `admin_total` en el token). Mantiene los
+    nombres de rol históricos como red de seguridad."""
+    if payload.get("admin_total") is True:
+        return True
     rol = (payload.get("rol") or "").lower().strip().replace(" ", "")
     return rol in _ROLES_ADMIN
 

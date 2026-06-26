@@ -29,7 +29,15 @@ def _normalizar_rol(payload: dict) -> str:
 
 
 def es_admin(payload: dict) -> bool:
-    """SuperAdmin/Admin tienen permiso absoluto, sin consultar BD."""
+    """Permiso absoluto, sin consultar BD.
+
+    Modelo híbrido: el bypass se concede por el permiso meta
+    'sistema:admin_total' (embebido como claim `admin_total` en el token al
+    hacer login y delegable a cualquier rol/usuario). Se mantiene como red de
+    seguridad el reconocimiento de los nombres de rol históricos
+    (superadmin/admin/administrador)."""
+    if payload.get("admin_total") is True:
+        return True
     return _normalizar_rol(payload) in _ROLES_ADMIN
 
 
@@ -117,6 +125,20 @@ def usuarios_con_permiso(db: Session, empresa_id: str, modulo: str, accion: str)
           JOIN rol r          ON r.id = ur.rol_id
          WHERE u.empresa_id = :emp AND u.activo = true
            AND replace(lower(r.nombre), ' ', '') IN ('superadmin','admin','administrador')
+        UNION
+        -- Bypass híbrido: titulares del permiso meta 'sistema:admin_total'
+        SELECT u.id FROM usuario u
+          JOIN usuario_rol ur ON ur.usuario_id = u.id
+          JOIN rol_permiso rp ON rp.rol_id = ur.rol_id
+          JOIN permiso p      ON p.id = rp.permiso_id
+         WHERE u.empresa_id = :emp AND u.activo = true
+           AND p.modulo = 'sistema' AND p.accion = 'admin_total'
+        UNION
+        SELECT u.id FROM usuario u
+          JOIN usuario_permiso up ON up.usuario_id = u.id
+          JOIN permiso p          ON p.id = up.permiso_id
+         WHERE u.empresa_id = :emp AND u.activo = true
+           AND p.modulo = 'sistema' AND p.accion = 'admin_total'
         """
     )
     rows = db.execute(q, {"emp": empresa_id, "m": modulo, "a": accion}).fetchall()

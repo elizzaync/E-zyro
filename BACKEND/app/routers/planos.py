@@ -15,7 +15,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
-from ..core.permisos import exigir_no_tecnico
+from ..core.permisos import exigir_no_tecnico, exigir_permiso
 from ..db.database import get_db
 from ..models.plano import Plano, VersionPlano
 from ..models.carpeta_documental import CarpetaDocumental
@@ -40,19 +40,15 @@ router = APIRouter(
     dependencies=[Depends(_dep_bloquear_tecnico_planos)],
 )
 
-_ROLES_GESTION = {
-    "superadmin", "admin", "administrador",
-    "jefe de operaciones", "jefe_operaciones",
-    "supervisor de campo", "supervisor",
-    "logística", "logistica", "logístico", "logistico",
-}
 _MAX_BYTES = 30 * 1024 * 1024  # 30 MB por archivo
 _IMG_EXT = {"jpg", "jpeg", "png", "webp", "gif", "bmp", "tif", "tiff"}
 
 
-def _exigir_gestion(payload: dict) -> None:
-    if (payload.get("rol") or "").lower().strip() not in _ROLES_GESTION:
-        raise HTTPException(status_code=403, detail="Sin permiso para gestionar planos")
+def _exigir_gestion(payload: dict, db: Session) -> None:
+    """Gestionar planos requiere el permiso planos:gestionar (vía rol o directo).
+    La lectura sigue abierta a cualquier usuario de la empresa salvo Técnico
+    (ver _dep_bloquear_tecnico_planos)."""
+    exigir_permiso(db, payload, "planos", "gestionar")
 
 
 def _subido_por(payload: dict) -> Optional[str]:
@@ -108,7 +104,7 @@ def listar_carpetas(
 
 @router.post("/carpetas", response_model=CarpetaOut, status_code=201)
 def crear_carpeta(body: CarpetaIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    _exigir_gestion(payload)
+    _exigir_gestion(payload, db)
     nombre = body.nombre.strip()
     if not nombre:
         raise HTTPException(status_code=422, detail="El nombre es obligatorio")
@@ -127,7 +123,7 @@ def crear_carpeta(body: CarpetaIn, payload: dict = Depends(verificar_token), db:
 @router.patch("/carpetas/{carpeta_id}", response_model=CarpetaOut)
 def renombrar_carpeta(carpeta_id: str, body: CarpetaRename,
                       payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    _exigir_gestion(payload)
+    _exigir_gestion(payload, db)
     c = db.query(CarpetaDocumental).filter(
         CarpetaDocumental.id == carpeta_id, CarpetaDocumental.empresa_id == payload["empresa_id"]).first()
     if not c:
@@ -142,7 +138,7 @@ def renombrar_carpeta(carpeta_id: str, body: CarpetaRename,
 
 @router.delete("/carpetas/{carpeta_id}", status_code=204)
 def eliminar_carpeta(carpeta_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    _exigir_gestion(payload)
+    _exigir_gestion(payload, db)
     e = payload["empresa_id"]
     c = db.query(CarpetaDocumental).filter(
         CarpetaDocumental.id == carpeta_id, CarpetaDocumental.empresa_id == e).first()
@@ -228,7 +224,7 @@ def _crear_version(db: Session, empresa_id: str, plano_id: str, archivo_base64: 
 
 @router.post("", response_model=PlanoDetalleOut, status_code=201)
 def crear_plano(body: PlanoIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    _exigir_gestion(payload)
+    _exigir_gestion(payload, db)
     e = payload["empresa_id"]
     nombre = body.nombre.strip()
     if not nombre:
@@ -254,7 +250,7 @@ def crear_plano(body: PlanoIn, payload: dict = Depends(verificar_token), db: Ses
 @router.post("/{plano_id}/versiones", response_model=PlanoDetalleOut, status_code=201)
 def subir_version(plano_id: str, body: VersionIn,
                   payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    _exigir_gestion(payload)
+    _exigir_gestion(payload, db)
     e = payload["empresa_id"]
     pl = db.query(Plano).filter(Plano.id == plano_id, Plano.empresa_id == e).first()
     if not pl:
@@ -294,7 +290,7 @@ def detalle_plano(plano_id: str, payload: dict = Depends(verificar_token), db: S
 
 @router.delete("/{plano_id}", status_code=204)
 def eliminar_plano(plano_id: str, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
-    _exigir_gestion(payload)
+    _exigir_gestion(payload, db)
     e = payload["empresa_id"]
     pl = db.query(Plano).filter(Plano.id == plano_id, Plano.empresa_id == e).first()
     if not pl:

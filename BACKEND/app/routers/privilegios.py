@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..core.permisos import exigir_permiso
 from ..core.security import verificar_token
 from ..db.database import get_db
+from ..services.fcm_service import enviar_push_a_usuario
 from ..models.permiso import Permiso
 from ..models.rol import Rol
 from ..models.rol_permiso import RolPermiso
@@ -26,6 +27,22 @@ from ..models.usuario_permiso import UsuarioPermiso
 from ..models.usuario_rol import UsuarioRol
 
 router = APIRouter(prefix="/privilegios", tags=["privilegios"])
+
+
+def _avisar_cambio_privilegios(db: Session, usuario_id: str) -> None:
+    """Push 'perfil_actualizado' al usuario afectado para que su app refresque
+    permisos al instante (sin re-login). Best-effort: nunca rompe el endpoint."""
+    try:
+        enviar_push_a_usuario(
+            usuario_id=str(usuario_id),
+            titulo="Permisos actualizados",
+            mensaje="Tus accesos en la app fueron actualizados.",
+            db=db,
+            tipo="perfil_actualizado",
+            categoria="permisos",
+        )
+    except Exception:
+        pass
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -183,6 +200,7 @@ def otorgar_permiso(
             asignado_por=otorgado_por,
         ))
         db.commit()
+        _avisar_cambio_privilegios(db, usuario_id)
     return {"ok": True}
 
 
@@ -204,11 +222,13 @@ def revocar_permiso(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    db.query(UsuarioPermiso).filter(
+    borrados = db.query(UsuarioPermiso).filter(
         UsuarioPermiso.usuario_id == usuario_id,
         UsuarioPermiso.permiso_id == permiso_id,
     ).delete()
     db.commit()
+    if borrados:
+        _avisar_cambio_privilegios(db, usuario_id)
     return {"ok": True}
 
 
@@ -243,6 +263,7 @@ def otorgar_todos_permisos(
                 asignado_por=otorgado_por,
             ))
     db.commit()
+    _avisar_cambio_privilegios(db, usuario_id)
 
     total = db.query(UsuarioPermiso).filter(UsuarioPermiso.usuario_id == usuario_id).count()
     return {"ok": True, "permisos_directos": total}
@@ -265,8 +286,10 @@ def revocar_todos_permisos(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    db.query(UsuarioPermiso).filter(UsuarioPermiso.usuario_id == usuario_id).delete()
+    borrados = db.query(UsuarioPermiso).filter(UsuarioPermiso.usuario_id == usuario_id).delete()
     db.commit()
+    if borrados:
+        _avisar_cambio_privilegios(db, usuario_id)
     return {"ok": True, "permisos_directos": 0}
 
 
