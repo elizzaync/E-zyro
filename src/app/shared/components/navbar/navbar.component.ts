@@ -77,7 +77,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return r.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
 get puedeAdministrarRRHH(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno && !this.isAdministracion;
   }
 
   get puedeSoporte(): boolean {

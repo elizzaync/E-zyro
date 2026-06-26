@@ -88,37 +88,37 @@ export const routes: Routes = [
     path: 'rrhh/legajo',
     component: LegajoListaComponent,
     title: 'Legajo Digital | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'rrhh/legajo/:id',
     component: LegajoDetalleComponent,
     title: 'Expediente | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'rrhh/solicitudes',
     component: SolicitudesListaComponent,
     title: 'Bandeja de Solicitudes | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'rrhh/planillas',
     component: PlanillasComponent,
     title: 'Planillas | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'rrhh/asistencia',
     component: AsistenciaDashboardComponent,
     title: 'Asistencia | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'rrhh/homologacion',
     component: DocumentosSstComponent,
     title: 'Homologación / SST | e-zyro TIC',
-    canActivate: [authGuard]
+    canActivate: [authGuard, bloquearRolesGuard(['Administración'])]
   },
   {
     path: 'asistencia',
