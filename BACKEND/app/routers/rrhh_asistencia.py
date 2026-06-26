@@ -693,6 +693,139 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
     return filas, meta_horas
 
 
+# ── Cronograma (matriz día × empleado) para el PDF mensual/semanal ───────────
+# Código de celda → color de fondo / etiqueta de leyenda.
+_CRONO_COLOR = {
+    "P": "#DCFCE7",  # Presente / al día
+    "T": "#FEF3C7",  # Tardanza
+    "F": "#FEE2E2",  # Falta
+    "I": "#FFEDD5",  # Incompleto
+    "J": "#DBEAFE",  # Justificado (permiso/vacaciones aprobado)
+    "D": "#F3F4F6",  # Descanso / no laborable
+}
+_CRONO_LABEL = {
+    "P": "Presente", "T": "Tardanza", "F": "Falta",
+    "I": "Incompleto", "J": "Justificado", "D": "Descanso",
+}
+
+
+def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
+    """Devuelve (dias, empleados, totales) para el cronograma de asistencia.
+
+    dias      : TODAS las fechas del rango (columnas; domingos = descanso).
+    empleados : [{nombre, cargo, area, codigos:[code/dia], dias_trab,
+                  faltas, tardanzas, porcentaje}].
+    totales   : agregados del período.
+    Misma fuente de datos que _build_resumen_full (registros + solicitudes).
+    """
+    dias_all: list[date] = []
+    cur = inicio
+    while cur <= fin:
+        dias_all.append(cur)
+        cur += timedelta(days=1)
+    dias_lab_set = set(_dias_laborables(inicio, fin))
+    meta_horas   = len(dias_lab_set) * META_HORAS_DIA
+
+    empleados = (
+        db.query(Empleado, Usuario)
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(Empleado.empresa_id == empresa_id, Empleado.activo == True)
+        .order_by(Usuario.nombre, Usuario.apellido)
+        .all()
+    )
+
+    inicio_dt = datetime(inicio.year, inicio.month, inicio.day, 0, 0, 0)
+    fin_dt    = datetime(fin.year, fin.month, fin.day, 23, 59, 59)
+
+    registros = (
+        db.query(RegistroAsistencia)
+        .filter(
+            RegistroAsistencia.empresa_id == empresa_id,
+            RegistroAsistencia.fecha_hora >= inicio_dt,
+            RegistroAsistencia.fecha_hora <= fin_dt,
+        ).all()
+    )
+    solicitudes = (
+        db.query(SolicitudLaboral)
+        .filter(
+            SolicitudLaboral.empresa_id   == empresa_id,
+            SolicitudLaboral.estado       == "aprobada",
+            SolicitudLaboral.fecha_inicio <= fin,
+            SolicitudLaboral.fecha_fin    >= inicio,
+        ).all()
+    )
+    regs_por_emp: dict[str, list] = {}
+    for r in registros:
+        regs_por_emp.setdefault(r.empleado_id, []).append(r)
+    solis_por_emp: dict[str, list] = {}
+    for s in solicitudes:
+        solis_por_emp.setdefault(s.empleado_id, []).append(s)
+
+    area_nombres = _area_cache(db, empresa_id)
+    empleados_data = []
+    tot_faltas = tot_tardanzas = 0
+    suma_pct = 0.0
+    for emp, usr in empleados:
+        regs  = regs_por_emp.get(emp.id, [])
+        solis = solis_por_emp.get(emp.id, [])
+
+        dias_justificados: set[date] = set()
+        for sol in solis:
+            c = max(sol.fecha_inicio, inicio)
+            e = min(sol.fecha_fin, fin)
+            while c <= e:
+                dias_justificados.add(c)
+                c += timedelta(days=1)
+
+        codigos: list[str] = []
+        dias_trab = faltas = tardanzas = 0
+        horas_reales = 0.0
+        for dia in dias_all:
+            if dia not in dias_lab_set:
+                codigos.append("D")
+                continue
+            if dia in dias_justificados:
+                codigos.append("J")
+                continue
+            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
+            h = _horas_dia(regs_dia)
+            horas_reales += h
+            estado = _estado_dia(regs_dia, h, True)
+            if estado == "Falta":
+                codigos.append("F"); faltas += 1
+            elif estado == "Tardanza":
+                codigos.append("T"); tardanzas += 1; dias_trab += 1
+            elif estado == "Incompleto":
+                codigos.append("I"); dias_trab += 1
+            else:  # "Al día"
+                codigos.append("P"); dias_trab += 1
+
+        horas_just  = len(dias_justificados & dias_lab_set) * META_HORAS_DIA
+        horas_total = horas_reales + horas_just
+        pct = round((horas_total / meta_horas * 100) if meta_horas > 0 else 0.0, 1)
+        suma_pct += pct
+        tot_faltas += faltas
+        tot_tardanzas += tardanzas
+        empleados_data.append({
+            "nombre":     f"{usr.nombre} {usr.apellido}".strip(),
+            "cargo":      emp.cargo or "",
+            "area":       _resolve_area(emp.area, area_nombres),
+            "codigos":    codigos,
+            "dias_trab":  dias_trab,
+            "faltas":     faltas,
+            "tardanzas":  tardanzas,
+            "porcentaje": pct,
+        })
+
+    totales = {
+        "n_emp":      len(empleados_data),
+        "pct_global": round(suma_pct / len(empleados_data), 1) if empleados_data else 0.0,
+        "faltas":     tot_faltas,
+        "tardanzas":  tot_tardanzas,
+    }
+    return dias_all, empleados_data, totales
+
+
 def _xlsx_stream(titulo: str, encabezados: list[str], filas: list[list]) -> io.BytesIO:
     """Genera un XLSX en memoria con formato básico."""
     import openpyxl
@@ -783,6 +916,125 @@ def _pdf_stream(titulo: str, encabezados: list[str], filas: list[list],
     return buf
 
 
+def _pdf_cronograma(titulo: str, subtitulo: str, dias: list[date],
+                    empleados: list[dict], totales: dict) -> io.BytesIO:
+    """PDF de asistencia organizado: resumen + cronograma (matriz día×empleado
+    con colores) + tabla resumen por empleado + anexo de incidencias."""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
+                                    Paragraph, Spacer)
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=1.0*cm, rightMargin=1.0*cm,
+                            topMargin=1.1*cm, bottomMargin=1.1*cm)
+    styles = getSampleStyleSheet()
+    small  = ParagraphStyle("small", parent=styles["Normal"], fontSize=8)
+
+    story = [Paragraph(titulo, styles["Title"])]
+    if subtitulo:
+        story.append(Paragraph(subtitulo, styles["Normal"]))
+    story.append(Spacer(1, 0.2*cm))
+    story.append(Paragraph(
+        f"<b>Empleados:</b> {totales['n_emp']} &nbsp;&nbsp; "
+        f"<b>Asistencia global:</b> {totales['pct_global']}% &nbsp;&nbsp; "
+        f"<b>Total tardanzas:</b> {totales['tardanzas']} &nbsp;&nbsp; "
+        f"<b>Total faltas:</b> {totales['faltas']}", small))
+    story.append(Spacer(1, 0.35*cm))
+
+    # ── Cronograma (matriz) ──
+    story.append(Paragraph("<b>Cronograma del período</b>", styles["Heading3"]))
+    n_dias = len(dias)
+    header = ["Empleado"] + [str(d.day) for d in dias]
+    data   = [header] + [[e["nombre"]] + e["codigos"] for e in empleados]
+    name_w = 4.0*cm
+    day_w  = (doc.width - name_w) / n_dias if n_dias else 0.5*cm
+    t = Table(data, colWidths=[name_w] + [day_w]*n_dias, repeatRows=1)
+    st = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#16A34A")),
+        ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME",   (0, 1), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE",   (0, 0), (-1, -1), 6),
+        ("ALIGN",      (1, 0), (-1, -1), "CENTER"),
+        ("ALIGN",      (0, 0), (0, -1), "LEFT"),
+        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID",       (0, 0), (-1, -1), 0.3, colors.HexColor("#D1D5DB")),
+        ("TOPPADDING", (0, 0), (-1, -1), 1.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1.5),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 2),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+    ]
+    for ri, e in enumerate(empleados, start=1):
+        for ci, code in enumerate(e["codigos"], start=1):
+            col = _CRONO_COLOR.get(code)
+            if col:
+                st.append(("BACKGROUND", (ci, ri), (ci, ri), colors.HexColor(col)))
+    t.setStyle(TableStyle(st))
+    story.append(t)
+    story.append(Spacer(1, 0.2*cm))
+    story.append(Paragraph(
+        "<b>Leyenda:</b> " + "&nbsp;&nbsp; ".join(
+            f"{k} = {v}" for k, v in _CRONO_LABEL.items()), small))
+    story.append(Spacer(1, 0.45*cm))
+
+    # ── Tabla resumen por empleado ──
+    story.append(Paragraph("<b>Resumen por empleado</b>", styles["Heading3"]))
+    enc = ["Empleado", "Cargo", "Área", "Días trab.", "Tardanzas", "Faltas", "% Cumpl."]
+    filas = [enc] + [[e["nombre"], e["cargo"], e["area"], e["dias_trab"],
+                      e["tardanzas"], e["faltas"], f"{e['porcentaje']}%"]
+                     for e in empleados]
+    w = doc.width
+    t2 = Table(filas, repeatRows=1,
+               colWidths=[w*0.26, w*0.18, w*0.16, w*0.10, w*0.10, w*0.08, w*0.12])
+    t2.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#16A34A")),
+        ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",   (0, 0), (-1, -1), 8),
+        ("ALIGN",      (3, 0), (-1, -1), "CENTER"),
+        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F0FDF4")]),
+        ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#D1FAE5")),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(t2)
+
+    # ── Anexo de incidencias (tardanzas / faltas / incompletos) ──
+    excepciones = []
+    for e in empleados:
+        for d, code in zip(dias, e["codigos"]):
+            if code in ("T", "F", "I"):
+                excepciones.append([e["nombre"], d.strftime("%d/%m/%Y"), _CRONO_LABEL[code]])
+    if excepciones:
+        story.append(Spacer(1, 0.45*cm))
+        story.append(Paragraph(
+            "<b>Anexo — Incidencias (tardanzas, faltas, incompletos)</b>",
+            styles["Heading3"]))
+        filas_e = [["Empleado", "Fecha", "Incidencia"]] + excepciones
+        t3 = Table(filas_e, repeatRows=1,
+                   colWidths=[doc.width*0.40, doc.width*0.25, doc.width*0.35])
+        t3.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#B91C1C")),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#FECACA")),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        story.append(t3)
+
+    doc.build(story)
+    buf.seek(0)
+    return buf
+
+
 def _export_response(buf: io.BytesIO, fmt: str, filename: str):
     if fmt == "pdf":
         return StreamingResponse(
@@ -829,8 +1081,15 @@ def reporte_global(
         for r in filas
     ]
 
-    buf = _xlsx_stream(titulo, encabezados, datos) if fmt == "xlsx" else \
-          _pdf_stream(titulo, encabezados, datos, subtitulo)
+    if fmt == "xlsx":
+        buf = _xlsx_stream(titulo, encabezados, datos)
+    elif (fecha_fin - fecha_inicio).days <= 31:
+        # Rango acotado → cronograma visual. Rango largo → tabla resumen (el
+        # cronograma tendría demasiadas columnas para una página).
+        dias_c, emps_c, tot_c = _build_cronograma(db, empresa_id, fecha_inicio, fecha_fin)
+        buf = _pdf_cronograma(titulo, subtitulo, dias_c, emps_c, tot_c)
+    else:
+        buf = _pdf_stream(titulo, encabezados, datos, subtitulo)
     return _export_response(buf, fmt, f"reporte_global_{fecha_inicio.isoformat()}")
 
 
@@ -866,7 +1125,10 @@ def reporte_semanal(
     if fmt == "xlsx":
         buf = _xlsx_stream(titulo, encabezados, datos)
     else:
-        buf = _pdf_stream(titulo, encabezados, datos, subtitulo)
+        dias_c, emps_c, tot_c = _build_cronograma(db, empresa_id, inicio, fin)
+        buf = _pdf_cronograma(
+            titulo, f"Período: {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}",
+            dias_c, emps_c, tot_c)
 
     return _export_response(buf, fmt, f"asistencia_semanal_{inicio.isoformat()}")
 
@@ -904,7 +1166,10 @@ def reporte_mensual(
     if fmt == "xlsx":
         buf = _xlsx_stream(titulo, encabezados, datos)
     else:
-        buf = _pdf_stream(titulo, encabezados, datos)
+        dias_c, emps_c, tot_c = _build_cronograma(db, empresa_id, inicio, fin)
+        buf = _pdf_cronograma(
+            titulo, f"Período: {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}",
+            dias_c, emps_c, tot_c)
 
     return _export_response(buf, fmt, f"asistencia_mensual_{anio}_{mes:02d}")
 

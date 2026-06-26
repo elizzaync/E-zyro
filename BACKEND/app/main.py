@@ -1003,8 +1003,9 @@ def _run_migrations():
         # ── Privilegios directos por usuario (delegar permisos sin cambiar rol) ─
         sembrar_permisos(conn, "privilegios", ["gestionar"],
                          descripcion_base="Dar privilegios directos a usuarios:")
-        # ── Nube de Planos (HU-21): lectura + gestión documental ─────────────
-        sembrar_permisos(conn, "planos", ["ver", "gestionar"],
+        # ── Nube de Planos (HU-21): la lectura es abierta (salvo Técnico); solo
+        #    la gestión (subir/editar/eliminar) requiere permiso ─────────────
+        sembrar_permisos(conn, "planos", ["gestionar"],
                          descripcion_base="Nube de planos:")
         # ── Bypass híbrido: permiso meta de administración total (delegable) ──
         sembrar_permisos(conn, "sistema", ["admin_total"],

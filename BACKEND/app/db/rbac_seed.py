@@ -50,7 +50,7 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "evaluacion:enviar", "evaluacion:completar",
         "vacaciones:ver", "vacaciones:configurar", "vacaciones:aprobar", "vacaciones:rechazar",
         "galeria:ver", "galeria:subir",
-        "planos:ver", "planos:gestionar",
+        "planos:gestionar",
     ],
     # Nombre REAL del rol admin en producción. El bypass total se concede por el
     # permiso meta 'sistema:admin_total' (modelo híbrido), no por el nombre.
@@ -60,7 +60,7 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     # Nombre REAL del rol logística en producción (la clave histórica "Logístico"
     # de abajo no coincide con ningún rol vivo; ver deuda técnica documentada).
     "Logística": [
-        "planos:ver", "planos:gestionar",
+        "planos:gestionar",
     ],
     "Logístico": [
         "dashboard:ver",

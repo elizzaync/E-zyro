@@ -25,9 +25,26 @@ from ..core.security import verificar_token
 from ..core.session_cache import invalidar_activo
 from ..db.database import get_db
 from ..models.usuario import Usuario
+from ..services.fcm_service import enviar_push_a_usuario
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _avisar_cambio_acceso(db: Session, usuario_id: str) -> None:
+    """Push 'perfil_actualizado' al usuario afectado para que su app refresque
+    rol+permisos al instante (sin re-login). Best-effort: no rompe el endpoint."""
+    try:
+        enviar_push_a_usuario(
+            usuario_id=str(usuario_id),
+            titulo="Tus accesos cambiaron",
+            mensaje="Tu rol o permisos en la app fueron actualizados.",
+            db=db,
+            tipo="perfil_actualizado",
+            categoria="permisos",
+        )
+    except Exception:
+        pass
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────
@@ -209,6 +226,7 @@ def cambiar_rol(usuario_id: str, body: CambiarRolIn,
     db.execute(text("INSERT INTO usuario_rol (usuario_id, rol_id, empresa_id) VALUES (:u, :r, :emp)"),
                {"u": usuario_id, "r": body.rol_id, "emp": empresa_id})
     db.commit()
+    _avisar_cambio_acceso(db, usuario_id)
     return _get_one(db, usuario_id, empresa_id)
 
 
