@@ -16,7 +16,7 @@ from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-_ROLES_ADMIN = {"superadmin", "admin", "administrador"}
+_ROLES_ADMIN = {"superadmin", "admin", "administrador", "administración"}
 
 # Nombres exactos de roles en BD (normalizados a minúsculas sin espacios extra)
 # Rol en BD: "Técnico"  →  normalizado: "técnico"
