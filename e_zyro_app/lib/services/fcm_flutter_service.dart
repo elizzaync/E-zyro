@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../core/api_client.dart';
+import 'auth_service.dart';
 import 'notification_service.dart';
 
 // Handler de mensajes en background / app terminada.
@@ -82,6 +83,11 @@ class FcmFlutterService {
 
   static Future<void> _onForegroundMessage(RemoteMessage message) async {
     _messageController.add(message);
+    // Señal de cambio de privilegios: refresca rol+permisos al instante para
+    // que aparezcan/desaparezcan botones y pestañas sin re-login.
+    if (message.data['tipo'] == 'perfil_actualizado') {
+      await refrescarPermisosGlobal();
+    }
     final n = message.notification;
     if (n == null) return;
     final tipo = message.data['tipo'] as String?;
@@ -109,6 +115,9 @@ class FcmFlutterService {
     if (ctx == null) return;
 
     switch (tipo) {
+      case 'perfil_actualizado':
+        refrescarPermisosGlobal();
+        Navigator.of(ctx).pushNamedAndRemoveUntil('/', (_) => false);
       case 'comunicado':
       case 'comunicado_proyecto':
         Navigator.of(ctx).pushNamedAndRemoveUntil('/more', (_) => false);

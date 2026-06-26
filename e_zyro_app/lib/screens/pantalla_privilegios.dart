@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
+import '../services/auth_service.dart';
 
 const _kGreen  = Color(0xFF5A9A00);
 const _kGreenL = Color(0xFF8FD11B);
@@ -203,6 +204,9 @@ class _PantallaPrivilegiosState extends State<PantallaPrivilegios> {
           });
         }
       }
+      // Si el usuario afectado es el que está logueado, refresca su propia
+      // sesión para que el cambio se vea al instante sin re-login.
+      await refrescarPermisosGlobal();
     } catch (_) {
       if (mounted) {
         _snack('Sin conexión. El cambio no se aplicó.', Colors.orange);
@@ -256,6 +260,7 @@ class _PantallaPrivilegiosState extends State<PantallaPrivilegios> {
       if (!mounted) return;
       if (r.statusCode == 200) {
         await _seleccionarUsuario(u);
+        await refrescarPermisosGlobal();
         _snack('Todos los privilegios activados', _kGreen);
       } else {
         _snack('Error al activar privilegios (${r.statusCode})', Colors.red);
@@ -282,6 +287,7 @@ class _PantallaPrivilegiosState extends State<PantallaPrivilegios> {
       if (!mounted) return;
       if (r.statusCode == 200) {
         await _seleccionarUsuario(u);
+        await refrescarPermisosGlobal();
         _snack('Privilegios restablecidos al rol', Colors.orange);
       } else {
         _snack('Error al restablecer (${r.statusCode})', Colors.red);

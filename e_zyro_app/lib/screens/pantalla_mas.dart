@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/app_session.dart';
+import '../utils/app_notifiers.dart';
 import '../widgets/topo_background.dart';
 import 'pantalla_accesos_portal.dart';
 import 'pantalla_gestion_usuarios.dart';
@@ -63,6 +64,15 @@ class _MoreScreenState extends State<MoreScreen> {
   void initState() {
     super.initState();
     _loadUserData();
+    // Recarga los módulos visibles cuando se refrescan permisos (otorgar/revocar
+    // privilegios, resume de la app o push 'perfil_actualizado') — sin re-login.
+    permissionsRefreshNotifier.addListener(_loadUserData);
+  }
+
+  @override
+  void dispose() {
+    permissionsRefreshNotifier.removeListener(_loadUserData);
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {

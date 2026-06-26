@@ -460,6 +460,12 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
   String? _turnoId;
   bool _guardando = false;
   bool _modoCrear = false;
+  // Vigencia de la excepción: por defecto hoy, pero editable. Importa para los
+  // reportes: la puntualidad se mide contra este turno solo desde esta fecha.
+  DateTime _vigenteDesde = DateTime.now();
+
+  String _fmtFecha(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   // Campos de turno nuevo
   final _nombre = TextEditingController();
@@ -483,6 +489,7 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
     final ok = await widget.svc.asignarTurno(
       empleadoId: widget.empleado.empleadoId,
       turnoId: _turnoId!,
+      fechaDesde: _fmtFecha(_vigenteDesde),
     );
     if (!mounted) return;
     setState(() => _guardando = false);
@@ -523,6 +530,7 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
       await widget.svc.asignarTurno(
         empleadoId: widget.empleado.empleadoId,
         turnoId: nuevo.id,
+        fechaDesde: _fmtFecha(_vigenteDesde),
       );
     }
     if (!mounted) return;
@@ -580,6 +588,32 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
                           '${t.horaEntrada}–${t.horaSalida} · almuerzo ${t.duracionAlmuerzoMinutos}m · ${t.horasNetas}h netas'),
                     )),
               const SizedBox(height: 8),
+              // Vigencia: desde cuándo aplica esta excepción (afecta reportes).
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _vigenteDesde,
+                    firstDate: DateTime(2024, 1, 1),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (picked != null) setState(() => _vigenteDesde = picked);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(children: [
+                    const Icon(Icons.event_outlined, size: 18, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Text('Vigente desde: ${_fmtFecha(_vigenteDesde)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 6),
+                    const Text('(toca para cambiar)',
+                        style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 4),
               Row(
                 children: [
                   TextButton.icon(
@@ -787,6 +821,10 @@ class _SheetDescargaState extends State<_SheetDescarga> {
                   value: 'xlsx',
                   label: Text('Excel'),
                   icon: Icon(Icons.grid_on, size: 16)),
+              ButtonSegment(
+                  value: 'pdf',
+                  label: Text('PDF'),
+                  icon: Icon(Icons.picture_as_pdf_outlined, size: 16)),
               ButtonSegment(
                   value: 'csv',
                   label: Text('CSV'),

@@ -24,10 +24,14 @@ class AppSession {
 
   // ── Checks de permisos ────────────────────────────────────────────────────
 
-  /// SuperAdmin y Admin siempre tienen permiso absoluto.
-  /// Normaliza espacios para reconocer variantes como "Super Admin" (con
-  /// espacio), que el backend siembra junto a "SuperAdmin" y "Administrador".
+  /// Permiso absoluto (bypass). Modelo híbrido: lo concede el permiso meta
+  /// 'sistema:admin_total' (delegable), no el nombre del rol. Se lee la lista de
+  /// permisos DIRECTAMENTE (sin pasar por hasPerm) para no recursar. Se mantiene
+  /// el reconocimiento de los nombres históricos como red de seguridad.
   bool get isAdmin {
+    if (_permisos.any((e) => e.toLowerCase().trim() == 'sistema:admin_total')) {
+      return true;
+    }
     final r = _rol.replaceAll(' ', '');
     return r == 'superadmin' || r == 'admin' || r == 'administrador';
   }
@@ -76,8 +80,9 @@ class AppSession {
   bool get canVerReportes      => hasPerm('reportes:ver');
   // Dashboards ejecutivos: admin, jefe de operaciones o con permiso de reportes.
   bool get canVerDashboards    => isAdmin || _esJefeOp || hasPerm('reportes:ver');
-  // Planos: todos pueden ver; gestionan admin/jefe/supervisor/logística.
-  bool get canGestionarPlanos  => isAdmin || _esJefeOp || isSupervisor || _esLogistica;
+  // Planos: todos pueden ver; gestionar requiere el permiso 'planos:gestionar'
+  // (delegable desde Privilegios). Admin pasa por bypass de hasPerm.
+  bool get canGestionarPlanos  => hasPerm('planos:gestionar');
   bool get canGestClientes     => hasPerm('clientes:gestionar');
   bool get canValidarAsistencia=> hasPerm('asistencia:validar');
   // Control de asistencias (supervisión): ver el tablero diario de marcas/horas.

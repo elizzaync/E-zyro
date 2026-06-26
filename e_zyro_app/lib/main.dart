@@ -325,7 +325,7 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   late int _currentIndex;
   // Lazy-load de pestañas: una tab se construye solo la primera vez que se
   // visita y luego queda viva (mantiene estado). Evita que el IndexedStack monte
@@ -357,6 +357,7 @@ class _MainShellState extends State<MainShell> {
     _currentIndex = widget.initialIndex;
     _activated = List<bool>.filled(_screens.length, false);
     _activated[_currentIndex] = true;
+    WidgetsBinding.instance.addObserver(this);
     tabNotifier.addListener(_onTabChanged);
     isOnlineNotifier.addListener(_onConnectivityChanged);
     sessionExpiredSyncNotifier.addListener(_onSessionExpiredDuringSync);
@@ -399,8 +400,19 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  /// Al volver del segundo plano, recarga rol+permisos desde el servidor: cubre
+  /// los cambios de privilegios hechos mientras la app estaba minimizada (red de
+  /// seguridad además del push 'perfil_actualizado').
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && isOnlineNotifier.value) {
+      _refrescarSesionYNav();
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     tabNotifier.removeListener(_onTabChanged);
     isOnlineNotifier.removeListener(_onConnectivityChanged);
     sessionExpiredSyncNotifier.removeListener(_onSessionExpiredDuringSync);

@@ -621,8 +621,9 @@ class AsistenciaService {
     return null;
   }
 
-  /// Descarga el detalle de asistencias (día/semana/mes) en CSV o Excel.
-  /// [periodo]: 'dia' | 'semana' | 'mes'. [formato]: 'csv' | 'xlsx'.
+  /// Descarga el reporte de asistencias (día/semana/mes) en CSV, Excel o PDF.
+  /// [periodo]: 'dia' | 'semana' | 'mes'. [formato]: 'csv' | 'xlsx' | 'pdf'.
+  /// El PDF trae resumen + cronograma (matriz día×empleado) + tabla + anexo.
   /// [fecha] (YYYY-MM-DD) es la fecha ancla del rango (por defecto, hoy en el
   /// servidor). Devuelve los bytes del archivo o null si falla.
   ///

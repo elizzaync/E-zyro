@@ -7,12 +7,25 @@ import '../core/api_client.dart';
 import '../models/auth_models.dart';
 import '../repositories/cache_repo.dart';
 import '../utils/app_session.dart';
+import '../utils/app_notifiers.dart';
 import 'asistencia_service.dart';
 import 'dashboard_service.dart';
 
 String get _devicePlatform {
   if (kIsWeb) return 'web';
   return defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
+}
+
+/// Recarga rol+permisos desde el servidor (/auth/me) y, si hubo éxito, avisa a
+/// la UI (bottom nav + gates que escuchan [permissionsRefreshNotifier]) para que
+/// un cambio de privilegios se vea SIN re-login. Best-effort: si falla, calla.
+/// Lo usan el push 'perfil_actualizado' (FCM) y el resume de la app.
+Future<void> refrescarPermisosGlobal() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final ok = await AuthService(ApiClient(prefs), prefs).refrescarSesion();
+    if (ok) permissionsRefreshNotifier.value++;
+  } catch (_) {}
 }
 
 class AuthService {
