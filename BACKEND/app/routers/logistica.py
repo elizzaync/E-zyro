@@ -16,7 +16,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel as _BaseModel
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, cast, Text as SAText
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -5353,8 +5353,8 @@ def get_servicios_global(
         )
         .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
-        .outerjoin(UbicSvc, UbicSvc.id == ProyectoServicio.ubicacion_id)
-        .outerjoin(ZonaSvc, ZonaSvc.id == ProyectoServicio.zona_id)
+        .outerjoin(UbicSvc, UbicSvc.id == cast(ProyectoServicio.ubicacion_id, SAText))
+        .outerjoin(ZonaSvc, ZonaSvc.id == cast(ProyectoServicio.zona_id, SAText))
         .outerjoin(CatalogoServicio, CatalogoServicio.id == ProyectoServicio.catalogo_servicio_id)
         .filter(
             ProyectoServicio.empresa_id == empresa_id,
@@ -5442,8 +5442,8 @@ def get_mantenimiento_global(
             HistorialInspeccion.estado.label("estado_inspeccion"),
         )
         .outerjoin(TipoEquipo,   TipoEquipo.id   == EquipoIntervenido.tipo_equipo_id)
-        .outerjoin(Ubicacion,    Ubicacion.id     == EquipoIntervenido.ubicacion_id)
-        .outerjoin(Zona,         Zona.id          == EquipoIntervenido.zona_id)
+        .outerjoin(Ubicacion,    Ubicacion.id     == cast(EquipoIntervenido.ubicacion_id, SAText))
+        .outerjoin(Zona,         Zona.id          == cast(EquipoIntervenido.zona_id,     SAText))
         .outerjoin(historial_sq, historial_sq.c.equipo_intervenido_id == EquipoIntervenido.id)
         .outerjoin(
             HistorialInspeccion,
