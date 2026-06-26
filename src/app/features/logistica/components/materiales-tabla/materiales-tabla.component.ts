@@ -25,6 +25,7 @@ export class MaterialesTablaComponent implements OnInit {
   private auth  = inject(AuthService);
 
   get isTecnico(): boolean { return this.auth.isTecnico(); }
+  get esOperativo(): boolean { return this.auth.isTecnico() || this.auth.isJefeOperaciones(); }
 
   materiales: MaterialLog[] = [];
   cargando = true;

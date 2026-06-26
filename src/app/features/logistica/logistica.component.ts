@@ -24,6 +24,8 @@ export class LogisticaComponent implements OnInit {
   private auth = inject(AuthService);
 
   get isTecnico(): boolean { return this.auth.isTecnico(); }
+  get isJefeOperaciones(): boolean { return this.auth.isJefeOperaciones(); }
+  get esOperativo(): boolean { return this.isTecnico || this.isJefeOperaciones; }
 
   tab: TabLogistica = 'materiales';
   kpis: LogisticaKpis = {

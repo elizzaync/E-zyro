@@ -24,7 +24,7 @@
       <option value="baja">De baja</option>
     </select>
 
-    @if (!isTecnico) {
+    @if (!esOperativo) {
     <div class="tt-right-group">
       <button class="tt-reporte" (click)="showReporte = true" title="Generar reporte de equipos y herramientas">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -75,7 +75,7 @@
             <th class="th-num">Costo</th>
             <th>Estado</th>
             <th>Mantenimiento</th>
-            @if (!isTecnico) { <th class="th-acc">Acciones</th> }
+            @if (!esOperativo) { <th class="th-acc">Acciones</th> }
           </tr>
         </thead>
         <tbody>
@@ -195,7 +195,7 @@
                 <span class="mant-no">No requiere</span>
               }
             </td>
-            @if (!isTecnico) {
+            @if (!esOperativo) {
             <td class="th-acc">
               <div class="acciones">
                 <button class="btn-icon btn-icon-hist" (click)="verHistorial(e)" title="Ver historial de movimientos">

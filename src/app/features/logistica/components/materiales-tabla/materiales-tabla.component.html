@@ -21,7 +21,7 @@
       <option value="stock_bajo">Stock bajo</option>
     </select>
 
-    @if (!isTecnico) {
+    @if (!esOperativo) {
     <div class="tt-right-group">
       <button class="tt-reporte" (click)="showReporte = true" title="Generar reporte de materiales">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -72,7 +72,7 @@
             <th class="th-num">Costo</th>
             <th>Almacén</th>
             <th>Estado</th>
-            @if (!isTecnico) { <th class="th-acc">Acciones</th> }
+            @if (!esOperativo) { <th class="th-acc">Acciones</th> }
           </tr>
         </thead>
         <tbody>
@@ -115,7 +115,7 @@
                 {{ m.activo ? 'Activo' : 'Inactivo' }}
               </span>
             </td>
-            @if (!isTecnico) {
+            @if (!esOperativo) {
             <td class="th-acc">
               <div class="acciones">
                 <button class="btn-icon" (click)="abrirEditar(m)" title="Editar">

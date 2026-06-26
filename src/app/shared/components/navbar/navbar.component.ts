@@ -69,11 +69,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return r.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
 get puedeAdministrarRRHH(): boolean {
-    return !this.isTecnico && !this.isClienteExterno;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno;
   }
 
   get puedeSoporte(): boolean {
-    return !this.isTecnico && !this.isClienteExterno;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno;
   }
 
   /** Solo el rol que tenga privilegios:gestionar puede ver Gestión de Permisos */
