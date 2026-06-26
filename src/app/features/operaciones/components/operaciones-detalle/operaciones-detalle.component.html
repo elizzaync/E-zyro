@@ -118,7 +118,7 @@
   <!-- ══════════════════════════════════════════════════════════════
        EQUIPOS INTERVENIDOS — solo visible en servicios con inspección activa
   ══════════════════════════════════════════════════════════════ -->
-  @if (servicio.esMantenimiento && !soyTecnico) {
+  @if (servicio.esMantenimiento) {
   <button class="ei-nav-btn section-card slide-up" (click)="irAEquiposIntervenidos()">
     <div class="ei-nav-left">
       <div class="ei-nav-icon">
