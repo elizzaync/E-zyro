@@ -11,187 +11,159 @@
       </div>
       <div>
         <h1 class="gp-title">Gestión de Permisos</h1>
-        <p class="gp-subtitle">Otorga o revoca permisos directos a usuarios, adicionales a los de su rol</p>
+        <p class="gp-subtitle">Permisos directos por usuario — adicionales al rol base</p>
       </div>
     </div>
+    @if (!cargandoUsuarios) {
+      <span class="gp-total-badge">{{ usuarios.length }} usuario{{ usuarios.length !== 1 ? 's' : '' }}</span>
+    }
   </div>
 
   <div class="gp-layout">
 
-    <!-- Panel izquierdo: lista de usuarios -->
+    <!-- ══ PANEL IZQUIERDO ══ -->
     <div class="gp-panel-left">
       <div class="gp-search-wrap">
-        <svg class="gp-search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input
-          class="gp-search"
-          type="text"
-          placeholder="Buscar por nombre, rol…"
-          [(ngModel)]="busqueda"
-          (ngModelChange)="filtrarUsuarios()"
-        />
+        <input class="gp-search" type="text" placeholder="Buscar usuario o rol…"
+               [(ngModel)]="busqueda" (ngModelChange)="filtrarUsuarios()"/>
       </div>
 
-      @if (cargandoUsuarios) {
-        <div class="gp-skeleton-list">
-          @for (i of [1,2,3,4,5]; track i) {
-            <div class="gp-skeleton-user"></div>
-          }
-        </div>
-      } @else {
-        <div class="gp-user-list">
+      <div class="gp-user-list">
+        @if (cargandoUsuarios) {
+          @for (i of [1,2,3,4,5,6]; track i) { <div class="gp-skeleton"></div> }
+        } @else if (usuariosFiltrados.length === 0) {
+          <div class="gp-empty-list">Sin resultados</div>
+        } @else {
           @for (u of usuariosFiltrados; track u.id) {
-            <div
-              class="gp-user-card"
-              [class.gp-user-card--active]="usuarioSeleccionado?.id === u.id"
-              (click)="seleccionar(u)"
-            >
-              <div class="gp-user-avatar" [style.background]="rolColor(u.rol)">
-                {{ iniciales(u.nombre, u.apellido) }}
-              </div>
+            <div class="gp-user-card" [class.active]="usuarioSeleccionado?.id === u.id" (click)="seleccionar(u)">
+              <div class="gp-avatar" [style.background]="rolColor(u.rol)">{{ iniciales(u.nombre, u.apellido) }}</div>
               <div class="gp-user-info">
                 <span class="gp-user-name">{{ u.nombre }} {{ u.apellido }}</span>
                 <span class="gp-user-rol">{{ u.rol ?? 'Sin rol' }}</span>
               </div>
-              @if (u.permisos_directos > 0) {
-                <span class="gp-badge-directos" title="Permisos directos adicionales">
-                  +{{ u.permisos_directos }}
-                </span>
-              }
-              @if (!u.activo) {
-                <span class="gp-badge-inactivo">Inactivo</span>
-              }
+              <div class="gp-user-badges">
+                @if (u.permisos_directos > 0) {
+                  <span class="badge-directos" title="{{ u.permisos_directos }} permisos directos">+{{ u.permisos_directos }}</span>
+                }
+                @if (!u.activo) {
+                  <span class="badge-inactivo">Off</span>
+                }
+              </div>
             </div>
           }
-          @if (usuariosFiltrados.length === 0) {
-            <div class="gp-empty-list">Sin resultados</div>
-          }
-        </div>
-      }
+        }
+      </div>
     </div>
 
-    <!-- Panel derecho: permisos del usuario seleccionado -->
+    <!-- ══ PANEL DERECHO ══ -->
     <div class="gp-panel-right">
+
       @if (!usuarioSeleccionado) {
         <div class="gp-empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
-          <p>Selecciona un usuario para gestionar sus permisos</p>
-        </div>
-      } @else {
-        <!-- Cabecera del usuario seleccionado -->
-        <div class="gp-user-detail-header">
-          <div class="gp-user-detail-avatar" [style.background]="rolColor(usuarioSeleccionado.rol)">
-            {{ iniciales(usuarioSeleccionado.nombre, usuarioSeleccionado.apellido) }}
-          </div>
-          <div class="gp-user-detail-info">
-            <h2>{{ usuarioSeleccionado.nombre }} {{ usuarioSeleccionado.apellido }}</h2>
-            <span class="gp-rol-chip" [style.background]="rolColor(usuarioSeleccionado.rol) + '1a'" [style.color]="rolColor(usuarioSeleccionado.rol)">
-              {{ usuarioSeleccionado.rol ?? 'Sin rol' }}
-            </span>
-          </div>
-          <div class="gp-detail-stats">
-            <div class="gp-stat">
-              <span class="gp-stat-val">{{ directosActivos }}</span>
-              <span class="gp-stat-lbl">Directos activos</span>
-            </div>
-            @if (directosActivos > 0) {
-              <button class="gp-btn-revoke-all" (click)="revocarTodos()" [disabled]="guardandoTodo" title="Eliminar todos los permisos directos">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
-                Revocar todos
-              </button>
-            }
-          </div>
+          <p>Selecciona un usuario</p>
         </div>
 
-        <!-- Leyenda -->
-        <div class="gp-leyenda">
-          <span class="gp-leyenda-item">
-            <span class="gp-dot gp-dot--rol"></span> Heredado del rol (no editable)
-          </span>
-          <span class="gp-leyenda-item">
-            <span class="gp-dot gp-dot--directo"></span> Permiso directo activo
-          </span>
-          <span class="gp-leyenda-item">
-            <span class="gp-dot gp-dot--off"></span> Sin permiso
-          </span>
+      } @else {
+
+        <!-- Cabecera de usuario -->
+        <div class="gp-user-head">
+          <div class="gp-avatar gp-avatar--lg" [style.background]="rolColor(usuarioSeleccionado.rol)">
+            {{ iniciales(usuarioSeleccionado.nombre, usuarioSeleccionado.apellido) }}
+          </div>
+          <div class="gp-user-head-info">
+            <h2>{{ usuarioSeleccionado.nombre }} {{ usuarioSeleccionado.apellido }}</h2>
+            <div class="gp-user-head-meta">
+              <span class="gp-rol-pill" [style.background]="rolColor(usuarioSeleccionado.rol) + '1a'" [style.color]="rolColor(usuarioSeleccionado.rol)">
+                {{ usuarioSeleccionado.rol ?? 'Sin rol' }}
+              </span>
+              <span class="gp-stat-inline">
+                <strong>{{ directosActivos }}</strong> directo{{ directosActivos !== 1 ? 's' : '' }}
+              </span>
+            </div>
+          </div>
+          @if (directosActivos > 0) {
+            <button class="gp-btn-revoke" (click)="revocarTodos()" [disabled]="guardandoTodo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              Revocar todos
+            </button>
+          }
+        </div>
+
+        <!-- Filtro tabs -->
+        <div class="gp-filtro-tabs">
+          <button class="gp-tab" [class.active]="filtro === 'todos'" (click)="filtro = 'todos'">Todos</button>
+          <button class="gp-tab" [class.active]="filtro === 'activos'" (click)="filtro = 'activos'">Con permiso</button>
+          <button class="gp-tab" [class.active]="filtro === 'directo'" (click)="filtro = 'directo'">Solo directos</button>
+          <!-- Leyenda inline -->
+          <div class="gp-legend">
+            <span class="leg-item"><span class="leg-dot leg--rol"></span>Rol</span>
+            <span class="leg-item"><span class="leg-dot leg--on"></span>Directo</span>
+            <span class="leg-item"><span class="leg-dot leg--off"></span>Sin permiso</span>
+          </div>
         </div>
 
         @if (cargandoPermisos) {
           <div class="gp-loading">
-            <svg class="gp-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="12" cy="12" r="10" stroke-opacity=".2"/>
-              <path d="M12 2a10 10 0 0 1 10 10"/>
+            <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10" stroke-opacity=".15"/><path d="M12 2a10 10 0 0 1 10 10"/>
             </svg>
-            Cargando permisos…
+            Cargando…
           </div>
         } @else {
           <div class="gp-grupos">
-            @for (grupo of grupos; track grupo.modulo) {
-              <div class="gp-grupo" [class.gp-grupo--activo]="tieneAlgo(grupo)">
-                <div class="gp-grupo-header">
-                  <span class="gp-grupo-nombre">{{ moduloLabel(grupo.modulo) }}</span>
-                  <span class="gp-grupo-modulo">{{ grupo.modulo }}</span>
+            @for (grupo of gruposFiltrados; track grupo.modulo) {
+              <div class="gp-grupo">
+                <div class="gp-grupo-head">
+                  <span class="gp-grupo-label">{{ moduloLabel(grupo.modulo) }}</span>
+                  <span class="gp-grupo-counts">
+                    @if (countRol(grupo) > 0) { <span class="cnt cnt--rol">{{ countRol(grupo) }} rol</span> }
+                    @if (countDirecto(grupo) > 0) { <span class="cnt cnt--on">{{ countDirecto(grupo) }} directo</span> }
+                  </span>
                 </div>
-                <div class="gp-permisos-lista">
+                <div class="gp-pills">
                   @for (p of grupo.permisos; track p.id) {
-                    <div
-                      class="gp-permiso-row"
-                      [class.gp-permiso-row--rol]="p.via_rol && !p.directo"
-                      [class.gp-permiso-row--directo]="p.directo"
-                      [class.gp-permiso-row--clickable]="!p.via_rol"
+                    <button
+                      class="gp-pill"
+                      [class.pill--rol]="p.via_rol && !p.directo"
+                      [class.pill--on]="p.directo"
+                      [class.pill--off]="!p.via_rol && !p.directo"
+                      [disabled]="p.via_rol || procesando.has(p.id)"
                       (click)="togglePermiso(p)"
+                      [title]="p.via_rol ? 'Heredado del rol — no editable' : (p.directo ? 'Clic para revocar' : 'Clic para otorgar')"
                     >
-                      <!-- Indicador de estado -->
-                      <div class="gp-permiso-check">
-                        @if (procesando.has(p.id)) {
-                          <svg class="gp-spin gp-spin--sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <circle cx="12" cy="12" r="10" stroke-opacity=".2"/>
-                            <path d="M12 2a10 10 0 0 1 10 10"/>
-                          </svg>
-                        } @else if (p.via_rol) {
-                          <svg class="gp-ic-rol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                          </svg>
-                        } @else if (p.directo) {
-                          <svg class="gp-ic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="m9 12 2 2 4-4"/>
-                          </svg>
-                        } @else {
-                          <svg class="gp-ic-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="12" cy="12" r="10"/>
-                          </svg>
-                        }
-                      </div>
-
-                      <div class="gp-permiso-info">
-                        <span class="gp-permiso-accion">{{ p.accion }}</span>
-                        @if (p.descripcion) {
-                          <span class="gp-permiso-desc">{{ p.descripcion }}</span>
-                        }
-                      </div>
-
-                      <div class="gp-permiso-badge-wrap">
-                        @if (p.via_rol) {
-                          <span class="gp-badge-via-rol">Rol</span>
-                        }
-                        @if (p.directo) {
-                          <span class="gp-badge-directo">Directo</span>
-                        }
-                      </div>
-                    </div>
+                      @if (procesando.has(p.id)) {
+                        <svg class="spin pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <circle cx="12" cy="12" r="10" stroke-opacity=".15"/><path d="M12 2a10 10 0 0 1 10 10"/>
+                        </svg>
+                      } @else if (p.via_rol) {
+                        <svg class="pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                      } @else if (p.directo) {
+                        <svg class="pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                      } @else {
+                        <svg class="pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      }
+                      {{ p.accion }}
+                    </button>
                   }
                 </div>
               </div>
+            }
+            @if (gruposFiltrados.length === 0) {
+              <div class="gp-empty-filter">No hay permisos que coincidan con el filtro.</div>
             }
           </div>
         }

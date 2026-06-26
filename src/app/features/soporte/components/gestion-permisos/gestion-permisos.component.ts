@@ -17,79 +17,68 @@ interface ModuloGroup {
   styleUrls: ['./gestion-permisos.component.css'],
 })
 export class GestionPermisosComponent implements OnInit {
-  usuarios: UsuarioPrivilegio[] = [];
+  usuarios: UsuarioPrivilegio[]         = [];
   usuariosFiltrados: UsuarioPrivilegio[] = [];
-  busqueda = '';
+  busqueda         = '';
   cargandoUsuarios = false;
 
   usuarioSeleccionado: UsuarioPrivilegio | null = null;
-  permisos: PermisoDetalle[] = [];
-  grupos: ModuloGroup[] = [];
+  permisos:    PermisoDetalle[] = [];
+  grupos:      ModuloGroup[]    = [];
   cargandoPermisos = false;
 
-  procesando: Set<string> = new Set();
+  filtro: 'todos' | 'activos' | 'directo' = 'todos';
+  procesando:   Set<string> = new Set();
   guardandoTodo = false;
 
   readonly MODULO_LABELS: Record<string, string> = {
-    activos_fijos:          'Activos Fijos',
-    asistencia:             'Asistencia',
-    auditoria:              'Auditoría',
-    caja_chica:             'Caja Chica',
-    calibracion:            'Calibración',
-    catalogos:              'Catálogos',
-    comunicados:            'Comunicados',
-    conciliacion_bancaria:  'Conciliación Bancaria',
-    contabilidad:           'Contabilidad',
-    controlling:            'Controlling',
-    correctivo:             'Correctivo',
-    cxc:                    'Cuentas por Cobrar',
-    cxp:                    'Cuentas por Pagar',
-    dashboard:              'Dashboard',
-    documentos_sst:         'Documentos SST',
-    empleados:              'Personal / Empleados',
-    epp:                    'EPP',
-    equipo:                 'Equipo',
-    equipo_intervenido:     'Equipos Intervenidos',
-    evaluacion:             'Evaluaciones',
-    eventos_contables:      'Eventos Contables',
-    galeria:                'Galería',
-    informe_servicio:       'Informe de Servicio',
-    inventario:             'Inventario',
-    inventario_valorizado:  'Inventario Valorizado',
-    itse:                   'ITSE',
-    observacion:            'Observaciones',
-    planilla:               'Planilla',
-    privilegios:            'Gestión de Permisos',
-    proyectos:              'Proyectos',
-    reportes:               'Reportes',
-    requerimientos:         'Requerimientos',
-    soporte:                'Soporte TIC',
-    tributario:             'Tributario',
-    usuarios:               'Usuarios',
-    vacaciones:             'Vacaciones',
+    activos_fijos:         'Activos Fijos',
+    asistencia:            'Asistencia',
+    auditoria:             'Auditoría',
+    caja_chica:            'Caja Chica',
+    calibracion:           'Calibración',
+    catalogos:             'Catálogos',
+    comunicados:           'Comunicados',
+    conciliacion_bancaria: 'Conciliación Bancaria',
+    contabilidad:          'Contabilidad',
+    controlling:           'Controlling',
+    correctivo:            'Correctivo',
+    cxc:                   'Cuentas por Cobrar',
+    cxp:                   'Cuentas por Pagar',
+    dashboard:             'Dashboard',
+    documentos_sst:        'SST',
+    empleados:             'Personal',
+    epp:                   'EPP',
+    equipo:                'Equipos',
+    equipo_intervenido:    'Equipos Intervenidos',
+    evaluacion:            'Evaluaciones',
+    eventos_contables:     'Eventos Contables',
+    galeria:               'Galería',
+    informe_servicio:      'Informes',
+    inventario:            'Inventario',
+    inventario_valorizado: 'Inventario Valorizado',
+    itse:                  'ITSE',
+    observacion:           'Observaciones',
+    planilla:              'Planilla',
+    privilegios:           'Permisos',
+    proyectos:             'Proyectos',
+    reportes:              'Reportes',
+    requerimientos:        'Requerimientos',
+    soporte:               'Soporte TIC',
+    tributario:            'Tributario',
+    usuarios:              'Usuarios',
+    vacaciones:            'Vacaciones',
   };
 
-  constructor(
-    private svc: PrivilegiosService,
-    private toast: ToastService,
-  ) {}
+  constructor(private svc: PrivilegiosService, private toast: ToastService) {}
 
-  ngOnInit(): void {
-    this.cargarUsuarios();
-  }
+  ngOnInit(): void { this.cargarUsuarios(); }
 
   cargarUsuarios(): void {
     this.cargandoUsuarios = true;
     this.svc.listarUsuarios().subscribe({
-      next: (u) => {
-        this.usuarios = u;
-        this.filtrarUsuarios();
-        this.cargandoUsuarios = false;
-      },
-      error: () => {
-        this.toast.mostrar('Error al cargar usuarios', 'error');
-        this.cargandoUsuarios = false;
-      },
+      next: u  => { this.usuarios = u; this.filtrarUsuarios(); this.cargandoUsuarios = false; },
+      error: () => { this.toast.mostrar('Error al cargar usuarios', 'error'); this.cargandoUsuarios = false; },
     });
   }
 
@@ -98,28 +87,20 @@ export class GestionPermisosComponent implements OnInit {
     this.usuariosFiltrados = q
       ? this.usuarios.filter(u =>
           `${u.nombre} ${u.apellido}`.toLowerCase().includes(q) ||
-          (u.rol || '').toLowerCase().includes(q) ||
-          u.username.toLowerCase().includes(q)
-        )
+          (u.rol ?? '').toLowerCase().includes(q) ||
+          u.username.toLowerCase().includes(q))
       : [...this.usuarios];
   }
 
   seleccionar(u: UsuarioPrivilegio): void {
     if (this.usuarioSeleccionado?.id === u.id) return;
     this.usuarioSeleccionado = u;
-    this.permisos = [];
-    this.grupos = [];
+    this.permisos = []; this.grupos = [];
+    this.filtro = 'todos';
     this.cargandoPermisos = true;
     this.svc.permisosUsuario(u.id).subscribe({
-      next: (p) => {
-        this.permisos = p;
-        this.grupos = this.agrupar(p);
-        this.cargandoPermisos = false;
-      },
-      error: () => {
-        this.toast.mostrar('Error al cargar permisos', 'error');
-        this.cargandoPermisos = false;
-      },
+      next: p  => { this.permisos = p; this.grupos = this.agrupar(p); this.cargandoPermisos = false; },
+      error: () => { this.toast.mostrar('Error al cargar permisos', 'error'); this.cargandoPermisos = false; },
     });
   }
 
@@ -132,13 +113,19 @@ export class GestionPermisosComponent implements OnInit {
     return [...map.entries()].map(([m, ps]) => ({ modulo: m, permisos: ps }));
   }
 
-  moduloLabel(modulo: string): string {
-    return this.MODULO_LABELS[modulo] ?? modulo;
+  get gruposFiltrados(): ModuloGroup[] {
+    if (this.filtro === 'todos')    return this.grupos;
+    if (this.filtro === 'activos')  return this.grupos.filter(g => g.permisos.some(p => p.via_rol || p.directo));
+    if (this.filtro === 'directo')  return this.grupos.filter(g => g.permisos.some(p => p.directo));
+    return this.grupos;
   }
 
-  tieneAlgo(grupo: ModuloGroup): boolean {
-    return grupo.permisos.some(p => p.via_rol || p.directo);
-  }
+  countRol(g: ModuloGroup):     number { return g.permisos.filter(p => p.via_rol && !p.directo).length; }
+  countDirecto(g: ModuloGroup): number { return g.permisos.filter(p => p.directo).length; }
+
+  get directosActivos(): number { return this.permisos.filter(p => p.directo).length; }
+
+  moduloLabel(m: string): string { return this.MODULO_LABELS[m] ?? m; }
 
   togglePermiso(p: PermisoDetalle): void {
     if (!this.usuarioSeleccionado || p.via_rol || this.procesando.has(p.id)) return;
@@ -150,7 +137,6 @@ export class GestionPermisosComponent implements OnInit {
     accion$.subscribe({
       next: () => {
         p.directo = !p.directo;
-        // Actualizar contador en la lista de usuarios
         const u = this.usuarios.find(x => x.id === this.usuarioSeleccionado!.id);
         if (u) u.permisos_directos += p.directo ? 1 : -1;
         this.procesando.delete(p.id);
@@ -173,30 +159,22 @@ export class GestionPermisosComponent implements OnInit {
         this.toast.mostrar('Permisos directos eliminados', 'success');
         this.guardandoTodo = false;
       },
-      error: () => {
-        this.toast.mostrar('Error al revocar permisos', 'error');
-        this.guardandoTodo = false;
-      },
+      error: () => { this.toast.mostrar('Error al revocar', 'error'); this.guardandoTodo = false; },
     });
   }
 
-  get directosActivos(): number {
-    return this.permisos.filter(p => p.directo).length;
-  }
-
-  iniciales(nombre: string, apellido: string): string {
-    return ((nombre?.[0] ?? '') + (apellido?.[0] ?? '')).toUpperCase() || 'U';
+  iniciales(n: string, a: string): string {
+    return ((n?.[0] ?? '') + (a?.[0] ?? '')).toUpperCase() || 'U';
   }
 
   rolColor(rol: string | null): string {
     const map: Record<string, string> = {
-      'Técnico':           '#3b82f6',
+      'Técnico':             '#3b82f6',
       'Jefe de Operaciones': '#8b5cf6',
-      'Logística':         '#10b981',
-      'Recursos Humanos':  '#f59e0b',
-      'Administración':    '#ef4444',
-      'Soporte':           '#64748b',
-      'TI':                '#6366f1',
+      'Logística':           '#10b981',
+      'Recursos Humanos':    '#f59e0b',
+      'Administración':      '#ef4444',
+      'Soporte':             '#64748b',
     };
     return map[rol ?? ''] ?? '#94a3b8';
   }
