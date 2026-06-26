@@ -1085,7 +1085,9 @@ def exportar_asistencias(
             "mes":    f"Asistencia Mensual — {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}",
         }.get(periodo, "Reporte de Asistencia")
         sub = f"Período: {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
-        buf = _pdf_cronograma(titulo_pdf, sub, dias_c, emps_c, tot_c)
+        # El mensual incluye una hoja-perfil por empleado (KPIs + justificaciones).
+        buf = _pdf_cronograma(titulo_pdf, sub, dias_c, emps_c, tot_c,
+                              detalle_por_empleado=(periodo == "mes"))
         return StreamingResponse(
             buf, media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{base}.pdf"'},

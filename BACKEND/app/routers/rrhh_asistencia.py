@@ -18,11 +18,12 @@ from __future__ import annotations
 import io
 import re as _re
 import uuid as _uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -709,22 +710,40 @@ _CRONO_LABEL = {
 }
 
 
+# Turno por defecto (sin excepción asignada). Tolerancia 10 min: la entrada se
+# considera puntual hasta 08:10; recién a partir de 08:11 cuenta como tardanza.
+_CRONO_ENTRADA   = time(8, 0)
+_CRONO_SALIDA    = time(17, 0)
+_CRONO_ALMUERZO  = 60
+_CRONO_TOLERANCIA = 10
+
+
+def _min_entre_horas(t1: time, t2: time) -> int:
+    """Minutos (t2 - t1) en el mismo día; nunca negativo."""
+    d = (t2.hour * 60 + t2.minute) - (t1.hour * 60 + t1.minute)
+    return d if d > 0 else 0
+
+
 def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
     """Devuelve (dias, empleados, totales) para el cronograma de asistencia.
 
+    SHIFT-AWARE: la puntualidad de cada empleado se mide contra SU turno
+    (excepción de horario vigente o el turno por defecto 08:00–17:00, tol.
+    10 min). Cada empleado trae KPIs, minutos de tardanza por día (para el
+    gráfico de su hoja-perfil) y las justificaciones aprobadas del período.
+
     dias      : TODAS las fechas del rango (columnas; domingos = descanso).
-    empleados : [{nombre, cargo, area, codigos:[code/dia], dias_trab,
-                  faltas, tardanzas, porcentaje}].
-    totales   : agregados del período.
-    Misma fuente de datos que _build_resumen_full (registros + solicitudes).
+    empleados : ver estructura del dict construido abajo.
+    totales   : agregados del período (incluye KPIs de puntualidad).
     """
+    from ..models.turno import Turno, TurnoEmpleado
+
     dias_all: list[date] = []
     cur = inicio
     while cur <= fin:
         dias_all.append(cur)
         cur += timedelta(days=1)
     dias_lab_set = set(_dias_laborables(inicio, fin))
-    meta_horas   = len(dias_lab_set) * META_HORAS_DIA
 
     empleados = (
         db.query(Empleado, Usuario)
@@ -754,6 +773,32 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
             SolicitudLaboral.fecha_fin    >= inicio,
         ).all()
     )
+    # Asignaciones de turno-excepción vigentes en el rango (una sola consulta).
+    asigns = (
+        db.query(TurnoEmpleado, Turno)
+        .join(Turno, Turno.id == TurnoEmpleado.turno_id)
+        .filter(
+            Turno.empresa_id == empresa_id,
+            TurnoEmpleado.activo == True, Turno.activo == True,
+            TurnoEmpleado.fecha_desde <= fin,
+            or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= inicio),
+        ).all()
+    )
+    asigns_por_emp: dict[str, list] = {}
+    for te, turno in asigns:
+        asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
+
+    def _turno_dia(emp_id: str, dia: date):
+        """(hora_entrada, hora_salida, almuerzo_min, tolerancia, nombre) del día."""
+        for te, turno in asigns_por_emp.get(emp_id, []):
+            if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
+                return (turno.hora_entrada, turno.hora_salida,
+                        turno.duracion_almuerzo_minutos or 0,
+                        turno.tolerancia_minutos if turno.tolerancia_minutos is not None
+                        else _CRONO_TOLERANCIA, turno.nombre)
+        return (_CRONO_ENTRADA, _CRONO_SALIDA, _CRONO_ALMUERZO,
+                _CRONO_TOLERANCIA, "Horario normal")
+
     regs_por_emp: dict[str, list] = {}
     for r in registros:
         regs_por_emp.setdefault(r.empleado_id, []).append(r)
@@ -763,7 +808,7 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
 
     area_nombres = _area_cache(db, empresa_id)
     empleados_data = []
-    tot_faltas = tot_tardanzas = 0
+    tot_faltas = tot_tardanzas = tot_dias_trab = tot_min_tarde = 0
     suma_pct = 0.0
     for emp, usr in empleados:
         regs  = regs_por_emp.get(emp.id, [])
@@ -778,43 +823,78 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
                 c += timedelta(days=1)
 
         codigos: list[str] = []
-        dias_trab = faltas = tardanzas = 0
+        mins_tarde_dia: list[int] = []   # paralelo a dias_all (0 si no aplica)
+        dias_trab = faltas = tardanzas = incompletos = 0
+        min_tarde_total = 0
         horas_reales = 0.0
+        min_esperados = 0
+        # Turno representativo = el vigente el último día laborable del rango.
+        turno_label = "Horario normal · 08:00–17:00 (tol. 10 min)"
         for dia in dias_all:
+            t_ent, t_sal, t_alm, t_tol, t_nom = _turno_dia(emp.id, dia)
             if dia not in dias_lab_set:
-                codigos.append("D")
+                codigos.append("D"); mins_tarde_dia.append(0)
                 continue
+            req_min = max(_min_entre_horas(t_ent, t_sal) - t_alm, 0)
+            min_esperados += req_min
+            if t_nom != "Horario normal":
+                turno_label = (f"{t_nom} · {t_ent.strftime('%H:%M')}–"
+                               f"{t_sal.strftime('%H:%M')} (tol. {t_tol} min)")
             if dia in dias_justificados:
-                codigos.append("J")
+                codigos.append("J"); mins_tarde_dia.append(0)
+                horas_reales += req_min / 60.0   # justificado cuenta como cumplido
                 continue
             regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
+            entrada = next((r for r in regs_dia if r.tipo == "entrada"), None)
+            salida  = next((r for r in regs_dia if r.tipo == "salida"), None)
             h = _horas_dia(regs_dia)
             horas_reales += h
-            estado = _estado_dia(regs_dia, h, True)
-            if estado == "Falta":
-                codigos.append("F"); faltas += 1
-            elif estado == "Tardanza":
-                codigos.append("T"); tardanzas += 1; dias_trab += 1
-            elif estado == "Incompleto":
-                codigos.append("I"); dias_trab += 1
-            else:  # "Al día"
-                codigos.append("P"); dias_trab += 1
+            if not entrada:
+                codigos.append("F"); mins_tarde_dia.append(0); faltas += 1
+                continue
+            mt = _min_entre_horas(t_ent, entrada.fecha_hora.time())
+            if mt > t_tol:
+                codigos.append("T"); mins_tarde_dia.append(mt)
+                tardanzas += 1; dias_trab += 1
+                min_tarde_total += mt
+            elif not salida or h < (req_min / 60.0) - 0.5:
+                codigos.append("I"); mins_tarde_dia.append(0)
+                incompletos += 1; dias_trab += 1
+            else:
+                codigos.append("P"); mins_tarde_dia.append(0); dias_trab += 1
 
-        horas_just  = len(dias_justificados & dias_lab_set) * META_HORAS_DIA
-        horas_total = horas_reales + horas_just
-        pct = round((horas_total / meta_horas * 100) if meta_horas > 0 else 0.0, 1)
+        pct = round((horas_reales / (min_esperados / 60.0) * 100)
+                    if min_esperados > 0 else 0.0, 1)
+        prom_tarde = round(min_tarde_total / tardanzas, 1) if tardanzas else 0.0
+        pct_punt = round((dias_trab - tardanzas) / dias_trab * 100, 1) if dias_trab else 100.0
         suma_pct += pct
-        tot_faltas += faltas
-        tot_tardanzas += tardanzas
+        tot_faltas += faltas; tot_tardanzas += tardanzas
+        tot_dias_trab += dias_trab; tot_min_tarde += min_tarde_total
+
+        justificaciones = [{
+            "tipo":  (s.tipo or "Permiso").replace("_", " ").title(),
+            "desc":  (s.descripcion or s.observacion or "").strip(),
+            "desde": s.fecha_inicio, "hasta": s.fecha_fin,
+        } for s in sorted(solis, key=lambda x: x.fecha_inicio or inicio)]
+
         empleados_data.append({
-            "nombre":     f"{usr.nombre} {usr.apellido}".strip(),
-            "cargo":      emp.cargo or "",
-            "area":       _resolve_area(emp.area, area_nombres),
-            "codigos":    codigos,
-            "dias_trab":  dias_trab,
-            "faltas":     faltas,
-            "tardanzas":  tardanzas,
-            "porcentaje": pct,
+            "nombre":       f"{usr.nombre} {usr.apellido}".strip(),
+            "cargo":        emp.cargo or "",
+            "area":         _resolve_area(emp.area, area_nombres),
+            "turno_label":  turno_label,
+            "codigos":      codigos,
+            "mins_tarde":   mins_tarde_dia,
+            "dias_trab":    dias_trab,
+            "faltas":       faltas,
+            "tardanzas":    tardanzas,
+            "incompletos":  incompletos,
+            "min_tarde_total": min_tarde_total,
+            "prom_tarde":   prom_tarde,
+            "horas_reales": round(horas_reales, 1),
+            "horas_esper":  round(min_esperados / 60.0, 1),
+            "porcentaje":   pct,
+            "pct_punt":     pct_punt,
+            "justificaciones": justificaciones,
         })
 
     totales = {
@@ -822,6 +902,9 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
         "pct_global": round(suma_pct / len(empleados_data), 1) if empleados_data else 0.0,
         "faltas":     tot_faltas,
         "tardanzas":  tot_tardanzas,
+        "prom_tarde_global": round(tot_min_tarde / tot_tardanzas, 1) if tot_tardanzas else 0.0,
+        "punt_global": round((tot_dias_trab - tot_tardanzas) / tot_dias_trab * 100, 1)
+                       if tot_dias_trab else 100.0,
     }
     return dias_all, empleados_data, totales
 
@@ -917,13 +1000,16 @@ def _pdf_stream(titulo: str, encabezados: list[str], filas: list[list],
 
 
 def _pdf_cronograma(titulo: str, subtitulo: str, dias: list[date],
-                    empleados: list[dict], totales: dict) -> io.BytesIO:
-    """PDF de asistencia organizado: resumen + cronograma (matriz día×empleado
-    con colores) + tabla resumen por empleado + anexo de incidencias."""
+                    empleados: list[dict], totales: dict,
+                    detalle_por_empleado: bool = False) -> io.BytesIO:
+    """PDF de asistencia organizado: resumen + KPIs + cronograma (matriz
+    día×empleado con colores) + detalle por empleado. Si `detalle_por_empleado`
+    (informe mensual), añade además UNA HOJA-PERFIL por trabajador con sus KPIs,
+    gráfico de tardanzas y justificaciones."""
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
-                                    Paragraph, Spacer)
+                                    Paragraph, Spacer, PageBreak)
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import cm
 
@@ -941,6 +1027,8 @@ def _pdf_cronograma(titulo: str, subtitulo: str, dias: list[date],
     story.append(Paragraph(
         f"<b>Empleados:</b> {totales['n_emp']} &nbsp;&nbsp; "
         f"<b>Asistencia global:</b> {totales['pct_global']}% &nbsp;&nbsp; "
+        f"<b>Puntualidad:</b> {totales.get('punt_global', 0)}% &nbsp;&nbsp; "
+        f"<b>Prom. tardanza:</b> {totales.get('prom_tarde_global', 0)} min &nbsp;&nbsp; "
         f"<b>Total tardanzas:</b> {totales['tardanzas']} &nbsp;&nbsp; "
         f"<b>Total faltas:</b> {totales['faltas']}", small))
     story.append(Spacer(1, 0.35*cm))
@@ -1018,9 +1106,128 @@ def _pdf_cronograma(titulo: str, subtitulo: str, dias: list[date],
     ]))
     story.append(t2)
 
+    # ── Hojas-perfil por empleado (solo informe mensual) ──
+    if detalle_por_empleado:
+        for e in empleados:
+            story.append(PageBreak())
+            story.extend(_hoja_perfil(e, dias, doc, styles, colors, Table,
+                                      TableStyle, Paragraph, Spacer,
+                                      ParagraphStyle, cm))
+
     doc.build(story)
     buf.seek(0)
     return buf
+
+
+def _hoja_perfil(e: dict, dias: list[date], doc, styles, colors, Table,
+                 TableStyle, Paragraph, Spacer, ParagraphStyle, cm) -> list:
+    """Una página tipo 'perfil' del empleado: cabecera + KPIs + gráfico de
+    tardanzas + detalle de incidencias y justificaciones del mes."""
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.graphics.charts.barcharts import VerticalBarChart
+
+    cell = ParagraphStyle("hp", parent=styles["Normal"], fontSize=8.5, leading=11)
+    flow = []
+
+    # Cabecera
+    flow.append(Paragraph(f"<b>{e['nombre']}</b>", styles["Heading2"]))
+    flow.append(Paragraph(
+        f"Cargo: {e['cargo'] or '—'} &nbsp;·&nbsp; Área: {e['area'] or '—'}", cell))
+    flow.append(Paragraph(f"Turno: {e['turno_label']}", cell))
+    flow.append(Spacer(1, 0.3*cm))
+
+    # KPIs en tarjetas (tabla de 6)
+    kpis = [
+        ("Días trabajados", str(e["dias_trab"])),
+        ("Puntualidad",     f"{e['pct_punt']}%"),
+        ("Prom. tardanza",  f"{e['prom_tarde']} min"),
+        ("Tardanzas",       str(e["tardanzas"])),
+        ("Faltas",          str(e["faltas"])),
+        ("Horas (real/esp.)", f"{e['horas_reales']} / {e['horas_esper']}"),
+    ]
+    kp_lbl = [Paragraph(f"<b>{v}</b>", ParagraphStyle(
+        "kv", parent=cell, fontSize=12, alignment=1)) for _, v in kpis]
+    kp_cap = [Paragraph(k, ParagraphStyle(
+        "kc", parent=cell, fontSize=7.5, alignment=1,
+        textColor=colors.HexColor("#6B7280"))) for k, _ in kpis]
+    cw = doc.width / 6
+    tk = Table([kp_lbl, kp_cap], colWidths=[cw]*6)
+    tk.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F0FDF4")),
+        ("BOX",        (0, 0), (-1, -1), 0.5, colors.HexColor("#86EFAC")),
+        ("INNERGRID",  (0, 0), (-1, -1), 0.5, colors.white),
+        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, 0), 6),
+        ("BOTTOMPADDING", (0, 1), (-1, 1), 6),
+    ]))
+    flow.append(tk)
+    flow.append(Spacer(1, 0.4*cm))
+
+    # Gráfico de tardanzas por día (solo días con tardanza)
+    puntos = [(d.day, m) for d, m in zip(dias, e["mins_tarde"]) if m > 0]
+    if puntos:
+        flow.append(Paragraph("<b>Minutos de tardanza por día</b>", styles["Heading4"]))
+        dr = Drawing(doc.width, 4.2*cm)
+        bc = VerticalBarChart()
+        bc.x = 25; bc.y = 12
+        bc.width = doc.width - 50; bc.height = 3.4*cm
+        bc.data = [[m for _, m in puntos]]
+        bc.categoryAxis.categoryNames = [str(d) for d, _ in puntos]
+        bc.categoryAxis.labels.fontSize = 7
+        bc.valueAxis.valueMin = 0
+        bc.valueAxis.labels.fontSize = 7
+        bc.bars[0].fillColor = colors.HexColor("#F59E0B")
+        bc.barWidth = 8
+        dr.add(bc)
+        flow.append(dr)
+        flow.append(Spacer(1, 0.3*cm))
+
+    # Detalle de incidencias del mes
+    flow.append(Paragraph("<b>Incidencias del mes</b>", styles["Heading4"]))
+    label = {"T": "Tardanza", "F": "Falta", "I": "Incompleto"}
+    filas_i = [[Paragraph("<b>Fecha</b>", cell), Paragraph("<b>Tipo</b>", cell),
+                Paragraph("<b>Detalle</b>", cell)]]
+    for d, code, mt in zip(dias, e["codigos"], e["mins_tarde"]):
+        if code in label:
+            det = f"{mt} min tarde" if code == "T" else "—"
+            filas_i.append([d.strftime("%d/%m/%Y"), label[code], det])
+    if len(filas_i) == 1:
+        filas_i.append([Paragraph("<i>Sin incidencias en el período.</i>", cell), "", ""])
+    ti = Table(filas_i, colWidths=[doc.width*0.2, doc.width*0.25, doc.width*0.55])
+    ti.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#FEF3C7")),
+        ("FONTSIZE",   (0, 0), (-1, -1), 8.5),
+        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    flow.append(ti)
+
+    # Justificaciones aprobadas
+    flow.append(Spacer(1, 0.35*cm))
+    flow.append(Paragraph("<b>Justificaciones / permisos aprobados</b>", styles["Heading4"]))
+    if e["justificaciones"]:
+        filas_j = [[Paragraph("<b>Tipo</b>", cell), Paragraph("<b>Período</b>", cell),
+                    Paragraph("<b>Descripción</b>", cell)]]
+        for j in e["justificaciones"]:
+            rango = (f"{j['desde'].strftime('%d/%m/%Y')} al {j['hasta'].strftime('%d/%m/%Y')}"
+                     if j["desde"] and j["hasta"] else "—")
+            filas_j.append([j["tipo"], rango, Paragraph(j["desc"] or "—", cell)])
+        tj = Table(filas_j, colWidths=[doc.width*0.22, doc.width*0.28, doc.width*0.50])
+        tj.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#DBEAFE")),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8.5),
+            ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
+            ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#E5E7EB")),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ]))
+        flow.append(tj)
+    else:
+        flow.append(Paragraph("<i>Sin justificaciones registradas en el período.</i>", cell))
+
+    return flow
 
 
 def _export_response(buf: io.BytesIO, fmt: str, filename: str):
@@ -1157,7 +1364,7 @@ def reporte_mensual(
         dias_c, emps_c, tot_c = _build_cronograma(db, empresa_id, inicio, fin)
         buf = _pdf_cronograma(
             titulo, f"Período: {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}",
-            dias_c, emps_c, tot_c)
+            dias_c, emps_c, tot_c, detalle_por_empleado=True)
 
     return _export_response(buf, fmt, f"asistencia_mensual_{anio}_{mes:02d}")
 
