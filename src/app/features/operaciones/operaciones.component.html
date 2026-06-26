@@ -10,8 +10,8 @@
       </p>
     </div>
 
-    <!-- Botón Nuevo Proyecto: solo Administradores -->
-    @if (!isTecnico && !isJefeOperaciones) {
+    <!-- Botón Nuevo Proyecto: Admins y Jefe de Operaciones -->
+    @if (!isTecnico) {
     <button class="btn-nuevo-proyecto" (click)="abrirCrearProyecto()" title="Crear nuevo proyecto">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="12" y1="5" x2="12" y2="19"/>

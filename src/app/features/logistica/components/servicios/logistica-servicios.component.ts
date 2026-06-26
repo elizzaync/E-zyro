@@ -40,7 +40,7 @@ export class LogisticaServiciosComponent implements OnInit {
   get isJefeOperaciones(): boolean { return this.auth.isJefeOperaciones(); }
 
   get puedeCrear(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones;
+    return !this.isTecnico;
   }
 
   get clientesUnicos(): string[] {
