@@ -50,287 +50,51 @@
     </div>
   }
 
-  <!-- ── Reportes ───────────────────────────────────────────────────────── -->
-  <div class="card reportes-section">
-    <div class="reportes-header" (click)="showReportes = !showReportes">
-      <div class="reportes-title-row">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        <h3 class="reportes-title">Reportes de Asistencia</h3>
-      </div>
-      <svg class="chevron-icon" [class.open]="showReportes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-
-    @if (showReportes) {
-      <div class="reportes-grid">
-
-        <!-- Reporte Global -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-green">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Reporte Global</span>
-              <span class="reporte-desc">Todos los empleados en un rango de fechas</span>
-            </div>
-          </div>
-          <div class="rpt-fields">
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha inicio</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptGlobal.fechaInicio">
-            </div>
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha fin</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptGlobal.fechaFin">
-            </div>
-          </div>
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptGlobal.loading" (click)="descargarGlobal('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar Excel
-            </button>
-            <button class="btn-export pdf" [disabled]="rptGlobal.loading" (click)="descargarGlobal('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Descargar PDF
-            </button>
-          </div>
-        </div>
-
-        <!-- Reporte Individual -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-blue">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Reporte Individual</span>
-              <span class="reporte-desc">Historial día a día por empleado</span>
-            </div>
-          </div>
-          <div class="rpt-fields rpt-fields-col">
-            <div class="rpt-field">
-              <label class="rpt-label">Empleado</label>
-              <div class="emp-search-wrap">
-                <input class="reporte-input emp-search-input" type="text" placeholder="Buscar empleado..." [(ngModel)]="rptIndividual.search">
-                <select class="reporte-input" [(ngModel)]="rptIndividual.empleadoId" size="1">
-                  <option value="">— Seleccionar —</option>
-                  @for (emp of listaEmpleadosFiltrada; track emp.id) {
-                    <option [value]="emp.id">{{ emp.nombreCompleto }} · {{ emp.cargo }}</option>
-                  }
-                </select>
-              </div>
-              @if (rptIndividual.empleadoId) {
-                <span class="emp-selected-badge">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  {{ empleadoNombre(rptIndividual.empleadoId) }}
-                </span>
-              }
-            </div>
-            <div class="rpt-fields">
-              <div class="rpt-field">
-                <label class="rpt-label">Fecha inicio</label>
-                <input class="reporte-input" type="date" [(ngModel)]="rptIndividual.fechaInicio">
-              </div>
-              <div class="rpt-field">
-                <label class="rpt-label">Fecha fin</label>
-                <input class="reporte-input" type="date" [(ngModel)]="rptIndividual.fechaFin">
-              </div>
-            </div>
-          </div>
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptIndividual.loading" (click)="descargarIndividual('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar Excel
-            </button>
-            <button class="btn-export pdf" [disabled]="rptIndividual.loading" (click)="descargarIndividual('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Descargar PDF
-            </button>
-          </div>
-        </div>
-
-        <!-- Reporte Semanal -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-teal">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Reporte Semanal</span>
-              <span class="reporte-desc">Cronograma semanal con estado por día</span>
-            </div>
-          </div>
-          <div class="rpt-fields">
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha inicio</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptSemanal.fechaInicio">
-            </div>
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha fin</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptSemanal.fechaFin">
-            </div>
-          </div>
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptSemanal.loading" (click)="descargarSemanal('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar Excel
-            </button>
-            <button class="btn-export pdf" [disabled]="rptSemanal.loading" (click)="descargarSemanal('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Descargar PDF
-            </button>
-          </div>
-        </div>
-
-        <!-- Reporte Mensual -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-orange">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Reporte Mensual</span>
-              <span class="reporte-desc">Resumen completo del mes con KPIs</span>
-            </div>
-          </div>
-          <div class="rpt-fields">
-            <div class="rpt-field">
-              <label class="rpt-label">Mes</label>
-              <select class="reporte-input" [(ngModel)]="rptMensual.mes">
-                @for (m of MESES; track m.v) {
-                  <option [value]="m.v">{{ m.l }}</option>
-                }
-              </select>
-            </div>
-            <div class="rpt-field">
-              <label class="rpt-label">Año</label>
-              <input class="reporte-input" type="number" [(ngModel)]="rptMensual.anio" min="2020" max="2100">
-            </div>
-          </div>
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptMensual.loading" (click)="descargarMensual('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar Excel
-            </button>
-            <button class="btn-export pdf" [disabled]="rptMensual.loading" (click)="descargarMensual('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Descargar PDF
-            </button>
-          </div>
-        </div>
-
-        <!-- Reporte Tardanzas -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-red">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Tardanzas e Incidencias</span>
-              <span class="reporte-desc">Detalle de tardanzas y faltas en el período</span>
-            </div>
-          </div>
-          <div class="rpt-fields">
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha inicio</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptTardanzas.fechaInicio">
-            </div>
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha fin</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptTardanzas.fechaFin">
-            </div>
-          </div>
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptTardanzas.loading" (click)="descargarTardanzas('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar Excel
-            </button>
-            <button class="btn-export pdf" [disabled]="rptTardanzas.loading" (click)="descargarTardanzas('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Descargar PDF
-            </button>
-          </div>
-        </div>
-
-        <!-- Reporte Horas Extra -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-purple">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Horas Extra</span>
-              <span class="reporte-desc">Solicitudes de permanencia extra aprobadas</span>
-            </div>
-          </div>
-          <div class="rpt-fields">
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha inicio</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptHorasExtra.fechaInicio">
-            </div>
-            <div class="rpt-field">
-              <label class="rpt-label">Fecha fin</label>
-              <input class="reporte-input" type="date" [(ngModel)]="rptHorasExtra.fechaFin">
-            </div>
-          </div>
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptHorasExtra.loading" (click)="descargarHorasExtra('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Descargar Excel
-            </button>
-            <button class="btn-export pdf" [disabled]="rptHorasExtra.loading" (click)="descargarHorasExtra('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Descargar PDF
-            </button>
-          </div>
-        </div>
-
-      </div>
-    }
-  </div>
-
-  <!-- ── Tab Bar ─────────────────────────────────────────────────────────── -->
-  <div class="tab-bar">
-    <button class="tab-btn" [class.active]="activeTab === 'semanal'" (click)="setTab('semanal')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      Vista Semanal
-    </button>
-    <button class="tab-btn" [class.active]="activeTab === 'diaria'" (click)="setTab('diaria')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Vista Diaria
-    </button>
-    <button class="tab-btn" [class.active]="activeTab === 'turnos'" (click)="setTab('turnos')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-      Gestión de Turnos
-    </button>
-  </div>
-
   <!-- ════════════════════════════════════════════════════════════════════════
-       TAB 1 — VISTA SEMANAL
+       MAIN CONTENT CARD — tab bar + all tab content inside one card
   ═══════════════════════════════════════════════════════════════════════════ -->
-  @if (activeTab === 'semanal') {
-    <!-- Period nav + search -->
-    <div class="asist-toolbar">
-      <div class="period-nav">
-        <button class="nav-btn" (click)="irSemanaAnterior()" title="Semana anterior">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <span class="period-label">{{ labelSemana }}</span>
-        <button class="nav-btn" (click)="irSemanaSiguiente()" [disabled]="esSemanaActual" title="Semana siguiente">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-      <div class="search-box">
-        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input class="search-input" type="text" placeholder="Buscar empleado, cargo, área…" [(ngModel)]="searchTerm">
-      </div>
-      @if (periodo) {
-        <span class="meta-chip">Meta: {{ periodo.meta_horas }}h/semana</span>
-      }
+  <div class="card main-card">
+
+    <!-- Tab bar at the top of the card -->
+    <div class="main-tab-bar">
+      <button class="tab-btn" [class.active]="activeTab === 'semanal'" (click)="setTab('semanal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Vista Semanal
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'diaria'" (click)="setTab('diaria')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Vista Diaria
+      </button>
+      <button class="tab-btn" [class.active]="activeTab === 'turnos'" (click)="setTab('turnos')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Gestión de Turnos
+      </button>
     </div>
 
-    <!-- Tabla semanal -->
-    <div class="card">
+    <!-- ── TAB 1: VISTA SEMANAL ─────────────────────────────────────────── -->
+    @if (activeTab === 'semanal') {
+
+      <!-- Period nav + search -->
+      <div class="tab-toolbar">
+        <div class="period-nav">
+          <button class="nav-btn" (click)="irSemanaAnterior()" title="Semana anterior">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="period-label">{{ labelSemana }}</span>
+          <button class="nav-btn" (click)="irSemanaSiguiente()" [disabled]="esSemanaActual" title="Semana siguiente">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        <div class="search-box">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="search-input" type="text" placeholder="Buscar empleado, cargo, área…" [(ngModel)]="searchTerm">
+        </div>
+        @if (periodo) {
+          <span class="meta-chip">Meta: {{ periodo.meta_horas }}h/semana</span>
+        }
+      </div>
+
+      <!-- Tabla semanal (content goes directly, no extra card) -->
       @if (cargando) {
         <div class="state-center">
           <div class="spinner"></div>
@@ -471,14 +235,10 @@
           </div>
         }
       }
-    </div>
-  }
+    }
 
-  <!-- ════════════════════════════════════════════════════════════════════════
-       TAB 2 — VISTA DIARIA
-  ═══════════════════════════════════════════════════════════════════════════ -->
-  @if (activeTab === 'diaria') {
-    <div class="card">
+    <!-- ── TAB 2: VISTA DIARIA ──────────────────────────────────────────── -->
+    @if (activeTab === 'diaria') {
 
       <!-- ── Filtros ────────────────────────────────────────────── -->
       <div class="diaria-filters">
@@ -691,8 +451,226 @@
           </div>
         }
       }
+    }
+
+    <!-- ── TAB 3: GESTIÓN DE TURNOS ─────────────────────────────────────── -->
+    @if (activeTab === 'turnos') {
+      <div class="turnos-section-inner">
+
+        <div class="turnos-actions">
+          <button class="btn-primary" (click)="abrirCrearTurno()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo Turno
+          </button>
+          <button class="btn-secondary" (click)="abrirAsignarTurno()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
+            Asignar Turno a Empleado
+          </button>
+          <button class="btn-ghost" (click)="cargarTurnos()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Recargar
+          </button>
+        </div>
+
+        @if (turnosLoading) {
+          <div class="estado-vacio">
+            <div class="spinner-sm"></div>
+            <span>Cargando turnos…</span>
+          </div>
+        } @else if (turnosError) {
+          <div class="estado-vacio error-text">{{ turnosError }}</div>
+        } @else if (turnos.length === 0) {
+          <div class="estado-vacio">No hay turnos registrados. Crea el primer turno.</div>
+        } @else {
+          <div class="turnos-table-wrap">
+            <table class="asist-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Entrada</th>
+                  <th>Salida</th>
+                  <th>Almuerzo (min)</th>
+                  <th>Tolerancia (min)</th>
+                  <th>Horas netas</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of turnos; track t.id) {
+                  <tr>
+                    <td><span class="turno-nombre-badge">{{ t.nombre }}</span></td>
+                    <td>{{ t.hora_entrada }}</td>
+                    <td>{{ t.hora_salida }}</td>
+                    <td>{{ t.duracion_almuerzo_minutos }}</td>
+                    <td>{{ t.tolerancia_minutos }}</td>
+                    <td><strong>{{ t.horas_netas }}h</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+      </div>
+    }
+
+  </div>
+
+  <!-- ── Reportes ───────────────────────────────────────────────────────── -->
+  <div class="card reportes-section">
+    <div class="reportes-header" (click)="showReportes = !showReportes">
+      <div class="reportes-title-row">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <h3 class="reportes-title">Reportes de Asistencia</h3>
+      </div>
+      <svg class="chevron-icon" [class.open]="showReportes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
     </div>
-  }
+
+    @if (showReportes) {
+
+      <!-- Período global compartido entre ambas tarjetas -->
+      <div class="reportes-range-bar">
+        <div class="range-bar-label">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Período</span>
+        </div>
+        <div class="range-bar-inputs">
+          <input type="date" [(ngModel)]="globalFechaInicio" class="reporte-input">
+          <span class="range-sep">—</span>
+          <input type="date" [(ngModel)]="globalFechaFin" class="reporte-input">
+          <button class="btn-preset" (click)="setGlobalPreset('semana')">Semana actual</button>
+          <button class="btn-preset" (click)="setGlobalPreset('mes')">Este mes</button>
+        </div>
+        @if (globalFechaInicio && globalFechaFin) {
+          <span class="range-label-chip">{{ labelGlobalRange }}</span>
+        }
+      </div>
+
+      <!-- 2 tarjetas de reporte -->
+      <div class="reportes-grid-2">
+
+        <!-- Tarjeta 1: Reporte Global -->
+        <div class="reporte-card">
+          <div class="rpt-card-header">
+            <div class="reporte-icon icon-green">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </div>
+            <div class="rpt-meta">
+              <span class="reporte-nombre">Reporte Global</span>
+              <span class="reporte-desc">Selecciona el tipo e incluye horas extra y tardanzas</span>
+            </div>
+          </div>
+
+          <!-- Selector de tipo -->
+          <div class="rpt-field">
+            <label class="rpt-label">Tipo de reporte</label>
+            <select class="reporte-input" [(ngModel)]="rptGlobal2.tipo">
+              <option value="global">Global Completo — todas las métricas</option>
+              <option value="semanal">Semanal — cronograma con estado por día</option>
+              <option value="mensual">Mensual — resumen del mes con KPIs</option>
+              <option value="tardanzas">Tardanzas e Incidencias</option>
+              <option value="horas-extra">Horas Extra Aprobadas</option>
+            </select>
+          </div>
+
+          <!-- Si mensual: selectores de mes y año -->
+          @if (rptGlobal2.tipo === 'mensual') {
+            <div class="rpt-fields">
+              <div class="rpt-field">
+                <label class="rpt-label">Mes</label>
+                <select class="reporte-input" [(ngModel)]="rptGlobal2.mes">
+                  @for (m of MESES; track m.v) {
+                    <option [value]="m.v">{{ m.l }}</option>
+                  }
+                </select>
+              </div>
+              <div class="rpt-field">
+                <label class="rpt-label">Año</label>
+                <input class="reporte-input" type="number" [(ngModel)]="rptGlobal2.anio" min="2020" max="2100">
+              </div>
+            </div>
+          } @else {
+            <!-- Muestra el período global como información -->
+            <div class="rpt-range-info">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              @if (globalFechaInicio && globalFechaFin) {
+                Período: {{ labelGlobalRange }}
+              } @else {
+                <span class="rpt-range-warn">Configura el período global arriba</span>
+              }
+            </div>
+          }
+
+          <div class="rpt-footer">
+            <button class="btn-export excel" [disabled]="rptGlobal2.loading" (click)="descargarRptGlobal('xlsx')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              @if (rptGlobal2.loading) { Generando… } @else { Excel }
+            </button>
+            <button class="btn-export pdf" [disabled]="rptGlobal2.loading" (click)="descargarRptGlobal('pdf')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              @if (rptGlobal2.loading) { Generando… } @else { PDF }
+            </button>
+          </div>
+        </div>
+
+        <!-- Tarjeta 2: Reporte Personal -->
+        <div class="reporte-card">
+          <div class="rpt-card-header">
+            <div class="reporte-icon icon-blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="rpt-meta">
+              <span class="reporte-nombre">Reporte Personal</span>
+              <span class="reporte-desc">Historial completo día a día por empleado</span>
+            </div>
+          </div>
+
+          <!-- Selector de empleado con búsqueda -->
+          <div class="rpt-field">
+            <label class="rpt-label">Empleado</label>
+            <div class="emp-search-wrap">
+              <input class="reporte-input emp-search-input" type="text"
+                     placeholder="Buscar por nombre o cargo…"
+                     [(ngModel)]="rptPersonal2.search">
+              <select class="reporte-input emp-select" [(ngModel)]="rptPersonal2.empleadoId" size="1">
+                <option value="">— Seleccionar empleado —</option>
+                @for (emp of listaEmpleadosFiltrada; track emp.id) {
+                  <option [value]="emp.id">{{ emp.nombreCompleto }} · {{ emp.cargo }}</option>
+                }
+              </select>
+            </div>
+            @if (rptPersonal2.empleadoId) {
+              <span class="emp-selected-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                {{ empleadoNombre(rptPersonal2.empleadoId) }}
+              </span>
+            }
+          </div>
+
+          <!-- Período global como información -->
+          <div class="rpt-range-info">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            @if (globalFechaInicio && globalFechaFin) {
+              Período: {{ labelGlobalRange }}
+            } @else {
+              <span class="rpt-range-warn">Configura el período global arriba</span>
+            }
+          </div>
+
+          <div class="rpt-footer">
+            <button class="btn-export excel" [disabled]="rptPersonal2.loading" (click)="descargarRptPersonal('xlsx')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              @if (rptPersonal2.loading) { Generando… } @else { Excel }
+            </button>
+            <button class="btn-export pdf" [disabled]="rptPersonal2.loading" (click)="descargarRptPersonal('pdf')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              @if (rptPersonal2.loading) { Generando… } @else { PDF }
+            </button>
+          </div>
+        </div>
+
+      </div>
+    }
+  </div>
 
 </div>
 
@@ -877,150 +855,93 @@
 }
 
 <!-- ════════════════════════════════════════════════════════════════════════
-     TAB 3 — GESTIÓN DE TURNOS
+     MODAL CREAR TURNO (moved outside turnos @if block)
 ═══════════════════════════════════════════════════════════════════════════ -->
-@if (activeTab === 'turnos') {
-  <div class="turnos-section">
+@if (showCrearTurno) {
+  <app-modal title="Nuevo Turno" (closed)="cerrarCrearTurno()">
+    <div class="modal-form">
+      @if (crearTurnoExito) { <div class="alert-success">{{ crearTurnoExito }}</div> }
+      @if (crearTurnoError) { <div class="alert-error">{{ crearTurnoError }}</div> }
 
-    <div class="turnos-actions">
-      <button class="btn-primary" (click)="abrirCrearTurno()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Nuevo Turno
-      </button>
-      <button class="btn-secondary" (click)="abrirAsignarTurno()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
-        Asignar Turno a Empleado
-      </button>
-      <button class="btn-ghost" (click)="cargarTurnos()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        Recargar
-      </button>
+      <div class="form-group">
+        <label>Nombre del turno *</label>
+        <input class="form-control" type="text" [(ngModel)]="formTurno.nombre" placeholder="Ej: Practicante Mañana">
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Hora de entrada</label>
+          <input class="form-control" type="time" [(ngModel)]="formTurno.hora_entrada">
+        </div>
+        <div class="form-group">
+          <label>Hora de salida</label>
+          <input class="form-control" type="time" [(ngModel)]="formTurno.hora_salida">
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Almuerzo (minutos)</label>
+          <input class="form-control" type="number" [(ngModel)]="formTurno.duracion_almuerzo_minutos" min="0" max="180">
+        </div>
+        <div class="form-group">
+          <label>Tolerancia (minutos)</label>
+          <input class="form-control" type="number" [(ngModel)]="formTurno.tolerancia_minutos" min="0" max="60">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" (click)="cerrarCrearTurno()">Cancelar</button>
+        <button class="btn-primary" [disabled]="crearTurnoLoading" (click)="guardarTurno()">
+          @if (crearTurnoLoading) { Guardando… } @else { Guardar Turno }
+        </button>
+      </div>
     </div>
+  </app-modal>
+}
 
-    @if (turnosLoading) {
-      <div class="estado-vacio">
-        <div class="spinner-sm"></div>
-        <span>Cargando turnos…</span>
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL ASIGNAR TURNO (moved outside turnos @if block)
+═══════════════════════════════════════════════════════════════════════════ -->
+@if (showAsignarTurno) {
+  <app-modal title="Asignar Turno a Empleado" (closed)="cerrarAsignarTurno()">
+    <div class="modal-form">
+      @if (asignarExito) { <div class="alert-success">{{ asignarExito }}</div> }
+      @if (asignarError) { <div class="alert-error">{{ asignarError }}</div> }
+
+      <div class="form-group">
+        <label>Empleado *</label>
+        <select class="form-control" [(ngModel)]="formAsignar.empleado_id">
+          <option value="">— Seleccionar —</option>
+          @for (emp of listaEmpleados; track emp.id) {
+            <option [value]="emp.id">{{ emp.nombreCompleto }} — {{ emp.cargo }}</option>
+          }
+        </select>
       </div>
-    } @else if (turnosError) {
-      <div class="estado-vacio error-text">{{ turnosError }}</div>
-    } @else if (turnos.length === 0) {
-      <div class="estado-vacio">No hay turnos registrados. Crea el primer turno.</div>
-    } @else {
-      <div class="card turnos-table-wrap">
-        <table class="asist-table">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Entrada</th>
-              <th>Salida</th>
-              <th>Almuerzo (min)</th>
-              <th>Tolerancia (min)</th>
-              <th>Horas netas</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (t of turnos; track t.id) {
-              <tr>
-                <td><span class="turno-nombre-badge">{{ t.nombre }}</span></td>
-                <td>{{ t.hora_entrada }}</td>
-                <td>{{ t.hora_salida }}</td>
-                <td>{{ t.duracion_almuerzo_minutos }}</td>
-                <td>{{ t.tolerancia_minutos }}</td>
-                <td><strong>{{ t.horas_netas }}h</strong></td>
-              </tr>
-            }
-          </tbody>
-        </table>
+      <div class="form-group">
+        <label>Turno *</label>
+        <select class="form-control" [(ngModel)]="formAsignar.turno_id">
+          <option value="">— Seleccionar turno —</option>
+          @for (t of turnos; track t.id) {
+            <option [value]="t.id">{{ t.nombre }} ({{ t.hora_entrada }} – {{ t.hora_salida }})</option>
+          }
+        </select>
       </div>
-    }
-  </div>
-
-  <!-- Modal Crear Turno -->
-  @if (showCrearTurno) {
-    <app-modal title="Nuevo Turno" (closed)="cerrarCrearTurno()">
-      <div class="modal-form">
-        @if (crearTurnoExito) { <div class="alert-success">{{ crearTurnoExito }}</div> }
-        @if (crearTurnoError) { <div class="alert-error">{{ crearTurnoError }}</div> }
-
+      <div class="form-row-2">
         <div class="form-group">
-          <label>Nombre del turno *</label>
-          <input class="form-control" type="text" [(ngModel)]="formTurno.nombre" placeholder="Ej: Practicante Mañana">
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label>Hora de entrada</label>
-            <input class="form-control" type="time" [(ngModel)]="formTurno.hora_entrada">
-          </div>
-          <div class="form-group">
-            <label>Hora de salida</label>
-            <input class="form-control" type="time" [(ngModel)]="formTurno.hora_salida">
-          </div>
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label>Almuerzo (minutos)</label>
-            <input class="form-control" type="number" [(ngModel)]="formTurno.duracion_almuerzo_minutos" min="0" max="180">
-          </div>
-          <div class="form-group">
-            <label>Tolerancia (minutos)</label>
-            <input class="form-control" type="number" [(ngModel)]="formTurno.tolerancia_minutos" min="0" max="60">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-ghost" (click)="cerrarCrearTurno()">Cancelar</button>
-          <button class="btn-primary" [disabled]="crearTurnoLoading" (click)="guardarTurno()">
-            @if (crearTurnoLoading) { Guardando… } @else { Guardar Turno }
-          </button>
-        </div>
-      </div>
-    </app-modal>
-  }
-
-  <!-- Modal Asignar Turno -->
-  @if (showAsignarTurno) {
-    <app-modal title="Asignar Turno a Empleado" (closed)="cerrarAsignarTurno()">
-      <div class="modal-form">
-        @if (asignarExito) { <div class="alert-success">{{ asignarExito }}</div> }
-        @if (asignarError) { <div class="alert-error">{{ asignarError }}</div> }
-
-        <div class="form-group">
-          <label>Empleado *</label>
-          <select class="form-control" [(ngModel)]="formAsignar.empleado_id">
-            <option value="">— Seleccionar —</option>
-            @for (emp of listaEmpleados; track emp.id) {
-              <option [value]="emp.id">{{ emp.nombreCompleto }} — {{ emp.cargo }}</option>
-            }
-          </select>
+          <label>Desde</label>
+          <input class="form-control" type="date" [(ngModel)]="formAsignar.fecha_desde">
         </div>
         <div class="form-group">
-          <label>Turno *</label>
-          <select class="form-control" [(ngModel)]="formAsignar.turno_id">
-            <option value="">— Seleccionar turno —</option>
-            @for (t of turnos; track t.id) {
-              <option [value]="t.id">{{ t.nombre }} ({{ t.hora_entrada }} – {{ t.hora_salida }})</option>
-            }
-          </select>
-        </div>
-        <div class="form-row-2">
-          <div class="form-group">
-            <label>Desde</label>
-            <input class="form-control" type="date" [(ngModel)]="formAsignar.fecha_desde">
-          </div>
-          <div class="form-group">
-            <label>Hasta (opcional)</label>
-            <input class="form-control" type="date" [(ngModel)]="formAsignar.fecha_hasta">
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn-ghost" (click)="cerrarAsignarTurno()">Cancelar</button>
-          <button class="btn-primary" [disabled]="asignarLoading" (click)="confirmarAsignarTurno()">
-            @if (asignarLoading) { Asignando… } @else { Confirmar Asignación }
-          </button>
+          <label>Hasta (opcional)</label>
+          <input class="form-control" type="date" [(ngModel)]="formAsignar.fecha_hasta">
         </div>
       </div>
-    </app-modal>
-  }
+      <div class="modal-footer">
+        <button class="btn-ghost" (click)="cerrarAsignarTurno()">Cancelar</button>
+        <button class="btn-primary" [disabled]="asignarLoading" (click)="confirmarAsignarTurno()">
+          @if (asignarLoading) { Asignando… } @else { Confirmar Asignación }
+        </button>
+      </div>
+    </div>
+  </app-modal>
 }
 
 <!-- ════════════════════════════════════════════════════════════════════════

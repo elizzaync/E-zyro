@@ -46,12 +46,11 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   // ── Reportes (colapsable) ──────────────────────────────────────────────────
   showReportes = true;
 
-  rptGlobal      = { fechaInicio: '', fechaFin: '', loading: false };
-  rptSemanal     = { fechaInicio: '', fechaFin: '', loading: false };
-  rptMensual     = { anio: new Date().getFullYear().toString(), mes: (new Date().getMonth() + 1).toString().padStart(2, '0'), loading: false };
-  rptTardanzas   = { fechaInicio: '', fechaFin: '', loading: false };
-  rptIndividual  = { fechaInicio: '', fechaFin: '', empleadoId: '', search: '', loading: false };
-  rptHorasExtra  = { fechaInicio: '', fechaFin: '', loading: false };
+  listaEmpleados: EmpleadoLegajoDto[] = [];
+
+  // ── Reportes: rango global compartido ─────────────────────────────────────
+  globalFechaInicio = '';
+  globalFechaFin    = '';
 
   readonly MESES = [
     { v: '01', l: 'Enero' }, { v: '02', l: 'Febrero' }, { v: '03', l: 'Marzo' },
@@ -60,10 +59,21 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     { v: '10', l: 'Octubre' }, { v: '11', l: 'Noviembre' }, { v: '12', l: 'Diciembre' },
   ];
 
-  listaEmpleados: EmpleadoLegajoDto[] = [];
+  rptGlobal2 = {
+    tipo: 'global' as 'global' | 'semanal' | 'mensual' | 'tardanzas' | 'horas-extra',
+    anio: new Date().getFullYear().toString(),
+    mes: (new Date().getMonth() + 1).toString().padStart(2, '0'),
+    loading: false,
+  };
+
+  rptPersonal2 = {
+    empleadoId: '',
+    search: '',
+    loading: false,
+  };
 
   get listaEmpleadosFiltrada(): EmpleadoLegajoDto[] {
-    const q = this.rptIndividual.search.toLowerCase().trim();
+    const q = this.rptPersonal2.search.toLowerCase().trim();
     if (!q) return this.listaEmpleados;
     return this.listaEmpleados.filter(e =>
       e.nombreCompleto.toLowerCase().includes(q) || e.cargo.toLowerCase().includes(q)
@@ -149,17 +159,10 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.setSemana();
     this.cargar();
     this.cargarListaEmpleados();
-    // Inicializar filtros de reportes con la semana actual
-    this.rptGlobal.fechaInicio      = this.fechaInicio;
-    this.rptGlobal.fechaFin         = this.fechaFin;
-    this.rptSemanal.fechaInicio     = this.fechaInicio;
-    this.rptSemanal.fechaFin        = this.fechaFin;
-    this.rptTardanzas.fechaInicio   = this.fechaInicio;
-    this.rptTardanzas.fechaFin      = this.fechaFin;
-    this.rptHorasExtra.fechaInicio  = this.fechaInicio;
-    this.rptHorasExtra.fechaFin     = this.fechaFin;
-    this.rptIndividual.fechaInicio  = this.fechaInicio;
-    this.rptIndividual.fechaFin     = this.fechaFin;
+    this.globalFechaInicio = this.fechaInicio;
+    this.globalFechaFin    = this.fechaFin;
+    this.rptGlobal2.anio = new Date().getFullYear().toString();
+    this.rptGlobal2.mes  = (new Date().getMonth() + 1).toString().padStart(2, '0');
   }
 
   ngOnDestroy(): void {
@@ -550,97 +553,69 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     if (this.leafletMap) { this.leafletMap.remove(); this.leafletMap = null; }
   }
 
-  // ── Reportes ───────────────────────────────────────────────────────────────
+  // ── Reportes: rango global ─────────────────────────────────────────────────
 
-  descargarGlobal(fmt: 'xlsx' | 'pdf'): void {
-    if (!this.rptGlobal.fechaInicio || !this.rptGlobal.fechaFin) {
-      alert('Selecciona el rango de fechas para el reporte global.'); return;
+  get labelGlobalRange(): string {
+    if (!this.globalFechaInicio || !this.globalFechaFin) return 'Sin rango';
+    const fi = new Date(this.globalFechaInicio + 'T00:00:00');
+    const ff = new Date(this.globalFechaFin    + 'T00:00:00');
+    const s: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short' };
+    return `${fi.toLocaleDateString('es-PE', s)} — ${ff.toLocaleDateString('es-PE', { ...s, year: 'numeric' })}`;
+  }
+
+  setGlobalPreset(preset: 'semana' | 'mes'): void {
+    const hoy = new Date();
+    if (preset === 'semana') {
+      this.globalFechaInicio = this.toISODate(this.lunesDe(hoy));
+      this.globalFechaFin    = this.toISODate(this.sabadoDe(hoy));
+    } else {
+      const ini = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      const fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+      this.globalFechaInicio = this.toISODate(ini);
+      this.globalFechaFin    = this.toISODate(fin);
     }
-    this.rptGlobal.loading = true;
-    this.rrhhService.descargarReporte('global', {
-      fecha_inicio: this.rptGlobal.fechaInicio,
-      fecha_fin:    this.rptGlobal.fechaFin,
-      fmt,
-    }).subscribe({
-      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_global'); this.rptGlobal.loading = false; },
-      error: (err)  => { this._blobError(err, 'reporte global'); this.rptGlobal.loading = false; },
+  }
+
+  descargarRptGlobal(fmt: 'xlsx' | 'pdf'): void {
+    const tipo = this.rptGlobal2.tipo;
+    const params: Record<string, string> = { fmt };
+
+    if (tipo === 'mensual') {
+      if (!this.rptGlobal2.anio || !this.rptGlobal2.mes) {
+        alert('Selecciona el año y mes.'); return;
+      }
+      params['anio'] = this.rptGlobal2.anio;
+      params['mes']  = this.rptGlobal2.mes;
+    } else {
+      if (!this.globalFechaInicio || !this.globalFechaFin) {
+        alert('Selecciona el rango de fechas global.'); return;
+      }
+      params['fecha_inicio'] = this.globalFechaInicio;
+      params['fecha_fin']    = this.globalFechaFin;
+    }
+
+    this.rptGlobal2.loading = true;
+    const nombre = `reporte_${tipo}_${new Date().toISOString().slice(0,10)}`;
+    this.rrhhService.descargarReporte(tipo, params).subscribe({
+      next:  (blob) => { this._triggerDownload(blob, fmt, nombre); this.rptGlobal2.loading = false; },
+      error: (err)  => { this._blobError(err, `reporte ${tipo}`); this.rptGlobal2.loading = false; },
     });
   }
 
-  descargarSemanal(fmt: 'xlsx' | 'pdf'): void {
-    if (!this.rptSemanal.fechaInicio || !this.rptSemanal.fechaFin) {
-      alert('Selecciona el rango de fechas para el reporte semanal.'); return;
+  descargarRptPersonal(fmt: 'xlsx' | 'pdf'): void {
+    if (!this.rptPersonal2.empleadoId) { alert('Selecciona un empleado.'); return; }
+    if (!this.globalFechaInicio || !this.globalFechaFin) {
+      alert('Selecciona el rango de fechas global.'); return;
     }
-    this.rptSemanal.loading = true;
-    this.rrhhService.descargarReporte('semanal', {
-      fecha_inicio: this.rptSemanal.fechaInicio,
-      fecha_fin:    this.rptSemanal.fechaFin,
-      fmt,
-    }).subscribe({
-      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_semanal'); this.rptSemanal.loading = false; },
-      error: (err)  => { this._blobError(err, 'reporte semanal'); this.rptSemanal.loading = false; },
-    });
-  }
-
-  descargarMensual(fmt: 'xlsx' | 'pdf'): void {
-    if (!this.rptMensual.anio || !this.rptMensual.mes) {
-      alert('Selecciona el año y mes.'); return;
-    }
-    this.rptMensual.loading = true;
-    this.rrhhService.descargarReporte('mensual', {
-      anio: this.rptMensual.anio,
-      mes:  this.rptMensual.mes,
-      fmt,
-    }).subscribe({
-      next:  (blob) => { this._triggerDownload(blob, fmt, `reporte_mensual_${this.rptMensual.anio}_${this.rptMensual.mes}`); this.rptMensual.loading = false; },
-      error: (err)  => { this._blobError(err, 'reporte mensual'); this.rptMensual.loading = false; },
-    });
-  }
-
-  descargarTardanzas(fmt: 'xlsx' | 'pdf'): void {
-    if (!this.rptTardanzas.fechaInicio || !this.rptTardanzas.fechaFin) {
-      alert('Selecciona el rango de fechas para el reporte de tardanzas.'); return;
-    }
-    this.rptTardanzas.loading = true;
-    this.rrhhService.descargarReporte('tardanzas', {
-      fecha_inicio: this.rptTardanzas.fechaInicio,
-      fecha_fin:    this.rptTardanzas.fechaFin,
-      fmt,
-    }).subscribe({
-      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_tardanzas'); this.rptTardanzas.loading = false; },
-      error: (err)  => { this._blobError(err, 'reporte de tardanzas'); this.rptTardanzas.loading = false; },
-    });
-  }
-
-  descargarIndividual(fmt: 'xlsx' | 'pdf'): void {
-    if (!this.rptIndividual.empleadoId) { alert('Selecciona un empleado.'); return; }
-    if (!this.rptIndividual.fechaInicio || !this.rptIndividual.fechaFin) {
-      alert('Selecciona el rango de fechas.'); return;
-    }
-    this.rptIndividual.loading = true;
+    this.rptPersonal2.loading = true;
     this.rrhhService.descargarReporte('individual', {
-      empleado_id:  this.rptIndividual.empleadoId,
-      fecha_inicio: this.rptIndividual.fechaInicio,
-      fecha_fin:    this.rptIndividual.fechaFin,
+      empleado_id:  this.rptPersonal2.empleadoId,
+      fecha_inicio: this.globalFechaInicio,
+      fecha_fin:    this.globalFechaFin,
       fmt,
     }).subscribe({
-      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_individual'); this.rptIndividual.loading = false; },
-      error: (err)  => { this._blobError(err, 'reporte individual'); this.rptIndividual.loading = false; },
-    });
-  }
-
-  descargarHorasExtra(fmt: 'xlsx' | 'pdf'): void {
-    if (!this.rptHorasExtra.fechaInicio || !this.rptHorasExtra.fechaFin) {
-      alert('Selecciona el rango de fechas.'); return;
-    }
-    this.rptHorasExtra.loading = true;
-    this.rrhhService.descargarReporte('horas-extra', {
-      fecha_inicio: this.rptHorasExtra.fechaInicio,
-      fecha_fin:    this.rptHorasExtra.fechaFin,
-      fmt,
-    }).subscribe({
-      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_horas_extra'); this.rptHorasExtra.loading = false; },
-      error: (err)  => { this._blobError(err, 'reporte de horas extra'); this.rptHorasExtra.loading = false; },
+      next:  (blob) => { this._triggerDownload(blob, fmt, 'reporte_individual'); this.rptPersonal2.loading = false; },
+      error: (err)  => { this._blobError(err, 'reporte individual'); this.rptPersonal2.loading = false; },
     });
   }
 
