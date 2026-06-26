@@ -981,54 +981,42 @@ def _pdf_cronograma(titulo: str, subtitulo: str, dias: list[date],
             f"{k} = {v}" for k, v in _CRONO_LABEL.items()), small))
     story.append(Spacer(1, 0.45*cm))
 
-    # ── Tabla resumen por empleado ──
-    story.append(Paragraph("<b>Resumen por empleado</b>", styles["Heading3"]))
-    enc = ["Empleado", "Cargo", "Área", "Días trab.", "Tardanzas", "Faltas", "% Cumpl."]
-    filas = [enc] + [[e["nombre"], e["cargo"], e["area"], e["dias_trab"],
-                      e["tardanzas"], e["faltas"], f"{e['porcentaje']}%"]
-                     for e in empleados]
+    # ── Detalle por empleado: resumen + incidencias del período inline ──
+    # Cada trabajador ocupa UNA fila con su resumen y sus incidencias (fechas
+    # compactas: "05 T · 12 F"). Reemplaza la antigua lista global de incidencias.
+    story.append(Paragraph("<b>Detalle por empleado</b>", styles["Heading3"]))
+    cell   = ParagraphStyle("cell",  parent=styles["Normal"], fontSize=7.5, leading=9)
+    cell_b = ParagraphStyle("cellb", parent=cell, textColor=colors.white,
+                            fontName="Helvetica-Bold")
+    enc = [Paragraph(h, cell_b) for h in
+           ["Empleado", "Área", "Días", "Tard.", "Faltas", "% Cumpl.",
+            "Incidencias del período"]]
+    filas = [enc]
+    for e in empleados:
+        inc = [f"{d.day:02d}&nbsp;{code}" for d, code in zip(dias, e["codigos"])
+               if code in ("T", "F", "I")]
+        inc_txt = " · ".join(inc) if inc else "Sin incidencias"
+        filas.append([
+            Paragraph(e["nombre"], cell),
+            Paragraph(e["area"] or "—", cell),
+            str(e["dias_trab"]), str(e["tardanzas"]), str(e["faltas"]),
+            f"{e['porcentaje']}%",
+            Paragraph(inc_txt, cell),
+        ])
     w = doc.width
     t2 = Table(filas, repeatRows=1,
-               colWidths=[w*0.26, w*0.18, w*0.16, w*0.10, w*0.10, w*0.08, w*0.12])
+               colWidths=[w*0.17, w*0.12, w*0.06, w*0.06, w*0.06, w*0.08, w*0.45])
     t2.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#16A34A")),
-        ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
-        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",   (0, 0), (-1, -1), 8),
-        ("ALIGN",      (3, 0), (-1, -1), "CENTER"),
+        ("FONTSIZE",   (0, 0), (-1, -1), 7.5),
+        ("ALIGN",      (2, 0), (5, -1), "CENTER"),
         ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F0FDF4")]),
         ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#D1FAE5")),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
     ]))
     story.append(t2)
-
-    # ── Anexo de incidencias (tardanzas / faltas / incompletos) ──
-    excepciones = []
-    for e in empleados:
-        for d, code in zip(dias, e["codigos"]):
-            if code in ("T", "F", "I"):
-                excepciones.append([e["nombre"], d.strftime("%d/%m/%Y"), _CRONO_LABEL[code]])
-    if excepciones:
-        story.append(Spacer(1, 0.45*cm))
-        story.append(Paragraph(
-            "<b>Anexo — Incidencias (tardanzas, faltas, incompletos)</b>",
-            styles["Heading3"]))
-        filas_e = [["Empleado", "Fecha", "Incidencia"]] + excepciones
-        t3 = Table(filas_e, repeatRows=1,
-                   colWidths=[doc.width*0.40, doc.width*0.25, doc.width*0.35])
-        t3.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#B91C1C")),
-            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
-            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("FONTSIZE",   (0, 0), (-1, -1), 8),
-            ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
-            ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#FECACA")),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ]))
-        story.append(t3)
 
     doc.build(story)
     buf.seek(0)

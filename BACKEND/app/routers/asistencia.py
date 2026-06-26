@@ -1063,15 +1063,35 @@ def exportar_asistencias(
 
     periodo = (periodo or "dia").lower()
     formato = (formato or "csv").lower()
-    if formato not in ("csv", "xlsx"):
-        raise HTTPException(status_code=422, detail="formato inválido (use csv|xlsx)")
+    if formato not in ("csv", "xlsx", "pdf"):
+        raise HTTPException(status_code=422, detail="formato inválido (use csv|xlsx|pdf)")
 
     desde, hasta = _rango_export(periodo, fecha)
-    filas = _filas_export(db, empresa_id, desde, hasta)
 
     base = f"asistencias_{periodo}_{desde.isoformat()}"
     if desde != hasta:
         base += f"_a_{hasta.isoformat()}"
+
+    if formato == "pdf":
+        # PDF organizado: resumen + cronograma (matriz día×empleado) + tabla
+        # resumen por empleado + anexo de incidencias. Reutiliza el generador
+        # de reportes de RR.HH. (import perezoso para evitar ciclos).
+        from fastapi.responses import StreamingResponse
+        from .rrhh_asistencia import _build_cronograma, _pdf_cronograma
+        dias_c, emps_c, tot_c = _build_cronograma(db, empresa_id, desde, hasta)
+        titulo_pdf = {
+            "dia":    f"Asistencia — {desde.strftime('%d/%m/%Y')}",
+            "semana": f"Asistencia Semanal — {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}",
+            "mes":    f"Asistencia Mensual — {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}",
+        }.get(periodo, "Reporte de Asistencia")
+        sub = f"Período: {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
+        buf = _pdf_cronograma(titulo_pdf, sub, dias_c, emps_c, tot_c)
+        return StreamingResponse(
+            buf, media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{base}.pdf"'},
+        )
+
+    filas = _filas_export(db, empresa_id, desde, hasta)
 
     if formato == "csv":
         import csv, io
