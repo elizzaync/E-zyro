@@ -46,6 +46,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.rolNombre.trim() === 'Administración';
   }
 
+  get isAdmin(): boolean {
+    return this.rolNombre.trim() === 'Admin';
+  }
+
+  get isSoporte(): boolean {
+    return this.rolNombre.trim() === 'Soporte';
+  }
+
   /** Puede ver la sección Nube de Planos */
   get puedeVerPlanos(): boolean {
     return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
@@ -81,7 +89,7 @@ get puedeAdministrarRRHH(): boolean {
   }
 
   get puedeSoporte(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno && !this.isAdministracion;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno && !this.isAdministracion && !this.isAdmin;
   }
 
   /** Solo el rol que tenga privilegios:gestionar puede ver Gestión de Permisos */
@@ -98,7 +106,7 @@ get puedeAdministrarRRHH(): boolean {
   }
 
   get puedeAdministracion(): boolean {
-    return this.isAdministracion;
+    return this.isAdministracion || this.isAdmin || this.isSoporte;
   }
 
 get enRRHH(): boolean {
