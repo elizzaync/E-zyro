@@ -11,7 +11,7 @@
       </div>
       <div>
         <h1 class="gp-title">Gestión de Permisos</h1>
-        <p class="gp-subtitle">Permisos directos por usuario — adicionales al rol base</p>
+        <p class="gp-subtitle">Permisos adicionales por usuario · aplica a <span class="plat-tag">Web</span> y <span class="plat-tag">Móvil</span></p>
       </div>
     </div>
     @if (!cargandoUsuarios) {
@@ -89,12 +89,18 @@
               </span>
             </div>
           </div>
-          @if (directosActivos > 0) {
-            <button class="gp-btn-revoke" (click)="revocarTodos()" [disabled]="guardandoTodo">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
-              Revocar todos
+          <div class="gp-head-actions">
+            <button class="gp-btn-grant" (click)="otorgarTodos()" [disabled]="guardandoTodo" title="Otorgar todos los permisos directamente">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Otorgar todos
             </button>
-          }
+            @if (directosActivos > 0) {
+              <button class="gp-btn-revoke" (click)="revocarTodos()" [disabled]="guardandoTodo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                Revocar todos
+              </button>
+            }
+          </div>
         </div>
 
         <!-- Filtro tabs -->
@@ -105,6 +111,7 @@
           <!-- Leyenda inline -->
           <div class="gp-legend">
             <span class="leg-item"><span class="leg-dot leg--rol"></span>Rol</span>
+            <span class="leg-item"><span class="leg-dot leg--dual"></span>Rol+Directo</span>
             <span class="leg-item"><span class="leg-dot leg--on"></span>Directo</span>
             <span class="leg-item"><span class="leg-dot leg--off"></span>Sin permiso</span>
           </div>
@@ -133,19 +140,28 @@
                     <button
                       class="gp-pill"
                       [class.pill--rol]="p.via_rol && !p.directo"
-                      [class.pill--on]="p.directo"
+                      [class.pill--dual]="p.via_rol && p.directo"
+                      [class.pill--on]="!p.via_rol && p.directo"
                       [class.pill--off]="!p.via_rol && !p.directo"
-                      [disabled]="p.via_rol || procesando.has(p.id)"
+                      [disabled]="(p.via_rol && !p.directo) || procesando.has(p.id)"
                       (click)="togglePermiso(p)"
-                      [title]="p.via_rol ? 'Heredado del rol — no editable' : (p.directo ? 'Clic para revocar' : 'Clic para otorgar')"
+                      [title]="p.via_rol && !p.directo
+                        ? 'Heredado del rol — no editable'
+                        : p.via_rol && p.directo
+                          ? 'Rol + directo — clic para revocar el directo (mantiene el del rol)'
+                          : p.directo ? 'Clic para revocar permiso directo' : 'Clic para otorgar permiso directo'"
                     >
                       @if (procesando.has(p.id)) {
                         <svg class="spin pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                           <circle cx="12" cy="12" r="10" stroke-opacity=".15"/><path d="M12 2a10 10 0 0 1 10 10"/>
                         </svg>
-                      } @else if (p.via_rol) {
+                      } @else if (p.via_rol && !p.directo) {
                         <svg class="pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                      } @else if (p.via_rol && p.directo) {
+                        <svg class="pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <polyline points="20 6 9 17 4 12"/><polyline points="20 6 9 17 4 12"/>
                         </svg>
                       } @else if (p.directo) {
                         <svg class="pill-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

@@ -128,7 +128,8 @@ export class GestionPermisosComponent implements OnInit {
   moduloLabel(m: string): string { return this.MODULO_LABELS[m] ?? m; }
 
   togglePermiso(p: PermisoDetalle): void {
-    if (!this.usuarioSeleccionado || p.via_rol || this.procesando.has(p.id)) return;
+    // Bloquear solo si es puramente de rol (no directo). Si tiene directo aunque sea de rol, permite revocar el directo.
+    if (!this.usuarioSeleccionado || (p.via_rol && !p.directo) || this.procesando.has(p.id)) return;
     this.procesando.add(p.id);
     const accion$ = p.directo
       ? this.svc.revocarPermiso(this.usuarioSeleccionado.id, p.id)
@@ -136,15 +137,31 @@ export class GestionPermisosComponent implements OnInit {
 
     accion$.subscribe({
       next: () => {
+        const antes = p.directo;
         p.directo = !p.directo;
         const u = this.usuarios.find(x => x.id === this.usuarioSeleccionado!.id);
-        if (u) u.permisos_directos += p.directo ? 1 : -1;
+        if (u) u.permisos_directos += antes ? -1 : 1;
         this.procesando.delete(p.id);
       },
       error: () => {
         this.toast.mostrar('Error al actualizar permiso', 'error');
         this.procesando.delete(p.id);
       },
+    });
+  }
+
+  otorgarTodos(): void {
+    if (!this.usuarioSeleccionado || this.guardandoTodo) return;
+    this.guardandoTodo = true;
+    this.svc.otorgarTodos(this.usuarioSeleccionado.id).subscribe({
+      next: (res: any) => {
+        this.permisos.forEach(p => { p.directo = true; });
+        const u = this.usuarios.find(x => x.id === this.usuarioSeleccionado!.id);
+        if (u) u.permisos_directos = res?.permisos_directos ?? this.permisos.length;
+        this.toast.mostrar('Todos los permisos otorgados', 'success');
+        this.guardandoTodo = false;
+      },
+      error: () => { this.toast.mostrar('Error al otorgar permisos', 'error'); this.guardandoTodo = false; },
     });
   }
 
