@@ -649,7 +649,7 @@
   top:         50%;
   left:        50%;
   transform:   translate(-50%, -50%);
-  z-index:     1001;
+  z-index:     2001;
   width:       min(560px, 95vw);
   max-height:  90vh;
   background:  var(--card-bg, #fff);
