@@ -39,6 +39,15 @@ import { SeguridadComponent } from './features/soporte/components/seguridad/segu
 import { CrearCuentasComponent } from './features/soporte/components/crear-cuentas/crear-cuentas.component';
 import { GestionPermisosComponent } from './features/soporte/components/gestion-permisos/gestion-permisos.component';
 import { AdministracionComponent } from './features/administracion/administracion.component';
+import { ContabilidadComponent } from './features/administracion/components/contabilidad/contabilidad.component';
+import { CxcComponent } from './features/administracion/components/cxc/cxc.component';
+import { CxpComponent } from './features/administracion/components/cxp/cxp.component';
+import { ReportesComponent } from './features/administracion/components/reportes/reportes.component';
+import { ControllingComponent } from './features/administracion/components/controlling/controlling.component';
+import { TributarioComponent } from './features/administracion/components/tributario/tributario.component';
+import { CajaChicaComponent } from './features/administracion/components/caja-chica/caja-chica.component';
+import { ConciliacionComponent } from './features/administracion/components/conciliacion/conciliacion.component';
+import { ActivosFijosComponent } from './features/administracion/components/activos-fijos/activos-fijos.component';
 
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
 const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico', 'Jefe de Operaciones'];
@@ -314,8 +323,20 @@ export const routes: Routes = [
   {
     path: 'administracion',
     component: AdministracionComponent,
-    title: 'Administración | e-zyro TIC',
-    canActivate: [authGuard, rolesGuard(['Administración'])]
+    canActivate: [authGuard, rolesGuard(['Administración'])],
+    children: [
+      { path: '', redirectTo: 'contabilidad', pathMatch: 'full' },
+      { path: 'contabilidad',  component: ContabilidadComponent,  title: 'Contabilidad | e-zyro TIC' },
+      { path: 'cxc',          component: CxcComponent,            title: 'Cuentas por Cobrar | e-zyro TIC' },
+      { path: 'cxp',          component: CxpComponent,            title: 'Cuentas por Pagar | e-zyro TIC' },
+      { path: 'reportes',     component: ReportesComponent,       title: 'Reportes Financieros | e-zyro TIC' },
+      { path: 'planilla',     component: PlanillasComponent,      title: 'Planilla | e-zyro TIC' },
+      { path: 'controlling',  component: ControllingComponent,    title: 'Controlling | e-zyro TIC' },
+      { path: 'tributario',   component: TributarioComponent,     title: 'Tributario | e-zyro TIC' },
+      { path: 'caja-chica',   component: CajaChicaComponent,      title: 'Caja Chica | e-zyro TIC' },
+      { path: 'conciliacion', component: ConciliacionComponent,   title: 'Conciliación Bancaria | e-zyro TIC' },
+      { path: 'activos-fijos',component: ActivosFijosComponent,   title: 'Activos Fijos | e-zyro TIC' },
+    ]
   },
   {
     path: '**',

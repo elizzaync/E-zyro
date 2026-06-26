@@ -1,5 +1,5 @@
 <div class="adm-page">
-  <!-- ── Header ── -->
+  <!-- Header -->
   <div class="adm-header">
     <div class="adm-header-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="28" height="28">
@@ -9,34 +9,25 @@
     </div>
     <div>
       <h1 class="adm-title">Administración</h1>
-      <p class="adm-subtitle">{{ tabActual.desc }}</p>
+      <p class="adm-subtitle">Finanzas · Gestión · Análisis</p>
     </div>
   </div>
 
-  <!-- ── Sidebar + Contenido ── -->
+  <!-- Layout: sidebar + contenido -->
   <div class="adm-layout">
-    <!-- Sidebar de módulos -->
     <aside class="adm-sidebar">
-      @for (t of tabs; track t.key) {
-      <button class="adm-sidebar-item" [class.active]="tab === t.key" (click)="setTab(t.key)">
-        <span class="adm-sidebar-dot" [style.background]="tab === t.key ? t.color : '#d1d5db'"></span>
-        <span class="adm-sidebar-label">{{ t.label }}</span>
-      </button>
+      @for (m of modulos; track m.path) {
+        <a [routerLink]="['/administracion', m.path]"
+           routerLinkActive="active"
+           class="adm-sidebar-item">
+          <span class="adm-sidebar-dot" [style.background]="m.color"></span>
+          <span class="adm-sidebar-label">{{ m.label }}</span>
+        </a>
       }
     </aside>
 
-    <!-- Contenido del módulo activo -->
     <main class="adm-content">
-      @if (tab === 'contabilidad')  { <app-contabilidad></app-contabilidad>   }
-      @if (tab === 'cxc')           { <app-cxc></app-cxc>                      }
-      @if (tab === 'cxp')           { <app-cxp></app-cxp>                      }
-      @if (tab === 'reportes')      { <app-reportes></app-reportes>            }
-      @if (tab === 'planilla')      { <app-planilla></app-planilla>            }
-      @if (tab === 'controlling')   { <app-controlling></app-controlling>      }
-      @if (tab === 'tributario')    { <app-tributario></app-tributario>        }
-      @if (tab === 'caja-chica')    { <app-caja-chica></app-caja-chica>        }
-      @if (tab === 'conciliacion')  { <app-conciliacion></app-conciliacion>    }
-      @if (tab === 'activos-fijos') { <app-activos-fijos></app-activos-fijos>  }
+      <router-outlet></router-outlet>
     </main>
   </div>
 </div>

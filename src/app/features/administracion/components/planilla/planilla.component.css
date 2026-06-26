@@ -1,8 +1,0 @@
-:host {
-  display: block;
-  --mod-color: #8b5cf6;
-  --mod-gradient: linear-gradient(135deg, #8b5cf6, #a78bfa);
-  --mod-hover-bg: #f5f3ff;
-  --mod-pill-bg: #ede9fe;
-  --mod-pill-border: #c4b5fd;
-}
