@@ -38,9 +38,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.rolNombre.trim() === 'Jefe de Operaciones';
   }
 
-  /** Puede ver la sección Nube de Planos (no Técnico) */
+  get isLogistica(): boolean {
+    return this.rolNombre.trim() === 'Logística';
+  }
+
+  /** Puede ver la sección Nube de Planos */
   get puedeVerPlanos(): boolean {
-    return !this.isTecnico && !this.isClienteExterno;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
   }
 
   /** Puede ver Requerimientos y Compras en logística */
@@ -69,11 +73,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return r.replace(/([a-z])([A-Z])/g, '$1 $2');
   }
 get puedeAdministrarRRHH(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
   }
 
   get puedeSoporte(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno;
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
   }
 
   /** Solo el rol que tenga privilegios:gestionar puede ver Gestión de Permisos */
@@ -449,9 +453,9 @@ get enRRHH(): boolean {
     return this.router.url.startsWith('/operaciones');
   }
 
-  /** Admins y otros roles no operativos ven la vista tabla de Operaciones. */
+  /** Admins ven la vista tabla completa de Operaciones (incluye Proyectos). */
   get esVistaTablaOperaciones(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno && this.rolNombre !== '...';
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno && this.rolNombre !== '...';
   }
 
   private notiInitialized = false;
