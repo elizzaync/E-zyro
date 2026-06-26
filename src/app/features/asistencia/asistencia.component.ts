@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { AsistenciaService, EstadoHoyDto } from '../../core/services/asistencia.service';
+import { AsistenciaService, EstadoHoyDto, ResumenSemanalDto } from '../../core/services/asistencia.service';
 
 type PasoMarca = 'cargando' | 'listo' | 'marcando' | 'exito' | 'error_empleado' | 'error';
 type GpsEstado = 'solicitando' | 'refinando' | 'ok' | 'denegado' | 'sin_soporte';
@@ -32,6 +32,8 @@ export class AsistenciaComponent implements OnInit, OnDestroy {
   ultimoTipo:  string | null = null;
   errorMsg = '';
 
+  resumenSemanal: ResumenSemanalDto | null = null;
+
   gpsEstado: GpsEstado = 'solicitando';
   gpsInfo:   GpsInfo | null = null;
 
@@ -54,6 +56,7 @@ export class AsistenciaComponent implements OnInit, OnDestroy {
     this.relojInterval = setInterval(() => this.actualizarReloj(), 1000);
     this.cargarEstado();
     this.iniciarGps();
+    this.cargarResumenSemanal();
   }
 
   ngOnDestroy(): void {
@@ -129,6 +132,25 @@ export class AsistenciaComponent implements OnInit, OnDestroy {
   reintentar(): void { this.cargarEstado(); }
 
   volver(): void { this.router.navigate(['/home']); }
+
+  private cargarResumenSemanal(): void {
+    this.svc.getMiResumenSemanal().subscribe({
+      next: (r) => { this.resumenSemanal = r; },
+      error: () => {},
+    });
+  }
+
+  get horasTrabajadas(): string {
+    if (!this.resumenSemanal) return '0h 0m';
+    const min = this.resumenSemanal.minutos_trabajados_semana;
+    return `${Math.floor(min / 60)}h ${min % 60}m`;
+  }
+
+  get progresoPct(): number {
+    if (!this.resumenSemanal) return 0;
+    const meta = this.resumenSemanal.meta_horas * 60;
+    return Math.min(100, Math.round((this.resumenSemanal.minutos_trabajados_semana / meta) * 100));
+  }
 
   // ── GPS ───────────────────────────────────────────────────────────────────
 

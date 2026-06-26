@@ -14,6 +14,12 @@ import {
   EmpleadoLegajoDto,
 } from '../../../core/services/rrhh.service';
 import { AuthService } from '../../../core/services/auth.service';
+import {
+  AsistenciaService,
+  TurnoDto,
+  CrearTurnoIn,
+  AsignarTurnoIn,
+} from '../../../core/services/asistencia.service';
 
 // Corrige íconos Leaflet en Angular/Webpack
 const iconDefault = L.icon({
@@ -35,7 +41,7 @@ L.Marker.prototype.options.icon = iconDefault;
 export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   // ── Tabs ───────────────────────────────────────────────────────────────────
-  activeTab: 'semanal' | 'diaria' = 'semanal';
+  activeTab: 'semanal' | 'diaria' | 'turnos' = 'semanal';
 
   // ── Reportes (colapsable) ──────────────────────────────────────────────────
   showReportes = true;
@@ -91,6 +97,23 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   diariaTotalReg= 0;
   readonly DIARIA_PER_PAGE = 10;
 
+  // ── Tab Turnos ─────────────────────────────────────────────────────────────
+  turnos:          TurnoDto[] = [];
+  turnosLoading    = false;
+  turnosError      = '';
+
+  showCrearTurno   = false;
+  crearTurnoLoading = false;
+  crearTurnoError  = '';
+  crearTurnoExito  = '';
+  formTurno: CrearTurnoIn = this.turnoVacio();
+
+  showAsignarTurno  = false;
+  asignarLoading    = false;
+  asignarError      = '';
+  asignarExito      = '';
+  formAsignar: AsignarTurnoIn & { fecha_desde: string; fecha_hasta: string } = this.asignarVacio();
+
   // ── Mapa (compartido) ──────────────────────────────────────────────────────
   showMapModal   = false;
   mapLabel       = '';
@@ -99,8 +122,9 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   private leafletMap: L.Map | null = null;
 
   constructor(
-    private rrhhService: RrhhService,
-    private authService: AuthService,
+    private rrhhService:      RrhhService,
+    private authService:      AuthService,
+    private asistenciaService: AsistenciaService,
   ) {}
 
   ngOnInit(): void {
@@ -120,10 +144,13 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.destroyMap();
   }
 
-  setTab(tab: 'semanal' | 'diaria'): void {
+  setTab(tab: 'semanal' | 'diaria' | 'turnos'): void {
     this.activeTab = tab;
     if (tab === 'diaria' && this.diariaEmpleados.length === 0) {
       this.cargarDiaria();
+    }
+    if (tab === 'turnos' && this.turnos.length === 0) {
+      this.cargarTurnos();
     }
   }
 
@@ -559,5 +586,75 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     const a   = document.createElement('a');
     a.href = url; a.download = `${nombre}_${new Date().toISOString().slice(0,10)}.${ext}`;
     a.click(); URL.revokeObjectURL(url);
+  }
+
+  // ── Turnos ─────────────────────────────────────────────────────────────────
+
+  turnoVacio(): CrearTurnoIn {
+    return { nombre: '', hora_entrada: '08:00', hora_salida: '17:00', duracion_almuerzo_minutos: 60, tolerancia_minutos: 5 };
+  }
+
+  asignarVacio(): AsignarTurnoIn & { fecha_desde: string; fecha_hasta: string } {
+    return { empleado_id: '', turno_id: '', fecha_desde: this.toISODate(new Date()), fecha_hasta: '' };
+  }
+
+  cargarTurnos(): void {
+    this.turnosLoading = true; this.turnosError = '';
+    this.asistenciaService.getTurnos().subscribe({
+      next:  t  => { this.turnos = t; this.turnosLoading = false; },
+      error: () => { this.turnosError = 'No se pudieron cargar los turnos.'; this.turnosLoading = false; },
+    });
+  }
+
+  abrirCrearTurno(): void {
+    this.formTurno = this.turnoVacio();
+    this.crearTurnoError = ''; this.crearTurnoExito = '';
+    this.showCrearTurno = true;
+  }
+  cerrarCrearTurno(): void { this.showCrearTurno = false; }
+
+  guardarTurno(): void {
+    if (!this.formTurno.nombre.trim()) { this.crearTurnoError = 'El nombre es obligatorio.'; return; }
+    this.crearTurnoLoading = true; this.crearTurnoError = '';
+    this.asistenciaService.crearTurno(this.formTurno).subscribe({
+      next: () => {
+        this.crearTurnoLoading = false; this.crearTurnoExito = 'Turno creado correctamente.';
+        this.cargarTurnos();
+        setTimeout(() => { this.cerrarCrearTurno(); this.crearTurnoExito = ''; }, 1500);
+      },
+      error: (err) => { this.crearTurnoError = err?.error?.detail ?? 'Error al crear el turno.'; this.crearTurnoLoading = false; },
+    });
+  }
+
+  abrirAsignarTurno(): void {
+    this.formAsignar = this.asignarVacio();
+    this.asignarError = ''; this.asignarExito = '';
+    this.showAsignarTurno = true;
+    if (this.listaEmpleados.length === 0) this.cargarListaEmpleados();
+  }
+  cerrarAsignarTurno(): void { this.showAsignarTurno = false; }
+
+  confirmarAsignarTurno(): void {
+    if (!this.formAsignar.empleado_id || !this.formAsignar.turno_id) {
+      this.asignarError = 'Selecciona empleado y turno.'; return;
+    }
+    this.asignarLoading = true; this.asignarError = '';
+    const body: AsignarTurnoIn = {
+      empleado_id: this.formAsignar.empleado_id,
+      turno_id:    this.formAsignar.turno_id,
+      fecha_desde: this.formAsignar.fecha_desde || undefined,
+      fecha_hasta: this.formAsignar.fecha_hasta || undefined,
+    };
+    this.asistenciaService.asignarTurno(body).subscribe({
+      next: () => {
+        this.asignarLoading = false; this.asignarExito = 'Turno asignado correctamente.';
+        setTimeout(() => { this.cerrarAsignarTurno(); this.asignarExito = ''; }, 1500);
+      },
+      error: (err) => { this.asignarError = err?.error?.detail ?? 'Error al asignar el turno.'; this.asignarLoading = false; },
+    });
+  }
+
+  turnoNombre(id: string): string {
+    return this.turnos.find(t => t.id === id)?.nombre ?? id;
   }
 }

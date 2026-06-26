@@ -187,6 +187,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Vista Diaria
     </button>
+    <button class="tab-btn" [class.active]="activeTab === 'turnos'" (click)="setTab('turnos')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      Gestión de Turnos
+    </button>
   </div>
 
   <!-- ════════════════════════════════════════════════════════════════════════
@@ -758,6 +762,153 @@
     </div>
 
   </app-modal>
+}
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     TAB 3 — GESTIÓN DE TURNOS
+═══════════════════════════════════════════════════════════════════════════ -->
+@if (activeTab === 'turnos') {
+  <div class="turnos-section">
+
+    <div class="turnos-actions">
+      <button class="btn-primary" (click)="abrirCrearTurno()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo Turno
+      </button>
+      <button class="btn-secondary" (click)="abrirAsignarTurno()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
+        Asignar Turno a Empleado
+      </button>
+      <button class="btn-ghost" (click)="cargarTurnos()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Recargar
+      </button>
+    </div>
+
+    @if (turnosLoading) {
+      <div class="estado-vacio">
+        <div class="spinner-sm"></div>
+        <span>Cargando turnos…</span>
+      </div>
+    } @else if (turnosError) {
+      <div class="estado-vacio error-text">{{ turnosError }}</div>
+    } @else if (turnos.length === 0) {
+      <div class="estado-vacio">No hay turnos registrados. Crea el primer turno.</div>
+    } @else {
+      <div class="card turnos-table-wrap">
+        <table class="asist-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Entrada</th>
+              <th>Salida</th>
+              <th>Almuerzo (min)</th>
+              <th>Tolerancia (min)</th>
+              <th>Horas netas</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (t of turnos; track t.id) {
+              <tr>
+                <td><span class="turno-nombre-badge">{{ t.nombre }}</span></td>
+                <td>{{ t.hora_entrada }}</td>
+                <td>{{ t.hora_salida }}</td>
+                <td>{{ t.duracion_almuerzo_minutos }}</td>
+                <td>{{ t.tolerancia_minutos }}</td>
+                <td><strong>{{ t.horas_netas }}h</strong></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  <!-- Modal Crear Turno -->
+  @if (showCrearTurno) {
+    <app-modal title="Nuevo Turno" (closed)="cerrarCrearTurno()">
+      <div class="modal-form">
+        @if (crearTurnoExito) { <div class="alert-success">{{ crearTurnoExito }}</div> }
+        @if (crearTurnoError) { <div class="alert-error">{{ crearTurnoError }}</div> }
+
+        <div class="form-group">
+          <label>Nombre del turno *</label>
+          <input class="form-control" type="text" [(ngModel)]="formTurno.nombre" placeholder="Ej: Practicante Mañana">
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Hora de entrada</label>
+            <input class="form-control" type="time" [(ngModel)]="formTurno.hora_entrada">
+          </div>
+          <div class="form-group">
+            <label>Hora de salida</label>
+            <input class="form-control" type="time" [(ngModel)]="formTurno.hora_salida">
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Almuerzo (minutos)</label>
+            <input class="form-control" type="number" [(ngModel)]="formTurno.duracion_almuerzo_minutos" min="0" max="180">
+          </div>
+          <div class="form-group">
+            <label>Tolerancia (minutos)</label>
+            <input class="form-control" type="number" [(ngModel)]="formTurno.tolerancia_minutos" min="0" max="60">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" (click)="cerrarCrearTurno()">Cancelar</button>
+          <button class="btn-primary" [disabled]="crearTurnoLoading" (click)="guardarTurno()">
+            @if (crearTurnoLoading) { Guardando… } @else { Guardar Turno }
+          </button>
+        </div>
+      </div>
+    </app-modal>
+  }
+
+  <!-- Modal Asignar Turno -->
+  @if (showAsignarTurno) {
+    <app-modal title="Asignar Turno a Empleado" (closed)="cerrarAsignarTurno()">
+      <div class="modal-form">
+        @if (asignarExito) { <div class="alert-success">{{ asignarExito }}</div> }
+        @if (asignarError) { <div class="alert-error">{{ asignarError }}</div> }
+
+        <div class="form-group">
+          <label>Empleado *</label>
+          <select class="form-control" [(ngModel)]="formAsignar.empleado_id">
+            <option value="">— Seleccionar —</option>
+            @for (emp of listaEmpleados; track emp.id) {
+              <option [value]="emp.id">{{ emp.nombreCompleto }} — {{ emp.cargo }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Turno *</label>
+          <select class="form-control" [(ngModel)]="formAsignar.turno_id">
+            <option value="">— Seleccionar turno —</option>
+            @for (t of turnos; track t.id) {
+              <option [value]="t.id">{{ t.nombre }} ({{ t.hora_entrada }} – {{ t.hora_salida }})</option>
+            }
+          </select>
+        </div>
+        <div class="form-row-2">
+          <div class="form-group">
+            <label>Desde</label>
+            <input class="form-control" type="date" [(ngModel)]="formAsignar.fecha_desde">
+          </div>
+          <div class="form-group">
+            <label>Hasta (opcional)</label>
+            <input class="form-control" type="date" [(ngModel)]="formAsignar.fecha_hasta">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" (click)="cerrarAsignarTurno()">Cancelar</button>
+          <button class="btn-primary" [disabled]="asignarLoading" (click)="confirmarAsignarTurno()">
+            @if (asignarLoading) { Asignando… } @else { Confirmar Asignación }
+          </button>
+        </div>
+      </div>
+    </app-modal>
+  }
 }
 
 <!-- ════════════════════════════════════════════════════════════════════════

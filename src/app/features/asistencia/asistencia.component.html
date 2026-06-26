@@ -215,5 +215,40 @@
       }
     }
 
+    <!-- ── RESUMEN SEMANAL PERSONAL ── -->
+    @if (resumenSemanal) {
+      <div class="resumen-semanal-card">
+        <div class="rs-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="rs-titulo">Mi semana</span>
+          @if (resumenSemanal.puntualidad_pct !== null) {
+            <span class="rs-puntualidad" [class.puntual]="resumenSemanal.puntualidad_pct >= 80">
+              {{ resumenSemanal.puntualidad_pct }}% puntual
+            </span>
+          }
+        </div>
+
+        <div class="rs-barra-wrap">
+          <div class="rs-barra-track">
+            <div class="rs-barra-fill" [style.width.%]="progresoPct"></div>
+          </div>
+          <span class="rs-barra-label">{{ horasTrabajadas }} / {{ resumenSemanal.meta_horas }}h</span>
+        </div>
+
+        <div class="rs-dias">
+          @for (d of resumenSemanal.dias; track d.fecha) {
+            <div class="rs-dia" [class.rs-dia-hoy]="d.es_hoy" [class.rs-dia-tarde]="d.llego_tarde" [class.rs-dia-ok]="!d.llego_tarde && !!d.entrada_hora">
+              <span class="rs-dia-label">{{ d.label }}</span>
+              @if (d.minutos_trabajados !== null && d.minutos_trabajados > 0) {
+                <span class="rs-dia-horas">{{ (d.minutos_trabajados / 60) | number:'1.0-1' }}h</span>
+              } @else {
+                <span class="rs-dia-dash">—</span>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
   </div>
 </main>

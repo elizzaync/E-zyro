@@ -29,6 +29,53 @@ export interface MarcarResponse {
   resultado_ia: string;
 }
 
+export interface DiaSemanalDto {
+  fecha: string;
+  label: string;
+  es_hoy: boolean;
+  minutos_trabajados: number | null;
+  entrada_hora: string | null;
+  salida_hora: string | null;
+  llego_tarde: boolean;
+  minutos_tarde: number | null;
+  es_excepcion: boolean;
+}
+
+export interface ResumenSemanalDto {
+  semana_inicio: string;
+  meta_horas: number;
+  minutos_trabajados_semana: number;
+  dias_trabajados: number;
+  promedio_min_diario: number;
+  puntualidad_pct: number | null;
+  dias: DiaSemanalDto[];
+}
+
+export interface TurnoDto {
+  id: string;
+  nombre: string;
+  hora_entrada: string;
+  hora_salida: string;
+  duracion_almuerzo_minutos: number;
+  tolerancia_minutos: number;
+  horas_netas: number;
+}
+
+export interface CrearTurnoIn {
+  nombre: string;
+  hora_entrada: string;
+  hora_salida: string;
+  duracion_almuerzo_minutos: number;
+  tolerancia_minutos: number;
+}
+
+export interface AsignarTurnoIn {
+  empleado_id: string;
+  turno_id: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AsistenciaService {
   private readonly api = environment.apiUrl;
@@ -53,6 +100,22 @@ export class AsistenciaService {
         precision_m: coords.precision,
       }),
     });
+  }
+
+  getMiResumenSemanal(): Observable<ResumenSemanalDto> {
+    return this.http.get<ResumenSemanalDto>(`${this.api}/asistencia/mi-resumen-semanal`);
+  }
+
+  getTurnos(): Observable<TurnoDto[]> {
+    return this.http.get<TurnoDto[]>(`${this.api}/asistencia/turnos`);
+  }
+
+  crearTurno(body: CrearTurnoIn): Observable<{ ok: boolean; id: string }> {
+    return this.http.post<{ ok: boolean; id: string }>(`${this.api}/asistencia/turnos`, body);
+  }
+
+  asignarTurno(body: AsignarTurnoIn): Observable<{ ok: boolean; id: string }> {
+    return this.http.post<{ ok: boolean; id: string }>(`${this.api}/asistencia/turno-empleado`, body);
   }
 
   reverseGeocode(lat: number, lon: number): Observable<string> {
