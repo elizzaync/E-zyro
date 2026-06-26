@@ -42,10 +42,10 @@ export class OperacionesComponent implements OnInit {
   private auth   = inject(AuthService);
 
   get isTecnico(): boolean {
-    return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
+    return this.auth.isTecnico();
   }
   get isJefeOperaciones(): boolean {
-    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
+    return this.auth.isJefeOperaciones();
   }
 
   proyectos: ProyectoOperacion[] = [];

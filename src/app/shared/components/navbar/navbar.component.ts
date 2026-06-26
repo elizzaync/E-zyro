@@ -451,8 +451,7 @@ get enRRHH(): boolean {
 
   /** Admins y otros roles no operativos ven la vista tabla de Operaciones. */
   get esVistaTablaOperaciones(): boolean {
-    const rol = (this.usuarioActual.rol || '').trim();
-    return rol !== 'Técnico de Campo' && rol !== 'Jefe de Operaciones' && rol !== 'ClienteExterno' && rol !== '...';
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isClienteExterno && this.rolNombre !== '...';
   }
 
   private notiInitialized = false;

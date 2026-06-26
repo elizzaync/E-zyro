@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { MaterialFormModalComponent } from '../material-form-modal/material-form-modal.component';
 import { RellenarStockModalComponent } from '../rellenar-stock-modal/rellenar-stock-modal.component';
@@ -21,6 +22,9 @@ export class MaterialesTablaComponent implements OnInit {
 
   private svc   = inject(LogisticaService);
   private toast = inject(ToastService);
+  private auth  = inject(AuthService);
+
+  get isTecnico(): boolean { return this.auth.isTecnico(); }
 
   materiales: MaterialLog[] = [];
   cargando = true;

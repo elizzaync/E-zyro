@@ -248,6 +248,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
   nuevoMensajeChat                = '';
   chatDestinatario: string | null = null;
   soyJefeOperaciones              = false;
+  soyTecnico                      = false;
 
   // ── Modal de justificación (Jefe de Operaciones) ──────────
   showJustModal     = false;
@@ -342,9 +343,11 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
         if (u?.nombre_completo) this._nombreUsuario = u.nombre_completo;
         if (u?.id)              this._usuarioId     = u.id;
         if (u?.foto_url)        this._usuarioFoto   = u.foto_url;
-        if (u?.rol === 'Jefe de Operaciones' || u?.rol === 'Administrador' || u?.rol === 'jefe_operaciones' || u?.rol === 'administrador') {
+        const rol = (u?.rol || '').trim();
+        if (['Jefe de Operaciones', 'Administrador', 'Administración'].includes(rol)) {
           this.soyJefeOperaciones = true;
         }
+        this.soyTecnico = rol === 'Técnico';
       } catch { /* ignore */ }
     }
     this.cargarDetalle();

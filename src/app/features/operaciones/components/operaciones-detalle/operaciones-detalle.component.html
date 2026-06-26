@@ -56,6 +56,7 @@
       <div class="hb-pbar"><i [style.width.%]="servicio.progreso"></i></div>
     </div>
 
+    @if (!soyTecnico) {
     <div class="hb-actions">
       <button class="hb-btn hb-btn--alert" (click)="abrirIncidencia()" title="Reportar daño en equipo/herramienta">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -91,6 +92,7 @@
         </button>
       }
     </div>
+    }
   </div>
 
   <!-- ═══════════════ STEPPER DE FASES ═══════════════ -->
@@ -116,7 +118,7 @@
   <!-- ══════════════════════════════════════════════════════════════
        EQUIPOS INTERVENIDOS — solo visible en servicios con inspección activa
   ══════════════════════════════════════════════════════════════ -->
-  @if (servicio.esMantenimiento) {
+  @if (servicio.esMantenimiento && !soyTecnico) {
   <button class="ei-nav-btn section-card slide-up" (click)="irAEquiposIntervenidos()">
     <div class="ei-nav-left">
       <div class="ei-nav-icon">
@@ -136,7 +138,7 @@
   }
 
   <!-- ═══════════════ CHECKLIST DE PREPARACIÓN (Fase 1) ═══════════════ -->
-  @if (servicio.estado === 'Pendiente') {
+  @if (servicio.estado === 'Pendiente' && !soyTecnico) {
   <div class="prep-checklist">
     <div class="prep-head">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

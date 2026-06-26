@@ -158,6 +158,16 @@ export class AuthService {
     return (u?.rol || '').toLowerCase().replace(' ', '') === 'clienteexterno';
   }
 
+  isTecnico(): boolean {
+    const u = this.getUsuario();
+    return (u?.rol || '').trim() === 'Técnico';
+  }
+
+  isJefeOperaciones(): boolean {
+    const u = this.getUsuario();
+    return (u?.rol || '').trim() === 'Jefe de Operaciones';
+  }
+
   // ==========================================
   // MULTI-DEVICE SECURITY
   // ==========================================

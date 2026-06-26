@@ -1,6 +1,7 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { LogisticaService } from '../../core/services/logistica.service';
+import { AuthService } from '../../core/services/auth.service';
 import { LogisticaKpis } from './logistica.models';
 import { MaterialesTablaComponent } from './components/materiales-tabla/materiales-tabla.component';
 import { EquiposTablaComponent } from './components/equipos-tabla/equipos-tabla.component';
@@ -19,7 +20,10 @@ type TabLogistica = 'materiales' | 'equipos' | 'salidas' | 'ingresos' | 'retorno
   styleUrls: ['./logistica.component.css']
 })
 export class LogisticaComponent implements OnInit {
-  private svc = inject(LogisticaService);
+  private svc  = inject(LogisticaService);
+  private auth = inject(AuthService);
+
+  get isTecnico(): boolean { return this.auth.isTecnico(); }
 
   tab: TabLogistica = 'materiales';
   kpis: LogisticaKpis = {
