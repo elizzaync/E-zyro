@@ -29,7 +29,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   get isTecnico(): boolean {
-    return (this.usuarioActual.rol || '').trim() === 'Técnico de Campo';
+    return (this.usuarioActual.rol || '').trim() === 'Técnico';
   }
 
   get isJefeOperaciones(): boolean {
@@ -72,6 +72,11 @@ get puedeAdministrarRRHH(): boolean {
 
   get puedeSoporte(): boolean {
     return !this.isTecnico && !this.isClienteExterno;
+  }
+
+  /** Solo el rol que tenga privilegios:gestionar puede ver Gestión de Permisos */
+  get puedeGestionarPermisos(): boolean {
+    return this.permisosUsuario.map(p => p.toUpperCase()).includes('PRIVILEGIOS');
   }
 
   get enSoporte(): boolean {

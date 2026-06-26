@@ -37,10 +37,11 @@ import { TicketsSoporteComponent } from './features/soporte/components/tickets/t
 import { MonitoreoComponent } from './features/soporte/components/monitoreo/monitoreo.component';
 import { SeguridadComponent } from './features/soporte/components/seguridad/seguridad.component';
 import { CrearCuentasComponent } from './features/soporte/components/crear-cuentas/crear-cuentas.component';
+import { GestionPermisosComponent } from './features/soporte/components/gestion-permisos/gestion-permisos.component';
 
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
-const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico de Campo', 'Jefe de Operaciones'];
-const _ROLES_BLOQUEADOS_TECNICO = ['Técnico de Campo'];
+const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico', 'Jefe de Operaciones'];
+const _ROLES_BLOQUEADOS_TECNICO = ['Técnico'];
 import { PortalDashboardComponent } from './features/portal-cliente/dashboard/portal-dashboard.component';
 import { PortalProyectosComponent } from './features/portal-cliente/proyectos/portal-proyectos.component';
 import { PortalProyectoDetalleComponent } from './features/portal-cliente/proyecto-detalle/portal-proyecto-detalle.component';
@@ -299,6 +300,12 @@ export const routes: Routes = [
     path: 'soporte/cuentas',
     component: CrearCuentasComponent,
     title: 'Creación de Cuentas | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'soporte/gestion-permisos',
+    component: GestionPermisosComponent,
+    title: 'Gestión de Permisos | e-zyro TIC',
     canActivate: [authGuard]
   },
   {
