@@ -28,12 +28,35 @@ export class CxcComponent implements OnInit {
   filtroVence = '';
   busqueda = '';
 
+  page = 1;
+  readonly PER_PAGE = 10;
+
+  private get listaActiva(): any[] {
+    if (this.tab === 'facturas') return this.facturasFiltradas;
+    if (this.tab === 'cobros') return this.cobros;
+    return this.saldos;
+  }
+  get paginados(): any[] {
+    const s = (this.page - 1) * this.PER_PAGE;
+    return this.listaActiva.slice(s, s + this.PER_PAGE);
+  }
+  get totalPaginas(): number { return Math.max(1, Math.ceil(this.listaActiva.length / this.PER_PAGE)); }
+  get totalItems(): number { return this.listaActiva.length; }
+  get botonesPage(): number[] {
+    const pp: number[] = [];
+    for (let i = Math.max(1, this.page - 2); i <= Math.min(this.totalPaginas, this.page + 2); i++) pp.push(i);
+    return pp;
+  }
+  irPagina(p: number): void { if (p >= 1 && p <= this.totalPaginas) this.page = p; }
+  resetPage(): void { this.page = 1; }
+
   ngOnInit(): void { this.cargar(); }
 
-  setTab(t: TabCxC): void { this.tab = t; this.cargar(); }
+  setTab(t: TabCxC): void { this.tab = t; this.page = 1; this.cargar(); }
 
   cargar(): void {
     this.cargando = true;
+    this.page = 1;
     if (this.tab === 'facturas') {
       const f: any = {};
       if (this.filtroEstado) f.estado = this.filtroEstado;

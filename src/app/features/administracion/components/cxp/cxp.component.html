@@ -1,5 +1,4 @@
 <section class="adm-section">
-  <!-- Module header -->
   <div class="mod-header">
     <div class="mod-icon">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -13,14 +12,8 @@
       <p class="mod-desc">Facturas de proveedores · Pagos realizados · Saldos pendientes</p>
     </div>
     <div class="mod-kpi-pill">
-      <span class="mod-pill">
-        <strong>{{ facturas.length }}</strong>
-        <span class="mod-pill-label">facturas</span>
-      </span>
-      <span class="mod-pill">
-        S/ <strong>{{ totalPendiente | number:'1.0-0' }}</strong>
-        <span class="mod-pill-label">por pagar</span>
-      </span>
+      <span class="mod-pill"><strong>{{ facturas.length }}</strong><span class="mod-pill-label">facturas</span></span>
+      <span class="mod-pill">S/ <strong>{{ totalPendiente | number:'1.0-0' }}</strong><span class="mod-pill-label">por pagar</span></span>
     </div>
   </div>
 
@@ -33,7 +26,7 @@
   <!-- ── Facturas ── -->
   @if (tab === 'facturas') {
   <div class="adm-toolbar">
-    <input class="adm-search" placeholder="Buscar proveedor o documento…" [(ngModel)]="busqueda">
+    <input class="adm-search" placeholder="Buscar proveedor o documento…" [(ngModel)]="busqueda" (ngModelChange)="resetPage()">
     <select class="adm-select" [(ngModel)]="filtroEstado" (change)="cargar()">
       <option value="">Todos los estados</option>
       <option value="pendiente">Pendiente</option>
@@ -41,6 +34,8 @@
       <option value="vencida">Vencida</option>
       <option value="anulada">Anulada</option>
     </select>
+    <span class="adm-spacer"></span>
+    <span class="adm-pag-info">{{ facturasFiltradas.length }} factura{{ facturasFiltradas.length !== 1 ? 's' : '' }}</span>
   </div>
   @if (cargando) { <div class="adm-loading">Cargando…</div> }
   @else {
@@ -51,40 +46,45 @@
             <th class="td-num">Total</th><th class="td-num">Saldo</th><th>Estado</th><th></th></tr>
       </thead>
       <tbody>
-        @for (f of facturasFiltradas; track f.id) {
+        @for (f of paginados; track f.id) {
         <tr>
           <td class="td-code">{{ f.numero_documento }}</td>
           <td>{{ f.proveedor_nombre || f.proveedor_id }}</td>
           <td>{{ f.fecha | date:'dd/MM/yyyy' }}</td>
           <td>{{ f.fecha_vencimiento ? (f.fecha_vencimiento | date:'dd/MM/yyyy') : '—' }}</td>
           <td class="td-num">S/ {{ f.total | number:'1.2-2' }}</td>
-          <td class="td-num" [class.text-danger]="f.saldo_pendiente > 0">
-            S/ {{ f.saldo_pendiente | number:'1.2-2' }}
-          </td>
+          <td class="td-num" [class.text-danger]="f.saldo_pendiente > 0">S/ {{ f.saldo_pendiente | number:'1.2-2' }}</td>
           <td><span class="badge" [class]="estadoClase(f.estado)">{{ f.estado }}</span></td>
-          <td>
-            @if (f.estado !== 'anulada') {
-              <button class="btn-sm btn-sm-danger" (click)="anular(f)">Anular</button>
-            }
-          </td>
+          <td>@if (f.estado !== 'anulada') { <button class="btn-sm btn-sm-danger" (click)="anular(f)">Anular</button> }</td>
         </tr>
         }
       </tbody>
     </table>
     @if (facturasFiltradas.length === 0) { <div class="adm-empty">No se encontraron facturas</div> }
   </div>
+  @if (totalPaginas > 1) {
+  <nav class="adm-pag">
+    <span class="adm-pag-info">{{ (page-1)*PER_PAGE+1 }}–{{ page*PER_PAGE > totalItems ? totalItems : page*PER_PAGE }} de {{ totalItems }}</span>
+    <button class="pag-btn" (click)="irPagina(page-1)" [disabled]="page===1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+    @for (p of botonesPage; track p) { <button class="pag-btn" [class.pag-activo]="p===page" (click)="irPagina(p)">{{ p }}</button> }
+    <button class="pag-btn" (click)="irPagina(page+1)" [disabled]="page===totalPaginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </nav>
+  }
   }
   }
 
   <!-- ── Pagos ── -->
   @if (tab === 'pagos') {
+  <div class="adm-toolbar">
+    <span class="adm-pag-info">{{ pagos.length }} pago{{ pagos.length !== 1 ? 's' : '' }}</span>
+  </div>
   @if (cargando) { <div class="adm-loading">Cargando…</div> }
   @else {
   <div class="adm-table-wrap">
     <table class="adm-table">
       <thead><tr><th>Proveedor</th><th>Fecha</th><th>Medio de Pago</th><th>Referencia</th><th class="td-num">Monto</th></tr></thead>
       <tbody>
-        @for (p of pagos; track p.id) {
+        @for (p of paginados; track p.id) {
         <tr>
           <td>{{ p.proveedor_nombre || p.proveedor_id }}</td>
           <td>{{ p.fecha_pago | date:'dd/MM/yyyy' }}</td>
@@ -97,6 +97,14 @@
     </table>
     @if (pagos.length === 0) { <div class="adm-empty">No hay pagos registrados</div> }
   </div>
+  @if (totalPaginas > 1) {
+  <nav class="adm-pag">
+    <span class="adm-pag-info">{{ (page-1)*PER_PAGE+1 }}–{{ page*PER_PAGE > totalItems ? totalItems : page*PER_PAGE }} de {{ totalItems }}</span>
+    <button class="pag-btn" (click)="irPagina(page-1)" [disabled]="page===1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+    @for (p of botonesPage; track p) { <button class="pag-btn" [class.pag-activo]="p===page" (click)="irPagina(p)">{{ p }}</button> }
+    <button class="pag-btn" (click)="irPagina(page+1)" [disabled]="page===totalPaginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </nav>
+  }
   }
   }
 
@@ -105,20 +113,14 @@
   @if (cargando) { <div class="adm-loading">Cargando…</div> }
   @else {
   <div class="adm-kpi-row">
-    <div class="adm-kpi">
-      <span class="adm-kpi-label">Total por pagar</span>
-      <span class="adm-kpi-val">S/ {{ totalPendiente | number:'1.2-2' }}</span>
-    </div>
-    <div class="adm-kpi">
-      <span class="adm-kpi-label">Proveedores con saldo</span>
-      <span class="adm-kpi-val">{{ saldos.length }}</span>
-    </div>
+    <div class="adm-kpi"><span class="adm-kpi-label">Total por pagar</span><span class="adm-kpi-val">S/ {{ totalPendiente | number:'1.2-2' }}</span></div>
+    <div class="adm-kpi"><span class="adm-kpi-label">Proveedores con saldo</span><span class="adm-kpi-val">{{ saldos.length }}</span></div>
   </div>
   <div class="adm-table-wrap">
     <table class="adm-table">
       <thead><tr><th>Proveedor</th><th class="td-num">Total Pendiente</th></tr></thead>
       <tbody>
-        @for (s of saldos; track s.proveedor_id) {
+        @for (s of paginados; track s.proveedor_id) {
         <tr>
           <td>{{ s.proveedor_nombre }}</td>
           <td class="td-num text-danger">S/ {{ s.total_pendiente | number:'1.2-2' }}</td>
@@ -128,6 +130,14 @@
     </table>
     @if (saldos.length === 0) { <div class="adm-empty">No hay saldos pendientes</div> }
   </div>
+  @if (totalPaginas > 1) {
+  <nav class="adm-pag">
+    <span class="adm-pag-info">{{ (page-1)*PER_PAGE+1 }}–{{ page*PER_PAGE > totalItems ? totalItems : page*PER_PAGE }} de {{ totalItems }}</span>
+    <button class="pag-btn" (click)="irPagina(page-1)" [disabled]="page===1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+    @for (p of botonesPage; track p) { <button class="pag-btn" [class.pag-activo]="p===page" (click)="irPagina(p)">{{ p }}</button> }
+    <button class="pag-btn" (click)="irPagina(page+1)" [disabled]="page===totalPaginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </nav>
+  }
   }
   }
 </section>

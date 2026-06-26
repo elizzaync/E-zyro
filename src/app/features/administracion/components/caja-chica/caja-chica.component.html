@@ -1,5 +1,4 @@
 <section class="adm-section">
-  <!-- Module header -->
   <div class="mod-header">
     <div class="mod-icon">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -13,10 +12,7 @@
       <p class="mod-desc">Fondos fijos · Movimientos de ingresos y egresos · Cierre de caja</p>
     </div>
     <div class="mod-kpi-pill">
-      <span class="mod-pill">
-        <strong>{{ cajas.length }}</strong>
-        <span class="mod-pill-label">cajas</span>
-      </span>
+      <span class="mod-pill"><strong>{{ cajas.length }}</strong><span class="mod-pill-label">cajas</span></span>
     </div>
   </div>
 
@@ -42,11 +38,7 @@
             <strong>S/ {{ c.saldo_actual | number:'1.2-2' }}</strong>
           </td>
           <td class="td-center">{{ c.n_movimientos }}</td>
-          <td>
-            <span class="badge" [class.badge-ok]="c.estado === 'abierta'" [class.badge-off]="c.estado === 'cerrada'">
-              {{ c.estado === 'abierta' ? 'Abierta' : 'Cerrada' }}
-            </span>
-          </td>
+          <td><span class="badge" [class.badge-ok]="c.estado === 'abierta'" [class.badge-off]="c.estado === 'cerrada'">{{ c.estado === 'abierta' ? 'Abierta' : 'Cerrada' }}</span></td>
           <td class="td-actions" (click)="$event.stopPropagation()">
             @if (c.estado === 'abierta') {
               <button class="btn-sm btn-sm-ok" (click)="cajaSeleccionada = c; showNuevoMov = true">+ Movimiento</button>
@@ -62,7 +54,7 @@
             <table class="adm-subtable">
               <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Descripción</th><th class="td-num">Monto</th></tr></thead>
               <tbody>
-                @for (m of movimientos; track m.id) {
+                @for (m of movimientosPaginados; track m.id) {
                 <tr>
                   <td>{{ m.fecha | date:'dd/MM/yyyy' }}</td>
                   <td><span class="chip" [class.chip-ingreso]="m.tipo === 'ingreso'" [class.chip-descuento]="m.tipo === 'egreso'">{{ m.tipo }}</span></td>
@@ -76,6 +68,14 @@
               </tbody>
             </table>
             @if (movimientos.length === 0) { <div class="adm-empty">No hay movimientos en esta caja</div> }
+            @if (totalPaginasMov > 1) {
+            <nav class="adm-pag">
+              <span class="adm-pag-info">{{ (pageMov-1)*PER_MOV+1 }}–{{ pageMov*PER_MOV > totalMovItems ? totalMovItems : pageMov*PER_MOV }} de {{ totalMovItems }}</span>
+              <button class="pag-btn" (click)="irPaginaMov(pageMov-1)" [disabled]="pageMov===1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg></button>
+              @for (p of botonesPageMov; track p) { <button class="pag-btn" [class.pag-activo]="p===pageMov" (click)="irPaginaMov(p)">{{ p }}</button> }
+              <button class="pag-btn" (click)="irPaginaMov(pageMov+1)" [disabled]="pageMov===totalPaginasMov"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </nav>
+            }
             }
           </td>
         </tr>
@@ -87,7 +87,6 @@
   </div>
   }
 
-  <!-- Modal: Nueva Caja -->
   @if (showNuevaCaja) {
   <div class="adm-modal-overlay" (click)="showNuevaCaja = false">
     <div class="adm-modal" (click)="$event.stopPropagation()">
@@ -102,7 +101,6 @@
   </div>
   }
 
-  <!-- Modal: Nuevo Movimiento -->
   @if (showNuevoMov) {
   <div class="adm-modal-overlay" (click)="showNuevoMov = false">
     <div class="adm-modal" (click)="$event.stopPropagation()">

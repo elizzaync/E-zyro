@@ -20,20 +20,17 @@ export class ContabilidadComponent implements OnInit {
   tab: TabCont = 'plan';
   cargando = false;
 
-  // Plan de cuentas
   cuentas: CuentaContable[] = [];
   filtroCuenta = '';
   filtroTipo = '';
   filtroSoloActivas = false;
 
-  // Periodos
   periodos: PeriodoContable[] = [];
   showNuevoPeriodo = false;
   nuevoPeriodoAnio = new Date().getFullYear();
   nuevoPeriodoMes  = new Date().getMonth() + 1;
   guardandoPeriodo = false;
 
-  // Asientos
   asientos: Asiento[] = [];
   filtroAsientoPeriodo = '';
   asientoDetalle: Asiento | null = null;
@@ -41,15 +38,39 @@ export class ContabilidadComponent implements OnInit {
   readonly meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+  page = 1;
+  readonly PER_PAGE = 10;
+
+  private get listaActiva(): any[] {
+    if (this.tab === 'plan') return this.cuentasFiltradas;
+    if (this.tab === 'asientos') return this.asientos;
+    return this.periodos;
+  }
+  get paginados(): any[] {
+    const s = (this.page - 1) * this.PER_PAGE;
+    return this.listaActiva.slice(s, s + this.PER_PAGE);
+  }
+  get totalPaginas(): number { return Math.max(1, Math.ceil(this.listaActiva.length / this.PER_PAGE)); }
+  get totalItems(): number { return this.listaActiva.length; }
+  get botonesPage(): number[] {
+    const pp: number[] = [];
+    for (let i = Math.max(1, this.page - 2); i <= Math.min(this.totalPaginas, this.page + 2); i++) pp.push(i);
+    return pp;
+  }
+  irPagina(p: number): void { if (p >= 1 && p <= this.totalPaginas) this.page = p; }
+  resetPage(): void { this.page = 1; }
+
   ngOnInit(): void { this.cargar(); }
 
   setTab(t: TabCont): void {
     this.tab = t;
+    this.page = 1;
     this.cargar();
   }
 
   cargar(): void {
     this.cargando = true;
+    this.page = 1;
     if (this.tab === 'plan') {
       this.svc.getPlanCuentas().subscribe({
         next: d => { this.cuentas = d; this.cargando = false; },

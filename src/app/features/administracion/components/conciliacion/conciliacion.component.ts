@@ -22,6 +22,22 @@ export class ConciliacionComponent implements OnInit {
   cargandoMov = false;
   filtroEstadoMov = 'pendiente';
 
+  pageMov = 1;
+  readonly PER_MOV = 12;
+
+  get movimientosPaginados(): MovimientoBancario[] {
+    const s = (this.pageMov - 1) * this.PER_MOV;
+    return this.movimientos.slice(s, s + this.PER_MOV);
+  }
+  get totalPaginasMov(): number { return Math.max(1, Math.ceil(this.movimientos.length / this.PER_MOV)); }
+  get totalMovItems(): number { return this.movimientos.length; }
+  get botonesPageMov(): number[] {
+    const pp: number[] = [];
+    for (let i = Math.max(1, this.pageMov - 2); i <= Math.min(this.totalPaginasMov, this.pageMov + 2); i++) pp.push(i);
+    return pp;
+  }
+  irPaginaMov(p: number): void { if (p >= 1 && p <= this.totalPaginasMov) this.pageMov = p; }
+
   ngOnInit(): void { this.cargar(); }
 
   cargar(): void {
@@ -40,6 +56,7 @@ export class ConciliacionComponent implements OnInit {
   cargarMovimientos(): void {
     if (!this.cuentaSeleccionada) return;
     this.cargandoMov = true;
+    this.pageMov = 1;
     this.svc.getMovimientosBancarios(this.cuentaSeleccionada.id, this.filtroEstadoMov).subscribe({
       next: d => { this.movimientos = d; this.cargandoMov = false; },
       error: () => { this.cargandoMov = false; }

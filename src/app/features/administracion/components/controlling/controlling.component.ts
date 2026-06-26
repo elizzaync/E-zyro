@@ -27,10 +27,27 @@ export class ControllingComponent implements OnInit {
   nuevo: Partial<CentroCosto> = {};
   guardando = false;
 
+  page = 1;
+  readonly PER_PAGE = 10;
+
+  get paginados(): CentroCosto[] {
+    const s = (this.page - 1) * this.PER_PAGE;
+    return this.centros.slice(s, s + this.PER_PAGE);
+  }
+  get totalPaginas(): number { return Math.max(1, Math.ceil(this.centros.length / this.PER_PAGE)); }
+  get totalItems(): number { return this.centros.length; }
+  get botonesPage(): number[] {
+    const pp: number[] = [];
+    for (let i = Math.max(1, this.page - 2); i <= Math.min(this.totalPaginas, this.page + 2); i++) pp.push(i);
+    return pp;
+  }
+  irPagina(p: number): void { if (p >= 1 && p <= this.totalPaginas) this.page = p; }
+
   ngOnInit(): void { this.cargar(); }
 
   cargar(): void {
     this.cargando = true;
+    this.page = 1;
     this.svc.getCentrosCosto().subscribe({
       next: d => { this.centros = d; this.cargando = false; },
       error: () => { this.cargando = false; }

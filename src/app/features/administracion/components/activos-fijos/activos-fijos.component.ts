@@ -23,7 +23,6 @@ export class ActivosFijosComponent implements OnInit {
   filtroEstado = '';
   busqueda = '';
 
-  // Depreciación
   periodoDepreciacion = new Date().toISOString().slice(0, 7);
   procesando = false;
   activoDepreciacion: ActivoFijo | null = null;
@@ -34,23 +33,40 @@ export class ActivosFijosComponent implements OnInit {
   nuevo: Partial<ActivoFijo> = {};
   guardando = false;
 
+  page = 1;
+  readonly PER_PAGE = 10;
+
+  get activosFiltrados(): ActivoFijo[] {
+    const q = this.busqueda.toLowerCase().trim();
+    return this.activos.filter(a => !q || a.nombre.toLowerCase().includes(q));
+  }
+  get paginados(): ActivoFijo[] {
+    const s = (this.page - 1) * this.PER_PAGE;
+    return this.activosFiltrados.slice(s, s + this.PER_PAGE);
+  }
+  get totalPaginas(): number { return Math.max(1, Math.ceil(this.activosFiltrados.length / this.PER_PAGE)); }
+  get totalItems(): number { return this.activosFiltrados.length; }
+  get botonesPage(): number[] {
+    const pp: number[] = [];
+    for (let i = Math.max(1, this.page - 2); i <= Math.min(this.totalPaginas, this.page + 2); i++) pp.push(i);
+    return pp;
+  }
+  irPagina(p: number): void { if (p >= 1 && p <= this.totalPaginas) this.page = p; }
+  resetPage(): void { this.page = 1; }
+
   ngOnInit(): void { this.cargar(); }
 
-  setTab(t: TabAF): void { this.tab = t; if (t === 'activos') this.cargar(); }
+  setTab(t: TabAF): void { this.tab = t; this.page = 1; if (t === 'activos') this.cargar(); }
 
   cargar(): void {
     this.cargando = true;
+    this.page = 1;
     const f: any = {};
     if (this.filtroEstado) f.estado = this.filtroEstado;
     this.svc.getActivosFijos(f).subscribe({
       next: d => { this.activos = d; this.cargando = false; },
       error: () => { this.cargando = false; }
     });
-  }
-
-  get activosFiltrados(): ActivoFijo[] {
-    const q = this.busqueda.toLowerCase().trim();
-    return this.activos.filter(a => !q || a.nombre.toLowerCase().includes(q));
   }
 
   darDeBaja(a: ActivoFijo): void {
