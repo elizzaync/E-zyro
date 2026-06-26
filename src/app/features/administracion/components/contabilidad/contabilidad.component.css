@@ -1,1 +1,8 @@
-/* Estilos compartidos vía :host — heredados del adm global */
+:host {
+  display: block;
+  --mod-color: #6366f1;
+  --mod-gradient: linear-gradient(135deg, #6366f1, #818cf8);
+  --mod-hover-bg: #f5f3ff;
+  --mod-pill-bg: #eef2ff;
+  --mod-pill-border: #c7d2fe;
+}

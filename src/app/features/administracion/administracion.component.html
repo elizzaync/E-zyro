@@ -19,6 +19,7 @@
     <aside class="adm-sidebar">
       @for (t of tabs; track t.key) {
       <button class="adm-sidebar-item" [class.active]="tab === t.key" (click)="setTab(t.key)">
+        <span class="adm-sidebar-dot" [style.background]="tab === t.key ? t.color : '#d1d5db'"></span>
         <span class="adm-sidebar-label">{{ t.label }}</span>
       </button>
       }

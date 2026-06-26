@@ -1,4 +1,24 @@
 <section class="adm-section">
+  <!-- Module header -->
+  <div class="mod-header">
+    <div class="mod-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 6v6l4 2"/>
+      </svg>
+    </div>
+    <div class="mod-info">
+      <h2 class="mod-title">Tributario</h2>
+      <p class="mod-desc">Configuración fiscal · Registro de compras · Registro de ventas</p>
+    </div>
+    <div class="mod-kpi-pill">
+      <span class="mod-pill">
+        <strong>{{ registros.length }}</strong>
+        <span class="mod-pill-label">registros</span>
+      </span>
+    </div>
+  </div>
+
   <div class="adm-tabs">
     <button class="adm-tab" [class.active]="tab === 'configuracion'"   (click)="setTab('configuracion')">Configuración</button>
     <button class="adm-tab" [class.active]="tab === 'registro-compras'" (click)="setTab('registro-compras')">Reg. Compras</button>

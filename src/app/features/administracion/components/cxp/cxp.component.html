@@ -1,4 +1,29 @@
 <section class="adm-section">
+  <!-- Module header -->
+  <div class="mod-header">
+    <div class="mod-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/>
+        <rect x="1" y="8" width="22" height="13" rx="2"/>
+        <path d="M10 12h4M12 10v4"/>
+      </svg>
+    </div>
+    <div class="mod-info">
+      <h2 class="mod-title">Cuentas por Pagar</h2>
+      <p class="mod-desc">Facturas de proveedores · Pagos realizados · Saldos pendientes</p>
+    </div>
+    <div class="mod-kpi-pill">
+      <span class="mod-pill">
+        <strong>{{ facturas.length }}</strong>
+        <span class="mod-pill-label">facturas</span>
+      </span>
+      <span class="mod-pill">
+        S/ <strong>{{ totalPendiente | number:'1.0-0' }}</strong>
+        <span class="mod-pill-label">por pagar</span>
+      </span>
+    </div>
+  </div>
+
   <div class="adm-tabs">
     <button class="adm-tab" [class.active]="tab === 'facturas'" (click)="setTab('facturas')">Facturas</button>
     <button class="adm-tab" [class.active]="tab === 'pagos'"    (click)="setTab('pagos')">Pagos</button>

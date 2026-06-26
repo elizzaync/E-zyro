@@ -1,4 +1,28 @@
 <section class="adm-section">
+  <!-- Module header -->
+  <div class="mod-header">
+    <div class="mod-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+      </svg>
+    </div>
+    <div class="mod-info">
+      <h2 class="mod-title">Contabilidad</h2>
+      <p class="mod-desc">Plan de cuentas · Periodos contables · Libro de asientos</p>
+    </div>
+    <div class="mod-kpi-pill">
+      <span class="mod-pill">
+        <strong>{{ cuentas.length }}</strong>
+        <span class="mod-pill-label">cuentas</span>
+      </span>
+      <span class="mod-pill">
+        <strong>{{ periodos.length }}</strong>
+        <span class="mod-pill-label">periodos</span>
+      </span>
+    </div>
+  </div>
+
   <div class="adm-tabs">
     <button class="adm-tab" [class.active]="tab === 'plan'" (click)="setTab('plan')">Plan de Cuentas</button>
     <button class="adm-tab" [class.active]="tab === 'periodos'" (click)="setTab('periodos')">Periodos</button>

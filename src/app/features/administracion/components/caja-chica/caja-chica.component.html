@@ -1,4 +1,25 @@
 <section class="adm-section">
+  <!-- Module header -->
+  <div class="mod-header">
+    <div class="mod-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+        <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+        <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+      </svg>
+    </div>
+    <div class="mod-info">
+      <h2 class="mod-title">Caja Chica</h2>
+      <p class="mod-desc">Fondos fijos · Movimientos de ingresos y egresos · Cierre de caja</p>
+    </div>
+    <div class="mod-kpi-pill">
+      <span class="mod-pill">
+        <strong>{{ cajas.length }}</strong>
+        <span class="mod-pill-label">cajas</span>
+      </span>
+    </div>
+  </div>
+
   <div class="adm-toolbar">
     <button class="btn-primary" (click)="showNuevaCaja = true">+ Nueva Caja Chica</button>
   </div>

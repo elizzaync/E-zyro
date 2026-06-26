@@ -1,1 +1,8 @@
-/* Shared via parent */
+:host {
+  display: block;
+  --mod-color: #ef4444;
+  --mod-gradient: linear-gradient(135deg, #ef4444, #f87171);
+  --mod-hover-bg: #fff1f2;
+  --mod-pill-bg: #fee2e2;
+  --mod-pill-border: #fca5a5;
+}

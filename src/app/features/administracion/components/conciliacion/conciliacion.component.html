@@ -1,4 +1,24 @@
 <section class="adm-section">
+  <!-- Module header -->
+  <div class="mod-header">
+    <div class="mod-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+        <line x1="1" y1="10" x2="23" y2="10"/>
+      </svg>
+    </div>
+    <div class="mod-info">
+      <h2 class="mod-title">Conciliación Bancaria</h2>
+      <p class="mod-desc">Cuentas bancarias · Movimientos pendientes · Conciliación de saldos</p>
+    </div>
+    <div class="mod-kpi-pill">
+      <span class="mod-pill">
+        <strong>{{ cuentas.length }}</strong>
+        <span class="mod-pill-label">cuentas</span>
+      </span>
+    </div>
+  </div>
+
   <div class="adm-toolbar">
     <button class="btn-sm" (click)="cargar()">Actualizar</button>
   </div>

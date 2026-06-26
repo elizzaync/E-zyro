@@ -1,4 +1,29 @@
 <section class="adm-section">
+  <!-- Module header -->
+  <div class="mod-header">
+    <div class="mod-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    </div>
+    <div class="mod-info">
+      <h2 class="mod-title">Planilla</h2>
+      <p class="mod-desc">Cálculo de nómina mensual · Aprobación · Boletas de pago · Conceptos</p>
+    </div>
+    <div class="mod-kpi-pill">
+      <span class="mod-pill">
+        <strong>{{ planillas.length }}</strong>
+        <span class="mod-pill-label">planillas</span>
+      </span>
+      <span class="mod-pill">
+        <strong>{{ empleados.length }}</strong>
+        <span class="mod-pill-label">empleados</span>
+      </span>
+    </div>
+  </div>
+
   <div class="adm-tabs">
     <button class="adm-tab" [class.active]="tab === 'planillas'"  (click)="setTab('planillas')">Planillas</button>
     <button class="adm-tab" [class.active]="tab === 'conceptos'"  (click)="setTab('conceptos')">Conceptos</button>
