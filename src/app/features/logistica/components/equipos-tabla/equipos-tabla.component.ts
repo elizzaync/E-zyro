@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { EquipoFormModalComponent } from '../equipo-form-modal/equipo-form-modal.component';
 import { EquipoMovimientosModalComponent } from '../equipo-movimientos-modal/equipo-movimientos-modal.component';
@@ -25,6 +26,9 @@ export class EquiposTablaComponent implements OnInit {
 
   private svc   = inject(LogisticaService);
   private toast = inject(ToastService);
+  private auth  = inject(AuthService);
+
+  get isTecnico(): boolean { return this.auth.isTecnico(); }
 
   equipos: EquipoHerramienta[] = [];
   cargando = true;

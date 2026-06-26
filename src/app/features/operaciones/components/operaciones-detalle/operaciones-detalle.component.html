@@ -56,7 +56,6 @@
       <div class="hb-pbar"><i [style.width.%]="servicio.progreso"></i></div>
     </div>
 
-    @if (!soyTecnico) {
     <div class="hb-actions">
       <button class="hb-btn hb-btn--alert" (click)="abrirIncidencia()" title="Reportar daño en equipo/herramienta">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -69,30 +68,31 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
         Pre-Informe
       </button>
-      @if (servicio.estado === 'Pendiente') {
-        <button class="hb-btn hb-btn--brand" [class.hb-btn--locked]="!puedeIniciar"
-                [attr.title]="puedeIniciar ? 'Iniciar el servicio' : ('Aún no se puede iniciar — falta: ' + motivosInicio.join(' · '))"
-                (click)="iniciarServicio()">
-          @if (puedeIniciar) {
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          } @else {
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-          }
-          Iniciar
-        </button>
-      } @else if (servicio.estado === 'En_Proceso' && soyJefeOperaciones) {
-        <button class="hb-btn hb-btn--brand" [disabled]="!todasCompletadas" (click)="finalizarServicio()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          Finalizar
-        </button>
-      } @else if (servicio.estado === 'Completado') {
-        <button class="hb-btn hb-btn--ok" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-          Concluido
-        </button>
+      @if (!soyTecnico) {
+        @if (servicio.estado === 'Pendiente') {
+          <button class="hb-btn hb-btn--brand" [class.hb-btn--locked]="!puedeIniciar"
+                  [attr.title]="puedeIniciar ? 'Iniciar el servicio' : ('Aún no se puede iniciar — falta: ' + motivosInicio.join(' · '))"
+                  (click)="iniciarServicio()">
+            @if (puedeIniciar) {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            } @else {
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            }
+            Iniciar
+          </button>
+        } @else if (servicio.estado === 'En_Proceso' && soyJefeOperaciones) {
+          <button class="hb-btn hb-btn--brand" [disabled]="!todasCompletadas" (click)="finalizarServicio()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Finalizar
+          </button>
+        } @else if (servicio.estado === 'Completado') {
+          <button class="hb-btn hb-btn--ok" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Concluido
+          </button>
+        }
       }
     </div>
-    }
   </div>
 
   <!-- ═══════════════ STEPPER DE FASES ═══════════════ -->

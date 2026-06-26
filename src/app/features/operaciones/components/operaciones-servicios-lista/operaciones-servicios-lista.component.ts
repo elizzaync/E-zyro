@@ -35,12 +35,8 @@ export class OperacionesServiciosListaComponent implements OnInit {
   private toast  = inject(ToastService);
   private auth   = inject(AuthService);
 
-  get isTecnico(): boolean {
-    return (this.auth.getUsuario()?.rol || '').trim() === 'Técnico de Campo';
-  }
-  get isJefeOperaciones(): boolean {
-    return (this.auth.getUsuario()?.rol || '').trim() === 'Jefe de Operaciones';
-  }
+  get isTecnico(): boolean { return this.auth.isTecnico(); }
+  get isJefeOperaciones(): boolean { return this.auth.isJefeOperaciones(); }
 
   proyectoId: string | null = null;
   servicios: ServicioProyecto[] = [];
