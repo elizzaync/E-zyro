@@ -210,7 +210,8 @@ export class AdministracionService {
   }
 
   getCobros(cliente_id?: string): Observable<CobroCxC[]> {
-    const params = cliente_id ? { cliente_id } : {};
+    let params = new HttpParams();
+    if (cliente_id) params = params.set('cliente_id', cliente_id);
     return this.http.get<CobroCxC[]>(`${this.base}/cuentas-por-cobrar/cobros`, { params });
   }
 
@@ -219,7 +220,8 @@ export class AdministracionService {
   }
 
   getAntiguedadCxC(corte?: string): Observable<any[]> {
-    const params = corte ? { corte } : {};
+    let params = new HttpParams();
+    if (corte) params = params.set('corte', corte);
     return this.http.get<any[]>(`${this.base}/cuentas-por-cobrar/reporte-antiguedad`, { params });
   }
 
@@ -237,7 +239,8 @@ export class AdministracionService {
   }
 
   getPagos(proveedor_id?: string): Observable<PagoCxP[]> {
-    const params = proveedor_id ? { proveedor_id } : {};
+    let params = new HttpParams();
+    if (proveedor_id) params = params.set('proveedor_id', proveedor_id);
     return this.http.get<PagoCxP[]>(`${this.base}/cuentas-por-pagar/pagos`, { params });
   }
 
