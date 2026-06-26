@@ -3948,8 +3948,8 @@ def list_equipos_intervenidos(
             HistorialInspeccion.estado.label("estado_inspeccion"),
         )
         .outerjoin(TipoEquipo,  TipoEquipo.id  == EquipoIntervenido.tipo_equipo_id)
-        .outerjoin(Ubicacion,   Ubicacion.id   == cast(EquipoIntervenido.ubicacion_id, SAText))
-        .outerjoin(Zona,        Zona.id        == cast(EquipoIntervenido.zona_id,     SAText))
+        .outerjoin(Ubicacion,   cast(Ubicacion.id, SAText)  == cast(EquipoIntervenido.ubicacion_id, SAText))
+        .outerjoin(Zona,        cast(Zona.id,      SAText)  == cast(EquipoIntervenido.zona_id,     SAText))
         .outerjoin(historial_sq, historial_sq.c.equipo_intervenido_id == EquipoIntervenido.id)
         .outerjoin(
             HistorialInspeccion,

@@ -5353,8 +5353,8 @@ def get_servicios_global(
         )
         .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
-        .outerjoin(UbicSvc, UbicSvc.id == cast(ProyectoServicio.ubicacion_id, SAText))
-        .outerjoin(ZonaSvc, ZonaSvc.id == cast(ProyectoServicio.zona_id, SAText))
+        .outerjoin(UbicSvc, cast(UbicSvc.id, SAText) == cast(ProyectoServicio.ubicacion_id, SAText))
+        .outerjoin(ZonaSvc, cast(ZonaSvc.id, SAText) == cast(ProyectoServicio.zona_id,     SAText))
         .outerjoin(CatalogoServicio, CatalogoServicio.id == ProyectoServicio.catalogo_servicio_id)
         .filter(
             ProyectoServicio.empresa_id == empresa_id,
@@ -5442,8 +5442,8 @@ def get_mantenimiento_global(
             HistorialInspeccion.estado.label("estado_inspeccion"),
         )
         .outerjoin(TipoEquipo,   TipoEquipo.id   == EquipoIntervenido.tipo_equipo_id)
-        .outerjoin(Ubicacion,    Ubicacion.id     == cast(EquipoIntervenido.ubicacion_id, SAText))
-        .outerjoin(Zona,         Zona.id          == cast(EquipoIntervenido.zona_id,     SAText))
+        .outerjoin(Ubicacion,    cast(Ubicacion.id, SAText) == cast(EquipoIntervenido.ubicacion_id, SAText))
+        .outerjoin(Zona,         cast(Zona.id,      SAText) == cast(EquipoIntervenido.zona_id,     SAText))
         .outerjoin(historial_sq, historial_sq.c.equipo_intervenido_id == EquipoIntervenido.id)
         .outerjoin(
             HistorialInspeccion,
