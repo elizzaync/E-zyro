@@ -1,0 +1,164 @@
+<section class="adm-section">
+  <div class="adm-tabs">
+    <button class="adm-tab" [class.active]="tab === 'plan'" (click)="setTab('plan')">Plan de Cuentas</button>
+    <button class="adm-tab" [class.active]="tab === 'periodos'" (click)="setTab('periodos')">Periodos</button>
+    <button class="adm-tab" [class.active]="tab === 'asientos'" (click)="setTab('asientos')">Asientos</button>
+  </div>
+
+  <!-- ── Plan de Cuentas ── -->
+  @if (tab === 'plan') {
+  <div class="adm-toolbar">
+    <input class="adm-search" placeholder="Buscar código o nombre…" [(ngModel)]="filtroCuenta">
+    <select class="adm-select" [(ngModel)]="filtroTipo">
+      <option value="">Todos los tipos</option>
+      <option value="activo">Activo</option>
+      <option value="pasivo">Pasivo</option>
+      <option value="patrimonio">Patrimonio</option>
+      <option value="ingreso">Ingreso</option>
+      <option value="gasto">Gasto</option>
+    </select>
+    <label class="adm-check-label">
+      <input type="checkbox" [(ngModel)]="filtroSoloActivas"> Solo activas
+    </label>
+  </div>
+  @if (cargando) { <div class="adm-loading">Cargando…</div> }
+  @else {
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Nivel</th><th>Estado</th><th>Acción</th></tr></thead>
+      <tbody>
+        @for (c of cuentasFiltradas; track c.id) {
+        <tr [class.row-inactive]="!c.activo">
+          <td class="td-code">{{ c.codigo }}</td>
+          <td [style.padding-left]="(c.nivel * 12) + 'px'">{{ c.nombre }}</td>
+          <td><span class="chip chip-tipo">{{ c.tipo }}</span></td>
+          <td class="td-center">{{ c.nivel }}</td>
+          <td>
+            <span class="badge" [class.badge-ok]="c.activo" [class.badge-off]="!c.activo">
+              {{ c.activo ? 'Activa' : 'Inactiva' }}
+            </span>
+          </td>
+          <td>
+            <button class="btn-sm" [class.btn-sm-danger]="c.activo" (click)="toggleCuenta(c)">
+              {{ c.activo ? 'Desactivar' : 'Activar' }}
+            </button>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+    @if (cuentasFiltradas.length === 0) {
+      <div class="adm-empty">No se encontraron cuentas</div>
+    }
+  </div>
+  }
+  }
+
+  <!-- ── Periodos ── -->
+  @if (tab === 'periodos') {
+  <div class="adm-toolbar">
+    <button class="btn-primary" (click)="showNuevoPeriodo = true">+ Nuevo Periodo</button>
+  </div>
+  @if (cargando) { <div class="adm-loading">Cargando…</div> }
+  @else {
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Año</th><th>Mes</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>
+        @for (p of periodos; track p.id) {
+        <tr>
+          <td>{{ p.anio }}</td>
+          <td>{{ mesNombre(p.mes) }}</td>
+          <td>
+            <span class="badge" [class.badge-ok]="p.estado === 'abierto'" [class.badge-off]="p.estado === 'cerrado'">
+              {{ p.estado === 'abierto' ? 'Abierto' : 'Cerrado' }}
+            </span>
+          </td>
+          <td class="td-actions">
+            @if (p.estado === 'abierto') {
+              <button class="btn-sm btn-sm-danger" (click)="cerrarPeriodo(p)">Cerrar</button>
+            } @else {
+              <button class="btn-sm" (click)="reabrirPeriodo(p)">Reabrir</button>
+            }
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+    @if (periodos.length === 0) { <div class="adm-empty">No hay periodos registrados</div> }
+  </div>
+  }
+  @if (showNuevoPeriodo) {
+  <div class="adm-modal-overlay" (click)="showNuevoPeriodo = false">
+    <div class="adm-modal" (click)="$event.stopPropagation()">
+      <h3 class="adm-modal-title">Nuevo Periodo Contable</h3>
+      <div class="adm-form-row">
+        <label>Año</label>
+        <input type="number" class="adm-input" [(ngModel)]="nuevoPeriodoAnio" min="2020" max="2035">
+      </div>
+      <div class="adm-form-row">
+        <label>Mes</label>
+        <select class="adm-input" [(ngModel)]="nuevoPeriodoMes">
+          @for (m of meses; track $index) {
+            <option [value]="$index + 1">{{ m }}</option>
+          }
+        </select>
+      </div>
+      <div class="adm-modal-actions">
+        <button class="btn-secondary" (click)="showNuevoPeriodo = false">Cancelar</button>
+        <button class="btn-primary" (click)="crearPeriodo()" [disabled]="guardandoPeriodo">
+          {{ guardandoPeriodo ? 'Creando…' : 'Crear' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+  }
+
+  <!-- ── Asientos ── -->
+  @if (tab === 'asientos') {
+  <div class="adm-toolbar">
+    <input class="adm-search" placeholder="Filtrar por periodo ID…" [(ngModel)]="filtroAsientoPeriodo" (change)="cargar()">
+  </div>
+  @if (cargando) { <div class="adm-loading">Cargando…</div> }
+  @else {
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead><tr><th>Fecha</th><th>Descripción</th><th>Origen</th><th>Debe</th><th>Haber</th><th></th></tr></thead>
+      <tbody>
+        @for (a of asientos; track a.id) {
+        <tr class="row-clickable" (click)="verAsiento(a)">
+          <td>{{ a.fecha | date:'dd/MM/yyyy' }}</td>
+          <td>{{ a.descripcion }}</td>
+          <td><span class="chip chip-origen">{{ a.origen }}</span></td>
+          <td class="td-num">S/ {{ a.total_debe | number:'1.2-2' }}</td>
+          <td class="td-num">S/ {{ a.total_haber | number:'1.2-2' }}</td>
+          <td><button class="btn-sm">{{ asientoDetalle?.id === a.id ? '▲' : '▼' }}</button></td>
+        </tr>
+        @if (asientoDetalle?.id === a.id) {
+        <tr class="row-detalle">
+          <td colspan="6">
+            <table class="adm-subtable">
+              <thead><tr><th>Cuenta</th><th>Glosa</th><th>Debe</th><th>Haber</th></tr></thead>
+              <tbody>
+                @for (l of asientoDetalle!.lineas; track $index) {
+                <tr>
+                  <td>{{ l.cuenta_codigo }} · {{ l.nombre_cuenta }}</td>
+                  <td>{{ l.glosa || '—' }}</td>
+                  <td class="td-num">{{ l.debito > 0 ? ('S/ ' + (l.debito | number:'1.2-2')) : '—' }}</td>
+                  <td class="td-num">{{ l.credito > 0 ? ('S/ ' + (l.credito | number:'1.2-2')) : '—' }}</td>
+                </tr>
+                }
+              </tbody>
+            </table>
+          </td>
+        </tr>
+        }
+        }
+      </tbody>
+    </table>
+    @if (asientos.length === 0) { <div class="adm-empty">No hay asientos para mostrar</div> }
+  </div>
+  }
+  }
+</section>

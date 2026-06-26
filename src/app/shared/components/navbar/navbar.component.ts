@@ -89,6 +89,14 @@ get puedeAdministrarRRHH(): boolean {
     return this.router.url.startsWith('/soporte');
   }
 
+  get enAdministracion(): boolean {
+    return this.router.url.startsWith('/administracion');
+  }
+
+  get puedeAdministracion(): boolean {
+    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
+  }
+
 get enRRHH(): boolean {
     return this.router.url.startsWith('/rrhh');
   }
@@ -97,6 +105,7 @@ get enRRHH(): boolean {
   logisticaOpen = false;
   rrhhOpen = false;
   soporteOpen = false;
+  administracionOpen = false;
   /** Drawer de navegación en móvil/tablet (hamburguesa) */
   mobileNavOpen = false;
   showProfileModal = false;
@@ -492,7 +501,7 @@ get enRRHH(): boolean {
   toggleMobileNav() {
     this.mobileNavOpen = !this.mobileNavOpen;
     this.isMenuOpen = false;
-    if (!this.mobileNavOpen) { this.operacionesOpen = false; this.logisticaOpen = false; this.rrhhOpen = false; this.soporteOpen = false; }
+    if (!this.mobileNavOpen) { this.operacionesOpen = false; this.logisticaOpen = false; this.rrhhOpen = false; this.soporteOpen = false; this.administracionOpen = false; }
   }
   /** Cierra el drawer móvil (al elegir una opción o tocar fuera). */
   cerrarMobileNav() {
@@ -501,6 +510,7 @@ get enRRHH(): boolean {
     this.logisticaOpen = false;
     this.rrhhOpen = false;
     this.soporteOpen = false;
+    this.administracionOpen = false;
   }
 
   toggleNotifPanel() {

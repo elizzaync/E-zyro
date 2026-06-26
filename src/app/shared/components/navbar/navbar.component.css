@@ -79,6 +79,17 @@
 
 .nav-submenu-divider { height: 1px; background: var(--border-color, #e2e8f0); margin: 4px 12px; }
 
+.nav-submenu--wide { min-width: 320px; }
+
+.nav-submenu-group-label {
+  padding: 6px 14px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted, #9ca3af);
+}
+
 .nav-subitem {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px; border-radius: 11px; text-decoration: none;

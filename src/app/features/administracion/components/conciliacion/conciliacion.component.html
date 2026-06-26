@@ -1,0 +1,79 @@
+<section class="adm-section">
+  <div class="adm-toolbar">
+    <button class="btn-sm" (click)="cargar()">Actualizar</button>
+  </div>
+
+  @if (cargando) { <div class="adm-loading">Cargando cuentas bancarias…</div> }
+  @else {
+  <div class="adm-kpi-row">
+    <div class="adm-kpi"><span class="adm-kpi-label">Cuentas bancarias</span><span class="adm-kpi-val">{{ cuentas.length }}</span></div>
+    <div class="adm-kpi" [class.adm-kpi-danger]="diferenciaTotalCuentas !== 0">
+      <span class="adm-kpi-label">Diferencia total</span>
+      <span class="adm-kpi-val">S/ {{ diferenciaTotalCuentas | number:'1.2-2' }}</span>
+    </div>
+  </div>
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead>
+        <tr><th>Banco</th><th>N° Cuenta</th><th>Moneda</th>
+            <th class="td-num">Saldo Banco</th><th class="td-num">Saldo Libros</th>
+            <th class="td-num">Diferencia</th><th>Pendientes</th><th></th></tr>
+      </thead>
+      <tbody>
+        @for (c of cuentas; track c.id) {
+        <tr class="row-clickable" (click)="seleccionarCuenta(c)">
+          <td><strong>{{ c.banco }}</strong></td>
+          <td class="td-code">{{ c.numero_cuenta }}</td>
+          <td><span class="chip">{{ c.moneda }}</span></td>
+          <td class="td-num">{{ c.moneda }} {{ c.saldo_banco | number:'1.2-2' }}</td>
+          <td class="td-num">{{ c.moneda }} {{ c.saldo_libros | number:'1.2-2' }}</td>
+          <td class="td-num" [class.text-ok]="c.diferencia === 0" [class.text-danger]="c.diferencia !== 0">
+            {{ c.moneda }} {{ c.diferencia | number:'1.2-2' }}
+          </td>
+          <td class="td-center" [class.text-danger]="c.n_pendientes > 0">{{ c.n_pendientes }}</td>
+          <td><button class="btn-sm">{{ cuentaSeleccionada?.id === c.id ? '▲' : '▼' }}</button></td>
+        </tr>
+        @if (cuentaSeleccionada?.id === c.id) {
+        <tr class="row-detalle">
+          <td colspan="8">
+            <div class="adm-toolbar adm-toolbar-sm">
+              <select class="adm-select" [(ngModel)]="filtroEstadoMov" (change)="cargarMovimientos()">
+                <option value="pendiente">Pendientes</option>
+                <option value="conciliado">Conciliados</option>
+              </select>
+            </div>
+            @if (cargandoMov) { <div class="adm-loading">Cargando movimientos…</div> }
+            @else {
+            <table class="adm-subtable">
+              <thead><tr><th>Fecha</th><th>Descripción</th><th>Tipo</th><th class="td-num">Monto</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+                @for (m of movimientos; track m.id) {
+                <tr>
+                  <td>{{ m.fecha | date:'dd/MM/yyyy' }}</td>
+                  <td>{{ m.descripcion }}</td>
+                  <td><span class="chip" [class.chip-ingreso]="m.tipo === 'credito'" [class.chip-descuento]="m.tipo === 'debito'">{{ m.tipo }}</span></td>
+                  <td class="td-num" [class.text-ok]="m.tipo === 'credito'" [class.text-danger]="m.tipo === 'debito'">
+                    {{ c.moneda }} {{ m.monto | number:'1.2-2' }}
+                  </td>
+                  <td><span class="badge" [class.badge-ok]="m.estado === 'conciliado'" [class.badge-warn]="m.estado === 'pendiente'">{{ m.estado }}</span></td>
+                  <td>
+                    @if (m.estado === 'conciliado') {
+                      <button class="btn-sm btn-sm-danger" (click)="desconciliar(m)">Desconciliar</button>
+                    }
+                  </td>
+                </tr>
+                }
+              </tbody>
+            </table>
+            @if (movimientos.length === 0) { <div class="adm-empty">No hay movimientos {{ filtroEstadoMov === 'pendiente' ? 'pendientes' : 'conciliados' }}</div> }
+            }
+          </td>
+        </tr>
+        }
+        }
+      </tbody>
+    </table>
+    @if (cuentas.length === 0) { <div class="adm-empty">No hay cuentas bancarias registradas</div> }
+  </div>
+  }
+</section>

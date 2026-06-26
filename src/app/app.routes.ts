@@ -38,6 +38,7 @@ import { MonitoreoComponent } from './features/soporte/components/monitoreo/moni
 import { SeguridadComponent } from './features/soporte/components/seguridad/seguridad.component';
 import { CrearCuentasComponent } from './features/soporte/components/crear-cuentas/crear-cuentas.component';
 import { GestionPermisosComponent } from './features/soporte/components/gestion-permisos/gestion-permisos.component';
+import { AdministracionComponent } from './features/administracion/administracion.component';
 
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
 const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico', 'Jefe de Operaciones'];
@@ -306,6 +307,14 @@ export const routes: Routes = [
     path: 'soporte/gestion-permisos',
     component: GestionPermisosComponent,
     title: 'Gestión de Permisos | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+
+  // ── Módulo Administración ────────────────────────────────────────────────
+  {
+    path: 'administracion',
+    component: AdministracionComponent,
+    title: 'Administración | e-zyro TIC',
     canActivate: [authGuard]
   },
   {

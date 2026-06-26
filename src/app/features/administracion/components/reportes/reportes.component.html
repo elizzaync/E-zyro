@@ -1,0 +1,76 @@
+<section class="adm-section">
+  <div class="adm-tabs">
+    <button class="adm-tab" [class.active]="tab === 'balance-general'"   (click)="setTab('balance-general')">Balance General</button>
+    <button class="adm-tab" [class.active]="tab === 'estado-resultados'" (click)="setTab('estado-resultados')">Estado de Resultados</button>
+    <button class="adm-tab" [class.active]="tab === 'flujo-efectivo'"    (click)="setTab('flujo-efectivo')">Flujo de Efectivo</button>
+    <button class="adm-tab" [class.active]="tab === 'libro-diario'"      (click)="setTab('libro-diario')">Libro Diario</button>
+  </div>
+
+  <!-- ── Filtros ── -->
+  <div class="adm-toolbar">
+    @if (tab === 'balance-general') {
+      <label class="adm-label">Fecha corte</label>
+      <input type="date" class="adm-input-date" [(ngModel)]="fechaCorte">
+    }
+    @if (tab === 'estado-resultados') {
+      <label class="adm-label">Desde</label>
+      <input type="date" class="adm-input-date" [(ngModel)]="desdeEstado">
+      <label class="adm-label">Hasta</label>
+      <input type="date" class="adm-input-date" [(ngModel)]="hastaEstado">
+    }
+    @if (tab === 'flujo-efectivo' || tab === 'libro-diario') {
+      <label class="adm-label">Periodo</label>
+      <input type="month" class="adm-input-date" [(ngModel)]="periodoActual">
+    }
+    <button class="btn-primary" (click)="consultar()">Consultar</button>
+  </div>
+
+  @if (cargando) { <div class="adm-loading">Generando reporte…</div> }
+
+  @if (!cargando && datos === null) {
+    <div class="adm-placeholder">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48">
+        <path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/>
+      </svg>
+      <p>Selecciona los filtros y presiona <strong>Consultar</strong> para generar el reporte.</p>
+    </div>
+  }
+
+  @if (!cargando && datos !== null) {
+  <div class="adm-table-wrap">
+    @if (tab === 'libro-diario') {
+    <table class="adm-table">
+      <thead><tr><th>Fecha</th><th>Descripción</th><th>Origen</th><th class="td-num">Debe</th><th class="td-num">Haber</th></tr></thead>
+      <tbody>
+        @for (f of filas; track $index) {
+        <tr>
+          <td>{{ f.fecha | date:'dd/MM/yyyy' }}</td>
+          <td>{{ f.descripcion }}</td>
+          <td><span class="chip chip-origen">{{ f.origen }}</span></td>
+          <td class="td-num">{{ f.total_debe != null ? ('S/ ' + (f.total_debe | number:'1.2-2')) : '—' }}</td>
+          <td class="td-num">{{ f.total_haber != null ? ('S/ ' + (f.total_haber | number:'1.2-2')) : '—' }}</td>
+        </tr>
+        }
+      </tbody>
+    </table>
+    } @else {
+    <table class="adm-table">
+      <thead><tr><th>Cuenta</th><th>Descripción</th><th class="td-num">Importe / Saldo</th></tr></thead>
+      <tbody>
+        @for (f of filas; track $index) {
+        <tr [class.row-titulo]="f.es_titulo" [style.font-weight]="f.es_titulo ? '700' : 'normal'"
+            [style.padding-left]="f.nivel ? ((f.nivel * 16) + 'px') : '0'">
+          <td class="td-code">{{ f.cuenta_codigo || '' }}</td>
+          <td>{{ f.descripcion }}</td>
+          <td class="td-num">
+            {{ (f.importe ?? f.saldo) != null ? ('S/ ' + ((f.importe ?? f.saldo) | number:'1.2-2')) : '—' }}
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+    }
+    @if (filas.length === 0) { <div class="adm-empty">El reporte no tiene datos para el periodo seleccionado</div> }
+  </div>
+  }
+</section>

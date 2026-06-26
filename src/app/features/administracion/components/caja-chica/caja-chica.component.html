@@ -1,0 +1,108 @@
+<section class="adm-section">
+  <div class="adm-toolbar">
+    <button class="btn-primary" (click)="showNuevaCaja = true">+ Nueva Caja Chica</button>
+  </div>
+
+  @if (cargando) { <div class="adm-loading">Cargando…</div> }
+  @else {
+  <div class="adm-table-wrap">
+    <table class="adm-table">
+      <thead>
+        <tr><th>Nombre</th><th>Responsable</th><th class="td-num">Saldo Inicial</th>
+            <th class="td-num">Saldo Actual</th><th>Movimientos</th><th>Estado</th><th>Acciones</th></tr>
+      </thead>
+      <tbody>
+        @for (c of cajas; track c.id) {
+        <tr class="row-clickable" (click)="seleccionarCaja(c)">
+          <td><strong>{{ c.nombre }}</strong></td>
+          <td>{{ c.responsable_nombre || '—' }}</td>
+          <td class="td-num">S/ {{ c.saldo_inicial | number:'1.2-2' }}</td>
+          <td class="td-num" [class.text-danger]="c.saldo_actual < c.saldo_inicial * 0.2">
+            <strong>S/ {{ c.saldo_actual | number:'1.2-2' }}</strong>
+          </td>
+          <td class="td-center">{{ c.n_movimientos }}</td>
+          <td>
+            <span class="badge" [class.badge-ok]="c.estado === 'abierta'" [class.badge-off]="c.estado === 'cerrada'">
+              {{ c.estado === 'abierta' ? 'Abierta' : 'Cerrada' }}
+            </span>
+          </td>
+          <td class="td-actions" (click)="$event.stopPropagation()">
+            @if (c.estado === 'abierta') {
+              <button class="btn-sm btn-sm-ok" (click)="cajaSeleccionada = c; showNuevoMov = true">+ Movimiento</button>
+              <button class="btn-sm btn-sm-danger" (click)="cerrarCaja(c)">Cerrar</button>
+            }
+          </td>
+        </tr>
+        @if (cajaSeleccionada?.id === c.id) {
+        <tr class="row-detalle">
+          <td colspan="7">
+            @if (cargandoMov) { <div class="adm-loading">Cargando movimientos…</div> }
+            @else {
+            <table class="adm-subtable">
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Descripción</th><th class="td-num">Monto</th></tr></thead>
+              <tbody>
+                @for (m of movimientos; track m.id) {
+                <tr>
+                  <td>{{ m.fecha | date:'dd/MM/yyyy' }}</td>
+                  <td><span class="chip" [class.chip-ingreso]="m.tipo === 'ingreso'" [class.chip-descuento]="m.tipo === 'egreso'">{{ m.tipo }}</span></td>
+                  <td>{{ m.concepto || '—' }}</td>
+                  <td>{{ m.descripcion }}</td>
+                  <td class="td-num" [class.text-ok]="m.tipo === 'ingreso'" [class.text-danger]="m.tipo === 'egreso'">
+                    {{ m.tipo === 'egreso' ? '- ' : '+ ' }}S/ {{ m.monto | number:'1.2-2' }}
+                  </td>
+                </tr>
+                }
+              </tbody>
+            </table>
+            @if (movimientos.length === 0) { <div class="adm-empty">No hay movimientos en esta caja</div> }
+            }
+          </td>
+        </tr>
+        }
+        }
+      </tbody>
+    </table>
+    @if (cajas.length === 0) { <div class="adm-empty">No hay cajas chicas registradas</div> }
+  </div>
+  }
+
+  <!-- Modal: Nueva Caja -->
+  @if (showNuevaCaja) {
+  <div class="adm-modal-overlay" (click)="showNuevaCaja = false">
+    <div class="adm-modal" (click)="$event.stopPropagation()">
+      <h3 class="adm-modal-title">Nueva Caja Chica</h3>
+      <div class="adm-form-row"><label>Nombre</label><input type="text" class="adm-input" [(ngModel)]="nuevaCajaNombre" placeholder="Nombre de la caja"></div>
+      <div class="adm-form-row"><label>Saldo inicial (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevaCajaSaldo" min="0"></div>
+      <div class="adm-modal-actions">
+        <button class="btn-secondary" (click)="showNuevaCaja = false">Cancelar</button>
+        <button class="btn-primary" (click)="crearCaja()" [disabled]="guardandoCaja || !nuevaCajaNombre">{{ guardandoCaja ? 'Creando…' : 'Crear' }}</button>
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- Modal: Nuevo Movimiento -->
+  @if (showNuevoMov) {
+  <div class="adm-modal-overlay" (click)="showNuevoMov = false">
+    <div class="adm-modal" (click)="$event.stopPropagation()">
+      <h3 class="adm-modal-title">Registrar Movimiento · {{ cajaSeleccionada?.nombre }}</h3>
+      <div class="adm-form-row">
+        <label>Tipo</label>
+        <select class="adm-input" [(ngModel)]="nuevoMov.tipo">
+          <option value="ingreso">Ingreso</option>
+          <option value="egreso">Egreso</option>
+        </select>
+      </div>
+      <div class="adm-form-row"><label>Monto (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevoMov.monto" min="0.01" step="0.01"></div>
+      <div class="adm-form-row"><label>Descripción</label><input type="text" class="adm-input" [(ngModel)]="nuevoMov.descripcion" placeholder="Descripción del movimiento"></div>
+      <div class="adm-form-row"><label>Concepto (opcional)</label><input type="text" class="adm-input" [(ngModel)]="nuevoMov.concepto"></div>
+      <div class="adm-modal-actions">
+        <button class="btn-secondary" (click)="showNuevoMov = false">Cancelar</button>
+        <button class="btn-primary" (click)="registrarMovimiento()" [disabled]="guardandoMov || !nuevoMov.tipo || !nuevoMov.monto">
+          {{ guardandoMov ? 'Registrando…' : 'Registrar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  }
+</section>
