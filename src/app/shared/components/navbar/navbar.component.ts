@@ -19,21 +19,23 @@ import { EvaluacionesService, Evaluacion, EmpleadoEval, CriterioEval } from '../
 })
 export class NavbarComponent implements OnInit, OnDestroy {
   usuarioActual = { nombre: 'Cargando...', rol: '...', iniciales: '', id: 'EMP-0000', foto: '' };
+  /** Nombre real del rol (del JWT), distinto del cargo de display en usuarioActual.rol */
+  private rolNombre = '';
 
   /**
    * Subtitulo del navbar: "Panel de Gestion" + rol del usuario.
    * Mientras carga ("..." / "Cargando...") muestra solo "Panel de Gestion".
    */
   get isClienteExterno(): boolean {
-    return (this.usuarioActual.rol || '').toLowerCase().replace(/\s+/g, '') === 'clienteexterno';
+    return this.rolNombre.toLowerCase().replace(/\s+/g, '') === 'clienteexterno';
   }
 
   get isTecnico(): boolean {
-    return (this.usuarioActual.rol || '').trim() === 'Técnico';
+    return this.rolNombre.trim() === 'Técnico';
   }
 
   get isJefeOperaciones(): boolean {
-    return (this.usuarioActual.rol || '').trim() === 'Jefe de Operaciones';
+    return this.rolNombre.trim() === 'Jefe de Operaciones';
   }
 
   /** Puede ver la sección Nube de Planos (no Técnico) */
@@ -529,6 +531,8 @@ get enRRHH(): boolean {
       this.usuarioActual.nombre    = u.nombre_completo || 'Usuario';
       this.usuarioActual.rol       = u.rol             || '';
       this.usuarioActual.iniciales = this.usuarioActual.nombre.substring(0, 2).toUpperCase();
+      // rolNombre siempre viene del token JWT (login), nunca del cargo de display
+      this.rolNombre = (u.rol || '').trim();
     }
 
     // ClienteExterno: cargar datos de empresa/usuario desde el endpoint de portal
@@ -568,6 +572,10 @@ get enRRHH(): boolean {
           this.permisosUsuario = personal.permisos_modulo || [];
           localStorage.setItem('ezyro_permisos', JSON.stringify(this.permisosUsuario));
 
+          // rol_nombre = nombre del rol real (JWT), personal.rol = cargo de display
+          if (personal.rol_nombre) {
+            this.rolNombre = (personal.rol_nombre as string).trim();
+          }
           this.usuarioActual = {
             nombre: `${personal.nombre} ${personal.apellido}`,
             rol: personal.rol,
