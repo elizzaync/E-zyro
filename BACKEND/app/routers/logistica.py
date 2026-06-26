@@ -16,7 +16,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel as _BaseModel
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, cast, Text as SAText
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -5353,8 +5353,8 @@ def get_servicios_global(
         )
         .join(Proyecto, Proyecto.id == ProyectoServicio.proyecto_id)
         .join(Cliente,  Cliente.id  == Proyecto.cliente_id)
-        .outerjoin(UbicSvc, UbicSvc.id == ProyectoServicio.ubicacion_id)
-        .outerjoin(ZonaSvc, ZonaSvc.id == ProyectoServicio.zona_id)
+        .outerjoin(UbicSvc, cast(UbicSvc.id, SAText) == cast(ProyectoServicio.ubicacion_id, SAText))
+        .outerjoin(ZonaSvc, cast(ZonaSvc.id, SAText) == cast(ProyectoServicio.zona_id,     SAText))
         .outerjoin(CatalogoServicio, CatalogoServicio.id == ProyectoServicio.catalogo_servicio_id)
         .filter(
             ProyectoServicio.empresa_id == empresa_id,
@@ -5375,11 +5375,14 @@ def get_servicios_global(
         )
         if not empleado:
             return []
-        q = (
-            q.join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
+        # Subquery para evitar DISTINCT + ORDER BY incompatibles en PostgreSQL
+        servicios_asignados = (
+            db.query(Tarea.proyecto_servicio_id)
             .filter(Tarea.responsable_id == empleado.id)
             .distinct()
+            .subquery()
         )
+        q = q.filter(ProyectoServicio.id.in_(servicios_asignados))
 
     rows = q.order_by(Proyecto.created_at.desc(), ProyectoServicio.orden.asc()).all()
 
@@ -5442,8 +5445,8 @@ def get_mantenimiento_global(
             HistorialInspeccion.estado.label("estado_inspeccion"),
         )
         .outerjoin(TipoEquipo,   TipoEquipo.id   == EquipoIntervenido.tipo_equipo_id)
-        .outerjoin(Ubicacion,    Ubicacion.id     == EquipoIntervenido.ubicacion_id)
-        .outerjoin(Zona,         Zona.id          == EquipoIntervenido.zona_id)
+        .outerjoin(Ubicacion,    cast(Ubicacion.id, SAText) == cast(EquipoIntervenido.ubicacion_id, SAText))
+        .outerjoin(Zona,         cast(Zona.id,      SAText) == cast(EquipoIntervenido.zona_id,     SAText))
         .outerjoin(historial_sq, historial_sq.c.equipo_intervenido_id == EquipoIntervenido.id)
         .outerjoin(
             HistorialInspeccion,

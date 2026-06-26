@@ -19,7 +19,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Uplo
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 
-from sqlalchemy import func, or_, case
+from sqlalchemy import func, or_, case, cast, Text as SAText
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.orm import Session, aliased
 
@@ -3948,8 +3948,8 @@ def list_equipos_intervenidos(
             HistorialInspeccion.estado.label("estado_inspeccion"),
         )
         .outerjoin(TipoEquipo,  TipoEquipo.id  == EquipoIntervenido.tipo_equipo_id)
-        .outerjoin(Ubicacion,   Ubicacion.id   == EquipoIntervenido.ubicacion_id)
-        .outerjoin(Zona,        Zona.id        == EquipoIntervenido.zona_id)
+        .outerjoin(Ubicacion,   cast(Ubicacion.id, SAText)  == cast(EquipoIntervenido.ubicacion_id, SAText))
+        .outerjoin(Zona,        cast(Zona.id,      SAText)  == cast(EquipoIntervenido.zona_id,     SAText))
         .outerjoin(historial_sq, historial_sq.c.equipo_intervenido_id == EquipoIntervenido.id)
         .outerjoin(
             HistorialInspeccion,
