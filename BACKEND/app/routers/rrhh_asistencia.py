@@ -33,6 +33,7 @@ from app.models.registro_asistencia import RegistroAsistencia
 from app.models.geolocalizacion_asistencia import GeolocalizacionAsistencia
 from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.documento_laboral import DocumentoLaboral
+from app.models.feriado_empresa import FeriadoEmpresa
 from app.models.empleado import Empleado
 from app.models.usuario import Usuario
 from app.models.area import Area
@@ -54,6 +55,48 @@ _UUID_RE = _re.compile(
 def _area_cache(db: Session, empresa_id: str) -> dict:
     """Carga todas las áreas de la empresa: {id → nombre}."""
     return {a.id: a.nombre for a in db.query(Area).filter(Area.empresa_id == empresa_id).all()}
+
+
+def _feriados_set(db: Session, empresa_id: str, inicio: date, fin: date) -> set[date]:
+    """Devuelve el conjunto de fechas feriadas registradas para la empresa en el rango."""
+    rows = (
+        db.query(FeriadoEmpresa.fecha)
+        .filter(
+            FeriadoEmpresa.empresa_id == empresa_id,
+            FeriadoEmpresa.fecha >= inicio,
+            FeriadoEmpresa.fecha <= fin,
+        )
+        .all()
+    )
+    return {r.fecha for r in rows}
+
+
+def _estado_dia_turno(
+    registros_dia: list,
+    horas: float,
+    hora_entrada_turno: "time",
+    tolerancia_min: int,
+    req_horas: float,
+) -> str:
+    """Versión shift-aware de _estado_dia: evalúa contra el turno real del empleado."""
+    entrada = next((r for r in registros_dia if r.tipo == "entrada"), None)
+    salida  = next((r for r in registros_dia if r.tipo == "salida"),  None)
+
+    if not entrada:
+        return "Falta"
+
+    limite = entrada.fecha_hora.replace(
+        hour=hora_entrada_turno.hour,
+        minute=hora_entrada_turno.minute + tolerancia_min,
+        second=0, microsecond=0,
+    )
+    if entrada.fecha_hora > limite:
+        return "Tardanza"
+
+    if not salida or horas < req_horas - 0.5:
+        return "Incompleto"
+
+    return "Al día"
 
 def _resolve_area(val, cache: dict) -> str:
     """Resuelve emp.area: si es UUID lo convierte al nombre real, si es texto lo devuelve tal cual."""
@@ -597,10 +640,21 @@ def emitir_advertencia(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
-    """Construye todos los datos del resumen para reportes (sin paginar)."""
+    """
+    Construye todos los datos del resumen para reportes (sin paginar).
+    — Respeta el turno real de cada empleado (shift-aware).
+    — Excluye feriados de empresa: se tratan como días no laborables.
+    """
+    from app.models.turno import Turno, TurnoEmpleado
+
     dias_lab     = _dias_laborables(inicio, fin)
     dias_lab_set = set(dias_lab)
-    meta_horas   = len(dias_lab) * META_HORAS_DIA
+
+    # Feriados registrados → se excluyen del cómputo de faltas
+    feriados = _feriados_set(db, empresa_id, inicio, fin)
+    # Días laborables efectivos (sin feriados)
+    dias_lab_ef  = [d for d in dias_lab if d not in feriados]
+    meta_horas   = len(dias_lab_ef) * META_HORAS_DIA
 
     empleados = (
         db.query(Empleado, Usuario)
@@ -634,6 +688,37 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
         .all()
     )
 
+    # Asignaciones de turno vigentes en el rango (una sola consulta)
+    asigns = (
+        db.query(TurnoEmpleado, Turno)
+        .join(Turno, Turno.id == TurnoEmpleado.turno_id)
+        .filter(
+            Turno.empresa_id == empresa_id,
+            TurnoEmpleado.activo == True, Turno.activo == True,
+            TurnoEmpleado.fecha_desde <= fin,
+            or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= inicio),
+        ).all()
+    )
+    asigns_por_emp: dict[str, list] = {}
+    for te, turno in asigns:
+        asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
+
+    def _turno_emp_dia(emp_id: str, dia: date):
+        """Devuelve (hora_entrada, tolerancia, horas_requeridas) para el día."""
+        for te, turno in asigns_por_emp.get(emp_id, []):
+            if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
+                req_min = max(
+                    _min_entre_horas(turno.hora_entrada, turno.hora_salida)
+                    - (turno.duracion_almuerzo_minutos or 0), 0
+                )
+                return (
+                    turno.hora_entrada,
+                    turno.tolerancia_minutos if turno.tolerancia_minutos is not None
+                    else _CRONO_TOLERANCIA,
+                    req_min / 60.0,
+                )
+        return (_CRONO_ENTRADA, _CRONO_TOLERANCIA, META_HORAS_DIA)
+
     regs_por_emp:  dict[str, list] = {}
     for r in todos_registros:
         regs_por_emp.setdefault(r.empleado_id, []).append(r)
@@ -659,32 +744,41 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
 
         horas_reales = 0.0
         faltas = tardanzas = 0
-        for dia in dias_lab:
-            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
-            if dia not in dias_justificados:
-                h = _horas_dia(regs_dia)
-                horas_reales += h
-                estado = _estado_dia(regs_dia, h, True)
-                if estado == "Falta":
-                    faltas += 1
-                elif estado == "Tardanza":
-                    tardanzas += 1
 
-        horas_justificadas = len(dias_justificados) * META_HORAS_DIA
-        horas_total        = horas_reales + horas_justificadas
-        horas_faltantes    = max(0.0, meta_horas - horas_total)
-        horas_extra        = max(0.0, horas_total - META_HORAS_SEM)
-        porcentaje         = round((horas_total / meta_horas * 100) if meta_horas > 0 else 0.0, 1)
+        for dia in dias_lab_ef:                     # excluye feriados
+            if dia in dias_justificados:
+                horas_reales += META_HORAS_DIA      # justificado cuenta como cumplido
+                continue
+            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
+            h = _horas_dia(regs_dia)
+            horas_reales += h
+            t_ent, t_tol, req_h = _turno_emp_dia(emp.id, dia)
+            estado = _estado_dia_turno(regs_dia, h, t_ent, t_tol, req_h)
+            if estado == "Falta":
+                faltas += 1
+            elif estado == "Tardanza":
+                tardanzas += 1
+
+        # Horas justificadas = días con solicitud aprobada × horas del turno ese día
+        horas_justificadas = sum(
+            _turno_emp_dia(emp.id, d)[2]
+            for d in dias_justificados
+            if d in dias_lab_ef
+        )
+        horas_total     = horas_reales
+        horas_faltantes = max(0.0, meta_horas - horas_total)
+        horas_extra     = max(0.0, horas_total - meta_horas)
+        porcentaje      = round((horas_total / meta_horas * 100) if meta_horas > 0 else 0.0, 1)
 
         filas.append({
             "nombre":             f"{usr.nombre} {usr.apellido}".strip(),
             "cargo":              emp.cargo or "",
             "area":               _resolve_area(emp.area, area_nombres),
-            "horas_reales":       round(horas_reales, 2),
+            "horas_reales":       round(horas_reales,       2),
             "horas_justificadas": round(horas_justificadas, 2),
-            "horas_total":        round(horas_total, 2),
-            "horas_faltantes":    round(horas_faltantes, 2),
-            "horas_extra":        round(horas_extra, 2),
+            "horas_total":        round(horas_total,        2),
+            "horas_faltantes":    round(horas_faltantes,    2),
+            "horas_extra":        round(horas_extra,        2),
             "meta_horas":         meta_horas,
             "porcentaje":         porcentaje,
             "faltas":             faltas,
@@ -697,16 +791,17 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
 # ── Cronograma (matriz día × empleado) para el PDF mensual/semanal ───────────
 # Código de celda → color de fondo / etiqueta de leyenda.
 _CRONO_COLOR = {
-    "P": "#DCFCE7",  # Presente / al día
-    "T": "#FEF3C7",  # Tardanza
-    "F": "#FEE2E2",  # Falta
-    "I": "#FFEDD5",  # Incompleto
-    "J": "#DBEAFE",  # Justificado (permiso/vacaciones aprobado)
-    "D": "#F3F4F6",  # Descanso / no laborable
+    "P": "#DCFCE7",  # Presente / al día     → verde
+    "T": "#FEF3C7",  # Tardanza              → amarillo
+    "F": "#FEE2E2",  # Falta                 → rojo
+    "I": "#FFEDD5",  # Incompleto            → naranja
+    "J": "#DBEAFE",  # Justificado           → azul
+    "D": "#F3F4F6",  # Descanso / domingo    → gris
+    "H": "#EDE9FE",  # Feriado de empresa    → violeta
 }
 _CRONO_LABEL = {
     "P": "Presente", "T": "Tardanza", "F": "Falta",
-    "I": "Incompleto", "J": "Justificado", "D": "Descanso",
+    "I": "Incompleto", "J": "Justificado", "D": "Descanso", "H": "Feriado",
 }
 
 
@@ -801,6 +896,9 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
         return (_CRONO_ENTRADA, _CRONO_SALIDA, _CRONO_ALMUERZO,
                 _CRONO_TOLERANCIA, "Horario normal")
 
+    # Feriados registrados para la empresa en el rango
+    feriados_crono = _feriados_set(db, empresa_id, inicio, fin)
+
     regs_por_emp: dict[str, list] = {}
     for r in registros:
         regs_por_emp.setdefault(r.empleado_id, []).append(r)
@@ -830,12 +928,15 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
         min_tarde_total = 0
         horas_reales = 0.0
         min_esperados = 0
-        # Turno representativo = el vigente el último día laborable del rango.
         turno_label = "Horario normal · 08:00–17:00 (tol. 10 min)"
         for dia in dias_all:
             t_ent, t_sal, t_alm, t_tol, t_nom = _turno_dia(emp.id, dia)
             if dia not in dias_lab_set:
                 codigos.append("D"); mins_tarde_dia.append(0)
+                continue
+            # Feriado de empresa → "H" (no cuenta como falta ni como día esperado)
+            if dia in feriados_crono:
+                codigos.append("H"); mins_tarde_dia.append(0)
                 continue
             req_min = max(_min_entre_horas(t_ent, t_sal) - t_alm, 0)
             min_esperados += req_min
@@ -1361,9 +1462,9 @@ def _xlsx_mensual_gerencial(
     GRIS_TEXTO  = "64748B"
 
     CRONO_BG   = {"P": CV_CELDA, "T": CA_CELDA, "F": CR_CELDA,
-                  "I": CO_CELDA, "J": CZ_CELDA,  "D": CG_CELDA}
+                  "I": CO_CELDA, "J": CZ_CELDA,  "D": CG_CELDA, "H": "EDE9FE"}
     CRONO_FG   = {"P": "15803D", "T": "92400E", "F": "991B1B",
-                  "I": "9A3412", "J": "1E40AF",  "D": "6B7280"}
+                  "I": "9A3412", "J": "1E40AF",  "D": "6B7280", "H": "6D28D9"}
 
     def _pct_color(pct: float) -> str:
         return CV_CELDA if pct >= 95 else CA_CELDA if pct >= 70 else CR_CELDA
@@ -1434,7 +1535,7 @@ def _xlsx_mensual_gerencial(
     tot_hx = sum(e["horas_extra"] for e in emps_data)
 
     # Distribución de estados para gráfico de torta
-    dist: dict[str, int] = {"P": 0, "T": 0, "F": 0, "I": 0, "J": 0}
+    dist: dict[str, int] = {"P": 0, "T": 0, "F": 0, "I": 0, "J": 0, "H": 0}
     for emp in emps_data:
         for code in emp["codigos"]:
             if code in dist:
@@ -1635,7 +1736,7 @@ def _xlsx_mensual_gerencial(
     ws2.merge_cells(start_row=LR2, start_column=1, end_row=LR2, end_column=2)
     ws2.cell(row=LR2, column=1, value="LEYENDA:").font = Font(bold=True, size=9)
     leyenda_items = [("P","Puntual"),("T","Tardanza"),("F","Falta"),
-                     ("I","Incompl."),("J","Justificado"),("D","Descanso")]
+                     ("I","Incompl."),("J","Justificado"),("D","Descanso"),("H","Feriado")]
     for idx, (code, label) in enumerate(leyenda_items, start=3):
         c = ws2.cell(row=LR2, column=idx, value=f"■ {label}")
         c.font = Font(bold=True, size=8, color=CRONO_FG[code])
@@ -1654,7 +1755,7 @@ def _xlsx_mensual_gerencial(
     DIST_ROW = LR2 + 2
     dist_labels = [("Puntual", dist["P"]), ("Tardanza", dist["T"]),
                    ("Falta",   dist["F"]), ("Incompl.", dist["I"]),
-                   ("Justif.", dist["J"])]
+                   ("Justif.", dist["J"]), ("Feriado",  dist["H"])]
     for i, (lab, val) in enumerate(dist_labels):
         ws2.cell(row=DIST_ROW,   column=i+1, value=lab)
         ws2.cell(row=DIST_ROW+1, column=i+1, value=val)
@@ -1662,8 +1763,8 @@ def _xlsx_mensual_gerencial(
     pie = PieChart()
     pie.title  = f"Distribución de Asistencia — {mes_label}"
     pie.width  = 16; pie.height = 10; pie.style = 10
-    d_ref2 = Reference(ws2, min_col=1, max_col=5, min_row=DIST_ROW+1)
-    l_ref2 = Reference(ws2, min_col=1, max_col=5, min_row=DIST_ROW)
+    d_ref2 = Reference(ws2, min_col=1, max_col=6, min_row=DIST_ROW+1)
+    l_ref2 = Reference(ws2, min_col=1, max_col=6, min_row=DIST_ROW)
     pie.add_data(d_ref2)
     pie.set_categories(l_ref2)
     ws2.add_chart(pie, f"A{DIST_ROW + 3}")

@@ -54,6 +54,7 @@ from app.routers import indicadores       as indicadores_router
 from app.routers import rrhh_legajo       as rrhh_legajo_router
 from app.routers import rrhh_solicitudes  as rrhh_solicitudes_router
 from app.routers import rrhh_asistencia   as rrhh_asistencia_router
+from app.routers import rrhh_feriados     as rrhh_feriados_router
 # ── Módulo de Finanzas / ERP contable ──
 from app.routers import contabilidad      as contabilidad_router
 from app.routers import controlling        as controlling_router
@@ -93,6 +94,7 @@ from app.models import (  # noqa: F401
     proyecto_equipo, proyecto_grupo, mensaje_chat, programacion_campo,
     # Asistencia
     registro_asistencia, foto_asistencia, geolocalizacion_asistencia,
+    feriado_empresa,
     # Operaciones / servicios
     procedimiento, evidencia_procedimiento, tarea, plantilla_procedimiento,
     requerimiento, requerimiento_entrega,
@@ -2054,6 +2056,7 @@ app.include_router(indicadores_router.router)
 app.include_router(rrhh_legajo_router.router)
 app.include_router(rrhh_solicitudes_router.router)
 app.include_router(rrhh_asistencia_router.router)
+app.include_router(rrhh_feriados_router.router)
 app.include_router(soporte_router.router)
 app.include_router(portal_cliente_router.router)
 app.include_router(portal_accesos_router.router)
