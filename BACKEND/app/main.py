@@ -880,6 +880,27 @@ def _pre_create_migrations():
             ON CONFLICT (equipo_id, servicio_id) DO NOTHING
         """))
 
+        # ── Feriados de empresa (HU-30): tabla con UUID nativo → aquí (pre-create) ─
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS feriado_empresa (
+                id          uuid PRIMARY KEY,
+                empresa_id  uuid NOT NULL REFERENCES empresa(id),
+                fecha       DATE NOT NULL,
+                nombre      VARCHAR(200) NOT NULL,
+                tipo        VARCHAR(20)  NOT NULL DEFAULT 'empresa',
+                created_by  uuid,
+                created_at  TIMESTAMP    NOT NULL DEFAULT now()
+            )
+        """))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_feriado_empresa_fecha "
+            "ON feriado_empresa (empresa_id, fecha)"
+        ))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_feriado_empresa_emp_fecha "
+            "ON feriado_empresa (empresa_id, fecha)"
+        ))
+
         # ── Auditoría General (SuperAdmin): log de errores/eventos del sistema ─
         # PK/FK uuid → se crea aquí (ANTES de create_all), patrón calibracion_evento.
         conn.execute(text("""
