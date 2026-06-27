@@ -1686,6 +1686,73 @@
   font-weight: 600;
 }
 
+/* ── Sección de sub-label dentro del tab Turnos ─────────────────────────── */
+.turnos-section-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--text-muted, #64748b);
+  padding: 10px 20px 6px;
+}
+
+.asign-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #4f46e5;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.asign-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 20px;
+  color: var(--text-muted, #94a3b8);
+  font-size: 13px;
+  text-align: center;
+}
+.asign-empty p { max-width: 340px; margin: 0; line-height: 1.5; }
+
+.asign-emp {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.asign-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.asign-nombre {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-main, #1e293b);
+}
+.text-muted-sm {
+  font-size: 12.5px;
+  color: var(--text-muted, #64748b);
+}
+
 /* ── Formularios en modales ─────────────────────────────────────────────── */
 .modal-form {
   display: flex;
@@ -1744,7 +1811,10 @@
   .form-control { background: #1e293b; border-color: #334155; color: #f1f5f9; }
   .form-control:focus { border-color: #22c55e; }
   .modal-footer { border-color: #334155; }
-  .turno-nombre-badge { background: rgba(34,197,94,.15); color: #4ade80; }
+  .turno-nombre-badge  { background: rgba(34,197,94,.15); color: #4ade80; }
+  .asign-count-badge   { background: rgba(99,102,241,.2); color: #a5b4fc; }
+  .asign-nombre        { color: #f1f5f9; }
+  .text-muted-sm       { color: #64748b; }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════

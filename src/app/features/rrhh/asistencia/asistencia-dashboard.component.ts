@@ -21,6 +21,7 @@ import {
   TurnoDto,
   CrearTurnoIn,
   AsignarTurnoIn,
+  TurnoAsignacionDto,
 } from '../../../core/services/asistencia.service';
 
 // Corrige íconos Leaflet en Angular/Webpack
@@ -136,9 +137,11 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   readonly DIARIA_PER_PAGE = 10;
 
   // ── Tab Turnos ─────────────────────────────────────────────────────────────
-  turnos:          TurnoDto[] = [];
-  turnosLoading    = false;
-  turnosError      = '';
+  turnos:                TurnoDto[]           = [];
+  turnosLoading          = false;
+  turnosError            = '';
+  turnoAsignaciones:     TurnoAsignacionDto[] = [];
+  turnoAsignLoading      = false;
 
   showCrearTurno   = false;
   crearTurnoLoading = false;
@@ -686,6 +689,15 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.asistenciaService.getTurnos().subscribe({
       next:  t  => { this.turnos = t; this.turnosLoading = false; },
       error: () => { this.turnosError = 'No se pudieron cargar los turnos.'; this.turnosLoading = false; },
+    });
+    this.cargarTurnoAsignaciones();
+  }
+
+  cargarTurnoAsignaciones(): void {
+    this.turnoAsignLoading = true;
+    this.asistenciaService.getTurnoAsignaciones().subscribe({
+      next:  a  => { this.turnoAsignaciones = a; this.turnoAsignLoading = false; },
+      error: () => { this.turnoAsignLoading = false; },
     });
   }
 

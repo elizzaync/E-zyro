@@ -210,7 +210,8 @@
 .ld-tardanza { background: #f97316; }
 .ld-falta    { background: #ef4444; }
 .ld-permiso  { background: #6366f1; }
-.ld-ot       { background: #8b5cf6; }
+.ld-feriado  { background: #8b5cf6; }
+.ld-ot       { background: #06b6d4; }
 .ld-libre    { background: var(--hover-bg, #e5e7eb); border: 1px solid var(--card-border, #d1d5db); }
 
 /* ── CALENDARIO ─────────────────────────────────────────────────── */
@@ -262,18 +263,21 @@
 .d-tardanza { background: #fff7ed; border-color: #fed7aa; }
 .d-falta    { background: #fef2f2; border-color: #fecaca; }
 .d-permiso  { background: #eef2ff; border-color: #c7d2fe; }
+.d-feriado  { background: #f5f3ff; border-color: #ddd6fe; }
 .d-libre    { background: var(--hover-bg, #f9fafb); opacity: 0.6; }
-.has-ot     { outline: 2px solid #8b5cf644; }
+.has-ot     { outline: 2px solid #06b6d444; }
 
 .d-badge {
   width: 20px; height: 20px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.d-asistio  .d-badge { color: #22c55e; background: #dcfce7; }
-.d-tardanza .d-badge { color: #f97316; background: #ffedd5; }
-.d-falta    .d-badge { color: #ef4444; background: #fee2e2; }
-.d-permiso  .d-badge { color: #6366f1; background: #e0e7ff; }
+.d-asistio  .d-badge  { color: #22c55e; background: #dcfce7; }
+.d-tardanza .d-badge  { color: #f97316; background: #ffedd5; }
+.d-falta    .d-badge  { color: #ef4444; background: #fee2e2; }
+.d-permiso  .d-badge  { color: #6366f1; background: #e0e7ff; }
+.d-feriado  .d-badge  { color: #7c3aed; background: #ede9fe; }
+.d-badge-feriado      { color: #7c3aed; background: #ede9fe; }
 
 .ot-dot {
   width: 7px; height: 7px; border-radius: 50%;
@@ -282,15 +286,17 @@
 
 /* Dark mode calendar */
 @media (prefers-color-scheme: dark) {
-  :host-context(html:not([data-theme="light"])) .d-asistio  { background: rgba(34,197,94,.1);  border-color: rgba(34,197,94,.3); }
-  :host-context(html:not([data-theme="light"])) .d-tardanza { background: rgba(249,115,22,.1); border-color: rgba(249,115,22,.3); }
-  :host-context(html:not([data-theme="light"])) .d-falta    { background: rgba(239,68,68,.1);  border-color: rgba(239,68,68,.3); }
-  :host-context(html:not([data-theme="light"])) .d-permiso  { background: rgba(99,102,241,.1); border-color: rgba(99,102,241,.3); }
+  :host-context(html:not([data-theme="light"])) .d-asistio  { background: rgba(34,197,94,.1);   border-color: rgba(34,197,94,.3); }
+  :host-context(html:not([data-theme="light"])) .d-tardanza { background: rgba(249,115,22,.1);  border-color: rgba(249,115,22,.3); }
+  :host-context(html:not([data-theme="light"])) .d-falta    { background: rgba(239,68,68,.1);   border-color: rgba(239,68,68,.3); }
+  :host-context(html:not([data-theme="light"])) .d-permiso  { background: rgba(99,102,241,.1);  border-color: rgba(99,102,241,.3); }
+  :host-context(html:not([data-theme="light"])) .d-feriado  { background: rgba(139,92,246,.1);  border-color: rgba(139,92,246,.3); }
 }
-:host-context([data-theme="dark"]) .d-asistio  { background: rgba(34,197,94,.1);  border-color: rgba(34,197,94,.3); }
-:host-context([data-theme="dark"]) .d-tardanza { background: rgba(249,115,22,.1); border-color: rgba(249,115,22,.3); }
-:host-context([data-theme="dark"]) .d-falta    { background: rgba(239,68,68,.1);  border-color: rgba(239,68,68,.3); }
-:host-context([data-theme="dark"]) .d-permiso  { background: rgba(99,102,241,.1); border-color: rgba(99,102,241,.3); }
+:host-context([data-theme="dark"]) .d-asistio  { background: rgba(34,197,94,.1);   border-color: rgba(34,197,94,.3); }
+:host-context([data-theme="dark"]) .d-tardanza { background: rgba(249,115,22,.1);  border-color: rgba(249,115,22,.3); }
+:host-context([data-theme="dark"]) .d-falta    { background: rgba(239,68,68,.1);   border-color: rgba(239,68,68,.3); }
+:host-context([data-theme="dark"]) .d-permiso  { background: rgba(99,102,241,.1);  border-color: rgba(99,102,241,.3); }
+:host-context([data-theme="dark"]) .d-feriado  { background: rgba(139,92,246,.1);  border-color: rgba(139,92,246,.3); }
 
 /* ── TOOLTIP HOVER en celdas ─────────────────────────────────────── */
 .day[data-tip] { position: relative; }

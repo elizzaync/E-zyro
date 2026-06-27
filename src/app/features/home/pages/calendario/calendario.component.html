@@ -149,6 +149,7 @@
     <div class="leg-item"><span class="leg-dot ld-tardanza"></span>Tardanza</div>
     <div class="leg-item"><span class="leg-dot ld-falta"></span>Falta</div>
     <div class="leg-item"><span class="leg-dot ld-permiso"></span>Permiso</div>
+    <div class="leg-item"><span class="leg-dot ld-feriado"></span>Feriado</div>
     <div class="leg-item"><span class="leg-dot ld-ot"></span>OT Programada</div>
     <div class="leg-item"><span class="leg-dot ld-libre"></span>Fin de semana</div>
   </div>
@@ -169,6 +170,7 @@
           [class.d-tardanza]="dia.tag === 'tardanza'"
           [class.d-falta]="dia.tag === 'falta'"
           [class.d-permiso]="dia.tag === 'permiso'"
+          [class.d-feriado]="dia.tag === 'feriado'"
           [class.d-libre]="dia.tag === 'libre'"
           [class.has-ot]="dia.eventoOT"
           [class.clickable]="!!dia.num && (!!dia.tag || dia.eventoOT)"
@@ -201,6 +203,13 @@
               <span class="d-badge">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-3-3v6"/>
+                </svg>
+              </span>
+            }
+            @if (dia.tag === 'feriado') {
+              <span class="d-badge d-badge-feriado">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
               </span>
             }

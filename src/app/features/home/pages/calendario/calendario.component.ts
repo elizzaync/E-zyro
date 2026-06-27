@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { DashboardService } from '../../../../core/services/dashboard.service';
+import { RrhhService } from '../../../../core/services/rrhh.service';
 
 const MESES_MAP: Record<string, number> = {
   enero:0, febrero:1, marzo:2, abril:3, mayo:4, junio:5,
@@ -17,7 +18,7 @@ interface DiaCell {
   fecha: string;
   isHoy: boolean;
   isWeekend: boolean;
-  tag: 'asistio' | 'tardanza' | 'falta' | 'permiso' | 'libre' | '';
+  tag: 'asistio' | 'tardanza' | 'falta' | 'permiso' | 'feriado' | 'libre' | '';
   horaIngreso: string;
   horaSalida: string;
   horasTrabajadas: number;
@@ -28,6 +29,7 @@ interface DiaCell {
   otOrden: string;
   otCliente: string;
   tooltip: string;
+  nombreFeriado: string;
 }
 
 @Component({
@@ -38,8 +40,9 @@ interface DiaCell {
   styleUrls: ['./calendario.component.css']
 })
 export class CalendarioComponent implements OnInit, OnDestroy {
-  private dashSvc = inject(DashboardService);
-  private router  = inject(Router);
+  private dashSvc  = inject(DashboardService);
+  private rrhhSvc  = inject(RrhhService);
+  private router   = inject(Router);
 
   cargando = true;
   fechaVista = new Date();
@@ -61,6 +64,8 @@ export class CalendarioComponent implements OnInit, OnDestroy {
   private registros: any[]  = [];
   private permisos:  any[]  = [];
   private servicios: any[]  = [];
+  private feriadosSet = new Set<string>();   // 'YYYY-MM-DD'
+  private feriadosNombreMap = new Map<string, string>();
 
   get mesLabel(): string {
     return `${MESES_NOMBRE[this.fechaVista.getMonth()]} ${this.fechaVista.getFullYear()}`;
@@ -76,14 +81,12 @@ export class CalendarioComponent implements OnInit, OnDestroy {
   private cargarDatos(): void {
     this.cargando = true;
     let done = 0;
-    const tick = () => { if (++done === 3) { this.cargando = false; this.rebuild(); } };
+    const tick = () => { if (++done === 4) { this.cargando = false; this.rebuild(); } };
 
     this.dashSvc.getAsistencia().subscribe({
       next: (r: any) => {
-        // puede venir como { status, data: [...] } o directamente []
         const arr = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
-        this.registros = arr;
-        tick();
+        this.registros = arr; tick();
       },
       error: () => { this.registros = []; tick(); }
     });
@@ -91,18 +94,27 @@ export class CalendarioComponent implements OnInit, OnDestroy {
     this.dashSvc.getPermisos().subscribe({
       next: (r: any) => {
         const arr = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
-        this.permisos = arr;
-        tick();
+        this.permisos = arr; tick();
       },
       error: () => { this.permisos = []; tick(); }
     });
 
     this.dashSvc.getCalendarioEventos().subscribe({
-      next: (r: any) => {
-        this.servicios = r?.data?.servicios ?? [];
+      next: (r: any) => { this.servicios = r?.data?.servicios ?? []; tick(); },
+      error: () => { this.servicios = []; tick(); }
+    });
+
+    const anio = this.fechaVista.getFullYear();
+    this.rrhhSvc.getFeriados(anio).subscribe({
+      next: (r) => {
+        this.feriadosSet.clear(); this.feriadosNombreMap.clear();
+        for (const f of r.feriados) {
+          this.feriadosSet.add(f.fecha.slice(0, 10));
+          this.feriadosNombreMap.set(f.fecha.slice(0, 10), f.nombre);
+        }
         tick();
       },
-      error: () => { this.servicios = []; tick(); }
+      error: () => tick(),
     });
   }
 
@@ -179,20 +191,28 @@ export class CalendarioComponent implements OnInit, OnDestroy {
         tardanza = h > 8 || (h === 8 && m > 30);
       }
 
+      const esFeriado = this.feriadosSet.has(fecha);
+      const nomFeriado = esFeriado ? (this.feriadosNombreMap.get(fecha) ?? 'Feriado') : '';
+
       let tag: DiaCell['tag'] = '';
       if (!isWeekend) {
-        laborables++;
-        if (asist) {
-          asistidos++;
-          horasTot += horasTrab;
-          tag = tardanza ? 'tardanza' : 'asistio';
-          if (tardanza) tardanzas++;
-        } else if (permData) {
-          permisosDias++;
-          tag = 'permiso';
-        } else if (isPast) {
-          faltas++;
-          tag = 'falta';
+        if (esFeriado) {
+          tag = 'feriado';
+          // feriados no cuentan como día laborable ni falta
+        } else {
+          laborables++;
+          if (asist) {
+            asistidos++;
+            horasTot += horasTrab;
+            tag = tardanza ? 'tardanza' : 'asistio';
+            if (tardanza) tardanzas++;
+          } else if (permData) {
+            permisosDias++;
+            tag = 'permiso';
+          } else if (isPast) {
+            faltas++;
+            tag = 'falta';
+          }
         }
       } else {
         tag = 'libre';
@@ -200,6 +220,7 @@ export class CalendarioComponent implements OnInit, OnDestroy {
 
       // tooltip para hover CSS
       let tooltip = '';
+      if (tag === 'feriado')  tooltip = nomFeriado;
       if (tag === 'asistio')  tooltip = `${entrada ?? '--'} → ${asist?.salida ?? '--'} · ${horasTrab.toFixed(1)}h`;
       if (tag === 'tardanza') tooltip = `Tardanza · ${entrada ?? '--'} → ${asist?.salida ?? '--'}`;
       if (tag === 'falta')    tooltip = 'Sin marcación';
@@ -218,6 +239,7 @@ export class CalendarioComponent implements OnInit, OnDestroy {
         otOrden:   otInfo?.orden   ?? '',
         otCliente: otInfo?.cliente ?? '',
         tooltip,
+        nombreFeriado: nomFeriado,
       });
     }
 
@@ -246,10 +268,26 @@ export class CalendarioComponent implements OnInit, OnDestroy {
 
   // ── Interacción ───────────────────────────────────────────────────
   cambiarMes(delta: number): void {
+    const anioAntes = this.fechaVista.getFullYear();
     const d = new Date(this.fechaVista);
     d.setMonth(d.getMonth() + delta);
     this.fechaVista = d;
-    this.rebuild();
+    if (d.getFullYear() !== anioAntes) {
+      const anio = d.getFullYear();
+      this.rrhhSvc.getFeriados(anio).subscribe({
+        next: (r) => {
+          this.feriadosSet.clear(); this.feriadosNombreMap.clear();
+          for (const f of r.feriados) {
+            this.feriadosSet.add(f.fecha.slice(0, 10));
+            this.feriadosNombreMap.set(f.fecha.slice(0, 10), f.nombre);
+          }
+          this.rebuild();
+        },
+        error: () => this.rebuild(),
+      });
+    } else {
+      this.rebuild();
+    }
   }
 
   irHoy(): void {
@@ -281,6 +319,7 @@ export class CalendarioComponent implements OnInit, OnDestroy {
   private emptyCell(): DiaCell {
     return { num:null, fecha:'', isHoy:false, isWeekend:false, tag:'',
       horaIngreso:'', horaSalida:'', horasTrabajadas:0, permisoTipo:'',
-      eventoOT:false, estadoOT:'', otNombre:'', otOrden:'', otCliente:'', tooltip:'' };
+      eventoOT:false, estadoOT:'', otNombre:'', otOrden:'', otCliente:'',
+      tooltip:'', nombreFeriado:'' };
   }
 }

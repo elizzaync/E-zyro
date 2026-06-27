@@ -499,15 +499,20 @@
         } @else if (turnos.length === 0) {
           <div class="estado-vacio">No hay turnos registrados. Crea el primer turno.</div>
         } @else {
+          <!-- ── Tabla de turnos definidos ── -->
+          <div class="turnos-section-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Turnos definidos
+          </div>
           <div class="turnos-table-wrap">
-            <table class="asist-table">
+            <table class="turnos-table">
               <thead>
                 <tr>
                   <th>Nombre</th>
                   <th>Entrada</th>
                   <th>Salida</th>
-                  <th>Almuerzo (min)</th>
-                  <th>Tolerancia (min)</th>
+                  <th>Almuerzo</th>
+                  <th>Tolerancia</th>
                   <th>Horas netas</th>
                 </tr>
               </thead>
@@ -517,14 +522,68 @@
                     <td><span class="turno-nombre-badge">{{ t.nombre }}</span></td>
                     <td>{{ t.hora_entrada }}</td>
                     <td>{{ t.hora_salida }}</td>
-                    <td>{{ t.duracion_almuerzo_minutos }}</td>
-                    <td>{{ t.tolerancia_minutos }}</td>
+                    <td>{{ t.duracion_almuerzo_minutos }} min</td>
+                    <td>{{ t.tolerancia_minutos }} min</td>
                     <td><strong>{{ t.horas_netas }}h</strong></td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
+
+          <!-- ── Tabla de personal con turno asignado ── -->
+          <div class="turnos-section-label" style="margin-top:20px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Personal con turno asignado
+            @if (!turnoAsignLoading) {
+              <span class="asign-count-badge">{{ turnoAsignaciones.length }}</span>
+            }
+          </div>
+
+          @if (turnoAsignLoading) {
+            <div class="estado-vacio" style="padding:24px">
+              <div class="spinner-sm"></div><span>Cargando asignaciones…</span>
+            </div>
+          } @else if (turnoAsignaciones.length === 0) {
+            <div class="asign-empty">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
+              <p>Ningún empleado tiene turno asignado. Usa "Asignar Turno a Empleado" para comenzar.</p>
+            </div>
+          } @else {
+            <div class="turnos-table-wrap">
+              <table class="turnos-table">
+                <thead>
+                  <tr>
+                    <th>Empleado</th>
+                    <th>Cargo</th>
+                    <th>Turno</th>
+                    <th>Horario</th>
+                    <th>Horas</th>
+                    <th>Desde</th>
+                    <th>Hasta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (a of turnoAsignaciones; track a.id) {
+                    <tr>
+                      <td>
+                        <div class="asign-emp">
+                          <span class="asign-avatar">{{ a.nombre_empleado.charAt(0) }}</span>
+                          <span class="asign-nombre">{{ a.nombre_empleado }}</span>
+                        </div>
+                      </td>
+                      <td class="text-muted-sm">{{ a.cargo }}</td>
+                      <td><span class="turno-nombre-badge">{{ a.turno_nombre }}</span></td>
+                      <td class="text-muted-sm">{{ a.hora_entrada }} – {{ a.hora_salida }}</td>
+                      <td><strong>{{ a.horas_netas }}h</strong></td>
+                      <td class="text-muted-sm">{{ a.fecha_desde ? (a.fecha_desde | date:'dd/MM/yy':'UTC') : '—' }}</td>
+                      <td class="text-muted-sm">{{ a.fecha_hasta ? (a.fecha_hasta | date:'dd/MM/yy':'UTC') : 'Indefinido' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
         }
 
       </div>

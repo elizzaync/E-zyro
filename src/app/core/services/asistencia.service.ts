@@ -61,6 +61,20 @@ export interface TurnoDto {
   horas_netas: number;
 }
 
+export interface TurnoAsignacionDto {
+  id:              string;
+  empleado_id:     string;
+  nombre_empleado: string;
+  cargo:           string;
+  turno_id:        string;
+  turno_nombre:    string;
+  hora_entrada:    string;
+  hora_salida:     string;
+  horas_netas:     number;
+  fecha_desde:     string | null;
+  fecha_hasta:     string | null;
+}
+
 export interface CrearTurnoIn {
   nombre: string;
   hora_entrada: string;
@@ -116,6 +130,10 @@ export class AsistenciaService {
 
   asignarTurno(body: AsignarTurnoIn): Observable<{ ok: boolean; id: string }> {
     return this.http.post<{ ok: boolean; id: string }>(`${this.api}/asistencia/turno-empleado`, body);
+  }
+
+  getTurnoAsignaciones(): Observable<TurnoAsignacionDto[]> {
+    return this.http.get<TurnoAsignacionDto[]>(`${this.api}/asistencia/turno-empleado`);
   }
 
   reverseGeocode(lat: number, lon: number): Observable<string> {
