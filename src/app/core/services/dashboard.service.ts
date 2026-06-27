@@ -62,7 +62,10 @@ export class DashboardService {
   getCapacitaciones(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/capacitaciones`, { headers: this.getHeaders() }); }
   getActividadReciente(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/actividad`, { headers: this.getHeaders() }); }
   getPerfilEstadisticas(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/estadisticas`, { headers: this.getHeaders() }); }
-  getAsistencia(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/asistencia`, { headers: this.getHeaders() }); }
+  getAsistencia(mes?: number, anio?: number): Observable<any> {
+    const params = mes && anio ? `?mes=${mes}&anio=${anio}` : '';
+    return this.http.get(`${this.apiUrl}/perfil/asistencia${params}`, { headers: this.getHeaders() });
+  }
   getContratos(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/contratos`, { headers: this.getHeaders() }); }
   getBoletas(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/boletas`, { headers: this.getHeaders() }); }
   getPermisos(): Observable<any> { return this.http.get(`${this.apiUrl}/perfil/permisos`, { headers: this.getHeaders() }); }

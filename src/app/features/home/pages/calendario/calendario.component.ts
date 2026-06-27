@@ -83,9 +83,15 @@ export class CalendarioComponent implements OnInit, OnDestroy {
     let done = 0;
     const tick = () => { if (++done === 4) { this.cargando = false; this.rebuild(); } };
 
-    this.dashSvc.getAsistencia().subscribe({
+    const mes  = this.fechaVista.getMonth() + 1;
+    const anio = this.fechaVista.getFullYear();
+
+    this.dashSvc.getAsistencia(mes, anio).subscribe({
       next: (r: any) => {
-        const arr = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+        const arr = Array.isArray(r?.data?.registros) ? r.data.registros
+          : Array.isArray(r?.registros) ? r.registros
+          : Array.isArray(r?.data) ? r.data
+          : Array.isArray(r) ? r : [];
         this.registros = arr; tick();
       },
       error: () => { this.registros = []; tick(); }
@@ -93,7 +99,8 @@ export class CalendarioComponent implements OnInit, OnDestroy {
 
     this.dashSvc.getPermisos().subscribe({
       next: (r: any) => {
-        const arr = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+        const arr = Array.isArray(r?.data) ? r.data
+          : Array.isArray(r) ? r : [];
         this.permisos = arr; tick();
       },
       error: () => { this.permisos = []; tick(); }
@@ -104,7 +111,6 @@ export class CalendarioComponent implements OnInit, OnDestroy {
       error: () => { this.servicios = []; tick(); }
     });
 
-    const anio = this.fechaVista.getFullYear();
     this.rrhhSvc.getFeriados(anio).subscribe({
       next: (r) => {
         this.feriadosSet.clear(); this.feriadosNombreMap.clear();
@@ -126,23 +132,30 @@ export class CalendarioComponent implements OnInit, OnDestroy {
     // ── índices ─────────────────────────────────────────────────────
     const asistMap = new Map<string, any>();
     for (const r of this.registros) {
-      const mesNum = MESES_MAP[String(r.mes ?? '').toLowerCase().trim()];
-      if (mesNum === undefined) continue;
-      const f = `${r.anio}-${String(mesNum+1).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`;
-      asistMap.set(f, r);
+      // Usa el campo fecha ISO que retorna el backend; fallback al enfoque mes/dia
+      if (r.fecha) {
+        asistMap.set(r.fecha, r);
+      } else {
+        const mesNum = MESES_MAP[String(r.mes ?? '').toLowerCase().trim()];
+        if (mesNum === undefined) continue;
+        const f = `${r.anio}-${String(mesNum+1).padStart(2,'0')}-${String(r.dia).padStart(2,'0')}`;
+        asistMap.set(f, r);
+      }
     }
 
     const permisoMap = new Map<string, { tipo: string; aprobado: boolean; horasExtra: boolean }>();
     for (const p of this.permisos) {
-      const estado = (p.estado ?? p.estadoActual ?? '').toLowerCase();
+      const estado = (p.estado_raw ?? p.estado ?? p.estadoActual ?? '').toLowerCase();
       const aprobado = estado === 'aprobada' || estado === 'aceptado';
       const tipo  = (p.tipo ?? p.titulo ?? 'Permiso').trim();
       const esExtra = tipo.toLowerCase().includes('extra');
-      const fi = p.fecha_inicio ?? p.fechaEmision ?? p.fecha ?? '';
-      const ff = p.fecha_fin   ?? fi;
+      // Preferir campos ISO; fallback al texto formateado
+      const fi = p.fecha_inicio_iso ?? p.fecha_inicio ?? p.fechaEmision ?? p.fecha ?? '';
+      const ff = p.fecha_fin_iso ?? p.fecha_fin ?? fi;
       if (!fi) continue;
       const start = new Date(fi + 'T00:00:00');
       const end   = new Date(ff + 'T00:00:00');
+      if (isNaN(start.getTime())) continue;
       for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         const key = this.iso(d);
         permisoMap.set(key, { tipo, aprobado, horasExtra: aprobado && esExtra });
@@ -183,13 +196,12 @@ export class CalendarioComponent implements OnInit, OnDestroy {
       const otInfo   = otMap.get(fecha);
 
       const entrada = asist?.entrada ?? null;
-      const horasTrab = parseFloat(String(asist?.horas_trabajadas ?? '0')) || 0;
+      // horas_trabajadas_num viene del backend (float); fallback a parsear texto
+      const horasTrab = asist?.horas_trabajadas_num
+        ?? (parseFloat(String(asist?.horas_trabajadas ?? '0')) || 0);
 
-      let tardanza = false;
-      if (asist && entrada) {
-        const [h, m] = entrada.split(':').map(Number);
-        tardanza = h > 8 || (h === 8 && m > 30);
-      }
+      // tardanza calculada en backend con el turno real del empleado
+      const tardanza = asist?.tardanza ?? false;
 
       const esFeriado = this.feriadosSet.has(fecha);
       const nomFeriado = esFeriado ? (this.feriadosNombreMap.get(fecha) ?? 'Feriado') : '';
@@ -246,13 +258,14 @@ export class CalendarioComponent implements OnInit, OnDestroy {
     // horas extra de permisos aprobados en este mes
     let horasExtra = 0;
     for (const p of this.permisos) {
-      const estado = (p.estado ?? p.estadoActual ?? '').toLowerCase();
+      const estado = (p.estado_raw ?? p.estado ?? p.estadoActual ?? '').toLowerCase();
       if (estado !== 'aprobada' && estado !== 'aceptado') continue;
       const tipo = (p.tipo ?? p.titulo ?? '').toLowerCase();
       if (!tipo.includes('extra')) continue;
-      const fi = p.fecha_inicio ?? p.fechaEmision ?? p.fecha ?? '';
+      const fi = p.fecha_inicio_iso ?? p.fecha_inicio ?? p.fechaEmision ?? p.fecha ?? '';
       if (!fi) continue;
       const d = new Date(fi + 'T00:00:00');
+      if (isNaN(d.getTime())) continue;
       if (d.getFullYear() === anio && d.getMonth() === mes)
         horasExtra += parseFloat(String(p.horas_calculadas ?? p.horasCalculadas ?? '0')) || 0;
     }
@@ -272,27 +285,15 @@ export class CalendarioComponent implements OnInit, OnDestroy {
     const d = new Date(this.fechaVista);
     d.setMonth(d.getMonth() + delta);
     this.fechaVista = d;
-    if (d.getFullYear() !== anioAntes) {
-      const anio = d.getFullYear();
-      this.rrhhSvc.getFeriados(anio).subscribe({
-        next: (r) => {
-          this.feriadosSet.clear(); this.feriadosNombreMap.clear();
-          for (const f of r.feriados) {
-            this.feriadosSet.add(f.fecha.slice(0, 10));
-            this.feriadosNombreMap.set(f.fecha.slice(0, 10), f.nombre);
-          }
-          this.rebuild();
-        },
-        error: () => this.rebuild(),
-      });
-    } else {
-      this.rebuild();
-    }
+    // Siempre recarga asistencia para el nuevo mes
+    this.cargarDatos();
+    // Si también cambió el año, los feriados ya se recargan en cargarDatos()
+    void anioAntes; // el cambio de año queda cubierto por cargarDatos
   }
 
   irHoy(): void {
     this.fechaVista = new Date();
-    this.rebuild();
+    this.cargarDatos();
   }
 
   abrirDetalle(dia: DiaCell): void {
