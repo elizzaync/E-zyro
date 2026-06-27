@@ -69,6 +69,19 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         Gestión de Turnos
       </button>
+
+      <!-- Separador + botones de reporte -->
+      <div class="tab-bar-sep"></div>
+
+      <button class="btn-report btn-report-global" (click)="abrirRptGlobal()" title="Reporte mensual global">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Reporte Global
+      </button>
+
+      <button class="btn-report btn-report-detallado" (click)="abrirRptDetallado()" title="Reporte mensual por empleado">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Reporte Detallado
+      </button>
     </div>
 
     <!-- ── TAB 1: VISTA SEMANAL ─────────────────────────────────────────── -->
@@ -515,164 +528,163 @@
 
   </div>
 
-  <!-- ── Reportes ───────────────────────────────────────────────────────── -->
-  <div class="card reportes-section">
-    <div class="reportes-header" (click)="showReportes = !showReportes">
-      <div class="reportes-title-row">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        <h3 class="reportes-title">Reportes de Asistencia</h3>
-      </div>
-      <svg class="chevron-icon" [class.open]="showReportes" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </div>
-
-    @if (showReportes) {
-
-      <!-- Período global compartido entre ambas tarjetas -->
-      <div class="reportes-range-bar">
-        <div class="range-bar-label">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span>Período</span>
-        </div>
-        <div class="range-bar-inputs">
-          <input type="date" [(ngModel)]="globalFechaInicio" class="reporte-input">
-          <span class="range-sep">—</span>
-          <input type="date" [(ngModel)]="globalFechaFin" class="reporte-input">
-          <button class="btn-preset" (click)="setGlobalPreset('semana')">Semana actual</button>
-          <button class="btn-preset" (click)="setGlobalPreset('mes')">Este mes</button>
-        </div>
-        @if (globalFechaInicio && globalFechaFin) {
-          <span class="range-label-chip">{{ labelGlobalRange }}</span>
-        }
-      </div>
-
-      <!-- 2 tarjetas de reporte -->
-      <div class="reportes-grid-2">
-
-        <!-- Tarjeta 1: Reporte Global -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-green">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Reporte Global</span>
-              <span class="reporte-desc">Selecciona el tipo e incluye horas extra y tardanzas</span>
-            </div>
-          </div>
-
-          <!-- Selector de tipo -->
-          <div class="rpt-field">
-            <label class="rpt-label">Tipo de reporte</label>
-            <select class="reporte-input" [(ngModel)]="rptGlobal2.tipo">
-              <option value="global">Global Completo — todas las métricas</option>
-              <option value="semanal">Semanal — cronograma con estado por día</option>
-              <option value="mensual">Mensual — resumen del mes con KPIs</option>
-              <option value="tardanzas">Tardanzas e Incidencias</option>
-              <option value="horas-extra">Horas Extra Aprobadas</option>
-            </select>
-          </div>
-
-          <!-- Si mensual: selectores de mes y año -->
-          @if (rptGlobal2.tipo === 'mensual') {
-            <div class="rpt-fields">
-              <div class="rpt-field">
-                <label class="rpt-label">Mes</label>
-                <select class="reporte-input" [(ngModel)]="rptGlobal2.mes">
-                  @for (m of MESES; track m.v) {
-                    <option [value]="m.v">{{ m.l }}</option>
-                  }
-                </select>
-              </div>
-              <div class="rpt-field">
-                <label class="rpt-label">Año</label>
-                <input class="reporte-input" type="number" [(ngModel)]="rptGlobal2.anio" min="2020" max="2100">
-              </div>
-            </div>
-          } @else {
-            <!-- Muestra el período global como información -->
-            <div class="rpt-range-info">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              @if (globalFechaInicio && globalFechaFin) {
-                Período: {{ labelGlobalRange }}
-              } @else {
-                <span class="rpt-range-warn">Configura el período global arriba</span>
-              }
-            </div>
-          }
-
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptGlobal2.loading" (click)="descargarRptGlobal('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              @if (rptGlobal2.loading) { Generando… } @else { Excel }
-            </button>
-            <button class="btn-export pdf" [disabled]="rptGlobal2.loading" (click)="descargarRptGlobal('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              @if (rptGlobal2.loading) { Generando… } @else { PDF }
-            </button>
-          </div>
-        </div>
-
-        <!-- Tarjeta 2: Reporte Personal -->
-        <div class="reporte-card">
-          <div class="rpt-card-header">
-            <div class="reporte-icon icon-blue">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <div class="rpt-meta">
-              <span class="reporte-nombre">Reporte Personal</span>
-              <span class="reporte-desc">Historial completo día a día por empleado</span>
-            </div>
-          </div>
-
-          <!-- Selector de empleado con búsqueda -->
-          <div class="rpt-field">
-            <label class="rpt-label">Empleado</label>
-            <div class="emp-search-wrap">
-              <input class="reporte-input emp-search-input" type="text"
-                     placeholder="Buscar por nombre o cargo…"
-                     [(ngModel)]="rptPersonal2.search">
-              <select class="reporte-input emp-select" [(ngModel)]="rptPersonal2.empleadoId" size="1">
-                <option value="">— Seleccionar empleado —</option>
-                @for (emp of listaEmpleadosFiltrada; track emp.id) {
-                  <option [value]="emp.id">{{ emp.nombreCompleto }} · {{ emp.cargo }}</option>
-                }
-              </select>
-            </div>
-            @if (rptPersonal2.empleadoId) {
-              <span class="emp-selected-badge">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                {{ empleadoNombre(rptPersonal2.empleadoId) }}
-              </span>
-            }
-          </div>
-
-          <!-- Período global como información -->
-          <div class="rpt-range-info">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            @if (globalFechaInicio && globalFechaFin) {
-              Período: {{ labelGlobalRange }}
-            } @else {
-              <span class="rpt-range-warn">Configura el período global arriba</span>
-            }
-          </div>
-
-          <div class="rpt-footer">
-            <button class="btn-export excel" [disabled]="rptPersonal2.loading" (click)="descargarRptPersonal('xlsx')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              @if (rptPersonal2.loading) { Generando… } @else { Excel }
-            </button>
-            <button class="btn-export pdf" [disabled]="rptPersonal2.loading" (click)="descargarRptPersonal('pdf')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              @if (rptPersonal2.loading) { Generando… } @else { PDF }
-            </button>
-          </div>
-        </div>
-
-      </div>
-    }
-  </div>
 
 </div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL REPORTE GLOBAL (mensual)
+═══════════════════════════════════════════════════════════════════════════ -->
+@if (showRptGlobal) {
+  <div class="rpt-modal-backdrop" (click)="cerrarRptGlobal()">
+    <div class="rpt-modal-box" (click)="$event.stopPropagation()">
+
+      <div class="rpt-modal-header">
+        <div class="rpt-modal-title-row">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <h3>Reporte Global de Asistencia</h3>
+        </div>
+        <button class="rpt-modal-close" (click)="cerrarRptGlobal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="rpt-modal-body">
+        <p class="rpt-modal-desc">Genera el cronograma mensual completo con horas trabajadas, tardanzas y faltas para todo el personal.</p>
+
+        <!-- Mes y Año -->
+        <div class="rpt-modal-fields">
+          <div class="rpt-modal-field">
+            <label>Mes</label>
+            <select [(ngModel)]="rptGlobal3.mes">
+              @for (m of mesesDisponibles(rptGlobal3.anio); track m.v) {
+                <option [value]="m.v">{{ m.l }}</option>
+              }
+            </select>
+          </div>
+          <div class="rpt-modal-field">
+            <label>Año</label>
+            <input type="number" [(ngModel)]="rptGlobal3.anio"
+                   [max]="anioActual" min="2020"
+                   (change)="onAnioGlobalChange()">
+          </div>
+        </div>
+
+        <!-- Formato -->
+        <div class="rpt-modal-fmt-label">Formato de salida</div>
+        <div class="rpt-fmt-selector">
+          <button class="rpt-fmt-opt" [class.active]="rptGlobal3.fmt === 'pdf'" (click)="rptGlobal3.fmt = 'pdf'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            PDF
+          </button>
+          <button class="rpt-fmt-opt" [class.active]="rptGlobal3.fmt === 'xlsx'" (click)="rptGlobal3.fmt = 'xlsx'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Excel
+          </button>
+        </div>
+      </div>
+
+      <div class="rpt-modal-footer">
+        <button class="btn-modal-cancel" (click)="cerrarRptGlobal()">Cancelar</button>
+        <button class="btn-modal-generate" [disabled]="rptGlobal3.loading" (click)="generarRptGlobal()">
+          @if (rptGlobal3.loading) {
+            <span class="btn-spinner"></span> Generando…
+          } @else {
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Generar Reporte
+          }
+        </button>
+      </div>
+
+    </div>
+  </div>
+}
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MODAL REPORTE DETALLADO (por empleado)
+═══════════════════════════════════════════════════════════════════════════ -->
+@if (showRptDetallado) {
+  <div class="rpt-modal-backdrop" (click)="cerrarRptDetallado()">
+    <div class="rpt-modal-box" (click)="$event.stopPropagation()">
+
+      <div class="rpt-modal-header">
+        <div class="rpt-modal-title-row">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <h3>Reporte Detallado por Empleado</h3>
+        </div>
+        <button class="rpt-modal-close" (click)="cerrarRptDetallado()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="rpt-modal-body">
+        <p class="rpt-modal-desc">Historial completo día a día para un empleado específico durante el mes seleccionado.</p>
+
+        <!-- Buscador + selector de empleado -->
+        <div class="rpt-modal-field">
+          <label>Empleado</label>
+          <input class="rpt-emp-search" type="text" placeholder="Buscar por nombre o cargo…"
+                 [(ngModel)]="rptDetallado3.search">
+          <select [(ngModel)]="rptDetallado3.empleadoId" size="1" class="rpt-emp-select">
+            <option value="">— Seleccionar empleado —</option>
+            @for (emp of listaEmpleadosFiltrada; track emp.id) {
+              <option [value]="emp.id">{{ emp.nombreCompleto }} · {{ emp.cargo }}</option>
+            }
+          </select>
+          @if (rptDetallado3.empleadoId) {
+            <span class="rpt-emp-badge">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              {{ empleadoNombre(rptDetallado3.empleadoId) }}
+            </span>
+          }
+        </div>
+
+        <!-- Mes y Año -->
+        <div class="rpt-modal-fields">
+          <div class="rpt-modal-field">
+            <label>Mes</label>
+            <select [(ngModel)]="rptDetallado3.mes">
+              @for (m of mesesDisponibles(rptDetallado3.anio); track m.v) {
+                <option [value]="m.v">{{ m.l }}</option>
+              }
+            </select>
+          </div>
+          <div class="rpt-modal-field">
+            <label>Año</label>
+            <input type="number" [(ngModel)]="rptDetallado3.anio"
+                   [max]="anioActual" min="2020"
+                   (change)="onAnioDetalladoChange()">
+          </div>
+        </div>
+
+        <!-- Formato -->
+        <div class="rpt-modal-fmt-label">Formato de salida</div>
+        <div class="rpt-fmt-selector">
+          <button class="rpt-fmt-opt" [class.active]="rptDetallado3.fmt === 'pdf'" (click)="rptDetallado3.fmt = 'pdf'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            PDF
+          </button>
+          <button class="rpt-fmt-opt" [class.active]="rptDetallado3.fmt === 'xlsx'" (click)="rptDetallado3.fmt = 'xlsx'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Excel
+          </button>
+        </div>
+      </div>
+
+      <div class="rpt-modal-footer">
+        <button class="btn-modal-cancel" (click)="cerrarRptDetallado()">Cancelar</button>
+        <button class="btn-modal-generate" [disabled]="rptDetallado3.loading || !rptDetallado3.empleadoId" (click)="generarRptDetallado()">
+          @if (rptDetallado3.loading) {
+            <span class="btn-spinner"></span> Generando…
+          } @else {
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Generar Reporte
+          }
+        </button>
+      </div>
+
+    </div>
+  </div>
+}
 
 <!-- ════════════════════════════════════════════════════════════════════════
      MODAL DETALLE DIARIO
