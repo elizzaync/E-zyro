@@ -1267,3 +1267,44 @@ def asignar_turno(
     db.add(asign)
     db.commit()
     return {"ok": True, "id": str(asign.id)}
+
+
+@router.get("/turno-empleado")
+def listar_turno_empleado(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Listado de asignaciones de turno activas de la empresa."""
+    exigir_permiso(db, payload, "asistencia", "ver")
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(TurnoEmpleado, Turno, Empleado, Usuario)
+        .join(Turno,     Turno.id     == TurnoEmpleado.turno_id)
+        .join(Empleado,  Empleado.id  == TurnoEmpleado.empleado_id)
+        .join(Usuario,   Usuario.id   == Empleado.usuario_id)
+        .filter(
+            TurnoEmpleado.activo == True,
+            Empleado.empresa_id  == empresa_id,
+            Empleado.activo      == True,
+        )
+        .order_by(Usuario.nombre.asc(), Usuario.apellido.asc())
+        .all()
+    )
+    return [
+        {
+            "id":              str(te.id),
+            "empleado_id":     str(emp.id),
+            "nombre_empleado": f"{u.nombre} {u.apellido}".strip(),
+            "cargo":           emp.cargo or "",
+            "turno_id":        str(t.id),
+            "turno_nombre":    t.nombre,
+            "hora_entrada":    t.hora_entrada.strftime("%H:%M"),
+            "hora_salida":     t.hora_salida.strftime("%H:%M"),
+            "horas_netas": round(
+                (_min_entre(t.hora_entrada, t.hora_salida) - (t.duracion_almuerzo_minutos or 0)) / 60, 2
+            ),
+            "fecha_desde":  te.fecha_desde.isoformat() if te.fecha_desde else None,
+            "fecha_hasta":  te.fecha_hasta.isoformat() if te.fecha_hasta else None,
+        }
+        for te, t, emp, u in rows
+    ]
