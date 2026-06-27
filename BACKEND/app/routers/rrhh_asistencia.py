@@ -1330,6 +1330,559 @@ def reporte_semanal(
     return _export_response(buf, fmt, f"asistencia_semanal_{inicio.isoformat()}")
 
 
+# ── Excel Gerencial (Reporte Mensual Rico) ────────────────────────────────────
+
+def _xlsx_mensual_gerencial(
+    db: Session, empresa_id: str, inicio: date, fin: date, mes_label: str
+) -> io.BytesIO:
+    """
+    Excel de gerencia con 5 hojas:
+      1. Resumen Ejecutivo  — KPIs + tabla semáforo + gráfico de barras
+      2. Cronograma         — Matriz día×empleado con colores semáforo
+      3. Incidencias        — Faltas, tardanzas e incompletos por día con minutos tarde
+      4. Horas Extra        — Empleados que superaron la meta mensual + gráfico
+      5. Justificaciones    — Permisos/licencias aprobados en el período
+    """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.chart import BarChart, PieChart, Reference
+
+    # ── Paleta de colores (hex sin #) ──────────────────────────────────────────
+    CV_TITULO   = "15803D"   # verde oscuro — encabezados principales
+    CV_HEADER   = "BBF7D0"   # verde claro — encabezados de columna
+    CV_CELDA    = "DCFCE7"   # semáforo: puntual
+    CA_CELDA    = "FEF3C7"   # semáforo: tardanza
+    CR_CELDA    = "FEE2E2"   # semáforo: falta
+    CZ_CELDA    = "DBEAFE"   # semáforo: justificado / horas extra
+    CO_CELDA    = "FFEDD5"   # semáforo: incompleto
+    CG_CELDA    = "F3F4F6"   # semáforo: descanso
+    BLANCO      = "FFFFFF"
+    GRIS_TEXTO  = "64748B"
+
+    CRONO_BG   = {"P": CV_CELDA, "T": CA_CELDA, "F": CR_CELDA,
+                  "I": CO_CELDA, "J": CZ_CELDA,  "D": CG_CELDA}
+    CRONO_FG   = {"P": "15803D", "T": "92400E", "F": "991B1B",
+                  "I": "9A3412", "J": "1E40AF",  "D": "6B7280"}
+
+    def _pct_color(pct: float) -> str:
+        return CV_CELDA if pct >= 95 else CA_CELDA if pct >= 70 else CR_CELDA
+
+    def _thin():
+        s = Side(style="thin", color="D1FAE5")
+        return Border(left=s, right=s, top=s, bottom=s)
+
+    def _hdr(ws, row, col, val, bg=None, fg="FFFFFF", size=10, wrap=False, colspan=1):
+        if colspan > 1:
+            ws.merge_cells(start_row=row, start_column=col,
+                           end_row=row, end_column=col + colspan - 1)
+        c = ws.cell(row=row, column=col, value=val)
+        c.font = Font(bold=True, size=size, color=fg)
+        c.fill = PatternFill("solid", fgColor=bg or CV_TITULO)
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=wrap)
+        c.border = _thin()
+        return c
+
+    def _cel(ws, row, col, val, bg=None, bold=False, align="center", wrap=False, fmt=None):
+        c = ws.cell(row=row, column=col, value=val)
+        if bg:
+            c.fill = PatternFill("solid", fgColor=bg)
+        c.font = Font(bold=bold, size=9)
+        c.alignment = Alignment(horizontal=align, vertical="center", wrap_text=wrap)
+        c.border = _thin()
+        if fmt:
+            c.number_format = fmt
+        return c
+
+    # ── Datos ──────────────────────────────────────────────────────────────────
+    dias_all, emps_data, totales = _build_cronograma(db, empresa_id, inicio, fin)
+
+    # Horas extra reales = reales − esperadas (por mes, no por semana)
+    for emp in emps_data:
+        emp["horas_extra"] = max(0.0, round(emp["horas_reales"] - emp["horas_esper"], 1))
+
+    # Mapa empleado_nombre → id para buscar registros
+    emp_id_map: dict[str, str] = {
+        f"{u.nombre} {u.apellido}".strip(): e.id
+        for e, u in (
+            db.query(Empleado, Usuario)
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.empresa_id == empresa_id, Empleado.activo == True)
+            .all()
+        )
+    }
+
+    # Todos los registros del mes indexados por (empleado_id, fecha)
+    ini_dt = datetime(inicio.year, inicio.month, inicio.day, 0, 0, 0)
+    fin_dt = datetime(fin.year,    fin.month,    fin.day,    23, 59, 59)
+    todos_regs = (
+        db.query(RegistroAsistencia)
+        .filter(
+            RegistroAsistencia.empresa_id == empresa_id,
+            RegistroAsistencia.fecha_hora.between(ini_dt, fin_dt),
+        ).all()
+    )
+    regs_x_dia: dict[tuple, list] = {}
+    for r in todos_regs:
+        regs_x_dia.setdefault((r.empleado_id, r.fecha_hora.date()), []).append(r)
+
+    periodo_label = f"{inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}"
+    n_emp = totales["n_emp"]
+    pct_g = totales["pct_global"]
+    tot_f = totales["faltas"]
+    tot_t = totales["tardanzas"]
+    tot_hx = sum(e["horas_extra"] for e in emps_data)
+
+    # Distribución de estados para gráfico de torta
+    dist: dict[str, int] = {"P": 0, "T": 0, "F": 0, "I": 0, "J": 0}
+    for emp in emps_data:
+        for code in emp["codigos"]:
+            if code in dist:
+                dist[code] += 1
+
+    wb = openpyxl.Workbook()
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA 1: RESUMEN EJECUTIVO
+    # ══════════════════════════════════════════════════════════════════════════
+    ws1 = wb.active
+    ws1.title = "Resumen Ejecutivo"
+    ws1.sheet_view.showGridLines = False
+    ws1.sheet_properties.tabColor = "15803D"
+
+    # Título
+    ws1.merge_cells("A1:J1")
+    c = ws1.cell(row=1, column=1,
+                 value=f"REPORTE DE ASISTENCIA  —  {mes_label.upper()}")
+    c.font = Font(bold=True, size=16, color=BLANCO)
+    c.fill = PatternFill("solid", fgColor=CV_TITULO)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws1.row_dimensions[1].height = 36
+
+    ws1.merge_cells("A2:J2")
+    c2 = ws1.cell(row=2, column=1, value=f"Período: {periodo_label}")
+    c2.font = Font(size=10, color=GRIS_TEXTO, italic=True)
+    c2.alignment = Alignment(horizontal="center")
+    ws1.row_dimensions[2].height = 20
+
+    # KPI cards (fila 4-5)
+    ws1.row_dimensions[3].height = 8
+    ws1.row_dimensions[4].height = 22
+    ws1.row_dimensions[5].height = 30
+    ws1.row_dimensions[6].height = 8
+
+    kpis = [
+        ("Total Personal",   str(n_emp),          "1F2937", "F8FAFC"),
+        ("Asistencia Global", f"{pct_g}%",
+         CV_TITULO if pct_g >= 95 else "B45309" if pct_g >= 70 else "B91C1C",
+         _pct_color(pct_g)),
+        ("Total Faltas",     str(tot_f),           "B91C1C", CR_CELDA),
+        ("Total Tardanzas",  str(tot_t),           "92400E", CA_CELDA),
+        ("Horas Extra",      f"{tot_hx:.1f}h",     "1D4ED8", CZ_CELDA),
+    ]
+    for idx, (label, val, fcolor, bg) in enumerate(kpis):
+        sc = idx * 2 + 1
+        ws1.merge_cells(start_row=4, start_column=sc, end_row=4, end_column=sc + 1)
+        c = ws1.cell(row=4, column=sc, value=label)
+        c.font = Font(bold=True, size=9, color=GRIS_TEXTO)
+        c.fill = PatternFill("solid", fgColor=bg)
+        c.alignment = Alignment(horizontal="center", vertical="center")
+
+        ws1.merge_cells(start_row=5, start_column=sc, end_row=5, end_column=sc + 1)
+        c2 = ws1.cell(row=5, column=sc, value=val)
+        c2.font = Font(bold=True, size=22, color=fcolor)
+        c2.fill = PatternFill("solid", fgColor=bg)
+        c2.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Encabezados tabla
+    hdrs1 = ["N°", "Empleado", "Cargo", "Área",
+             "Días Trab.", "Faltas", "Tardanzas", "H. Reales", "H. Extra", "% Cumpl."]
+    R_TABLA = 8
+    ws1.row_dimensions[R_TABLA].height = 22
+    for ci, h in enumerate(hdrs1, 1):
+        _hdr(ws1, R_TABLA, ci, h)
+
+    emps_sorted = sorted(emps_data, key=lambda e: e["porcentaje"])
+    for i, emp in enumerate(emps_sorted, 1):
+        ri = R_TABLA + i
+        ws1.row_dimensions[ri].height = 18
+        row_bg = BLANCO if i % 2 == 0 else "F0FDF4"
+        _cel(ws1, ri, 1, i,              bg=row_bg)
+        _cel(ws1, ri, 2, emp["nombre"],  bg=row_bg, align="left")
+        _cel(ws1, ri, 3, emp["cargo"],   bg=row_bg, align="left")
+        _cel(ws1, ri, 4, emp["area"] or "—", bg=row_bg, align="left")
+        _cel(ws1, ri, 5, emp["dias_trab"], bg=row_bg)
+        _cel(ws1, ri, 6, emp["faltas"],
+             bg=CR_CELDA if emp["faltas"] > 0 else row_bg,
+             bold=emp["faltas"] > 0)
+        _cel(ws1, ri, 7, emp["tardanzas"],
+             bg=CA_CELDA if emp["tardanzas"] > 0 else row_bg,
+             bold=emp["tardanzas"] > 0)
+        _cel(ws1, ri, 8, emp["horas_reales"], bg=row_bg)
+        _cel(ws1, ri, 9, emp["horas_extra"],
+             bg=CZ_CELDA if emp["horas_extra"] > 0 else row_bg,
+             bold=emp["horas_extra"] > 0)
+        pct_num = emp["porcentaje"]
+        _cel(ws1, ri, 10, pct_num / 100,
+             bg=_pct_color(pct_num), bold=True, fmt='0.0%')
+
+    # Fila totales
+    TR = R_TABLA + n_emp + 1
+    ws1.row_dimensions[TR].height = 22
+    ws1.merge_cells(start_row=TR, start_column=1, end_row=TR, end_column=4)
+    c = ws1.cell(row=TR, column=1, value="TOTALES / PROMEDIO")
+    c.font = Font(bold=True, color=BLANCO); c.fill = PatternFill("solid", fgColor=CV_TITULO)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    _cel(ws1, TR, 5,  sum(e["dias_trab"]   for e in emps_data), bg=CV_HEADER, bold=True)
+    _cel(ws1, TR, 6,  tot_f,
+         bg=CR_CELDA if tot_f > 0 else CV_HEADER, bold=True)
+    _cel(ws1, TR, 7,  tot_t,
+         bg=CA_CELDA if tot_t > 0 else CV_HEADER, bold=True)
+    _cel(ws1, TR, 8,  round(sum(e["horas_reales"] for e in emps_data), 1),
+         bg=CV_HEADER, bold=True)
+    _cel(ws1, TR, 9,  round(tot_hx, 1),
+         bg=CZ_CELDA if tot_hx > 0 else CV_HEADER, bold=True)
+    _cel(ws1, TR, 10, pct_g / 100, bg=_pct_color(pct_g), bold=True, fmt='0.0%')
+
+    # Leyenda semáforo
+    LR = TR + 2
+    ws1.merge_cells(start_row=LR, start_column=1, end_row=LR, end_column=10)
+    lc = ws1.cell(row=LR, column=1,
+        value="SEMÁFORO:  ■ Verde ≥ 95% cumplimiento   ■ Amarillo 70–94%   ■ Rojo < 70%")
+    lc.font = Font(italic=True, size=9, color=GRIS_TEXTO)
+    lc.alignment = Alignment(horizontal="left")
+
+    # Anchos col hoja 1
+    for ci, w in enumerate([5, 26, 18, 14, 10, 8, 10, 10, 9, 9], 1):
+        ws1.column_dimensions[get_column_letter(ci)].width = w
+
+    # Gráfico barras: % por empleado
+    CHR1 = LR + 3
+    ch1 = BarChart()
+    ch1.type = "col"; ch1.grouping = "clustered"
+    ch1.title = f"% Cumplimiento por Empleado — {mes_label}"
+    ch1.y_axis.title = "Cumplimiento"; ch1.y_axis.numFmt = '0%'
+    ch1.y_axis.scaling.min = 0; ch1.y_axis.scaling.max = 1.1
+    ch1.width = 28; ch1.height = 14; ch1.style = 10
+    d_ref = Reference(ws1, min_col=10, min_row=R_TABLA,
+                      max_row=R_TABLA + n_emp)
+    c_ref = Reference(ws1, min_col=2,  min_row=R_TABLA + 1,
+                      max_row=R_TABLA + n_emp)
+    ch1.add_data(d_ref, titles_from_data=True)
+    ch1.set_categories(c_ref)
+    ws1.add_chart(ch1, f"A{CHR1}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA 2: CRONOGRAMA
+    # ══════════════════════════════════════════════════════════════════════════
+    ws2 = wb.create_sheet("Cronograma")
+    ws2.sheet_view.showGridLines = False
+    ws2.sheet_properties.tabColor = "0D9488"
+
+    n_dias = len(dias_all)
+    N_COLS2 = n_dias + 2 + 6   # nombre, cargo, días, + 6 KPI cols
+
+    ws2.merge_cells(start_row=1, start_column=1,
+                    end_row=1, end_column=N_COLS2)
+    c = ws2.cell(row=1, column=1,
+                 value=f"CRONOGRAMA DE ASISTENCIA — {mes_label.upper()}")
+    c.font = Font(bold=True, size=14, color=BLANCO)
+    c.fill = PatternFill("solid", fgColor="0D9488")
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws2.row_dimensions[1].height = 30
+
+    ws2.row_dimensions[2].height = 38
+    _hdr(ws2, 2, 1, "Empleado", wrap=True)
+    _hdr(ws2, 2, 2, "Cargo",    wrap=True)
+
+    for ci, dia in enumerate(dias_all, start=3):
+        dom = dia.weekday() == 6
+        bg  = "9CA3AF" if dom else "0D9488"
+        c   = ws2.cell(row=2, column=ci,
+                       value=f"{dia.day}\n{_DIAS_ES[dia.weekday()][:2]}")
+        c.font      = Font(bold=True, size=7, color=BLANCO)
+        c.fill      = PatternFill("solid", fgColor=bg)
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border    = _thin()
+
+    kpi_labels2 = ["T.Días", "Faltas", "Tard.", "Incompl.", "H. Real", "% Cumpl."]
+    for i, lab in enumerate(kpi_labels2, start=n_dias + 3):
+        _hdr(ws2, 2, i, lab, wrap=True)
+
+    for ri, emp in enumerate(emps_data, start=3):
+        ws2.row_dimensions[ri].height = 15
+        _cel(ws2, ri, 1, emp["nombre"], align="left")
+        _cel(ws2, ri, 2, emp["cargo"],  align="left")
+        for ci, code in enumerate(emp["codigos"], start=3):
+            c = ws2.cell(row=ri, column=ci, value=code)
+            c.fill      = PatternFill("solid", fgColor=CRONO_BG.get(code, BLANCO))
+            c.font      = Font(bold=True, size=8, color=CRONO_FG.get(code, "1F2937"))
+            c.alignment = Alignment(horizontal="center", vertical="center")
+            c.border    = _thin()
+        ks = n_dias + 3
+        _cel(ws2, ri, ks,   emp["dias_trab"])
+        _cel(ws2, ri, ks+1, emp["faltas"],
+             bg=CR_CELDA if emp["faltas"] > 0 else None, bold=emp["faltas"] > 0)
+        _cel(ws2, ri, ks+2, emp["tardanzas"],
+             bg=CA_CELDA if emp["tardanzas"] > 0 else None, bold=emp["tardanzas"] > 0)
+        _cel(ws2, ri, ks+3, emp["incompletos"])
+        _cel(ws2, ri, ks+4, emp["horas_reales"])
+        _cel(ws2, ri, ks+5, emp["porcentaje"] / 100,
+             bg=_pct_color(emp["porcentaje"]), bold=True, fmt='0%')
+
+    # Leyenda cronograma
+    LR2 = n_emp + 5
+    ws2.merge_cells(start_row=LR2, start_column=1, end_row=LR2, end_column=2)
+    ws2.cell(row=LR2, column=1, value="LEYENDA:").font = Font(bold=True, size=9)
+    leyenda_items = [("P","Puntual"),("T","Tardanza"),("F","Falta"),
+                     ("I","Incompl."),("J","Justificado"),("D","Descanso")]
+    for idx, (code, label) in enumerate(leyenda_items, start=3):
+        c = ws2.cell(row=LR2, column=idx, value=f"■ {label}")
+        c.font = Font(bold=True, size=8, color=CRONO_FG[code])
+        c.fill = PatternFill("solid", fgColor=CRONO_BG[code])
+        c.alignment = Alignment(horizontal="center")
+
+    ws2.column_dimensions["A"].width = 22
+    ws2.column_dimensions["B"].width = 14
+    for ci in range(3, n_dias + 3):
+        ws2.column_dimensions[get_column_letter(ci)].width = 3.8
+    for ci in range(n_dias + 3, n_dias + 9):
+        ws2.column_dimensions[get_column_letter(ci)].width = 8
+
+    # Gráfico torta: distribución de estados
+    # Escribimos la data en celdas ocultas para la referencia del gráfico
+    DIST_ROW = LR2 + 2
+    dist_labels = [("Puntual", dist["P"]), ("Tardanza", dist["T"]),
+                   ("Falta",   dist["F"]), ("Incompl.", dist["I"]),
+                   ("Justif.", dist["J"])]
+    for i, (lab, val) in enumerate(dist_labels):
+        ws2.cell(row=DIST_ROW,   column=i+1, value=lab)
+        ws2.cell(row=DIST_ROW+1, column=i+1, value=val)
+
+    pie = PieChart()
+    pie.title  = f"Distribución de Asistencia — {mes_label}"
+    pie.width  = 16; pie.height = 10; pie.style = 10
+    d_ref2 = Reference(ws2, min_col=1, max_col=5, min_row=DIST_ROW+1)
+    l_ref2 = Reference(ws2, min_col=1, max_col=5, min_row=DIST_ROW)
+    pie.add_data(d_ref2)
+    pie.set_categories(l_ref2)
+    ws2.add_chart(pie, f"A{DIST_ROW + 3}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA 3: INCIDENCIAS (Faltas, Tardanzas, Incompletos)
+    # ══════════════════════════════════════════════════════════════════════════
+    ws3 = wb.create_sheet("Incidencias")
+    ws3.sheet_view.showGridLines = False
+    ws3.sheet_properties.tabColor = "B91C1C"
+
+    ws3.merge_cells("A1:H1")
+    c = ws3.cell(row=1, column=1,
+                 value=f"FALTAS, TARDANZAS E INCOMPLETOS — {mes_label.upper()}")
+    c.font = Font(bold=True, size=14, color=BLANCO)
+    c.fill = PatternFill("solid", fgColor="B91C1C")
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws3.row_dimensions[1].height = 30
+
+    hdrs3 = ["Empleado","Cargo","Área","Fecha","Día","Estado","Min. Tarde","Observación"]
+    ws3.row_dimensions[2].height = 22
+    for ci, h in enumerate(hdrs3, 1):
+        c = ws3.cell(row=2, column=ci, value=h)
+        c.font = Font(bold=True, size=10, color=BLANCO)
+        c.fill = PatternFill("solid", fgColor="B91C1C")
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = _thin()
+
+    ri3 = 3
+    for emp in sorted(emps_data, key=lambda e: e["nombre"]):
+        emp_id = emp_id_map.get(emp["nombre"], "")
+        for idx, (dia, code) in enumerate(zip(dias_all, emp["codigos"])):
+            if code not in ("F", "T", "I"):
+                continue
+            regs_dia = regs_x_dia.get((emp_id, dia), [])
+            entrada_r = next((r for r in regs_dia if r.tipo == "entrada"), None)
+            salida_r  = next((r for r in regs_dia if r.tipo == "salida"),  None)
+
+            estado_txt = {"F": "Falta", "T": "Tardanza", "I": "Incompleto"}[code]
+            min_tarde  = emp["mins_tarde"][idx] if code == "T" else 0
+
+            obs_parts = []
+            if entrada_r:
+                obs_parts.append(f"Entrada: {entrada_r.fecha_hora.strftime('%H:%M')}")
+            if salida_r:
+                obs_parts.append(f"Salida: {salida_r.fecha_hora.strftime('%H:%M')}")
+            if code == "F":
+                obs_parts.append("Sin registro de entrada")
+            elif code == "I" and not salida_r:
+                obs_parts.append("Sin registro de salida")
+            obs = "  ·  ".join(obs_parts) or "—"
+
+            bg3 = {"F": CR_CELDA, "T": CA_CELDA, "I": CO_CELDA}[code]
+            ws3.row_dimensions[ri3].height = 18
+            _cel(ws3, ri3, 1, emp["nombre"],        bg=bg3, align="left")
+            _cel(ws3, ri3, 2, emp["cargo"],          bg=bg3, align="left")
+            _cel(ws3, ri3, 3, emp["area"] or "—",   bg=bg3, align="left")
+            _cel(ws3, ri3, 4, dia.strftime("%d/%m/%Y"), bg=bg3)
+            _cel(ws3, ri3, 5, _DIAS_ES[dia.weekday()],  bg=bg3)
+            _cel(ws3, ri3, 6, estado_txt,            bg=bg3, bold=True)
+            _cel(ws3, ri3, 7,
+                 f"{min_tarde} min" if min_tarde > 0 else "—",
+                 bg=bg3 if min_tarde > 0 else None)
+            _cel(ws3, ri3, 8, obs, align="left", wrap=True)
+            ri3 += 1
+
+    if ri3 == 3:
+        ws3.merge_cells("A3:H3")
+        c = ws3.cell(row=3, column=1,
+                     value="✓ Sin incidencias en el período")
+        c.font = Font(italic=True, color=CV_TITULO)
+        c.fill = PatternFill("solid", fgColor=CV_CELDA)
+        c.alignment = Alignment(horizontal="center")
+
+    for ci, w in enumerate([26, 18, 14, 12, 10, 12, 10, 42], 1):
+        ws3.column_dimensions[get_column_letter(ci)].width = w
+
+    # Gráfico barras: tardanzas + faltas por empleado
+    if ri3 > 3:
+        emp_names_chart = [e["nombre"] for e in emps_data if e["faltas"] + e["tardanzas"] > 0]
+        if len(emp_names_chart) >= 2:
+            # Escribimos data auxiliar para el gráfico
+            AUX_ROW3 = ri3 + 2
+            ws3.cell(row=AUX_ROW3, column=1, value="Empleado")
+            ws3.cell(row=AUX_ROW3, column=2, value="Faltas")
+            ws3.cell(row=AUX_ROW3, column=3, value="Tardanzas")
+            for ii, e in enumerate([x for x in emps_data
+                                    if x["faltas"] + x["tardanzas"] > 0], 1):
+                ws3.cell(row=AUX_ROW3+ii, column=1, value=e["nombre"])
+                ws3.cell(row=AUX_ROW3+ii, column=2, value=e["faltas"])
+                ws3.cell(row=AUX_ROW3+ii, column=3, value=e["tardanzas"])
+            n_aux3 = len(emp_names_chart)
+            ch3 = BarChart()
+            ch3.type = "bar"; ch3.grouping = "clustered"
+            ch3.title = f"Faltas y Tardanzas por Empleado — {mes_label}"
+            ch3.style = 10; ch3.width = 24; ch3.height = 12
+            d3 = Reference(ws3, min_col=2, max_col=3,
+                           min_row=AUX_ROW3, max_row=AUX_ROW3+n_aux3)
+            c3 = Reference(ws3, min_col=1,
+                           min_row=AUX_ROW3+1, max_row=AUX_ROW3+n_aux3)
+            ch3.add_data(d3, titles_from_data=True)
+            ch3.set_categories(c3)
+            ws3.add_chart(ch3, f"A{AUX_ROW3 + n_aux3 + 3}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA 4: HORAS EXTRA
+    # ══════════════════════════════════════════════════════════════════════════
+    ws4 = wb.create_sheet("Horas Extra")
+    ws4.sheet_view.showGridLines = False
+    ws4.sheet_properties.tabColor = "1D4ED8"
+
+    ws4.merge_cells("A1:F1")
+    c = ws4.cell(row=1, column=1,
+                 value=f"HORAS EXTRA — {mes_label.upper()}")
+    c.font = Font(bold=True, size=14, color=BLANCO)
+    c.fill = PatternFill("solid", fgColor="1D4ED8")
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws4.row_dimensions[1].height = 30
+
+    hdrs4 = ["Empleado","Cargo","Área","H. Reales","H. Esperadas","H. Extra"]
+    ws4.row_dimensions[2].height = 22
+    for ci, h in enumerate(hdrs4, 1):
+        c = ws4.cell(row=2, column=ci, value=h)
+        c.font = Font(bold=True, size=10, color=BLANCO)
+        c.fill = PatternFill("solid", fgColor="1D4ED8")
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = _thin()
+
+    emps_hx = sorted([e for e in emps_data if e["horas_extra"] > 0],
+                     key=lambda e: -e["horas_extra"])
+    for i, emp in enumerate(emps_hx, start=3):
+        ws4.row_dimensions[i].height = 18
+        bg4 = BLANCO if i % 2 else "EFF6FF"
+        _cel(ws4, i, 1, emp["nombre"],      bg=bg4, align="left")
+        _cel(ws4, i, 2, emp["cargo"],       bg=bg4, align="left")
+        _cel(ws4, i, 3, emp["area"] or "—", bg=bg4, align="left")
+        _cel(ws4, i, 4, emp["horas_reales"])
+        _cel(ws4, i, 5, emp["horas_esper"])
+        _cel(ws4, i, 6, emp["horas_extra"], bg=CZ_CELDA, bold=True)
+
+    if not emps_hx:
+        ws4.merge_cells("A3:F3")
+        c = ws4.cell(row=3, column=1, value="Sin empleados con horas extra en el período")
+        c.font = Font(italic=True, color=GRIS_TEXTO)
+        c.alignment = Alignment(horizontal="center")
+
+    for ci, w in enumerate([26, 18, 14, 11, 13, 11], 1):
+        ws4.column_dimensions[get_column_letter(ci)].width = w
+
+    if len(emps_hx) >= 2:
+        R4C = len(emps_hx) + 5
+        ch4 = BarChart()
+        ch4.type = "col"; ch4.style = 10
+        ch4.title = f"Horas Extra por Empleado — {mes_label}"
+        ch4.y_axis.title = "Horas"; ch4.width = 22; ch4.height = 12
+        d4 = Reference(ws4, min_col=6, min_row=2, max_row=2 + len(emps_hx))
+        c4 = Reference(ws4, min_col=1, min_row=3, max_row=2 + len(emps_hx))
+        ch4.add_data(d4, titles_from_data=True)
+        ch4.set_categories(c4)
+        ws4.add_chart(ch4, f"A{R4C}")
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA 5: JUSTIFICACIONES
+    # ══════════════════════════════════════════════════════════════════════════
+    ws5 = wb.create_sheet("Justificaciones")
+    ws5.sheet_view.showGridLines = False
+    ws5.sheet_properties.tabColor = "7C3AED"
+
+    ws5.merge_cells("A1:G1")
+    c = ws5.cell(row=1, column=1,
+                 value=f"PERMISOS Y JUSTIFICACIONES APROBADAS — {mes_label.upper()}")
+    c.font = Font(bold=True, size=14, color=BLANCO)
+    c.fill = PatternFill("solid", fgColor="7C3AED")
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws5.row_dimensions[1].height = 30
+
+    hdrs5 = ["Empleado","Cargo","Área","Tipo","Desde","Hasta","Descripción"]
+    ws5.row_dimensions[2].height = 22
+    for ci, h in enumerate(hdrs5, 1):
+        c = ws5.cell(row=2, column=ci, value=h)
+        c.font = Font(bold=True, size=10, color=BLANCO)
+        c.fill = PatternFill("solid", fgColor="7C3AED")
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border = _thin()
+
+    ri5 = 3
+    for emp in sorted(emps_data, key=lambda e: e["nombre"]):
+        for j in emp.get("justificaciones", []):
+            ws5.row_dimensions[ri5].height = 18
+            bg5 = BLANCO if ri5 % 2 else "F5F3FF"
+            _cel(ws5, ri5, 1, emp["nombre"],      bg=bg5, align="left")
+            _cel(ws5, ri5, 2, emp["cargo"],        bg=bg5, align="left")
+            _cel(ws5, ri5, 3, emp["area"] or "—",  bg=bg5, align="left")
+            _cel(ws5, ri5, 4, j.get("tipo", "Permiso"), bg=CZ_CELDA)
+            desde = j.get("desde")
+            hasta = j.get("hasta")
+            _cel(ws5, ri5, 5,
+                 desde.strftime("%d/%m/%Y") if isinstance(desde, date) else str(desde or "—"))
+            _cel(ws5, ri5, 6,
+                 hasta.strftime("%d/%m/%Y") if isinstance(hasta, date) else str(hasta or "—"))
+            _cel(ws5, ri5, 7, j.get("desc", "") or "—",
+                 align="left", wrap=True)
+            ri5 += 1
+
+    if ri5 == 3:
+        ws5.merge_cells("A3:G3")
+        c = ws5.cell(row=3, column=1, value="Sin justificaciones registradas en el período")
+        c.font = Font(italic=True, color=GRIS_TEXTO)
+        c.alignment = Alignment(horizontal="center")
+
+    for ci, w in enumerate([26, 18, 14, 20, 12, 12, 44], 1):
+        ws5.column_dimensions[get_column_letter(ci)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
 # ── Reporte Mensual ───────────────────────────────────────────────────────────
 
 @router.get("/rrhh/asistencia/reportes/mensual")
@@ -1347,21 +1900,13 @@ def reporte_mensual(
     inicio = date(anio, mes, 1)
     fin    = date(anio, mes, monthrange(anio, mes)[1])
 
-    filas, meta = _build_resumen_full(db, empresa_id, inicio, fin)
     meses_es = ["", "Enero","Febrero","Marzo","Abril","Mayo","Junio",
                 "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
-    titulo = f"Asistencia Mensual — {meses_es[mes]} {anio}"
-    encabezados = ["Empleado", "Cargo", "Área", "H. Reales", "H. Justificadas",
-                   "H. Total", "H. Faltantes", "% Cumplimiento", "Faltas", "Tardanzas"]
-    datos = [
-        [r["nombre"], r["cargo"], r["area"],
-         r["horas_reales"], r["horas_justificadas"], r["horas_total"],
-         r["horas_faltantes"], f"{r['porcentaje']}%", r["faltas"], r["tardanzas"]]
-        for r in filas
-    ]
+    mes_label = f"{meses_es[mes]} {anio}"
+    titulo    = f"Asistencia Mensual — {mes_label}"
 
     if fmt == "xlsx":
-        buf = _xlsx_stream(titulo, encabezados, datos)
+        buf = _xlsx_mensual_gerencial(db, empresa_id, inicio, fin, mes_label)
     else:
         dias_c, emps_c, tot_c = _build_cronograma(db, empresa_id, inicio, fin)
         buf = _pdf_cronograma(
