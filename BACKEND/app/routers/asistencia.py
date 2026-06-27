@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..db.database import get_db
 from ..core.security import verificar_token
-from ..core.permisos import exigir_permiso, es_admin, es_jefe_operaciones
+from ..core.permisos import exigir_permiso, exigir_no_tecnico
 from ..models.empleado                      import Empleado
 from ..models.usuario                        import Usuario
 from ..models.foto_biometrica               import FotoBiometrica
@@ -1203,9 +1203,8 @@ def crear_turno(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Crea un turno (p. ej. 'Practicante 08:00–13:00'). Requiere asistencia:configurar."""
-    if not (es_admin(payload) or es_jefe_operaciones(payload)):
-        exigir_permiso(db, payload, "asistencia", "configurar")
+    """Crea un turno (p. ej. 'Practicante 08:00–13:00'). Solo Técnicos bloqueados."""
+    exigir_no_tecnico(payload)
     empresa_id = payload["empresa_id"]
     turno = Turno(
         empresa_id                = empresa_id,
@@ -1227,9 +1226,8 @@ def asignar_turno(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Asigna un turno-excepción a un empleado con vigencia. Requiere asistencia:configurar."""
-    if not (es_admin(payload) or es_jefe_operaciones(payload)):
-        exigir_permiso(db, payload, "asistencia", "configurar")
+    """Asigna un turno-excepción a un empleado con vigencia. Solo Técnicos bloqueados."""
+    exigir_no_tecnico(payload)
     empresa_id = payload["empresa_id"]
 
     emp = db.query(Empleado).filter(
