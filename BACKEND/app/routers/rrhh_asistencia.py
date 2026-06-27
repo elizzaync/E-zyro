@@ -85,11 +85,7 @@ def _estado_dia_turno(
     if not entrada:
         return "Falta"
 
-    limite = entrada.fecha_hora.replace(
-        hour=hora_entrada_turno.hour,
-        minute=hora_entrada_turno.minute + tolerancia_min,
-        second=0, microsecond=0,
-    )
+    limite = datetime.combine(entrada.fecha_hora.date(), hora_entrada_turno) + timedelta(minutes=tolerancia_min)
     if entrada.fecha_hora > limite:
         return "Tardanza"
 
@@ -705,7 +701,7 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
 
     def _turno_emp_dia(emp_id: str, dia: date):
         """Devuelve (hora_entrada, tolerancia, horas_requeridas) para el día."""
-        for te, turno in asigns_por_emp.get(emp_id, []):
+        for te, turno in asigns_por_emp.get(str(emp_id), []):
             if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
                 req_min = max(
                     _min_entre_horas(turno.hora_entrada, turno.hora_salida)
@@ -2089,13 +2085,41 @@ def reporte_individual(
     for r in registros:
         regs_por_dia.setdefault(r.fecha_hora.date(), []).append(r)
 
+    # Carga turno-excepción del empleado para el rango
+    from ..models.turno import Turno as _Turno, TurnoEmpleado as _TE
+    asigns_ind = (
+        db.query(_TE, _Turno)
+        .join(_Turno, _Turno.id == _TE.turno_id)
+        .filter(
+            _TE.empleado_id == empleado_id,
+            _TE.activo == True, _Turno.activo == True,
+            _TE.fecha_desde <= fecha_fin,
+            or_(_TE.fecha_hasta.is_(None), _TE.fecha_hasta >= fecha_inicio),
+        ).all()
+    )
+
+    def _turno_dia_ind(dia: date):
+        for te, turno in asigns_ind:
+            if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
+                tol = turno.tolerancia_minutos if turno.tolerancia_minutos is not None else _CRONO_TOLERANCIA
+                req_min = max(_min_entre_horas(turno.hora_entrada, turno.hora_salida)
+                              - (turno.duracion_almuerzo_minutos or 0), 0)
+                return (turno.hora_entrada, tol, req_min / 60.0)
+        return (_CRONO_ENTRADA, _CRONO_TOLERANCIA, META_HORAS_DIA)
+
+    feriados_ind = _feriados_set(db, empresa_id, fecha_inicio, fecha_fin)
+
     titulo = f"Historial Asistencia — {nombre}"
     encabezados = ["Fecha", "Día", "Ingreso", "Salida", "H. Trabajo", "Estado"]
     datos = []
     for dia in sorted(dias_lab, reverse=True):
         regs_dia = regs_por_dia.get(dia, [])
         horas    = _horas_dia(regs_dia)
-        estado   = _estado_dia(regs_dia, horas, True)
+        if dia in feriados_ind:
+            estado = "Feriado"
+        else:
+            t_ent, t_tol, req_h = _turno_dia_ind(dia)
+            estado = _estado_dia_turno(regs_dia, horas, t_ent, t_tol, req_h)
         entrada  = next((r.fecha_hora for r in regs_dia if r.tipo == "entrada"), None)
         salida   = next((r.fecha_hora for r in regs_dia if r.tipo == "salida"),  None)
         datos.append([
