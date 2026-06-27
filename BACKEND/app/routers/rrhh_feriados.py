@@ -142,7 +142,7 @@ def crear_feriado(
 ):
     exigir_no_tecnico(payload)
     empresa_id = payload["empresa_id"]
-    user_id    = payload.get("sub") or payload.get("usuario_id") or ""
+    user_id    = payload.get("id") or None   # UUID del usuario en el JWT
 
     # Verificar duplicado
     existe = (
