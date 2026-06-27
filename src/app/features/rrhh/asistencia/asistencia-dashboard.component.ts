@@ -12,6 +12,8 @@ import {
   GeoDto,
   AsistenciaDiariaItemDto,
   EmpleadoLegajoDto,
+  FeriadoDto,
+  FeriadoNacionalDto,
 } from '../../../core/services/rrhh.service';
 import { AuthService } from '../../../core/services/auth.service';
 import {
@@ -41,7 +43,7 @@ L.Marker.prototype.options.icon = iconDefault;
 export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   // ── Tabs ───────────────────────────────────────────────────────────────────
-  activeTab: 'semanal' | 'diaria' | 'turnos' = 'semanal';
+  activeTab: 'semanal' | 'diaria' | 'turnos' | 'feriados' = 'semanal';
 
   listaEmpleados: EmpleadoLegajoDto[] = [];
 
@@ -173,13 +175,16 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.destroyMap();
   }
 
-  setTab(tab: 'semanal' | 'diaria' | 'turnos'): void {
+  setTab(tab: 'semanal' | 'diaria' | 'turnos' | 'feriados'): void {
     this.activeTab = tab;
     if (tab === 'diaria' && this.diariaEmpleados.length === 0) {
       this.cargarDiaria();
     }
     if (tab === 'turnos' && this.turnos.length === 0) {
       this.cargarTurnos();
+    }
+    if (tab === 'feriados' && this.feriados.length === 0) {
+      this.cargarFeriados();
     }
   }
 
@@ -738,5 +743,88 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   empleadoNombre(id: string): string {
     return this.listaEmpleados.find(e => e.id === id)?.nombreCompleto ?? '';
+  }
+
+  // ── Tab Feriados ───────────────────────────────────────────────────────────
+
+  feriados:         FeriadoDto[]         = [];
+  feriadosNac:      FeriadoNacionalDto[] = [];
+  feriadosLoading   = false;
+  feriadosError     = '';
+  feriadoAnio       = new Date().getFullYear();
+
+  // Formulario nuevo feriado
+  showNuevoFeriado  = false;
+  feriadoForm       = { fecha: '', nombre: '', tipo: 'empresa' as 'empresa' | 'nacional' };
+  feriadoFormError  = '';
+  feriadoFormLoading= false;
+  feriadoFormExito  = '';
+
+  cargarFeriados(): void {
+    this.feriadosLoading = true; this.feriadosError = '';
+    this.rrhhService.getFeriados(this.feriadoAnio).subscribe({
+      next: (r) => { this.feriados = r.feriados; this.feriadosLoading = false; },
+      error: () => { this.feriadosError = 'No se pudieron cargar los feriados.'; this.feriadosLoading = false; },
+    });
+  }
+
+  cargarFeriadosNac(): void {
+    this.rrhhService.getFeriadosNacionales(this.feriadoAnio).subscribe({
+      next: (r) => { this.feriadosNac = r.feriados; },
+    });
+  }
+
+  onAnioFeriadoChange(): void {
+    this.cargarFeriados();
+    this.cargarFeriadosNac();
+  }
+
+  abrirNuevoFeriado(): void {
+    this.feriadoForm = { fecha: '', nombre: '', tipo: 'empresa' };
+    this.feriadoFormError = ''; this.feriadoFormExito = '';
+    this.showNuevoFeriado = true;
+    if (this.feriadosNac.length === 0) this.cargarFeriadosNac();
+  }
+  cerrarNuevoFeriado(): void { this.showNuevoFeriado = false; }
+
+  seleccionarFeriadoNac(fn: FeriadoNacionalDto): void {
+    this.feriadoForm.fecha  = fn.fecha;
+    this.feriadoForm.nombre = fn.nombre;
+    this.feriadoForm.tipo   = 'nacional';
+  }
+
+  guardarFeriado(): void {
+    if (!this.feriadoForm.fecha || !this.feriadoForm.nombre.trim()) {
+      this.feriadoFormError = 'La fecha y el nombre son obligatorios.'; return;
+    }
+    this.feriadoFormLoading = true; this.feriadoFormError = '';
+    this.rrhhService.crearFeriado(this.feriadoForm).subscribe({
+      next: () => {
+        this.feriadoFormLoading = false;
+        this.feriadoFormExito = 'Feriado registrado correctamente.';
+        this.cargarFeriados();
+        setTimeout(() => { this.cerrarNuevoFeriado(); this.feriadoFormExito = ''; }, 1400);
+      },
+      error: (err) => {
+        this.feriadoFormError  = err?.error?.detail ?? 'Error al guardar.';
+        this.feriadoFormLoading = false;
+      },
+    });
+  }
+
+  eliminarFeriado(id: string): void {
+    if (!confirm('¿Eliminar este feriado?')) return;
+    this.rrhhService.eliminarFeriado(id).subscribe({
+      next: () => this.cargarFeriados(),
+      error: () => alert('No se pudo eliminar el feriado.'),
+    });
+  }
+
+  esFeriadoYaRegistrado(fecha: string): boolean {
+    return this.feriados.some(f => f.fecha === fecha);
+  }
+
+  labelTipoFeriado(tipo: string): string {
+    return tipo === 'nacional' ? 'Nacional' : 'Empresa';
   }
 }

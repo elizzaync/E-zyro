@@ -1693,3 +1693,175 @@
   .modal-footer { border-color: #334155; }
   .turno-nombre-badge { background: rgba(34,197,94,.15); color: #4ade80; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TAB FERIADOS
+════════════════════════════════════════════════════════════════════════════ */
+
+/* Toolbar de feriados */
+.feriado-anio-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+.feriado-anio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.feriado-anio-input {
+  width: 80px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  outline: none;
+  text-align: center;
+}
+
+/* Badges tipo */
+.badge-tipo-feriado {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+}
+.badge-tipo-feriado.nac  { background: #dbeafe; color: #1e40af; }
+.badge-tipo-feriado.emp  { background: #ede9fe; color: #6d28d9; }
+
+/* Botón eliminar feriado */
+.btn-eliminar-feriado {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  background: #fff1f2;
+  color: #dc2626;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-eliminar-feriado:hover { background: #fee2e2; }
+
+/* Modal feriado */
+.feriado-modal-box  { max-width: 560px; }
+
+/* Chips de feriados nacionales */
+.feriado-nac-section {
+  margin-bottom: 12px;
+}
+.feriado-nac-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 8px;
+}
+.feriado-nac-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.feriado-nac-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 5px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  text-align: left;
+}
+.feriado-nac-chip:hover:not(:disabled) {
+  border-color: #8b5cf6;
+  background: #f5f3ff;
+}
+.feriado-nac-chip.ya-reg,
+.feriado-nac-chip:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.chip-fecha {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.chip-nom {
+  font-size: 11.5px;
+  color: #1e293b;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Divider "o ingresa manualmente" */
+.feriado-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  color: #94a3b8;
+  font-size: 11.5px;
+}
+.feriado-divider::before,
+.feriado-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e2e8f0;
+}
+
+/* Input nombre en modal feriado */
+.feriado-nombre-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: #1e293b;
+  outline: none;
+  transition: border-color .15s;
+}
+.feriado-nombre-input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,.08); }
+
+.feriado-form-error { color: #dc2626; font-size: 12.5px; margin-top: 6px; }
+.feriado-form-exito { color: #16a34a; font-size: 12.5px; margin-top: 6px; }
+
+/* Dark mode feriados */
+:host-context(html[data-theme="dark"]) {
+  .feriado-anio-ctrl       { background: #1e293b; border-color: #334155; }
+  .feriado-anio-input      { color: #f1f5f9; }
+  .badge-tipo-feriado.nac  { background: rgba(30,64,175,.2); color: #93c5fd; }
+  .badge-tipo-feriado.emp  { background: rgba(109,40,217,.2); color: #c4b5fd; }
+  .btn-eliminar-feriado    { background: rgba(220,38,38,.1); border-color: rgba(220,38,38,.3); color: #f87171; }
+  .btn-eliminar-feriado:hover { background: rgba(220,38,38,.2); }
+  .feriado-nac-chip        { background: #1e293b; border-color: #334155; }
+  .feriado-nac-chip:hover:not(:disabled) { border-color: #7c3aed; background: #1e1b4b; }
+  .chip-fecha              { color: #94a3b8; }
+  .chip-nom                { color: #e2e8f0; }
+  .feriado-divider         { color: #475569; }
+  .feriado-divider::before,
+  .feriado-divider::after  { background: #334155; }
+  .feriado-nombre-input    { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+  .feriado-nombre-input:focus { border-color: #7c3aed; }
+}

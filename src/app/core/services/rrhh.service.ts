@@ -179,6 +179,19 @@ export interface DetalleDiarioResponse {
   total_paginas: number;
 }
 
+export interface FeriadoDto {
+  id:     string;
+  fecha:  string;
+  nombre: string;
+  tipo:   'nacional' | 'empresa';
+}
+
+export interface FeriadoNacionalDto {
+  fecha:  string;
+  nombre: string;
+  tipo:   'nacional';
+}
+
 @Injectable({ providedIn: 'root' })
 export class RrhhService {
   private readonly api = environment.apiUrl;
@@ -339,6 +352,28 @@ export class RrhhService {
 
   getEmpresaInfo(): Observable<{ razon_social: string; ruc: string; regimen_tributario: string; direccion?: string; telefono?: string }> {
     return this.http.get<any>(`${this.api}/planilla/empresa-info`);
+  }
+
+  // ── Feriados ─────────────────────────────────────────────────────────────
+
+  getFeriados(anio?: number): Observable<{ feriados: FeriadoDto[] }> {
+    const qs = anio ? `?anio=${anio}` : '';
+    return this.http.get<{ feriados: FeriadoDto[] }>(`${this.api}/rrhh/feriados${qs}`);
+  }
+
+  getFeriadosNacionales(anio?: number): Observable<{ feriados: FeriadoNacionalDto[] }> {
+    const qs = anio ? `?anio=${anio}` : '';
+    return this.http.get<{ feriados: FeriadoNacionalDto[] }>(
+      `${this.api}/rrhh/feriados/nacionales${qs}`
+    );
+  }
+
+  crearFeriado(body: { fecha: string; nombre: string; tipo: string }): Observable<FeriadoDto> {
+    return this.http.post<FeriadoDto>(`${this.api}/rrhh/feriados`, body);
+  }
+
+  eliminarFeriado(id: string): Observable<{ mensaje: string }> {
+    return this.http.delete<{ mensaje: string }>(`${this.api}/rrhh/feriados/${id}`);
   }
 
   // ── Reportes ─────────────────────────────────────────────────────────────
