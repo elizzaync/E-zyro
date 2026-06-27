@@ -759,6 +759,7 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   feriadoFormError  = '';
   feriadoFormLoading= false;
   feriadoFormExito  = '';
+  feriadoToast      = false;
 
   cargarFeriados(): void {
     this.feriadosLoading = true; this.feriadosError = '';
@@ -801,9 +802,14 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.rrhhService.crearFeriado(this.feriadoForm).subscribe({
       next: () => {
         this.feriadoFormLoading = false;
-        this.feriadoFormExito = 'Feriado registrado correctamente.';
+        this.feriadoFormExito = '¡Feriado agregado!';
         this.cargarFeriados();
-        setTimeout(() => { this.cerrarNuevoFeriado(); this.feriadoFormExito = ''; }, 1400);
+        setTimeout(() => {
+          this.cerrarNuevoFeriado();
+          this.feriadoFormExito = '';
+          this.feriadoToast = true;
+          setTimeout(() => { this.feriadoToast = false; }, 3200);
+        }, 900);
       },
       error: (err) => {
         this.feriadoFormError  = err?.error?.detail ?? 'Error al guardar.';

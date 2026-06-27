@@ -792,7 +792,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1200;
+  z-index: 9000;
   backdrop-filter: blur(3px);
 }
 
@@ -1302,7 +1302,55 @@
 }
 .error-text { color: #dc2626; }
 
-.turnos-table-wrap { overflow-x: auto; }
+.turnos-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  margin: 0 20px 20px;
+}
+
+/* ── Tabla de feriados ─────────────────────────────────────────────────── */
+.turnos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  color: var(--text-main, #1e293b);
+}
+
+.turnos-table thead th {
+  background: var(--input-bg, #f8fafc);
+  color: var(--text-muted, #64748b);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+  text-align: left;
+  border-bottom: 2px solid var(--border-color, #e2e8f0);
+  white-space: nowrap;
+}
+
+.turnos-table thead th.text-center { text-align: center; }
+
+.turnos-table tbody tr {
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  transition: background .12s;
+}
+.turnos-table tbody tr:last-child { border-bottom: none; }
+.turnos-table tbody tr:hover      { background: #faf5ff; }
+
+.turnos-table td {
+  padding: 13px 16px;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+.turnos-table td.text-center { text-align: center; }
+.turnos-table td strong {
+  font-weight: 700;
+  color: var(--text-main, #1e293b);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+}
 
 /* ══════════════════════════════════════════════════════════
    VISTA DIARIA — filtros rediseñados
@@ -1869,4 +1917,77 @@
   .feriado-divider::after  { background: #334155; }
   .feriado-nombre-input    { background: #1e293b; border-color: #334155; color: #f1f5f9; }
   .feriado-nombre-input:focus { border-color: #7c3aed; }
+  .turnos-table-wrap       { border-color: #1e293b; }
+  .turnos-table thead th   { background: #0f172a; color: #64748b; border-bottom-color: #1e293b; }
+  .turnos-table tbody tr   { border-bottom-color: #1e293b; }
+  .turnos-table tbody tr:hover { background: rgba(139,92,246,.07); }
+  .turnos-table td         { color: #e2e8f0; }
+  .turnos-table td strong  { color: #f1f5f9; }
 }
+
+/* ── Toast "Feriado agregado" ──────────────────────────────────────────── */
+.feriado-toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #16a34a;
+  border-radius: 12px;
+  padding: 14px 20px 14px 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+  animation: toastSlideUp .3s cubic-bezier(.34,1.56,.64,1) both;
+  min-width: 240px;
+  max-width: 320px;
+}
+
+.feriado-toast-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #dcfce7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.feriado-toast-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.feriado-toast-text strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #15803d;
+  line-height: 1.2;
+}
+.feriado-toast-text span {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+@keyframes toastSlideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+:host-context(html[data-theme="dark"]) .feriado-toast {
+  background: #0f172a;
+  border-color: #14532d;
+  border-left-color: #22c55e;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+:host-context(html[data-theme="dark"]) .feriado-toast-icon {
+  background: rgba(22,163,74,.2);
+  color: #4ade80;
+}
+:host-context(html[data-theme="dark"]) .feriado-toast-text strong { color: #4ade80; }
+:host-context(html[data-theme="dark"]) .feriado-toast-text span   { color: #94a3b8; }
