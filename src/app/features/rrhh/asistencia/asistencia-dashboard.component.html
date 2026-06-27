@@ -1032,7 +1032,7 @@
      MODAL CREAR TURNO (moved outside turnos @if block)
 ═══════════════════════════════════════════════════════════════════════════ -->
 @if (showCrearTurno) {
-  <app-modal title="Nuevo Turno" (closed)="cerrarCrearTurno()">
+  <app-modal [open]="true" title="Nuevo Turno" (closeModal)="cerrarCrearTurno()">
     <div class="modal-form">
       @if (crearTurnoExito) { <div class="alert-success">{{ crearTurnoExito }}</div> }
       @if (crearTurnoError) { <div class="alert-error">{{ crearTurnoError }}</div> }
@@ -1075,7 +1075,7 @@
      MODAL ASIGNAR TURNO (moved outside turnos @if block)
 ═══════════════════════════════════════════════════════════════════════════ -->
 @if (showAsignarTurno) {
-  <app-modal title="Asignar Turno a Empleado" (closed)="cerrarAsignarTurno()">
+  <app-modal [open]="true" title="Asignar Turno a Empleado" (closeModal)="cerrarAsignarTurno()">
     <div class="modal-form">
       @if (asignarExito) { <div class="alert-success">{{ asignarExito }}</div> }
       @if (asignarError) { <div class="alert-error">{{ asignarError }}</div> }
