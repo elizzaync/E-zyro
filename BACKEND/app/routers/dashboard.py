@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc, extract, func, case, or_, cast, Date
 from typing import Dict, Any, Optional
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from collections import defaultdict
 import calendar
 import traceback
@@ -917,12 +917,20 @@ def obtener_estadisticas_perfil(current_user: dict = Depends(verificar_token), d
 
 
 @router.get("/perfil/asistencia")
-def obtener_asistencia_perfil(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+def obtener_asistencia_perfil(
+    mes:  Optional[int] = None,
+    anio: Optional[int] = None,
+    current_user: dict = Depends(verificar_token),
+    db: Session = Depends(get_db)
+):
     """
-    Retorna los registros de asistencia del empleado autenticado para los últimos 30 días,
-    agrupados por día con entrada, salida, horas trabajadas, localización y estado.
+    Retorna los registros de asistencia del empleado autenticado.
+    Si se pasan ?mes=&anio= devuelve solo ese mes; si no, devuelve los últimos 90 días.
     """
     try:
+        from app.models.turno import Turno, TurnoEmpleado
+        from datetime import time as _time
+
         usuario_id = current_user.get("id")
         empleado   = db.query(Empleado).filter(Empleado.usuario_id == usuario_id).first()
 
@@ -932,13 +940,40 @@ def obtener_asistencia_perfil(current_user: dict = Depends(verificar_token), db:
                 "resumen": {"dias_asistidos": 0, "promedio_horas": "—"}
             }}
 
-        hoy    = date.today()
-        inicio = datetime.combine(hoy - timedelta(days=29), datetime.min.time())
+        hoy = date.today()
+        if mes and anio:
+            import calendar as _cal
+            fecha_inicio_rango = date(anio, mes, 1)
+            fecha_fin_rango    = date(anio, mes, _cal.monthrange(anio, mes)[1])
+        else:
+            fecha_inicio_rango = hoy - timedelta(days=89)
+            fecha_fin_rango    = hoy
+        inicio = datetime.combine(fecha_inicio_rango, datetime.min.time())
+        fin    = datetime.combine(fecha_fin_rango,    time(23, 59, 59))
 
         registros_db = db.query(RegistroAsistencia).filter(
             RegistroAsistencia.empleado_id == empleado.id,
-            RegistroAsistencia.fecha_hora  >= inicio
+            RegistroAsistencia.fecha_hora  >= inicio,
+            RegistroAsistencia.fecha_hora  <= fin,
         ).order_by(RegistroAsistencia.fecha_hora).all()
+
+        # Cargar asignaciones de turno activas del empleado
+        asigns_turno = (
+            db.query(TurnoEmpleado, Turno)
+            .join(Turno, Turno.id == TurnoEmpleado.turno_id)
+            .filter(
+                TurnoEmpleado.empleado_id == empleado.id,
+                TurnoEmpleado.activo == True,
+                Turno.activo == True,
+            ).all()
+        )
+
+        def _turno_del_dia(dia: date):
+            for te, turno in asigns_turno:
+                if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
+                    tol = turno.tolerancia_minutos if turno.tolerancia_minutos is not None else 10
+                    return (turno.hora_entrada, tol)
+            return (_time(8, 0), 10)
 
         por_dia: dict = defaultdict(lambda: {"entradas": [], "salidas": [], "observacion": ""})
         for r in registros_db:
@@ -964,19 +999,31 @@ def obtener_asistencia_perfil(current_user: dict = Depends(verificar_token), db:
             salida_dt  = max(d["salidas"])  if d["salidas"]  else None
 
             if entrada_dt and salida_dt:
-                segs      = (salida_dt - entrada_dt).total_seconds()
-                mins_tot  = int(segs // 60)
-                h, m      = divmod(mins_tot, 60)
-                horas_txt = f"{h}h {m:02d}m" if m else f"{h}h"
-                estado    = "completo"
+                segs              = (salida_dt - entrada_dt).total_seconds()
+                horas_num         = round(segs / 3600, 2)
+                mins_tot          = int(segs // 60)
+                h, m              = divmod(mins_tot, 60)
+                horas_txt         = f"{h}h {m:02d}m" if m else f"{h}h"
+                estado            = "completo"
             elif entrada_dt:
-                horas_txt = "En curso"
-                estado    = "en_curso"
+                horas_num         = 0.0
+                horas_txt         = "En curso"
+                estado            = "en_curso"
             else:
-                horas_txt = "—"
-                estado    = "incompleto"
+                horas_num         = 0.0
+                horas_txt         = "—"
+                estado            = "incompleto"
+
+            hora_turno, tol = _turno_del_dia(fecha_o)
+            if entrada_dt:
+                actual_min  = entrada_dt.hour * 60 + entrada_dt.minute
+                limite_min  = hora_turno.hour * 60 + hora_turno.minute + tol
+                tardanza    = actual_min > limite_min
+            else:
+                tardanza = False
 
             resultado.append({
+                "fecha":            fecha_str,
                 "dia":              f"{fecha_o.day:02d}",
                 "mes":              meses_es[fecha_o.month],
                 "anio":             str(fecha_o.year),
@@ -985,6 +1032,8 @@ def obtener_asistencia_perfil(current_user: dict = Depends(verificar_token), db:
                 "entrada":          entrada_dt.strftime("%H:%M") if entrada_dt else None,
                 "salida":           salida_dt.strftime("%H:%M")  if salida_dt  else None,
                 "horas_trabajadas": horas_txt,
+                "horas_trabajadas_num": horas_num,
+                "tardanza":         tardanza,
                 "estado":           estado,
                 "localizacion":     d["observacion"] or "Sede Principal"
             })
@@ -1144,14 +1193,17 @@ def obtener_permisos_laborales(current_user: dict = Depends(verificar_token), db
             fi = s.fecha_inicio
             ff = s.fecha_fin
             data.append({
-                "id":           str(s.id),
-                "titulo":       titulo,
-                "tipo":         s.tipo,
-                "estado":       estado_label.get(s.estado, s.estado.title()),
-                "fecha":        fecha_fmt,
-                "fecha_inicio": f"{fi.day} {meses[fi.month]}, {fi.year}" if fi else None,
-                "fecha_fin":    f"{ff.day} {meses[ff.month]}, {ff.year}" if ff else None,
-                "url":          getattr(s, 'url_pdf', None),
+                "id":              str(s.id),
+                "titulo":          titulo,
+                "tipo":            s.tipo,
+                "estado":          estado_label.get(s.estado, s.estado.title()),
+                "estado_raw":      s.estado,
+                "fecha":           fecha_fmt,
+                "fecha_inicio":    f"{fi.day} {meses[fi.month]}, {fi.year}" if fi else None,
+                "fecha_fin":       f"{ff.day} {meses[ff.month]}, {ff.year}" if ff else None,
+                "fecha_inicio_iso": fi.isoformat() if fi else None,
+                "fecha_fin_iso":   ff.isoformat() if ff else None,
+                "url":             getattr(s, 'url_pdf', None),
             })
         return {"status": "success", "data": data}
     except Exception as e:
