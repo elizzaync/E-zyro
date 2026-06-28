@@ -336,6 +336,65 @@ def resumen_asistencia(
 # NOTA: este endpoint DEBE definirse ANTES de /{empleado_id}/detalle para que
 #       FastAPI no interprete "diario" como un empleado_id.
 
+@router.get("/rrhh/asistencia/justificaciones")
+def listar_justificaciones_tardanza(
+    estado:      Optional[str] = Query(None),
+    empleado_id: Optional[str] = Query(None),
+    fecha_inicio: Optional[date] = Query(None),
+    fecha_fin:    Optional[date] = Query(None),
+    db:      Session = Depends(get_db),
+    payload: dict    = Depends(verificar_token),
+):
+    """Lista todas las justificaciones de tardanza de la empresa, con info del empleado."""
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+
+    q = (
+        db.query(SolicitudLaboral, Empleado, Usuario)
+        .join(Empleado, Empleado.id == SolicitudLaboral.empleado_id)
+        .join(Usuario, Usuario.id == Empleado.usuario_id)
+        .filter(
+            SolicitudLaboral.empresa_id == empresa_id,
+            SolicitudLaboral.tipo == "justificacion_tardanza",
+        )
+    )
+    if estado and estado in {"pendiente", "aprobada", "rechazada"}:
+        q = q.filter(SolicitudLaboral.estado == estado)
+    if empleado_id:
+        q = q.filter(SolicitudLaboral.empleado_id == empleado_id)
+    if fecha_inicio:
+        q = q.filter(SolicitudLaboral.fecha_inicio >= fecha_inicio)
+    if fecha_fin:
+        q = q.filter(SolicitudLaboral.fecha_inicio <= fecha_fin)
+
+    rows = q.order_by(SolicitudLaboral.created_at.desc()).all()
+
+    def _sol(sol: SolicitudLaboral, emp: Empleado, usr: Usuario) -> dict:
+        nombre = f"{usr.nombre} {usr.apellido}".strip()
+        iniciales = (
+            (usr.nombre[0] if usr.nombre else "") +
+            (usr.apellido[0] if usr.apellido else "")
+        ).upper() or "?"
+        return {
+            "id":            sol.id,
+            "estado":        sol.estado,
+            "fecha_tardanza": sol.fecha_inicio.isoformat() if sol.fecha_inicio else None,
+            "descripcion":   sol.descripcion or "",
+            "observacion":   sol.observacion or "",
+            "created_at":    sol.created_at.isoformat() if sol.created_at else None,
+            "fecha_aprobacion": sol.fecha_aprobacion.isoformat() if sol.fecha_aprobacion else None,
+            "empleado": {
+                "id":            emp.id,
+                "nombreCompleto": nombre,
+                "cargo":         emp.cargo or "",
+                "iniciales":     iniciales,
+                "fotoUrl":       usr.foto_url or "",
+            },
+        }
+
+    return {"justificaciones": [_sol(s, e, u) for s, e, u in rows]}
+
+
 @router.get("/rrhh/asistencia/diario")
 def asistencia_diaria(
     fecha:   date = Query(...),
@@ -344,7 +403,8 @@ def asistencia_diaria(
     db:      Session = Depends(get_db),
     payload: dict    = Depends(verificar_token),
 ):
-    """Vista diaria: todos los empleados activos para la fecha indicada."""
+    """Vista diaria turno-aware: puntualidad evaluada contra el turno real de cada empleado."""
+    from ..models.turno import Turno, TurnoEmpleado
     exigir_no_tecnico(payload)
     empresa_id = payload["empresa_id"]
 
@@ -371,6 +431,39 @@ def asistencia_diaria(
         .all()
     )
 
+    # Justificaciones aprobadas para ese día (tardanzas aceptadas)
+    just_aprobadas: set[str] = set()
+    for sol in db.query(SolicitudLaboral).filter(
+        SolicitudLaboral.empresa_id == empresa_id,
+        SolicitudLaboral.tipo == "justificacion_tardanza",
+        SolicitudLaboral.estado == "aprobada",
+        SolicitudLaboral.fecha_inicio == fecha,
+    ).all():
+        just_aprobadas.add(str(sol.empleado_id))
+
+    # Turnos asignados activos para el día
+    asigns_dia = (
+        db.query(TurnoEmpleado, Turno)
+        .join(Turno, Turno.id == TurnoEmpleado.turno_id)
+        .filter(
+            Turno.empresa_id == empresa_id,
+            TurnoEmpleado.activo == True, Turno.activo == True,
+            TurnoEmpleado.fecha_desde <= fecha,
+            or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= fecha),
+        ).all()
+    )
+    turno_por_emp: dict[str, tuple] = {}
+    for te, turno in asigns_dia:
+        turno_por_emp[str(te.empleado_id)] = (
+            turno.hora_entrada,
+            turno.tolerancia_minutos if turno.tolerancia_minutos is not None else 10,
+            turno.nombre,
+        )
+
+    # Feriado?
+    es_feriado = fecha in _feriados_set(db, empresa_id, fecha, fecha)
+    es_lab = fecha.weekday() < 6  # Lun-Sáb
+
     reg_ids = [r.id for r in registros]
     geos: dict[str, GeolocalizacionAsistencia] = {}
     if reg_ids:
@@ -382,8 +475,6 @@ def asistencia_diaria(
     regs_por_emp: dict[str, list] = {}
     for r in registros:
         regs_por_emp.setdefault(r.empleado_id, []).append(r)
-
-    es_lab = fecha.weekday() < 6  # Lun-Sáb
 
     def _geo(reg):
         if not reg:
@@ -412,7 +503,27 @@ def asistencia_diaria(
         fin_alm  = next((r for r in regs if r.tipo == "salida_almuerzo"),  None)
 
         horas  = _horas_dia(regs)
-        estado = _estado_dia(regs, horas, es_lab)
+
+        # Determinar estado turno-aware
+        if es_feriado:
+            estado = "Feriado"
+        elif not es_lab:
+            estado = "—"
+        elif str(emp.id) in just_aprobadas:
+            estado = "Justificado"
+        else:
+            t_info = turno_por_emp.get(str(emp.id))
+            if t_info:
+                t_ent, t_tol, _ = t_info
+                estado = _estado_dia_turno(regs, horas, t_ent, t_tol, META_HORAS_DIA)
+            else:
+                estado = _estado_dia_turno(regs, horas, _CRONO_ENTRADA, _CRONO_TOLERANCIA, META_HORAS_DIA)
+
+        t_info = turno_por_emp.get(str(emp.id))
+        turno_label = (
+            f"{t_info[2]} · {t_info[0].strftime('%H:%M')}" if t_info
+            else "Horario normal · 08:00"
+        )
 
         nombre    = f"{usr.nombre} {usr.apellido}".strip()
         iniciales = (
@@ -439,6 +550,8 @@ def asistencia_diaria(
             "geo_ingreso":     _geo(entrada),
             "geo_salida":      _geo(salida),
             "estado":          estado,
+            "turno_label":     turno_label,
+            "justificado":     str(emp.id) in just_aprobadas,
         })
 
     offset = (page - 1) * limit
