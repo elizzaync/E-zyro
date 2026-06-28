@@ -83,6 +83,14 @@ export interface CrearTurnoIn {
   tolerancia_minutos: number;
 }
 
+export interface EditarTurnoIn {
+  nombre?: string;
+  hora_entrada?: string;
+  hora_salida?: string;
+  duracion_almuerzo_minutos?: number;
+  tolerancia_minutos?: number;
+}
+
 export interface AsignarTurnoIn {
   empleado_id: string;
   turno_id: string;
@@ -126,6 +134,20 @@ export class AsistenciaService {
 
   crearTurno(body: CrearTurnoIn): Observable<{ ok: boolean; id: string }> {
     return this.http.post<{ ok: boolean; id: string }>(`${this.api}/asistencia/turnos`, body);
+  }
+
+  editarTurno(id: string, body: EditarTurnoIn): Observable<{ ok: boolean; turno: TurnoDto }> {
+    return this.http.put<{ ok: boolean; turno: TurnoDto }>(`${this.api}/asistencia/turnos/${id}`, body);
+  }
+
+  desactivarTurno(id: string): Observable<{ ok: boolean; mensaje: string }> {
+    return this.http.put<{ ok: boolean; mensaje: string }>(`${this.api}/asistencia/turnos/${id}/desactivar`, {});
+  }
+
+  asignarTurnoATodos(turnoId: string): Observable<{ ok: boolean; asignados: number; mensaje: string }> {
+    return this.http.post<{ ok: boolean; asignados: number; mensaje: string }>(
+      `${this.api}/asistencia/turnos/${turnoId}/asignar-todos`, {}
+    );
   }
 
   asignarTurno(body: AsignarTurnoIn): Observable<{ ok: boolean; id: string }> {

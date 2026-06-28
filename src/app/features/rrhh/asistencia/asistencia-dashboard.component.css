@@ -1543,6 +1543,29 @@
   letter-spacing: .01em;
 }
 
+/* Botón Nuevo Turno mejorado */
+.btn-nuevo-turno {
+  padding: 9px 20px !important;
+  font-size: 14px !important;
+  gap: 8px !important;
+  border-radius: 10px !important;
+}
+
+/* Acciones por fila de turno */
+.turno-row-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn-turno-action {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 7px; font-size: 12px; font-weight: 500;
+  border: 1.5px solid; cursor: pointer; transition: all .18s; background: transparent;
+}
+.btn-turno-asignar { border-color: #22c55e; color: #15803d; }
+.btn-turno-asignar:hover:not(:disabled) { background: #22c55e; color: #fff; }
+.btn-turno-asignar:disabled { opacity: .45; cursor: not-allowed; }
+.btn-turno-edit    { border-color: #3b82f6; color: #1d4ed8; }
+.btn-turno-edit:hover  { background: #3b82f6; color: #fff; }
+.btn-turno-off     { border-color: #ef4444; color: #b91c1c; }
+.btn-turno-off:hover   { background: #ef4444; color: #fff; }
+
 /* ══════════════════════════════════════════════════════════
    VISTA DIARIA — filtros rediseñados
    ══════════════════════════════════════════════════════════ */

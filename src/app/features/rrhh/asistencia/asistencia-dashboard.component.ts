@@ -21,6 +21,7 @@ import {
   AsistenciaService,
   TurnoDto,
   CrearTurnoIn,
+  EditarTurnoIn,
   AsignarTurnoIn,
   TurnoAsignacionDto,
 } from '../../../core/services/asistencia.service';
@@ -252,17 +253,50 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   turnoAsignaciones:     TurnoAsignacionDto[] = [];
   turnoAsignLoading      = false;
 
-  showCrearTurno   = false;
+  showCrearTurno    = false;
   crearTurnoLoading = false;
-  crearTurnoError  = '';
-  crearTurnoExito  = '';
+  crearTurnoError   = '';
+  crearTurnoExito   = '';
   formTurno: CrearTurnoIn = this.turnoVacio();
+
+  showEditarTurno    = false;
+  editarTurnoLoading = false;
+  editarTurnoError   = '';
+  editarTurnoExito   = '';
+  turnoEditando: TurnoDto | null = null;
+  formEditar: EditarTurnoIn & { nombre: string; hora_entrada: string; hora_salida: string; duracion_almuerzo_minutos: number; tolerancia_minutos: number } = this.turnoVacio() as any;
+
+  asignarTodosLoading = false;
+  asignarTodosMsg     = '';
 
   showAsignarTurno  = false;
   asignarLoading    = false;
   asignarError      = '';
   asignarExito      = '';
   formAsignar: AsignarTurnoIn & { fecha_desde: string; fecha_hasta: string } = this.asignarVacio();
+
+  // ── Polling justificaciones en tiempo real ────────────────────────────────
+  private justPollInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly JUST_POLL_MS = 30_000;
+
+  private startJustPolling(): void {
+    this.stopJustPolling();
+    this.justPollInterval = setInterval(() => {
+      if (this.activeTab === 'justificaciones') {
+        this.rrhhService.getJustificacionesTardanza().subscribe({
+          next: (res) => { this.justList = res.justificaciones; },
+          error: () => {},
+        });
+      }
+    }, this.JUST_POLL_MS);
+  }
+
+  private stopJustPolling(): void {
+    if (this.justPollInterval !== null) {
+      clearInterval(this.justPollInterval);
+      this.justPollInterval = null;
+    }
+  }
 
   // ── Mapa (compartido) ──────────────────────────────────────────────────────
   showMapModal   = false;
@@ -285,6 +319,7 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyMap();
+    this.stopJustPolling();
   }
 
   setTab(tab: 'semanal' | 'diaria' | 'justificaciones' | 'turnos' | 'feriados'): void {
@@ -292,8 +327,11 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     if (tab === 'diaria' && this.diariaEmpleados.length === 0) {
       this.cargarDiaria();
     }
-    if (tab === 'justificaciones' && this.justList.length === 0) {
-      this.cargarJustificaciones();
+    if (tab === 'justificaciones') {
+      if (this.justList.length === 0) this.cargarJustificaciones();
+      this.startJustPolling();
+    } else {
+      this.stopJustPolling();
     }
     if (tab === 'turnos' && this.turnos.length === 0) {
       this.cargarTurnos();
@@ -821,6 +859,61 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.showCrearTurno = true;
   }
   cerrarCrearTurno(): void { this.showCrearTurno = false; }
+
+  abrirEditarTurno(t: TurnoDto): void {
+    this.turnoEditando = t;
+    this.formEditar = {
+      nombre: t.nombre,
+      hora_entrada: t.hora_entrada,
+      hora_salida: t.hora_salida,
+      duracion_almuerzo_minutos: t.duracion_almuerzo_minutos,
+      tolerancia_minutos: t.tolerancia_minutos,
+    };
+    this.editarTurnoError = ''; this.editarTurnoExito = '';
+    this.showEditarTurno = true;
+  }
+
+  cerrarEditarTurno(): void { this.showEditarTurno = false; this.turnoEditando = null; }
+
+  guardarEdicionTurno(): void {
+    if (!this.turnoEditando) return;
+    if (!this.formEditar.nombre?.trim()) { this.editarTurnoError = 'El nombre es obligatorio.'; return; }
+    this.editarTurnoLoading = true; this.editarTurnoError = '';
+    this.asistenciaService.editarTurno(this.turnoEditando.id, this.formEditar).subscribe({
+      next: () => {
+        this.editarTurnoLoading = false;
+        this.editarTurnoExito = 'Turno actualizado.';
+        this.cargarTurnos();
+        setTimeout(() => { this.cerrarEditarTurno(); this.editarTurnoExito = ''; }, 1200);
+      },
+      error: (e) => { this.editarTurnoError = e?.error?.detail ?? 'Error al actualizar.'; this.editarTurnoLoading = false; },
+    });
+  }
+
+  desactivarTurno(t: TurnoDto): void {
+    if (!confirm(`¿Deshabilitar el turno "${t.nombre}"? Se cerrarán todas sus asignaciones activas.`)) return;
+    this.asistenciaService.desactivarTurno(t.id).subscribe({
+      next: (r) => { alert(r.mensaje); this.cargarTurnos(); },
+      error: (e) => { alert(e?.error?.detail ?? 'Error al deshabilitar.'); },
+    });
+  }
+
+  asignarATodos(t: TurnoDto): void {
+    if (!confirm(`¿Asignar el turno "${t.nombre}" a todos los empleados sin turno activo?`)) return;
+    this.asignarTodosLoading = true; this.asignarTodosMsg = '';
+    this.asistenciaService.asignarTurnoATodos(t.id).subscribe({
+      next: (r) => {
+        this.asignarTodosLoading = false;
+        this.asignarTodosMsg = r.mensaje;
+        this.cargarTurnos();
+        setTimeout(() => { this.asignarTodosMsg = ''; }, 4000);
+      },
+      error: (e) => {
+        this.asignarTodosLoading = false;
+        this.asignarTodosMsg = e?.error?.detail ?? 'Error al asignar.';
+      },
+    });
+  }
 
   guardarTurno(): void {
     if (!this.formTurno.nombre.trim()) { this.crearTurnoError = 'El nombre es obligatorio.'; return; }
