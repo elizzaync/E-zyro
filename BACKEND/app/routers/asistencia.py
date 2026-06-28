@@ -1167,6 +1167,30 @@ def _parse_hhmm(valor: str) -> time:
         raise HTTPException(status_code=422, detail=f"Hora inválida: {valor} (use HH:MM)")
 
 
+class TurnoEditar(BaseModel):
+    nombre:                    Optional[str] = None
+    hora_entrada:              Optional[str] = None
+    hora_salida:               Optional[str] = None
+    duracion_almuerzo_minutos: Optional[int] = None
+    tolerancia_minutos:        Optional[int] = None
+
+
+def _turno_dict(t: "Turno") -> dict:
+    from ..models.turno import Turno as _T  # local import to avoid circular
+    return {
+        "id":                        str(t.id),
+        "nombre":                    t.nombre,
+        "hora_entrada":              t.hora_entrada.strftime("%H:%M"),
+        "hora_salida":               t.hora_salida.strftime("%H:%M"),
+        "duracion_almuerzo_minutos": t.duracion_almuerzo_minutos or 0,
+        "tolerancia_minutos":        t.tolerancia_minutos or 0,
+        "horas_netas": round(
+            (_min_entre(t.hora_entrada, t.hora_salida) - (t.duracion_almuerzo_minutos or 0)) / 60, 2
+        ),
+        "activo": t.activo,
+    }
+
+
 @router.get("/turnos")
 def listar_turnos(
     payload: dict    = Depends(verificar_token),
@@ -1181,20 +1205,7 @@ def listar_turnos(
         .order_by(Turno.nombre.asc())
         .all()
     )
-    return [
-        {
-            "id":                        str(t.id),
-            "nombre":                    t.nombre,
-            "hora_entrada":              t.hora_entrada.strftime("%H:%M"),
-            "hora_salida":               t.hora_salida.strftime("%H:%M"),
-            "duracion_almuerzo_minutos": t.duracion_almuerzo_minutos or 0,
-            "tolerancia_minutos":        t.tolerancia_minutos or 0,
-            "horas_netas": round(
-                (_min_entre(t.hora_entrada, t.hora_salida) - (t.duracion_almuerzo_minutos or 0)) / 60, 2
-            ),
-        }
-        for t in rows
-    ]
+    return [_turno_dict(t) for t in rows]
 
 
 @router.post("/turnos")
@@ -1203,7 +1214,7 @@ def crear_turno(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Crea un turno (p. ej. 'Practicante 08:00–13:00'). Solo Técnicos bloqueados."""
+    """Crea un turno. Solo Técnicos bloqueados."""
     exigir_no_tecnico(payload)
     empresa_id = payload["empresa_id"]
     turno = Turno(
@@ -1217,7 +1228,114 @@ def crear_turno(
     )
     db.add(turno)
     db.commit()
-    return {"ok": True, "id": str(turno.id)}
+    return {"ok": True, "id": str(turno.id), "turno": _turno_dict(turno)}
+
+
+@router.put("/turnos/{turno_id}")
+def editar_turno(
+    turno_id: str,
+    body:     TurnoEditar,
+    payload:  dict    = Depends(verificar_token),
+    db:       Session = Depends(get_db),
+):
+    """Edita nombre, horario, tolerancia o almuerzo de un turno existente."""
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+    turno = db.query(Turno).filter(
+        Turno.id == turno_id, Turno.empresa_id == empresa_id, Turno.activo == True
+    ).first()
+    if not turno:
+        raise HTTPException(404, "Turno no encontrado")
+
+    if body.nombre is not None:
+        turno.nombre = body.nombre.strip()
+    if body.hora_entrada is not None:
+        turno.hora_entrada = _parse_hhmm(body.hora_entrada)
+    if body.hora_salida is not None:
+        turno.hora_salida = _parse_hhmm(body.hora_salida)
+    if body.duracion_almuerzo_minutos is not None:
+        turno.duracion_almuerzo_minutos = max(body.duracion_almuerzo_minutos, 0)
+    if body.tolerancia_minutos is not None:
+        turno.tolerancia_minutos = max(body.tolerancia_minutos, 0)
+
+    db.commit()
+    db.refresh(turno)
+    return {"ok": True, "turno": _turno_dict(turno)}
+
+
+@router.put("/turnos/{turno_id}/desactivar")
+def desactivar_turno(
+    turno_id: str,
+    payload:  dict    = Depends(verificar_token),
+    db:       Session = Depends(get_db),
+):
+    """Desactiva un turno y cierra todas sus asignaciones activas."""
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+    turno = db.query(Turno).filter(
+        Turno.id == turno_id, Turno.empresa_id == empresa_id
+    ).first()
+    if not turno:
+        raise HTTPException(404, "Turno no encontrado")
+
+    turno.activo = False
+    # Cerrar todas las asignaciones activas de este turno
+    db.query(TurnoEmpleado).filter(
+        TurnoEmpleado.turno_id == turno_id,
+        TurnoEmpleado.activo == True,
+    ).update({"activo": False, "fecha_hasta": date.today()}, synchronize_session=False)
+
+    db.commit()
+    return {"ok": True, "mensaje": f"Turno '{turno.nombre}' desactivado"}
+
+
+@router.post("/turnos/{turno_id}/asignar-todos")
+def asignar_turno_a_todos(
+    turno_id: str,
+    payload:  dict    = Depends(verificar_token),
+    db:       Session = Depends(get_db),
+):
+    """Asigna este turno a TODOS los empleados activos que no tengan asignación vigente."""
+    exigir_no_tecnico(payload)
+    empresa_id = payload["empresa_id"]
+
+    turno = db.query(Turno).filter(
+        Turno.id == turno_id, Turno.empresa_id == empresa_id, Turno.activo == True
+    ).first()
+    if not turno:
+        raise HTTPException(404, "Turno no encontrado")
+
+    # Empleados activos con asignación vigente
+    con_turno = {
+        str(te.empleado_id)
+        for te in db.query(TurnoEmpleado).filter(TurnoEmpleado.activo == True).all()
+    }
+
+    empleados_sin_turno = db.query(Empleado).filter(
+        Empleado.empresa_id == empresa_id,
+        Empleado.activo == True,
+    ).all()
+
+    asignados = 0
+    hoy = date.today()
+    for emp in empleados_sin_turno:
+        if str(emp.id) in con_turno:
+            continue
+        db.add(TurnoEmpleado(
+            empleado_id = emp.id,
+            turno_id    = turno_id,
+            fecha_desde = hoy,
+            fecha_hasta = None,
+            activo      = True,
+        ))
+        asignados += 1
+
+    db.commit()
+    return {
+        "ok":       True,
+        "asignados": asignados,
+        "mensaje":  f"Se asignó '{turno.nombre}' a {asignados} empleado(s) sin turno previo",
+    }
 
 
 @router.post("/turno-empleado")
