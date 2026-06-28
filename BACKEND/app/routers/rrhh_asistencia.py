@@ -674,8 +674,8 @@ def detalle_diario(
             return dt.strftime("%H:%M") if dt else None
 
         dur_alm = None
-        if ini_alm and fin_alm and fin_alm > ini_alm:
-            mins = int((fin_alm - ini_alm).total_seconds() / 60)
+        if ini_alm and fin_alm and fin_alm.fecha_hora > ini_alm.fecha_hora:
+            mins = int((fin_alm.fecha_hora - ini_alm.fecha_hora).total_seconds() / 60)
             dur_alm = f"{mins} min"
 
         filas.append({
@@ -898,19 +898,32 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
         horas_extra     = max(0.0, horas_total - meta_horas)
         porcentaje      = round((horas_total / meta_horas * 100) if meta_horas > 0 else 0.0, 1)
 
+        # Permanencia Extra aprobada: solicitudes tipo='permanencia_extra' con
+        # estado='aprobada' (ya filtrado en todas_solicitudes). El campo `dias`
+        # almacena las horas autorizadas en este tipo de solicitud.
+        perm_extra_h = float(sum(
+            s.dias or 0
+            for s in solis
+            if s.tipo == "permanencia_extra"
+        ))
+        horas_extra_aprobadas  = round(min(horas_extra, perm_extra_h), 2)
+        horas_extra_no_autor   = round(max(0.0, horas_extra - horas_extra_aprobadas), 2)
+
         filas.append({
-            "nombre":             f"{usr.nombre} {usr.apellido}".strip(),
-            "cargo":              emp.cargo or "",
-            "area":               _resolve_area(emp.area, area_nombres),
-            "horas_reales":       round(horas_reales,       2),
-            "horas_justificadas": round(horas_justificadas, 2),
-            "horas_total":        round(horas_total,        2),
-            "horas_faltantes":    round(horas_faltantes,    2),
-            "horas_extra":        round(horas_extra,        2),
-            "meta_horas":         meta_horas,
-            "porcentaje":         porcentaje,
-            "faltas":             faltas,
-            "tardanzas":          tardanzas,
+            "nombre":                  f"{usr.nombre} {usr.apellido}".strip(),
+            "cargo":                   emp.cargo or "",
+            "area":                    _resolve_area(emp.area, area_nombres),
+            "horas_reales":            round(horas_reales,       2),
+            "horas_justificadas":      round(horas_justificadas, 2),
+            "horas_total":             round(horas_total,        2),
+            "horas_faltantes":         round(horas_faltantes,    2),
+            "horas_extra":             round(horas_extra,        2),
+            "horas_extra_aprobadas":   horas_extra_aprobadas,
+            "horas_extra_no_autor":    horas_extra_no_autor,
+            "meta_horas":              meta_horas,
+            "porcentaje":              porcentaje,
+            "faltas":                  faltas,
+            "tardanzas":               tardanzas,
         })
 
     return filas, meta_horas
