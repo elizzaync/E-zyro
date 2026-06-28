@@ -369,6 +369,25 @@ def listar_justificaciones_tardanza(
 
     rows = q.order_by(SolicitudLaboral.created_at.desc()).all()
 
+    _TECNICO_TAGS = (
+        " | Hora entrada registrada:",
+        " | Hora declarada:",
+        "Hora entrada registrada:",
+        "Hora declarada:",
+    )
+
+    def _limpiar_obs(raw: str) -> str:
+        """Elimina el metadata técnico del migrador (registro_asistencia_id, etc.)."""
+        if not raw:
+            return ""
+        for tag in (" | Hora entrada registrada:", " | Hora declarada:"):
+            idx = raw.find(tag)
+            if idx != -1:
+                return raw[:idx].strip()
+        if raw.startswith("Hora entrada registrada:") or raw.startswith("Hora declarada:"):
+            return ""
+        return raw.strip()
+
     def _sol(sol: SolicitudLaboral, emp: Empleado, usr: Usuario) -> dict:
         nombre = f"{usr.nombre} {usr.apellido}".strip()
         iniciales = (
@@ -380,7 +399,7 @@ def listar_justificaciones_tardanza(
             "estado":        sol.estado,
             "fecha_tardanza": sol.fecha_inicio.isoformat() if sol.fecha_inicio else None,
             "descripcion":   sol.descripcion or "",
-            "observacion":   sol.observacion or "",
+            "observacion":   _limpiar_obs(sol.observacion or ""),
             "created_at":    sol.created_at.isoformat() if sol.created_at else None,
             "fecha_aprobacion": sol.fecha_aprobacion.isoformat() if sol.fecha_aprobacion else None,
             "empleado": {
