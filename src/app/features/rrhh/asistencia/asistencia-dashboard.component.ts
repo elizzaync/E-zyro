@@ -143,11 +143,17 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   justError        = '';
   justFiltroEstado = '';
   justSearch       = '';
+  justPage         = 1;
+  readonly JUST_PER_PAGE = 10;
+
   justEvaluando: string | null = null;
   justEvalObs      = '';
   justEvalError    = '';
   showJustEval     = false;
   justSeleccionada: JustificacionTardanzaDto | null = null;
+
+  showJustDetalle  = false;
+  justDetalleItem: JustificacionTardanzaDto | null = null;
 
   get justFiltrada(): JustificacionTardanzaDto[] {
     let list = this.justList;
@@ -157,12 +163,55 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     return list;
   }
 
+  get justPaginada(): JustificacionTardanzaDto[] {
+    const off = (this.justPage - 1) * this.JUST_PER_PAGE;
+    return this.justFiltrada.slice(off, off + this.JUST_PER_PAGE);
+  }
+
+  get justTotalPag(): number {
+    return Math.max(1, Math.ceil(this.justFiltrada.length / this.JUST_PER_PAGE));
+  }
+
+  get justPaginasBotones(): number[] {
+    const pages: number[] = [];
+    for (let i = Math.max(1, this.justPage - 2); i <= Math.min(this.justTotalPag, this.justPage + 2); i++) pages.push(i);
+    return pages;
+  }
+
+  irPaginaJust(p: number): void {
+    if (p < 1 || p > this.justTotalPag) return;
+    this.justPage = p;
+  }
+
+  aplicarFiltroJust(estado: string): void {
+    this.justFiltroEstado = estado;
+    this.justPage = 1;
+  }
+
+  onSearchJust(): void {
+    this.justPage = 1;
+  }
+
   cargarJustificaciones(): void {
     this.justLoading = true; this.justError = '';
     this.rrhhService.getJustificacionesTardanza().subscribe({
-      next: (res) => { this.justList = res.justificaciones; this.justLoading = false; },
+      next: (res) => { this.justList = res.justificaciones; this.justPage = 1; this.justLoading = false; },
       error: () => { this.justError = 'No se pudieron cargar las justificaciones.'; this.justLoading = false; },
     });
+  }
+
+  abrirDetalleJust(j: JustificacionTardanzaDto): void {
+    this.justDetalleItem = j;
+    this.showJustDetalle = true;
+  }
+
+  cerrarDetalleJust(): void {
+    this.showJustDetalle = false;
+    this.justDetalleItem = null;
+  }
+
+  truncarDesc(s: string, n = 45): string {
+    return s && s.length > n ? s.slice(0, n) + '…' : (s || '—');
   }
 
   abrirEvalJust(j: JustificacionTardanzaDto): void {

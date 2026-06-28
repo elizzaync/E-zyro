@@ -493,13 +493,13 @@
         <div class="just-toolbar">
           <div class="just-search-wrap">
             <svg class="just-search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="just-search" [(ngModel)]="justSearch" placeholder="Buscar empleado…" />
+            <input class="just-search" [(ngModel)]="justSearch" (ngModelChange)="onSearchJust()" placeholder="Buscar empleado…" />
           </div>
           <div class="just-filters">
-            <button class="just-filter-btn" [class.active]="justFiltroEstado === ''"           (click)="justFiltroEstado = ''">Todos</button>
-            <button class="just-filter-btn filter-pendiente" [class.active]="justFiltroEstado === 'pendiente'"   (click)="justFiltroEstado = 'pendiente'">Pendientes</button>
-            <button class="just-filter-btn filter-aprobada"  [class.active]="justFiltroEstado === 'aprobada'"    (click)="justFiltroEstado = 'aprobada'">Aprobadas</button>
-            <button class="just-filter-btn filter-rechazada" [class.active]="justFiltroEstado === 'rechazada'"   (click)="justFiltroEstado = 'rechazada'">Rechazadas</button>
+            <button class="just-filter-btn" [class.active]="justFiltroEstado === ''"           (click)="aplicarFiltroJust('')">Todos</button>
+            <button class="just-filter-btn filter-pendiente" [class.active]="justFiltroEstado === 'pendiente'"   (click)="aplicarFiltroJust('pendiente')">Pendientes</button>
+            <button class="just-filter-btn filter-aprobada"  [class.active]="justFiltroEstado === 'aprobada'"    (click)="aplicarFiltroJust('aprobada')">Aprobadas</button>
+            <button class="just-filter-btn filter-rechazada" [class.active]="justFiltroEstado === 'rechazada'"   (click)="aplicarFiltroJust('rechazada')">Rechazadas</button>
           </div>
           <button class="btn-refresh" (click)="cargarJustificaciones()" title="Recargar">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -536,7 +536,7 @@
                 </tr>
               </thead>
               <tbody>
-                @for (j of justFiltrada; track j.id) {
+                @for (j of justPaginada; track j.id) {
                   <tr class="just-row">
                     <td class="just-emp">
                       @if (j.empleado.fotoUrl) {
@@ -552,7 +552,15 @@
                     <td class="just-fecha">
                       {{ j.fecha_tardanza ? (j.fecha_tardanza | date:'dd/MM/yyyy':'UTC') : '—' }}
                     </td>
-                    <td class="just-desc">{{ j.descripcion || '—' }}</td>
+                    <!-- Descripción truncada + ojo -->
+                    <td class="just-desc-cell">
+                      <span class="just-desc-text">{{ truncarDesc(j.descripcion) }}</span>
+                      @if (j.descripcion && j.descripcion.length > 0) {
+                        <button class="btn-ver-desc" (click)="abrirDetalleJust(j)" title="Ver descripción completa">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      }
+                    </td>
                     <td>
                       <span class="just-badge" [ngClass]="{
                         'badge-pendiente': j.estado === 'pendiente',
@@ -580,9 +588,89 @@
             </table>
           </div>
 
-          <div class="just-count">
-            {{ justFiltrada.length }} justificación{{ justFiltrada.length !== 1 ? 'es' : '' }}
+          <!-- Footer: count + paginación -->
+          <div class="just-footer">
+            <span class="just-count">
+              {{ justFiltrada.length }} justificación{{ justFiltrada.length !== 1 ? 'es' : '' }}
+              · Página {{ justPage }}/{{ justTotalPag }}
+            </span>
+            @if (justTotalPag > 1) {
+              <div class="just-pag-controls">
+                <button class="btn-pag" [disabled]="justPage === 1" (click)="irPaginaJust(justPage - 1)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                  Anterior
+                </button>
+                @for (p of justPaginasBotones; track p) {
+                  <button class="btn-pag-num" [class.active]="p === justPage" (click)="irPaginaJust(p)">{{ p }}</button>
+                }
+                <button class="btn-pag" [disabled]="justPage === justTotalPag" (click)="irPaginaJust(justPage + 1)">
+                  Siguiente
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            }
           </div>
+        }
+
+        <!-- Modal detalle descripción -->
+        @if (showJustDetalle && justDetalleItem) {
+          <app-modal [open]="true" [title]="'Justificación · ' + (justDetalleItem.fecha_tardanza | date:'dd/MM/yyyy':'UTC')" (closeModal)="cerrarDetalleJust()">
+            <div class="modal-form just-detalle-form">
+
+              <!-- Empleado -->
+              <div class="just-det-emp-row">
+                @if (justDetalleItem.empleado.fotoUrl) {
+                  <img class="just-avatar" [src]="justDetalleItem.empleado.fotoUrl" [alt]="justDetalleItem.empleado.iniciales" />
+                } @else {
+                  <span class="just-avatar-text">{{ justDetalleItem.empleado.iniciales }}</span>
+                }
+                <div>
+                  <span class="just-nombre">{{ justDetalleItem.empleado.nombreCompleto }}</span>
+                  <span class="just-cargo">{{ justDetalleItem.empleado.cargo }}</span>
+                </div>
+                <span class="just-badge" style="margin-left:auto" [ngClass]="{
+                  'badge-pendiente': justDetalleItem.estado === 'pendiente',
+                  'badge-aprobada':  justDetalleItem.estado === 'aprobada',
+                  'badge-rechazada': justDetalleItem.estado === 'rechazada'
+                }">
+                  {{ justDetalleItem.estado === 'pendiente' ? 'Pendiente' : justDetalleItem.estado === 'aprobada' ? 'Aprobada' : 'Rechazada' }}
+                </span>
+              </div>
+
+              <!-- Descripción completa -->
+              <div class="just-det-section">
+                <label class="just-det-label">Descripción / Motivo</label>
+                <p class="just-det-text">{{ justDetalleItem.descripcion || 'Sin descripción.' }}</p>
+              </div>
+
+              <!-- Observación RRHH (si existe) -->
+              @if (justDetalleItem.observacion) {
+                <div class="just-det-section">
+                  <label class="just-det-label">Observación RRHH</label>
+                  <p class="just-det-text just-det-obs">{{ justDetalleItem.observacion }}</p>
+                </div>
+              }
+
+              <!-- Fechas -->
+              <div class="just-det-meta">
+                <span>Enviado: {{ justDetalleItem.created_at ? (justDetalleItem.created_at | date:'dd/MM/yyyy HH:mm') : '—' }}</span>
+                @if (justDetalleItem.fecha_aprobacion) {
+                  <span>Resuelto: {{ justDetalleItem.fecha_aprobacion | date:'dd/MM/yyyy HH:mm' }}</span>
+                }
+              </div>
+
+              <div class="modal-footer">
+                @if (justDetalleItem.estado === 'pendiente') {
+                  <button class="btn-ghost" (click)="cerrarDetalleJust()">Cerrar</button>
+                  <button class="btn-primary" (click)="cerrarDetalleJust(); abrirEvalJust(justDetalleItem)">
+                    Evaluar
+                  </button>
+                } @else {
+                  <button class="btn-primary" (click)="cerrarDetalleJust()">Cerrar</button>
+                }
+              </div>
+            </div>
+          </app-modal>
         }
 
         <!-- Modal evaluación -->
