@@ -639,6 +639,28 @@ def detalle_diario(
         ).all():
             geos[g.registro_id] = g
 
+    # Cargar turno vigente del empleado en el rango (para límite de almuerzo)
+    from app.models.turno import Turno, TurnoEmpleado
+    turno_asigns = (
+        db.query(TurnoEmpleado, Turno)
+        .join(Turno, Turno.id == TurnoEmpleado.turno_id)
+        .filter(
+            Turno.empresa_id == empresa_id,
+            TurnoEmpleado.empleado_id == emp.id,
+            TurnoEmpleado.activo == True,
+            Turno.activo == True,
+            TurnoEmpleado.fecha_desde <= fin,
+            or_(TurnoEmpleado.fecha_hasta.is_(None), TurnoEmpleado.fecha_hasta >= inicio),
+        ).all()
+    )
+
+    def _alm_limite_dia(dia: date) -> int:
+        """Retorna los minutos de almuerzo permitidos según el turno del empleado ese día."""
+        for te, turno in turno_asigns:
+            if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
+                return turno.duracion_almuerzo_minutos or 60
+        return 60  # defecto si no tiene turno asignado
+
     # Agregar por día
     regs_por_dia: dict[date, list] = {}
     for r in registros:
@@ -673,23 +695,30 @@ def detalle_diario(
         def _fmt_time(dt):
             return dt.strftime("%H:%M") if dt else None
 
-        dur_alm = None
+        alm_real_min  = None
+        alm_limite    = None
+        alm_exceso    = None
+
         if ini_alm and fin_alm and fin_alm.fecha_hora > ini_alm.fecha_hora:
-            mins = int((fin_alm.fecha_hora - ini_alm.fecha_hora).total_seconds() / 60)
-            dur_alm = f"{mins} min"
+            alm_real_min = int((fin_alm.fecha_hora - ini_alm.fecha_hora).total_seconds() / 60)
+            alm_limite   = _alm_limite_dia(dia)
+            exceso       = alm_real_min - alm_limite
+            alm_exceso   = exceso if exceso > 0 else None
 
         filas.append({
-            "fecha":          dia.isoformat(),
-            "dia_nombre":     _DIAS_ES[dia.weekday()],
-            "hora_ingreso":   _fmt_time(entrada.fecha_hora  if entrada  else None),
-            "hora_salida":    _fmt_time(salida.fecha_hora   if salida   else None),
-            "almuerzo_inicio":_fmt_time(ini_alm.fecha_hora  if ini_alm  else None),
-            "almuerzo_fin":   _fmt_time(fin_alm.fecha_hora  if fin_alm  else None),
-            "almuerzo_dur":   dur_alm,
-            "horas_trabajadas": round(horas, 2),
-            "estado":          estado,
-            "geo_ingreso":     _geo_dict(entrada),
-            "geo_salida":      _geo_dict(salida),
+            "fecha":              dia.isoformat(),
+            "dia_nombre":         _DIAS_ES[dia.weekday()],
+            "hora_ingreso":       _fmt_time(entrada.fecha_hora  if entrada  else None),
+            "hora_salida":        _fmt_time(salida.fecha_hora   if salida   else None),
+            "almuerzo_inicio":    _fmt_time(ini_alm.fecha_hora  if ini_alm  else None),
+            "almuerzo_fin":       _fmt_time(fin_alm.fecha_hora  if fin_alm  else None),
+            "almuerzo_real_min":  alm_real_min,
+            "almuerzo_limite_min": alm_limite,
+            "almuerzo_exceso_min": alm_exceso,
+            "horas_trabajadas":   round(horas, 2),
+            "estado":             estado,
+            "geo_ingreso":        _geo_dict(entrada),
+            "geo_salida":         _geo_dict(salida),
         })
 
     total = len(filas)
