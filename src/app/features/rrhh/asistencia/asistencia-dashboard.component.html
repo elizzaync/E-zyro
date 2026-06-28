@@ -134,6 +134,7 @@
                 <th class="text-center">H. Justific.</th>
                 <th class="text-center">H. Total</th>
                 <th class="text-center">H. Faltantes</th>
+                <th class="text-center">Tiempo Extra</th>
                 <th class="text-center">Estado</th>
                 <th class="text-center">Adv.</th>
                 @if (puedeEmitir) { <th class="text-center">Acciones</th> }
@@ -143,7 +144,7 @@
             <tbody>
               @if (filteredEmpleados.length === 0) {
                 <tr>
-                  <td [attr.colspan]="puedeEmitir ? 10 : 9">
+                  <td [attr.colspan]="puedeEmitir ? 11 : 10">
                     <div class="empty-state">
                       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                       <p>Sin registros para este período</p>
@@ -196,6 +197,20 @@
                   <td class="text-center">
                     @if (emp.horas_faltantes > 0) {
                       <span class="hrs-num" style="color:#ef4444">−{{ emp.horas_faltantes | number:'1.1-1' }}h</span>
+                    } @else {
+                      <span class="hrs-cero">—</span>
+                    }
+                  </td>
+                  <td class="text-center">
+                    @if (emp.horas_extra_aprobadas > 0 && emp.horas_extra_no_autor === 0) {
+                      <span class="badge-extra-ok">+{{ emp.horas_extra_aprobadas | number:'1.1-1' }}h · Autorizadas</span>
+                    } @else if (emp.horas_extra_aprobadas > 0 && emp.horas_extra_no_autor > 0) {
+                      <div class="extra-mixed">
+                        <span class="badge-extra-ok">+{{ emp.horas_extra_aprobadas | number:'1.1-1' }}h ✓</span>
+                        <span class="badge-extra-warn">+{{ emp.horas_extra_no_autor | number:'1.1-1' }}h sin val.</span>
+                      </div>
+                    } @else if (emp.horas_extra_no_autor > 0) {
+                      <span class="badge-extra-warn">+{{ emp.horas_extra_no_autor | number:'1.1-1' }}h · No validadas</span>
                     } @else {
                       <span class="hrs-cero">—</span>
                     }

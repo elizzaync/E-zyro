@@ -301,6 +301,19 @@
     color: #2563eb;
 }
 
+/* ── Badges tiempo extra ────────────────────────────────────────────────── */
+.badge-extra-ok {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 600;
+  background: #dcfce7; color: #15803d;
+}
+.badge-extra-warn {
+  display: inline-block; padding: 2px 8px; border-radius: 20px;
+  font-size: 0.72rem; font-weight: 600;
+  background: #ffedd5; color: #c2410c;
+}
+.extra-mixed { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+
 /* ── Badges de estado ────────────────────────────────────────────────────── */
 .badge {
     display: inline-block;
@@ -638,7 +651,9 @@
     .progress-track { background: #334155; }
 
     .hrs-num  { color: #e2e8f0; }
-    .badge-justif { background: #1e3a5f; color: #93c5fd; }
+    .badge-justif      { background: #1e3a5f; color: #93c5fd; }
+    .badge-extra-ok    { background: #14532d; color: #86efac; }
+    .badge-extra-warn  { background: #431407; color: #fdba74; }
 
     .badge-success { background: #14532d; color: #86efac; }
     .badge-warning { background: #422006; color: #fcd34d; }

@@ -113,6 +113,9 @@ export interface ResumenEmpleadoDto {
   horas_justificadas: number;
   horas_total: number;
   horas_faltantes: number;
+  horas_extra: number;
+  horas_extra_aprobadas: number;
+  horas_extra_no_autor: number;
   dias_laborados?: number;
   meta_horas: number;
   porcentaje: number;
