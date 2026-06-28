@@ -1094,8 +1094,18 @@
 .dia-fecha-num { font-size: 13px; font-weight: 700; color: var(--text-main); }
 
 .hora-cell    { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.almuerzo-cell { display: flex; align-items: center; gap: 4px; }
+.almuerzo-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .almuerzo-sep  { color: var(--text-muted); }
+.alm-dur-chip  {
+  display: inline-block; padding: 1px 6px; border-radius: 10px;
+  font-size: 11px; font-weight: 500;
+  background: #f1f5f9; color: #64748b;
+}
+.alm-dur-chip.alm-exceso {
+  background: #fff7ed; color: #c2410c;
+  border: 1px solid #fed7aa;
+  font-weight: 600;
+}
 .text-muted    { color: var(--text-muted, #64748b); }
 
 .hrs-badge {

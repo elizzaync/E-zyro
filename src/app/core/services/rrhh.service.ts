@@ -135,7 +135,9 @@ export interface DetalleDiaDto {
   hora_salida: string | null;
   almuerzo_inicio: string | null;
   almuerzo_fin: string | null;
-  almuerzo_dur: string | null;
+  almuerzo_real_min: number | null;
+  almuerzo_limite_min: number | null;
+  almuerzo_exceso_min: number | null;
   horas_trabajadas: number;
   estado: string;
   geo_ingreso: GeoDto | null;

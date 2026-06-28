@@ -1233,9 +1233,21 @@
                   <td><span class="hora-cell">{{ formatHora(dia.hora_salida) }}</span></td>
                   <td>
                     <div class="almuerzo-cell">
-                      <span>{{ formatHora(dia.almuerzo_inicio) }}</span>
-                      @if (dia.almuerzo_inicio) { <span class="almuerzo-sep">—</span> }
-                      <span>{{ dia.almuerzo_fin ? formatHora(dia.almuerzo_fin) : '' }}</span>
+                      @if (dia.almuerzo_inicio) {
+                        <span>{{ formatHora(dia.almuerzo_inicio) }}</span>
+                        <span class="almuerzo-sep">—</span>
+                        <span>{{ dia.almuerzo_fin ? formatHora(dia.almuerzo_fin) : '…' }}</span>
+                        @if (dia.almuerzo_real_min) {
+                          <span class="alm-dur-chip" [class.alm-exceso]="dia.almuerzo_exceso_min">
+                            {{ dia.almuerzo_real_min }} min
+                            @if (dia.almuerzo_exceso_min) {
+                              · +{{ dia.almuerzo_exceso_min }} min
+                            }
+                          </span>
+                        }
+                      } @else {
+                        <span class="text-muted">—</span>
+                      }
                     </div>
                   </td>
                   <td><span class="hrs-badge">{{ formatHoras(dia.horas_trabajadas) }}</span></td>
