@@ -65,6 +65,10 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Vista Diaria
       </button>
+      <button class="tab-btn" [class.active]="activeTab === 'justificaciones'" (click)="setTab('justificaciones')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Justificaciones
+      </button>
       <button class="tab-btn" [class.active]="activeTab === 'turnos'" (click)="setTab('turnos')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         Gestión de Turnos
@@ -366,6 +370,7 @@
                 <th class="text-center coord-th">Lat. Sal.</th>
                 <th class="text-center coord-th">Lng. Sal.</th>
                 <th class="text-center">Mapa</th>
+                <th class="text-center">Turno</th>
                 <th class="text-center">Estado</th>
               </tr>
             </thead>
@@ -438,7 +443,17 @@
                     }
                   </td>
                   <td class="text-center">
+                    <span class="diaria-turno-chip" [title]="item.turno_label || ''">
+                      {{ item.turno_label ? item.turno_label.split(' · ')[0] : '—' }}
+                    </span>
+                  </td>
+                  <td class="text-center">
                     <span class="estado-badge" [ngClass]="estadoDiaClase(item.estado)">{{ item.estado }}</span>
+                    @if (item.justificado) {
+                      <span class="just-ico" title="Tardanza justificada">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 11l3 3L22 4"/></svg>
+                      </span>
+                    }
                   </td>
                 </tr>
               }
@@ -470,7 +485,146 @@
       }
     }
 
-    <!-- ── TAB 3: GESTIÓN DE TURNOS ─────────────────────────────────────── -->
+    <!-- ── TAB 3: JUSTIFICACIONES DE TARDANZA ───────────────────────────── -->
+    @if (activeTab === 'justificaciones') {
+      <div class="just-section">
+
+        <!-- Barra de filtros -->
+        <div class="just-toolbar">
+          <div class="just-search-wrap">
+            <svg class="just-search-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="just-search" [(ngModel)]="justSearch" placeholder="Buscar empleado…" />
+          </div>
+          <div class="just-filters">
+            <button class="just-filter-btn" [class.active]="justFiltroEstado === ''"           (click)="justFiltroEstado = ''">Todos</button>
+            <button class="just-filter-btn filter-pendiente" [class.active]="justFiltroEstado === 'pendiente'"   (click)="justFiltroEstado = 'pendiente'">Pendientes</button>
+            <button class="just-filter-btn filter-aprobada"  [class.active]="justFiltroEstado === 'aprobada'"    (click)="justFiltroEstado = 'aprobada'">Aprobadas</button>
+            <button class="just-filter-btn filter-rechazada" [class.active]="justFiltroEstado === 'rechazada'"   (click)="justFiltroEstado = 'rechazada'">Rechazadas</button>
+          </div>
+          <button class="btn-refresh" (click)="cargarJustificaciones()" title="Recargar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+
+        <!-- Estado carga / error -->
+        @if (justLoading) {
+          <div class="just-loading">
+            <div class="spinner-sm"></div>
+            Cargando justificaciones…
+          </div>
+        } @else if (justError) {
+          <div class="just-error">{{ justError }}</div>
+        } @else if (justFiltrada.length === 0) {
+          <div class="just-empty">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            <p>No hay justificaciones{{ justFiltroEstado ? ' con estado "' + justFiltroEstado + '"' : '' }}</p>
+          </div>
+        } @else {
+
+          <!-- Tabla -->
+          <div class="just-table-wrap">
+            <table class="just-table">
+              <thead>
+                <tr>
+                  <th>Empleado</th>
+                  <th>Fecha tardanza</th>
+                  <th>Descripción</th>
+                  <th>Estado</th>
+                  <th>Enviado</th>
+                  <th>Observación RRHH</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (j of justFiltrada; track j.id) {
+                  <tr class="just-row">
+                    <td class="just-emp">
+                      @if (j.empleado.fotoUrl) {
+                        <img class="just-avatar" [src]="j.empleado.fotoUrl" [alt]="j.empleado.iniciales" />
+                      } @else {
+                        <span class="just-avatar-text">{{ j.empleado.iniciales }}</span>
+                      }
+                      <div>
+                        <span class="just-nombre">{{ j.empleado.nombreCompleto }}</span>
+                        <span class="just-cargo">{{ j.empleado.cargo }}</span>
+                      </div>
+                    </td>
+                    <td class="just-fecha">
+                      {{ j.fecha_tardanza ? (j.fecha_tardanza | date:'dd/MM/yyyy':'UTC') : '—' }}
+                    </td>
+                    <td class="just-desc">{{ j.descripcion || '—' }}</td>
+                    <td>
+                      <span class="just-badge" [ngClass]="{
+                        'badge-pendiente': j.estado === 'pendiente',
+                        'badge-aprobada':  j.estado === 'aprobada',
+                        'badge-rechazada': j.estado === 'rechazada'
+                      }">
+                        {{ j.estado === 'pendiente' ? 'Pendiente' : j.estado === 'aprobada' ? 'Aprobada' : 'Rechazada' }}
+                      </span>
+                    </td>
+                    <td class="just-fecha-env">
+                      {{ j.created_at ? (j.created_at | date:'dd/MM/yy HH:mm') : '—' }}
+                    </td>
+                    <td class="just-obs">{{ j.observacion || '—' }}</td>
+                    <td class="just-actions">
+                      @if (j.estado === 'pendiente') {
+                        <button class="btn-eval" (click)="abrirEvalJust(j)" title="Evaluar">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          Evaluar
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="just-count">
+            {{ justFiltrada.length }} justificación{{ justFiltrada.length !== 1 ? 'es' : '' }}
+          </div>
+        }
+
+        <!-- Modal evaluación -->
+        @if (showJustEval && justSeleccionada) {
+          <div class="just-eval-overlay" (click)="cerrarEvalJust()">
+            <div class="just-eval-modal" (click)="$event.stopPropagation()">
+              <div class="just-eval-header">
+                <h3>Evaluar justificación</h3>
+                <button class="just-eval-close" (click)="cerrarEvalJust()">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div class="just-eval-body">
+                <div class="just-eval-emp">
+                  <strong>{{ justSeleccionada.empleado.nombreCompleto }}</strong> —
+                  {{ justSeleccionada.fecha_tardanza ? (justSeleccionada.fecha_tardanza | date:'dd/MM/yyyy':'UTC') : '' }}
+                </div>
+                <p class="just-eval-desc">{{ justSeleccionada.descripcion }}</p>
+                <label class="just-eval-label">Observación <span>(obligatoria)</span></label>
+                <textarea class="just-eval-obs" [(ngModel)]="justEvalObs" rows="3" placeholder="Escribe tu observación…"></textarea>
+                @if (justEvalError) {
+                  <p class="just-eval-err">{{ justEvalError }}</p>
+                }
+              </div>
+              <div class="just-eval-footer">
+                <button class="btn-rechazar" [disabled]="!!justEvaluando" (click)="evaluarJust('rechazada')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  Rechazar
+                </button>
+                <button class="btn-aprobar" [disabled]="!!justEvaluando" (click)="evaluarJust('aprobada')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Aprobar
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+      </div>
+    }
+
+    <!-- ── TAB 4: GESTIÓN DE TURNOS ─────────────────────────────────────── -->
     @if (activeTab === 'turnos') {
       <div class="turnos-section-inner">
 

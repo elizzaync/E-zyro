@@ -14,6 +14,7 @@ import {
   EmpleadoLegajoDto,
   FeriadoDto,
   FeriadoNacionalDto,
+  JustificacionTardanzaDto,
 } from '../../../core/services/rrhh.service';
 import { AuthService } from '../../../core/services/auth.service';
 import {
@@ -44,7 +45,7 @@ L.Marker.prototype.options.icon = iconDefault;
 export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   // ── Tabs ───────────────────────────────────────────────────────────────────
-  activeTab: 'semanal' | 'diaria' | 'turnos' | 'feriados' = 'semanal';
+  activeTab: 'semanal' | 'diaria' | 'justificaciones' | 'turnos' | 'feriados' = 'semanal';
 
   listaEmpleados: EmpleadoLegajoDto[] = [];
 
@@ -136,6 +137,65 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   diariaTotalReg= 0;
   readonly DIARIA_PER_PAGE = 10;
 
+  // ── Tab Justificaciones ───────────────────────────────────────────────────
+  justList:        JustificacionTardanzaDto[] = [];
+  justLoading      = false;
+  justError        = '';
+  justFiltroEstado = '';
+  justSearch       = '';
+  justEvaluando: string | null = null;
+  justEvalObs      = '';
+  justEvalError    = '';
+  showJustEval     = false;
+  justSeleccionada: JustificacionTardanzaDto | null = null;
+
+  get justFiltrada(): JustificacionTardanzaDto[] {
+    let list = this.justList;
+    if (this.justFiltroEstado) list = list.filter(j => j.estado === this.justFiltroEstado);
+    const q = this.justSearch.toLowerCase().trim();
+    if (q) list = list.filter(j => j.empleado.nombreCompleto.toLowerCase().includes(q));
+    return list;
+  }
+
+  cargarJustificaciones(): void {
+    this.justLoading = true; this.justError = '';
+    this.rrhhService.getJustificacionesTardanza().subscribe({
+      next: (res) => { this.justList = res.justificaciones; this.justLoading = false; },
+      error: () => { this.justError = 'No se pudieron cargar las justificaciones.'; this.justLoading = false; },
+    });
+  }
+
+  abrirEvalJust(j: JustificacionTardanzaDto): void {
+    this.justSeleccionada = j;
+    this.justEvalObs = '';
+    this.justEvalError = '';
+    this.showJustEval = true;
+  }
+
+  cerrarEvalJust(): void {
+    this.showJustEval = false;
+    this.justSeleccionada = null;
+  }
+
+  evaluarJust(estado: 'aprobada' | 'rechazada'): void {
+    if (!this.justSeleccionada) return;
+    if (!this.justEvalObs.trim()) { this.justEvalError = 'La observación es obligatoria.'; return; }
+    this.justEvaluando = this.justSeleccionada.id;
+    this.justEvalError = '';
+    this.rrhhService.evaluarSolicitud(this.justSeleccionada.id, estado, this.justEvalObs).subscribe({
+      next: () => {
+        this.justEvaluando = null;
+        this.showJustEval = false;
+        this.justSeleccionada = null;
+        this.cargarJustificaciones();
+      },
+      error: (e) => {
+        this.justEvaluando = null;
+        this.justEvalError = e?.error?.detail || 'Error al evaluar.';
+      },
+    });
+  }
+
   // ── Tab Turnos ─────────────────────────────────────────────────────────────
   turnos:                TurnoDto[]           = [];
   turnosLoading          = false;
@@ -178,10 +238,13 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.destroyMap();
   }
 
-  setTab(tab: 'semanal' | 'diaria' | 'turnos' | 'feriados'): void {
+  setTab(tab: 'semanal' | 'diaria' | 'justificaciones' | 'turnos' | 'feriados'): void {
     this.activeTab = tab;
     if (tab === 'diaria' && this.diariaEmpleados.length === 0) {
       this.cargarDiaria();
+    }
+    if (tab === 'justificaciones' && this.justList.length === 0) {
+      this.cargarJustificaciones();
     }
     if (tab === 'turnos' && this.turnos.length === 0) {
       this.cargarTurnos();
@@ -359,11 +422,13 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   estadoDiaClase(estado: string): string {
     switch (estado.toLowerCase()) {
-      case 'al día':    return 'estado-aldia';
-      case 'tardanza':  return 'estado-tardanza';
-      case 'falta':     return 'estado-falta';
-      case 'incompleto':return 'estado-incompleto';
-      default:          return 'estado-aldia';
+      case 'al día':       return 'estado-aldia';
+      case 'tardanza':     return 'estado-tardanza';
+      case 'falta':        return 'estado-falta';
+      case 'incompleto':   return 'estado-incompleto';
+      case 'justificado':  return 'estado-justificado';
+      case 'feriado':      return 'estado-feriado';
+      default:             return 'estado-aldia';
     }
   }
   formatHora(h: string | null): string { return h ?? '—'; }

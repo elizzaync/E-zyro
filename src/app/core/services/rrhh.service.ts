@@ -73,6 +73,23 @@ export interface SolicitudLaboralDto {
   empleado: SolicitudEmpleadoDto;
 }
 
+export interface JustificacionTardanzaDto {
+  id: string;
+  estado: 'pendiente' | 'aprobada' | 'rechazada';
+  fecha_tardanza: string | null;
+  descripcion: string;
+  observacion: string;
+  created_at: string | null;
+  fecha_aprobacion: string | null;
+  empleado: {
+    id: string;
+    nombreCompleto: string;
+    cargo: string;
+    iniciales: string;
+    fotoUrl: string;
+  };
+}
+
 export interface PeriodoDto {
   fecha_inicio: string;
   fecha_fin: string;
@@ -141,6 +158,8 @@ export interface AsistenciaDiariaItemDto {
   geo_ingreso: GeoDto | null;
   geo_salida: GeoDto | null;
   estado: string;
+  turno_label?: string;
+  justificado?: boolean;
 }
 
 export interface PaginatedDiaria {
@@ -261,6 +280,21 @@ export class RrhhService {
 
   evaluarSolicitud(id: string, estado: string, observacion: string): Observable<any> {
     return this.http.put(`${this.api}/rrhh/solicitudes/${id}/evaluar`, { estado, observacion });
+  }
+
+  getJustificacionesTardanza(params?: {
+    estado?: string;
+    empleado_id?: string;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+  }): Observable<{ justificaciones: JustificacionTardanzaDto[] }> {
+    const qs: string[] = [];
+    if (params?.estado)      qs.push(`estado=${params.estado}`);
+    if (params?.empleado_id) qs.push(`empleado_id=${params.empleado_id}`);
+    if (params?.fecha_inicio) qs.push(`fecha_inicio=${params.fecha_inicio}`);
+    if (params?.fecha_fin)   qs.push(`fecha_fin=${params.fecha_fin}`);
+    const url = `${this.api}/rrhh/asistencia/justificaciones` + (qs.length ? '?' + qs.join('&') : '');
+    return this.http.get<{ justificaciones: JustificacionTardanzaDto[] }>(url);
   }
 
   // ── Asistencia ───────────────────────────────────────────────────────────
