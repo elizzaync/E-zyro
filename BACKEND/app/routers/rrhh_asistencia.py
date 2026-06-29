@@ -546,10 +546,15 @@ def asistencia_diaria(
     )
     turno_por_emp: dict[str, tuple] = {}
     for te, turno in asigns_dia:
+        req_min = max(
+            _min_entre_horas(turno.hora_entrada, turno.hora_salida)
+            - (turno.duracion_almuerzo_minutos or 60), 0
+        )
         turno_por_emp[str(te.empleado_id)] = (
             turno.hora_entrada,
             turno.tolerancia_minutos if turno.tolerancia_minutos is not None else 10,
             turno.nombre,
+            req_min / 60.0,  # req_h real del turno
         )
 
     # Feriado?
@@ -606,8 +611,8 @@ def asistencia_diaria(
         else:
             t_info = turno_por_emp.get(str(emp.id))
             if t_info:
-                t_ent, t_tol, _ = t_info
-                estado = _estado_dia_turno(regs, horas, t_ent, t_tol, META_HORAS_DIA)
+                t_ent, t_tol, _, t_req_h = t_info
+                estado = _estado_dia_turno(regs, horas, t_ent, t_tol, t_req_h)
             else:
                 estado = _estado_dia_turno(regs, horas, _CRONO_ENTRADA, _CRONO_TOLERANCIA, META_HORAS_DIA)
 
@@ -615,7 +620,7 @@ def asistencia_diaria(
         turno_label = (
             f"{t_info[2]} · {t_info[0].strftime('%H:%M')}" if t_info
             else "Horario normal · 08:00"
-        )
+        )  # t_info[0]=hora_entrada, t_info[2]=nombre
 
         nombre    = f"{usr.nombre} {usr.apellido}".strip()
         iniciales = (
@@ -741,7 +746,7 @@ def detalle_diario(
         regs_por_dia.setdefault(d, []).append(r)
 
     filas = []
-    for dia in sorted(set(dias_lab) | set(regs_por_dia.keys()), reverse=True):
+    for dia in sorted(set(dias_lab) | set(regs_por_dia.keys())):  # ascendente: lunes primero
         regs_dia = regs_por_dia.get(dia, [])
         es_lab   = dia in set(dias_lab)
 
@@ -1128,17 +1133,16 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
         asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
 
     def _turno_dia(emp_id, dia: date):
-        """(hora_entrada, hora_salida, almuerzo_min, tolerancia, nombre) del día.
-        Normaliza emp_id a str: las claves del dict son str(empleado_id) y los
-        ids de SQLAlchemy pueden venir como UUID nativo (no matchearían)."""
+        """(hora_entrada, hora_salida, almuerzo_min, tolerancia, nombre, dias_lab_set) del día."""
         for te, turno in asigns_por_emp.get(str(emp_id), []):
             if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
                 return (turno.hora_entrada, turno.hora_salida,
                         turno.duracion_almuerzo_minutos or 0,
                         turno.tolerancia_minutos if turno.tolerancia_minutos is not None
-                        else _CRONO_TOLERANCIA, turno.nombre)
+                        else _CRONO_TOLERANCIA, turno.nombre,
+                        _parse_dias_lab(getattr(turno, "dias_laborales", None)))
         return (_CRONO_ENTRADA, _CRONO_SALIDA, _CRONO_ALMUERZO,
-                _CRONO_TOLERANCIA, "Horario normal")
+                _CRONO_TOLERANCIA, "Horario normal", {0, 1, 2, 3, 4})
 
     # Feriados registrados para la empresa en el rango
     feriados_crono = _feriados_set(db, empresa_id, inicio, fin)
@@ -1174,8 +1178,9 @@ def _build_cronograma(db: Session, empresa_id: str, inicio: date, fin: date):
         min_esperados = 0
         turno_label = "Horario normal · 08:00–17:00 (tol. 10 min)"
         for dia in dias_all:
-            t_ent, t_sal, t_alm, t_tol, t_nom = _turno_dia(emp.id, dia)
-            if dia not in dias_lab_set:
+            t_ent, t_sal, t_alm, t_tol, t_nom, t_dias = _turno_dia(emp.id, dia)
+            # Descanso: domingo global O día fuera del turno del empleado
+            if dia not in dias_lab_set or dia.weekday() not in t_dias:
                 codigos.append("D"); mins_tarde_dia.append(0)
                 continue
             # Feriado de empresa → "H" (no cuenta como falta ni como día esperado)
