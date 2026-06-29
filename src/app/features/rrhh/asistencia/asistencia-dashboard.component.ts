@@ -828,8 +828,46 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
 
   // ── Turnos ─────────────────────────────────────────────────────────────────
 
+  readonly DIAS_SEMANA = [
+    { n: 1, label: 'L' }, { n: 2, label: 'M' }, { n: 3, label: 'X' },
+    { n: 4, label: 'J' }, { n: 5, label: 'V' }, { n: 6, label: 'S' },
+  ];
+
   turnoVacio(): CrearTurnoIn {
-    return { nombre: '', hora_entrada: '08:00', hora_salida: '17:00', duracion_almuerzo_minutos: 60, tolerancia_minutos: 5 };
+    return { nombre: '', hora_entrada: '08:00', hora_salida: '17:00',
+             duracion_almuerzo_minutos: 60, tolerancia_minutos: 5, dias_laborales: '1,2,3,4,5' };
+  }
+
+  /** Convierte string '1,2,3,4,5' → number[] */
+  parseDias(s: string | undefined): number[] {
+    if (!s) return [1, 2, 3, 4, 5];
+    return s.split(',').map(Number).filter(Boolean);
+  }
+
+  /** Convierte number[] → string '1,2,3,4,5' */
+  joinDias(arr: number[]): string { return [...arr].sort((a,b)=>a-b).join(','); }
+
+  toggleDiaCrear(n: number): void {
+    const arr = this.parseDias(this.formTurno.dias_laborales);
+    const idx = arr.indexOf(n);
+    if (idx >= 0) arr.splice(idx, 1); else arr.push(n);
+    this.formTurno.dias_laborales = this.joinDias(arr);
+  }
+
+  toggleDiaEditar(n: number): void {
+    const arr = this.parseDias(this.formEditar.dias_laborales);
+    const idx = arr.indexOf(n);
+    if (idx >= 0) arr.splice(idx, 1); else arr.push(n);
+    this.formEditar.dias_laborales = this.joinDias(arr);
+  }
+
+  isDiaCrear(n: number): boolean { return this.parseDias(this.formTurno.dias_laborales).includes(n); }
+  isDiaEditar(n: number): boolean { return this.parseDias(this.formEditar.dias_laborales).includes(n); }
+
+  diasLabel(dias: string | undefined): string {
+    if (!dias) return 'L-V';
+    const map: Record<number,string> = {1:'L',2:'M',3:'X',4:'J',5:'V',6:'S'};
+    return dias.split(',').map(Number).sort().map(d => map[d] ?? '?').join('-');
   }
 
   asignarVacio(): AsignarTurnoIn & { fecha_desde: string; fecha_hasta: string } {
@@ -868,6 +906,7 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
       hora_salida: t.hora_salida,
       duracion_almuerzo_minutos: t.duracion_almuerzo_minutos,
       tolerancia_minutos: t.tolerancia_minutos,
+      dias_laborales: t.dias_laborales ?? '1,2,3,4,5',
     };
     this.editarTurnoError = ''; this.editarTurnoExito = '';
     this.showEditarTurno = true;

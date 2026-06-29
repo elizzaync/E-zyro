@@ -59,6 +59,7 @@ export interface TurnoDto {
   duracion_almuerzo_minutos: number;
   tolerancia_minutos: number;
   horas_netas: number;
+  dias_laborales: string;
 }
 
 export interface TurnoAsignacionDto {
@@ -81,6 +82,7 @@ export interface CrearTurnoIn {
   hora_salida: string;
   duracion_almuerzo_minutos: number;
   tolerancia_minutos: number;
+  dias_laborales: string;
 }
 
 export interface EditarTurnoIn {
@@ -89,6 +91,7 @@ export interface EditarTurnoIn {
   hora_salida?: string;
   duracion_almuerzo_minutos?: number;
   tolerancia_minutos?: number;
+  dias_laborales?: string;
 }
 
 export interface AsignarTurnoIn {

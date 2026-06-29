@@ -775,6 +775,7 @@
                   <th>Almuerzo</th>
                   <th>Tolerancia</th>
                   <th>Horas netas</th>
+                  <th>Días</th>
                   <th></th>
                 </tr>
               </thead>
@@ -787,6 +788,7 @@
                     <td>{{ t.duracion_almuerzo_minutos }} min</td>
                     <td>{{ t.tolerancia_minutos }} min</td>
                     <td><strong>{{ t.horas_netas }}h</strong></td>
+                    <td><span class="dias-chip">{{ diasLabel(t.dias_laborales) }}</span></td>
                     <td class="turno-row-actions">
                       <button class="btn-turno-action btn-turno-asignar" [disabled]="asignarTodosLoading" (click)="asignarATodos(t)" title="Asignar a todos sin turno">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
@@ -1408,6 +1410,14 @@
           <input class="form-control" type="number" [(ngModel)]="formTurno.tolerancia_minutos" min="0" max="60">
         </div>
       </div>
+      <div class="form-group">
+        <label>Días laborables</label>
+        <div class="dias-selector">
+          @for (d of DIAS_SEMANA; track d.n) {
+            <button type="button" class="dia-btn" [class.dia-activo]="isDiaCrear(d.n)" (click)="toggleDiaCrear(d.n)">{{ d.label }}</button>
+          }
+        </div>
+      </div>
       <div class="modal-footer">
         <button class="btn-ghost" (click)="cerrarCrearTurno()">Cancelar</button>
         <button class="btn-primary" [disabled]="crearTurnoLoading" (click)="guardarTurno()">
@@ -1449,6 +1459,14 @@
         <div class="form-group">
           <label>Tolerancia (minutos)</label>
           <input class="form-control" type="number" [(ngModel)]="formEditar.tolerancia_minutos" min="0" max="60">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Días laborables</label>
+        <div class="dias-selector">
+          @for (d of DIAS_SEMANA; track d.n) {
+            <button type="button" class="dia-btn" [class.dia-activo]="isDiaEditar(d.n)" (click)="toggleDiaEditar(d.n)">{{ d.label }}</button>
+          }
         </div>
       </div>
       <div class="modal-footer">
