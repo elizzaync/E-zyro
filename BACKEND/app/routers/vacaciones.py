@@ -666,6 +666,11 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
     CELL_ST = PS("C",   fontSize=8,  fontName="Helvetica", leading=10, alignment=TA_LEFT)
     CTR_ST  = PS("CT",  fontSize=8,  fontName="Helvetica", leading=10, alignment=TA_CENTER)
     CTR_B   = PS("CTB", fontSize=8,  fontName="Helvetica-Bold", leading=10, alignment=TA_CENTER)
+    # Estilos blancos para encabezados sobre fondo oscuro
+    CELL_W  = PS("CW",  fontSize=8,  fontName="Helvetica-Bold", leading=10,
+                 alignment=TA_LEFT,   textColor=BLANCO)
+    CTR_W   = PS("CTW", fontSize=8,  fontName="Helvetica-Bold", leading=10,
+                 alignment=TA_CENTER, textColor=BLANCO)
     SML_ST  = PS("SM",  fontSize=7.5, fontName="Helvetica", leading=9.5,
                  alignment=TA_LEFT, textColor=PLOMO)
     SML_CTR = PS("SMC", fontSize=7.5, fontName="Helvetica", leading=9.5,
@@ -773,17 +778,17 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
     story.append(Paragraph("1.  Resumen de Saldos por Empleado", SEC_ST))
 
     hdr_res = [
-        Paragraph("<b>N°</b>",         CTR_ST),
-        Paragraph("<b>Empleado</b>",    CELL_ST),
-        Paragraph("<b>Cargo</b>",       CELL_ST),
-        Paragraph("<b>F. Ingreso</b>",  CTR_ST),
-        Paragraph("<b>Meses</b>",       CTR_ST),
-        Paragraph("<b>Años</b>",        CTR_ST),
-        Paragraph("<b>Días/Año</b>",    CTR_ST),
-        Paragraph("<b>Devengado</b>",   CTR_ST),
-        Paragraph("<b>Gozado</b>",      CTR_ST),
-        Paragraph("<b>Disponible</b>",  CTR_ST),
-        Paragraph("<b>Estado</b>",      CTR_ST),
+        Paragraph("N°",         CTR_W),
+        Paragraph("Empleado",   CELL_W),
+        Paragraph("Cargo",      CELL_W),
+        Paragraph("F. Ingreso", CTR_W),
+        Paragraph("Meses",      CTR_W),
+        Paragraph("Años",       CTR_W),
+        Paragraph("Días/Año",   CTR_W),
+        Paragraph("Devengado",  CTR_W),
+        Paragraph("Gozado",     CTR_W),
+        Paragraph("Disponible", CTR_W),
+        Paragraph("Estado",     CTR_W),
     ]
     cw_res = [0.8*cm, 5*cm, 4*cm, 2.3*cm, 1.7*cm, 1.5*cm,
               2*cm, 2.1*cm, 1.8*cm, 2.1*cm, None]
@@ -878,10 +883,10 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
 
     # Tabla de artículos legales — sin guiones, lenguaje claro
     leg_hdr = [
-        Paragraph("<b>Norma Legal</b>",       CTR_ST),
-        Paragraph("<b>Tema</b>",              CTR_ST),
-        Paragraph("<b>¿Qué significa?</b>",   CELL_ST),
-        Paragraph("<b>¿Cómo aplica aquí?</b>", CELL_ST),
+        Paragraph("Norma Legal",        CTR_W),
+        Paragraph("Tema",               CTR_W),
+        Paragraph("¿Qué significa?",    CELL_W),
+        Paragraph("¿Cómo aplica aquí?", CELL_W),
     ]
     leg_cw = [3*cm, 3.8*cm, None, 5.2*cm]
     leg_cw[2] = PAGE_W - sum(c for c in leg_cw if c)
@@ -1110,12 +1115,12 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
 
             # Tabla de períodos
             per_hdr = [
-                Paragraph("<b>#</b>",             CTR_ST),
-                Paragraph("<b>Desde</b>",          CTR_ST),
-                Paragraph("<b>Hasta</b>",          CTR_ST),
-                Paragraph("<b>Días gozados</b>",   CTR_ST),
-                Paragraph("<b>Aprobado el</b>",    CTR_ST),
-                Paragraph("<b>Observación</b>",    CELL_ST),
+                Paragraph("#",              CTR_W),
+                Paragraph("Desde",         CTR_W),
+                Paragraph("Hasta",         CTR_W),
+                Paragraph("Días gozados",  CTR_W),
+                Paragraph("Aprobado el",   CTR_W),
+                Paragraph("Observación",   CELL_W),
             ]
             per_cw = [0.8*cm, 2.8*cm, 2.8*cm, 2.5*cm, 2.8*cm, None]
             per_cw[-1] = PAGE_W - sum(c for c in per_cw if c)
