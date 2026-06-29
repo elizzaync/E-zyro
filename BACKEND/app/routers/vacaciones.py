@@ -626,14 +626,12 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
         leftMargin=1.8*cm, rightMargin=1.8*cm,
         topMargin=1.6*cm, bottomMargin=1.8*cm,
     )
-    PAGE_W = landscape(A4)[0] - 3.6*cm   # ancho útil
+    PAGE_W = landscape(A4)[0] - 3.6*cm
 
     # ── Paleta corporativa ────────────────────────────────────────────────────
-    AZUL      = colors.HexColor("#1A56DB")
     AZUL_OSC  = colors.HexColor("#1E3A5F")
     AZUL_MED  = colors.HexColor("#1D4ED8")
     AZUL_CLR  = colors.HexColor("#EFF6FF")
-    GRIS      = colors.HexColor("#64748B")
     GRIS_CLR  = colors.HexColor("#F8FAFC")
     GRIS_BRD  = colors.HexColor("#CBD5E1")
     GRIS_BRD2 = colors.HexColor("#E2E8F0")
@@ -650,7 +648,7 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
     regimen_label = {
         "general": "Régimen General",
         "remype":  "Régimen REMYPE (Pequeña Empresa)",
-    }.get(cfg.regimen, f"Régimen especial")
+    }.get(cfg.regimen, "Régimen especial")
 
     def _fmt(iso: Optional[str]) -> str:
         if not iso:
@@ -660,89 +658,65 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
         except Exception:
             return iso
 
-    # ── Estilos tipográficos ──────────────────────────────────────────────────
     def PS(name, **kw):
         return ParagraphStyle(name, **kw)
 
-    T_MAIN   = PS("TM",  fontSize=18, textColor=BLANCO,    fontName="Helvetica-Bold",
-                  alignment=TA_LEFT, leading=22)
-    T_SUB    = PS("TS",  fontSize=9,  textColor=colors.HexColor("#BFDBFE"),
-                  fontName="Helvetica", alignment=TA_LEFT, leading=13)
-    T_CONF   = PS("TC",  fontSize=7.5, textColor=colors.HexColor("#FEF3C7"),
-                  fontName="Helvetica-Bold", alignment=TA_RIGHT)
-    SEC_ST   = PS("SEC", fontSize=10, textColor=AZUL_OSC, fontName="Helvetica-Bold",
-                  spaceBefore=12, spaceAfter=5, leading=13)
-    BODY_ST  = PS("BD",  fontSize=8.5, textColor=PLOMO, fontName="Helvetica",
-                  leading=13, spaceAfter=3, alignment=TA_JUSTIFY)
-    BULL_ST  = PS("BL",  fontSize=8.5, textColor=NEGRO, fontName="Helvetica",
-                  leading=13, leftIndent=12, spaceAfter=2)
-    CELL_ST  = PS("C",   fontSize=8,   fontName="Helvetica", leading=10, alignment=TA_LEFT)
-    CTR_ST   = PS("CT",  fontSize=8,   fontName="Helvetica", leading=10, alignment=TA_CENTER)
-    CTR_B    = PS("CTB", fontSize=8,   fontName="Helvetica-Bold", leading=10, alignment=TA_CENTER)
-    SML_ST   = PS("SM",  fontSize=7.5, fontName="Helvetica", leading=9.5,
-                  alignment=TA_LEFT,   textColor=PLOMO)
-    SML_CTR  = PS("SMC", fontSize=7.5, fontName="Helvetica", leading=9.5,
-                  alignment=TA_CENTER, textColor=PLOMO)
-    NORM_ST  = PS("N",   fontSize=7,   textColor=colors.HexColor("#94A3B8"), alignment=TA_LEFT)
-    LABEL_ST = PS("LB",  fontSize=7,   fontName="Helvetica-Bold", textColor=PLOMO,
-                  alignment=TA_CENTER, leading=9)
-    VAL_ST   = PS("VL",  fontSize=14,  fontName="Helvetica-Bold", textColor=AZUL_OSC,
-                  alignment=TA_CENTER, leading=16)
-    KPI_SUB  = PS("KS",  fontSize=7,   fontName="Helvetica", textColor=GRIS,
-                  alignment=TA_CENTER, leading=9)
+    SEC_ST  = PS("SEC", fontSize=10, textColor=AZUL_OSC, fontName="Helvetica-Bold",
+                 spaceBefore=14, spaceAfter=5, leading=13)
+    CELL_ST = PS("C",   fontSize=8,  fontName="Helvetica", leading=10, alignment=TA_LEFT)
+    CTR_ST  = PS("CT",  fontSize=8,  fontName="Helvetica", leading=10, alignment=TA_CENTER)
+    CTR_B   = PS("CTB", fontSize=8,  fontName="Helvetica-Bold", leading=10, alignment=TA_CENTER)
+    SML_ST  = PS("SM",  fontSize=7.5, fontName="Helvetica", leading=9.5,
+                 alignment=TA_LEFT, textColor=PLOMO)
+    SML_CTR = PS("SMC", fontSize=7.5, fontName="Helvetica", leading=9.5,
+                 alignment=TA_CENTER, textColor=PLOMO)
 
     story = []
 
     # ════════════════════════════════════════════════════════════════════════
-    # BLOQUE CABECERA (banner de color)
+    # BANNER — centrado completo
     # ════════════════════════════════════════════════════════════════════════
-    hdr_inner = Table(
-        [[
-            Paragraph(
-                "REPORTE DE VACACIONES<br/>"
-                "<font size='10'>Control de saldos y períodos por ley · Recursos Humanos</font>",
-                T_MAIN,
-            ),
-            Paragraph(
-                f"CONFIDENCIAL<br/>"
-                f"<font size='7' color='#BFDBFE'>Uso exclusivo de Gerencia y RR.HH.</font>",
-                T_CONF,
-            ),
-        ]],
-        colWidths=[PAGE_W * 0.72, PAGE_W * 0.28],
-    )
-    hdr_inner.setStyle(TableStyle([
-        ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
-        ("TOPPADDING",   (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING",(0, 0), (-1, -1), 10),
-        ("LEFTPADDING",  (0, 0), (-1, -1), 0),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    banner = Table([
+        [Paragraph("REPORTE DE VACACIONES",
+                   PS("TT", fontSize=20, fontName="Helvetica-Bold", textColor=BLANCO,
+                      alignment=TA_CENTER, leading=24))],
+        [Paragraph("Control de Saldos Vacacionales por Ley &nbsp;·&nbsp; Recursos Humanos",
+                   PS("TS", fontSize=9, fontName="Helvetica",
+                      textColor=colors.HexColor("#BFDBFE"),
+                      alignment=TA_CENTER, leading=12))],
+        [Paragraph("CONFIDENCIAL &nbsp;·&nbsp; Uso exclusivo de Gerencia y Recursos Humanos",
+                   PS("TC", fontSize=7.5, fontName="Helvetica-Bold",
+                      textColor=colors.HexColor("#FEF3C7"),
+                      alignment=TA_CENTER, leading=11))],
+    ], colWidths=[PAGE_W])
+    banner.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), AZUL_OSC),
+        ("TOPPADDING",    (0, 0), (-1, 0),  14),
+        ("TOPPADDING",    (0, 1), (-1, 1),  3),
+        ("TOPPADDING",    (0, 2), (-1, 2),  6),
+        ("BOTTOMPADDING", (0, 0), (-1, 0),  2),
+        ("BOTTOMPADDING", (0, 1), (-1, 1),  2),
+        ("BOTTOMPADDING", (0, 2), (-1, 2),  12),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 16),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 16),
+        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
     ]))
-    hdr_wrap = Table([[hdr_inner]], colWidths=[PAGE_W])
-    hdr_wrap.setStyle(TableStyle([
-        ("BACKGROUND",   (0, 0), (-1, -1), AZUL_OSC),
-        ("TOPPADDING",   (0, 0), (-1, -1), 6),
-        ("BOTTOMPADDING",(0, 0), (-1, -1), 6),
-        ("LEFTPADDING",  (0, 0), (-1, -1), 14),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
-        ("ROUNDEDCORNERS", (0, 0), (-1, -1), [4]),
-    ]))
-    story.append(hdr_wrap)
+    story.append(banner)
 
-    # Banda de metadatos bajo el banner
+    # Banda de metadatos
     meta = Table([[
         Paragraph(f"<b>Régimen:</b> {regimen_label}", SML_ST),
         Paragraph(f"<b>Días por año:</b> {cfg.dias_por_anio}", SML_ST),
-        Paragraph(f"<b>Tope de acumulación:</b> {cfg.tope_acumulacion} días", SML_ST),
+        Paragraph(f"<b>Tope acumulación:</b> {cfg.tope_acumulacion} días", SML_ST),
         Paragraph(f"<b>Fecha de emisión:</b> {fecha_gen}", SML_ST),
-        Paragraph(f"<b>Total empleados activos:</b> {len(saldos)}", SML_ST),
+        Paragraph(f"<b>Empleados activos:</b> {len(saldos)}", SML_ST),
     ]], colWidths=[PAGE_W / 5] * 5)
     meta.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, -1), AZUL_CLR),
         ("TOPPADDING",    (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ("LINEBELOW",     (0, 0), (-1, -1), 0.5, GRIS_BRD),
     ]))
@@ -750,40 +724,37 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
     story.append(Spacer(1, 0.4*cm))
 
     # ════════════════════════════════════════════════════════════════════════
-    # KPIs EJECUTIVOS (4 tarjetas)
+    # KPIs EJECUTIVOS
     # ════════════════════════════════════════════════════════════════════════
     con_derecho  = [s for s in saldos if s.meses_servicio >= 12]
-    sin_derecho  = [s for s in saldos if s.meses_servicio < 12]
     total_gozado = sum(s.gozado for s in saldos)
     total_disp   = sum(s.disponible for s in saldos)
 
     def _kpi_cell(valor, label, sub, bg, fg):
-        t = Table([[
-            Paragraph(str(valor), PS("V", fontSize=20, fontName="Helvetica-Bold",
-                                     textColor=fg, alignment=TA_CENTER, leading=22)),
-            ],[
-            Paragraph(label, PS("L", fontSize=8, fontName="Helvetica-Bold",
-                                 textColor=fg, alignment=TA_CENTER, leading=10)),
-            ],[
-            Paragraph(sub, PS("S", fontSize=7, fontName="Helvetica",
-                               textColor=fg, alignment=TA_CENTER, leading=9)),
-        ]])
+        t = Table([
+            [Paragraph(str(valor), PS(f"KV{valor}", fontSize=20, fontName="Helvetica-Bold",
+                                      textColor=fg, alignment=TA_CENTER, leading=22))],
+            [Paragraph(label,      PS(f"KL{label}", fontSize=8, fontName="Helvetica-Bold",
+                                      textColor=fg, alignment=TA_CENTER, leading=10))],
+            [Paragraph(sub,        PS(f"KS{sub}",  fontSize=7, fontName="Helvetica",
+                                      textColor=fg, alignment=TA_CENTER, leading=9))],
+        ], colWidths=[None])
         t.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, -1), bg),
-            ("TOPPADDING",    (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING",    (0, 0), (-1, -1), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
             ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
             ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ]))
         return t
 
-    kpi_w = (PAGE_W - 0.6*cm) / 4
+    kpi_w = PAGE_W / 4
     kpis = Table([[
-        _kpi_cell(len(saldos),    "TOTAL EMPLEADOS",       "Activos en el sistema",         AZUL_CLR,  AZUL_OSC),
-        _kpi_cell(len(con_derecho),"CON DERECHO",          f"≥ 12 meses de servicio",        VERDE_BG,  VERDE_FG),
-        _kpi_cell(f"{total_gozado}d", "DÍAS GOZADOS",     "Vacaciones aprobadas y tomadas", AMBAR_BG,  AMBAR_FG),
-        _kpi_cell(f"{int(total_disp)}d","DÍAS DISPONIBLES","Pendientes de goce",            ROJO_BG,   ROJO_FG),
-    ]], colWidths=[kpi_w]*4, rowHeights=[None])
+        _kpi_cell(len(saldos),         "TOTAL EMPLEADOS",  "Activos en el sistema",          AZUL_CLR, AZUL_OSC),
+        _kpi_cell(len(con_derecho),    "CON DERECHO",      "Con 1 año o más de servicio",    VERDE_BG, VERDE_FG),
+        _kpi_cell(f"{total_gozado}d",  "DÍAS GOZADOS",     "Vacaciones ya tomadas",          AMBAR_BG, AMBAR_FG),
+        _kpi_cell(f"{int(total_disp)}d","DÍAS DISPONIBLES","Pendientes de goce",             ROJO_BG,  ROJO_FG),
+    ]], colWidths=[kpi_w]*4)
     kpis.setStyle(TableStyle([
         ("LINEAFTER",     (0, 0), (2, -1), 0.5, GRIS_BRD2),
         ("BOX",           (0, 0), (-1, -1), 0.8, GRIS_BRD),
@@ -834,17 +805,17 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
         est_st = PS(f"ES{idx}", fontSize=7.5, fontName="Helvetica-Bold",
                     textColor=est_fg, alignment=TA_CENTER, leading=9)
         data_res.append([
-            Paragraph(str(idx),              CTR_ST),
-            Paragraph(s.empleado_nombre or "", CELL_ST),
-            Paragraph(s.cargo or "",          CELL_ST),
-            Paragraph(_fmt(s.fecha_ingreso),  CTR_ST),
-            Paragraph(str(s.meses_servicio),  CTR_ST),
-            Paragraph(str(s.anos_servicio),   CTR_ST),
-            Paragraph(str(s.dias_por_anio),   CTR_ST),
-            Paragraph(str(int(s.devengado)),  CTR_ST),
-            Paragraph(f"<b>{s.gozado}</b>" if s.gozado else "0", CTR_ST),
-            Paragraph(f"<b>{s.disponible:.0f}</b>",               CTR_B),
-            Paragraph(est_txt,                est_st),
+            Paragraph(str(idx),                                    CTR_ST),
+            Paragraph(s.empleado_nombre or "",                     CELL_ST),
+            Paragraph(s.cargo or "",                               CELL_ST),
+            Paragraph(_fmt(s.fecha_ingreso),                       CTR_ST),
+            Paragraph(str(s.meses_servicio),                       CTR_ST),
+            Paragraph(str(s.anos_servicio),                        CTR_ST),
+            Paragraph(str(s.dias_por_anio),                        CTR_ST),
+            Paragraph(str(int(s.devengado)),                       CTR_ST),
+            Paragraph(f"<b>{s.gozado}</b>" if s.gozado else "0",  CTR_ST),
+            Paragraph(f"<b>{s.disponible:.0f}</b>",                CTR_B),
+            Paragraph(est_txt,                                     est_st),
         ])
 
     t_res = Table(data_res, colWidths=cw_res, repeatRows=1)
@@ -862,178 +833,223 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
     ])
     for ri, bg in enumerate(row_clrs, 1):
         ts_res.add("BACKGROUND", (0, ri), (-1, ri), bg)
-        if ri % 2 == 0:
-            pass  # alternado ya cubierto por row_clrs
     t_res.setStyle(ts_res)
     story.append(t_res)
 
-    story.append(Spacer(1, 0.2*cm))
-    ley_st = PS("LEY", fontSize=7, textColor=PLOMO, alignment=TA_LEFT, leading=10)
+    story.append(Spacer(1, 0.25*cm))
+    ley_st = PS("LEY", fontSize=7.5, textColor=PLOMO, alignment=TA_CENTER, leading=11)
     story.append(Paragraph(
-        "<font color='#B45309'><b>■</b></font> Amarillo = Sin derecho: el trabajador no ha cumplido 1 año de servicio. &nbsp;"
-        "<font color='#B91C1C'><b>■</b></font> Rojo = Saldo agotado: días devengados ya consumidos. &nbsp;"
-        "<font color='#15803D'><b>■</b></font> Verde = Con días disponibles para goce.",
+        "<font color='#B45309'><b>■</b> Amarillo</font> = Sin derecho: aún no cumple 1 año de servicio"
+        " &nbsp;&nbsp; "
+        "<font color='#B91C1C'><b>■</b> Rojo</font> = Saldo agotado: ya usó todos sus días devengados"
+        " &nbsp;&nbsp; "
+        "<font color='#15803D'><b>■</b> Verde</font> = Tiene días disponibles para tomar vacaciones",
         ley_st,
     ))
 
     # ════════════════════════════════════════════════════════════════════════
-    # SECCIÓN 2 — MARCO LEGAL Y RÉGIMEN DE VACACIONES
+    # SECCIÓN 2 — MARCO LEGAL
     # ════════════════════════════════════════════════════════════════════════
     story.append(PageBreak())
-    story.append(Paragraph("2.  Marco Legal y Régimen de Vacaciones (SUNAFIL — Perú)", SEC_ST))
+    story.append(Paragraph("2.  Marco Legal y Régimen de Vacaciones (SUNAFIL)", SEC_ST))
 
-    # Recuadro de régimen aplicable
-    reg_color = AZUL_CLR
+    # Recuadro de régimen aplicable — centrado
     reg_box = Table([[
         Paragraph(
-            f"<b>Régimen aplicado a esta empresa: {regimen_label}</b><br/>"
-            f"<font size='8'>{cfg.dias_por_anio} días de vacaciones por año completo de servicio · "
-            f"Acumulación máxima: {cfg.tope_acumulacion} días ({cfg.tope_acumulacion // cfg.dias_por_anio} períodos)</font>",
-            PS("RB", fontSize=9, fontName="Helvetica", textColor=AZUL_OSC,
-               alignment=TA_LEFT, leading=13),
+            f"<b>Régimen aplicado: {regimen_label}</b><br/>"
+            f"<font size='8.5'>"
+            f"{cfg.dias_por_anio} días de vacaciones por cada año completo de servicio &nbsp;·&nbsp; "
+            f"Máximo acumulable: {cfg.tope_acumulacion} días ({cfg.tope_acumulacion // cfg.dias_por_anio} períodos)"
+            f"</font>",
+            PS("RB", fontSize=9.5, fontName="Helvetica", textColor=AZUL_OSC,
+               alignment=TA_CENTER, leading=14),
         )
     ]], colWidths=[PAGE_W])
     reg_box.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), reg_color),
-        ("TOPPADDING",    (0, 0), (-1, -1), 8),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
-        ("LINERIGHT",     (0, 0), (0, -1), 4, AZUL_MED),
+        ("BACKGROUND",    (0, 0), (-1, -1), AZUL_CLR),
+        ("TOPPADDING",    (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 14),
+        ("LINEBELOW",     (0, 0), (-1, -1), 2.5, AZUL_MED),
     ]))
     story.append(reg_box)
     story.append(Spacer(1, 0.35*cm))
 
-    # Tabla de artículos legales
+    # Tabla de artículos legales — sin guiones, lenguaje claro
     leg_hdr = [
-        Paragraph("<b>Norma</b>",           CTR_ST),
-        Paragraph("<b>Artículo / Tema</b>", CELL_ST),
-        Paragraph("<b>Descripción</b>",     CELL_ST),
-        Paragraph("<b>Aplicación en empresa</b>", CELL_ST),
+        Paragraph("<b>Norma Legal</b>",       CTR_ST),
+        Paragraph("<b>Tema</b>",              CTR_ST),
+        Paragraph("<b>¿Qué significa?</b>",   CELL_ST),
+        Paragraph("<b>¿Cómo aplica aquí?</b>", CELL_ST),
     ]
-    leg_cw = [3.2*cm, 4*cm, None, 5.5*cm]
+    leg_cw = [3*cm, 3.8*cm, None, 5.2*cm]
     leg_cw[2] = PAGE_W - sum(c for c in leg_cw if c)
 
-    leg_data = [leg_hdr, *[
-        [
-            Paragraph(n, PS(f"LN{i}", fontSize=7.5, fontName="Helvetica-Bold",
-                            textColor=AZUL_OSC, alignment=TA_CENTER, leading=10)),
-            Paragraph(a, PS(f"LA{i}", fontSize=7.5, fontName="Helvetica-Bold",
-                            textColor=NEGRO, leading=10)),
-            Paragraph(d, PS(f"LD{i}", fontSize=7.5, fontName="Helvetica",
-                            textColor=PLOMO, leading=11, alignment=TA_JUSTIFY)),
-            Paragraph(ap, PS(f"LAP{i}", fontSize=7.5, fontName="Helvetica",
-                             textColor=NEGRO, leading=11)),
+    def _leg_row(i, norma, tema, desc, aplica):
+        bg_col = GRIS_CLR if i % 2 == 0 else BLANCO
+        return [
+            Paragraph(norma, PS(f"LN{i}", fontSize=7.5, fontName="Helvetica-Bold",
+                                textColor=AZUL_OSC, alignment=TA_CENTER, leading=11)),
+            Paragraph(tema,  PS(f"LT{i}", fontSize=7.5, fontName="Helvetica-Bold",
+                                textColor=NEGRO, alignment=TA_CENTER, leading=11)),
+            Paragraph(desc,  PS(f"LD{i}", fontSize=7.5, fontName="Helvetica",
+                                textColor=PLOMO, leading=11.5, alignment=TA_JUSTIFY)),
+            Paragraph(aplica, PS(f"LA{i}", fontSize=7.5, fontName="Helvetica",
+                                 textColor=NEGRO, leading=11.5)),
         ]
-        for i, (n, a, d, ap) in enumerate([
-            (
-                "D. Leg. N° 713\n(08/11/1991)",
-                "Art. 10 — Requisito\nde devengamiento",
-                "El trabajador adquiere el derecho a vacaciones al cumplir 1 año completo "
-                "de servicios y haber laborado no menos del 80% de los días hábiles del año.",
-                f"Empleados con {'menos de 12 meses' if cfg.dias_por_anio else '12 meses o más'} "
-                "de servicio aparecen como 'Sin derecho' en este reporte.",
-            ),
-            (
-                "D. Leg. N° 713\nArt. 12",
-                "Días de descanso\nvacacional",
-                "Régimen General: 30 días calendario por año completo de servicios. "
-                "El derecho al goce es remunerado y obligatorio.",
-                "No aplica directamente (empresa en régimen REMYPE)." if cfg.regimen == "remype"
-                else f"Se aplican {cfg.dias_por_anio} días por año completo de servicio.",
-            ),
-            (
-                "D.S. N° 013-2013\nPRODUCE — REMYPE\n(Art. 49)",
-                "Régimen laboral\nde Pequeña Empresa",
-                "Las Pequeñas Empresas inscritas en el REMYPE otorgan 15 días calendario "
-                "de vacaciones por año completo de servicio, en lugar de los 30 días del "
-                "régimen general. Beneficio compensado con menores costos laborales para el empleador.",
-                f"Esta empresa aplica {cfg.dias_por_anio} d/año bajo el régimen REMYPE. "
-                f"Tope de acumulación: {cfg.tope_acumulacion} días.",
-            ),
-            (
-                "D. Leg. N° 713\nArt. 19 y 23",
-                "Acumulación y\ntope vacacional",
-                "Las vacaciones pueden acumularse de común acuerdo entre empleador y trabajador, "
-                f"hasta un máximo de 2 períodos consecutivos. Para el régimen REMYPE (15 d/año), "
-                f"el tope es de 30 días. Una vez alcanzado el tope, los días adicionales "
-                "NO se acumulan — se pierde el derecho a los días no tomados por encima del límite.",
-                f"Tope vigente: {cfg.tope_acumulacion} días ({cfg.tope_acumulacion // cfg.dias_por_anio} períodos). "
-                "Los trabajadores que alcanzan este tope deben programar su goce.",
-            ),
-            (
-                "D. Leg. N° 713\nArt. 23 — Prescripción",
-                "Prescripción del\npago doble",
-                "Si el empleador no otorga las vacaciones dentro del año siguiente a "
-                "aquel en que se generó el derecho, el trabajador tiene derecho a percibir: "
-                "(1) la remuneración del mes vacacional, (2) una remuneración adicional por "
-                "el trabajo en período de vacaciones, y (3) una indemnización equivalente a "
-                "una remuneración mensual. El derecho a la indemnización prescribe a los 2 años.",
-                "Las vacaciones no gozadas generan un pasivo laboral para la empresa. "
-                "Se recomienda programar el goce antes del vencimiento del período.",
-            ),
-            (
-                "D. Leg. N° 1405\n(12/09/2018)",
-                "Fraccionamiento\nvacacional",
-                "El trabajador puede solicitar el fraccionamiento de sus vacaciones en "
-                "períodos mínimos de 7 días naturales, previa comunicación al empleador. "
-                "El empleador puede reducir las vacaciones a un mínimo de 7 días, pagando "
-                "la remuneración proporcional más 1/6 adicional del total.",
-                "Los trabajadores con saldo disponible pueden fraccionar sus vacaciones "
-                "en acuerdo con el área de Recursos Humanos.",
-            ),
-            (
-                "D. Leg. N° 713\nArt. 16",
-                "Pago vacacional",
-                "El pago de la remuneración vacacional debe efectuarse antes del inicio "
-                "del goce vacacional. La remuneración vacacional es equivalente a la que "
-                "el trabajador hubiera percibido habitual y permanentemente.",
-                "Coordinar con planilla el pago previo al inicio de cada período vacacional.",
-            ),
-        ], 1)
-    ]]
 
-    t_leg = Table(leg_data, colWidths=leg_cw, repeatRows=1)
+    leg_rows = [
+        _leg_row(1,
+            "D. Leg. N° 713\n(Art. 10)",
+            "¿Cuándo nace el\nderecho a vacaciones?",
+            "El trabajador gana el derecho a vacaciones cuando cumple 1 año completo "
+            "de trabajo continuo y ha laborado al menos el 80% de los días hábiles del año. "
+            "Antes de eso, no corresponde ningún día de descanso vacacional.",
+            "Los empleados que aparecen como 'Sin derecho' en este reporte "
+            "todavía no han cumplido su primer año. Su derecho se activa "
+            "al completar los 12 meses.",
+        ),
+        _leg_row(2,
+            "D. Leg. N° 713\n(Art. 12)",
+            "Días de vacaciones\n(Régimen General)",
+            "En el régimen laboral general, cada trabajador tiene derecho a 30 días "
+            "de vacaciones pagadas por año de servicio. Este descanso es obligatorio "
+            "y debe ser remunerado por la empresa.",
+            "No aplica a esta empresa, que se encuentra inscrita en el REMYPE "
+            "(régimen de Pequeña Empresa)." if cfg.regimen == "remype"
+            else f"Se aplican {cfg.dias_por_anio} días de vacaciones por año completo.",
+        ),
+        _leg_row(3,
+            "D.S. N° 013-2013\nPRODUCE (Art. 49)\nREMYPE",
+            "Régimen de Pequeña\nEmpresa (REMYPE)",
+            "Las empresas inscritas en el REMYPE otorgan 15 días de vacaciones por año "
+            "de servicio, en lugar de los 30 días del régimen general. "
+            "Esto es un beneficio legal para las pequeñas empresas que les permite "
+            "reducir sus costos laborales manteniéndose dentro de la ley.",
+            f"Esta empresa aplica {cfg.dias_por_anio} días de vacaciones por año. "
+            f"El máximo que puede acumular un trabajador es {cfg.tope_acumulacion} días.",
+        ),
+        _leg_row(4,
+            "D. Leg. N° 713\n(Arts. 19 y 23)\nAcumulación",
+            "¿Se pueden acumular\nlas vacaciones?",
+            "Sí, pero con un límite. Las vacaciones pueden acumularse hasta 2 períodos "
+            f"consecutivos. Para el REMYPE esto significa un máximo de {cfg.tope_acumulacion} días. "
+            "Una vez alcanzado ese tope, los días que se siguen generando se pierden "
+            "automáticamente y ya no se acumulan más.",
+            f"El tope máximo vigente es de {cfg.tope_acumulacion} días "
+            f"({cfg.tope_acumulacion // cfg.dias_por_anio} períodos). "
+            "Los trabajadores que llegan a ese límite deben programar sus vacaciones "
+            "con urgencia para no perder días.",
+        ),
+        _leg_row(5,
+            "D. Leg. N° 713\n(Art. 23)\nPrescripción",
+            "¿Qué pasa si la empresa\nno otorga vacaciones?",
+            "Si la empresa no le da vacaciones al trabajador en el plazo que corresponde, "
+            "la ley obliga a pagar el triple:\n"
+            "El sueldo del mes vacacional.\n"
+            "Un sueldo adicional por haber trabajado en ese período.\n"
+            "Una indemnización igual a un sueldo mensual.\n"
+            "Este derecho a cobrar el triple prescribe a los 2 años.",
+            "Las vacaciones no otorgadas generan una deuda laboral (pasivo) para la empresa. "
+            "Se recomienda programar el goce antes de que venza el período correspondiente.",
+        ),
+        _leg_row(6,
+            "D. Leg. N° 1405\n(12/09/2018)\nFraccionamiento",
+            "¿Se pueden tomar\nen partes?",
+            "Sí. El trabajador puede dividir sus vacaciones en partes más pequeñas, "
+            "siempre que cada parte sea de al menos 7 días. "
+            "Por ejemplo, puede tomar 7 días en marzo y 8 días en agosto. "
+            "Esto debe coordinarse previamente con la empresa.",
+            "Los trabajadores con días disponibles pueden solicitar vacaciones fraccionadas "
+            "coordinando fechas con el área de Recursos Humanos.",
+        ),
+        _leg_row(7,
+            "D. Leg. N° 713\n(Art. 16)\nPago",
+            "¿Cuándo se paga\nel sueldo vacacional?",
+            "El sueldo del período vacacional debe pagarse ANTES de que el trabajador "
+            "empiece su descanso. No se puede pagar después. "
+            "El monto es equivalente al sueldo mensual habitual del trabajador.",
+            "Coordinar con el área de Planillas para que el pago se realice "
+            "con anticipación al inicio de cada período vacacional.",
+        ),
+    ]
+
+    t_leg = Table([leg_hdr, *leg_rows], colWidths=leg_cw, repeatRows=1)
     t_leg.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, 0), AZUL_OSC),
         ("TEXTCOLOR",     (0, 0), (-1, 0), BLANCO),
-        ("ALIGN",         (0, 0), (0, -1), "CENTER"),
+        ("ALIGN",         (0, 0), (1, -1), "CENTER"),
         ("VALIGN",        (0, 0), (-1, -1), "TOP"),
         ("GRID",          (0, 0), (-1, -1), 0.3, GRIS_BRD2),
         ("LINEBELOW",     (0, 0), (-1, 0), 1.5, AZUL_MED),
-        ("TOPPADDING",    (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+        ("TOPPADDING",    (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 7),
         ("ROWBACKGROUND", (0, 1), (-1, -1), [BLANCO, GRIS_CLR]),
     ]))
     story.append(t_leg)
     story.append(Spacer(1, 0.4*cm))
 
-    # Cuadro de recomendaciones
-    rec_box = Table([[
-        Paragraph(
-            "<b>Recomendaciones de Gestión para Gerencia:</b><br/>"
-            "1. Programar el goce vacacional de trabajadores con saldo agotado o próximos al tope, "
-            "para evitar la generación de pasivos laborales e indemnizaciones. &nbsp; "
-            "2. Los trabajadores con saldo 0 (agotado) ya consumieron todos sus días devengados — "
-            "no generan costo adicional si toman vacaciones dentro del año en curso. &nbsp; "
-            "3. Los trabajadores 'Sin derecho' aún no cumplen el año; su primer derecho se activa "
-            "al completar 12 meses continuos de servicio. &nbsp; "
-            "4. Se recomienda actualizar el registro de vacaciones gozadas mensualmente para "
-            "mantener el control del pasivo laboral.",
-            PS("REC", fontSize=8, fontName="Helvetica", textColor=AZUL_OSC,
-               alignment=TA_JUSTIFY, leading=12),
-        )
-    ]], colWidths=[PAGE_W])
+    # Cuadro de recomendaciones — cada punto en su propia línea
+    REC_TITLE = PS("RH", fontSize=9, fontName="Helvetica-Bold", textColor=AZUL_OSC,
+                   alignment=TA_LEFT, leading=12)
+    REC_NUM   = PS("RN", fontSize=9, fontName="Helvetica-Bold", textColor=AZUL_MED,
+                   alignment=TA_CENTER, leading=12)
+    REC_TXT   = PS("RT", fontSize=8.5, fontName="Helvetica", textColor=NEGRO,
+                   leading=12.5, alignment=TA_JUSTIFY)
+
+    recomendaciones = [
+        ("1", "Programar vacaciones pendientes",
+         "Los trabajadores con saldo agotado o que están cerca del tope de 30 días deben "
+         "tomar sus vacaciones pronto. Si no lo hacen, la empresa podría estar obligada a "
+         "pagar una indemnización equivalente al triple del sueldo mensual."),
+        ("2", "Saldo agotado no significa pasivo adicional",
+         "Los trabajadores que aparecen con saldo 0 (agotado) ya utilizaron todos sus días "
+         "devengados. Esto significa que no representan ninguna deuda adicional para la empresa "
+         "durante el año en curso."),
+        ("3", "Trabajadores sin derecho",
+         "Los empleados marcados como 'Sin derecho' todavía no completan su primer año de servicio. "
+         "No corresponde otorgarles vacaciones aún. Su primer período vacacional se activa "
+         "automáticamente al cumplir los 12 meses continuos de trabajo."),
+        ("4", "Actualizar el registro mensualmente",
+         "Se recomienda revisar y actualizar este reporte cada mes para mantener un control "
+         "preciso del pasivo laboral por vacaciones y evitar contingencias con SUNAFIL."),
+    ]
+
+    rec_rows_data = []
+    for num, titulo, texto in recomendaciones:
+        rec_rows_data.append([
+            Paragraph(num,    REC_NUM),
+            Paragraph(f"<b>{titulo}.</b> {texto}", REC_TXT),
+        ])
+
+    rec_table = Table(rec_rows_data, colWidths=[0.8*cm, PAGE_W - 0.8*cm])
+    rec_table.setStyle(TableStyle([
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING",   (0, 0), (0, -1),  0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+        ("LINEBELOW",     (0, 0), (-1, -2), 0.4, GRIS_BRD2),
+    ]))
+
+    rec_box = Table([
+        [Paragraph("Recomendaciones de Gestión para Gerencia", REC_TITLE)],
+        [rec_table],
+    ], colWidths=[PAGE_W])
     rec_box.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, -1), AZUL_CLR),
-        ("TOPPADDING",    (0, 0), (-1, -1), 9),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
-        ("LINERIGHT",     (0, 0), (0, -1), 4, colors.HexColor("#3B82F6")),
+        ("TOPPADDING",    (0, 0), (-1, 0),  10),
+        ("BOTTOMPADDING", (0, 0), (-1, 0),  4),
+        ("TOPPADDING",    (0, 1), (-1, 1),  0),
+        ("BOTTOMPADDING", (0, 1), (-1, 1),  6),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 14),
+        ("LINERIGHT",     (0, 0), (0, -1),  4, AZUL_MED),
     ]))
+
     story.append(rec_box)
 
     # ════════════════════════════════════════════════════════════════════════
