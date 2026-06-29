@@ -402,6 +402,27 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     const d = new Date(fecha + 'T00:00:00');
     return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
   }
+
+  /** Días del modal-detalle con estado corregido si caen en feriado */
+  get detalleDiasParcheados(): DetalleDiaDto[] {
+    if (!this.feriados.length) return this.detalleDias;
+    const ferSet = new Set(this.feriados.map(f => f.fecha.slice(0, 10)));
+    return this.detalleDias.map(d => {
+      const fecha = (d.fecha ?? '').slice(0, 10);
+      if (ferSet.has(fecha) && d.estado.toLowerCase() === 'falta') {
+        return { ...d, estado: 'feriado' };
+      }
+      return d;
+    });
+  }
+
+  /** Estado corregido para un ítem de la vista diaria (si el día es feriado) */
+  estadoItemDiaria(item: AsistenciaDiariaItemDto): string {
+    if (this.feriadoDiaria && item.estado.toLowerCase() === 'falta') {
+      return 'feriado';
+    }
+    return item.estado;
+  }
   irSemanaAnterior(): void {
     const anioAntes = this.semanaRef.getFullYear();
     this.semanaRef = new Date(this.semanaRef.getTime() - 7 * 86400000);
