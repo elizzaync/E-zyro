@@ -1150,6 +1150,7 @@ class TurnoCrear(BaseModel):
     hora_salida:               str            # "HH:MM"
     duracion_almuerzo_minutos: int = 60
     tolerancia_minutos:        int = 5
+    dias_laborales:            str = "1,2,3,4,5"  # "1,2,3,4,5" = L-V; "1,2,3,4,5,6" = L-S
 
 
 class TurnoAsignar(BaseModel):
@@ -1173,10 +1174,12 @@ class TurnoEditar(BaseModel):
     hora_salida:               Optional[str] = None
     duracion_almuerzo_minutos: Optional[int] = None
     tolerancia_minutos:        Optional[int] = None
+    dias_laborales:            Optional[str] = None
 
 
 def _turno_dict(t: "Turno") -> dict:
     from ..models.turno import Turno as _T  # local import to avoid circular
+    dias_lab = getattr(t, "dias_laborales", None) or "1,2,3,4,5"
     return {
         "id":                        str(t.id),
         "nombre":                    t.nombre,
@@ -1184,6 +1187,7 @@ def _turno_dict(t: "Turno") -> dict:
         "hora_salida":               t.hora_salida.strftime("%H:%M"),
         "duracion_almuerzo_minutos": t.duracion_almuerzo_minutos or 0,
         "tolerancia_minutos":        t.tolerancia_minutos or 0,
+        "dias_laborales":            dias_lab,
         "horas_netas": round(
             (_min_entre(t.hora_entrada, t.hora_salida) - (t.duracion_almuerzo_minutos or 0)) / 60, 2
         ),
@@ -1224,6 +1228,7 @@ def crear_turno(
         hora_salida               = _parse_hhmm(body.hora_salida),
         duracion_almuerzo_minutos = max(body.duracion_almuerzo_minutos, 0),
         tolerancia_minutos        = max(body.tolerancia_minutos, 0),
+        dias_laborales            = body.dias_laborales or "1,2,3,4,5",
         activo                    = True,
     )
     db.add(turno)
@@ -1257,6 +1262,8 @@ def editar_turno(
         turno.duracion_almuerzo_minutos = max(body.duracion_almuerzo_minutos, 0)
     if body.tolerancia_minutos is not None:
         turno.tolerancia_minutos = max(body.tolerancia_minutos, 0)
+    if body.dias_laborales is not None:
+        turno.dias_laborales = body.dias_laborales
 
     db.commit()
     db.refresh(turno)

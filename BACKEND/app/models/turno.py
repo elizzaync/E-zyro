@@ -14,9 +14,10 @@ class Turno(Base):
     nombre              = Column(String(100), nullable=False)
     hora_entrada        = Column(Time, nullable=False)
     hora_salida         = Column(Time, nullable=False)
-    tolerancia_minutos       = Column(Integer, nullable=True, default=5)
+    tolerancia_minutos        = Column(Integer, nullable=True, default=5)
     duracion_almuerzo_minutos = Column(Integer, nullable=True, default=60)
-    activo                   = Column(Boolean, nullable=False, default=True)
+    dias_laborales            = Column(String(20), nullable=True, default="1,2,3,4,5")
+    activo                    = Column(Boolean, nullable=False, default=True)
 
 
 class TurnoEmpleado(Base):

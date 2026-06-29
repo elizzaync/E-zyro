@@ -101,6 +101,17 @@ def _resolve_area(val, cache: dict) -> str:
     s = str(val).strip()
     return cache.get(s, "") if _UUID_RE.match(s) else s
 
+
+def _parse_dias_lab(dias_str) -> set:
+    """Convierte '1,2,3,4,5' → {0,1,2,3,4} (Python weekday: 0=Lun … 6=Dom).
+    Valor por defecto Lun–Vie si la cadena es None o inválida."""
+    if not dias_str:
+        return {0, 1, 2, 3, 4}
+    try:
+        return {int(d.strip()) - 1 for d in str(dias_str).split(",") if d.strip().isdigit()}
+    except Exception:
+        return {0, 1, 2, 3, 4}
+
 # Hora tolerada de entrada (tardanza = después de las 8:00 + 10 min)
 _HORA_ENTRADA = 8   # 08:00
 _MIN_TOLERANCIA = 10
@@ -200,9 +211,15 @@ def resumen_asistencia(
     if fin < inicio:
         raise HTTPException(400, "fecha_fin debe ser >= fecha_inicio")
 
+    from app.models.turno import Turno as _Turno, TurnoEmpleado as _TE
+
     dias_lab     = _dias_laborables(inicio, fin)
     dias_lab_set = set(dias_lab)
-    meta_horas   = len(dias_lab) * META_HORAS_DIA
+    feriados     = _feriados_set(db, empresa_id, inicio, fin)
+
+    # Meta global para el chip de la UI (usa META_HORAS_DIA × días sin feriados)
+    dias_lab_ef_global = [d for d in dias_lab if d not in feriados]
+    meta_horas_global  = len(dias_lab_ef_global) * META_HORAS_DIA
 
     empleados_q = (
         db.query(Empleado, Usuario)
@@ -241,6 +258,35 @@ def resumen_asistencia(
         .all()
     )
 
+    # Asignaciones de turno vigentes en el rango
+    asigns = (
+        db.query(_TE, _Turno)
+        .join(_Turno, _Turno.id == _TE.turno_id)
+        .filter(
+            _Turno.empresa_id == empresa_id,
+            _TE.activo == True, _Turno.activo == True,
+            _TE.fecha_desde <= fin,
+            or_(_TE.fecha_hasta.is_(None), _TE.fecha_hasta >= inicio),
+        ).all()
+    )
+    asigns_por_emp: dict[str, list] = {}
+    for te, turno in asigns:
+        asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
+
+    def _info_turno_dia(emp_id: str, dia: date):
+        """(horas_req, dias_lab_set) para el turno del empleado ese día."""
+        for te, turno in asigns_por_emp.get(str(emp_id), []):
+            if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
+                req_min = max(
+                    _min_entre_horas(turno.hora_entrada, turno.hora_salida)
+                    - (turno.duracion_almuerzo_minutos or 0), 0
+                )
+                return (
+                    req_min / 60.0,
+                    _parse_dias_lab(getattr(turno, "dias_laborales", None)),
+                )
+        return (META_HORAS_DIA, {0, 1, 2, 3, 4})   # defecto L-V, 8h
+
     regs_por_emp:  dict[str, list] = {}
     for reg in todos_registros:
         regs_por_emp.setdefault(reg.empleado_id, []).append(reg)
@@ -258,6 +304,8 @@ def resumen_asistencia(
 
         dias_justificados: set[date] = set()
         for sol in solis:
+            if sol.tipo in ("justificacion_tardanza", "permanencia_extra"):
+                continue  # solo cuentan solicitudes de ausencia/permiso para justificar días
             cur = max(sol.fecha_inicio, inicio)
             end = min(sol.fecha_fin,    fin)
             while cur <= end:
@@ -265,20 +313,42 @@ def resumen_asistencia(
                     dias_justificados.add(cur)
                 cur += timedelta(days=1)
 
-        horas_reales = 0.0
-        dias_laborados = 0
+        horas_reales      = 0.0
+        horas_justificadas = 0.0
+        meta_horas_emp    = 0.0
+        dias_laborados    = 0
+
         for dia in dias_lab:
-            if dia not in dias_justificados:
+            req_h, dias_turno = _info_turno_dia(emp.id, dia)
+
+            # Solo días que el turno del empleado marca como laborables
+            if dia.weekday() not in dias_turno:
+                continue
+            # Excluir feriados
+            if dia in feriados:
+                continue
+
+            meta_horas_emp += req_h
+
+            if dia in dias_justificados:
+                horas_justificadas += req_h
+            else:
                 regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
                 h = _horas_dia(regs_dia)
                 horas_reales += h
                 if h > 0:
                     dias_laborados += 1
 
-        horas_justificadas = len(dias_justificados) * META_HORAS_DIA
-        horas_total        = horas_reales + horas_justificadas
-        horas_faltantes    = max(0.0, meta_horas - horas_total)
-        porcentaje         = round((horas_total / meta_horas * 100) if meta_horas > 0 else 0.0, 1)
+        # Horas extras aprobadas (permanencia_extra)
+        perm_extra_h = float(sum(
+            s.dias or 0 for s in solis if s.tipo == "permanencia_extra"
+        ))
+        horas_total         = horas_reales + horas_justificadas
+        horas_faltantes     = max(0.0, meta_horas_emp - horas_total)
+        horas_extra         = max(0.0, horas_total - meta_horas_emp)
+        horas_extra_aprobadas = round(min(horas_extra, perm_extra_h), 2)
+        horas_extra_no_autor  = round(max(0.0, horas_extra - horas_extra_aprobadas), 2)
+        porcentaje          = round((horas_total / meta_horas_emp * 100) if meta_horas_emp > 0 else 0.0, 1)
 
         advertencias = _contar_advertencias(db, emp.id, empresa_id)
 
@@ -289,26 +359,29 @@ def resumen_asistencia(
         ).upper() or "?"
 
         resultado.append({
-            "id":                 emp.id,
-            "nombreCompleto":     nombre,
-            "cargo":              emp.cargo,
-            "area":               _resolve_area(emp.area, area_nombres),
-            "iniciales":          iniciales,
-            "fotoUrl":            usr.foto_url or "",
-            "tipo_contrato":      emp.tipo,
-            "codigo":             emp.codigo,
-            "tipo_documento":     emp.tipo_documento or "DNI",
-            "numero_documento":   emp.numero_documento,
-            "cuspp":              emp.cuspp,
-            "fecha_ingreso":      emp.fecha_ingreso.isoformat() if emp.fecha_ingreso else None,
-            "horas_reales":       round(horas_reales,       2),
-            "horas_justificadas": round(horas_justificadas, 2),
-            "horas_total":        round(horas_total,        2),
-            "horas_faltantes":    round(horas_faltantes,    2),
-            "dias_laborados":     dias_laborados,
-            "meta_horas":         meta_horas,
-            "porcentaje":         porcentaje,
-            "advertencias":       advertencias,
+            "id":                    emp.id,
+            "nombreCompleto":        nombre,
+            "cargo":                 emp.cargo,
+            "area":                  _resolve_area(emp.area, area_nombres),
+            "iniciales":             iniciales,
+            "fotoUrl":               usr.foto_url or "",
+            "tipo_contrato":         emp.tipo,
+            "codigo":                emp.codigo,
+            "tipo_documento":        emp.tipo_documento or "DNI",
+            "numero_documento":      emp.numero_documento,
+            "cuspp":                 emp.cuspp,
+            "fecha_ingreso":         emp.fecha_ingreso.isoformat() if emp.fecha_ingreso else None,
+            "horas_reales":          round(horas_reales,       2),
+            "horas_justificadas":    round(horas_justificadas, 2),
+            "horas_total":           round(horas_total,        2),
+            "horas_faltantes":       round(horas_faltantes,    2),
+            "horas_extra":           round(horas_extra,        2),
+            "horas_extra_aprobadas": horas_extra_aprobadas,
+            "horas_extra_no_autor":  horas_extra_no_autor,
+            "dias_laborados":        dias_laborados,
+            "meta_horas":            round(meta_horas_emp, 2),
+            "porcentaje":            porcentaje,
+            "advertencias":          advertencias,
         })
 
     resultado.sort(key=lambda e: e["horas_faltantes"], reverse=True)
@@ -322,7 +395,7 @@ def resumen_asistencia(
         "periodo": {
             "fecha_inicio": inicio.isoformat(),
             "fecha_fin":    fin.isoformat(),
-            "meta_horas":   meta_horas,
+            "meta_horas":   meta_horas_global,
         },
         "empleados":     pagina,
         "total":         total,
@@ -861,7 +934,7 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
         asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
 
     def _turno_emp_dia(emp_id: str, dia: date):
-        """Devuelve (hora_entrada, tolerancia, horas_requeridas) para el día."""
+        """Devuelve (hora_entrada, tolerancia, horas_requeridas, dias_lab_set) para el día."""
         for te, turno in asigns_por_emp.get(str(emp_id), []):
             if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
                 req_min = max(
@@ -873,8 +946,9 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
                     turno.tolerancia_minutos if turno.tolerancia_minutos is not None
                     else _CRONO_TOLERANCIA,
                     req_min / 60.0,
+                    _parse_dias_lab(getattr(turno, "dias_laborales", None)),
                 )
-        return (_CRONO_ENTRADA, _CRONO_TOLERANCIA, META_HORAS_DIA)
+        return (_CRONO_ENTRADA, _CRONO_TOLERANCIA, META_HORAS_DIA, {0, 1, 2, 3, 4})
 
     regs_por_emp:  dict[str, list] = {}
     for r in todos_registros:
@@ -899,41 +973,41 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
                     dias_justificados.add(cur)
                 cur += timedelta(days=1)
 
-        horas_reales = 0.0
+        horas_reales      = 0.0
+        horas_justif_emp  = 0.0
+        meta_horas_emp    = 0.0
         faltas = tardanzas = 0
 
-        for dia in dias_lab_ef:                     # excluye feriados
-            if dia in dias_justificados:
-                horas_reales += META_HORAS_DIA      # justificado cuenta como cumplido
+        for dia in dias_lab_ef:                     # excluye feriados globales
+            t_ent, t_tol, req_h, dias_turno = _turno_emp_dia(emp.id, dia)
+
+            # Solo días laborables según el turno del empleado
+            if dia.weekday() not in dias_turno:
                 continue
+
+            meta_horas_emp += req_h
+
+            if dia in dias_justificados:
+                horas_justif_emp += req_h           # justificado = crédito de su turno
+                horas_reales     += req_h
+                continue
+
             regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
             h = _horas_dia(regs_dia)
             horas_reales += h
-            t_ent, t_tol, req_h = _turno_emp_dia(emp.id, dia)
             estado = _estado_dia_turno(regs_dia, h, t_ent, t_tol, req_h)
             if estado == "Falta":
                 faltas += 1
             elif estado == "Tardanza":
                 tardanzas += 1
 
-        # Horas justificadas = días con solicitud aprobada × horas del turno ese día
-        horas_justificadas = sum(
-            _turno_emp_dia(emp.id, d)[2]
-            for d in dias_justificados
-            if d in dias_lab_ef
-        )
         horas_total     = horas_reales
-        horas_faltantes = max(0.0, meta_horas - horas_total)
-        horas_extra     = max(0.0, horas_total - meta_horas)
-        porcentaje      = round((horas_total / meta_horas * 100) if meta_horas > 0 else 0.0, 1)
+        horas_faltantes = max(0.0, meta_horas_emp - horas_total)
+        horas_extra     = max(0.0, horas_total - meta_horas_emp)
+        porcentaje      = round((horas_total / meta_horas_emp * 100) if meta_horas_emp > 0 else 0.0, 1)
 
-        # Permanencia Extra aprobada: solicitudes tipo='permanencia_extra' con
-        # estado='aprobada' (ya filtrado en todas_solicitudes). El campo `dias`
-        # almacena las horas autorizadas en este tipo de solicitud.
         perm_extra_h = float(sum(
-            s.dias or 0
-            for s in solis
-            if s.tipo == "permanencia_extra"
+            s.dias or 0 for s in solis if s.tipo == "permanencia_extra"
         ))
         horas_extra_aprobadas  = round(min(horas_extra, perm_extra_h), 2)
         horas_extra_no_autor   = round(max(0.0, horas_extra - horas_extra_aprobadas), 2)
@@ -942,14 +1016,14 @@ def _build_resumen_full(db: Session, empresa_id: str, inicio: date, fin: date):
             "nombre":                  f"{usr.nombre} {usr.apellido}".strip(),
             "cargo":                   emp.cargo or "",
             "area":                    _resolve_area(emp.area, area_nombres),
-            "horas_reales":            round(horas_reales,       2),
-            "horas_justificadas":      round(horas_justificadas, 2),
+            "horas_reales":            round(horas_reales,      2),
+            "horas_justificadas":      round(horas_justif_emp,  2),
             "horas_total":             round(horas_total,        2),
             "horas_faltantes":         round(horas_faltantes,    2),
             "horas_extra":             round(horas_extra,        2),
             "horas_extra_aprobadas":   horas_extra_aprobadas,
             "horas_extra_no_autor":    horas_extra_no_autor,
-            "meta_horas":              meta_horas,
+            "meta_horas":              round(meta_horas_emp,     2),
             "porcentaje":              porcentaje,
             "faltas":                  faltas,
             "tardanzas":               tardanzas,
