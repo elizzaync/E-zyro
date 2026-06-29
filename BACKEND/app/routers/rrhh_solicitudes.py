@@ -27,6 +27,9 @@ router = APIRouter(tags=["RRHH · Solicitudes"])
 
 _ESTADOS_VALIDOS = {"aprobada", "rechazada"}
 
+# Tipos que pertenecen al módulo de Asistencia, NO a la bandeja de solicitudes
+_TIPOS_ASISTENCIA = {"justificacion_tardanza", "permanencia_extra"}
+
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -100,7 +103,10 @@ def listar_solicitudes(
         db.query(SolicitudLaboral, Empleado, Usuario)
         .join(Empleado, Empleado.id == SolicitudLaboral.empleado_id)
         .join(Usuario, Usuario.id == Empleado.usuario_id)
-        .filter(SolicitudLaboral.empresa_id == empresa_id)
+        .filter(
+            SolicitudLaboral.empresa_id == empresa_id,
+            ~SolicitudLaboral.tipo.in_(list(_TIPOS_ASISTENCIA)),
+        )
     )
 
     if categoria == "vacaciones":
