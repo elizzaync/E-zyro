@@ -29,6 +29,7 @@ class ConfigIn(BaseModel):
 class SaldoOut(BaseModel):
     empleado_id:    str
     empleado_nombre: Optional[str] = None
+    cargo:          Optional[str] = None
     fecha_ingreso:  Optional[str] = None
     meses_servicio: int = 0
     anos_servicio:  int = 0        # años completos (devengado se otorga por año completo)
@@ -38,6 +39,8 @@ class SaldoOut(BaseModel):
     gozado:         int = 0        # días aprobados en el sistema
     disponible:     float = 0.0    # min(devengado + ajuste - gozado, tope)
     tope_acumulacion: int = 0
+    # sin_derecho = < 1 año | agotado = disponible 0 con derecho | disponible
+    estado_vacaciones: str = "sin_derecho"
 
 
 # ── Ajuste saldo inicial (migración) ─────────────────────────────────────────

@@ -7,11 +7,13 @@ Lecturas: empresa del token. Escrituras: RBAC dominio 'vacaciones'.
 """
 from __future__ import annotations
 
+import io
 import uuid as _uuid
 from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -80,6 +82,14 @@ def _ajuste(db: Session, empleado_id: str) -> int:
     return row.ajuste_dias if row else 0
 
 
+def _estado_vac(meses: int, disponible: float) -> str:
+    if meses < 12:
+        return "sin_derecho"
+    if disponible <= 0:
+        return "agotado"
+    return "disponible"
+
+
 def _saldo(db: Session, empresa_id: str, emp: Empleado, cfg: ConfigVacaciones) -> SaldoOut:
     hoy = date.today()
     meses = _meses_servicio(emp.fecha_ingreso, hoy)
@@ -92,10 +102,12 @@ def _saldo(db: Session, empresa_id: str, emp: Empleado, cfg: ConfigVacaciones) -
     disponible = round(min(acumulado, float(cfg.tope_acumulacion)), 2) if acumulado > 0 else 0.0
     return SaldoOut(
         empleado_id=str(emp.id), empleado_nombre=_nombre(db, emp),
+        cargo=emp.cargo,
         fecha_ingreso=(str(emp.fecha_ingreso) if emp.fecha_ingreso else None),
         meses_servicio=meses, anos_servicio=anos, dias_por_anio=cfg.dias_por_anio,
         devengado=devengado, ajuste_dias=ajuste_dias, gozado=gozado,
         disponible=disponible, tope_acumulacion=cfg.tope_acumulacion,
+        estado_vacaciones=_estado_vac(meses, disponible),
     )
 
 
@@ -351,3 +363,298 @@ def fijar_saldo_inicial(
     db.commit()
     return AjusteSaldoOut(
         empleado_id=empleado_id, ajuste_dias=ajuste, notas=row.notas)
+
+
+# ── Helpers de reporte ────────────────────────────────────────────────────────
+
+def _saldos_todos(db: Session, empresa_id: str):
+    cfg = _get_config(db, empresa_id)
+    emps = (
+        db.query(Empleado)
+        .filter(Empleado.empresa_id == empresa_id, Empleado.activo == True)  # noqa: E712
+        .all()
+    )
+    saldos = [_saldo(db, empresa_id, e, cfg) for e in emps]
+    saldos.sort(key=lambda s: (s.empleado_nombre or ""))
+    return saldos, cfg
+
+
+_ESTADO_LABEL = {
+    "sin_derecho": "Sin derecho (<1 año)",
+    "agotado":     "Saldo agotado",
+    "disponible":  "Con días disponibles",
+}
+
+
+# ── Reporte Excel ─────────────────────────────────────────────────────────────
+
+@router.get("/reporte.xlsx")
+def reporte_excel(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    empresa_id = payload["empresa_id"]
+    saldos, cfg = _saldos_todos(db, empresa_id)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Vacaciones"
+
+    # ── Paleta ────────────────────────────────────────────────────────────────
+    AZUL      = "1A56DB"
+    BLANCO    = "FFFFFF"
+    ROJO_BG   = "FEE2E2"
+    ROJO_FG   = "991B1B"
+    VERDE_BG  = "DCFCE7"
+    VERDE_FG  = "166534"
+    AMBAR_BG  = "FEF3C7"
+    AMBAR_FG  = "92400E"
+    GRIS_HDR  = "F1F5F9"
+    GRIS_BORD = "CBD5E1"
+
+    thin = Side(style="thin", color=GRIS_BORD)
+    borde = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    regimen_label = {"general": "General (30 d/año)", "remype": "REMYPE (15 d/año)"}.get(
+        cfg.regimen, f"Otro ({cfg.dias_por_anio} d/año)"
+    )
+
+    # ── Título ────────────────────────────────────────────────────────────────
+    ws.merge_cells("A1:K1")
+    c = ws["A1"]
+    c.value = "REPORTE DE VACACIONES POR LEY"
+    c.font = Font(name="Calibri", bold=True, size=14, color=BLANCO)
+    c.fill = PatternFill("solid", fgColor=AZUL)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells("A2:K2")
+    c = ws["A2"]
+    c.value = (
+        f"Régimen: {regimen_label}   |   "
+        f"Tope acumulación: {cfg.tope_acumulacion} días   |   "
+        f"Generado: {date.today().strftime('%d/%m/%Y')}"
+    )
+    c.font = Font(name="Calibri", size=10, color="475569")
+    c.alignment = Alignment(horizontal="center")
+    ws.row_dimensions[2].height = 18
+
+    ws.row_dimensions[3].height = 6   # espacio
+
+    # ── Encabezados ───────────────────────────────────────────────────────────
+    COLS = [
+        ("N°",              6),
+        ("Empleado",        28),
+        ("Cargo",           22),
+        ("F. Ingreso",      13),
+        ("Meses serv.",     13),
+        ("Años serv.",      11),
+        ("Días/año",        10),
+        ("Devengado",       12),
+        ("Gozado",          10),
+        ("Disponible",      12),
+        ("Estado",          22),
+    ]
+    HDR_ROW = 4
+    for ci, (titulo, ancho) in enumerate(COLS, 1):
+        col_letter = get_column_letter(ci)
+        ws.column_dimensions[col_letter].width = ancho
+        cell = ws.cell(row=HDR_ROW, column=ci, value=titulo)
+        cell.font = Font(name="Calibri", bold=True, size=10, color="1E293B")
+        cell.fill = PatternFill("solid", fgColor=GRIS_HDR)
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = borde
+    ws.row_dimensions[HDR_ROW].height = 24
+
+    # ── Filas de datos ────────────────────────────────────────────────────────
+    for idx, s in enumerate(saldos, 1):
+        row = HDR_ROW + idx
+        estado = s.estado_vacaciones
+
+        if estado == "sin_derecho":
+            bg, fg = AMBAR_BG, AMBAR_FG
+        elif estado == "agotado":
+            bg, fg = ROJO_BG, ROJO_FG
+        else:
+            bg, fg = VERDE_BG, VERDE_FG
+
+        valores = [
+            idx,
+            s.empleado_nombre or "",
+            s.cargo or "",
+            s.fecha_ingreso or "",
+            s.meses_servicio,
+            s.anos_servicio,
+            s.dias_por_anio,
+            s.devengado,
+            s.gozado,
+            s.disponible,
+            _ESTADO_LABEL.get(estado, estado),
+        ]
+        for ci, val in enumerate(valores, 1):
+            cell = ws.cell(row=row, column=ci, value=val)
+            cell.font = Font(name="Calibri", size=10,
+                             color=(fg if ci == 11 else "1E293B"),
+                             bold=(ci == 11))
+            if ci == 11:
+                cell.fill = PatternFill("solid", fgColor=bg)
+            cell.alignment = Alignment(
+                horizontal="center" if ci in (1, 4, 5, 6, 7, 8, 9, 10) else "left",
+                vertical="center"
+            )
+            cell.border = borde
+        ws.row_dimensions[row].height = 20
+
+    # ── Congelar encabezado ───────────────────────────────────────────────────
+    ws.freeze_panes = ws.cell(row=HDR_ROW + 1, column=1)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"vacaciones_{date.today().isoformat()}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Reporte PDF ───────────────────────────────────────────────────────────────
+
+@router.get("/reporte.pdf")
+def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+    empresa_id = payload["empresa_id"]
+    saldos, cfg = _saldos_todos(db, empresa_id)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=landscape(A4),
+        leftMargin=1.5*cm, rightMargin=1.5*cm,
+        topMargin=1.5*cm, bottomMargin=1.5*cm,
+    )
+
+    styles = getSampleStyleSheet()
+    AZUL     = colors.HexColor("#1A56DB")
+    GRIS     = colors.HexColor("#64748B")
+    ROJO_BG  = colors.HexColor("#FEE2E2")
+    ROJO_FG  = colors.HexColor("#991B1B")
+    VERDE_BG = colors.HexColor("#DCFCE7")
+    AMBAR_BG = colors.HexColor("#FEF3C7")
+    BLANCO   = colors.white
+    HDR_BG   = colors.HexColor("#1E3A5F")
+
+    regimen_label = {"general": "General (30 d/año)", "remype": "REMYPE (15 d/año)"}.get(
+        cfg.regimen, f"Otro ({cfg.dias_por_anio} d/año)"
+    )
+
+    story = []
+
+    # Título
+    title_style = ParagraphStyle("title", fontSize=16, textColor=AZUL,
+                                  alignment=TA_CENTER, fontName="Helvetica-Bold",
+                                  spaceAfter=4)
+    sub_style   = ParagraphStyle("sub", fontSize=9, textColor=GRIS,
+                                  alignment=TA_CENTER, spaceAfter=12)
+    story.append(Paragraph("REPORTE DE VACACIONES POR LEY (SUNAFIL)", title_style))
+    story.append(Paragraph(
+        f"Régimen: {regimen_label} &nbsp;|&nbsp; "
+        f"Tope: {cfg.tope_acumulacion} días &nbsp;|&nbsp; "
+        f"Generado: {date.today().strftime('%d/%m/%Y')}",
+        sub_style,
+    ))
+    story.append(Spacer(1, 0.3*cm))
+
+    # Tabla
+    hdr = ["N°", "Empleado", "Cargo", "F. Ingreso", "Meses", "Años",
+           "Días/Año", "Devengado", "Gozado", "Disponible", "Estado"]
+    col_widths = [1*cm, 5.5*cm, 4.5*cm, 2.5*cm, 2*cm, 1.8*cm,
+                  2.2*cm, 2.4*cm, 2*cm, 2.4*cm, 4*cm]
+
+    cell_style = ParagraphStyle("cell", fontSize=8, fontName="Helvetica",
+                                 leading=10, alignment=TA_LEFT)
+    ctr_style  = ParagraphStyle("ctr",  fontSize=8, fontName="Helvetica",
+                                 leading=10, alignment=TA_CENTER)
+
+    data = [hdr]
+    row_colors: list[tuple] = []
+
+    for idx, s in enumerate(saldos, 1):
+        estado = s.estado_vacaciones
+        if estado == "sin_derecho":
+            row_bg = AMBAR_BG
+        elif estado == "agotado":
+            row_bg = ROJO_BG
+        else:
+            row_bg = VERDE_BG
+        row_colors.append(row_bg)
+
+        data.append([
+            Paragraph(str(idx),                         ctr_style),
+            Paragraph(s.empleado_nombre or "",          cell_style),
+            Paragraph(s.cargo or "",                    cell_style),
+            Paragraph(s.fecha_ingreso or "",            ctr_style),
+            Paragraph(str(s.meses_servicio),            ctr_style),
+            Paragraph(str(s.anos_servicio),             ctr_style),
+            Paragraph(str(s.dias_por_anio),             ctr_style),
+            Paragraph(str(int(s.devengado)),            ctr_style),
+            Paragraph(str(s.gozado),                    ctr_style),
+            Paragraph(f"{s.disponible:.0f}",            ctr_style),
+            Paragraph(_ESTADO_LABEL.get(estado, estado), cell_style),
+        ])
+
+    t = Table(data, colWidths=col_widths, repeatRows=1)
+
+    ts = TableStyle([
+        # Encabezado
+        ("BACKGROUND",  (0, 0), (-1, 0), HDR_BG),
+        ("TEXTCOLOR",   (0, 0), (-1, 0), BLANCO),
+        ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",    (0, 0), (-1, 0), 8),
+        ("ALIGN",       (0, 0), (-1, 0), "CENTER"),
+        ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
+        ("ROWBACKGROUND", (0, 1), (-1, -1), [colors.white]),
+        ("GRID",        (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
+        ("TOPPADDING",  (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ])
+    # Filas con color según estado
+    for ri, bg in enumerate(row_colors, 1):
+        ts.add("BACKGROUND", (0, ri), (-1, ri), bg)
+    t.setStyle(ts)
+
+    story.append(t)
+    story.append(Spacer(1, 0.6*cm))
+
+    # Leyenda
+    leyenda_style = ParagraphStyle("ley", fontSize=7.5, textColor=GRIS,
+                                    alignment=TA_LEFT)
+    story.append(Paragraph(
+        "<b>Leyenda:</b> &nbsp;"
+        "<font color='#92400E'>Amarillo = Sin derecho (menos de 12 meses de servicio)</font> &nbsp;|&nbsp; "
+        "<font color='#991B1B'>Rojo = Saldo agotado (días disponibles = 0)</font> &nbsp;|&nbsp; "
+        "<font color='#166534'>Verde = Con días disponibles</font>",
+        leyenda_style,
+    ))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph(
+        "Normativa: D. Leg. N° 713 · D.S. 013-2013-PRODUCE (REMYPE) · D. Leg. N° 1405 (fraccionamiento)",
+        ParagraphStyle("norm", fontSize=7, textColor=colors.HexColor("#94A3B8"), alignment=TA_LEFT),
+    ))
+
+    doc.build(story)
+    buf.seek(0)
+    filename = f"vacaciones_{date.today().isoformat()}.pdf"
+    return StreamingResponse(
+        buf, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
