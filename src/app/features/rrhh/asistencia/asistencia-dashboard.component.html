@@ -115,6 +115,22 @@
         }
       </div>
 
+      <!-- Feriados de la semana -->
+      @if (feriadosEnSemanaActual.length > 0) {
+        <div class="feriados-semana-banner">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               style="flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span class="feriados-semana-label">Feriados esta semana:</span>
+          @for (f of feriadosEnSemanaActual; track f.id) {
+            <span class="feriado-semana-chip">
+              {{ f.nombre }} <span class="feriado-chip-fecha">({{ labelFeriadoCorto(f.fecha) }})</span>
+            </span>
+          }
+        </div>
+      }
+
       <!-- Tabla semanal (content goes directly, no extra card) -->
       @if (cargando) {
         <div class="state-center">
@@ -308,13 +324,21 @@
               <div class="diaria-fecha-actual">
                 <span class="fecha-dia-label">{{ labelFechaDiaria() }}</span>
                 <span class="fecha-rango-chip">{{ diaEnRango }}</span>
+                @if (feriadoDiaria) {
+                  <span class="feriado-diaria-badge">🗓 {{ feriadoDiaria.nombre }}</span>
+                }
               </div>
               <button class="nav-btn" [disabled]="!puedeIrDiaSiguiente" (click)="irDiaSiguiente()" title="Día siguiente">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           } @else {
-            <span class="fecha-dia-single">{{ labelFechaDiaria() }}</span>
+            <div class="diaria-fecha-single-wrap">
+              <span class="fecha-dia-single">{{ labelFechaDiaria() }}</span>
+              @if (feriadoDiaria) {
+                <span class="feriado-diaria-badge">🗓 {{ feriadoDiaria.nombre }}</span>
+              }
+            </div>
           }
         </div>
 

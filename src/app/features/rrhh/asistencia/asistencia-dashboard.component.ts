@@ -315,6 +315,7 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
     this.setSemana();
     this.cargar();
     this.cargarListaEmpleados();
+    this.cargarFeriados();   // necesario para vistas semanal y diaria
   }
 
   ngOnDestroy(): void {
@@ -381,14 +382,38 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   get esSemanaActual(): boolean {
     return this.fechaInicio === this.toISODate(this.lunesDe(new Date()));
   }
+
+  /** Feriados que caen dentro del rango semanal activo */
+  get feriadosEnSemanaActual(): FeriadoDto[] {
+    if (!this.fechaInicio || !this.fechaFin) return [];
+    return this.feriados.filter(f => {
+      const fecha = f.fecha.slice(0, 10);
+      return fecha >= this.fechaInicio && fecha <= this.fechaFin;
+    });
+  }
+
+  /** Feriado del día seleccionado en la vista diaria, o null */
+  get feriadoDiaria(): FeriadoDto | null {
+    return this.feriados.find(f => f.fecha.slice(0, 10) === this.fechaDiaria) ?? null;
+  }
+
+  /** Formatea una fecha ISO como '29 jun' */
+  labelFeriadoCorto(fecha: string): string {
+    const d = new Date(fecha + 'T00:00:00');
+    return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' });
+  }
   irSemanaAnterior(): void {
+    const anioAntes = this.semanaRef.getFullYear();
     this.semanaRef = new Date(this.semanaRef.getTime() - 7 * 86400000);
     this.setSemana(); this.currentPage = 1; this.cargar();
+    if (this.semanaRef.getFullYear() !== anioAntes) { this.feriadoAnio = this.semanaRef.getFullYear(); this.cargarFeriados(); }
   }
   irSemanaSiguiente(): void {
     if (this.esSemanaActual) return;
+    const anioAntes = this.semanaRef.getFullYear();
     this.semanaRef = new Date(this.semanaRef.getTime() + 7 * 86400000);
     this.setSemana(); this.currentPage = 1; this.cargar();
+    if (this.semanaRef.getFullYear() !== anioAntes) { this.feriadoAnio = this.semanaRef.getFullYear(); this.cargarFeriados(); }
   }
 
   // ── Carga semanal ──────────────────────────────────────────────────────────

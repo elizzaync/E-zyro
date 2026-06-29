@@ -2336,3 +2336,84 @@
 }
 :host-context(html[data-theme="dark"]) .feriado-toast-text strong { color: #4ade80; }
 :host-context(html[data-theme="dark"]) .feriado-toast-text span   { color: #94a3b8; }
+
+/* ── Banner de feriados en vista semanal ────────────────────────────────── */
+.feriados-semana-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: .5rem .9rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  margin-bottom: .6rem;
+  font-size: .8rem;
+  color: #92400e;
+}
+
+.feriados-semana-label {
+  font-weight: 600;
+  color: #b45309;
+  white-space: nowrap;
+}
+
+.feriado-semana-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .2rem .55rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 20px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.feriado-chip-fecha {
+  font-weight: 400;
+  color: #b45309;
+}
+
+/* ── Badge feriado en vista diaria ──────────────────────────────────────── */
+.feriado-diaria-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .2rem .65rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 20px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: #92400e;
+  white-space: nowrap;
+}
+
+.diaria-fecha-single-wrap {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+
+/* Dark mode */
+:host-context(html[data-theme="dark"]) .feriados-semana-banner {
+  background: rgba(245,158,11,.08);
+  border-color: rgba(245,158,11,.25);
+  color: #fcd34d;
+}
+:host-context(html[data-theme="dark"]) .feriados-semana-label { color: #fbbf24; }
+:host-context(html[data-theme="dark"]) .feriado-semana-chip {
+  background: rgba(245,158,11,.12);
+  border-color: rgba(245,158,11,.3);
+  color: #fcd34d;
+}
+:host-context(html[data-theme="dark"]) .feriado-chip-fecha { color: #fbbf24; }
+:host-context(html[data-theme="dark"]) .feriado-diaria-badge {
+  background: rgba(245,158,11,.12);
+  border-color: rgba(245,158,11,.3);
+  color: #fcd34d;
+}
