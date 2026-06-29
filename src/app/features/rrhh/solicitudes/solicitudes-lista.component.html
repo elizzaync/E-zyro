@@ -312,6 +312,7 @@
             <table class="vac-table">
                 <thead>
                     <tr>
+                        <th style="width:32px"></th>
                         <th>Empleado</th>
                         <th>Cargo</th>
                         <th class="text-center">F. Ingreso</th>
@@ -325,8 +326,21 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @for (s of saldosVac; track s.empleado_id) {
+                    @for (s of paginatedSaldos; track s.empleado_id) {
                     <tr [class]="'vac-row-' + s.estado_vacaciones">
+                        <!-- Expandir -->
+                        <td class="text-center vac-expand-cell">
+                            @if (s.solicitudes_gozadas.length > 0) {
+                            <button class="btn-expand" (click)="toggleExpand(s.empleado_id)"
+                                    [title]="isExpanded(s.empleado_id) ? 'Ocultar períodos' : 'Ver períodos gozados'">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                     fill="none" stroke="currentColor" stroke-width="2.5"
+                                     [style.transform]="isExpanded(s.empleado_id) ? 'rotate(90deg)' : 'rotate(0)'">
+                                    <polyline points="9 18 15 12 9 6"/>
+                                </svg>
+                            </button>
+                            }
+                        </td>
                         <td class="emp-name-cell">{{ s.empleado_nombre || '—' }}</td>
                         <td class="text-muted-sm">{{ s.cargo || '—' }}</td>
                         <td class="text-center">{{ s.fecha_ingreso || '—' }}</td>
@@ -334,7 +348,9 @@
                         <td class="text-center">{{ s.anos_servicio }}</td>
                         <td class="text-center">{{ s.dias_por_anio }}</td>
                         <td class="text-center">{{ s.devengado }}</td>
-                        <td class="text-center">{{ s.gozado }}</td>
+                        <td class="text-center">
+                            <span [class]="s.gozado > 0 ? 'gozado-chip' : ''">{{ s.gozado }}</span>
+                        </td>
                         <td class="text-center disp-cell">
                             <strong>{{ s.disponible }}</strong>
                         </td>
@@ -363,9 +379,56 @@
                             }
                         </td>
                     </tr>
+                    <!-- Fila expandida: detalle de períodos aprobados -->
+                    @if (isExpanded(s.empleado_id) && s.solicitudes_gozadas.length > 0) {
+                    <tr class="vac-expand-row">
+                        <td colspan="11">
+                            <div class="vac-periodos-wrap">
+                                <span class="periodos-label">Períodos de vacaciones aprobadas:</span>
+                                <div class="periodos-list">
+                                    @for (per of s.solicitudes_gozadas; track per.fecha_inicio) {
+                                    <div class="periodo-chip">
+                                        <span class="periodo-fechas">{{ formatFechaCorta(per.fecha_inicio) }} → {{ formatFechaCorta(per.fecha_fin) }}</span>
+                                        <span class="periodo-dias">{{ per.dias }} día{{ per.dias !== 1 ? 's' : '' }}</span>
+                                        @if (per.fecha_aprobacion) {
+                                        <span class="periodo-aprobado">Aprobado: {{ formatFechaCorta(per.fecha_aprobacion) }}</span>
+                                        }
+                                    </div>
+                                    }
+                                </div>
+                                <div class="periodos-total">
+                                    Total consumido: <strong>{{ s.gozado }} día{{ s.gozado !== 1 ? 's' : '' }}</strong>
+                                    &nbsp;·&nbsp; Disponible: <strong>{{ s.disponible }} día{{ s.disponible !== 1 ? 's' : '' }}</strong>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    }
                     }
                 </tbody>
             </table>
+
+            <!-- Paginación saldos -->
+            @if (vacTotalPaginas > 1) {
+            <div class="sol-pagination-footer">
+                <span class="pagination-info">
+                    Mostrando {{ vacRangoInfo.desde }}–{{ vacRangoInfo.hasta }} de {{ vacRangoInfo.total }} empleados
+                </span>
+                <div class="pagination-controls">
+                    <button class="btn-pag" [disabled]="vacPage === 1" (click)="irPaginaVac(vacPage - 1)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                        Anterior
+                    </button>
+                    @for (p of vacPaginasBotones; track p) {
+                    <button class="btn-pag-num" [class.active]="p === vacPage" (click)="irPaginaVac(p)">{{ p }}</button>
+                    }
+                    <button class="btn-pag" [disabled]="vacPage === vacTotalPaginas" (click)="irPaginaVac(vacPage + 1)">
+                        Siguiente
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                </div>
+            </div>
+            }
         </div>
         }
     </div>

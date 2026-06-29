@@ -216,20 +216,28 @@ export interface FeriadoNacionalDto {
   tipo:   'nacional';
 }
 
+export interface DetalleSolicitudVac {
+  fecha_inicio:     string;
+  fecha_fin:        string;
+  dias:             number;
+  fecha_aprobacion: string | null;
+}
+
 export interface SaldoVacacionesDto {
-  empleado_id:       string;
-  empleado_nombre:   string | null;
-  cargo:             string | null;
-  fecha_ingreso:     string | null;
-  meses_servicio:    number;
-  anos_servicio:     number;
-  dias_por_anio:     number;
-  devengado:         number;
-  ajuste_dias:       number;
-  gozado:            number;
-  disponible:        number;
-  tope_acumulacion:  number;
-  estado_vacaciones: 'sin_derecho' | 'agotado' | 'disponible';
+  empleado_id:          string;
+  empleado_nombre:      string | null;
+  cargo:                string | null;
+  fecha_ingreso:        string | null;
+  meses_servicio:       number;
+  anos_servicio:        number;
+  dias_por_anio:        number;
+  devengado:            number;
+  ajuste_dias:          number;
+  gozado:               number;
+  disponible:           number;
+  tope_acumulacion:     number;
+  estado_vacaciones:    'sin_derecho' | 'agotado' | 'disponible';
+  solicitudes_gozadas:  DetalleSolicitudVac[];
 }
 
 @Injectable({ providedIn: 'root' })

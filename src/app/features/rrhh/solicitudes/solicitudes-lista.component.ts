@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { RrhhService, SolicitudLaboralDto, SaldoVacacionesDto } from '../../../core/services/rrhh.service';
+import { RrhhService, SolicitudLaboralDto, SaldoVacacionesDto, DetalleSolicitudVac } from '../../../core/services/rrhh.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
 
@@ -47,6 +47,12 @@ export class SolicitudesListaComponent implements OnInit, OnDestroy {
   saldosVac: SaldoVacacionesDto[] = [];
   cargandoSaldos = false;
   descargandoVac: 'xlsx' | 'pdf' | null = null;
+
+  // Paginación tabla saldos
+  readonly PER_PAGE_VAC = 8;
+  vacPage = 1;
+  // Filas expandidas (muestra períodos aprobados)
+  vacExpandidas = new Set<string>();
 
   // ── Modal de evaluación ───────────────────────────────────────────────────
   showModal = false;
@@ -208,6 +214,53 @@ export class SolicitudesListaComponent implements OnInit, OnDestroy {
 
   estadoVacLabel(e: string): string {
     return { sin_derecho: 'Sin derecho', agotado: 'Saldo agotado', disponible: 'Disponible' }[e] ?? e;
+  }
+
+  // ── Paginación saldos ────────────────────────────────────────────────────
+  get vacTotalPaginas(): number {
+    return Math.max(1, Math.ceil(this.saldosVac.length / this.PER_PAGE_VAC));
+  }
+
+  get paginatedSaldos(): SaldoVacacionesDto[] {
+    const start = (this.vacPage - 1) * this.PER_PAGE_VAC;
+    return this.saldosVac.slice(start, start + this.PER_PAGE_VAC);
+  }
+
+  get vacRangoInfo() {
+    const desde = (this.vacPage - 1) * this.PER_PAGE_VAC + 1;
+    const hasta = Math.min(this.vacPage * this.PER_PAGE_VAC, this.saldosVac.length);
+    return { desde, hasta, total: this.saldosVac.length };
+  }
+
+  get vacPaginasBotones(): number[] {
+    const pages: number[] = [];
+    for (let i = Math.max(1, this.vacPage - 2); i <= Math.min(this.vacTotalPaginas, this.vacPage + 2); i++) {
+      pages.push(i);
+    }
+    return pages;
+  }
+
+  irPaginaVac(p: number): void {
+    if (p < 1 || p > this.vacTotalPaginas) return;
+    this.vacPage = p;
+  }
+
+  // ── Detalle expandible ───────────────────────────────────────────────────
+  toggleExpand(id: string): void {
+    if (this.vacExpandidas.has(id)) this.vacExpandidas.delete(id);
+    else this.vacExpandidas.add(id);
+  }
+
+  isExpanded(id: string): boolean {
+    return this.vacExpandidas.has(id);
+  }
+
+  formatFechaCorta(iso: string | null): string {
+    if (!iso) return '—';
+    try {
+      const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : ''));
+      return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch { return iso; }
   }
 
   // ── Formateo ──────────────────────────────────────────────────────────────
