@@ -17,6 +17,9 @@ const TIPO_LABELS: Record<string, string> = {
   otro:                 'Otro',
 };
 
+// Tipos que corresponden al módulo de Asistencia, no a la bandeja
+const TIPOS_ASISTENCIA = new Set(['justificacion_tardanza', 'permanencia_extra']);
+
 @Component({
   selector: 'app-solicitudes-lista',
   standalone: true,
@@ -89,10 +92,15 @@ export class SolicitudesListaComponent implements OnInit, OnDestroy {
     return s.tipo.toLowerCase() === 'vacaciones';
   }
 
+  private esDeAsistencia(s: SolicitudLaboralDto): boolean {
+    return TIPOS_ASISTENCIA.has(s.tipo.toLowerCase());
+  }
+
   get solicitudesPorTab(): SolicitudLaboralDto[] {
-    return this.solicitudes.filter(s =>
-      this.activeTab === 'vacaciones' ? this.esVacacion(s) : !this.esVacacion(s)
-    );
+    return this.solicitudes.filter(s => {
+      if (this.esDeAsistencia(s)) return false;  // nunca en bandeja
+      return this.activeTab === 'vacaciones' ? this.esVacacion(s) : !this.esVacacion(s);
+    });
   }
 
   onFiltroChange(): void { this.solPage = 1; }
@@ -120,11 +128,15 @@ export class SolicitudesListaComponent implements OnInit, OnDestroy {
   }
 
   get totalPermisos(): number {
-    return this.solicitudes.filter(s => s.tipo.toLowerCase() !== 'vacaciones').length;
+    return this.solicitudes.filter(s =>
+      !this.esDeAsistencia(s) && s.tipo.toLowerCase() !== 'vacaciones'
+    ).length;
   }
 
   get totalVacaciones(): number {
-    return this.solicitudes.filter(s => s.tipo.toLowerCase() === 'vacaciones').length;
+    return this.solicitudes.filter(s =>
+      !this.esDeAsistencia(s) && s.tipo.toLowerCase() === 'vacaciones'
+    ).length;
   }
 
   get paginatedSolicitudes(): SolicitudLaboralDto[] {
