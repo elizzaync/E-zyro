@@ -8,6 +8,26 @@
             <h1 class="page-title">Bandeja de Solicitudes</h1>
             <p class="page-subtitle">Gestión de permisos, licencias y vacaciones del personal.</p>
         </div>
+        @if (activeTab === 'vacaciones') {
+        <div class="header-actions">
+            <button class="btn-reporte btn-excel"
+                    [disabled]="descargandoVac === 'xlsx'"
+                    (click)="descargarReporteVac('xlsx')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                {{ descargandoVac === 'xlsx' ? 'Generando…' : 'Excel' }}
+            </button>
+            <button class="btn-reporte btn-pdf"
+                    [disabled]="descargandoVac === 'pdf'"
+                    (click)="descargarReporteVac('pdf')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                {{ descargandoVac === 'pdf' ? 'Generando…' : 'PDF' }}
+            </button>
+        </div>
+        }
     </div>
 
     <!-- ══════════════════════════════════════════════════
@@ -263,6 +283,93 @@
         }
         }
     </div>
+
+    <!-- ══════════════════════════════════════════════════
+         TABLA SALDOS VACACIONES (solo tab vacaciones)
+         ══════════════════════════════════════════════════ -->
+    @if (activeTab === 'vacaciones') {
+    <div class="card-panel vac-saldos-panel">
+        <div class="vac-saldos-header">
+            <h2 class="vac-saldos-title">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                Saldos de Vacaciones por Empleado
+            </h2>
+            <div class="vac-leyenda">
+                <span class="ley-dot ley-verde"></span><span>Con días disponibles</span>
+                <span class="ley-dot ley-rojo"></span><span>Saldo agotado</span>
+                <span class="ley-dot ley-ambar"></span><span>Sin derecho (&lt;1 año)</span>
+            </div>
+        </div>
+
+        @if (cargandoSaldos) {
+        <div class="state-center"><div class="spinner"></div><p>Cargando saldos…</p></div>
+        } @else if (saldosVac.length === 0) {
+        <div class="empty-state"><h3>Sin datos</h3></div>
+        } @else {
+        <div class="vac-table-wrap">
+            <table class="vac-table">
+                <thead>
+                    <tr>
+                        <th>Empleado</th>
+                        <th>Cargo</th>
+                        <th class="text-center">F. Ingreso</th>
+                        <th class="text-center">Meses</th>
+                        <th class="text-center">Años</th>
+                        <th class="text-center">Días/Año</th>
+                        <th class="text-center">Devengado</th>
+                        <th class="text-center">Gozado</th>
+                        <th class="text-center">Disponible</th>
+                        <th class="text-center">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (s of saldosVac; track s.empleado_id) {
+                    <tr [class]="'vac-row-' + s.estado_vacaciones">
+                        <td class="emp-name-cell">{{ s.empleado_nombre || '—' }}</td>
+                        <td class="text-muted-sm">{{ s.cargo || '—' }}</td>
+                        <td class="text-center">{{ s.fecha_ingreso || '—' }}</td>
+                        <td class="text-center">{{ s.meses_servicio }}</td>
+                        <td class="text-center">{{ s.anos_servicio }}</td>
+                        <td class="text-center">{{ s.dias_por_anio }}</td>
+                        <td class="text-center">{{ s.devengado }}</td>
+                        <td class="text-center">{{ s.gozado }}</td>
+                        <td class="text-center disp-cell">
+                            <strong>{{ s.disponible }}</strong>
+                        </td>
+                        <td class="text-center">
+                            @if (s.estado_vacaciones === 'sin_derecho') {
+                            <span class="vac-badge vac-badge-ambar">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                                Sin derecho
+                            </span>
+                            } @else if (s.estado_vacaciones === 'agotado') {
+                            <span class="vac-badge vac-badge-rojo">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                                </svg>
+                                Saldo agotado
+                            </span>
+                            } @else {
+                            <span class="vac-badge vac-badge-verde">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                {{ s.disponible }} días disp.
+                            </span>
+                            }
+                        </td>
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        }
+    </div>
+    }
 
     }<!-- end @else -->
 </div>

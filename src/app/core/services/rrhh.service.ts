@@ -216,6 +216,22 @@ export interface FeriadoNacionalDto {
   tipo:   'nacional';
 }
 
+export interface SaldoVacacionesDto {
+  empleado_id:       string;
+  empleado_nombre:   string | null;
+  cargo:             string | null;
+  fecha_ingreso:     string | null;
+  meses_servicio:    number;
+  anos_servicio:     number;
+  dias_por_anio:     number;
+  devengado:         number;
+  ajuste_dias:       number;
+  gozado:            number;
+  disponible:        number;
+  tope_acumulacion:  number;
+  estado_vacaciones: 'sin_derecho' | 'agotado' | 'disponible';
+}
+
 @Injectable({ providedIn: 'root' })
 export class RrhhService {
   private readonly api = environment.apiUrl;
@@ -415,7 +431,7 @@ export class RrhhService {
     return this.http.delete<{ mensaje: string }>(`${this.api}/rrhh/feriados/${id}`);
   }
 
-  // ── Reportes ─────────────────────────────────────────────────────────────
+  // ── Reportes asistencia ───────────────────────────────────────────────────
 
   descargarReporte(tipo: string, params: Record<string, string>): Observable<Blob> {
     const qs = Object.entries(params)
@@ -424,5 +440,15 @@ export class RrhhService {
       .join('&');
     const url = `${this.api}/rrhh/asistencia/reportes/${tipo}${qs ? '?' + qs : ''}`;
     return this.http.get(url, { responseType: 'blob' });
+  }
+
+  // ── Vacaciones ────────────────────────────────────────────────────────────
+
+  getSaldosVacaciones(): Observable<SaldoVacacionesDto[]> {
+    return this.http.get<SaldoVacacionesDto[]>(`${this.api}/vacaciones/saldos`);
+  }
+
+  descargarReporteVacaciones(formato: 'xlsx' | 'pdf'): Observable<Blob> {
+    return this.http.get(`${this.api}/vacaciones/reporte.${formato}`, { responseType: 'blob' });
   }
 }

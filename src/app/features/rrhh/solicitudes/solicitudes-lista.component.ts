@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { RrhhService, SolicitudLaboralDto } from '../../../core/services/rrhh.service';
+import { RrhhService, SolicitudLaboralDto, SaldoVacacionesDto } from '../../../core/services/rrhh.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
 
@@ -42,6 +42,11 @@ export class SolicitudesListaComponent implements OnInit, OnDestroy {
 
   // ── Datos ─────────────────────────────────────────────────────────────────
   solicitudes: SolicitudLaboralDto[] = [];
+
+  // ── Saldos de vacaciones ──────────────────────────────────────────────────
+  saldosVac: SaldoVacacionesDto[] = [];
+  cargandoSaldos = false;
+  descargandoVac: 'xlsx' | 'pdf' | null = null;
 
   // ── Modal de evaluación ───────────────────────────────────────────────────
   showModal = false;
@@ -172,6 +177,37 @@ export class SolicitudesListaComponent implements OnInit, OnDestroy {
     this.filtroEstado = 'todos';
     this.searchTerm = '';
     this.solPage = 1;
+    if (tab === 'vacaciones' && this.saldosVac.length === 0) {
+      this.cargarSaldosVac();
+    }
+  }
+
+  private cargarSaldosVac(): void {
+    this.cargandoSaldos = true;
+    this.rrhhService.getSaldosVacaciones().subscribe({
+      next: (data) => { this.saldosVac = data; this.cargandoSaldos = false; },
+      error: ()     => { this.cargandoSaldos = false; },
+    });
+  }
+
+  descargarReporteVac(fmt: 'xlsx' | 'pdf'): void {
+    this.descargandoVac = fmt;
+    this.rrhhService.descargarReporteVacaciones(fmt).subscribe({
+      next: (blob) => {
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `vacaciones_${new Date().toISOString().slice(0, 10)}.${fmt}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.descargandoVac = null;
+      },
+      error: () => { this.descargandoVac = null; },
+    });
+  }
+
+  estadoVacLabel(e: string): string {
+    return { sin_derecho: 'Sin derecho', agotado: 'Saldo agotado', disponible: 'Disponible' }[e] ?? e;
   }
 
   // ── Formateo ──────────────────────────────────────────────────────────────
