@@ -26,6 +26,14 @@ class ConfigIn(BaseModel):
 
 
 # ── Saldo ────────────────────────────────────────────────────────────────────
+
+class DetalleSolicitudVac(BaseModel):
+    fecha_inicio:     str
+    fecha_fin:        str
+    dias:             int
+    fecha_aprobacion: Optional[str] = None
+
+
 class SaldoOut(BaseModel):
     empleado_id:    str
     empleado_nombre: Optional[str] = None
@@ -41,6 +49,7 @@ class SaldoOut(BaseModel):
     tope_acumulacion: int = 0
     # sin_derecho = < 1 año | agotado = disponible 0 con derecho | disponible
     estado_vacaciones: str = "sin_derecho"
+    solicitudes_gozadas: List[DetalleSolicitudVac] = []
 
 
 # ── Ajuste saldo inicial (migración) ─────────────────────────────────────────

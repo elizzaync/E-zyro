@@ -14,7 +14,6 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
@@ -23,9 +22,11 @@ from ..db.database import get_db
 from ..models.empleado import Empleado
 from ..models.usuario import Usuario
 from ..models.vacaciones import AjusteSaldoVacaciones, ConfigVacaciones, SolicitudVacaciones
+from ..models.solicitud_laboral import SolicitudLaboral
 from ..services.fcm_service import notificar_usuario
 from ..schemas.vacaciones import (
     AjusteSaldoIn, AjusteSaldoOut, ConfigIn, ConfigOut, SaldoOut, SolicitudIn, SolicitudOut,
+    DetalleSolicitudVac,
 )
 
 router = APIRouter(prefix="/vacaciones", tags=["vacaciones"])
@@ -65,15 +66,33 @@ def _nombre(db: Session, empleado: Empleado) -> Optional[str]:
     return f"{row[0]} {row[1]}".strip() if row else None
 
 
-def _gozado(db: Session, empresa_id: str, empleado_id: str) -> int:
-    total = (
-        db.query(func.coalesce(func.sum(SolicitudVacaciones.dias), 0))
-        .filter(SolicitudVacaciones.empresa_id == empresa_id,
-                SolicitudVacaciones.empleado_id == empleado_id,
-                SolicitudVacaciones.estado == "aprobada")
-        .scalar()
+def _gozado_detalle(db: Session, empresa_id: str, empleado_id: str) -> tuple[int, list]:
+    """Suma los días de solicitudes_laborales de tipo vacaciones aprobadas."""
+    rows = (
+        db.query(SolicitudLaboral)
+        .filter(
+            SolicitudLaboral.empresa_id == empresa_id,
+            SolicitudLaboral.empleado_id == empleado_id,
+            SolicitudLaboral.tipo.ilike("vacaciones"),
+            SolicitudLaboral.estado == "aprobada",
+            SolicitudLaboral.fecha_inicio.isnot(None),
+            SolicitudLaboral.fecha_fin.isnot(None),
+        )
+        .order_by(SolicitudLaboral.fecha_inicio)
+        .all()
     )
-    return int(total or 0)
+    detalle: list[DetalleSolicitudVac] = []
+    total = 0
+    for r in rows:
+        dias = (r.fecha_fin - r.fecha_inicio).days + 1
+        total += dias
+        detalle.append(DetalleSolicitudVac(
+            fecha_inicio=r.fecha_inicio.isoformat(),
+            fecha_fin=r.fecha_fin.isoformat(),
+            dias=dias,
+            fecha_aprobacion=r.fecha_aprobacion.isoformat() if r.fecha_aprobacion else None,
+        ))
+    return total, detalle
 
 
 def _ajuste(db: Session, empleado_id: str) -> int:
@@ -93,11 +112,10 @@ def _estado_vac(meses: int, disponible: float) -> str:
 def _saldo(db: Session, empresa_id: str, emp: Empleado, cfg: ConfigVacaciones) -> SaldoOut:
     hoy = date.today()
     meses = _meses_servicio(emp.fecha_ingreso, hoy)
-    # Derecho a vacaciones al completar cada año de servicio (art. 10 D.Leg. 713).
     anos = meses // 12
     devengado = float(anos * cfg.dias_por_anio)
     ajuste_dias = _ajuste(db, str(emp.id))
-    gozado = _gozado(db, empresa_id, str(emp.id))
+    gozado, solicitudes_gozadas = _gozado_detalle(db, empresa_id, str(emp.id))
     acumulado = devengado + ajuste_dias - gozado
     disponible = round(min(acumulado, float(cfg.tope_acumulacion)), 2) if acumulado > 0 else 0.0
     return SaldoOut(
@@ -108,6 +126,7 @@ def _saldo(db: Session, empresa_id: str, emp: Empleado, cfg: ConfigVacaciones) -
         devengado=devengado, ajuste_dias=ajuste_dias, gozado=gozado,
         disponible=disponible, tope_acumulacion=cfg.tope_acumulacion,
         estado_vacaciones=_estado_vac(meses, disponible),
+        solicitudes_gozadas=solicitudes_gozadas,
     )
 
 
@@ -509,6 +528,49 @@ def reporte_excel(payload: dict = Depends(verificar_token), db: Session = Depend
     # ── Congelar encabezado ───────────────────────────────────────────────────
     ws.freeze_panes = ws.cell(row=HDR_ROW + 1, column=1)
 
+    # ── Hoja 2: Detalle de períodos aprobados ─────────────────────────────────
+    ws2 = wb.create_sheet("Detalle Períodos")
+    DET_COLS = [
+        ("Empleado",      28), ("Cargo",      18), ("Desde",     13),
+        ("Hasta",         13), ("Días",        8), ("Aprobado el", 15),
+    ]
+    for ci, (titulo, ancho) in enumerate(DET_COLS, 1):
+        col_l = get_column_letter(ci)
+        ws2.column_dimensions[col_l].width = ancho
+        c2 = ws2.cell(row=1, column=ci, value=titulo)
+        c2.font = Font(name="Calibri", bold=True, size=10, color="1E293B")
+        c2.fill = PatternFill("solid", fgColor="1E3A5F")
+        c2.font = Font(name="Calibri", bold=True, size=10, color=BLANCO)
+        c2.alignment = Alignment(horizontal="center", vertical="center")
+        c2.border = borde
+    ws2.row_dimensions[1].height = 22
+
+    det_row = 2
+    for s in saldos:
+        if not s.solicitudes_gozadas:
+            continue
+        for per in s.solicitudes_gozadas:
+            vals = [
+                s.empleado_nombre or "",
+                s.cargo or "",
+                per.fecha_inicio,
+                per.fecha_fin,
+                per.dias,
+                per.fecha_aprobacion[:10] if per.fecha_aprobacion else "",
+            ]
+            for ci, val in enumerate(vals, 1):
+                c2 = ws2.cell(row=det_row, column=ci, value=val)
+                c2.font = Font(name="Calibri", size=10)
+                c2.alignment = Alignment(
+                    horizontal="center" if ci > 2 else "left", vertical="center"
+                )
+                c2.border = borde
+                if ci == 5:
+                    c2.fill = PatternFill("solid", fgColor=VERDE_BG)
+            ws2.row_dimensions[det_row].height = 18
+            det_row += 1
+    ws2.freeze_panes = ws2.cell(row=2, column=1)
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -528,10 +590,11 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
     from reportlab.lib import colors
     from reportlab.lib.units import cm
     from reportlab.platypus import (
-        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable,
+        KeepTogether,
     )
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
     empresa_id = payload["empresa_id"]
     saldos, cfg = _saldos_todos(db, empresa_id)
@@ -543,112 +606,181 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
         topMargin=1.5*cm, bottomMargin=1.5*cm,
     )
 
-    styles = getSampleStyleSheet()
     AZUL     = colors.HexColor("#1A56DB")
+    AZUL_OSC = colors.HexColor("#1E3A5F")
     GRIS     = colors.HexColor("#64748B")
+    GRIS_CLR = colors.HexColor("#F1F5F9")
+    GRIS_BRD = colors.HexColor("#CBD5E1")
     ROJO_BG  = colors.HexColor("#FEE2E2")
-    ROJO_FG  = colors.HexColor("#991B1B")
     VERDE_BG = colors.HexColor("#DCFCE7")
+    VERDE_FG = colors.HexColor("#166534")
     AMBAR_BG = colors.HexColor("#FEF3C7")
     BLANCO   = colors.white
-    HDR_BG   = colors.HexColor("#1E3A5F")
+    NEGRO    = colors.HexColor("#1E293B")
 
     regimen_label = {"general": "General (30 d/año)", "remype": "REMYPE (15 d/año)"}.get(
         cfg.regimen, f"Otro ({cfg.dias_por_anio} d/año)"
     )
 
+    def _fmt(iso: Optional[str]) -> str:
+        if not iso:
+            return "—"
+        try:
+            d = date.fromisoformat(iso[:10])
+            return d.strftime("%d/%m/%Y")
+        except Exception:
+            return iso
+
+    title_st = ParagraphStyle("T", fontSize=15, textColor=AZUL,
+                               alignment=TA_CENTER, fontName="Helvetica-Bold", spaceAfter=3)
+    sub_st   = ParagraphStyle("S", fontSize=8.5, textColor=GRIS,
+                               alignment=TA_CENTER, spaceAfter=10)
+    sec_st   = ParagraphStyle("SEC", fontSize=10, textColor=AZUL_OSC,
+                               fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
+    cell_st  = ParagraphStyle("C", fontSize=8, fontName="Helvetica", leading=10, alignment=TA_LEFT)
+    ctr_st   = ParagraphStyle("CT", fontSize=8, fontName="Helvetica", leading=10, alignment=TA_CENTER)
+    sml_st   = ParagraphStyle("SM", fontSize=7.5, fontName="Helvetica", leading=9.5, alignment=TA_LEFT, textColor=GRIS)
+    sml_ctr  = ParagraphStyle("SMC", fontSize=7.5, fontName="Helvetica", leading=9.5, alignment=TA_CENTER, textColor=GRIS)
+    norm_st  = ParagraphStyle("N", fontSize=7, textColor=colors.HexColor("#94A3B8"), alignment=TA_LEFT)
+
     story = []
 
-    # Título
-    title_style = ParagraphStyle("title", fontSize=16, textColor=AZUL,
-                                  alignment=TA_CENTER, fontName="Helvetica-Bold",
-                                  spaceAfter=4)
-    sub_style   = ParagraphStyle("sub", fontSize=9, textColor=GRIS,
-                                  alignment=TA_CENTER, spaceAfter=12)
-    story.append(Paragraph("REPORTE DE VACACIONES POR LEY (SUNAFIL)", title_style))
+    # ── Encabezado ────────────────────────────────────────────────────────────
+    story.append(Paragraph("REPORTE DE VACACIONES POR LEY (SUNAFIL)", title_st))
     story.append(Paragraph(
-        f"Régimen: {regimen_label} &nbsp;|&nbsp; "
-        f"Tope: {cfg.tope_acumulacion} días &nbsp;|&nbsp; "
-        f"Generado: {date.today().strftime('%d/%m/%Y')}",
-        sub_style,
+        f"Régimen: <b>{regimen_label}</b> &nbsp;|&nbsp; "
+        f"Tope acumulación: <b>{cfg.tope_acumulacion} días</b> &nbsp;|&nbsp; "
+        f"Generado: <b>{date.today().strftime('%d/%m/%Y')}</b>",
+        sub_st,
     ))
-    story.append(Spacer(1, 0.3*cm))
+    story.append(HRFlowable(width="100%", thickness=1, color=GRIS_BRD, spaceAfter=6))
 
-    # Tabla
-    hdr = ["N°", "Empleado", "Cargo", "F. Ingreso", "Meses", "Años",
-           "Días/Año", "Devengado", "Gozado", "Disponible", "Estado"]
-    col_widths = [1*cm, 5.5*cm, 4.5*cm, 2.5*cm, 2*cm, 1.8*cm,
-                  2.2*cm, 2.4*cm, 2*cm, 2.4*cm, 4*cm]
+    # ── 1. TABLA RESUMEN ─────────────────────────────────────────────────────
+    story.append(Paragraph("1. Resumen de Saldos", sec_st))
 
-    cell_style = ParagraphStyle("cell", fontSize=8, fontName="Helvetica",
-                                 leading=10, alignment=TA_LEFT)
-    ctr_style  = ParagraphStyle("ctr",  fontSize=8, fontName="Helvetica",
-                                 leading=10, alignment=TA_CENTER)
+    hdr_res = ["N°", "Empleado", "Cargo", "F. Ingreso", "Meses", "Años",
+               "Días/Año", "Devengado", "Gozado", "Disponible", "Estado"]
+    cw_res = [0.9*cm, 5.2*cm, 4.2*cm, 2.4*cm, 1.8*cm, 1.6*cm,
+              2*cm, 2.2*cm, 1.8*cm, 2.2*cm, 4*cm]
 
-    data = [hdr]
-    row_colors: list[tuple] = []
+    data_res = [hdr_res]
+    row_clrs: list = []
 
     for idx, s in enumerate(saldos, 1):
-        estado = s.estado_vacaciones
-        if estado == "sin_derecho":
-            row_bg = AMBAR_BG
-        elif estado == "agotado":
-            row_bg = ROJO_BG
-        else:
-            row_bg = VERDE_BG
-        row_colors.append(row_bg)
-
-        data.append([
-            Paragraph(str(idx),                         ctr_style),
-            Paragraph(s.empleado_nombre or "",          cell_style),
-            Paragraph(s.cargo or "",                    cell_style),
-            Paragraph(s.fecha_ingreso or "",            ctr_style),
-            Paragraph(str(s.meses_servicio),            ctr_style),
-            Paragraph(str(s.anos_servicio),             ctr_style),
-            Paragraph(str(s.dias_por_anio),             ctr_style),
-            Paragraph(str(int(s.devengado)),            ctr_style),
-            Paragraph(str(s.gozado),                    ctr_style),
-            Paragraph(f"{s.disponible:.0f}",            ctr_style),
-            Paragraph(_ESTADO_LABEL.get(estado, estado), cell_style),
+        est = s.estado_vacaciones
+        row_clrs.append(AMBAR_BG if est == "sin_derecho" else ROJO_BG if est == "agotado" else VERDE_BG)
+        data_res.append([
+            Paragraph(str(idx),                                ctr_st),
+            Paragraph(s.empleado_nombre or "",                 cell_st),
+            Paragraph(s.cargo or "",                           cell_st),
+            Paragraph(_fmt(s.fecha_ingreso),                   ctr_st),
+            Paragraph(str(s.meses_servicio),                   ctr_st),
+            Paragraph(str(s.anos_servicio),                    ctr_st),
+            Paragraph(str(s.dias_por_anio),                    ctr_st),
+            Paragraph(str(int(s.devengado)),                   ctr_st),
+            Paragraph(str(s.gozado),                           ctr_st),
+            Paragraph(f"<b>{s.disponible:.0f}</b>",            ctr_st),
+            Paragraph(_ESTADO_LABEL.get(est, est),             cell_st),
         ])
 
-    t = Table(data, colWidths=col_widths, repeatRows=1)
-
-    ts = TableStyle([
-        # Encabezado
-        ("BACKGROUND",  (0, 0), (-1, 0), HDR_BG),
-        ("TEXTCOLOR",   (0, 0), (-1, 0), BLANCO),
-        ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",    (0, 0), (-1, 0), 8),
-        ("ALIGN",       (0, 0), (-1, 0), "CENTER"),
-        ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
-        ("ROWBACKGROUND", (0, 1), (-1, -1), [colors.white]),
-        ("GRID",        (0, 0), (-1, -1), 0.4, colors.HexColor("#CBD5E1")),
-        ("TOPPADDING",  (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    t_res = Table(data_res, colWidths=cw_res, repeatRows=1)
+    ts_res = TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0), AZUL_OSC),
+        ("TEXTCOLOR",     (0, 0), (-1, 0), BLANCO),
+        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",      (0, 0), (-1, 0), 8),
+        ("ALIGN",         (0, 0), (-1, 0), "CENTER"),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BRD),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ])
-    # Filas con color según estado
-    for ri, bg in enumerate(row_colors, 1):
-        ts.add("BACKGROUND", (0, ri), (-1, ri), bg)
-    t.setStyle(ts)
+    for ri, bg in enumerate(row_clrs, 1):
+        ts_res.add("BACKGROUND", (0, ri), (-1, ri), bg)
+    t_res.setStyle(ts_res)
+    story.append(t_res)
 
-    story.append(t)
-    story.append(Spacer(1, 0.6*cm))
-
-    # Leyenda
-    leyenda_style = ParagraphStyle("ley", fontSize=7.5, textColor=GRIS,
-                                    alignment=TA_LEFT)
-    story.append(Paragraph(
-        "<b>Leyenda:</b> &nbsp;"
-        "<font color='#92400E'>Amarillo = Sin derecho (menos de 12 meses de servicio)</font> &nbsp;|&nbsp; "
-        "<font color='#991B1B'>Rojo = Saldo agotado (días disponibles = 0)</font> &nbsp;|&nbsp; "
-        "<font color='#166534'>Verde = Con días disponibles</font>",
-        leyenda_style,
-    ))
+    # Leyenda resumen
     story.append(Spacer(1, 0.3*cm))
     story.append(Paragraph(
+        "<font color='#92400E'><b>■</b> Amarillo</font> = Sin derecho (&lt;12 meses) &nbsp;|&nbsp; "
+        "<font color='#991B1B'><b>■</b> Rojo</font> = Saldo agotado &nbsp;|&nbsp; "
+        "<font color='#166534'><b>■</b> Verde</font> = Con días disponibles",
+        ParagraphStyle("LEY", fontSize=7.5, textColor=GRIS, alignment=TA_LEFT),
+    ))
+
+    # ── 2. DETALLE DE PERÍODOS APROBADOS ────────────────────────────────────
+    con_gozado = [s for s in saldos if s.solicitudes_gozadas]
+    if con_gozado:
+        story.append(Spacer(1, 0.5*cm))
+        story.append(HRFlowable(width="100%", thickness=0.8, color=GRIS_BRD))
+        story.append(Paragraph("2. Detalle de Períodos de Vacaciones Gozadas", sec_st))
+
+        cw_det = [0.9*cm, 5.5*cm, 3*cm, 3*cm, 1.8*cm, 2.8*cm]
+
+        for s in con_gozado:
+            bloque = []
+            # mini-encabezado del empleado
+            emp_hdr = Table(
+                [[
+                    Paragraph(f"<b>{s.empleado_nombre or '—'}</b>", cell_st),
+                    Paragraph(s.cargo or "", sml_st),
+                    Paragraph(f"Ingresó: {_fmt(s.fecha_ingreso)}", sml_st),
+                    Paragraph(
+                        f"Devengado: <b>{int(s.devengado)}</b> d  |  "
+                        f"Gozado: <b>{s.gozado}</b> d  |  "
+                        f"Disponible: <b>{s.disponible:.0f}</b> d",
+                        ParagraphStyle("EHdr", fontSize=8, fontName="Helvetica",
+                                       leading=10, alignment=TA_RIGHT, textColor=NEGRO),
+                    ),
+                ]],
+                colWidths=[5.5*cm, 3.5*cm, 3.5*cm, None],
+            )
+            emp_hdr.setStyle(TableStyle([
+                ("BACKGROUND",  (0, 0), (-1, -1), GRIS_CLR),
+                ("TOPPADDING",  (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            bloque.append(emp_hdr)
+
+            # tabla de períodos
+            hdr_per = ["#", "Desde", "Hasta", "Días", "Aprobado el"]
+            det_data = [hdr_per]
+            for i, per in enumerate(s.solicitudes_gozadas, 1):
+                det_data.append([
+                    Paragraph(str(i),                          sml_ctr),
+                    Paragraph(_fmt(per.fecha_inicio),          sml_ctr),
+                    Paragraph(_fmt(per.fecha_fin),             sml_ctr),
+                    Paragraph(f"<b>{per.dias}</b>",            sml_ctr),
+                    Paragraph(_fmt(per.fecha_aprobacion),      sml_ctr),
+                ])
+            t_det = Table(det_data, colWidths=[1*cm, 3*cm, 3*cm, 2*cm, 3.5*cm])
+            t_det.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, 0), colors.HexColor("#334155")),
+                ("TEXTCOLOR",     (0, 0), (-1, 0), BLANCO),
+                ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE",      (0, 0), (-1, 0), 7.5),
+                ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BRD),
+                ("TOPPADDING",    (0, 0), (-1, -1), 2.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+                ("ROWBACKGROUND", (0, 1), (-1, -1), [BLANCO, GRIS_CLR]),
+            ]))
+            bloque.append(t_det)
+            bloque.append(Spacer(1, 0.25*cm))
+            story.append(KeepTogether(bloque))
+
+    # ── Normativa ────────────────────────────────────────────────────────────
+    story.append(Spacer(1, 0.4*cm))
+    story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_BRD))
+    story.append(Spacer(1, 0.15*cm))
+    story.append(Paragraph(
         "Normativa: D. Leg. N° 713 · D.S. 013-2013-PRODUCE (REMYPE) · D. Leg. N° 1405 (fraccionamiento)",
-        ParagraphStyle("norm", fontSize=7, textColor=colors.HexColor("#94A3B8"), alignment=TA_LEFT),
+        norm_st,
     ))
 
     doc.build(story)
