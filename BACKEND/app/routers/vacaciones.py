@@ -584,208 +584,563 @@ def reporte_excel(payload: dict = Depends(verificar_token), db: Session = Depend
 
 # ── Reporte PDF ───────────────────────────────────────────────────────────────
 
+def _pdf_footer(canvas, doc, fecha_gen: str, total_pags_ref: list):
+    """Pie de página numerado en todas las hojas."""
+    from reportlab.lib import colors as _c
+    from reportlab.lib.units import cm as _cm
+    w, h = doc.pagesize
+    canvas.saveState()
+    canvas.setFont("Helvetica", 6.5)
+    canvas.setFillColor(_c.HexColor("#94A3B8"))
+    canvas.drawString(1.5*_cm, 0.7*_cm,
+        f"CONFIDENCIAL — Uso exclusivo de Gerencia y Recursos Humanos  |  "
+        f"Generado: {fecha_gen}  |  "
+        f"Normativa: D.Leg. 713 · D.S. 013-2013-PRODUCE · D.Leg. 1405")
+    canvas.drawRightString(w - 1.5*_cm, 0.7*_cm, f"Página {doc.page}")
+    canvas.setStrokeColor(_c.HexColor("#E2E8F0"))
+    canvas.setLineWidth(0.5)
+    canvas.line(1.5*_cm, 1*_cm, w - 1.5*_cm, 1*_cm)
+    canvas.restoreState()
+
+
 @router.get("/reporte.pdf")
 def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib import colors
     from reportlab.lib.units import cm
     from reportlab.platypus import (
-        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable,
-        KeepTogether,
+        SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
+        HRFlowable, KeepTogether, PageBreak,
     )
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 
     empresa_id = payload["empresa_id"]
     saldos, cfg = _saldos_todos(db, empresa_id)
+    hoy = date.today()
+    fecha_gen = hoy.strftime("%d/%m/%Y")
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=landscape(A4),
-        leftMargin=1.5*cm, rightMargin=1.5*cm,
-        topMargin=1.5*cm, bottomMargin=1.5*cm,
+        leftMargin=1.8*cm, rightMargin=1.8*cm,
+        topMargin=1.6*cm, bottomMargin=1.8*cm,
     )
+    PAGE_W = landscape(A4)[0] - 3.6*cm   # ancho útil
 
-    AZUL     = colors.HexColor("#1A56DB")
-    AZUL_OSC = colors.HexColor("#1E3A5F")
-    GRIS     = colors.HexColor("#64748B")
-    GRIS_CLR = colors.HexColor("#F1F5F9")
-    GRIS_BRD = colors.HexColor("#CBD5E1")
-    ROJO_BG  = colors.HexColor("#FEE2E2")
-    VERDE_BG = colors.HexColor("#DCFCE7")
-    VERDE_FG = colors.HexColor("#166534")
-    AMBAR_BG = colors.HexColor("#FEF3C7")
-    BLANCO   = colors.white
-    NEGRO    = colors.HexColor("#1E293B")
+    # ── Paleta corporativa ────────────────────────────────────────────────────
+    AZUL      = colors.HexColor("#1A56DB")
+    AZUL_OSC  = colors.HexColor("#1E3A5F")
+    AZUL_MED  = colors.HexColor("#1D4ED8")
+    AZUL_CLR  = colors.HexColor("#EFF6FF")
+    GRIS      = colors.HexColor("#64748B")
+    GRIS_CLR  = colors.HexColor("#F8FAFC")
+    GRIS_BRD  = colors.HexColor("#CBD5E1")
+    GRIS_BRD2 = colors.HexColor("#E2E8F0")
+    ROJO_BG   = colors.HexColor("#FEF2F2")
+    ROJO_FG   = colors.HexColor("#B91C1C")
+    VERDE_BG  = colors.HexColor("#F0FDF4")
+    VERDE_FG  = colors.HexColor("#15803D")
+    AMBAR_BG  = colors.HexColor("#FFFBEB")
+    AMBAR_FG  = colors.HexColor("#B45309")
+    BLANCO    = colors.white
+    NEGRO     = colors.HexColor("#0F172A")
+    PLOMO     = colors.HexColor("#475569")
 
-    regimen_label = {"general": "General (30 d/año)", "remype": "REMYPE (15 d/año)"}.get(
-        cfg.regimen, f"Otro ({cfg.dias_por_anio} d/año)"
-    )
+    regimen_label = {
+        "general": "Régimen General",
+        "remype":  "Régimen REMYPE (Pequeña Empresa)",
+    }.get(cfg.regimen, f"Régimen especial")
 
     def _fmt(iso: Optional[str]) -> str:
         if not iso:
             return "—"
         try:
-            d = date.fromisoformat(iso[:10])
-            return d.strftime("%d/%m/%Y")
+            return date.fromisoformat(iso[:10]).strftime("%d/%m/%Y")
         except Exception:
             return iso
 
-    title_st = ParagraphStyle("T", fontSize=15, textColor=AZUL,
-                               alignment=TA_CENTER, fontName="Helvetica-Bold", spaceAfter=3)
-    sub_st   = ParagraphStyle("S", fontSize=8.5, textColor=GRIS,
-                               alignment=TA_CENTER, spaceAfter=10)
-    sec_st   = ParagraphStyle("SEC", fontSize=10, textColor=AZUL_OSC,
-                               fontName="Helvetica-Bold", spaceBefore=10, spaceAfter=4)
-    cell_st  = ParagraphStyle("C", fontSize=8, fontName="Helvetica", leading=10, alignment=TA_LEFT)
-    ctr_st   = ParagraphStyle("CT", fontSize=8, fontName="Helvetica", leading=10, alignment=TA_CENTER)
-    sml_st   = ParagraphStyle("SM", fontSize=7.5, fontName="Helvetica", leading=9.5, alignment=TA_LEFT, textColor=GRIS)
-    sml_ctr  = ParagraphStyle("SMC", fontSize=7.5, fontName="Helvetica", leading=9.5, alignment=TA_CENTER, textColor=GRIS)
-    norm_st  = ParagraphStyle("N", fontSize=7, textColor=colors.HexColor("#94A3B8"), alignment=TA_LEFT)
+    # ── Estilos tipográficos ──────────────────────────────────────────────────
+    def PS(name, **kw):
+        return ParagraphStyle(name, **kw)
+
+    T_MAIN   = PS("TM",  fontSize=18, textColor=BLANCO,    fontName="Helvetica-Bold",
+                  alignment=TA_LEFT, leading=22)
+    T_SUB    = PS("TS",  fontSize=9,  textColor=colors.HexColor("#BFDBFE"),
+                  fontName="Helvetica", alignment=TA_LEFT, leading=13)
+    T_CONF   = PS("TC",  fontSize=7.5, textColor=colors.HexColor("#FEF3C7"),
+                  fontName="Helvetica-Bold", alignment=TA_RIGHT)
+    SEC_ST   = PS("SEC", fontSize=10, textColor=AZUL_OSC, fontName="Helvetica-Bold",
+                  spaceBefore=12, spaceAfter=5, leading=13)
+    BODY_ST  = PS("BD",  fontSize=8.5, textColor=PLOMO, fontName="Helvetica",
+                  leading=13, spaceAfter=3, alignment=TA_JUSTIFY)
+    BULL_ST  = PS("BL",  fontSize=8.5, textColor=NEGRO, fontName="Helvetica",
+                  leading=13, leftIndent=12, spaceAfter=2)
+    CELL_ST  = PS("C",   fontSize=8,   fontName="Helvetica", leading=10, alignment=TA_LEFT)
+    CTR_ST   = PS("CT",  fontSize=8,   fontName="Helvetica", leading=10, alignment=TA_CENTER)
+    CTR_B    = PS("CTB", fontSize=8,   fontName="Helvetica-Bold", leading=10, alignment=TA_CENTER)
+    SML_ST   = PS("SM",  fontSize=7.5, fontName="Helvetica", leading=9.5,
+                  alignment=TA_LEFT,   textColor=PLOMO)
+    SML_CTR  = PS("SMC", fontSize=7.5, fontName="Helvetica", leading=9.5,
+                  alignment=TA_CENTER, textColor=PLOMO)
+    NORM_ST  = PS("N",   fontSize=7,   textColor=colors.HexColor("#94A3B8"), alignment=TA_LEFT)
+    LABEL_ST = PS("LB",  fontSize=7,   fontName="Helvetica-Bold", textColor=PLOMO,
+                  alignment=TA_CENTER, leading=9)
+    VAL_ST   = PS("VL",  fontSize=14,  fontName="Helvetica-Bold", textColor=AZUL_OSC,
+                  alignment=TA_CENTER, leading=16)
+    KPI_SUB  = PS("KS",  fontSize=7,   fontName="Helvetica", textColor=GRIS,
+                  alignment=TA_CENTER, leading=9)
 
     story = []
 
-    # ── Encabezado ────────────────────────────────────────────────────────────
-    story.append(Paragraph("REPORTE DE VACACIONES POR LEY (SUNAFIL)", title_st))
-    story.append(Paragraph(
-        f"Régimen: <b>{regimen_label}</b> &nbsp;|&nbsp; "
-        f"Tope acumulación: <b>{cfg.tope_acumulacion} días</b> &nbsp;|&nbsp; "
-        f"Generado: <b>{date.today().strftime('%d/%m/%Y')}</b>",
-        sub_st,
-    ))
-    story.append(HRFlowable(width="100%", thickness=1, color=GRIS_BRD, spaceAfter=6))
+    # ════════════════════════════════════════════════════════════════════════
+    # BLOQUE CABECERA (banner de color)
+    # ════════════════════════════════════════════════════════════════════════
+    hdr_inner = Table(
+        [[
+            Paragraph(
+                "REPORTE DE VACACIONES<br/>"
+                "<font size='10'>Control de saldos y períodos por ley · Recursos Humanos</font>",
+                T_MAIN,
+            ),
+            Paragraph(
+                f"CONFIDENCIAL<br/>"
+                f"<font size='7' color='#BFDBFE'>Uso exclusivo de Gerencia y RR.HH.</font>",
+                T_CONF,
+            ),
+        ]],
+        colWidths=[PAGE_W * 0.72, PAGE_W * 0.28],
+    )
+    hdr_inner.setStyle(TableStyle([
+        ("VALIGN",       (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING",   (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING",(0, 0), (-1, -1), 10),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    hdr_wrap = Table([[hdr_inner]], colWidths=[PAGE_W])
+    hdr_wrap.setStyle(TableStyle([
+        ("BACKGROUND",   (0, 0), (-1, -1), AZUL_OSC),
+        ("TOPPADDING",   (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING",(0, 0), (-1, -1), 6),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+        ("ROUNDEDCORNERS", (0, 0), (-1, -1), [4]),
+    ]))
+    story.append(hdr_wrap)
 
-    # ── 1. TABLA RESUMEN ─────────────────────────────────────────────────────
-    story.append(Paragraph("1. Resumen de Saldos", sec_st))
+    # Banda de metadatos bajo el banner
+    meta = Table([[
+        Paragraph(f"<b>Régimen:</b> {regimen_label}", SML_ST),
+        Paragraph(f"<b>Días por año:</b> {cfg.dias_por_anio}", SML_ST),
+        Paragraph(f"<b>Tope de acumulación:</b> {cfg.tope_acumulacion} días", SML_ST),
+        Paragraph(f"<b>Fecha de emisión:</b> {fecha_gen}", SML_ST),
+        Paragraph(f"<b>Total empleados activos:</b> {len(saldos)}", SML_ST),
+    ]], colWidths=[PAGE_W / 5] * 5)
+    meta.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), AZUL_CLR),
+        ("TOPPADDING",    (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW",     (0, 0), (-1, -1), 0.5, GRIS_BRD),
+    ]))
+    story.append(meta)
+    story.append(Spacer(1, 0.4*cm))
 
-    hdr_res = ["N°", "Empleado", "Cargo", "F. Ingreso", "Meses", "Años",
-               "Días/Año", "Devengado", "Gozado", "Disponible", "Estado"]
-    cw_res = [0.9*cm, 5.2*cm, 4.2*cm, 2.4*cm, 1.8*cm, 1.6*cm,
-              2*cm, 2.2*cm, 1.8*cm, 2.2*cm, 4*cm]
+    # ════════════════════════════════════════════════════════════════════════
+    # KPIs EJECUTIVOS (4 tarjetas)
+    # ════════════════════════════════════════════════════════════════════════
+    con_derecho  = [s for s in saldos if s.meses_servicio >= 12]
+    sin_derecho  = [s for s in saldos if s.meses_servicio < 12]
+    total_gozado = sum(s.gozado for s in saldos)
+    total_disp   = sum(s.disponible for s in saldos)
+
+    def _kpi_cell(valor, label, sub, bg, fg):
+        t = Table([[
+            Paragraph(str(valor), PS("V", fontSize=20, fontName="Helvetica-Bold",
+                                     textColor=fg, alignment=TA_CENTER, leading=22)),
+            ],[
+            Paragraph(label, PS("L", fontSize=8, fontName="Helvetica-Bold",
+                                 textColor=fg, alignment=TA_CENTER, leading=10)),
+            ],[
+            Paragraph(sub, PS("S", fontSize=7, fontName="Helvetica",
+                               textColor=fg, alignment=TA_CENTER, leading=9)),
+        ]])
+        t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), bg),
+            ("TOPPADDING",    (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        return t
+
+    kpi_w = (PAGE_W - 0.6*cm) / 4
+    kpis = Table([[
+        _kpi_cell(len(saldos),    "TOTAL EMPLEADOS",       "Activos en el sistema",         AZUL_CLR,  AZUL_OSC),
+        _kpi_cell(len(con_derecho),"CON DERECHO",          f"≥ 12 meses de servicio",        VERDE_BG,  VERDE_FG),
+        _kpi_cell(f"{total_gozado}d", "DÍAS GOZADOS",     "Vacaciones aprobadas y tomadas", AMBAR_BG,  AMBAR_FG),
+        _kpi_cell(f"{int(total_disp)}d","DÍAS DISPONIBLES","Pendientes de goce",            ROJO_BG,   ROJO_FG),
+    ]], colWidths=[kpi_w]*4, rowHeights=[None])
+    kpis.setStyle(TableStyle([
+        ("LINEAFTER",     (0, 0), (2, -1), 0.5, GRIS_BRD2),
+        ("BOX",           (0, 0), (-1, -1), 0.8, GRIS_BRD),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+        ("TOPPADDING",    (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(kpis)
+    story.append(Spacer(1, 0.5*cm))
+    story.append(HRFlowable(width="100%", thickness=0.6, color=GRIS_BRD2, spaceAfter=4))
+
+    # ════════════════════════════════════════════════════════════════════════
+    # SECCIÓN 1 — RESUMEN DE SALDOS
+    # ════════════════════════════════════════════════════════════════════════
+    story.append(Paragraph("1.  Resumen de Saldos por Empleado", SEC_ST))
+
+    hdr_res = [
+        Paragraph("<b>N°</b>",         CTR_ST),
+        Paragraph("<b>Empleado</b>",    CELL_ST),
+        Paragraph("<b>Cargo</b>",       CELL_ST),
+        Paragraph("<b>F. Ingreso</b>",  CTR_ST),
+        Paragraph("<b>Meses</b>",       CTR_ST),
+        Paragraph("<b>Años</b>",        CTR_ST),
+        Paragraph("<b>Días/Año</b>",    CTR_ST),
+        Paragraph("<b>Devengado</b>",   CTR_ST),
+        Paragraph("<b>Gozado</b>",      CTR_ST),
+        Paragraph("<b>Disponible</b>",  CTR_ST),
+        Paragraph("<b>Estado</b>",      CTR_ST),
+    ]
+    cw_res = [0.8*cm, 5*cm, 4*cm, 2.3*cm, 1.7*cm, 1.5*cm,
+              2*cm, 2.1*cm, 1.8*cm, 2.1*cm, None]
+    cw_res[-1] = PAGE_W - sum(cw_res[:-1])
 
     data_res = [hdr_res]
     row_clrs: list = []
 
     for idx, s in enumerate(saldos, 1):
         est = s.estado_vacaciones
-        row_clrs.append(AMBAR_BG if est == "sin_derecho" else ROJO_BG if est == "agotado" else VERDE_BG)
+        if est == "sin_derecho":
+            row_bg, est_fg, est_txt = AMBAR_BG, AMBAR_FG, "Sin derecho"
+        elif est == "agotado":
+            row_bg, est_fg, est_txt = ROJO_BG,  ROJO_FG,  "Saldo agotado"
+        else:
+            row_bg, est_fg, est_txt = VERDE_BG, VERDE_FG, f"{s.disponible:.0f} días disp."
+        row_clrs.append(row_bg)
+
+        est_st = PS(f"ES{idx}", fontSize=7.5, fontName="Helvetica-Bold",
+                    textColor=est_fg, alignment=TA_CENTER, leading=9)
         data_res.append([
-            Paragraph(str(idx),                                ctr_st),
-            Paragraph(s.empleado_nombre or "",                 cell_st),
-            Paragraph(s.cargo or "",                           cell_st),
-            Paragraph(_fmt(s.fecha_ingreso),                   ctr_st),
-            Paragraph(str(s.meses_servicio),                   ctr_st),
-            Paragraph(str(s.anos_servicio),                    ctr_st),
-            Paragraph(str(s.dias_por_anio),                    ctr_st),
-            Paragraph(str(int(s.devengado)),                   ctr_st),
-            Paragraph(str(s.gozado),                           ctr_st),
-            Paragraph(f"<b>{s.disponible:.0f}</b>",            ctr_st),
-            Paragraph(_ESTADO_LABEL.get(est, est),             cell_st),
+            Paragraph(str(idx),              CTR_ST),
+            Paragraph(s.empleado_nombre or "", CELL_ST),
+            Paragraph(s.cargo or "",          CELL_ST),
+            Paragraph(_fmt(s.fecha_ingreso),  CTR_ST),
+            Paragraph(str(s.meses_servicio),  CTR_ST),
+            Paragraph(str(s.anos_servicio),   CTR_ST),
+            Paragraph(str(s.dias_por_anio),   CTR_ST),
+            Paragraph(str(int(s.devengado)),  CTR_ST),
+            Paragraph(f"<b>{s.gozado}</b>" if s.gozado else "0", CTR_ST),
+            Paragraph(f"<b>{s.disponible:.0f}</b>",               CTR_B),
+            Paragraph(est_txt,                est_st),
         ])
 
     t_res = Table(data_res, colWidths=cw_res, repeatRows=1)
     ts_res = TableStyle([
         ("BACKGROUND",    (0, 0), (-1, 0), AZUL_OSC),
         ("TEXTCOLOR",     (0, 0), (-1, 0), BLANCO),
-        ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE",      (0, 0), (-1, 0), 8),
         ("ALIGN",         (0, 0), (-1, 0), "CENTER"),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BRD),
-        ("TOPPADDING",    (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("GRID",          (0, 0), (-1, -1), 0.35, GRIS_BRD2),
+        ("LINEBELOW",     (0, 0), (-1, 0), 1.5, AZUL_MED),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
     ])
     for ri, bg in enumerate(row_clrs, 1):
         ts_res.add("BACKGROUND", (0, ri), (-1, ri), bg)
+        if ri % 2 == 0:
+            pass  # alternado ya cubierto por row_clrs
     t_res.setStyle(ts_res)
     story.append(t_res)
 
-    # Leyenda resumen
-    story.append(Spacer(1, 0.3*cm))
+    story.append(Spacer(1, 0.2*cm))
+    ley_st = PS("LEY", fontSize=7, textColor=PLOMO, alignment=TA_LEFT, leading=10)
     story.append(Paragraph(
-        "<font color='#92400E'><b>■</b> Amarillo</font> = Sin derecho (&lt;12 meses) &nbsp;|&nbsp; "
-        "<font color='#991B1B'><b>■</b> Rojo</font> = Saldo agotado &nbsp;|&nbsp; "
-        "<font color='#166534'><b>■</b> Verde</font> = Con días disponibles",
-        ParagraphStyle("LEY", fontSize=7.5, textColor=GRIS, alignment=TA_LEFT),
+        "<font color='#B45309'><b>■</b></font> Amarillo = Sin derecho: el trabajador no ha cumplido 1 año de servicio. &nbsp;"
+        "<font color='#B91C1C'><b>■</b></font> Rojo = Saldo agotado: días devengados ya consumidos. &nbsp;"
+        "<font color='#15803D'><b>■</b></font> Verde = Con días disponibles para goce.",
+        ley_st,
     ))
 
-    # ── 2. DETALLE DE PERÍODOS APROBADOS ────────────────────────────────────
+    # ════════════════════════════════════════════════════════════════════════
+    # SECCIÓN 2 — MARCO LEGAL Y RÉGIMEN DE VACACIONES
+    # ════════════════════════════════════════════════════════════════════════
+    story.append(PageBreak())
+    story.append(Paragraph("2.  Marco Legal y Régimen de Vacaciones (SUNAFIL — Perú)", SEC_ST))
+
+    # Recuadro de régimen aplicable
+    reg_color = AZUL_CLR
+    reg_box = Table([[
+        Paragraph(
+            f"<b>Régimen aplicado a esta empresa: {regimen_label}</b><br/>"
+            f"<font size='8'>{cfg.dias_por_anio} días de vacaciones por año completo de servicio · "
+            f"Acumulación máxima: {cfg.tope_acumulacion} días ({cfg.tope_acumulacion // cfg.dias_por_anio} períodos)</font>",
+            PS("RB", fontSize=9, fontName="Helvetica", textColor=AZUL_OSC,
+               alignment=TA_LEFT, leading=13),
+        )
+    ]], colWidths=[PAGE_W])
+    reg_box.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), reg_color),
+        ("TOPPADDING",    (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
+        ("LINERIGHT",     (0, 0), (0, -1), 4, AZUL_MED),
+    ]))
+    story.append(reg_box)
+    story.append(Spacer(1, 0.35*cm))
+
+    # Tabla de artículos legales
+    leg_hdr = [
+        Paragraph("<b>Norma</b>",           CTR_ST),
+        Paragraph("<b>Artículo / Tema</b>", CELL_ST),
+        Paragraph("<b>Descripción</b>",     CELL_ST),
+        Paragraph("<b>Aplicación en empresa</b>", CELL_ST),
+    ]
+    leg_cw = [3.2*cm, 4*cm, None, 5.5*cm]
+    leg_cw[2] = PAGE_W - sum(c for c in leg_cw if c)
+
+    leg_data = [leg_hdr, *[
+        [
+            Paragraph(n, PS(f"LN{i}", fontSize=7.5, fontName="Helvetica-Bold",
+                            textColor=AZUL_OSC, alignment=TA_CENTER, leading=10)),
+            Paragraph(a, PS(f"LA{i}", fontSize=7.5, fontName="Helvetica-Bold",
+                            textColor=NEGRO, leading=10)),
+            Paragraph(d, PS(f"LD{i}", fontSize=7.5, fontName="Helvetica",
+                            textColor=PLOMO, leading=11, alignment=TA_JUSTIFY)),
+            Paragraph(ap, PS(f"LAP{i}", fontSize=7.5, fontName="Helvetica",
+                             textColor=NEGRO, leading=11)),
+        ]
+        for i, (n, a, d, ap) in enumerate([
+            (
+                "D. Leg. N° 713\n(08/11/1991)",
+                "Art. 10 — Requisito\nde devengamiento",
+                "El trabajador adquiere el derecho a vacaciones al cumplir 1 año completo "
+                "de servicios y haber laborado no menos del 80% de los días hábiles del año.",
+                f"Empleados con {'menos de 12 meses' if cfg.dias_por_anio else '12 meses o más'} "
+                "de servicio aparecen como 'Sin derecho' en este reporte.",
+            ),
+            (
+                "D. Leg. N° 713\nArt. 12",
+                "Días de descanso\nvacacional",
+                "Régimen General: 30 días calendario por año completo de servicios. "
+                "El derecho al goce es remunerado y obligatorio.",
+                "No aplica directamente (empresa en régimen REMYPE)." if cfg.regimen == "remype"
+                else f"Se aplican {cfg.dias_por_anio} días por año completo de servicio.",
+            ),
+            (
+                "D.S. N° 013-2013\nPRODUCE — REMYPE\n(Art. 49)",
+                "Régimen laboral\nde Pequeña Empresa",
+                "Las Pequeñas Empresas inscritas en el REMYPE otorgan 15 días calendario "
+                "de vacaciones por año completo de servicio, en lugar de los 30 días del "
+                "régimen general. Beneficio compensado con menores costos laborales para el empleador.",
+                f"Esta empresa aplica {cfg.dias_por_anio} d/año bajo el régimen REMYPE. "
+                f"Tope de acumulación: {cfg.tope_acumulacion} días.",
+            ),
+            (
+                "D. Leg. N° 713\nArt. 19 y 23",
+                "Acumulación y\ntope vacacional",
+                "Las vacaciones pueden acumularse de común acuerdo entre empleador y trabajador, "
+                f"hasta un máximo de 2 períodos consecutivos. Para el régimen REMYPE (15 d/año), "
+                f"el tope es de 30 días. Una vez alcanzado el tope, los días adicionales "
+                "NO se acumulan — se pierde el derecho a los días no tomados por encima del límite.",
+                f"Tope vigente: {cfg.tope_acumulacion} días ({cfg.tope_acumulacion // cfg.dias_por_anio} períodos). "
+                "Los trabajadores que alcanzan este tope deben programar su goce.",
+            ),
+            (
+                "D. Leg. N° 713\nArt. 23 — Prescripción",
+                "Prescripción del\npago doble",
+                "Si el empleador no otorga las vacaciones dentro del año siguiente a "
+                "aquel en que se generó el derecho, el trabajador tiene derecho a percibir: "
+                "(1) la remuneración del mes vacacional, (2) una remuneración adicional por "
+                "el trabajo en período de vacaciones, y (3) una indemnización equivalente a "
+                "una remuneración mensual. El derecho a la indemnización prescribe a los 2 años.",
+                "Las vacaciones no gozadas generan un pasivo laboral para la empresa. "
+                "Se recomienda programar el goce antes del vencimiento del período.",
+            ),
+            (
+                "D. Leg. N° 1405\n(12/09/2018)",
+                "Fraccionamiento\nvacacional",
+                "El trabajador puede solicitar el fraccionamiento de sus vacaciones en "
+                "períodos mínimos de 7 días naturales, previa comunicación al empleador. "
+                "El empleador puede reducir las vacaciones a un mínimo de 7 días, pagando "
+                "la remuneración proporcional más 1/6 adicional del total.",
+                "Los trabajadores con saldo disponible pueden fraccionar sus vacaciones "
+                "en acuerdo con el área de Recursos Humanos.",
+            ),
+            (
+                "D. Leg. N° 713\nArt. 16",
+                "Pago vacacional",
+                "El pago de la remuneración vacacional debe efectuarse antes del inicio "
+                "del goce vacacional. La remuneración vacacional es equivalente a la que "
+                "el trabajador hubiera percibido habitual y permanentemente.",
+                "Coordinar con planilla el pago previo al inicio de cada período vacacional.",
+            ),
+        ], 1)
+    ]]
+
+    t_leg = Table(leg_data, colWidths=leg_cw, repeatRows=1)
+    t_leg.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0), AZUL_OSC),
+        ("TEXTCOLOR",     (0, 0), (-1, 0), BLANCO),
+        ("ALIGN",         (0, 0), (0, -1), "CENTER"),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("GRID",          (0, 0), (-1, -1), 0.3, GRIS_BRD2),
+        ("LINEBELOW",     (0, 0), (-1, 0), 1.5, AZUL_MED),
+        ("TOPPADDING",    (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+        ("ROWBACKGROUND", (0, 1), (-1, -1), [BLANCO, GRIS_CLR]),
+    ]))
+    story.append(t_leg)
+    story.append(Spacer(1, 0.4*cm))
+
+    # Cuadro de recomendaciones
+    rec_box = Table([[
+        Paragraph(
+            "<b>Recomendaciones de Gestión para Gerencia:</b><br/>"
+            "1. Programar el goce vacacional de trabajadores con saldo agotado o próximos al tope, "
+            "para evitar la generación de pasivos laborales e indemnizaciones. &nbsp; "
+            "2. Los trabajadores con saldo 0 (agotado) ya consumieron todos sus días devengados — "
+            "no generan costo adicional si toman vacaciones dentro del año en curso. &nbsp; "
+            "3. Los trabajadores 'Sin derecho' aún no cumplen el año; su primer derecho se activa "
+            "al completar 12 meses continuos de servicio. &nbsp; "
+            "4. Se recomienda actualizar el registro de vacaciones gozadas mensualmente para "
+            "mantener el control del pasivo laboral.",
+            PS("REC", fontSize=8, fontName="Helvetica", textColor=AZUL_OSC,
+               alignment=TA_JUSTIFY, leading=12),
+        )
+    ]], colWidths=[PAGE_W])
+    rec_box.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), AZUL_CLR),
+        ("TOPPADDING",    (0, 0), (-1, -1), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
+        ("LINERIGHT",     (0, 0), (0, -1), 4, colors.HexColor("#3B82F6")),
+    ]))
+    story.append(rec_box)
+
+    # ════════════════════════════════════════════════════════════════════════
+    # SECCIÓN 3 — DETALLE POR EMPLEADO (sólo quienes tienen períodos aprobados)
+    # ════════════════════════════════════════════════════════════════════════
     con_gozado = [s for s in saldos if s.solicitudes_gozadas]
     if con_gozado:
-        story.append(Spacer(1, 0.5*cm))
-        story.append(HRFlowable(width="100%", thickness=0.8, color=GRIS_BRD))
-        story.append(Paragraph("2. Detalle de Períodos de Vacaciones Gozadas", sec_st))
-
-        cw_det = [0.9*cm, 5.5*cm, 3*cm, 3*cm, 1.8*cm, 2.8*cm]
+        story.append(PageBreak())
+        story.append(Paragraph("3.  Detalle de Períodos de Vacaciones Gozadas por Empleado", SEC_ST))
+        story.append(Paragraph(
+            "Se listan únicamente los trabajadores con al menos una solicitud de vacaciones aprobada "
+            "y efectivamente gozada. Los días mostrados en 'Gozado' se descuentan del saldo disponible.",
+            PS("DET_INT", fontSize=8, textColor=PLOMO, fontName="Helvetica",
+               leading=12, spaceAfter=8, alignment=TA_JUSTIFY),
+        ))
 
         for s in con_gozado:
             bloque = []
-            # mini-encabezado del empleado
-            emp_hdr = Table(
-                [[
-                    Paragraph(f"<b>{s.empleado_nombre or '—'}</b>", cell_st),
-                    Paragraph(s.cargo or "", sml_st),
-                    Paragraph(f"Ingresó: {_fmt(s.fecha_ingreso)}", sml_st),
-                    Paragraph(
-                        f"Devengado: <b>{int(s.devengado)}</b> d  |  "
-                        f"Gozado: <b>{s.gozado}</b> d  |  "
-                        f"Disponible: <b>{s.disponible:.0f}</b> d",
-                        ParagraphStyle("EHdr", fontSize=8, fontName="Helvetica",
-                                       leading=10, alignment=TA_RIGHT, textColor=NEGRO),
-                    ),
-                ]],
-                colWidths=[5.5*cm, 3.5*cm, 3.5*cm, None],
-            )
-            emp_hdr.setStyle(TableStyle([
-                ("BACKGROUND",  (0, 0), (-1, -1), GRIS_CLR),
-                ("TOPPADDING",  (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
-            ]))
-            bloque.append(emp_hdr)
 
-            # tabla de períodos
-            hdr_per = ["#", "Desde", "Hasta", "Días", "Aprobado el"]
-            det_data = [hdr_per]
+            # Ficha del empleado
+            ficha = Table([[
+                Paragraph(f"<b>{s.empleado_nombre or '—'}</b>", CELL_ST),
+                Paragraph(s.cargo or "", SML_ST),
+                Paragraph(f"Ingreso: {_fmt(s.fecha_ingreso)}", SML_ST),
+                Paragraph(f"{s.meses_servicio} meses / {s.anos_servicio} años", SML_ST),
+                Paragraph(
+                    f"Dev: <b>{int(s.devengado)}</b>d  "
+                    f"Gozado: <b>{s.gozado}</b>d  "
+                    f"Disp: <b>{s.disponible:.0f}</b>d",
+                    PS("FC", fontSize=8, fontName="Helvetica-Bold", textColor=AZUL_OSC,
+                       alignment=TA_RIGHT, leading=10),
+                ),
+            ]], colWidths=[5*cm, 3.5*cm, 2.8*cm, 3*cm, None])
+            ficha_cw5 = PAGE_W - 5*cm - 3.5*cm - 2.8*cm - 3*cm
+            ficha = Table([[
+                Paragraph(f"<b>{s.empleado_nombre or '—'}</b>", CELL_ST),
+                Paragraph(s.cargo or "", SML_ST),
+                Paragraph(f"Ingreso: {_fmt(s.fecha_ingreso)}", SML_ST),
+                Paragraph(f"{s.meses_servicio} meses / {s.anos_servicio} años", SML_ST),
+                Paragraph(
+                    f"Dev: <b>{int(s.devengado)}</b>d &nbsp; "
+                    f"Gozado: <b>{s.gozado}</b>d &nbsp; "
+                    f"Disp: <b>{s.disponible:.0f}</b>d",
+                    PS(f"FC{s.empleado_id}", fontSize=8, fontName="Helvetica-Bold",
+                       textColor=AZUL_OSC, alignment=TA_RIGHT, leading=10),
+                ),
+            ]], colWidths=[5*cm, 3.5*cm, 2.8*cm, 3*cm, ficha_cw5])
+            ficha.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, -1), GRIS_CLR),
+                ("TOPPADDING",    (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+                ("LINERIGHT",     (0, 0), (0, -1), 3, AZUL_MED),
+            ]))
+            bloque.append(ficha)
+
+            # Tabla de períodos
+            per_hdr = [
+                Paragraph("<b>#</b>",             CTR_ST),
+                Paragraph("<b>Desde</b>",          CTR_ST),
+                Paragraph("<b>Hasta</b>",          CTR_ST),
+                Paragraph("<b>Días gozados</b>",   CTR_ST),
+                Paragraph("<b>Aprobado el</b>",    CTR_ST),
+                Paragraph("<b>Observación</b>",    CELL_ST),
+            ]
+            per_cw = [0.8*cm, 2.8*cm, 2.8*cm, 2.5*cm, 2.8*cm, None]
+            per_cw[-1] = PAGE_W - sum(c for c in per_cw if c)
+
+            per_data = [per_hdr]
             for i, per in enumerate(s.solicitudes_gozadas, 1):
-                det_data.append([
-                    Paragraph(str(i),                          sml_ctr),
-                    Paragraph(_fmt(per.fecha_inicio),          sml_ctr),
-                    Paragraph(_fmt(per.fecha_fin),             sml_ctr),
-                    Paragraph(f"<b>{per.dias}</b>",            sml_ctr),
-                    Paragraph(_fmt(per.fecha_aprobacion),      sml_ctr),
+                per_data.append([
+                    Paragraph(str(i),                   SML_CTR),
+                    Paragraph(_fmt(per.fecha_inicio),   SML_CTR),
+                    Paragraph(_fmt(per.fecha_fin),      SML_CTR),
+                    Paragraph(f"<b>{per.dias}</b> día{'s' if per.dias != 1 else ''}", SML_CTR),
+                    Paragraph(_fmt(per.fecha_aprobacion), SML_CTR),
+                    Paragraph("Período aprobado y gozado", SML_ST),
                 ])
-            t_det = Table(det_data, colWidths=[1*cm, 3*cm, 3*cm, 2*cm, 3.5*cm])
-            t_det.setStyle(TableStyle([
+
+            t_per = Table(per_data, colWidths=per_cw)
+            t_per.setStyle(TableStyle([
                 ("BACKGROUND",    (0, 0), (-1, 0), colors.HexColor("#334155")),
                 ("TEXTCOLOR",     (0, 0), (-1, 0), BLANCO),
-                ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE",      (0, 0), (-1, 0), 7.5),
                 ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
                 ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-                ("GRID",          (0, 0), (-1, -1), 0.4, GRIS_BRD),
-                ("TOPPADDING",    (0, 0), (-1, -1), 2.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+                ("GRID",          (0, 0), (-1, -1), 0.3, GRIS_BRD2),
+                ("TOPPADDING",    (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
                 ("ROWBACKGROUND", (0, 1), (-1, -1), [BLANCO, GRIS_CLR]),
+                ("BACKGROUND",    (3, 1), (3, -1), VERDE_BG),
             ]))
-            bloque.append(t_det)
-            bloque.append(Spacer(1, 0.25*cm))
+            bloque.append(t_per)
+            bloque.append(Spacer(1, 0.3*cm))
             story.append(KeepTogether(bloque))
 
-    # ── Normativa ────────────────────────────────────────────────────────────
-    story.append(Spacer(1, 0.4*cm))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=GRIS_BRD))
-    story.append(Spacer(1, 0.15*cm))
-    story.append(Paragraph(
-        "Normativa: D. Leg. N° 713 · D.S. 013-2013-PRODUCE (REMYPE) · D. Leg. N° 1405 (fraccionamiento)",
-        norm_st,
-    ))
+    # ════════════════════════════════════════════════════════════════════════
+    # BUILD
+    # ════════════════════════════════════════════════════════════════════════
+    footer_fn = lambda canvas, doc: _pdf_footer(canvas, doc, fecha_gen, [])
+    doc.build(story, onFirstPage=footer_fn, onLaterPages=footer_fn)
 
-    doc.build(story)
     buf.seek(0)
-    filename = f"vacaciones_{date.today().isoformat()}.pdf"
+    filename = f"reporte_vacaciones_{hoy.isoformat()}.pdf"
     return StreamingResponse(
         buf, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
