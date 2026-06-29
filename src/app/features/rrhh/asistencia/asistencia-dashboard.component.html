@@ -1228,7 +1228,7 @@
                   <td>
                     <div class="dia-fecha">
                       <span class="dia-dia">{{ dia.dia_nombre }}</span>
-                      <span class="dia-fecha-num">{{ dia.fecha | date:'dd/MM' }}</span>
+                      <span class="dia-fecha-num">{{ dia.fecha | date:'dd/MM':'UTC' }}</span>
                     </div>
                   </td>
                   <td><span class="hora-cell">{{ formatHora(dia.hora_ingreso) }}</span></td>

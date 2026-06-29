@@ -363,7 +363,13 @@ export class AsistenciaDashboardComponent implements OnInit, OnDestroy {
   private sabadoDe(ref: Date): Date {
     const d = this.lunesDe(ref); d.setDate(d.getDate() + 5); return d;
   }
-  toISODate(d: Date): string { return d.toISOString().split('T')[0]; }
+  toISODate(d: Date): string {
+    // Usar métodos locales (no toISOString) para evitar desfase UTC vs UTC-5
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
 
   get labelSemana(): string {
     if (!this.fechaInicio || !this.fechaFin) return '';
