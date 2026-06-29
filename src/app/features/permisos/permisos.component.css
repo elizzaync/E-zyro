@@ -134,3 +134,114 @@
 }
 /* Responsive: vista dividida apila en móvil */
 @media (max-width: 860px) { .split-view { grid-template-columns: 1fr; } }
+
+/* ── Modal alerta saldo vacacional ─────────────────────────────────────── */
+.vac-alert-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  backdrop-filter: blur(3px);
+  animation: fadeIn .18s ease;
+}
+
+.vac-alert-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 2rem 2.25rem 1.75rem;
+  max-width: 440px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+  text-align: center;
+  animation: slideUp .22s ease;
+}
+
+.vac-alert-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #fef3c7;
+  color: #d97706;
+  margin-bottom: 1rem;
+}
+
+.vac-alert-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1e3a5f;
+  margin: 0 0 .75rem;
+  line-height: 1.35;
+}
+
+.vac-alert-msg {
+  font-size: .9rem;
+  color: #475569;
+  line-height: 1.6;
+  margin: 0 0 1.5rem;
+}
+
+.vac-alert-msg strong {
+  color: #1e3a5f;
+}
+
+.vac-alert-actions {
+  display: flex;
+  gap: .75rem;
+  justify-content: center;
+}
+
+.vac-btn-cancel {
+  padding: .55rem 1.25rem;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.vac-btn-cancel:hover { background: #f1f5f9; color: #1e293b; }
+
+.vac-btn-confirm {
+  padding: .55rem 1.25rem;
+  border-radius: 8px;
+  border: none;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: .875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.vac-btn-confirm:hover { background: #1e3a8a; }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(18px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Dark mode */
+:host-context([data-theme="dark"]) .vac-alert-card {
+  background: #0f172a;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+:host-context([data-theme="dark"]) .vac-alert-title { color: #f1f5f9; }
+:host-context([data-theme="dark"]) .vac-alert-msg   { color: #94a3b8; }
+:host-context([data-theme="dark"]) .vac-alert-msg strong { color: #e2e8f0; }
+:host-context([data-theme="dark"]) .vac-btn-cancel {
+  border-color: #334155;
+  background: #1e293b;
+  color: #94a3b8;
+}
+:host-context([data-theme="dark"]) .vac-btn-cancel:hover { background: #334155; color: #f1f5f9; }

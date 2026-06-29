@@ -11,6 +11,7 @@ import { ToastService } from '../../core/services/toast.service';
 import { SpinnerComponent } from '../../shared/components/spinner/spinner.component';
 import { DashboardService } from '../../core/services/dashboard.service';
 import { PermisosService } from '../../core/services/permisos.service';
+import { RrhhService, SaldoVacacionesDto } from '../../core/services/rrhh.service';
 
 @Component({
   selector: 'app-permisos',
@@ -32,10 +33,17 @@ export class PermisosComponent implements OnInit {
   private toastService     = inject(ToastService);
   private dashboardService = inject(DashboardService);
   private permisosService  = inject(PermisosService);
+  private rrhhService      = inject(RrhhService);
 
   tabActiva    = 'solicitar';
   previewData: PreviewData | null = null;
   generandoPdf = false;
+
+  // Alerta de saldo vacacional agotado
+  alertaVacSaldo: 'agotado' | 'excedido' | null = null;
+  alertaVacDisponible = 0;
+  alertaVacSolicitado = 0;
+  private _pdfPendiente: File | null = null;
 
   empleadoInfo: EmpleadoInfo       = { nombre: '', cargo: 'PRACTICANTE', area: 'TI' };
   firmaGuardadaUrl: string | null  = null;
@@ -151,8 +159,57 @@ export class PermisosComponent implements OnInit {
       return;
     }
 
+    if (this.previewData.tipo === 'vacaciones') {
+      this._pdfPendiente = archivoPdf;
+      this.rrhhService.getMiSaldoVacaciones().subscribe({
+        next: (saldo) => this._evaluarSaldoVac(saldo, archivoPdf),
+        error: () => {
+          // Si falla la consulta, dejamos pasar sin bloquear
+          this.generandoPdf = true;
+          this.enviarAlBackend(archivoPdf);
+        },
+      });
+    } else {
+      this.generandoPdf = true;
+      this.enviarAlBackend(archivoPdf);
+    }
+  }
+
+  private _evaluarSaldoVac(saldo: SaldoVacacionesDto, pdf: File): void {
+    const diasSol = typeof this.previewData?.totalDias === 'number'
+      ? this.previewData.totalDias : 0;
+    const disp = saldo.disponible ?? 0;
+
+    if (disp <= 0) {
+      this.alertaVacSaldo      = 'agotado';
+      this.alertaVacDisponible = 0;
+      this.alertaVacSolicitado = diasSol;
+      return;
+    }
+
+    if (diasSol > disp) {
+      this.alertaVacSaldo      = 'excedido';
+      this.alertaVacDisponible = disp;
+      this.alertaVacSolicitado = diasSol;
+      return;
+    }
+
+    // Saldo OK → enviar directamente
     this.generandoPdf = true;
-    this.enviarAlBackend(archivoPdf);
+    this.enviarAlBackend(pdf);
+  }
+
+  confirmarEnvioVac(): void {
+    this.alertaVacSaldo = null;
+    if (!this._pdfPendiente) return;
+    this.generandoPdf = true;
+    this.enviarAlBackend(this._pdfPendiente);
+    this._pdfPendiente = null;
+  }
+
+  cancelarEnvioVac(): void {
+    this.alertaVacSaldo = null;
+    this._pdfPendiente  = null;
   }
 
   private enviarAlBackend(archivoPdf: File): void {

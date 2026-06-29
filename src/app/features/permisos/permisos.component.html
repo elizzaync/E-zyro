@@ -58,3 +58,44 @@
   }
 
 </div>
+
+<!-- ── Alerta: saldo vacacional agotado o excedido ───────────────────── -->
+@if (alertaVacSaldo) {
+  <div class="vac-alert-backdrop" (click)="cancelarEnvioVac()">
+    <div class="vac-alert-card" (click)="$event.stopPropagation()">
+
+      <div class="vac-alert-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+
+      @if (alertaVacSaldo === 'agotado') {
+        <h3 class="vac-alert-title">Ya completaste tus días de vacaciones</h3>
+        <p class="vac-alert-msg">
+          No tienes días de vacaciones disponibles.<br>
+          Tu saldo actual es <strong>0 días</strong>.
+          ¿Igualmente deseas enviar la solicitud para que sea revisada por Recursos Humanos?
+        </p>
+      }
+
+      @if (alertaVacSaldo === 'excedido') {
+        <h3 class="vac-alert-title">Estás solicitando más días de los disponibles</h3>
+        <p class="vac-alert-msg">
+          Solicitas <strong>{{ alertaVacSolicitado }} día{{ alertaVacSolicitado !== 1 ? 's' : '' }}</strong>
+          pero tu saldo actual es de
+          <strong>{{ alertaVacDisponible }} día{{ alertaVacDisponible !== 1 ? 's' : '' }}</strong>.<br>
+          ¿Igualmente deseas enviar la solicitud para que sea revisada por Recursos Humanos?
+        </p>
+      }
+
+      <div class="vac-alert-actions">
+        <button class="vac-btn-cancel" (click)="cancelarEnvioVac()">No, revisar</button>
+        <button class="vac-btn-confirm" (click)="confirmarEnvioVac()">Sí, enviar de todas formas</button>
+      </div>
+
+    </div>
+  </div>
+}

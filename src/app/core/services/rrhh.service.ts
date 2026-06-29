@@ -456,6 +456,10 @@ export class RrhhService {
     return this.http.get<SaldoVacacionesDto[]>(`${this.api}/vacaciones/saldos`);
   }
 
+  getMiSaldoVacaciones(): Observable<SaldoVacacionesDto> {
+    return this.http.get<SaldoVacacionesDto>(`${this.api}/vacaciones/mi-saldo`);
+  }
+
   descargarReporteVacaciones(formato: 'xlsx' | 'pdf'): Observable<Blob> {
     return this.http.get(`${this.api}/vacaciones/reporte.${formato}`, { responseType: 'blob' });
   }
