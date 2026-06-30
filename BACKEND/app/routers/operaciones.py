@@ -318,33 +318,13 @@ def get_proyectos(
         .filter(Proyecto.empresa_id == empresa_id)
     )
 
-    if rol == "Administrador" or es_jefe_operaciones(payload):
-        # Admin y Jefe de Operaciones ven todos los proyectos de la empresa
-        rows = base_q.order_by(Proyecto.created_at.desc()).all()
-    elif es_tecnico(payload):
-        # Técnico: solo proyectos donde tiene al menos UNA tarea asignada a su nombre
-        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
-        proyectos_con_tarea_sq = (
-            db.query(ProyectoServicio.proyecto_id)
-            .join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
-            .filter(
-                Tarea.responsable_id == empleado.id,
-                Tarea.empresa_id     == empresa_id,
-            )
-            .distinct()
-            .subquery()
-        )
-        rows = (
-            base_q
-            .filter(Proyecto.id.in_(proyectos_con_tarea_sq))
-            .order_by(Proyecto.created_at.desc())
-            .all()
-        )
-    else:
-        # Soporte, Logística, Administración y cualquier otro rol registrado
-        # ven todos los proyectos de la empresa.  Solo los Técnicos tienen
-        # visibilidad reducida (únicamente proyectos con tareas asignadas a ellos).
-        rows = base_q.order_by(Proyecto.created_at.desc()).all()
+    # Visibilidad de la LISTA abierta a TODOS los roles de la empresa: cualquier
+    # usuario puede ver qué proyectos existen (nombre, cliente, fechas, estado),
+    # lo que facilita planificar y crear más. El acceso al DETALLE / datos de
+    # trabajo de un servicio sigue restringido a los designados (ver
+    # get_detalle_servicio). Antes el Técnico tenía visibilidad reducida (solo
+    # proyectos con tareas suyas); se abrió por decisión de negocio.
+    rows = base_q.order_by(Proyecto.created_at.desc()).all()
 
     # ── Aplicar filtros adicionales sobre los rows ────────────────────────────
     if estado:
@@ -424,58 +404,20 @@ def get_servicios_proyecto(
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    if rol != "Administrador" and not es_jefe_operaciones(payload):
-        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
-        es_jefe    = proyecto.jefe_operaciones_id == empleado.id
-        es_miembro = db.query(ProyectoMiembro).filter(
-            ProyectoMiembro.proyecto_id == proyecto_id,
-            ProyectoMiembro.empleado_id == empleado.id,
-        ).first() is not None
-
-        if not es_jefe and not es_miembro:
-            raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
-
-    if es_tecnico(payload):
-        # Técnico: solo los servicios donde tiene al menos una tarea asignada
-        empleado_tec = _get_empleado_or_403(db, usuario_id, empresa_id)
-        servicios_asignados_ids = (
-            db.query(Tarea.proyecto_servicio_id)
-            .filter(
-                Tarea.responsable_id == empleado_tec.id,
-                Tarea.empresa_id     == empresa_id,
-                Tarea.proyecto_servicio_id.isnot(None),
-            )
-            .filter(
-                Tarea.proyecto_servicio_id.in_(
-                    db.query(ProyectoServicio.id).filter(
-                        ProyectoServicio.proyecto_id == proyecto_id
-                    )
-                )
-            )
-            .distinct()
-            .all()
+    # Lista de servicios ABIERTA a cualquier usuario de la empresa: ver
+    # existencia, fechas, estado y avance. El DETALLE completo de un servicio
+    # sigue restringido a los designados (ver get_detalle_servicio). Antes este
+    # endpoint daba 403 a quien no fuera jefe/miembro del proyecto y filtraba al
+    # Técnico a sus tareas; se abrió la visibilidad de la lista por negocio.
+    servicios = (
+        db.query(ProyectoServicio)
+        .filter(
+            ProyectoServicio.proyecto_id == proyecto_id,
+            ProyectoServicio.empresa_id  == empresa_id,
         )
-        ids_permitidos = {str(r[0]) for r in servicios_asignados_ids}
-        servicios = (
-            db.query(ProyectoServicio)
-            .filter(
-                ProyectoServicio.proyecto_id == proyecto_id,
-                ProyectoServicio.empresa_id  == empresa_id,
-                ProyectoServicio.id.in_(ids_permitidos),
-            )
-            .order_by(ProyectoServicio.orden.asc())
-            .all()
-        )
-    else:
-        servicios = (
-            db.query(ProyectoServicio)
-            .filter(
-                ProyectoServicio.proyecto_id == proyecto_id,
-                ProyectoServicio.empresa_id  == empresa_id,
-            )
-            .order_by(ProyectoServicio.orden.asc())
-            .all()
-        )
+        .order_by(ProyectoServicio.orden.asc())
+        .all()
+    )
 
     # ── Filtros adicionales ────────────────────────────────────────────────────
     if estado:
@@ -666,7 +608,10 @@ def get_detalle_servicio(
         _z = db.query(Zona).filter(Zona.id == ps.zona_id).first()
         zona_nombre = _z.nombre if _z else None
 
-    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass)
+    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass).
+    #    Los NO designados reciben una vista BÁSICA de solo lectura (cabecera +
+    #    fechas/estado, con acceso_completo=False) en lugar de un 403, para que
+    #    puedan ver que el servicio existe sin cargar los datos de trabajo.
     if payload.get("rol", "") != "Administrador":
         empleado_actual = db.query(Empleado).filter(
             Empleado.usuario_id == usuario_id,
@@ -682,7 +627,35 @@ def get_detalle_servicio(
         ).first() is not None
 
         if not es_jefe and not es_miembro:
-            raise HTTPException(status_code=403, detail="No tienes acceso a este servicio")
+            _fp = ps.fecha_programada
+            return ServicioDetalleOut(
+                id=str(ps.id),
+                proyecto_id=str(ps.proyecto_id),
+                cliente=cliente.razon_social if cliente and cliente.razon_social else "Cliente Sin Nombre",
+                tipo_servicio=ps.nombre or "Servicio Técnico",
+                nombre=ps.nombre or "Servicio Técnico",
+                ubicacion=ubicacion or "",
+                fecha_str=_fp.strftime("%d %b %Y") if _fp else "Sin fecha",
+                hora_str=_fp.strftime("%I:%M %p") if _fp else "--:--",
+                descripcion=ps.descripcion or "",
+                estado=ps.estado or "Pendiente",
+                progreso=0.0,
+                equipo=[],
+                procedimientos=[],
+                tareas=[],
+                materiales_asignados=[],
+                materiales_solicitados=[],
+                catalogo_servicio_id=str(ps.catalogo_servicio_id) if ps.catalogo_servicio_id else None,
+                fecha_programada=ps.fecha_programada.isoformat() if ps.fecha_programada else None,
+                fecha_inicio=ps.fecha_inicio.isoformat() if ps.fecha_inicio else None,
+                fecha_fin=ps.fecha_fin.isoformat() if ps.fecha_fin else None,
+                zona_ejecucion=ps.zona_ejecucion or None,
+                ubicacion_nombre=ubic_nombre,
+                zona_nombre=zona_nombre,
+                es_mantenimiento=False,
+                inspeccion_equipos_activa=False,
+                acceso_completo=False,
+            )
 
     fp        = ps.fecha_programada
     fecha_str = fp.strftime("%d %b %Y") if fp else "Sin fecha"

@@ -90,6 +90,9 @@ class ServicioDetalleOut(BaseModel):
     zona_id: Optional[str] = None
     ubicacion_nombre: Optional[str] = None
     zona_nombre: Optional[str] = None
+    # False = el usuario NO está designado en el servicio: recibe solo la
+    # cabecera (existencia, fechas, estado) en modo lectura, sin datos de trabajo.
+    acceso_completo: bool = True
 
 
 class ProyectoListOut(BaseModel):
