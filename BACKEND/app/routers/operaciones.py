@@ -206,6 +206,62 @@ def _get_empleado_optional(db: Session, usuario_id: str, empresa_id: str) -> "Em
     ).first()
 
 
+# ── GET /operaciones/proyectos/lista ─────────────────────────────────────────
+# Lista básica para pickers/selectores en formularios (sin KPIs, sin paginación).
+# Accesible a cualquier rol autenticado que pueda crear servicios.
+
+@router.get("/proyectos/lista")
+def get_proyectos_lista(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    JefeEmpleado = aliased(Empleado)
+    JefeUsuario  = aliased(Usuario)
+
+    base_q = (
+        db.query(
+            Proyecto.id,
+            Proyecto.nombre_proyecto,
+            Proyecto.orden_trabajo,
+            Proyecto.estado,
+            Cliente.razon_social.label("cliente"),
+        )
+        .join(Cliente, Cliente.id == Proyecto.cliente_id)
+        .filter(Proyecto.empresa_id == empresa_id)
+        .order_by(Proyecto.created_at.desc())
+    )
+
+    if es_tecnico(payload):
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        proyectos_sq = (
+            db.query(ProyectoServicio.proyecto_id)
+            .join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
+            .filter(
+                Tarea.responsable_id == empleado.id,
+                Tarea.empresa_id     == empresa_id,
+            )
+            .distinct()
+            .subquery()
+        )
+        rows = base_q.filter(Proyecto.id.in_(proyectos_sq)).all()
+    else:
+        rows = base_q.all()
+
+    return [
+        {
+            "id":            str(r.id),
+            "nombre":        r.nombre_proyecto or "",
+            "orden_trabajo": r.orden_trabajo   or "",
+            "estado":        r.estado          or "Pendiente",
+            "cliente":       r.cliente         or "",
+        }
+        for r in rows
+    ]
+
+
 # ── GET /operaciones/proyectos ────────────────────────────────────────────────
 
 @router.get("/proyectos", response_model=ProyectosConKpisOut)
@@ -285,23 +341,10 @@ def get_proyectos(
             .all()
         )
     else:
-        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
-        miembro_sq = (
-            db.query(ProyectoMiembro.proyecto_id)
-            .filter(ProyectoMiembro.empleado_id == empleado.id)
-            .subquery()
-        )
-        rows = (
-            base_q
-            .filter(
-                or_(
-                    Proyecto.jefe_operaciones_id == empleado.id,
-                    Proyecto.id.in_(miembro_sq),
-                )
-            )
-            .order_by(Proyecto.created_at.desc())
-            .all()
-        )
+        # Soporte, Logística, Administración y cualquier otro rol registrado
+        # ven todos los proyectos de la empresa.  Solo los Técnicos tienen
+        # visibilidad reducida (únicamente proyectos con tareas asignadas a ellos).
+        rows = base_q.order_by(Proyecto.created_at.desc()).all()
 
     # ── Aplicar filtros adicionales sobre los rows ────────────────────────────
     if estado:
@@ -3520,10 +3563,17 @@ def configurar_servicio(
     """
     exigir_no_tecnico(payload, "Técnico no puede configurar servicios ni asignar miembros")
     empresa_id = payload["empresa_id"]
-    # Jefe de Operaciones: acceso completo a todos los servicios de la empresa
-    # sin necesidad de estar asignado específicamente al proyecto.
-    if (x_justificacion or "").strip():
-        set_justificacion(x_justificacion)
+    # Jefe de Operaciones: si está asignado al proyecto/servicio, gestiona libre;
+    # solo se exige justificación cuando configura un proyecto que NO es suyo.
+    if es_jefe_operaciones(payload):
+        if not _jefe_op_asignado_al_servicio(db, payload, empresa_id, servicio_id):
+            if not (x_justificacion or "").strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Se requiere justificación (X-Justificacion) para configurar un servicio que no tienes asignado",
+                )
+        if (x_justificacion or "").strip():
+            set_justificacion(x_justificacion)
 
     ps = _exigir_servicio_abierto(db, empresa_id, servicio_id)
 
