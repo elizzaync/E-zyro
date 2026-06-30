@@ -112,9 +112,22 @@ class KpisProyectosOut(BaseModel):
     tasa_avance: int
 
 
+class PaginacionMeta(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class ProyectosConKpisOut(BaseModel):
     kpis: KpisProyectosOut
     proyectos: List[ProyectoListOut]
+    paginacion: PaginacionMeta
+
+
+class ServiciosPaginadosOut(BaseModel):
+    servicios: List[ProyectoServicioListOut]
+    paginacion: PaginacionMeta
 
 
 class ProyectoServicioListOut(BaseModel):
