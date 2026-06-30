@@ -658,7 +658,20 @@ _DEF_ENTRADA          = time(8, 0)
 _DEF_SALIDA           = time(17, 0)
 _DEF_ALMUERZO_MIN     = 60
 _DEF_TOLERANCIA_MIN   = 5
+_DEF_DIAS_LABORALES   = {1, 2, 3, 4, 5, 6}  # L-S, jornada sin turno asignado
 # Horas netas exigidas por defecto = jornada - almuerzo = 9 h - 1 h = 8 h.
+# Meta semanal por defecto = 6 días x 8 h = 48 h (decisión de negocio 2026-06-18).
+
+
+def _dias_laborales_turno(turno: "Turno") -> set[int]:
+    """Días ISO (1=lun..7=dom) en que rige `turno`. Fallback L-V si no está seteado."""
+    csv = (turno.dias_laborales or "").strip()
+    if not csv:
+        return {1, 2, 3, 4, 5}
+    try:
+        return {int(x) for x in csv.split(",") if x.strip()}
+    except ValueError:
+        return {1, 2, 3, 4, 5}
 
 
 def _min_entre(t1: time, t2: time) -> int:
@@ -854,13 +867,13 @@ def mi_resumen_semanal(
     hoy   = datetime.now(ZoneInfo("America/Lima")).date()
     lunes = hoy - timedelta(days=hoy.weekday())
     _LABELS = ["L", "M", "M", "J", "V", "S", "D"]
-    META_HORAS = 48
 
     dias_out: list[dict] = []
     total_trab = 0
     dias_trabajados = 0
     dias_puntuales = 0
     dias_con_entrada = 0
+    meta_minutos_semana = 0  # meta dinámica: suma de horas netas de los días laborales del turno vigente cada día
 
     for i in range(7):
         dia = lunes + timedelta(days=i)
@@ -872,13 +885,22 @@ def mi_resumen_semanal(
 
         if empleado:
             turno = _turnos_por_empleado(db, empresa_id, dia).get(str(empleado.id))
+            dia_iso = dia.isoweekday()  # 1=lun..7=dom
             if turno:
                 t_entrada    = turno.hora_entrada
                 t_tolerancia = turno.tolerancia_minutos or 0
                 es_exc       = True
+                if dia_iso in _dias_laborales_turno(turno):
+                    meta_minutos_semana += max(
+                        _min_entre(turno.hora_entrada, turno.hora_salida)
+                        - (turno.duracion_almuerzo_minutos or 0),
+                        0,
+                    )
             else:
                 t_entrada    = _DEF_ENTRADA
                 t_tolerancia = _DEF_TOLERANCIA_MIN
+                if dia_iso in _DEF_DIAS_LABORALES:
+                    meta_minutos_semana += _min_entre(_DEF_ENTRADA, _DEF_SALIDA) - _DEF_ALMUERZO_MIN
 
             regs = (
                 db.query(RegistroAsistencia)
@@ -928,10 +950,13 @@ def mi_resumen_semanal(
 
     promedio    = int(total_trab / dias_trabajados) if dias_trabajados else 0
     puntualidad = round(dias_puntuales / dias_con_entrada * 100) if dias_con_entrada else None
+    # Sin ficha de empleado (caso borde) no hay turno que consultar: cae al
+    # default de negocio (6 días x 8 h, ver _DEF_DIAS_LABORALES).
+    meta_horas  = round(meta_minutos_semana / 60, 1) if empleado else 48.0
 
     return {
         "semana_inicio":             lunes.isoformat(),
-        "meta_horas":                META_HORAS,
+        "meta_horas":                meta_horas,
         "minutos_trabajados_semana": total_trab,
         "dias_trabajados":           dias_trabajados,
         "promedio_min_diario":       promedio,

@@ -27,6 +27,7 @@ from app.models.auditoria import Auditoria
 from app.models.recuperacion_password import RecuperacionPassword
 from app.models.sesion_usuario import SesionUsuario
 from app.models.portal_acceso import PortalAcceso
+from app.models.empleado import Empleado
 from app.db.database import get_db
 from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_EXPIRE_MINUTES, ACCESS_TOKEN_EXPIRE_MINUTES_MOVIL, SECRET_KEY, ALGORITHM
 from app.core.email import enviar_correo_otp
@@ -166,6 +167,14 @@ def _rol_y_permisos(db: Session, usuario_id: str) -> tuple[str, list[str]]:
     return nombre_rol, permisos
 
 
+def _cargo_de_usuario(db: Session, usuario_id: str) -> str:
+    """Cargo (puesto laboral) de la ficha de empleado del usuario, si tiene una.
+    Distinto del rol RBAC: el rol maneja permisos, el cargo es informativo
+    (mismo campo que ya muestra la web en Personal)."""
+    empleado = db.query(Empleado.cargo).filter(Empleado.usuario_id == usuario_id).first()
+    return empleado.cargo if empleado and empleado.cargo else ""
+
+
 # =========================================================================
 # LOGIN
 # =========================================================================
@@ -179,6 +188,7 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             headers={"WWW-Authenticate": "Bearer"},
         )
     nombre_rol_real, lista_permisos = _rol_y_permisos(db, usuario_db.id)
+    cargo_real = _cargo_de_usuario(db, usuario_db.id)
 
     # Plataforma: la app móvil manda plataforma='movil' → token largo (7d) para
     # operar offline y recibir push; la web (no la manda) → token corto (4h).
@@ -304,6 +314,7 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             "id":              str(usuario_db.id),
             "nombre_completo": f"{usuario_db.nombre} {usuario_db.apellido}",
             "rol":             nombre_rol_real,
+            "cargo":           cargo_real,
             "token":           token_real,
             "foto_url":        usuario_db.foto_url or "",
             "permisos":        lista_permisos,
@@ -322,12 +333,14 @@ def obtener_mi_sesion(payload: dict = Depends(verificar_token), db: Session = De
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
     nombre_rol_real, lista_permisos = _rol_y_permisos(db, usuario_id)
+    cargo_real = _cargo_de_usuario(db, usuario_id)
     return {
         "status": "success",
         "data": {
             "id":              str(usuario_db.id),
             "nombre_completo": f"{usuario_db.nombre} {usuario_db.apellido}",
             "rol":             nombre_rol_real,
+            "cargo":           cargo_real,
             "foto_url":        usuario_db.foto_url or "",
             "permisos":        lista_permisos,
         }
