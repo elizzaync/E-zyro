@@ -86,6 +86,8 @@ from ..schemas.operaciones import (
     ProyectoServicioListOut,
     KpisProyectosOut,
     ProyectosConKpisOut,
+    PaginacionMeta,
+    ServiciosPaginadosOut,
     EquipoItemOut,
     MantenimientoHistorialOut,
     FotoEvidenciaOut,
@@ -208,8 +210,12 @@ def _get_empleado_optional(db: Session, usuario_id: str, empresa_id: str) -> "Em
 
 @router.get("/proyectos", response_model=ProyectosConKpisOut)
 def get_proyectos(
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
+    q:         Optional[str] = Query(None, description="Buscar por nombre, orden de trabajo o cliente"),
+    estado:    Optional[str] = Query(None, description="Filtrar por estado"),
+    page:      int           = Query(1, ge=1),
+    page_size: int           = Query(12, ge=1, le=100),
+    payload:   dict          = Depends(verificar_token),
+    db:        Session       = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
@@ -297,7 +303,21 @@ def get_proyectos(
             .all()
         )
 
-    proyectos = [
+    # ── Aplicar filtros adicionales sobre los rows ────────────────────────────
+    if estado:
+        rows = [r for r in rows if (r.Proyecto.estado or "") == estado]
+
+    if q:
+        q_low = q.lower().strip()
+        rows = [
+            r for r in rows
+            if q_low in (r.Proyecto.nombre_proyecto or "").lower()
+            or q_low in (r.Proyecto.orden_trabajo or "").lower()
+            or q_low in (r.cliente or "").lower()
+        ]
+
+    # KPIs calculados sobre el universo completo (sin paginar)
+    all_proyectos = [
         ProyectoListOut(
             id=str(p.Proyecto.id),
             orden_trabajo=p.Proyecto.orden_trabajo or "",
@@ -313,27 +333,42 @@ def get_proyectos(
         for p in rows
     ]
 
-    total_svc  = sum(p.total_servicios for p in proyectos)
-    total_comp = sum(p.servicios_completados for p in proyectos)
+    total       = len(all_proyectos)
+    total_pages = max(1, -(-total // page_size))  # ceil division
+    offset_     = (page - 1) * page_size
+    proyectos   = all_proyectos[offset_: offset_ + page_size]
+
+    total_svc  = sum(p.total_servicios for p in all_proyectos)
+    total_comp = sum(p.servicios_completados for p in all_proyectos)
 
     return ProyectosConKpisOut(
         kpis=KpisProyectosOut(
-            total_proyectos=len(proyectos),
+            total_proyectos=total,
             servicios_completados=total_comp,
             servicios_pendientes=total_svc - total_comp,
             tasa_avance=round(total_comp / total_svc * 100) if total_svc else 0,
         ),
         proyectos=proyectos,
+        paginacion=PaginacionMeta(
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
     )
 
 
 # ── GET /operaciones/proyecto/{proyecto_id}/servicios ─────────────────────────
 
-@router.get("/proyecto/{proyecto_id}/servicios", response_model=List[ProyectoServicioListOut])
+@router.get("/proyecto/{proyecto_id}/servicios", response_model=ServiciosPaginadosOut)
 def get_servicios_proyecto(
     proyecto_id: str,
-    payload:     dict    = Depends(verificar_token),
-    db:          Session = Depends(get_db),
+    q:           Optional[str] = Query(None, description="Buscar por nombre del servicio"),
+    estado:      Optional[str] = Query(None, description="Filtrar por estado"),
+    page:        int           = Query(1, ge=1),
+    page_size:   int           = Query(20, ge=1, le=100),
+    payload:     dict          = Depends(verificar_token),
+    db:          Session       = Depends(get_db),
 ):
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
@@ -399,6 +434,19 @@ def get_servicios_proyecto(
             .all()
         )
 
+    # ── Filtros adicionales ────────────────────────────────────────────────────
+    if estado:
+        servicios = [s for s in servicios if (s.estado or "") == estado]
+    if q:
+        q_low = q.lower().strip()
+        servicios = [s for s in servicios if q_low in (s.nombre or "").lower()]
+
+    # ── Paginación ─────────────────────────────────────────────────────────────
+    total_svc   = len(servicios)
+    total_pages = max(1, -(-total_svc // page_size))
+    offset_     = (page - 1) * page_size
+    servicios   = servicios[offset_: offset_ + page_size]
+
     # Avance por TAREAS: contadores (total y completadas) por servicio en un
     # solo round-trip. Alimenta la barra de progreso de la lista.
     svc_ids = [str(ps.id) for ps in servicios]
@@ -420,7 +468,7 @@ def get_servicios_proyecto(
             tareas_por_svc[str(sid)] = (int(total_t or 0), int(comp_t or 0))
 
     hoy = date.today()
-    result = []
+    items = []
     for ps in servicios:
         if ps.estado == "Completado":
             estado_color = "verde"
@@ -430,7 +478,7 @@ def get_servicios_proyecto(
             estado_color = "amarillo"
 
         total_t, comp_t = tareas_por_svc.get(str(ps.id), (0, 0))
-        result.append(ProyectoServicioListOut(
+        items.append(ProyectoServicioListOut(
             id=str(ps.id),
             nombre=ps.nombre or "",
             descripcion=ps.descripcion,
@@ -443,7 +491,15 @@ def get_servicios_proyecto(
             tareas_completadas=comp_t,
         ))
 
-    return result
+    return ServiciosPaginadosOut(
+        servicios=items,
+        paginacion=PaginacionMeta(
+            total=total_svc,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+        ),
+    )
 
 
 # ── GET /operaciones/dashboard ────────────────────────────────────────────────
@@ -3464,17 +3520,10 @@ def configurar_servicio(
     """
     exigir_no_tecnico(payload, "Técnico no puede configurar servicios ni asignar miembros")
     empresa_id = payload["empresa_id"]
-    # Jefe de Operaciones: si está asignado al proyecto/servicio, gestiona libre;
-    # solo se exige justificación cuando configura un proyecto que NO es suyo.
-    if es_jefe_operaciones(payload):
-        if not _jefe_op_asignado_al_servicio(db, payload, empresa_id, servicio_id):
-            if not (x_justificacion or "").strip():
-                raise HTTPException(
-                    status_code=422,
-                    detail="Se requiere justificación (X-Justificacion) para configurar un servicio que no tienes asignado",
-                )
-        if (x_justificacion or "").strip():
-            set_justificacion(x_justificacion)
+    # Jefe de Operaciones: acceso completo a todos los servicios de la empresa
+    # sin necesidad de estar asignado específicamente al proyecto.
+    if (x_justificacion or "").strip():
+        set_justificacion(x_justificacion)
 
     ps = _exigir_servicio_abierto(db, empresa_id, servicio_id)
 
