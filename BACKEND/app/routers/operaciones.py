@@ -256,8 +256,8 @@ def get_proyectos(
         .filter(Proyecto.empresa_id == empresa_id)
     )
 
-    if rol == "Administrador":
-        # Admin ve todos los proyectos de la empresa sin restricción de membresía
+    if rol == "Administrador" or es_jefe_operaciones(payload):
+        # Admin y Jefe de Operaciones ven todos los proyectos de la empresa
         rows = base_q.order_by(Proyecto.created_at.desc()).all()
     elif es_tecnico(payload):
         # Técnico: solo proyectos donde tiene al menos UNA tarea asignada a su nombre
@@ -346,7 +346,7 @@ def get_servicios_proyecto(
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    if rol != "Administrador":
+    if rol != "Administrador" and not es_jefe_operaciones(payload):
         empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
         es_jefe    = proyecto.jefe_operaciones_id == empleado.id
         es_miembro = db.query(ProyectoMiembro).filter(
