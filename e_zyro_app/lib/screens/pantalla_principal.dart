@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/dashboard_service.dart';
 import '../services/notificacion_service.dart';
+import '../services/asistencia_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../models/dashboard_models.dart';
+import '../models/asistencia_models.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/topo_background.dart';
 import '../utils/app_notifiers.dart';
@@ -13,6 +15,7 @@ import '../utils/api_provider.dart';
 import 'pantalla_notificaciones.dart';
 import 'almuerzo/tarjeta_almuerzo.dart';
 import 'pantalla_camara_campo.dart';
+import 'pantalla_drive.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,10 +27,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   DashboardService? _dashboardService;
   NotificacionService? _notificacionService;
+  AsistenciaService? _asistenciaService;
   bool _isLoading = true;
   bool _hasError = false;
 
   String _userName = '';
+  String _userRol = '';
   DashboardResumen _resumen = const DashboardResumen(
     activos: 0,
     pendientes: 0,
@@ -35,6 +40,11 @@ class _HomeScreenState extends State<HomeScreen> {
   );
   List<ProximoServicio> _servicios = [];
   int _unreadCount = 0;
+
+  // ── Secciones añadidas (asistencia + alertas) ───────────────────────────────
+  EstadoHoy? _estadoHoy;
+  ResumenSemanal? _resumenSemanal;
+  DashboardAlertas _alertas = const DashboardAlertas();
 
   // Banner
   bool _bannerVisible = false;
@@ -78,8 +88,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _userName = prefs.getString('user_name') ?? 'Usuario';
+    _userRol = (prefs.getString('user_rol') ?? '').toLowerCase().trim();
     _dashboardService = await getDashboardService();
     _notificacionService = await getNotificacionService();
+    _asistenciaService = await getAsistenciaService();
     await _loadData();
   }
 
@@ -115,12 +127,22 @@ class _HomeScreenState extends State<HomeScreen> {
       late DashboardResumen resumen;
       late List<ProximoServicio> servicios;
       int unread = 0;
+      // Secciones añadidas — degradan solas (sus servicios no lanzan), así que
+      // un fallo en asistencia/alertas no rompe el dashboard principal.
+      EstadoHoy? estadoHoy;
+      ResumenSemanal? resumenSemanal;
+      DashboardAlertas alertas = const DashboardAlertas();
 
       await Future.wait([
         _dashboardService!.getResumen().then((v) => resumen = v),
         _dashboardService!.getProximosServicios().then((v) => servicios = v),
         if (_notificacionService != null)
           _notificacionService!.getUnreadCount().then((v) => unread = v),
+        if (_asistenciaService != null)
+          _asistenciaService!.getEstadoHoy().then((v) => estadoHoy = v),
+        if (_asistenciaService != null)
+          _asistenciaService!.getResumenSemanal().then((v) => resumenSemanal = v),
+        _dashboardService!.getAlertas().then((v) => alertas = v),
       ]);
 
       if (!mounted) return;
@@ -128,6 +150,9 @@ class _HomeScreenState extends State<HomeScreen> {
         _resumen = resumen;
         _servicios = servicios;
         _unreadCount = unread;
+        _estadoHoy = estadoHoy;
+        _resumenSemanal = resumenSemanal;
+        _alertas = alertas;
         _isLoading = false;
         _hasError = false;
       });
@@ -383,6 +408,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        _buildAsistenciaHoy(),
+                        _buildResumenSemanalCard(),
+                        _buildAlertas(),
                         _buildProximosServicios(),
                         const SizedBox(height: 28),
                         _buildCamaraCampoBtn(),
@@ -615,6 +643,325 @@ class _HomeScreenState extends State<HomeScreen> {
                 offset: const Offset(0, 2),
               ),
             ],
+    );
+  }
+
+  // ── 1) Mi asistencia hoy ────────────────────────────────────────────────────
+  /// Minutos trabajados hoy según el resumen semanal (descuenta almuerzo). null
+  /// si no hay datos del día.
+  int? get _minutosHoy {
+    final r = _resumenSemanal;
+    if (r == null) return null;
+    for (final d in r.dias) {
+      if (d.esHoy) return d.minutosTrabajados;
+    }
+    return null;
+  }
+
+  Widget _buildAsistenciaHoy() {
+    final e = _estadoHoy;
+    if (e == null) return const SizedBox.shrink();
+
+    const green = Color(0xFF8FD11B);
+    final bool fichado = e.tieneEntrada;
+    final Color color = e.jornadaCompleta
+        ? green
+        : (fichado ? const Color(0xFFF59E0B) : Colors.grey);
+    final String estadoTxt = e.jornadaCompleta
+        ? 'Jornada completa'
+        : (e.enAlmuerzo
+            ? 'En almuerzo'
+            : (fichado ? 'Fichado' : 'Sin fichar'));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Mi asistencia hoy',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => Navigator.pushNamed(context, '/asistencia'),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: _neonDecoration(radius: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    fichado
+                        ? Icons.fingerprint_rounded
+                        : Icons.fingerprint_outlined,
+                    color: color,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          estadoTxt,
+                          style: TextStyle(
+                              color: color,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _asistenciaResumenTxt(e),
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward_ios_rounded,
+                    color: Colors.grey, size: 14),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 28),
+      ],
+    );
+  }
+
+  String _asistenciaResumenTxt(EstadoHoy e) {
+    final partes = <String>[];
+    if (e.entradaHora != null) partes.add('Entrada ${e.entradaHora}');
+    if (e.salidaHora != null) partes.add('Salida ${e.salidaHora}');
+    final min = _minutosHoy;
+    if (min != null && min > 0) partes.add('${_horasLabel(min)} trabajadas');
+    if (partes.isEmpty) return 'Aún no registras entrada hoy';
+    return partes.join('  ·  ');
+  }
+
+  // ── 2) Resumen semanal ──────────────────────────────────────────────────────
+  String _horasLabel(int minutos) {
+    final h = minutos ~/ 60;
+    final m = minutos % 60;
+    if (h == 0) return '${m}m';
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  Widget _miniStat(String value, String label, Color? color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: color),
+          ),
+          Text(label,
+              style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResumenSemanalCard() {
+    final r = _resumenSemanal;
+    if (r == null) return const SizedBox.shrink();
+    const green = Color(0xFF8FD11B);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Resumen semanal',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: _neonDecoration(radius: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        _horasLabel(r.minutosTrabajadosSemana),
+                        style: const TextStyle(
+                            fontSize: 26, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '/ ${r.metaHoras}h',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${r.progresoPct}%',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF5E9A1C)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: r.progreso,
+                  minHeight: 8,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: const AlwaysStoppedAnimation<Color>(green),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _miniStat('${r.diasTrabajados}', 'Días', null),
+                  _miniStat(_horasLabel(r.promedioMinDiario), 'Prom. diario',
+                      const Color(0xFF3B82F6)),
+                  _miniStat(
+                      r.puntualidadPct != null ? '${r.puntualidadPct}%' : '—',
+                      'Puntualidad',
+                      green),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+      ],
+    );
+  }
+
+  // ── 3) Alertas y pendientes ─────────────────────────────────────────────────
+  static Color _colorSeveridad(String s) => switch (s) {
+        'alta' => const Color(0xFFEF4444),
+        'media' => const Color(0xFFF59E0B),
+        _ => const Color(0xFF8FD11B),
+      };
+
+  static IconData _iconAlerta(String tipo) => switch (tipo) {
+        'mantenimiento' => Icons.build_rounded,
+        'calibracion' => Icons.straighten_rounded,
+        'documento' => Icons.description_rounded,
+        _ => Icons.warning_amber_rounded,
+      };
+
+  void _navegarAlerta(AlertaItem item) {
+    switch (item.tipo) {
+      case 'mantenimiento':
+        tabNotifier.value = 1; // Operaciones
+        break;
+      case 'documento':
+        tabNotifier.value = 3; // Personal (RR.HH.)
+        break;
+      default:
+        break; // calibracion: sin ruta directa → solo informa el conteo
+    }
+  }
+
+  Widget _buildAlertas() {
+    if (_alertas.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Alertas y pendientes',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: _neonDecoration(radius: 16),
+          child: Column(
+            children: [
+              for (int i = 0; i < _alertas.items.length; i++) ...[
+                if (i > 0)
+                  Divider(height: 1, color: Colors.grey.shade200, indent: 14, endIndent: 14),
+                _buildAlertaTile(_alertas.items[i]),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+      ],
+    );
+  }
+
+  Widget _buildAlertaTile(AlertaItem item) {
+    final color = _colorSeveridad(item.severidad);
+    return InkWell(
+      onTap: () => _navegarAlerta(item),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(_iconAlerta(item.tipo), color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                item.titulo,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${item.conteo}',
+                style: TextStyle(
+                    color: color, fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -925,37 +1272,93 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── Acciones Rápidas (estilo Figma: 1 verde + 2 blancos) ───────────────────
+  /// Roles con acceso a Logística (mismo criterio que el bottom nav de MainShell:
+  /// logística / administración / gerencia / superadmin). Para el resto se evita
+  /// enrutar a la pestaña Logística (que estaría oculta para ese rol).
+  bool get _puedeLogisticaRol {
+    final r = _userRol;
+    return r.contains('logist') ||
+        r.contains('logíst') ||
+        r.contains('admin') ||
+        r.contains('geren') ||
+        r.contains('super');
+  }
+
   Widget _buildQuickActions(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        // ── Primario: Asistencia (verde sólido) ────────────────────────
-        Expanded(
-          child: _FigmaQuickAction(
-            label: 'Asistencia',
-            icon: Icons.fingerprint_rounded,
-            isPrimary: true,
-            onTap: () => Navigator.pushNamed(context, '/asistencia'),
-          ),
+        // ── Fila 1 (existente): Asistencia · Calendario · Operaciones ──────
+        Row(
+          children: [
+            Expanded(
+              child: _FigmaQuickAction(
+                label: 'Asistencia',
+                icon: Icons.fingerprint_rounded,
+                isPrimary: true,
+                onTap: () => Navigator.pushNamed(context, '/asistencia'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _FigmaQuickAction(
+                label: 'Calendario',
+                icon: Icons.calendar_month_rounded,
+                isPrimary: false,
+                onTap: () => Navigator.pushNamed(context, '/calendario'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _FigmaQuickAction(
+                label: 'Operaciones',
+                icon: Icons.build_rounded,
+                isPrimary: false,
+                onTap: () => tabNotifier.value = 1,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        // ── Secundario: Calendario ─────────────────────────────────────
-        Expanded(
-          child: _FigmaQuickAction(
-            label: 'Calendario',
-            icon: Icons.calendar_month_rounded,
-            isPrimary: false,
-            onTap: () => Navigator.pushNamed(context, '/calendario'),
-          ),
-        ),
-        const SizedBox(width: 10),
-        // ── Secundario: Operaciones ────────────────────────────────────
-        Expanded(
-          child: _FigmaQuickAction(
-            label: 'Operaciones',
-            icon: Icons.build_rounded,
-            isPrimary: false,
-            onTap: () => tabNotifier.value = 1,
-          ),
+        const SizedBox(height: 10),
+        // ── Fila 2 (nueva, según rol): Drive · Logística/Avisos · Más ──────
+        Row(
+          children: [
+            Expanded(
+              child: _FigmaQuickAction(
+                label: 'Drive',
+                icon: Icons.folder_shared_rounded,
+                isPrimary: false,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PantallaDrive()),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _puedeLogisticaRol
+                  ? _FigmaQuickAction(
+                      label: 'Logística',
+                      icon: Icons.inventory_2_rounded,
+                      isPrimary: false,
+                      onTap: () => tabNotifier.value = 2,
+                    )
+                  : _FigmaQuickAction(
+                      label: 'Avisos',
+                      icon: Icons.notifications_rounded,
+                      isPrimary: false,
+                      onTap: _openNotificacionesSheet,
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _FigmaQuickAction(
+                label: 'Más',
+                icon: Icons.more_horiz_rounded,
+                isPrimary: false,
+                onTap: () => tabNotifier.value = 4,
+              ),
+            ),
+          ],
         ),
       ],
     );

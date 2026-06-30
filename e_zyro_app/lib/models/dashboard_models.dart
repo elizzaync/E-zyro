@@ -95,6 +95,61 @@ class ProximoServicio {
       );
 }
 
+/// Alertas y pendientes accionables del dashboard (GET /dashboard/alertas).
+/// Cada contador es tolerante: el backend devuelve 0 si su fuente falla.
+class DashboardAlertas {
+  final int calibracionesPorVencer;
+  final int mantenimientosAlerta;
+  final int documentosPendientes;
+  final int total;
+  final List<AlertaItem> items;
+
+  const DashboardAlertas({
+    this.calibracionesPorVencer = 0,
+    this.mantenimientosAlerta = 0,
+    this.documentosPendientes = 0,
+    this.total = 0,
+    this.items = const [],
+  });
+
+  bool get isEmpty => total == 0;
+
+  factory DashboardAlertas.fromJson(Map<String, dynamic> json) =>
+      DashboardAlertas(
+        calibracionesPorVencer: json['calibraciones_por_vencer'] ?? 0,
+        mantenimientosAlerta: json['mantenimientos_alerta'] ?? 0,
+        documentosPendientes: json['documentos_pendientes'] ?? 0,
+        total: json['total'] ?? 0,
+        items: (json['items'] as List? ?? const [])
+            .map((e) => AlertaItem.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
+class AlertaItem {
+  final String tipo;      // mantenimiento | calibracion | documento
+  final String titulo;
+  final String severidad; // alta | media | baja
+  final String? ruta;     // ruta de navegación opcional
+  final int conteo;
+
+  const AlertaItem({
+    required this.tipo,
+    required this.titulo,
+    this.severidad = 'media',
+    this.ruta,
+    this.conteo = 0,
+  });
+
+  factory AlertaItem.fromJson(Map<String, dynamic> json) => AlertaItem(
+        tipo: json['tipo'] ?? '',
+        titulo: json['titulo'] ?? '',
+        severidad: json['severidad'] ?? 'media',
+        ruta: json['ruta'] as String?,
+        conteo: json['conteo'] ?? 0,
+      );
+}
+
 class NotificacionDashboard {
   final String id;
   final String titulo;

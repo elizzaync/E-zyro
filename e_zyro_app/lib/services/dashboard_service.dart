@@ -96,6 +96,24 @@ class DashboardService {
     }
   }
 
+  /// Alertas y pendientes accionables (mantenimientos, calibraciones, docs).
+  /// Tolerante: ante red/offline o error devuelve un objeto vacío (todo en 0).
+  Future<DashboardAlertas> getAlertas() async {
+    try {
+      final r = await _client.get('/dashboard/alertas');
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body)['data'] as Map<String, dynamic>;
+        return DashboardAlertas.fromJson(data);
+      }
+      if (r.statusCode == 401) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
+      }
+    } catch (e) {
+      if (_esSesionExpirada(e)) rethrow;
+    }
+    return const DashboardAlertas();
+  }
+
   Future<List<NotificacionDashboard>> getNotificaciones() async {
     try {
       final r = await _client.get('/dashboard/notificaciones');
