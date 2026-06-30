@@ -177,15 +177,14 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
   // ── Proyecto picker ───────────────────────────────────────────────
   private _cargarProyectos(): void {
     this.cargandoProyectos = true;
-    this.svc.getProyectos().pipe(takeUntil(this.destroy$)).subscribe({
-      next: (res: any) => {
-        const lista = Array.isArray(res) ? res : (res.proyectos ?? []);
-        this.proyectos = lista.map((p: any) => ({
-          id:            String(p.id ?? ''),
-          nombre:        String(p.nombre_proyecto ?? p.nombre ?? ''),
-          cliente:       String(p.cliente ?? ''),
-          orden_trabajo: String(p.orden_trabajo ?? ''),
-          estado:        String(p.estado ?? ''),
+    this.svc.getProyectosLista().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (lista) => {
+        this.proyectos = lista.map((p) => ({
+          id:            p.id,
+          nombre:        p.nombre,
+          cliente:       p.cliente,
+          orden_trabajo: p.orden_trabajo,
+          estado:        p.estado,
         }));
         this.cargandoProyectos = false;
       },

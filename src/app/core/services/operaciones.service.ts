@@ -266,6 +266,11 @@ export class OperacionesService {
     return this.http.get<{ orden_trabajo: string }>(`${this.api}/operaciones/proyectos/siguiente-orden`);
   }
 
+  /** Lista básica de proyectos para pickers (sin KPIs ni paginación). */
+  getProyectosLista(): Observable<{ id: string; nombre: string; orden_trabajo: string; estado: string; cliente: string }[]> {
+    return this.http.get<any[]>(`${this.api}/operaciones/proyectos/lista`);
+  }
+
   // ─────────────────────────────────────────────────────────────────────
   // Servicios (proyecto_servicio) CRUD
   // ─────────────────────────────────────────────────────────────────────
