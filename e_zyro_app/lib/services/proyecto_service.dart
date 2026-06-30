@@ -165,23 +165,52 @@ class ProyectoService {
   }
 
   // GET /operaciones/proyecto/{proyecto_id}/servicios
+  //
+  // El backend devuelve un objeto paginado `{ servicios:[...], paginacion:{...} }`
+  // (antes era una lista plana). Aquí recorremos TODAS las páginas y acumulamos
+  // los servicios; se mantiene compatibilidad con la forma antigua (lista plana)
+  // por si algún despliegue aún la devuelve. La caché se guarda como lista plana.
   Future<List<ServicioItem>> getServiciosProyecto(String proyectoId) async {
     try {
-      final r = await _client.get(
-        '/operaciones/proyecto/$proyectoId/servicios',
-      );
-      if (r.statusCode == 200) {
-        await _cache.put(_kServicios(proyectoId), r.body);
-        final list = (await decodeJson(r.body)) as List? ?? [];
-        return list
+      final all = <dynamic>[];
+      var page = 1;
+      var totalPages = 1;
+      var ok = false;
+      do {
+        final r = await _client.get(
+          '/operaciones/proyecto/$proyectoId/servicios?page=$page&page_size=100',
+        );
+        if (r.statusCode != 200) break;
+        ok = true;
+        final decoded = await decodeJson(r.body);
+        if (decoded is Map) {
+          all.addAll(decoded['servicios'] as List? ?? const []);
+          final pag = decoded['paginacion'];
+          totalPages = (pag is Map ? pag['total_pages'] as int? : null) ?? 1;
+        } else if (decoded is List) {
+          all.addAll(decoded); // forma antigua (lista plana)
+          totalPages = 1;
+        }
+        page++;
+      } while (page <= totalPages);
+
+      if (ok) {
+        await _cache.put(_kServicios(proyectoId), jsonEncode(all));
+        return all
             .map((e) => ServicioItem.fromJson(e as Map<String, dynamic>))
             .toList();
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('getServiciosProyecto error: $e');
+    }
+    // Offline / error → caché (acepta lista plana o la forma paginada).
     final cached = await _cache.get(_kServicios(proyectoId));
     if (cached != null) {
       try {
-        final list = jsonDecode(cached) as List? ?? [];
+        final decoded = jsonDecode(cached);
+        final list = decoded is Map
+            ? (decoded['servicios'] as List? ?? const [])
+            : (decoded as List? ?? const []);
         return list
             .map((e) => ServicioItem.fromJson(e as Map<String, dynamic>))
             .toList();
