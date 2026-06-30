@@ -675,12 +675,14 @@ class AsistenciaService {
   }
 
   /// Crea un turno (p. ej. "Practicante 08:00–13:00"). Requiere asistencia:validar.
+  /// [diasLaborales] es el CSV de días ISO (1=Lun … 7=Dom); por defecto L-V.
   Future<bool> crearTurno({
     required String nombre,
     required String horaEntrada,
     required String horaSalida,
     int duracionAlmuerzoMinutos = 60,
     int toleranciaMinutos = 5,
+    String diasLaborales = '1,2,3,4,5',
   }) async {
     try {
       final r = await _client.post('/asistencia/turnos', {
@@ -689,6 +691,7 @@ class AsistenciaService {
         'hora_salida': horaSalida,
         'duracion_almuerzo_minutos': duracionAlmuerzoMinutos,
         'tolerancia_minutos': toleranciaMinutos,
+        'dias_laborales': diasLaborales,
       });
       return r.statusCode == 200;
     } catch (e) {

@@ -153,6 +153,10 @@ class TurnoItem {
   final int toleranciaMinutos;
   final double horasNetas;
 
+  /// Días laborales del turno, CSV de días ISO (1=Lun … 7=Dom).
+  /// Por defecto "1,2,3,4,5" (Lunes a Viernes).
+  final String diasLaborales;
+
   const TurnoItem({
     required this.id,
     required this.nombre,
@@ -161,6 +165,7 @@ class TurnoItem {
     required this.duracionAlmuerzoMinutos,
     required this.toleranciaMinutos,
     required this.horasNetas,
+    this.diasLaborales = '1,2,3,4,5',
   });
 
   factory TurnoItem.fromJson(Map<String, dynamic> j) => TurnoItem(
@@ -171,5 +176,35 @@ class TurnoItem {
         duracionAlmuerzoMinutos: j['duracion_almuerzo_minutos'] as int? ?? 0,
         toleranciaMinutos: j['tolerancia_minutos'] as int? ?? 0,
         horasNetas: (j['horas_netas'] as num? ?? 0).toDouble(),
+        diasLaborales: j['dias_laborales'] as String? ?? '1,2,3,4,5',
       );
+
+  /// Lista ordenada de días ISO seleccionados (1=Lun … 7=Dom).
+  List<int> get diasSeleccionados {
+    final dias = diasLaborales
+        .split(',')
+        .map((s) => int.tryParse(s.trim()))
+        .where((n) => n != null && n >= 1 && n <= 7)
+        .map((n) => n!)
+        .toSet()
+        .toList()
+      ..sort();
+    return dias;
+  }
+
+  /// Etiqueta legible de los días laborales: "L-V", "L-S", "L-D" para rangos
+  /// contiguos comunes, o lista abreviada (ej. "L, X, V") en otros casos.
+  String get diasLabel {
+    const abbr = {1: 'L', 2: 'M', 3: 'X', 4: 'J', 5: 'V', 6: 'S', 7: 'D'};
+    final dias = diasSeleccionados;
+    if (dias.isEmpty) return '—';
+    // ¿Es un rango contiguo que empieza en lunes? → "L-V", "L-S", "L-D".
+    final esContiguoDesdeLunes = dias.first == 1 &&
+        dias.last == dias.length &&
+        dias.length >= 2;
+    if (esContiguoDesdeLunes) {
+      return '${abbr[1]}-${abbr[dias.last]}';
+    }
+    return dias.map((d) => abbr[d]).join(', ');
+  }
 }

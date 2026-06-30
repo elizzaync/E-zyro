@@ -472,6 +472,19 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
   TimeOfDay _entrada = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay _salida = const TimeOfDay(hour: 17, minute: 0);
   final _almuerzo = TextEditingController(text: '60');
+  // Días laborales del turno nuevo (ISO 1=Lun … 7=Dom). Por defecto L-V.
+  final Set<int> _diasLaborales = {1, 2, 3, 4, 5};
+
+  // Etiquetas cortas de los 7 días, en orden Lun→Dom.
+  static const _diasSemana = <({int iso, String label})>[
+    (iso: 1, label: 'L'),
+    (iso: 2, label: 'M'),
+    (iso: 3, label: 'X'),
+    (iso: 4, label: 'J'),
+    (iso: 5, label: 'V'),
+    (iso: 6, label: 'S'),
+    (iso: 7, label: 'D'),
+  ];
 
   @override
   void dispose() {
@@ -504,13 +517,21 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
 
   Future<void> _crearYAsignar() async {
     if (_nombre.text.trim().isEmpty) return;
+    if (_diasLaborales.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecciona al menos un día de trabajo')),
+      );
+      return;
+    }
     setState(() => _guardando = true);
     final almu = int.tryParse(_almuerzo.text.trim()) ?? 60;
+    final diasCsv = (_diasLaborales.toList()..sort()).join(',');
     final ok = await widget.svc.crearTurno(
       nombre: _nombre.text.trim(),
       horaEntrada: _hhmm(_entrada),
       horaSalida: _hhmm(_salida),
       duracionAlmuerzoMinutos: almu,
+      diasLaborales: diasCsv,
     );
     if (!mounted) return;
     if (!ok) {
@@ -585,7 +606,7 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w600)),
                       subtitle: Text(
-                          '${t.horaEntrada}–${t.horaSalida} · almuerzo ${t.duracionAlmuerzoMinutos}m · ${t.horasNetas}h netas'),
+                          '${t.horaEntrada}–${t.horaSalida} · ${t.diasLabel} · almuerzo ${t.duracionAlmuerzoMinutos}m · ${t.horasNetas}h netas'),
                     )),
               const SizedBox(height: 8),
               // Vigencia: desde cuándo aplica esta excepción (afecta reportes).
@@ -664,6 +685,28 @@ class _SheetAsignarTurnoState extends State<_SheetAsignarTurno> {
                   labelText: 'Almuerzo (minutos)',
                   hintText: '60',
                 ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Días de trabajo',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _diasSemana.map((d) {
+                  final sel = _diasLaborales.contains(d.iso);
+                  return FilterChip(
+                    label: Text(d.label),
+                    selected: sel,
+                    onSelected: (v) => setState(() {
+                      if (v) {
+                        _diasLaborales.add(d.iso);
+                      } else {
+                        _diasLaborales.remove(d.iso);
+                      }
+                    }),
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 16),
               Row(
