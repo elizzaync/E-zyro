@@ -54,6 +54,76 @@ const _green = Color(0xFF8FD11B);
 const _amber = Color(0xFFF59E0B);
 const _danger = Color(0xFFEF4444);
 
+/// Vista de SOLO LECTURA para usuarios NO designados en el servicio: muestra la
+/// cabecera básica (nombre, estado, fechas) sin cargar los datos de trabajo.
+/// Se usa cuando el backend responde con `acceso_completo=false`.
+class _VistaServicioBasica extends StatelessWidget {
+  final ServicioDetalle detalle;
+  const _VistaServicioBasica({required this.detalle});
+
+  @override
+  Widget build(BuildContext context) {
+    final d = detalle;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          d.tipoServicio,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _amber.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _amber.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.lock_outline, size: 20, color: _amber),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'No estás designado en este servicio. Solo puedes ver su '
+                  'información básica (fechas y estado).',
+                  style: TextStyle(fontSize: 12.5, color: onSurface),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _fila('Estado', d.estado),
+        _fila('Cliente', d.cliente),
+        _fila('Ubicación', d.ubicacion.isEmpty ? '—' : d.ubicacion),
+        _fila('Fecha programada', d.fechaStr),
+        _fila('Hora', d.horaStr),
+      ],
+    );
+  }
+
+  Widget _fila(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 140,
+              child: Text(label,
+                  style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
+            ),
+            Expanded(
+              child: Text(value,
+                  style: const TextStyle(
+                      fontSize: 13.5, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      );
+}
+
 class DetalleServicioScreen extends StatefulWidget {
   final String servicioId;
   final String proyectoId;
@@ -251,6 +321,8 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     return t.every((x) => x.estado == 'completado');
   }
 
+  bool _activandoInspeccion = false;
+
   /// Solo el Jefe de Operaciones (o Admin) controla las transiciones de fase.
   bool get _esJefeOperaciones =>
       AppSession.i.isJefeOperaciones || AppSession.i.isAdmin;
@@ -269,6 +341,30 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
       return;
     }
     await _cambiarEstado('En_Proceso');
+  }
+
+  // ── Activar inspección de equipos en un servicio que aún no la tiene ─────────
+  // Permite habilitar "Equipos Intervenidos" desde el detalle (p.ej. servicios
+  // creados por carga masiva con el flag en false) sin entrar al formulario de
+  // edición. El backend bloquea editar a Técnico y da 409 en servicios cerrados,
+  // por eso el botón solo se muestra a Jefe de Operaciones en servicios abiertos.
+  Future<void> _activarInspeccionEquipos() async {
+    final d = _detalle;
+    if (d == null || d.inspeccionEquiposActiva || d.esCerrado) return;
+    if (!_esJefeOperaciones) {
+      _snack('Solo el Jefe de Operaciones puede activar la inspección de equipos.', _amber);
+      return;
+    }
+    setState(() => _activandoInspeccion = true);
+    final ok = await widget.service
+        .actualizarServicio(d.id, {'tiene_equipos_intervenidos': true});
+    if (!mounted) return;
+    setState(() => _activandoInspeccion = false);
+    if (ok) {
+      await _load(); // recarga → aparece el botón de Equipos Intervenidos
+    } else {
+      _snack('No se pudo activar. Si el servicio no es tuyo, edítalo con justificación.', _danger);
+    }
   }
 
   // ── Cerrar servicio (En_Proceso → Completado) cuando todas las tareas listas ─
@@ -439,6 +535,8 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   @override
   Widget build(BuildContext context) {
     final d = _detalle;
+    // Sin acceso completo (no designado) → cabecera de solo lectura, sin acciones.
+    final completo = d?.accesoCompleto ?? true;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -453,7 +551,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         actions: [
           // Informes del servicio (pre-informe / informe final en PDF).
-          if (d != null)
+          if (d != null && completo)
             IconButton(
               icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
               tooltip: 'Informes del servicio',
@@ -469,6 +567,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
             ),
           // EN SITIO: solo en Pendiente, solo jefe de operaciones, tras checklist.
           if (d != null &&
+              completo &&
               d.estado == 'Pendiente' &&
               !_cambiandoEstado &&
               _esJefeOperaciones)
@@ -483,6 +582,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
             ),
           // Editar: oculto cuando el servicio está cerrado (solo lectura).
           if (d != null &&
+              completo &&
               !d.esCerrado &&
               (AppSession.i.isJefeOperaciones || AppSession.i.isAdmin))
             IconButton(
@@ -491,7 +591,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
               onPressed: _editarServicio,
             ),
           // Cerrar: solo jefe/admin, con todas las tareas completas.
-          if (d != null && _puedeFinalizar && d.estado == 'En_Proceso')
+          if (d != null && completo && _puedeFinalizar && d.estado == 'En_Proceso')
             IconButton(
               icon: const Icon(Icons.task_alt_outlined, size: 20),
               tooltip: _todasTareasCompletas
@@ -502,6 +602,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
             ),
           // Menú de líder: cancelar / reabrir (acciones terminales protegidas).
           if (d != null &&
+              completo &&
               _puedeFinalizar &&
               !_cambiandoEstado &&
               !d.esCancelado)
@@ -568,7 +669,9 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
             )
           : d == null
               ? _ErrorView(onRetry: _load)
-              : Column(
+              : !completo
+                  ? _VistaServicioBasica(detalle: d)
+                  : Column(
                   children: [
                     _Header(detalle: d, progresoMostrado: _progresoTareas),
                     const SizedBox(height: 10),
@@ -581,6 +684,30 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                         ubicacionId: d.ubicacionId,
                         zonaId: d.zonaId,
                         isClosed: d.esCerrado,
+                      ),
+                    ] else if (!d.esCerrado && _esJefeOperaciones) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: OutlinedButton.icon(
+                          onPressed: _activandoInspeccion
+                              ? null
+                              : _activarInspeccionEquipos,
+                          icon: _activandoInspeccion
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.electrical_services_outlined,
+                                  size: 18),
+                          label: Text(_activandoInspeccion
+                              ? 'Activando…'
+                              : 'Activar inspección de equipos'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(44),
+                          ),
+                        ),
                       ),
                     ],
                     if (d.esCerrado) ...[

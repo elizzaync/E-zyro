@@ -701,6 +701,8 @@ class ServicioDetalle {
   final String? tipoDocumentoCliente;
   final String? nroDocumento;
   final bool inspeccionEquiposActiva;
+  // false = el usuario no está designado: solo cabecera (lectura), sin datos de trabajo.
+  final bool accesoCompleto;
 
   ServicioDetalle({
     required this.id,
@@ -732,6 +734,7 @@ class ServicioDetalle {
     this.tipoDocumentoCliente,
     this.nroDocumento,
     this.inspeccionEquiposActiva = false,
+    this.accesoCompleto = true,
   });
 
   /// Estado terminal del servicio: el backend usa 'Completado', pero en
@@ -792,6 +795,7 @@ class ServicioDetalle {
         inspeccionEquiposActiva: (j['inspeccion_equipos_activa'] as bool?) ??
             (j['es_mantenimiento'] as bool?) ??
             false,
+        accesoCompleto: j['acceso_completo'] as bool? ?? true,
       );
 }
 
