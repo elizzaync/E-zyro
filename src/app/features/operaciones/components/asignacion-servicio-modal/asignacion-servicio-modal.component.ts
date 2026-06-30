@@ -698,12 +698,6 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
       }))
     };
 
-    if (this.isJefeOperaciones) {
-      this._pendingPayload = payload;
-      this.showJustModal = true;
-      return;
-    }
-
     this.guardando = true;
     this._ejecutarConfigurar(payload);
   }
@@ -718,7 +712,15 @@ export class AsignacionServicioModalComponent implements OnInit, OnDestroy {
         },
         error: (err: any) => {
           this.guardando = false;
-          this.errorMsg = err?.error?.detail ?? 'Error al guardar. Intenta nuevamente.';
+          const detail: string = err?.error?.detail ?? '';
+          // El backend exige justificación solo cuando el JOP no está asignado al proyecto.
+          // Mostramos el modal reactivamente en lugar de forzarlo para todo JOP.
+          if (err.status === 422 && detail.toLowerCase().includes('justificaci')) {
+            this._pendingPayload = payload;
+            this.showJustModal = true;
+          } else {
+            this.errorMsg = detail || 'Error al guardar. Intenta nuevamente.';
+          }
         }
       });
   }
