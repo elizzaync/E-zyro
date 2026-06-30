@@ -1030,6 +1030,9 @@ def _run_migrations():
         #    la gestión (subir/editar/eliminar) requiere permiso ─────────────
         sembrar_permisos(conn, "planos", ["gestionar"],
                          descripcion_base="Nube de planos:")
+        # ── Personal / RR.HH.: gestionar ficha de personal (ver usuarios/sesiones) ─
+        sembrar_permisos(conn, "personal", ["gestionar"],
+                         descripcion_base="Gestión de personal:")
         # ── Bypass híbrido: permiso meta de administración total (delegable) ──
         sembrar_permisos(conn, "sistema", ["admin_total"],
                          descripcion_base="Administración total (bypass):")

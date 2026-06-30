@@ -62,6 +62,12 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     "Logística": [
         "planos:gestionar",
     ],
+    # Nombre REAL del rol de RR.HH. en producción (verificado prod 2026-06-26).
+    # Gestiona la ficha de personal sin ser admin: necesita 'personal:gestionar'
+    # para acceder a /seguridad/usuarios (ver usuarios, sesiones, firmas).
+    "Recursos Humanos": [
+        "personal:gestionar",
+    ],
     "Logístico": [
         "dashboard:ver",
         "inventario:ver", "inventario:gestionar",

@@ -14,13 +14,12 @@ from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
+from ..core.permisos import tiene_permiso
 from ..db.database import get_db
 from ..models.sesion_usuario import SesionUsuario
 from ..models.usuario import Usuario
 from ..models.usuario_rol import UsuarioRol
 from ..models.rol import Rol
-from ..models.rol_permiso import RolPermiso
-from ..models.permiso import Permiso
 from ..models.firma_evento import FirmaEvento
 from ..services.firma_seguridad import verificar_evento
 from ..core.tz import fmt_lima
@@ -34,27 +33,15 @@ _http_bearer = HTTPBearer()
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────
 
-def _es_admin(rol: Optional[str]) -> bool:
-    r = (rol or "").lower()
-    return r in ("superadmin", "admin", "administrador")
+def _tiene_permiso_personal(db: Session, payload: dict) -> bool:
+    """True si es admin (incl. bypass híbrido `admin_total`) o tiene el permiso
+    `personal:gestionar` (vía rol o asignación directa).
 
-
-def _tiene_permiso_personal(db: Session, usuario_id: str, payload: dict) -> bool:
-    """True si es admin o tiene el permiso PERSONAL:GESTIONAR en su rol."""
-    if _es_admin(payload.get("rol")):
-        return True
-    perm = (
-        db.query(Permiso.id)
-        .join(RolPermiso, RolPermiso.permiso_id == Permiso.id)
-        .join(UsuarioRol, UsuarioRol.rol_id == RolPermiso.rol_id)
-        .filter(
-            UsuarioRol.usuario_id == usuario_id,
-            Permiso.modulo == "PERSONAL",
-            Permiso.accion == "GESTIONAR",
-        )
-        .first()
-    )
-    return perm is not None
+    Antes este router resolvía el bypass con un check local del NOMBRE del rol
+    ("administrador"), que no reconoce ni el rol real de producción
+    ("Administración") ni el claim `admin_total`. Se delega al helper central
+    para mantener un único criterio de autorización en todo el backend."""
+    return tiene_permiso(db, payload, "personal", "gestionar")
 
 
 def _sesion_dict(s: SesionUsuario, token_hash_actual: Optional[str]) -> dict:
@@ -113,7 +100,7 @@ def listar_usuarios(
     db:      Session = Depends(get_db),
 ):
     """Listado de usuarios de la empresa con rol, foto, último acceso y sesiones activas."""
-    if not _tiene_permiso_personal(db, payload["id"], payload):
+    if not _tiene_permiso_personal(db, payload):
         raise HTTPException(status_code=403, detail="Sin permiso para ver personal")
     empresa_id = payload["empresa_id"]
 
@@ -210,7 +197,7 @@ def sesiones_de_usuario(
     db:         Session = Depends(get_db),
 ):
     """Historial de conexiones de un usuario específico (mismo empresa_id)."""
-    if not _tiene_permiso_personal(db, payload["id"], payload):
+    if not _tiene_permiso_personal(db, payload):
         raise HTTPException(status_code=403, detail="Sin permiso para ver sesiones de otros")
     empresa_id = payload["empresa_id"]
 
@@ -288,7 +275,7 @@ def listar_firmas_sospechosas(
 ):
     """Tablero de seguridad: firmas marcadas como reutilización sospechosa en la
     empresa. Requiere permiso de gestión de personal (o admin)."""
-    if not _tiene_permiso_personal(db, payload["id"], payload):
+    if not _tiene_permiso_personal(db, payload):
         raise HTTPException(status_code=403, detail="Sin permiso para auditar firmas")
     empresa_id = payload["empresa_id"]
     rows = (

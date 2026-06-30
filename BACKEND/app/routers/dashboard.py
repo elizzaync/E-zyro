@@ -1,7 +1,7 @@
 # app/routers/dashboard.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import asc, desc, extract, func, case, or_, cast, Date
+from sqlalchemy import asc, desc, extract, func, case, or_, cast, Date, exists, and_
 from typing import Dict, Any, Optional
 from datetime import date, datetime, time, timedelta
 from collections import defaultdict
@@ -36,6 +36,9 @@ from app.models.solicitud_laboral import SolicitudLaboral
 from app.models.sesion_usuario import SesionUsuario
 from app.models.contrato import Contrato
 from app.models.documento_laboral import DocumentoLaboral
+from app.models.documento_firmado import DocumentoFirmado
+from app.models.orden_mantenimiento import OrdenMantenimiento
+from app.models.calibracion import Calibracion
 
 # Servicios y Seguridad
 from app.core.security import verificar_token, es_superadmin
@@ -201,6 +204,101 @@ def obtener_proximos_servicios(current_user: dict = Depends(verificar_token), db
         return {"status": "success", "data": data_servicios}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Error próximos servicios")
+
+
+@router.get("/alertas")
+def obtener_alertas(current_user: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Contadores accionables (alertas y pendientes) para el dashboard del usuario.
+
+    Cada fuente es tolerante a fallos de forma independiente: si una query revienta,
+    esa métrica devuelve 0 y las demás siguen funcionando. Filtra por empresa del
+    payload y, en lo personal (documentos de firma), por el empleado autenticado.
+    """
+    empresa_id = current_user.get("empresa_id")
+    usuario_id = current_user.get("id")
+    hoy = date.today()
+
+    items = []
+    mantenimientos_alerta = 0
+    calibraciones_por_vencer = 0
+    documentos_pendientes = 0
+
+    # ── 1) Mantenimientos en alerta (pendiente / en_proceso) de la empresa ────
+    try:
+        mantenimientos_alerta = db.query(func.count(OrdenMantenimiento.id)).filter(
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
+        ).scalar() or 0
+        if mantenimientos_alerta:
+            items.append({
+                "tipo":      "mantenimiento",
+                "titulo":    f"{mantenimientos_alerta} mantenimiento(s) en proceso o pendientes",
+                "severidad": "media",
+                "ruta":      "/operaciones",
+                "conteo":    int(mantenimientos_alerta),
+            })
+    except Exception:
+        import traceback; traceback.print_exc()
+        mantenimientos_alerta = 0
+
+    # ── 2) Calibraciones por vencer (próxima ≤ hoy + 30 días) ─────────────────
+    try:
+        limite = hoy + timedelta(days=30)
+        calibraciones_por_vencer = db.query(func.count(Calibracion.id)).filter(
+            Calibracion.empresa_id == empresa_id,
+            Calibracion.fecha_proxima.isnot(None),
+            Calibracion.fecha_proxima <= limite,
+        ).scalar() or 0
+        if calibraciones_por_vencer:
+            items.append({
+                "tipo":      "calibracion",
+                "titulo":    f"{calibraciones_por_vencer} calibración(es) por vencer (30 días)",
+                "severidad": "alta",
+                "ruta":      None,
+                "conteo":    int(calibraciones_por_vencer),
+            })
+    except Exception:
+        import traceback; traceback.print_exc()
+        calibraciones_por_vencer = 0
+
+    # ── 3) Documentos RR.HH. pendientes de firma del empleado autenticado ─────
+    #     Reusa el criterio de GET /rrhh/mis-documentos-pendientes.
+    try:
+        empleado = db.query(Empleado).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        if empleado:
+            documentos_pendientes = db.query(func.count(DocumentoLaboral.id)).filter(
+                DocumentoLaboral.empleado_id == empleado.id,
+                DocumentoLaboral.empresa_id == empresa_id,
+                DocumentoLaboral.requiere_firma == True,
+                ~exists().where(
+                    and_(
+                        DocumentoFirmado.documento_id == DocumentoLaboral.id,
+                        DocumentoFirmado.tabla_documento == "documento_laboral",
+                    )
+                ),
+            ).scalar() or 0
+            if documentos_pendientes:
+                items.append({
+                    "tipo":      "documento",
+                    "titulo":    f"{documentos_pendientes} documento(s) pendiente(s) de firma",
+                    "severidad": "alta",
+                    "ruta":      None,
+                    "conteo":    int(documentos_pendientes),
+                })
+    except Exception:
+        import traceback; traceback.print_exc()
+        documentos_pendientes = 0
+
+    return {"status": "success", "data": {
+        "calibraciones_por_vencer": int(calibraciones_por_vencer),
+        "mantenimientos_alerta":    int(mantenimientos_alerta),
+        "documentos_pendientes":    int(documentos_pendientes),
+        "total":                    int(calibraciones_por_vencer + mantenimientos_alerta + documentos_pendientes),
+        "items":                    items,
+    }}
 
 
 @router.get("/rendimiento-mensual")
