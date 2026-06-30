@@ -236,7 +236,14 @@ def get_proyectos_lista(
 
     if es_tecnico(payload):
         empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
-        proyectos_sq = (
+        # Proyectos donde el técnico es miembro del equipo (ProyectoMiembro)
+        miembro_sq = (
+            db.query(ProyectoMiembro.proyecto_id)
+            .filter(ProyectoMiembro.empleado_id == empleado.id)
+            .subquery()
+        )
+        # O proyectos donde tiene tareas asignadas en el cronograma
+        tarea_sq = (
             db.query(ProyectoServicio.proyecto_id)
             .join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
             .filter(
@@ -246,7 +253,9 @@ def get_proyectos_lista(
             .distinct()
             .subquery()
         )
-        rows = base_q.filter(Proyecto.id.in_(proyectos_sq)).all()
+        rows = base_q.filter(
+            or_(Proyecto.id.in_(miembro_sq), Proyecto.id.in_(tarea_sq))
+        ).all()
     else:
         rows = base_q.all()
 
@@ -318,13 +327,37 @@ def get_proyectos(
         .filter(Proyecto.empresa_id == empresa_id)
     )
 
-    # Visibilidad de la LISTA abierta a TODOS los roles de la empresa: cualquier
-    # usuario puede ver qué proyectos existen (nombre, cliente, fechas, estado),
-    # lo que facilita planificar y crear más. El acceso al DETALLE / datos de
-    # trabajo de un servicio sigue restringido a los designados (ver
-    # get_detalle_servicio). Antes el Técnico tenía visibilidad reducida (solo
-    # proyectos con tareas suyas); se abrió por decisión de negocio.
-    rows = base_q.order_by(Proyecto.created_at.desc()).all()
+    if rol == "Administrador" or es_jefe_operaciones(payload):
+        # Admin y Jefe de Operaciones ven todos los proyectos de la empresa
+        rows = base_q.order_by(Proyecto.created_at.desc()).all()
+    elif es_tecnico(payload):
+        # Técnico: proyectos donde es miembro del equipo (ProyectoMiembro) O tiene tareas asignadas
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        miembro_sq = (
+            db.query(ProyectoMiembro.proyecto_id)
+            .filter(ProyectoMiembro.empleado_id == empleado.id)
+            .subquery()
+        )
+        tarea_sq = (
+            db.query(ProyectoServicio.proyecto_id)
+            .join(Tarea, Tarea.proyecto_servicio_id == ProyectoServicio.id)
+            .filter(
+                Tarea.responsable_id == empleado.id,
+                Tarea.empresa_id     == empresa_id,
+            )
+            .distinct()
+            .subquery()
+        )
+        rows = (
+            base_q
+            .filter(or_(Proyecto.id.in_(miembro_sq), Proyecto.id.in_(tarea_sq)))
+            .order_by(Proyecto.created_at.desc())
+            .all()
+        )
+    else:
+        # Soporte, Logística, TI, Administración y cualquier otro rol registrado
+        # ven todos los proyectos de la empresa.
+        rows = base_q.order_by(Proyecto.created_at.desc()).all()
 
     # ── Aplicar filtros adicionales sobre los rows ────────────────────────────
     if estado:
@@ -404,11 +437,17 @@ def get_servicios_proyecto(
     if not proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
 
-    # Lista de servicios ABIERTA a cualquier usuario de la empresa: ver
-    # existencia, fechas, estado y avance. El DETALLE completo de un servicio
-    # sigue restringido a los designados (ver get_detalle_servicio). Antes este
-    # endpoint daba 403 a quien no fuera jefe/miembro del proyecto y filtraba al
-    # Técnico a sus tareas; se abrió la visibilidad de la lista por negocio.
+    # Solo los Técnicos tienen acceso restringido a proyectos; los demás roles
+    # (Soporte, Logística, TI, etc.) pueden ver servicios de cualquier proyecto.
+    if es_tecnico(payload):
+        empleado = _get_empleado_or_403(db, usuario_id, empresa_id)
+        es_jefe    = proyecto.jefe_operaciones_id == empleado.id
+        es_miembro = db.query(ProyectoMiembro).filter(
+            ProyectoMiembro.proyecto_id == proyecto_id,
+            ProyectoMiembro.empleado_id == empleado.id,
+        ).first() is not None
+        if not es_jefe and not es_miembro:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este proyecto")
     servicios = (
         db.query(ProyectoServicio)
         .filter(

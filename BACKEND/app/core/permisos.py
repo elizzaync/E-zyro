@@ -12,6 +12,7 @@ Convención de nombres: modulo/accion en MINÚSCULAS (coincide con la data sembr
 """
 from __future__ import annotations
 
+import unicodedata
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -25,7 +26,8 @@ _ROL_JEFE_OPERACIONES = "jefedeoperaciones"
 
 
 def _normalizar_rol(payload: dict) -> str:
-    return (payload.get("rol") or "").lower().strip().replace(" ", "").replace("\xa0", "")
+    raw = unicodedata.normalize("NFC", (payload.get("rol") or ""))
+    return raw.lower().strip().replace(" ", "").replace("\xa0", "")
 
 
 def es_admin(payload: dict) -> bool:
