@@ -18,12 +18,22 @@ export class OperacionesService {
     return this.http.get(`${this.api}/operaciones/dashboard`);
   }
 
-  getProyectos(): Observable<any> {
-    return this.http.get<any>(`${this.api}/operaciones/proyectos`);
+  getProyectos(params?: { q?: string; estado?: string; page?: number; page_size?: number }): Observable<any> {
+    let p = new HttpParams();
+    if (params?.q)         p = p.set('q', params.q);
+    if (params?.estado)    p = p.set('estado', params.estado);
+    if (params?.page)      p = p.set('page', String(params.page));
+    if (params?.page_size) p = p.set('page_size', String(params.page_size));
+    return this.http.get<any>(`${this.api}/operaciones/proyectos`, { params: p });
   }
 
-  getServiciosPorProyecto(proyectoId: string): Observable<any[]> {
-    return this.http.get<any[]>(`${this.api}/operaciones/proyecto/${proyectoId}/servicios`);
+  getServiciosPorProyecto(proyectoId: string, params?: { q?: string; estado?: string; page?: number; page_size?: number }): Observable<any> {
+    let p = new HttpParams();
+    if (params?.q)         p = p.set('q', params.q);
+    if (params?.estado)    p = p.set('estado', params.estado);
+    if (params?.page)      p = p.set('page', String(params.page));
+    if (params?.page_size) p = p.set('page_size', String(params.page_size));
+    return this.http.get<any>(`${this.api}/operaciones/proyecto/${proyectoId}/servicios`, { params: p });
   }
 
   getEquiposProyecto(proyectoId: string): Observable<any[]> {

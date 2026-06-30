@@ -1,5 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
@@ -21,10 +22,12 @@ export interface ServicioProyecto {
   progreso?: number;
 }
 
+interface Paginacion { total: number; page: number; page_size: number; total_pages: number; }
+
 @Component({
   selector: 'app-operaciones-servicios-lista',
   standalone: true,
-  imports: [CommonModule, SpinnerComponent, AsignacionServicioModalComponent, CrearServicioModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AsignacionServicioModalComponent, CrearServicioModalComponent],
   templateUrl: './operaciones-servicios-lista.component.html',
   styleUrls: ['./operaciones-servicios-lista.component.css']
 })
@@ -35,17 +38,25 @@ export class OperacionesServiciosListaComponent implements OnInit {
   private toast  = inject(ToastService);
   private auth   = inject(AuthService);
 
-  get isTecnico(): boolean { return this.auth.isTecnico(); }
+  get isTecnico(): boolean        { return this.auth.isTecnico(); }
   get isJefeOperaciones(): boolean { return this.auth.isJefeOperaciones(); }
 
   proyectoId: string | null = null;
   servicios: ServicioProyecto[] = [];
+  paginacion: Paginacion = { total: 0, page: 1, page_size: 20, total_pages: 1 };
   isLoading    = true;
   errorMessage: string | null = null;
 
-
-  filtros      = ['Todos', 'Pendiente', 'En_Proceso', 'Completado'];
-  filtroActual = 'Todos';
+  // ── Búsqueda y filtros ─────────────────────────────────────────────
+  busqueda     = '';
+  filtroActual = '';
+  readonly FILTROS: { valor: string; label: string }[] = [
+    { valor: '',            label: 'Todos'      },
+    { valor: 'Pendiente',   label: 'Pendiente'  },
+    { valor: 'En_Proceso',  label: 'En Proceso' },
+    { valor: 'Completado',  label: 'Completado' },
+    { valor: 'Cancelado',   label: 'Cancelado'  },
+  ];
 
   // Mismas 4 fases que el detalle del servicio (fuente única de verdad)
   fasesServicio = FASES_SERVICIO;
@@ -60,13 +71,43 @@ export class OperacionesServiciosListaComponent implements OnInit {
   csmMode: 'crear' | 'editar' = 'crear';
   csmServicioId: string | null = null;
 
-  get serviciosFiltrados(): ServicioProyecto[] {
-    if (this.filtroActual === 'Todos') return this.servicios;
-    return this.servicios.filter(s => s.estado === this.filtroActual);
+  private debounceTimer: any;
+
+  get pagFin(): number {
+    return Math.min(this.paginacion.page * this.paginacion.page_size, this.paginacion.total);
+  }
+
+  get paginas(): number[] {
+    const total = this.paginacion.total_pages;
+    const cur   = this.paginacion.page;
+    const all   = Array.from({ length: total }, (_, i) => i + 1);
+    if (total <= 7) return all;
+    const near = new Set([1, total, cur - 1, cur, cur + 1].filter(n => n >= 1 && n <= total));
+    return [...near].sort((a, b) => a - b);
   }
 
   ngOnInit(): void {
     this.proyectoId = this.route.snapshot.paramMap.get('id');
+    this.cargarServicios();
+  }
+
+  onBusquedaChange(): void {
+    clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => {
+      this.paginacion.page = 1;
+      this.cargarServicios();
+    }, 350);
+  }
+
+  setFiltro(valor: string): void {
+    this.filtroActual = valor;
+    this.paginacion.page = 1;
+    this.cargarServicios();
+  }
+
+  irPagina(p: number): void {
+    if (p < 1 || p > this.paginacion.total_pages) return;
+    this.paginacion.page = p;
     this.cargarServicios();
   }
 
@@ -78,10 +119,16 @@ export class OperacionesServiciosListaComponent implements OnInit {
     }
     this.isLoading = true;
     this.errorMessage = null;
-    this.svc.getServiciosPorProyecto(this.proyectoId).subscribe({
+    this.svc.getServiciosPorProyecto(this.proyectoId, {
+      q:         this.busqueda    || undefined,
+      estado:    this.filtroActual || undefined,
+      page:      this.paginacion.page,
+      page_size: this.paginacion.page_size,
+    }).subscribe({
       next: (res: any) => {
-        this.servicios = res;
-        this.isLoading = false;
+        this.servicios  = res.servicios  ?? [];
+        this.paginacion = res.paginacion ?? this.paginacion;
+        this.isLoading  = false;
       },
       error: (err: any) => {
         console.error('Error cargando servicios:', err);
@@ -90,8 +137,6 @@ export class OperacionesServiciosListaComponent implements OnInit {
       }
     });
   }
-
-  setFiltro(filtro: string): void { this.filtroActual = filtro; }
 
   volver(): void { this.router.navigate(['/operaciones']); }
 

@@ -10,7 +10,7 @@
     </button>
     <div class="header-titles">
       <h2 class="page-title">Servicios del Proyecto</h2>
-      <p class="page-subtitle">{{ serviciosFiltrados.length }} servicio{{ serviciosFiltrados.length !== 1 ? 's' : '' }} encontrados</p>
+      <p class="page-subtitle">{{ paginacion.total }} servicio{{ paginacion.total !== 1 ? 's' : '' }} encontrados</p>
     </div>
     <!-- Acciones de cabecera -->
     <div class="header-actions">
@@ -59,13 +59,30 @@
   </div>
   } @else {
 
-  <!-- FILTROS -->
-  <div class="filtros-wrapper">
-    @for (filtro of filtros; track filtro) {
-    <button class="filtro-btn" [class.active]="filtroActual === filtro" (click)="setFiltro(filtro)">
-      {{ filtro === 'En_Proceso' ? 'En Proceso' : filtro }}
-    </button>
-    }
+  <!-- BUSCADOR + FILTROS -->
+  <div class="toolbar-row">
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar servicio..."
+        [(ngModel)]="busqueda"
+        (ngModelChange)="onBusquedaChange()"
+      />
+      @if (busqueda) {
+      <button class="search-clear" (click)="busqueda=''; onBusquedaChange()" title="Limpiar">✕</button>
+      }
+    </div>
+    <div class="filtros-wrapper">
+      @for (f of FILTROS; track f.valor) {
+      <button class="filtro-btn" [class.active]="filtroActual === f.valor" (click)="setFiltro(f.valor)">
+        {{ f.label }}
+      </button>
+      }
+    </div>
   </div>
 
   <!-- LEYENDA SEMAFÓRICA -->
@@ -84,19 +101,19 @@
   </div>
 
   <!-- EMPTY STATE -->
-  @if (serviciosFiltrados.length === 0) {
+  @if (servicios.length === 0) {
   <div class="empty-state">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
       <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
     </svg>
     <h3>Sin servicios</h3>
-    <p>No hay servicios con el filtro seleccionado.</p>
+    <p>{{ busqueda || filtroActual ? 'Intenta con otros filtros.' : 'No hay servicios en este proyecto.' }}</p>
   </div>
   } @else {
 
   <!-- GRID DE SERVICIOS -->
   <div class="servicios-grid">
-    @for (servicio of serviciosFiltrados; track servicio.id; let i = $index) {
+    @for (servicio of servicios; track servicio.id; let i = $index) {
     <div class="servicio-card slide-up"
          [class]="'semaforo-' + servicio.estado_color"
          [style.animation-delay]="(i * 60) + 'ms'"
@@ -231,6 +248,25 @@
     </div>
     }
   </div>
+
+  <!-- PAGINACIÓN -->
+  @if (paginacion.total_pages > 1) {
+  <div class="paginacion-row">
+    <button class="pag-btn" [disabled]="paginacion.page <= 1" (click)="irPagina(paginacion.page - 1)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    @for (p of paginas; track p; let i = $index) {
+      @if (i > 0 && paginas[i-1] !== p - 1) {
+        <span class="pag-ellipsis">…</span>
+      }
+      <button class="pag-btn pag-num" [class.active]="paginacion.page === p" (click)="irPagina(p)">{{ p }}</button>
+    }
+    <button class="pag-btn" [disabled]="paginacion.page >= paginacion.total_pages" (click)="irPagina(paginacion.page + 1)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <span class="pag-info">{{ (paginacion.page - 1) * paginacion.page_size + 1 }}–{{ pagFin }} de {{ paginacion.total }}</span>
+  </div>
+  }
 
   }
   }

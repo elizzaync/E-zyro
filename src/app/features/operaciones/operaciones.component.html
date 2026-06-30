@@ -82,6 +82,36 @@
   </div>
   }
 
+  <!-- BUSCADOR Y FILTROS -->
+  @if (!isLoading || proyectos.length > 0) {
+  <div class="toolbar-row">
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar proyecto, orden o cliente..."
+        [(ngModel)]="busqueda"
+        (ngModelChange)="onBusquedaChange()"
+      />
+      @if (busqueda) {
+      <button class="search-clear" (click)="busqueda=''; onBusquedaChange()" title="Limpiar búsqueda">✕</button>
+      }
+    </div>
+    <div class="filtros-estado">
+      @for (est of ESTADOS; track est) {
+      <button
+        class="filtro-chip"
+        [class.active]="estadoFiltro === est"
+        (click)="onFiltroEstado(est)"
+      >{{ est === '' ? 'Todos' : estadoLabel(est) }}</button>
+      }
+    </div>
+  </div>
+  }
+
   <!-- LOADING -->
   @if (isLoading) {
   <div class="historial-loading">
@@ -95,8 +125,8 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
       <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
     </svg>
-    <h3>Sin proyectos asignados</h3>
-    <p>No tienes proyectos activos en este momento.</p>
+    <h3>Sin proyectos encontrados</h3>
+    <p>{{ busqueda || estadoFiltro ? 'Intenta con otros filtros.' : 'No tienes proyectos activos en este momento.' }}</p>
   </div>
 
   <!-- GRID DE PROYECTOS -->
@@ -108,7 +138,7 @@
           <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
         </svg>
         <span class="seccion-titulo">Proyectos</span>
-        <span class="seccion-count">{{ proyectos.length }}</span>
+        <span class="seccion-count">{{ paginacion.total }}</span>
       </div>
       <svg class="seccion-chevron" [class.rotado]="proyectosAbierto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polyline points="6 9 12 15 18 9"/>
@@ -198,6 +228,25 @@
     </div>
     }
   </div>
+    <!-- PAGINACIÓN -->
+    @if (paginacion.total_pages > 1) {
+    <div class="paginacion-row">
+      <button class="pag-btn" [disabled]="paginacion.page <= 1" (click)="irPagina(paginacion.page - 1)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      @for (p of paginas; track p; let i = $index) {
+        @if (i > 0 && paginas[i-1] !== p - 1) {
+          <span class="pag-ellipsis">…</span>
+        }
+        <button class="pag-btn pag-num" [class.active]="paginacion.page === p" (click)="irPagina(p)">{{ p }}</button>
+      }
+      <button class="pag-btn" [disabled]="paginacion.page >= paginacion.total_pages" (click)="irPagina(paginacion.page + 1)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <span class="pag-info">{{ (paginacion.page - 1) * paginacion.page_size + 1 }}–{{ pagFin }} de {{ paginacion.total }}</span>
+    </div>
+    }
+
     } <!-- /proyectosAbierto -->
   </div> <!-- /seccion-dropdown -->
   }
