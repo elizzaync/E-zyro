@@ -3520,10 +3520,17 @@ def configurar_servicio(
     """
     exigir_no_tecnico(payload, "Técnico no puede configurar servicios ni asignar miembros")
     empresa_id = payload["empresa_id"]
-    # Jefe de Operaciones: acceso completo a todos los servicios de la empresa
-    # sin necesidad de estar asignado específicamente al proyecto.
-    if (x_justificacion or "").strip():
-        set_justificacion(x_justificacion)
+    # Jefe de Operaciones: si está asignado al proyecto/servicio, gestiona libre;
+    # solo se exige justificación cuando configura un proyecto que NO es suyo.
+    if es_jefe_operaciones(payload):
+        if not _jefe_op_asignado_al_servicio(db, payload, empresa_id, servicio_id):
+            if not (x_justificacion or "").strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Se requiere justificación (X-Justificacion) para configurar un servicio que no tienes asignado",
+                )
+        if (x_justificacion or "").strip():
+            set_justificacion(x_justificacion)
 
     ps = _exigir_servicio_abierto(db, empresa_id, servicio_id)
 
