@@ -1033,6 +1033,11 @@ def _run_migrations():
         # ── Personal / RR.HH.: gestionar ficha de personal (ver usuarios/sesiones) ─
         sembrar_permisos(conn, "personal", ["gestionar"],
                          descripcion_base="Gestión de personal:")
+        # ── Requerimientos: 'solicitar' habilita el módulo a roles operativos
+        #    (Jefe de Operaciones / Técnico) que por defecto están bloqueados,
+        #    para que puedan pedir materiales de sus servicios. ────────────────
+        sembrar_permisos(conn, "requerimientos", ["solicitar"],
+                         descripcion_base="Solicitar requerimientos/materiales:")
         # ── Bypass híbrido: permiso meta de administración total (delegable) ──
         sembrar_permisos(conn, "sistema", ["admin_total"],
                          descripcion_base="Administración total (bypass):")

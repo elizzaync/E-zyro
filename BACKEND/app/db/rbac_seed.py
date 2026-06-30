@@ -37,7 +37,7 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
         "proyectos:ver", "proyectos:crear", "proyectos:editar",
         "equipo_intervenido:ver", "equipo_intervenido:crear", "equipo_intervenido:editar",
         "asistencia:ver", "asistencia:validar", "asistencia:configurar",
-        "requerimientos:ver", "requerimientos:aprobar",
+        "requerimientos:ver", "requerimientos:aprobar", "requerimientos:solicitar",
         "correctivo:ver", "correctivo:crear", "correctivo:editar",
         "correctivo:aprobar", "correctivo:finalizar",
         "observacion:ver", "observacion:crear", "observacion:editar", "observacion:eliminar",
@@ -67,6 +67,12 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     # para acceder a /seguridad/usuarios (ver usuarios, sesiones, firmas).
     "Recursos Humanos": [
         "personal:gestionar",
+    ],
+    # Nombre REAL del rol técnico en producción ("Técnico", ya NO "Técnico de
+    # Campo"). Necesita 'requerimientos:solicitar' para pedir materiales de sus
+    # servicios (el router /requerimientos bloquea por rol salvo este permiso).
+    "Técnico": [
+        "requerimientos:solicitar",
     ],
     "Logístico": [
         "dashboard:ver",

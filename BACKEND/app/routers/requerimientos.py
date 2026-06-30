@@ -13,7 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token, es_superadmin
-from ..core.permisos import exigir_no_roles_operativos
+from ..core.permisos import exigir_no_roles_operativos, tiene_permiso
 from ..db.database import get_db
 
 from ..models.material import Material, Stock
@@ -36,8 +36,18 @@ from ..schemas.requerimientos import (
 )
 import json as _json
 
-def _dep_bloquear_requerimientos(payload: dict = Depends(verificar_token)) -> None:
-    """Dependencia FastAPI: bloquea Técnico y Jefe de Operaciones en todo el router."""
+def _dep_bloquear_requerimientos(
+    payload: dict = Depends(verificar_token),
+    db: Session = Depends(get_db),
+) -> None:
+    """Dependencia FastAPI: por defecto bloquea Técnico y Jefe de Operaciones en
+    todo el router (módulo de logística/almacén). EXCEPCIÓN: se concede acceso a
+    quien tenga el permiso `requerimientos:solicitar` (delegable por rol o por
+    usuario desde Privilegios), para que un Jefe de Operaciones o un Técnico
+    pueda solicitar materiales para sus servicios. `tiene_permiso` ya cubre el
+    bypass de admin."""
+    if tiene_permiso(db, payload, "requerimientos", "solicitar"):
+        return
     exigir_no_roles_operativos(payload, "Técnico y Jefe de Operaciones no tienen acceso a Requerimientos")
 
 
