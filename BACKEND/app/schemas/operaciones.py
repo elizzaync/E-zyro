@@ -90,6 +90,7 @@ class ServicioDetalleOut(BaseModel):
     zona_id: Optional[str] = None
     ubicacion_nombre: Optional[str] = None
     zona_nombre: Optional[str] = None
+    sin_procedimientos_estandar: bool = False
     # False = el usuario NO está designado en el servicio: recibe solo la
     # cabecera (existencia, fechas, estado) en modo lectura, sin datos de trabajo.
     acceso_completo: bool = True
@@ -267,6 +268,17 @@ class CatalogoServicioOut(BaseModel):
     nombre: str
     tipo_trabajo: str
     descripcion: Optional[str] = None
+    activo: bool = True
+
+
+class CatalogoServicioIn(BaseModel):
+    nombre: str
+    tipo_trabajo: str
+    descripcion: Optional[str] = None
+
+
+class CatalogoServicioEstadoBody(BaseModel):
+    activo: bool
 
 
 # ── Personas elegibles para liderazgo / ejecución del servicio ────────────────
@@ -415,7 +427,8 @@ class ProcesoItem(BaseModel):
 
 
 class PlantillaProcedimientoIn(BaseModel):
-    tipo_trabajo: str
+    catalogo_servicio_id: Optional[str] = None  # preferido: upsert por tipo de servicio
+    tipo_trabajo: Optional[str] = None          # legacy: requerido solo si no hay catalogo_servicio_id
     nombre: str
     procesos: List[ProcesoItem] = []
     activo: bool = True
@@ -423,6 +436,8 @@ class PlantillaProcedimientoIn(BaseModel):
 
 class PlantillaProcedimientoOut(BaseModel):
     id: str
+    catalogo_servicio_id: Optional[str] = None
+    catalogo_servicio_nombre: Optional[str] = None
     tipo_trabajo: str
     nombre: str
     procesos: List[ProcesoItem] = []

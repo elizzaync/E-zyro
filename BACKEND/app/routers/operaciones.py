@@ -97,6 +97,8 @@ from ..schemas.operaciones import (
     # CRUD nuevos
     ClienteOut,
     CatalogoServicioOut,
+    CatalogoServicioIn,
+    CatalogoServicioEstadoBody,
     TecnicoOut,
     GrupoConMiembrosOut,
     PersonalTecnicosOut,
@@ -133,14 +135,24 @@ def _instanciar_procedimientos(db: Session, ps: ProyectoServicio, empresa_id: st
     catalogo = db.query(CatalogoServicio).filter(
         CatalogoServicio.id == ps.catalogo_servicio_id
     ).first()
-    if not catalogo or not catalogo.tipo_trabajo:
+    if not catalogo:
         return 0
 
+    # Match preferido: FK directa al tipo de servicio (no falla por typo/mayúsculas).
     plantilla = db.query(PlantillaProcedimiento).filter(
-        PlantillaProcedimiento.empresa_id   == empresa_id,
-        PlantillaProcedimiento.tipo_trabajo == catalogo.tipo_trabajo,
-        PlantillaProcedimiento.activo       == True,
+        PlantillaProcedimiento.empresa_id           == empresa_id,
+        PlantillaProcedimiento.catalogo_servicio_id == catalogo.id,
+        PlantillaProcedimiento.activo               == True,
     ).first()
+    # Fallback legacy: plantillas aún no migradas a FK, por tipo_trabajo
+    # (insensible a mayúsculas/espacios, a diferencia del match original).
+    if not plantilla and catalogo.tipo_trabajo:
+        plantilla = db.query(PlantillaProcedimiento).filter(
+            PlantillaProcedimiento.empresa_id           == empresa_id,
+            PlantillaProcedimiento.catalogo_servicio_id.is_(None),
+            func.lower(func.trim(PlantillaProcedimiento.tipo_trabajo)) == catalogo.tipo_trabajo.strip().lower(),
+            PlantillaProcedimiento.activo               == True,
+        ).first()
     if not plantilla:
         return 0
 
@@ -635,8 +647,6 @@ def get_detalle_servicio(
 
     proyecto = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
     cliente  = db.query(Cliente).filter(Cliente.id  == proyecto.cliente_id).first()
-    # La zona ahora vive en el servicio; el nombre del proyecto es el fallback.
-    ubicacion = (ps.zona_ejecucion or proyecto.nombre_proyecto) or ""
     # Nombres de ubicacion/zona para prefill del modal de edicion (evita race en frontend)
     ubic_nombre = None
     zona_nombre = None
@@ -646,6 +656,23 @@ def get_detalle_servicio(
     if ps.zona_id:
         _z = db.query(Zona).filter(Zona.id == ps.zona_id).first()
         zona_nombre = _z.nombre if _z else None
+    # Texto a mostrar como "ubicación": catálogo nuevo (zona/ubicación) primero,
+    # zona_ejecucion (legado, texto libre) después, nombre del proyecto al final.
+    if zona_nombre and ubic_nombre:
+        ubicacion = f"{zona_nombre} - {ubic_nombre}"
+    elif zona_nombre or ubic_nombre:
+        ubicacion = zona_nombre or ubic_nombre
+    else:
+        ubicacion = (ps.zona_ejecucion or proyecto.nombre_proyecto) or ""
+
+    # Alerta de calidad: el tipo de servicio tiene catálogo asignado pero el
+    # servicio no tiene ningún procedimiento estándar instanciado (sin plantilla
+    # definida para ese tipo, o instanciación pendiente). No bloquea — solo avisa.
+    sin_proc_estandar = bool(ps.catalogo_servicio_id) and not (
+        db.query(func.count(Procedimiento.id))
+        .filter(Procedimiento.proyecto_servicio_id == ps.id)
+        .scalar()
+    )
 
     # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass).
     #    Los NO designados reciben una vista BÁSICA de solo lectura (cabecera +
@@ -689,8 +716,11 @@ def get_detalle_servicio(
                 fecha_inicio=ps.fecha_inicio.isoformat() if ps.fecha_inicio else None,
                 fecha_fin=ps.fecha_fin.isoformat() if ps.fecha_fin else None,
                 zona_ejecucion=ps.zona_ejecucion or None,
+                ubicacion_id=str(ps.ubicacion_id) if ps.ubicacion_id else None,
+                zona_id=str(ps.zona_id) if ps.zona_id else None,
                 ubicacion_nombre=ubic_nombre,
                 zona_nombre=zona_nombre,
+                sin_procedimientos_estandar=sin_proc_estandar,
                 es_mantenimiento=False,
                 inspeccion_equipos_activa=False,
                 acceso_completo=False,
@@ -781,6 +811,8 @@ def get_detalle_servicio(
         .order_by(Procedimiento.orden.asc())
         .all()
     )
+    # Recalcular tras la instanciación perezosa (puede haber cambiado).
+    sin_proc_estandar = bool(ps.catalogo_servicio_id) and not procs
     evidencias = (
         db.query(EvidenciaProcedimiento)
         .filter(EvidenciaProcedimiento.proyecto_servicio_id == servicio_id)
@@ -938,6 +970,7 @@ def get_detalle_servicio(
         zona_id=str(ps.zona_id) if ps.zona_id else None,
         ubicacion_nombre=ubic_nombre,
         zona_nombre=zona_nombre,
+        sin_procedimientos_estandar=sin_proc_estandar,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
@@ -1152,16 +1185,18 @@ def actualizar_estado_tarea(
     return {"ok": True, "estado": body.estado}
 
 
-# ── Plantillas de Procedimientos (estándar por tipo de trabajo) ───────────────
+# ── Plantillas de Procedimientos (estándar por tipo de servicio) ──────────────
 # Gestión admin del manual estándar que se instancia en cada servicio.
 
-def _plantilla_out(p: PlantillaProcedimiento) -> PlantillaProcedimientoOut:
+def _plantilla_out(p: PlantillaProcedimiento, catalogo_nombre: str | None = None) -> PlantillaProcedimientoOut:
     try:
         procesos = json.loads(p.procesos or "[]")
     except (ValueError, TypeError):
         procesos = []
     return PlantillaProcedimientoOut(
         id=str(p.id),
+        catalogo_servicio_id=str(p.catalogo_servicio_id) if p.catalogo_servicio_id else None,
+        catalogo_servicio_nombre=catalogo_nombre,
         tipo_trabajo=p.tipo_trabajo,
         nombre=p.nombre or "",
         procesos=[ProcesoItem(**x) for x in procesos if isinstance(x, dict)],
@@ -1177,12 +1212,32 @@ def listar_plantillas_procedimiento(
 ):
     exigir_permiso(db, payload, "catalogos", "ver")
     rows = (
-        db.query(PlantillaProcedimiento)
+        db.query(PlantillaProcedimiento, CatalogoServicio.nombre)
+        .outerjoin(CatalogoServicio, CatalogoServicio.id == PlantillaProcedimiento.catalogo_servicio_id)
         .filter(PlantillaProcedimiento.empresa_id == payload["empresa_id"])
-        .order_by(PlantillaProcedimiento.tipo_trabajo.asc())
+        .order_by(CatalogoServicio.nombre.asc().nullslast(), PlantillaProcedimiento.tipo_trabajo.asc())
         .all()
     )
-    return [_plantilla_out(p) for p in rows]
+    return [_plantilla_out(p, catalogo_nombre) for p, catalogo_nombre in rows]
+
+
+@router.get("/plantillas-procedimiento/por-catalogo/{catalogo_servicio_id}", response_model=PlantillaProcedimientoOut)
+def obtener_plantilla_por_catalogo(
+    catalogo_servicio_id: str,
+    payload:               dict    = Depends(verificar_token),
+    db:                    Session = Depends(get_db),
+):
+    """Procedimientos estándar del tipo de servicio (vía FK). Es la forma
+    preferida de consultar — ver también el endpoint legacy por tipo_trabajo."""
+    exigir_permiso(db, payload, "catalogos", "ver")
+    p = db.query(PlantillaProcedimiento).filter(
+        PlantillaProcedimiento.empresa_id           == payload["empresa_id"],
+        PlantillaProcedimiento.catalogo_servicio_id == catalogo_servicio_id,
+    ).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Este tipo de servicio aún no tiene procedimientos estándar")
+    catalogo = db.query(CatalogoServicio).filter(CatalogoServicio.id == catalogo_servicio_id).first()
+    return _plantilla_out(p, catalogo.nombre if catalogo else None)
 
 
 @router.get("/plantillas-procedimiento/{tipo_trabajo}", response_model=PlantillaProcedimientoOut)
@@ -1191,6 +1246,8 @@ def obtener_plantilla_procedimiento(
     payload:      dict    = Depends(verificar_token),
     db:           Session = Depends(get_db),
 ):
+    """Legacy: consulta por el string tipo_trabajo. Preferir
+    /plantillas-procedimiento/por-catalogo/{catalogo_servicio_id}."""
     exigir_permiso(db, payload, "catalogos", "ver")
     p = db.query(PlantillaProcedimiento).filter(
         PlantillaProcedimiento.empresa_id   == payload["empresa_id"],
@@ -1198,7 +1255,11 @@ def obtener_plantilla_procedimiento(
     ).first()
     if not p:
         raise HTTPException(status_code=404, detail="Plantilla no encontrada")
-    return _plantilla_out(p)
+    catalogo_nombre = None
+    if p.catalogo_servicio_id:
+        catalogo = db.query(CatalogoServicio).filter(CatalogoServicio.id == p.catalogo_servicio_id).first()
+        catalogo_nombre = catalogo.nombre if catalogo else None
+    return _plantilla_out(p, catalogo_nombre)
 
 
 @router.put("/plantillas-procedimiento", response_model=PlantillaProcedimientoOut)
@@ -1207,46 +1268,69 @@ def guardar_plantilla_procedimiento(
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
-    """Upsert del estándar por tipo de trabajo. Incrementa la versión en cada
-    guardado. No reescribe los procedimientos ya instanciados en servicios
-    existentes (esos se mantienen tal cual; los nuevos servicios usan la última)."""
+    """Upsert del estándar por tipo de servicio. Preferido: `catalogo_servicio_id`
+    (FK real). Legacy: `tipo_trabajo` solo si no se manda catalogo_servicio_id.
+    Incrementa la versión en cada guardado. No reescribe los procedimientos ya
+    instanciados en servicios existentes (esos se mantienen tal cual; los
+    nuevos servicios usan la última)."""
     exigir_permiso(db, payload, "catalogos", "editar")
     empresa_id = payload["empresa_id"]
-    tipo = (body.tipo_trabajo or "").strip()
-    if not tipo:
-        raise HTTPException(status_code=422, detail="tipo_trabajo es obligatorio")
+
+    catalogo = None
+    cat_id = (body.catalogo_servicio_id or "").strip() or None
+    if cat_id:
+        catalogo = db.query(CatalogoServicio).filter(
+            CatalogoServicio.id         == cat_id,
+            CatalogoServicio.empresa_id == empresa_id,
+        ).first()
+        if not catalogo:
+            raise HTTPException(status_code=404, detail="Tipo de servicio no encontrado")
+        tipo = catalogo.tipo_trabajo  # cache, siempre se deriva del catálogo
+    else:
+        tipo = (body.tipo_trabajo or "").strip()
+        if not tipo:
+            raise HTTPException(status_code=422, detail="catalogo_servicio_id o tipo_trabajo es obligatorio")
 
     procesos_json = json.dumps(
         [p.model_dump() for p in body.procesos], ensure_ascii=False
     )
 
-    p = db.query(PlantillaProcedimiento).filter(
-        PlantillaProcedimiento.empresa_id   == empresa_id,
-        PlantillaProcedimiento.tipo_trabajo == tipo,
-    ).first()
+    if cat_id:
+        p = db.query(PlantillaProcedimiento).filter(
+            PlantillaProcedimiento.empresa_id           == empresa_id,
+            PlantillaProcedimiento.catalogo_servicio_id == cat_id,
+        ).first()
+    else:
+        p = db.query(PlantillaProcedimiento).filter(
+            PlantillaProcedimiento.empresa_id           == empresa_id,
+            PlantillaProcedimiento.tipo_trabajo         == tipo,
+            PlantillaProcedimiento.catalogo_servicio_id.is_(None),
+        ).first()
 
     if p:
         p.nombre     = body.nombre[:200]
+        p.tipo_trabajo = tipo
         p.procesos   = procesos_json
         p.activo     = body.activo
         p.version    = (p.version or 1) + 1
         p.updated_at = datetime.utcnow()
     else:
         p = PlantillaProcedimiento(
-            id           = str(_uuid.uuid4()),
-            empresa_id   = empresa_id,
-            tipo_trabajo = tipo,
-            nombre       = body.nombre[:200],
-            procesos     = procesos_json,
-            version      = 1,
-            activo       = body.activo,
-            created_at   = datetime.utcnow(),
+            id                   = str(_uuid.uuid4()),
+            empresa_id           = empresa_id,
+            catalogo_servicio_id = cat_id,
+            tipo_trabajo         = tipo,
+            nombre               = body.nombre[:200],
+            procesos             = procesos_json,
+            version              = 1,
+            activo               = body.activo,
+            created_at           = datetime.utcnow(),
         )
         db.add(p)
 
     db.commit()
     db.refresh(p)
-    return _plantilla_out(p)
+    return _plantilla_out(p, catalogo.nombre if catalogo else None)
 
 
 # ── POST /operaciones/procedimiento/{id}/evidencia ────────────────────────────
@@ -2743,26 +2827,106 @@ def get_responsables_servicio(
 
 @router.get("/catalogo-servicios", response_model=list[CatalogoServicioOut])
 def get_catalogo_servicios(
-    payload: dict    = Depends(verificar_token),
-    db:      Session = Depends(get_db),
+    incluir_inactivos: bool = Query(False, description="Incluye tipos de servicio desactivados (pantallas de gestión)"),
+    payload:           dict    = Depends(verificar_token),
+    db:                Session = Depends(get_db),
 ):
-    """Lista de servicios activos del catálogo de la empresa."""
+    """Lista del catálogo de servicios de la empresa. Por defecto solo activos
+    (selectores de creación de servicio); `incluir_inactivos=true` para la
+    pantalla de gestión del catálogo."""
     empresa_id = payload["empresa_id"]
-    items = (
-        db.query(CatalogoServicio)
-        .filter(CatalogoServicio.empresa_id == empresa_id, CatalogoServicio.activo == True)
-        .order_by(CatalogoServicio.nombre.asc())
-        .all()
-    )
+    q = db.query(CatalogoServicio).filter(CatalogoServicio.empresa_id == empresa_id)
+    if not incluir_inactivos:
+        q = q.filter(CatalogoServicio.activo == True)
+    items = q.order_by(CatalogoServicio.nombre.asc()).all()
     return [
         CatalogoServicioOut(
             id=str(c.id),
             nombre=c.nombre,
             tipo_trabajo=c.tipo_trabajo or "",
             descripcion=c.descripcion,
+            activo=bool(c.activo),
         )
         for c in items
     ]
+
+
+@router.post("/catalogo-servicios", response_model=CatalogoServicioOut)
+def crear_catalogo_servicio(
+    body:    CatalogoServicioIn,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Crea un tipo de servicio nuevo. Gestionable desde la app — antes era
+    dato maestro que solo se insertaba directo en la BD."""
+    exigir_permiso(db, payload, "catalogos", "editar")
+    nombre = (body.nombre or "").strip()
+    tipo   = (body.tipo_trabajo or "").strip()
+    if not nombre or not tipo:
+        raise HTTPException(status_code=422, detail="nombre y tipo_trabajo son obligatorios")
+
+    c = CatalogoServicio(
+        id           = str(_uuid.uuid4()),
+        empresa_id   = payload["empresa_id"],
+        nombre       = nombre[:150],
+        tipo_trabajo = tipo[:50],
+        descripcion  = (body.descripcion or None),
+        activo       = True,
+        created_at   = datetime.utcnow(),
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return CatalogoServicioOut(id=str(c.id), nombre=c.nombre, tipo_trabajo=c.tipo_trabajo, descripcion=c.descripcion)
+
+
+@router.put("/catalogo-servicios/{catalogo_id}", response_model=CatalogoServicioOut)
+def editar_catalogo_servicio(
+    catalogo_id: str,
+    body:        CatalogoServicioIn,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "catalogos", "editar")
+    c = db.query(CatalogoServicio).filter(
+        CatalogoServicio.id         == catalogo_id,
+        CatalogoServicio.empresa_id == payload["empresa_id"],
+    ).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Tipo de servicio no encontrado")
+
+    nombre = (body.nombre or "").strip()
+    tipo   = (body.tipo_trabajo or "").strip()
+    if not nombre or not tipo:
+        raise HTTPException(status_code=422, detail="nombre y tipo_trabajo son obligatorios")
+
+    c.nombre       = nombre[:150]
+    c.tipo_trabajo = tipo[:50]
+    c.descripcion  = (body.descripcion or None)
+    db.commit()
+    db.refresh(c)
+    return CatalogoServicioOut(id=str(c.id), nombre=c.nombre, tipo_trabajo=c.tipo_trabajo, descripcion=c.descripcion)
+
+
+@router.patch("/catalogo-servicios/{catalogo_id}/estado")
+def cambiar_estado_catalogo_servicio(
+    catalogo_id: str,
+    body:        CatalogoServicioEstadoBody,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """Activar/desactivar (soft-delete) un tipo de servicio. Desactivado =
+    desaparece de los selectores de creación de servicio, sin borrar histórico."""
+    exigir_permiso(db, payload, "catalogos", "editar")
+    c = db.query(CatalogoServicio).filter(
+        CatalogoServicio.id         == catalogo_id,
+        CatalogoServicio.empresa_id == payload["empresa_id"],
+    ).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Tipo de servicio no encontrado")
+    c.activo = body.activo
+    db.commit()
+    return {"ok": True, "activo": c.activo}
 
 
 # ── GET /operaciones/personal/tecnicos ────────────────────────────────────────
@@ -3405,11 +3569,14 @@ def crear_servicio(
     db.add(nuevo)
     db.flush()
     # Instanciar los procedimientos fijos desde la plantilla del tipo de trabajo.
-    _instanciar_procedimientos(db, nuevo, empresa_id)
+    creados = _instanciar_procedimientos(db, nuevo, empresa_id)
     # Auto-vincular equipos de la ubicación/zona a este servicio.
     _vincular_equipos_al_servicio(db, nuevo, empresa_id, proyecto)
     db.commit()
-    return {"ok": True, "id": servicio_id}
+    # Alerta de calidad (no bloqueante): el tipo de servicio no tiene
+    # procedimientos estándar definidos, así que este servicio quedó sin ellos.
+    sin_proc_estandar = bool(nuevo.catalogo_servicio_id) and creados == 0
+    return {"ok": True, "id": servicio_id, "sin_procedimientos_estandar": sin_proc_estandar}
 
 
 # ── PATCH /operaciones/servicio/{servicio_id} ─────────────────────────────────
