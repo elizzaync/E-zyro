@@ -178,9 +178,13 @@ export class OperacionesServiciosListaComponent implements OnInit {
     this.modalServicioId = null;
   }
 
-  /** Oculto para Técnico y en estados terminales */
+  /** Oculto solo para Técnico; visible para JOPs y Admins en cualquier estado */
   puedeAsignar(servicio: ServicioProyecto): boolean {
-    if (this.isTecnico) return false;
+    return !this.isTecnico;
+  }
+
+  /** El servicio puede recibir cambios de asignación (no está en estado terminal) */
+  esServicioEditable(servicio: ServicioProyecto): boolean {
     return servicio.estado !== 'Completado' && servicio.estado !== 'Cancelado';
   }
 

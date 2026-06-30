@@ -470,12 +470,6 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       tiene_equipos_intervenidos: !!v.tiene_equipos_intervenidos,
     };
 
-    if (this.mode === 'editar' && this.isJefeOperaciones) {
-      this._pendingPayload = payload;
-      this.showJustModal = true;
-      return;
-    }
-
     this.guardando = true;
     this._ejecutarGuardar(payload);
   }
@@ -490,7 +484,14 @@ export class CrearServicioModalComponent implements OnInit, OnDestroy {
       next: () => { this.guardando = false; this.closed.emit({ guardado: true }); },
       error: (err: any) => {
         this.guardando = false;
-        this.errorMsg = err?.error?.detail ?? 'Error al guardar el servicio.';
+        const detail: string = err?.error?.detail ?? '';
+        // Backend exige justificación solo cuando el JOP edita un servicio que no tiene asignado.
+        if (err.status === 422 && detail.toLowerCase().includes('justificaci')) {
+          this._pendingPayload = payload;
+          this.showJustModal = true;
+        } else {
+          this.errorMsg = detail || 'Error al guardar el servicio.';
+        }
       }
     });
   }

@@ -144,17 +144,22 @@
         @if (puedeAsignar(servicio)) {
         <button
           class="btn-asignar"
-          [class.btn-asignar--editar]="servicio.estado !== 'Pendiente'"
+          [class.btn-asignar--editar]="servicio.estado !== 'Pendiente' && esServicioEditable(servicio)"
+          [class.btn-asignar--ver]="!esServicioEditable(servicio)"
           (click)="abrirModalAsignacion($event, servicio)"
-          [title]="servicio.estado === 'Pendiente' ? 'Configurar: Asignar equipo y cronograma' : 'Editar asignación de equipo y tareas'"
+          [title]="servicio.estado === 'Pendiente' ? 'Configurar: Asignar equipo y cronograma' : (esServicioEditable(servicio) ? 'Editar asignación de equipo y tareas' : 'Ver asignación del servicio')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
-            <line x1="19" y1="8" x2="19" y2="14"/>
-            <line x1="16" y1="11" x2="22" y2="11"/>
+            @if (esServicioEditable(servicio)) {
+              <line x1="19" y1="8" x2="19" y2="14"/>
+              <line x1="16" y1="11" x2="22" y2="11"/>
+            } @else {
+              <polyline points="1 12 5 12"/><path d="M12 4a8 8 0 0 1 8 8 8 8 0 0 1-8 8 8 8 0 0 1-8-8"/>
+            }
           </svg>
-          {{ servicio.estado === 'Pendiente' ? 'Asignar' : 'Editar' }}
+          {{ servicio.estado === 'Pendiente' ? 'Asignar' : (esServicioEditable(servicio) ? 'Editar' : 'Ver') }}
         </button>
         }
       </div>
