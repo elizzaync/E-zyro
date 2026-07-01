@@ -975,7 +975,7 @@ def _run_migrations():
         sembrar_permisos(conn, "contabilidad",
                          ["ver", "crear_asiento", "gestionar_cuentas",
                           "abrir_periodo", "cerrar_periodo", "reabrir_periodo",
-                          "configurar", "cerrar_ejercicio"],
+                          "configurar", "cerrar_ejercicio", "cargar_apertura"],
                          descripcion_base="Contabilidad:")
         # ── Finanzas · Fase 11 — Resumen financiero (dashboard) ──────────────
         #   Permiso propio: el resumen expone la foto económica completa de la
@@ -1129,6 +1129,10 @@ def _run_migrations():
         # CxP Fase 3 #2: cuenta de gasto elegible en la factura manual (601 vs 63/65).
         # Referencia lógica a cuenta_contable.id, sin FK (esa PK es uuid nativo en prod).
         conn.execute(text("ALTER TABLE factura_proveedor ADD COLUMN IF NOT EXISTS cuenta_gasto_id VARCHAR(36)"))
+        # Notas de crédito: documento (misma tabla) cuyo saldo rebajan. Tipo uuid
+        # para casar con la PK nativa de prod (ver ezyro-tabla-nueva-uuid).
+        conn.execute(text("ALTER TABLE factura_proveedor ADD COLUMN IF NOT EXISTS documento_afectado_id uuid REFERENCES factura_proveedor(id)"))
+        conn.execute(text("ALTER TABLE factura_cliente ADD COLUMN IF NOT EXISTS documento_afectado_id uuid REFERENCES factura_cliente(id)"))
         conn.commit()
 
         # ── Fase 3: columnas de estado operativo en equipo (idempotente) ─────

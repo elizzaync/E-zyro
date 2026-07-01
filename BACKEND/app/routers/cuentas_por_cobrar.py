@@ -46,6 +46,8 @@ def _factura_out(db: Session, f: FacturaCliente) -> ComprobanteOut:
         moneda=f.moneda, subtotal=f.subtotal, igv=f.igv, total=f.total,
         estado=f.estado, saldo_pendiente=cxc.saldo_pendiente(db, f),
         asiento_id=(str(f.asiento_id) if f.asiento_id else None),
+        documento_afectado_id=(str(f.documento_afectado_id)
+                               if f.documento_afectado_id else None),
     )
 
 

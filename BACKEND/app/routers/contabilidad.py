@@ -364,3 +364,47 @@ def revertir_cierre_ejercicio(
     exigir_permiso(db, payload, "contabilidad", "cerrar_ejercicio")
     return cierre.revertir_cierre(db, payload["empresa_id"], anio,
                                   creado_por_id=_empleado_id(db, payload))
+
+
+# ── Saldos iniciales / asiento de apertura (Fase 11) ─────────────────────────
+from ..services import apertura_service as apertura  # noqa: E402
+
+
+class LineaAperturaIn(BaseModel):
+    cuenta_codigo: str
+    monto: Decimal
+
+
+class AperturaIn(BaseModel):
+    fecha: date
+    lineas: List[LineaAperturaIn]
+
+
+@router.get("/apertura")
+def estado_apertura(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    return apertura.estado_apertura(db, payload["empresa_id"])
+
+
+@router.post("/apertura")
+def cargar_apertura(
+    datos: AperturaIn,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "cargar_apertura")
+    return apertura.cargar_apertura(
+        db, payload["empresa_id"], datos.fecha,
+        [{"cuenta_codigo": l.cuenta_codigo, "monto": l.monto} for l in datos.lineas],
+        creado_por_id=_empleado_id(db, payload),
+    )
+
+
+@router.post("/apertura/revertir")
+def revertir_apertura(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "cargar_apertura")
+    return apertura.revertir_apertura(db, payload["empresa_id"],
+                                      creado_por_id=_empleado_id(db, payload))

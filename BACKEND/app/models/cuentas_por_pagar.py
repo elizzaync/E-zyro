@@ -46,6 +46,9 @@ class FacturaProveedor(Base):
     # Cuenta de gasto que debita la factura manual (601 mercadería | 63/65 servicios…).
     # Referencia lógica a cuenta_contable.id (sin FK: esa PK es uuid nativo en prod).
     cuenta_gasto_id   = Column(String(36), nullable=True)
+    # Nota de crédito: factura del mismo proveedor cuyo saldo rebaja.
+    # Referencia lógica a factura_proveedor.id (columna uuid en prod, ver migración).
+    documento_afectado_id = Column(String(36), nullable=True)
     created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at        = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 

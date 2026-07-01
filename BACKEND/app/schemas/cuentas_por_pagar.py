@@ -29,6 +29,8 @@ class FacturaCreate(BaseModel):
     moneda: Optional[str] = None
     orden_compra_id: Optional[str] = None
     cuenta_gasto_id: Optional[str] = None   # cuenta de gasto a debitar (601 por defecto)
+    # Obligatorio si tipo_documento == 'nota_credito': factura cuyo saldo rebaja.
+    documento_afectado_id: Optional[str] = None
 
     @field_validator("tipo_documento")
     @classmethod
@@ -74,6 +76,7 @@ class FacturaOut(BaseModel):
     asiento_id: Optional[str] = None
     cuenta_gasto_id: Optional[str] = None
     cuenta_gasto_codigo: Optional[str] = None   # p.ej. "639" — para mostrar la clasificación
+    documento_afectado_id: Optional[str] = None  # solo notas de crédito
 
 
 # ── Pagos ────────────────────────────────────────────────────────────────────

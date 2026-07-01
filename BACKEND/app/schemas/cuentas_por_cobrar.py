@@ -23,6 +23,8 @@ class ComprobanteCreate(BaseModel):
     proyecto_id: Optional[str] = None
     proyecto_servicio_id: Optional[str] = None   # servicio que origina la factura
     al_contado: bool = False   # True → se cobra de inmediato (Db caja), estado 'cobrada'
+    # Obligatorio si tipo_documento == 'nota_credito': comprobante cuyo saldo rebaja.
+    documento_afectado_id: Optional[str] = None
 
     @field_validator("tipo_documento")
     @classmethod
@@ -42,7 +44,9 @@ class ComprobanteCreate(BaseModel):
     def _coherencia(self) -> "ComprobanteCreate":
         if self.subtotal <= 0:
             raise ValueError("el subtotal debe ser mayor que 0")
-        if not self.al_contado and self.fecha_vencimiento is None:
+        # La NC no es una venta: no exige vencimiento (no genera saldo exigible).
+        if (not self.al_contado and self.fecha_vencimiento is None
+                and self.tipo_documento != "nota_credito"):
             raise ValueError("una venta a crédito requiere fecha de vencimiento")
         if self.fecha_vencimiento is not None and self.fecha_vencimiento < self.fecha_emision:
             raise ValueError("la fecha de vencimiento no puede ser anterior a la de emisión")
@@ -109,6 +113,7 @@ class ComprobanteOut(BaseModel):
     estado: str
     saldo_pendiente: Decimal
     asiento_id: Optional[str] = None
+    documento_afectado_id: Optional[str] = None  # solo notas de crédito
 
 
 class AplicacionCobroIn(BaseModel):

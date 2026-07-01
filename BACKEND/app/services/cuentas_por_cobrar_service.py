@@ -72,17 +72,25 @@ def get_factura(db: Session, empresa_id: str, factura_id: str) -> FacturaCliente
 
 
 def saldo_pendiente(db: Session, factura: FacturaCliente) -> Decimal:
-    """Saldo por cobrar = total − cobros aplicados. Una factura anulada o una
-    venta al contado (cobrada en la propia emisión, sin aplicaciones) no tienen
-    saldo exigible."""
-    if factura.estado in ("anulada", "cobrada"):
+    """Saldo por cobrar = total − cobros aplicados − notas de crédito vigentes.
+    Una factura anulada, una venta al contado (cobrada en la propia emisión) o
+    una nota de crédito (no exigible: rebaja al documento que afecta) no tienen
+    saldo."""
+    if factura.estado in ("anulada", "cobrada") or factura.tipo_documento == "nota_credito":
         return CERO
     aplicado = (
         db.query(func.coalesce(func.sum(AplicacionCobroCliente.monto_aplicado), 0))
         .filter(AplicacionCobroCliente.factura_id == factura.id)
         .scalar()
     ) or 0
-    return _d(factura.total) - _d(aplicado)
+    acreditado = (
+        db.query(func.coalesce(func.sum(FacturaCliente.total), 0))
+        .filter(FacturaCliente.documento_afectado_id == str(factura.id),
+                FacturaCliente.tipo_documento == "nota_credito",
+                FacturaCliente.estado != "anulada")
+        .scalar()
+    ) or 0
+    return _d(factura.total) - _d(aplicado) - _d(acreditado)
 
 
 def _estado_por_saldo(total: Decimal, saldo: Decimal) -> str:
@@ -114,37 +122,82 @@ def emitir_comprobante(db: Session, empresa_id: str, datos, creado_por_id: str |
     moneda = datos.moneda or _moneda_empresa(db, empresa_id)
     al_contado = bool(getattr(datos, "al_contado", False))
 
+    # Nota de crédito: REBAJA la cuenta por cobrar y la venta (asiento inverso)
+    # aplicándose a un comprobante del mismo cliente. No es exigible ni cobrable.
+    es_nc = datos.tipo_documento == "nota_credito"
+    doc_afectado = None
+    saldo_afectado = CERO
+    if es_nc:
+        if al_contado:
+            raise HTTPException(status_code=422,
+                                detail="Una nota de crédito no puede ser al contado.")
+        afectado_id = getattr(datos, "documento_afectado_id", None)
+        if not afectado_id:
+            raise HTTPException(
+                status_code=422,
+                detail="Una nota de crédito debe indicar el comprobante que afecta.")
+        doc_afectado = get_factura(db, empresa_id, afectado_id)
+        if str(doc_afectado.cliente_id) != str(datos.cliente_id):
+            raise HTTPException(status_code=422, detail="El comprobante afectado no es del cliente indicado.")
+        if doc_afectado.estado == "anulada":
+            raise HTTPException(status_code=422, detail="El comprobante afectado está anulado.")
+        if doc_afectado.tipo_documento == "nota_credito":
+            raise HTTPException(status_code=422, detail="Una nota de crédito no puede afectar a otra nota de crédito.")
+        saldo_afectado = saldo_pendiente(db, doc_afectado)
+        if total > saldo_afectado:
+            raise HTTPException(
+                status_code=422,
+                detail=f"La nota de crédito ({total}) excede el saldo pendiente "
+                       f"({saldo_afectado}) del comprobante {doc_afectado.numero_documento}.")
+
     factura = FacturaCliente(
         empresa_id=empresa_id, cliente_id=datos.cliente_id, proyecto_id=datos.proyecto_id,
         proyecto_servicio_id=getattr(datos, "proyecto_servicio_id", None),
         numero_documento=datos.numero_documento, tipo_documento=datos.tipo_documento,
         fecha_emision=datos.fecha_emision, fecha_vencimiento=datos.fecha_vencimiento,
         moneda=moneda, subtotal=subtotal, igv=igv, total=total,
-        estado=("cobrada" if al_contado else "pendiente"),
+        # La NC nace 'cobrada' (= aplicada): ningún reporte de saldos ni alerta
+        # la trata como cuenta por cobrar.
+        estado=("cobrada" if (al_contado or es_nc) else "pendiente"),
+        documento_afectado_id=(str(doc_afectado.id) if doc_afectado is not None else None),
     )
     db.add(factura)
     db.flush()
 
-    # Db cargo (121 a crédito, o caja al contado) / Cr ventas (+IGV)
-    if al_contado:
-        cuenta_cargo = _cuenta(db, empresa_id, CTA_CAJA)
-    else:
-        cuenta_cargo = _cuenta(db, empresa_id, CTA_POR_COBRAR)
     from app.services import tributario_service as tributario
-    lineas = [LineaAsiento(cuenta_id=cuenta_cargo.id, debito=total)]
-    lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_VENTAS).id, credito=subtotal))
-    if igv > CERO:
-        # Cuenta de IGV débito fiscal resuelta por configuración (Fase 6).
-        lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "debito_fiscal").id, credito=igv))
+    if es_nc:
+        # Espejo de la venta: Db ventas (+IGV) / Cr por cobrar.
+        lineas = [LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_VENTAS).id, debito=subtotal)]
+        if igv > CERO:
+            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "debito_fiscal").id, debito=igv))
+        lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_COBRAR).id, credito=total))
+        descripcion = (f"Nota de crédito {datos.numero_documento} sobre "
+                       f"comprobante {doc_afectado.numero_documento}")
+    else:
+        # Db cargo (121 a crédito, o caja al contado) / Cr ventas (+IGV)
+        if al_contado:
+            cuenta_cargo = _cuenta(db, empresa_id, CTA_CAJA)
+        else:
+            cuenta_cargo = _cuenta(db, empresa_id, CTA_POR_COBRAR)
+        lineas = [LineaAsiento(cuenta_id=cuenta_cargo.id, debito=total)]
+        lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_VENTAS).id, credito=subtotal))
+        if igv > CERO:
+            # Cuenta de IGV débito fiscal resuelta por configuración (Fase 6).
+            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "debito_fiscal").id, credito=igv))
+        descripcion = f"Comprobante {datos.tipo_documento} {datos.numero_documento}"
 
     try:
         asiento = contab.registrar_asiento(
             db, empresa_id=empresa_id, fecha=datos.fecha_emision,
-            descripcion=f"Comprobante {datos.tipo_documento} {datos.numero_documento}",
+            descripcion=descripcion,
             origen="ventas", lineas=lineas, referencia_id=factura.id,
             creado_por_id=creado_por_id, commit=False,
         )
         factura.asiento_id = asiento.id
+        if es_nc and doc_afectado is not None:
+            # El saldo del comprobante afectado baja: refleja su nuevo estado.
+            doc_afectado.estado = _estado_por_saldo(
+                _d(doc_afectado.total), saldo_afectado - total)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -239,6 +292,20 @@ def anular_comprobante(db: Session, empresa_id: str, factura_id: str, creado_por
     if _d(aplicado) > CERO:
         raise HTTPException(status_code=409,
                             detail="No se puede anular un comprobante con cobros aplicados; anule primero los cobros.")
+    # Un comprobante con notas de crédito vigentes no se anula directamente.
+    nc_vigente = (
+        db.query(FacturaCliente)
+        .filter(FacturaCliente.documento_afectado_id == str(factura.id),
+                FacturaCliente.tipo_documento == "nota_credito",
+                FacturaCliente.estado != "anulada")
+        .first()
+    )
+    if nc_vigente is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"El comprobante tiene la nota de crédito {nc_vigente.numero_documento} "
+                   "vigente; anúlela primero.",
+        )
 
     lineas_orig = (
         db.query(AsientoLinea).filter(AsientoLinea.asiento_id == factura.asiento_id).all()
@@ -265,6 +332,22 @@ def anular_comprobante(db: Session, empresa_id: str, factura_id: str, creado_por
             creado_por_id=creado_por_id, commit=False,
         )
         factura.estado = "anulada"
+        # Anular una NC devuelve el saldo al comprobante que afectaba.
+        if factura.tipo_documento == "nota_credito" and factura.documento_afectado_id:
+            db.flush()  # la NC anulada ya no cuenta en saldo_pendiente
+            afectada = (
+                db.query(FacturaCliente)
+                .filter(FacturaCliente.id == str(factura.documento_afectado_id),
+                        FacturaCliente.empresa_id == empresa_id)
+                .first()
+            )
+            if afectada is not None and afectada.estado != "anulada":
+                # 'cobrada' hace corto-circuito en saldo_pendiente: se resetea a
+                # 'pendiente' antes de recalcular el estado real.
+                afectada.estado = "pendiente"
+                db.flush()
+                afectada.estado = _estado_por_saldo(
+                    _d(afectada.total), saldo_pendiente(db, afectada))
         db.commit()
     except HTTPException:
         db.rollback()

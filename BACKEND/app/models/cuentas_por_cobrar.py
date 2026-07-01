@@ -34,6 +34,9 @@ class FacturaCliente(Base):
     tipo_documento    = Column(String(20), nullable=False)   # factura|boleta|nota_credito|nota_debito
     fecha_emision     = Column(Date, nullable=False)
     fecha_vencimiento = Column(Date, nullable=True)          # null si es al contado
+    # Nota de crédito: comprobante del mismo cliente cuyo saldo rebaja.
+    # Referencia lógica a factura_cliente.id (columna uuid en prod, ver migración).
+    documento_afectado_id = Column(String(36), nullable=True)
     moneda            = Column(String(3), nullable=False, default="PEN")
     subtotal          = Column(Numeric(14, 2), nullable=False, default=0)
     igv               = Column(Numeric(14, 2), nullable=False, default=0)

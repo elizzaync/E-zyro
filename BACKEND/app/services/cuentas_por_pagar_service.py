@@ -115,16 +115,24 @@ def get_factura(db: Session, empresa_id: str, factura_id: str) -> FacturaProveed
 
 
 def saldo_pendiente(db: Session, factura: FacturaProveedor) -> Decimal:
-    """Total de la factura menos la suma de aplicaciones de pago. Una factura
-    anulada no tiene saldo exigible."""
-    if factura.estado == "anulada":
+    """Total de la factura menos pagos aplicados y notas de crédito vigentes.
+    Una factura anulada no tiene saldo; una nota de crédito tampoco (no es
+    exigible: su efecto es rebajar el saldo del documento que afecta)."""
+    if factura.estado == "anulada" or factura.tipo_documento == "nota_credito":
         return CERO
     aplicado = (
         db.query(func.coalesce(func.sum(AplicacionPagoProveedor.monto_aplicado), 0))
         .filter(AplicacionPagoProveedor.factura_id == factura.id)
         .scalar()
     ) or 0
-    return _d(factura.total) - _d(aplicado)
+    acreditado = (
+        db.query(func.coalesce(func.sum(FacturaProveedor.total), 0))
+        .filter(FacturaProveedor.documento_afectado_id == str(factura.id),
+                FacturaProveedor.tipo_documento == "nota_credito",
+                FacturaProveedor.estado != "anulada")
+        .scalar()
+    ) or 0
+    return _d(factura.total) - _d(aplicado) - _d(acreditado)
 
 
 def _estado_por_saldo(total: Decimal, saldo: Decimal) -> str:
@@ -161,6 +169,30 @@ def registrar_factura(db: Session, empresa_id: str, datos, creado_por_id: str | 
     # Cuenta de gasto a debitar: la elegida (601 mercadería | 63/65 servicios…) o 601 por defecto.
     cuenta_gasto = _cuenta_gasto(db, empresa_id, getattr(datos, "cuenta_gasto_id", None))
 
+    # Nota de crédito: REBAJA deuda y gasto (asiento inverso) aplicándose a una
+    # factura del mismo proveedor. No es exigible por sí misma.
+    es_nc = datos.tipo_documento == "nota_credito"
+    doc_afectado = None
+    if es_nc:
+        afectado_id = getattr(datos, "documento_afectado_id", None)
+        if not afectado_id:
+            raise HTTPException(
+                status_code=422,
+                detail="Una nota de crédito debe indicar la factura que afecta.")
+        doc_afectado = get_factura(db, empresa_id, afectado_id)
+        if str(doc_afectado.proveedor_id) != str(datos.proveedor_id):
+            raise HTTPException(status_code=422, detail="La factura afectada no es del proveedor indicado.")
+        if doc_afectado.estado == "anulada":
+            raise HTTPException(status_code=422, detail="La factura afectada está anulada.")
+        if doc_afectado.tipo_documento == "nota_credito":
+            raise HTTPException(status_code=422, detail="Una nota de crédito no puede afectar a otra nota de crédito.")
+        saldo_afectado = saldo_pendiente(db, doc_afectado)
+        if total > saldo_afectado:
+            raise HTTPException(
+                status_code=422,
+                detail=f"La nota de crédito ({total}) excede el saldo pendiente "
+                       f"({saldo_afectado}) de la factura {doc_afectado.numero_documento}.")
+
     factura = FacturaProveedor(
         empresa_id=empresa_id,
         proveedor_id=datos.proveedor_id,
@@ -173,29 +205,45 @@ def registrar_factura(db: Session, empresa_id: str, datos, creado_por_id: str | 
         subtotal=subtotal,
         igv=igv,
         total=total,
-        estado="pendiente",
+        # La NC nace 'pagada' (= aplicada): así ningún reporte de saldos,
+        # antigüedad ni alerta de vencimiento la trata como deuda exigible.
+        estado=("pagada" if es_nc else "pendiente"),
         cuenta_gasto_id=str(cuenta_gasto.id),
+        documento_afectado_id=(str(doc_afectado.id) if doc_afectado is not None else None),
     )
     db.add(factura)
     db.flush()  # obtiene factura.id sin confirmar
 
-    # Asiento: Db gasto (+ IGV) / Cr Por pagar — sin commit (lo hace esta fn).
-    # La cuenta de IGV crédito fiscal la resuelve el servicio tributario (Fase 6),
-    # por configuración — no por código fijo.
+    # Asiento (sin commit; lo hace esta fn). Factura/boleta/ND: Db gasto (+IGV) /
+    # Cr Por pagar. Nota de crédito: el espejo — Db Por pagar / Cr gasto (+IGV).
+    # La cuenta de IGV la resuelve el servicio tributario (Fase 6) por configuración.
     from app.services import tributario_service as tributario
-    lineas = [LineaAsiento(cuenta_id=cuenta_gasto.id, debito=subtotal)]
-    if igv > CERO:
-        lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, debito=igv))
-    lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, credito=total))
+    if es_nc:
+        lineas = [LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, debito=total),
+                  LineaAsiento(cuenta_id=cuenta_gasto.id, credito=subtotal)]
+        if igv > CERO:
+            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, credito=igv))
+        descripcion = (f"Nota de crédito {datos.numero_documento} sobre "
+                       f"factura {doc_afectado.numero_documento}")
+    else:
+        lineas = [LineaAsiento(cuenta_id=cuenta_gasto.id, debito=subtotal)]
+        if igv > CERO:
+            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, debito=igv))
+        lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, credito=total))
+        descripcion = f"Factura {datos.tipo_documento} {datos.numero_documento}"
 
     try:
         asiento = contab.registrar_asiento(
             db, empresa_id=empresa_id, fecha=datos.fecha_emision,
-            descripcion=f"Factura {datos.tipo_documento} {datos.numero_documento}",
+            descripcion=descripcion,
             origen="compras", lineas=lineas, referencia_id=factura.id,
             creado_por_id=creado_por_id, commit=False,
         )
         factura.asiento_id = asiento.id
+        if es_nc and doc_afectado is not None:
+            # El saldo de la factura afectada baja: refleja su nuevo estado.
+            doc_afectado.estado = _estado_por_saldo(
+                _d(doc_afectado.total), saldo_afectado - total)
         db.commit()
     except HTTPException:
         db.rollback()
@@ -305,6 +353,21 @@ def anular_factura(db: Session, empresa_id: str, factura_id: str, creado_por_id:
             status_code=409,
             detail="No se puede anular una factura con pagos aplicados; anule primero los pagos.",
         )
+    # Una factura con notas de crédito vigentes tampoco se anula directamente:
+    # quedarían NC "colgadas" rebajando un documento inexistente.
+    nc_vigente = (
+        db.query(FacturaProveedor)
+        .filter(FacturaProveedor.documento_afectado_id == str(factura.id),
+                FacturaProveedor.tipo_documento == "nota_credito",
+                FacturaProveedor.estado != "anulada")
+        .first()
+    )
+    if nc_vigente is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"La factura tiene la nota de crédito {nc_vigente.numero_documento} "
+                   "vigente; anúlela primero.",
+        )
 
     # Reversión: por cada línea del asiento original, una línea espejo (débito y
     # crédito intercambiados). Garantiza que el neto contable vuelve a cero.
@@ -337,6 +400,18 @@ def anular_factura(db: Session, empresa_id: str, factura_id: str, creado_por_id:
             creado_por_id=creado_por_id, commit=False,
         )
         factura.estado = "anulada"
+        # Anular una NC devuelve el saldo a la factura que afectaba.
+        if factura.tipo_documento == "nota_credito" and factura.documento_afectado_id:
+            db.flush()  # la NC anulada ya no cuenta en saldo_pendiente
+            afectada = (
+                db.query(FacturaProveedor)
+                .filter(FacturaProveedor.id == str(factura.documento_afectado_id),
+                        FacturaProveedor.empresa_id == empresa_id)
+                .first()
+            )
+            if afectada is not None and afectada.estado != "anulada":
+                afectada.estado = _estado_por_saldo(
+                    _d(afectada.total), saldo_pendiente(db, afectada))
         db.commit()
     except HTTPException:
         db.rollback()
