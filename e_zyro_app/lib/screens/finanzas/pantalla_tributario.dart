@@ -105,10 +105,10 @@ class _PantallaTributarioState extends State<PantallaTributario> {
               ? const Center(child: CircularProgressIndicator())
               : _error != null
                   ? Center(child: Text(_error!))
-                  : _registro(_compras, 'IGV crédito fiscal', Colors.deepOrange),
+                  : _registro(_compras, 'IGV crédito fiscal', Colors.deepOrange, 'Compras'),
           _cargando
               ? const Center(child: CircularProgressIndicator())
-              : _registro(_ventas, 'IGV débito fiscal', Colors.teal),
+              : _registro(_ventas, 'IGV débito fiscal', Colors.teal, 'Ventas'),
           _tabConfiguracion(),
         ]),
       ),
@@ -203,7 +203,7 @@ class _PantallaTributarioState extends State<PantallaTributario> {
     }
   }
 
-  Widget _registro(List<RegistroTributarioFila> filas, String etiquetaIgv, Color color) {
+  Widget _registro(List<RegistroTributarioFila> filas, String etiquetaIgv, Color color, String etiquetaChip) {
     final base = filas.fold<double>(0, (a, f) => a + f.baseImponible);
     final igv = filas.fold<double>(0, (a, f) => a + f.igv);
     final total = filas.fold<double>(0, (a, f) => a + f.total);
@@ -228,30 +228,74 @@ class _PantallaTributarioState extends State<PantallaTributario> {
           ),
         ),
         Expanded(
-          child: filas.isEmpty
-              ? const Center(child: Text('Sin documentos en el periodo.'))
-              : ListView.separated(
-                  itemCount: filas.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final f = filas[i];
-                    return ListTile(
-                      dense: true,
-                      title: Text('${f.tipoDocumento.toUpperCase()} ${f.numeroDocumento}',
-                          style: const TextStyle(fontSize: 13)),
-                      subtitle: Text('${f.fecha} · ${f.tercero}${f.ruc != null ? ' · ${f.ruc}' : ''}',
-                          style: const TextStyle(fontSize: 11)),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(money(f.total), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          Text('IGV ${money(f.igv)}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3)),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Documentos del periodo',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(etiquetaChip,
+                              style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: filas.isEmpty
+                        ? EstadoVacio(
+                            icono: Icons.request_quote,
+                            titulo: 'Sin documentos en el periodo',
+                            subtitulo:
+                                'Registra ${etiquetaChip.toLowerCase()} del periodo $_periodo para calcular tu $etiquetaIgv.',
+                          )
+                        : ListView.separated(
+                            itemCount: filas.length,
+                            separatorBuilder: (_, _) => const Divider(height: 1),
+                            itemBuilder: (_, i) {
+                              final f = filas[i];
+                              return ListTile(
+                                dense: true,
+                                title: Text('${f.tipoDocumento.toUpperCase()} ${f.numeroDocumento}',
+                                    style: const TextStyle(fontSize: 13)),
+                                subtitle: Text('${f.fecha} · ${f.tercero}${f.ruc != null ? ' · ${f.ruc}' : ''}',
+                                    style: const TextStyle(fontSize: 11)),
+                                trailing: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(money(f.total), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                    Text('IGV ${money(f.igv)}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ],
     );

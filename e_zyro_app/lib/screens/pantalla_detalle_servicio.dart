@@ -55,24 +55,44 @@ const _amber = Color(0xFFF59E0B);
 const _danger = Color(0xFFEF4444);
 
 /// Vista de SOLO LECTURA para usuarios NO designados en el servicio: muestra la
-/// cabecera básica (nombre, estado, fechas) sin cargar los datos de trabajo.
+/// cabecera básica (nombre, estado, fechas, tareas y equipo designado) sin
+/// cargar los datos de trabajo (materiales/procedimientos/evidencias).
 /// Se usa cuando el backend responde con `acceso_completo=false`.
 class _VistaServicioBasica extends StatelessWidget {
   final ServicioDetalle detalle;
   const _VistaServicioBasica({required this.detalle});
 
+  Color get _statusColor => switch (detalle.estado) {
+        'Completado' => _green,
+        'En_Proceso' => const Color(0xFF3B82F6),
+        'Cancelado' => _danger,
+        _ => _amber,
+      };
+
+  String get _estadoLabel => switch (detalle.estado) {
+        'En_Proceso' => 'En Proceso',
+        _ => detalle.estado,
+      };
+
+  Color _tareaColor(String estado) => switch (estado) {
+        'completado' => _green,
+        'en_proceso' => const Color(0xFF3B82F6),
+        'bloqueado' => _danger,
+        _ => _amber,
+      };
+
   @override
   Widget build(BuildContext context) {
     final d = detalle;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final scheme = Theme.of(context).colorScheme;
+    final lider = d.equipo
+        .where((m) => m.rolProyecto == 'Líder del Servicio')
+        .cast<MiembroEquipo?>()
+        .firstWhere((_) => true, orElse: () => null);
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          d.tipoServicio,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -87,38 +107,169 @@ class _VistaServicioBasica extends StatelessWidget {
               Expanded(
                 child: Text(
                   'No estás designado en este servicio. Solo puedes ver su '
-                  'información básica (fechas y estado).',
-                  style: TextStyle(fontSize: 12.5, color: onSurface),
+                  'información básica.',
+                  style: TextStyle(fontSize: 12.5, color: scheme.onSurface),
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        _fila('Estado', d.estado),
-        _fila('Cliente', d.cliente),
-        _fila('Ubicación', d.ubicacion.isEmpty ? '—' : d.ubicacion),
-        _fila('Fecha programada', d.fechaStr),
-        _fila('Hora', d.horaStr),
+        Text(
+          d.tipoServicio,
+          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _chip(_estadoLabel, _statusColor),
+            if (d.inspeccionEquiposActiva)
+              _chip('Mantenimiento vinculado', const Color(0xFF3B82F6)),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _card(
+          scheme,
+          children: [
+            _fila(Icons.event_outlined, 'Fecha inicio',
+                d.fechaInicio ?? d.fechaStr),
+            _fila(Icons.place_outlined, 'Lugar',
+                d.ubicacion.isEmpty ? '—' : d.ubicacion),
+            _fila(Icons.apartment_outlined, 'Cliente', d.cliente),
+            if (lider != null)
+              _fila(Icons.badge_outlined, 'Líder del servicio',
+                  '${lider.nombre} ${lider.apellido}'.trim()),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _seccionTitulo('Tareas', Icons.assignment_outlined),
+        const SizedBox(height: 8),
+        d.tareas.isEmpty
+            ? _vacio('Sin tareas visibles para ti en este servicio.')
+            : _card(
+                scheme,
+                children: d.tareas
+                    .map((t) => _filaTarea(t, scheme))
+                    .toList(),
+              ),
+        const SizedBox(height: 16),
+        _seccionTitulo('Equipo designado', Icons.groups_outlined),
+        const SizedBox(height: 8),
+        d.equipo.isEmpty
+            ? _vacio('Aún no hay personal designado en este servicio.')
+            : _card(
+                scheme,
+                children: d.equipo
+                    .map((m) => _filaMiembro(m, scheme))
+                    .toList(),
+              ),
       ],
     );
   }
 
-  Widget _fila(String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
+  Widget _seccionTitulo(String texto, IconData icono) => Row(
+        children: [
+          Icon(icono, size: 16, color: Colors.grey),
+          const SizedBox(width: 6),
+          Text(texto,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+        ],
+      );
+
+  Widget _card(ColorScheme scheme, {required List<Widget> children}) => Container(
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        child: Column(children: children),
+      );
+
+  Widget _vacio(String texto) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Text(texto, style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
+      );
+
+  Widget _chip(String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(label,
+            style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700)),
+      );
+
+  Widget _fila(IconData icono, String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Icon(icono, size: 17, color: Colors.grey),
+            const SizedBox(width: 10),
             SizedBox(
-              width: 140,
+              width: 108,
               child: Text(label,
                   style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
             ),
             Expanded(
-              child: Text(value,
+              child: Text(value.isEmpty ? '—' : value,
                   style: const TextStyle(
                       fontSize: 13.5, fontWeight: FontWeight.w600)),
             ),
+          ],
+        ),
+      );
+
+  Widget _filaTarea(TareaDetalle t, ColorScheme scheme) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.circle, size: 9, color: _tareaColor(t.estado)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(t.nombre,
+                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+            ),
+            _chip(t.estado.replaceAll('_', ' '), _tareaColor(t.estado)),
+          ],
+        ),
+      );
+
+  Widget _filaMiembro(MiembroEquipo m, ColorScheme scheme) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: scheme.surfaceContainerHighest,
+              backgroundImage: m.fotoUrl.isNotEmpty ? CachedNetworkImageProvider(m.fotoUrl) : null,
+              child: m.fotoUrl.isEmpty
+                  ? Text(
+                      m.nombre.isNotEmpty ? m.nombre[0].toUpperCase() : '?',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: scheme.onSurfaceVariant),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${m.nombre} ${m.apellido}'.trim(),
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
+                  Text(m.cargo.isEmpty ? 'Sin cargo' : m.cargo,
+                      style: const TextStyle(fontSize: 11.5, color: Colors.grey)),
+                ],
+              ),
+            ),
+            _chip(m.rolProyecto, _green),
           ],
         ),
       );
@@ -225,16 +376,25 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
 
   Future<void> _load() async {
     setState(() => _isLoading = true);
-    final results = await Future.wait([
-      widget.service.getDetalleServicio(widget.servicioId),
-      widget.service.getBorrador(widget.servicioId),
-      widget.service.getRequerimientosServicio(widget.servicioId),
-    ]);
+    final detalle = await widget.service.getDetalleServicio(widget.servicioId);
+    var borrador = const Borrador(items: []);
+    var reqs = <ReqRecepcion>[];
+    // Sin designación (vista básica): no se piden borrador/requerimientos —
+    // dependen de endpoints de Logística a los que Técnico/Jefe de Operaciones
+    // sin designación no tienen acceso, y no aplican a una vista de solo lectura.
+    if (detalle?.accesoCompleto ?? true) {
+      final results = await Future.wait([
+        widget.service.getBorrador(widget.servicioId),
+        widget.service.getRequerimientosServicio(widget.servicioId),
+      ]);
+      borrador = results[0] as Borrador;
+      reqs = results[1] as List<ReqRecepcion>;
+    }
     if (!mounted) return;
     setState(() {
-      _detalle = results[0] as ServicioDetalle?;
-      _borrador = results[1] as Borrador;
-      _reqsRecepcion = results[2] as List<ReqRecepcion>;
+      _detalle = detalle;
+      _borrador = borrador;
+      _reqsRecepcion = reqs;
       _isLoading = false;
     });
     // Refrescar el badge de acciones offline pendientes.
@@ -249,6 +409,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   }
 
   Future<void> _reloadBorrador() async {
+    if (!(_detalle?.accesoCompleto ?? true)) return;
     final results = await Future.wait([
       widget.service.getBorrador(widget.servicioId),
       widget.service.getRequerimientosServicio(widget.servicioId),

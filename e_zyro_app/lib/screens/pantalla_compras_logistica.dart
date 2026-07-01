@@ -261,15 +261,10 @@ class _PantallaComprasLogisticaState extends State<PantallaComprasLogistica>
           ],
         ),
         elevation: 0,
-        backgroundColor: Colors.transparent,
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          labelColor: _kGreen,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: _kGreen,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           tabs: const [
             Tab(text: 'Pendientes'),
             Tab(text: 'En proceso'),

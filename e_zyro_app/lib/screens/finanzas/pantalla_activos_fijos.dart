@@ -76,7 +76,11 @@ class _PantallaActivosFijosState extends State<PantallaActivosFijos> {
           : _error != null
               ? Center(child: Text(_error!))
               : _activos.isEmpty
-                  ? const Center(child: Text('Sin activos fijos registrados.'))
+                  ? const EstadoVacio(
+                  icono: Icons.inventory_2,
+                  titulo: 'Sin activos fijos registrados',
+                  subtitulo: 'Aquí verás tus activos, su depreciación y su valor en libros.',
+                )
                   : RefreshIndicator(
                       onRefresh: _cargar,
                       child: ListView.separated(
@@ -424,7 +428,11 @@ class _PantallaDetalleActivoState extends State<_PantallaDetalleActivo> {
               else if (_historial.isEmpty)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Center(child: Text('Sin movimientos de depreciación', style: TextStyle(color: Colors.grey))),
+                  child: EstadoVacio(
+                    icono: Icons.trending_down,
+                    titulo: 'Sin movimientos de depreciación',
+                    subtitulo: 'El historial aparecerá cuando proceses la depreciación mensual.',
+                  ),
                 )
               else
                 ..._historial.map((h) => Card(

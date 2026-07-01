@@ -336,7 +336,8 @@ class _PantallaReportesFinancierosState extends State<PantallaReportesFinanciero
   Widget _tabBalance() {
     final b = _balance;
     if (b == null) return const Center(child: Text('Sin datos.'));
-    return ListView(
+    final sinSaldos = b.activo.isEmpty && b.pasivo.isEmpty && b.patrimonio.isEmpty;
+    return Column(
       children: [
         _bannerCorte(),
         Padding(
@@ -371,10 +372,47 @@ class _PantallaReportesFinancierosState extends State<PantallaReportesFinanciero
             ]),
           ),
         ),
-        _seccion('ACTIVO', b.activo, Colors.green),
-        _seccion('PASIVO', b.pasivo, Colors.deepOrange),
-        _seccion('PATRIMONIO', b.patrimonio, Colors.indigo),
-        const SizedBox(height: 24),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: sinSaldos
+                ? Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, 3)),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+                          child: Text('Detalle por rubro',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                        ),
+                        const Expanded(
+                          child: EstadoVacio(
+                            icono: Icons.bar_chart,
+                            titulo: 'Aún sin saldos para desglosar',
+                            subtitulo: 'Registra asientos contables para ver el detalle por rubro del balance.',
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView(
+                    children: [
+                      _seccion('ACTIVO', b.activo, Colors.green),
+                      _seccion('PASIVO', b.pasivo, Colors.deepOrange),
+                      _seccion('PATRIMONIO', b.patrimonio, Colors.indigo),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+          ),
+        ),
       ],
     );
   }

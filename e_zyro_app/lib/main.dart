@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/api_client.dart';
@@ -34,6 +35,14 @@ import 'portal/portal_design.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // App 100% vertical: se bloquea aquí una sola vez para toda la vida de la
+  // app (antes alguna pantalla la desbloqueaba en su dispose() y rompía el
+  // layout del resto si el usuario giraba el dispositivo).
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   // Solo lo imprescindible para el primer frame: tema (evita parpadeo) y, en
   // paralelo, formatos de fecha + conectividad. Firebase y notificaciones se
@@ -325,7 +334,8 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
+class _MainShellState extends State<MainShell>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   late int _currentIndex;
   // Lazy-load de pestañas: una tab se construye solo la primera vez que se
   // visita y luego queda viva (mantiene estado). Evita que el IndexedStack monte
@@ -334,6 +344,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Timer? _syncTimer;
   bool _puedeLogistica = false;
   bool _puedePersonal = false;
+
+  // Transición al cambiar de pestaña: el IndexedStack conmuta instantáneo
+  // (por diseño, para preservar estado y no repintar tabs ocultas), así que
+  // el fundido+deslizamiento se anima aquí por fuera, en el contenedor.
+  late final AnimationController _tabTransCtrl;
 
   // Índice fijo de la pantalla de logística en _screens. Se mantiene en la
   // lista aunque el usuario no tenga permiso para no descuadrar otros
@@ -357,6 +372,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     _currentIndex = widget.initialIndex;
     _activated = List<bool>.filled(_screens.length, false);
     _activated[_currentIndex] = true;
+    _tabTransCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    )..value = 1;
     WidgetsBinding.instance.addObserver(this);
     tabNotifier.addListener(_onTabChanged);
     isOnlineNotifier.addListener(_onConnectivityChanged);
@@ -418,6 +437,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     sessionExpiredSyncNotifier.removeListener(_onSessionExpiredDuringSync);
     permissionsRefreshNotifier.removeListener(_cargarPermisos);
     _syncTimer?.cancel();
+    _tabTransCtrl.dispose();
     super.dispose();
   }
 
@@ -429,6 +449,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         _currentIndex = target;
         _activated[target] = true; // monta la tab la primera vez que se abre
       });
+      _tabTransCtrl
+        ..reset()
+        ..forward();
     }
   }
 
@@ -637,17 +660,28 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             // TickerMode mutea las animaciones (incluido el fondo TopoBackground)
             // de las pestañas ocultas del IndexedStack → no repintan a 60fps en
             // segundo plano. Se reanudan al volver a la pestaña.
-            child: IndexedStack(
-              index: _currentIndex,
-              children: [
-                for (int i = 0; i < _screens.length; i++)
-                  // Solo se monta la pantalla si ya fue visitada (_activated);
-                  // las no visitadas son un placeholder vacío → cero coste.
-                  _activated[i]
-                      ? TickerMode(
-                          enabled: _currentIndex == i, child: _screens[i])
-                      : const SizedBox.shrink(),
-              ],
+            child: FadeTransition(
+              opacity: _tabTransCtrl,
+              child: SlideTransition(
+                position: _tabTransCtrl.drive(
+                  Tween<Offset>(
+                    begin: const Offset(0, 0.02),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutCubic)),
+                ),
+                child: IndexedStack(
+                  index: _currentIndex,
+                  children: [
+                    for (int i = 0; i < _screens.length; i++)
+                      // Solo se monta la pantalla si ya fue visitada (_activated);
+                      // las no visitadas son un placeholder vacío → cero coste.
+                      _activated[i]
+                          ? TickerMode(
+                              enabled: _currentIndex == i, child: _screens[i])
+                          : const SizedBox.shrink(),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

@@ -327,7 +327,13 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
     if (_loadingSueldos || _loadingConceptos) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_empleados.isEmpty) return const Center(child: Text('Sin empleados activos'));
+    if (_empleados.isEmpty) {
+      return const EstadoVacio(
+        icono: Icons.badge_outlined,
+        titulo: 'Sin empleados activos',
+        subtitulo: 'Registra empleados activos para incluirlos en la planilla.',
+      );
+    }
     final puedeEditar = AppSession.i.canCalcularPlanilla;
     return RefreshIndicator(
       onRefresh: _cargarSueldos,
@@ -399,7 +405,13 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
 
   Widget _tabPlanillas() {
     if (_loadingPlanillas) return const Center(child: CircularProgressIndicator());
-    if (_planillas.isEmpty) return const Center(child: Text('Sin planillas procesadas'));
+    if (_planillas.isEmpty) {
+      return const EstadoVacio(
+        icono: Icons.payments,
+        titulo: 'Sin planillas procesadas',
+        subtitulo: 'Calcula tu primera planilla para ver sueldos, aportes y descuentos.',
+      );
+    }
     final puedeAprobar = AppSession.i.canAprobarPlanilla;
     final puedeAnular = AppSession.i.isAdmin;
     return RefreshIndicator(
@@ -497,7 +509,13 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
 
   Widget _tabConceptos() {
     if (_loadingConceptos) return const Center(child: CircularProgressIndicator());
-    if (_conceptos.isEmpty) return const Center(child: Text('Sin conceptos remunerativos registrados'));
+    if (_conceptos.isEmpty) {
+      return const EstadoVacio(
+        icono: Icons.list_alt_outlined,
+        titulo: 'Sin conceptos remunerativos registrados',
+        subtitulo: 'Registra los conceptos que forman parte de la planilla.',
+      );
+    }
     final puedeEditar = AppSession.i.canCalcularPlanilla;
     final hayBase = _conceptos.any((c) => c.esBase);
     return RefreshIndicator(
@@ -738,7 +756,11 @@ class _PantallaDetallePlanillaState extends State<_PantallaDetallePlanilla> {
                   if (_boletas.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: Text('Sin boletas generadas', style: TextStyle(color: Colors.grey))),
+                      child: EstadoVacio(
+                        icono: Icons.receipt_long,
+                        titulo: 'Sin boletas generadas',
+                        subtitulo: 'Las boletas de pago aparecerán aquí cuando se generen.',
+                      ),
                     )
                   else
                     ..._boletas.map(_buildBoleta),

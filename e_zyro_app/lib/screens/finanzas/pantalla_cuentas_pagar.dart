@@ -230,7 +230,11 @@ class _TabFacturas extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (facturas.isEmpty) {
-      return const Center(child: Text('Sin facturas registradas'));
+      return const EstadoVacio(
+        icono: Icons.receipt_long,
+        titulo: 'Sin facturas registradas',
+        subtitulo: 'Registra tu primera factura de compra para controlar tus cuentas por pagar.',
+      );
     }
     return RefreshIndicator(
       onRefresh: onRefresh,
@@ -293,7 +297,11 @@ class _TabSaldos extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (saldos.isEmpty) {
-      return const Center(child: Text('Sin saldos pendientes'));
+      return const EstadoVacio(
+        icono: Icons.account_balance_wallet_outlined,
+        titulo: 'Sin saldos pendientes',
+        subtitulo: 'Aún no hay saldos pendientes con proveedores.',
+      );
     }
     final total = saldos.fold(0.0, (s, e) => s + e.saldoTotal);
     return RefreshIndicator(
@@ -354,7 +362,11 @@ class _TabPagos extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (pagos.isEmpty) {
-      return const Center(child: Text('Sin pagos registrados'));
+      return const EstadoVacio(
+        icono: Icons.payments_outlined,
+        titulo: 'Sin pagos registrados',
+        subtitulo: 'Aún no se han registrado pagos a proveedores.',
+      );
     }
     return RefreshIndicator(
       onRefresh: onRefresh,

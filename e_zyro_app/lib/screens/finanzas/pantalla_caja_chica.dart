@@ -63,7 +63,11 @@ class _State extends State<PantallaCajaChica> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _cajas.isEmpty
-              ? const Center(child: Text('Sin cajas chicas registradas'))
+              ? const EstadoVacio(
+                  icono: Icons.savings_outlined,
+                  titulo: 'Sin cajas chicas registradas',
+                  subtitulo: 'Registra tu primera caja chica para controlar el efectivo de gastos menores.',
+                )
               : RefreshIndicator(
                   onRefresh: _cargar,
                   child: ListView.separated(
@@ -248,8 +252,11 @@ class _DetalleState extends State<PantallaDetalleCaja> {
                   if (_movs.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(24),
-                      child: Center(child: Text('Sin movimientos. Registra un ingreso para constituir el fondo.',
-                          textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))),
+                      child: EstadoVacio(
+                        icono: Icons.receipt_long,
+                        titulo: 'Sin movimientos',
+                        subtitulo: 'Registra un ingreso para constituir el fondo.',
+                      ),
                     )
                   else
                     ..._movs.map(_tarjetaMov),

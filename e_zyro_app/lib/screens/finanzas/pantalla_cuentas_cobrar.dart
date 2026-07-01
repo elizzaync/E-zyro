@@ -273,7 +273,11 @@ class _TabComprobantes extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (comprobantes.isEmpty) {
-      return const Center(child: Text('Sin comprobantes emitidos'));
+      return const EstadoVacio(
+        icono: Icons.receipt_long,
+        titulo: 'Sin comprobantes emitidos',
+        subtitulo: 'Emite tu primer comprobante para llevar el control de cuentas por cobrar.',
+      );
     }
     return RefreshIndicator(
       onRefresh: onRefresh,
@@ -335,7 +339,11 @@ class _TabSaldos extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (saldos.isEmpty) {
-      return const Center(child: Text('Sin saldos pendientes'));
+      return const EstadoVacio(
+        icono: Icons.account_balance_wallet_outlined,
+        titulo: 'Sin saldos pendientes',
+        subtitulo: 'Aún no hay saldos pendientes de clientes.',
+      );
     }
     final total = saldos.fold(0.0, (s, e) => s + e.saldoTotal);
     return RefreshIndicator(
@@ -396,7 +404,11 @@ class _TabCobros extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator());
     if (cobros.isEmpty) {
-      return const Center(child: Text('Sin cobros registrados'));
+      return const EstadoVacio(
+        icono: Icons.payments_outlined,
+        titulo: 'Sin cobros registrados',
+        subtitulo: 'Aún no se han registrado cobros de clientes.',
+      );
     }
     return RefreshIndicator(
       onRefresh: onRefresh,

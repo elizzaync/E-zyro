@@ -120,7 +120,13 @@ class _PantallaInventarioValorizadoState extends State<PantallaInventarioValoriz
   Widget _tabKardex() {
     if (_cargando) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!));
-    if (_kardex.isEmpty) return const Center(child: Text('Sin movimientos valorizados registrados.'));
+    if (_kardex.isEmpty) {
+      return const EstadoVacio(
+        icono: Icons.warehouse,
+        titulo: 'Sin movimientos valorizados',
+        subtitulo: 'Cuando registres entradas y salidas, el Kardex valorizado aparecerá aquí.',
+      );
+    }
     return RefreshIndicator(
       onRefresh: _cargar,
       child: ListView.separated(

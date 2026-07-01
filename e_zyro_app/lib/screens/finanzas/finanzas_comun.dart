@@ -70,6 +70,55 @@ void mostrarOk(BuildContext context, String msg) {
       SnackBar(content: Text(msg), backgroundColor: Colors.green.shade700));
 }
 
+/// Estado vacío estándar de Finanzas: ícono en círculo pastel + título + subtítulo.
+class EstadoVacio extends StatelessWidget {
+  final IconData icono;
+  final String titulo;
+  final String subtitulo;
+  const EstadoVacio({
+    super.key,
+    required this.icono,
+    required this.titulo,
+    required this.subtitulo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 108,
+              height: 108,
+              decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest, shape: BoxShape.circle),
+              child: Icon(icono, size: 54, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 18),
+            Text(titulo,
+                style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w500,
+                    color: scheme.onSurface)),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: 260,
+              child: Text(subtitulo,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 14.5, color: scheme.onSurfaceVariant, height: 1.4)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Tarjeta-resumen con un valor monetario grande (para headers de reporte).
 class TarjetaResumen extends StatelessWidget {
   final String titulo;

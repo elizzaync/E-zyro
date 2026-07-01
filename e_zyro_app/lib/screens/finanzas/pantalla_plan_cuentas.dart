@@ -144,7 +144,11 @@ class _PantallaPlanCuentasState extends State<PantallaPlanCuentas> {
     return Stack(
       children: [
         _periodos.isEmpty
-            ? const Center(child: Text('Sin periodos contables registrados.'))
+            ? const EstadoVacio(
+                icono: Icons.event_note,
+                titulo: 'Sin periodos contables registrados',
+                subtitulo: 'Abre un periodo contable para empezar a registrar movimientos.',
+              )
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
                 itemCount: _periodos.length,
@@ -189,6 +193,47 @@ class _PantallaPlanCuentasState extends State<PantallaPlanCuentas> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _filaCuenta(CuentaContable c) {
+    final chipColor = c.esDetalle ? Colors.green.shade100 : Colors.grey.shade200;
+    final chipTextColor = c.esDetalle ? Colors.green.shade900 : Colors.grey.shade700;
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(color: chipColor, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Text(c.codigo.length > 4 ? c.codigo.substring(0, 4) : c.codigo,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: chipTextColor)),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(c.nombre, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text('${c.codigo} · ${c.tipo} · ${c.naturaleza}',
+                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+          Icon(c.esDetalle ? Icons.edit_note : Icons.folder_open,
+              size: 22, color: c.esDetalle ? Colors.green : Colors.grey),
+        ],
+      ),
     );
   }
 
@@ -254,7 +299,11 @@ class _PantallaPlanCuentasState extends State<PantallaPlanCuentas> {
           child: _cargandoAsientos
               ? const Center(child: CircularProgressIndicator())
               : _asientos.isEmpty
-                  ? const Center(child: Text('Sin asientos contables.'))
+                  ? const EstadoVacio(
+                      icono: Icons.receipt_long,
+                      titulo: 'Sin asientos contables',
+                      subtitulo: 'Los asientos manuales o automáticos aparecerán aquí.',
+                    )
                   : ListView.separated(
                       padding: const EdgeInsets.only(bottom: 80),
                       itemCount: _asientos.length,
@@ -315,28 +364,16 @@ class _PantallaPlanCuentasState extends State<PantallaPlanCuentas> {
         ),
         Expanded(
           child: _filtradas.isEmpty
-              ? const Center(child: Text('Sin cuentas.'))
+              ? const EstadoVacio(
+                  icono: Icons.account_tree,
+                  titulo: 'Sin cuentas',
+                  subtitulo: 'No hay cuentas contables para este filtro.',
+                )
               : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 14),
                   itemCount: _filtradas.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (_, i) {
-                    final c = _filtradas[i];
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 18,
-                        backgroundColor: c.esDetalle ? Colors.green.shade100 : Colors.grey.shade200,
-                        child: Text(c.codigo.length > 4 ? c.codigo.substring(0, 4) : c.codigo,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                      ),
-                      title: Text(c.nombre, style: const TextStyle(fontSize: 13)),
-                      subtitle: Text('${c.codigo} · ${c.tipo} · ${c.naturaleza}',
-                          style: const TextStyle(fontSize: 11)),
-                      trailing: c.esDetalle
-                          ? const Icon(Icons.edit_note, size: 18, color: Colors.green)
-                          : const Icon(Icons.folder_outlined, size: 18, color: Colors.grey),
-                    );
-                  },
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (_, i) => _filaCuenta(_filtradas[i]),
                 ),
         ),
       ],
@@ -385,7 +422,11 @@ class _PantallaPlanCuentasState extends State<PantallaPlanCuentas> {
           ),
         Expanded(
           child: (b == null || b.cuentas.isEmpty)
-              ? const Center(child: Text('Sin movimientos en el periodo.'))
+              ? const EstadoVacio(
+                  icono: Icons.balance,
+                  titulo: 'Sin movimientos en el periodo',
+                  subtitulo: 'El balance de comprobación aparecerá cuando haya asientos en este periodo.',
+                )
               : ListView.separated(
                   padding: const EdgeInsets.only(top: 8),
                   itemCount: b.cuentas.length,

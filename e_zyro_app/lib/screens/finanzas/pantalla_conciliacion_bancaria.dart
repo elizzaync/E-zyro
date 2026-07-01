@@ -67,11 +67,11 @@ class _State extends State<PantallaConciliacionBancaria> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _cuentas.isEmpty
-              ? const Center(child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('Sin cuentas bancarias. Crea una y vincúlala a su '
-                      'cuenta de Bancos del PCGE (familia 104).',
-                      textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))))
+              ? const EstadoVacio(
+                  icono: Icons.account_balance,
+                  titulo: 'Sin cuentas bancarias',
+                  subtitulo: 'Crea una y vincúlala a su cuenta de Bancos del PCGE (familia 104).',
+                )
               : RefreshIndicator(
                   onRefresh: _cargar,
                   child: ListView.separated(
@@ -354,8 +354,11 @@ class _DetalleState extends State<PantallaDetalleConciliacion> {
                   if (_movs.isEmpty)
                     const Padding(
                       padding: EdgeInsets.all(24),
-                      child: Center(child: Text('Sin movimientos en este filtro.',
-                          style: TextStyle(color: Colors.grey))),
+                      child: EstadoVacio(
+                        icono: Icons.sync_alt,
+                        titulo: 'Sin movimientos en este filtro',
+                        subtitulo: 'Cambia el filtro o registra movimientos para conciliar.',
+                      ),
                     )
                   else
                     ..._movs.map(_tarjetaMov),

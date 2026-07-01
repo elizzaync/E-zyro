@@ -69,7 +69,11 @@ class _PantallaCentrosCostoState extends State<PantallaCentrosCosto> {
           : _error != null
               ? Center(child: Text(_error!))
               : _centros.isEmpty
-                  ? const Center(child: Text('Sin centros de costo registrados.'))
+                  ? const EstadoVacio(
+                      icono: Icons.account_tree,
+                      titulo: 'Sin centros de costo',
+                      subtitulo: 'Crea centros para distribuir ingresos y gastos por área o proyecto.',
+                    )
                   : RefreshIndicator(
                       onRefresh: _cargar,
                       child: ListView.separated(
