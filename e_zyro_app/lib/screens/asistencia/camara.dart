@@ -33,43 +33,70 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
   }
 
   Future<void> _initCamera() async {
-    if (mounted) setState(() { _initError = null; _permDeniedForever = false; });
+    if (mounted)
+      setState(() {
+        _initError = null;
+        _permDeniedForever = false;
+      });
     final status = await Permission.camera.request();
     if (status.isPermanentlyDenied) {
-      if (mounted) setState(() {
-        _initError = 'Permiso de cámara bloqueado permanentemente.\nVe a Ajustes del dispositivo y habilítalo.';
-        _permDeniedForever = true;
-      });
+      if (mounted) {
+        setState(() {
+          _initError =
+              'Permiso de cámara bloqueado permanentemente.\nVe a Ajustes del dispositivo y habilítalo.';
+          _permDeniedForever = true;
+        });
+      }
       return;
     }
     if (status.isDenied) {
-      if (mounted) setState(() {
-        _initError = 'Se necesita permiso de cámara para continuar.';
-      });
+      if (mounted) {
+        setState(() {
+          _initError = 'Se necesita permiso de cámara para continuar.';
+        });
+      }
       return;
     }
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        if (mounted) setState(() => _initError = 'No se encontró ninguna cámara en este dispositivo.');
+        if (mounted)
+          setState(
+            () => _initError =
+                'No se encontró ninguna cámara en este dispositivo.',
+          );
         return;
       }
       final front = cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
       );
-      final ctrl = CameraController(front, ResolutionPreset.high, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
+      final ctrl = CameraController(
+        front,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
       await ctrl.initialize();
       try {
         await ctrl.setExposureMode(ExposureMode.auto);
         await ctrl.setFocusMode(FocusMode.auto);
       } catch (_) {}
-      if (!mounted) { ctrl.dispose(); return; }
-      setState(() { _ctrl = ctrl; _ready = true; });
-    } catch (_) {
-      if (mounted) setState(() {
-        _initError = 'No se pudo iniciar la cámara.\nCierra otras apps que la estén usando e intenta de nuevo.';
+      if (!mounted) {
+        ctrl.dispose();
+        return;
+      }
+      setState(() {
+        _ctrl = ctrl;
+        _ready = true;
       });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _initError =
+              'No se pudo iniciar la cámara.\nCierra otras apps que la estén usando e intenta de nuevo.';
+        });
+      }
     }
   }
 
@@ -92,22 +119,26 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
     if (photo == null || _confirming) return;
     setState(() => _confirming = true);
     try {
-      final dir  = await getTemporaryDirectory();
-      final dest = '${dir.path}/selfie_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final dir = await getTemporaryDirectory();
+      final dest =
+          '${dir.path}/selfie_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       // Primer paso: comprimir con corrección EXIF de rotación.
       final compressed = await FlutterImageCompress.compressAndGetFile(
-        photo.path, dest,
-        quality: 88, minWidth: 800, minHeight: 600,
+        photo.path,
+        dest,
+        quality: 88,
+        minWidth: 800,
+        minHeight: 600,
       );
       final srcPath = compressed?.path ?? photo.path;
 
       // Segundo paso: flip horizontal para que coincida con la vista de espejo
       // que la cámara frontal muestra en la previsualización.
-      final bytes   = await File(srcPath).readAsBytes();
+      final bytes = await File(srcPath).readAsBytes();
       final decoded = img.decodeImage(bytes);
       if (decoded != null) {
-        final flipped   = img.flipHorizontal(decoded);
+        final flipped = img.flipHorizontal(decoded);
         final jpegBytes = img.encodeJpg(flipped, quality: 88);
         await File(dest).writeAsBytes(jpegBytes);
         if (mounted) Navigator.pop(context, XFile(dest));
@@ -115,7 +146,10 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
       }
 
       if (mounted) {
-        Navigator.pop(context, compressed != null ? XFile(compressed.path) : photo);
+        Navigator.pop(
+          context,
+          compressed != null ? XFile(compressed.path) : photo,
+        );
       }
     } catch (_) {
       if (mounted) Navigator.pop(context, photo);
@@ -135,12 +169,20 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.no_photography_outlined, color: Colors.white38, size: 80),
+                const Icon(
+                  Icons.no_photography_outlined,
+                  color: Colors.white38,
+                  size: 80,
+                ),
                 const SizedBox(height: 24),
                 Text(
                   _initError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
                 ),
                 const SizedBox(height: 32),
                 if (_permDeniedForever)
@@ -151,8 +193,13 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: green,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   )
                 else
@@ -163,14 +210,22 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: green,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(color: Colors.white54),
+                  ),
                 ),
               ],
             ),
@@ -182,7 +237,11 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
     if (!_ready || _ctrl == null) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)))),
+        body: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)),
+          ),
+        ),
       );
     }
 
@@ -199,30 +258,55 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
               child: Image.file(File(_captured!.path), fit: BoxFit.cover),
             ),
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       GestureDetector(
                         onTap: _retake,
                         child: Container(
                           padding: const EdgeInsets.all(10),
-                          decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
                           child: const Icon(Icons.refresh, color: Colors.white),
                         ),
                       ),
                       const Spacer(),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(color: green.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: green.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check_circle, color: Colors.white, size: 14),
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.white,
+                              size: 14,
+                            ),
                             SizedBox(width: 4),
-                            Text('Foto tomada', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                            Text(
+                              'Foto tomada',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -232,7 +316,9 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
               ),
             ),
             Positioned(
-              bottom: 0, left: 0, right: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
               child: SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
@@ -247,7 +333,9 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.white54),
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                       ),
@@ -260,19 +348,27 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
                                 )
                               : const Icon(Icons.check, size: 20),
                           label: Text(
                             _confirming ? 'Procesando...' : 'Usar foto',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: green,
                             foregroundColor: Colors.white,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                         ),
                       ),
@@ -302,7 +398,8 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
             ),
           ),
           Positioned(
-            top: 0, left: 0,
+            top: 0,
+            left: 0,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -310,7 +407,10 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
                   onTap: () => Navigator.pop(context),
                   child: Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
                     child: const Icon(Icons.arrow_back, color: Colors.white),
                   ),
                 ),
@@ -320,24 +420,35 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
           // Banner de error del intento anterior (orienta al usuario a corregir la foto)
           if (widget.hintMessage != null && _captured == null)
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               child: SafeArea(
                 child: Container(
                   margin: const EdgeInsets.fromLTRB(62, 8, 12, 0),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.red.shade700.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 16),
+                      const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           widget.hintMessage!,
                           style: const TextStyle(
-                            color: Colors.white, fontSize: 11, height: 1.35,
+                            color: Colors.white,
+                            fontSize: 11,
+                            height: 1.35,
                           ),
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
@@ -349,7 +460,9 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
               ),
             ),
           Positioned(
-            bottom: 0, left: 0, right: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 32),
@@ -357,14 +470,21 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
                   child: GestureDetector(
                     onTap: _capture,
                     child: Container(
-                      width: 78, height: 78,
+                      width: 78,
+                      height: 78,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white,
                         border: Border.all(color: Colors.white70, width: 4),
-                        boxShadow: const [BoxShadow(color: Colors.black38, blurRadius: 16)],
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black38, blurRadius: 16),
+                        ],
                       ),
-                      child: const Icon(Icons.camera_alt, color: Colors.black87, size: 36),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: Colors.black87,
+                        size: 36,
+                      ),
                     ),
                   ),
                 ),
@@ -376,4 +496,3 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
     );
   }
 }
-

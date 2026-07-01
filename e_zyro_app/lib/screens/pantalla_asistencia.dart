@@ -80,11 +80,27 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   // ── Ciclo de vida ──────────────────────────────────────────────────────────
   static const _meses = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
   ];
   static const _dias = [
-    'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+    'Lunes',
+    'Martes',
+    'Miércoles',
+    'Jueves',
+    'Viernes',
+    'Sábado',
+    'Domingo',
   ];
 
   @override
@@ -133,7 +149,11 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     final prefs = await SharedPreferences.getInstance();
     final svc = await getAsistenciaService();
     _solSvc = await getSolicitudService();
-    if (mounted) setState(() { _service = svc; _userName = prefs.getString('user_name') ?? 'Usuario'; });
+    if (mounted)
+      setState(() {
+        _service = svc;
+        _userName = prefs.getString('user_name') ?? 'Usuario';
+      });
     await _cargarDatos(svc);
     await _cargarJustificaciones();
     await _refreshPendientes();
@@ -148,7 +168,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     if (!mounted) return;
     final map = <String, SolicitudLaboral>{};
     for (final s in todas) {
-      if (s.tipo == 'justificacion_tardanza' && (s.fechaInicio ?? '').isNotEmpty) {
+      if (s.tipo == 'justificacion_tardanza' &&
+          (s.fechaInicio ?? '').isNotEmpty) {
         map[s.fechaInicio!.split('T').first] = s;
       }
     }
@@ -223,8 +244,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       if (mounted) {
         setState(() {
           _estadoHoy = results[0] as EstadoHoy;
-          _historial  = results[1] as List<RegistroAsistencia>;
-          _resumen    = results[2] as ResumenSemanal?;
+          _historial = results[1] as List<RegistroAsistencia>;
+          _resumen = results[2] as ResumenSemanal?;
           _cargandoInicial = false;
         });
       }
@@ -238,34 +259,47 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     if (!mounted) return;
     setState(() {
       _fetchingLocation = true;
-      _locationStatus   = 'Obteniendo ubicación...';
-      _addressLine1     = null;
-      _addressLine2     = null;
+      _locationStatus = 'Obteniendo ubicación...';
+      _addressLine1 = null;
+      _addressLine2 = null;
     });
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) {
-        if (mounted) setState(() { _fetchingLocation = false; _locationStatus = 'GPS desactivado'; });
+        if (mounted)
+          setState(() {
+            _fetchingLocation = false;
+            _locationStatus = 'GPS desactivado';
+          });
         return;
       }
       LocationPermission perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
         if (perm == LocationPermission.denied) {
-          if (mounted) setState(() { _fetchingLocation = false; _locationStatus = 'Permiso denegado'; });
+          if (mounted)
+            setState(() {
+              _fetchingLocation = false;
+              _locationStatus = 'Permiso denegado';
+            });
           return;
         }
       }
       if (perm == LocationPermission.deniedForever) {
-        if (mounted) setState(() { _fetchingLocation = false; _locationStatus = 'Permiso denegado permanentemente'; });
+        if (mounted)
+          setState(() {
+            _fetchingLocation = false;
+            _locationStatus = 'Permiso denegado permanentemente';
+          });
         return;
       }
       // Mostrar última posición conocida de inmediato como fallback offline
       final lastKnown = await Geolocator.getLastKnownPosition();
       if (lastKnown != null && mounted) {
         setState(() {
-          _position       = lastKnown;
-          _locationStatus = '${lastKnown.latitude.toStringAsFixed(5)}, ${lastKnown.longitude.toStringAsFixed(5)}';
+          _position = lastKnown;
+          _locationStatus =
+              '${lastKnown.latitude.toStringAsFixed(5)}, ${lastKnown.longitude.toStringAsFixed(5)}';
           _fetchingLocation = false;
         });
         _resolveAddress(lastKnown.latitude, lastKnown.longitude);
@@ -278,24 +312,31 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       ).timeout(const Duration(seconds: 30));
       if (!mounted) return;
       setState(() {
-        _position       = pos;
-        _locationStatus = '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}';
+        _position = pos;
+        _locationStatus =
+            '${pos.latitude.toStringAsFixed(5)}, ${pos.longitude.toStringAsFixed(5)}';
         _fetchingLocation = false;
       });
       _resolveAddress(pos.latitude, pos.longitude);
     } catch (_) {
-      if (mounted) setState(() {
-        _fetchingLocation = false;
-        if (_position == null) _locationStatus = 'Error al obtener ubicación';
-      });
+      if (mounted) {
+        setState(() {
+          _fetchingLocation = false;
+          if (_position == null) _locationStatus = 'Error al obtener ubicación';
+        });
+      }
     }
   }
 
   Future<void> _resolveAddress(double lat, double lng) async {
     try {
-      final placemarks = await placemarkFromCoordinates(lat, lng)
-          .timeout(const Duration(seconds: 10));
-      if (placemarks.isEmpty || !mounted) { return; }
+      final placemarks = await placemarkFromCoordinates(
+        lat,
+        lng,
+      ).timeout(const Duration(seconds: 10));
+      if (placemarks.isEmpty || !mounted) {
+        return;
+      }
       final p = placemarks.first;
       final street = [
         if ((p.thoroughfare ?? '').isNotEmpty) p.thoroughfare!,
@@ -350,11 +391,11 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       final old = _estadoHoy;
       setState(() {
         _estadoHoy = EstadoHoy(
-          tieneEntrada:   old?.tieneEntrada   ?? false,
-          tieneSalida:    old?.tieneSalida    ?? false,
-          tieneFotoBase:  true,
-          entradaHora:    old?.entradaHora,
-          salidaHora:     old?.salidaHora,
+          tieneEntrada: old?.tieneEntrada ?? false,
+          tieneSalida: old?.tieneSalida ?? false,
+          tieneFotoBase: true,
+          entradaHora: old?.entradaHora,
+          salidaHora: old?.salidaHora,
           jornadaCompleta: old?.jornadaCompleta ?? false,
         );
       });
@@ -370,7 +411,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           ),
           backgroundColor: const Color(0xFF8FD11B),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           duration: const Duration(seconds: 3),
         ),
       );
@@ -380,7 +423,11 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   }
 
   void _openRegistroSheet() {
-    if (_service == null || _tipoRegistro == null || !_tieneFotoBase || _cargandoInicial) return;
+    if (_service == null ||
+        _tipoRegistro == null ||
+        !_tieneFotoBase ||
+        _cargandoInicial)
+      return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -404,16 +451,16 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   // ── Diálogo de resultado ───────────────────────────────────────────────────
   void _showResultDialog(MarcarResponse r) {
-    final esPendiente     = r.status == 'PENDIENTE_SYNC';
+    final esPendiente = r.status == 'PENDIENTE_SYNC';
     final esErrorServidor = r.status == 'ERROR_SERVIDOR';
-    final aprobado        = r.status == 'APROBADO';
-    final esRevision      = r.resultadoIa == 'revision_manual';
-    const green           = Color(0xFF8FD11B);
+    final aprobado = r.status == 'APROBADO';
+    final esRevision = r.resultadoIa == 'revision_manual';
+    const green = Color(0xFF8FD11B);
     final statusColor = esPendiente
         ? Colors.amber.shade600
         : esErrorServidor
-            ? Colors.orange.shade700
-            : (aprobado ? green : (esRevision ? Colors.orange : Colors.red));
+        ? Colors.orange.shade700
+        : (aprobado ? green : (esRevision ? Colors.orange : Colors.red));
 
     showDialog(
       context: context,
@@ -430,18 +477,31 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 84, height: 84,
+                width: 84,
+                height: 84,
                 decoration: BoxDecoration(
-                  color: statusColor, shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: statusColor.withValues(alpha: 0.4), blurRadius: 24, spreadRadius: 4)],
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: statusColor.withValues(alpha: 0.4),
+                      blurRadius: 24,
+                      spreadRadius: 4,
+                    ),
+                  ],
                 ),
                 child: Icon(
                   esPendiente
                       ? Icons.cloud_off_rounded
                       : esErrorServidor
-                          ? Icons.cloud_sync_outlined
-                          : (aprobado ? Icons.check_rounded : (esRevision ? Icons.hourglass_top_rounded : Icons.close_rounded)),
-                  color: Colors.white, size: 50,
+                      ? Icons.cloud_sync_outlined
+                      : (aprobado
+                            ? Icons.check_rounded
+                            : (esRevision
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.close_rounded)),
+                  color: Colors.white,
+                  size: 50,
                 ),
               ),
               const SizedBox(height: 20),
@@ -449,9 +509,15 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 esPendiente
                     ? 'GUARDADO OFFLINE'
                     : esErrorServidor
-                        ? 'ERROR DEL SERVIDOR'
-                        : (aprobado ? '¡APROBADO!' : (esRevision ? 'EN REVISIÓN' : 'RECHAZADO')),
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: statusColor),
+                    ? 'ERROR DEL SERVIDOR'
+                    : (aprobado
+                          ? '¡APROBADO!'
+                          : (esRevision ? 'EN REVISIÓN' : 'RECHAZADO')),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: statusColor,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -461,14 +527,21 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               const SizedBox(height: 16),
               // Score badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   'Similitud: ${r.score.toStringAsFixed(1)}%',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: statusColor),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    color: statusColor,
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -497,7 +570,11 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 Text(
                   r.motivo,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12, height: 1.5),
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    height: 1.5,
+                  ),
                 ),
               ],
               const SizedBox(height: 8),
@@ -514,10 +591,15 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                     backgroundColor: statusColor,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
-                  child: const Text('Cerrar', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Cerrar',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -530,7 +612,10 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   Future<void> _exportarAsistenciaPdf() async {
     final prefs = await SharedPreferences.getInstance();
     final usuario = prefs.getString('user_name') ?? 'Colaborador';
-    final bytes = await PdfService.asistenciaUsuario(_historial, usuario: usuario);
+    final bytes = await PdfService.asistenciaUsuario(
+      _historial,
+      usuario: usuario,
+    );
     if (!mounted) return;
     await PdfPreviewScreen.abrir(
       context,
@@ -596,7 +681,13 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: const Color(0xFF8FD11B).withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6))],
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF8FD11B).withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -607,11 +698,30 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(_greeting, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                    Text(
+                      _greeting,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    const Text('Mi Asistencia', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Mi Asistencia',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     if (_userName.isNotEmpty)
-                      Text(_userName, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      Text(
+                        _userName,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -620,21 +730,30 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   CircleAvatar(
                     radius: 24,
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
-                    child: const Icon(Icons.person, color: Colors.white, size: 26),
+                    child: const Icon(
+                      Icons.person,
+                      color: Colors.white,
+                      size: 26,
+                    ),
                   ),
                   if (!_cargandoInicial)
                     Positioned(
-                      right: 0, bottom: 0,
+                      right: 0,
+                      bottom: 0,
                       child: Container(
-                        width: 16, height: 16,
+                        width: 16,
+                        height: 16,
                         decoration: BoxDecoration(
-                          color: _tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange,
+                          color: _tieneFotoBase
+                              ? const Color(0xFF8FD11B)
+                              : Colors.orange,
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2),
                         ),
                         child: Icon(
                           _tieneFotoBase ? Icons.check : Icons.priority_high,
-                          color: Colors.white, size: 9,
+                          color: Colors.white,
+                          size: 9,
                         ),
                       ),
                     ),
@@ -644,7 +763,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           ),
           const SizedBox(height: 16),
           Wrap(
-            spacing: 8, runSpacing: 6,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               _chip(Icons.calendar_today, _fechaFormateada),
               // Reloj autocontenido: solo este chip se repinta cada segundo,
@@ -659,13 +779,23 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   Widget _chip(IconData icon, String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.2),
+      borderRadius: BorderRadius.circular(20),
+    ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, color: Colors.white, size: 13),
         const SizedBox(width: 5),
-        Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     ),
   );
@@ -674,15 +804,22 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   Widget _buildLocationCard() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasLoc = _position != null;
-    const green  = Color(0xFF8FD11B);
+    const green = Color(0xFF8FD11B);
 
     Color accuracyColor = Colors.grey;
     String accuracyLabel = '';
     if (hasLoc) {
       final acc = _position!.accuracy;
-      if (acc <= 10) { accuracyColor = green;          accuracyLabel = 'Alta'; }
-      else if (acc <= 30) { accuracyColor = Colors.orange; accuracyLabel = 'Media'; }
-      else { accuracyColor = Colors.red; accuracyLabel = 'Baja'; }
+      if (acc <= 10) {
+        accuracyColor = green;
+        accuracyLabel = 'Alta';
+      } else if (acc <= 30) {
+        accuracyColor = Colors.orange;
+        accuracyLabel = 'Media';
+      } else {
+        accuracyColor = Colors.red;
+        accuracyLabel = 'Baja';
+      }
     }
 
     return Container(
@@ -699,13 +836,16 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: hasLoc
-                        ? (isDark ? green.withValues(alpha: 0.15) : const Color(0xFFEFFAE0))
+                        ? (isDark
+                              ? green.withValues(alpha: 0.15)
+                              : const Color(0xFFEFFAE0))
                         : Colors.orange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     hasLoc ? Icons.location_on : Icons.location_searching,
-                    color: hasLoc ? green : Colors.orange, size: 22,
+                    color: hasLoc ? green : Colors.orange,
+                    size: 22,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -713,19 +853,42 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Ubicación GPS', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      const Text(
+                        'Ubicación GPS',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       if (_addressLine1 != null)
-                        Text(_addressLine1!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                        Text(
+                          _addressLine1!,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
                       if (_addressLine2 != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 1),
-                          child: Text(_addressLine2!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          child: Text(
+                            _addressLine2!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
                         ),
                       if (_addressLine1 == null)
                         Text(
-                          _fetchingLocation ? 'Obteniendo dirección...' : _locationStatus,
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          _fetchingLocation
+                              ? 'Obteniendo dirección...'
+                              : _locationStatus,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
                         ),
                     ],
                   ),
@@ -734,13 +897,23 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   const Padding(
                     padding: EdgeInsets.only(top: 4),
                     child: SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFF8FD11B),
+                        ),
+                      ),
                     ),
                   )
                 else
                   IconButton(
-                    icon: const Icon(Icons.refresh, color: Colors.grey, size: 20),
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: Colors.grey,
+                      size: 20,
+                    ),
                     onPressed: _fetchLocation,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -752,23 +925,44 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade100,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.06)
+                          : Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       '${_position!.latitude.toStringAsFixed(5)}, ${_position!.longitude.toStringAsFixed(5)}',
-                      style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: isDark ? Colors.grey.shade300 : Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: isDark
+                            ? Colors.grey.shade300
+                            : Colors.grey.shade600,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: accuracyColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accuracyColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Text(
                       '±${_position!.accuracy.toStringAsFixed(0)}m · $accuracyLabel',
-                      style: TextStyle(fontSize: 11, color: accuracyColor, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: accuracyColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -796,12 +990,22 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               const Expanded(
-                child: Text('Foto biométrica requerida', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                child: Text(
+                  'Foto biométrica requerida',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
               ),
             ],
           ),
@@ -823,7 +1027,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 backgroundColor: Colors.orange,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
@@ -844,12 +1050,22 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Estado del Día', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const Text(
+                'Estado del Día',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
               if (!_cargandoInicial)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
-                    color: (_tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange).withValues(alpha: 0.1),
+                    color:
+                        (_tieneFotoBase
+                                ? const Color(0xFF8FD11B)
+                                : Colors.orange)
+                            .withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Row(
@@ -858,14 +1074,19 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                       Icon(
                         _tieneFotoBase ? Icons.verified_user : Icons.person_off,
                         size: 11,
-                        color: _tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange,
+                        color: _tieneFotoBase
+                            ? const Color(0xFF8FD11B)
+                            : Colors.orange,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         _tieneFotoBase ? 'Foto registrada' : 'Sin foto base',
                         style: TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.w600,
-                          color: _tieneFotoBase ? const Color(0xFF8FD11B) : Colors.orange,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: _tieneFotoBase
+                              ? const Color(0xFF8FD11B)
+                              : Colors.orange,
                         ),
                       ),
                     ],
@@ -879,17 +1100,37 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: SizedBox(
-                  width: 24, height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B))),
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF8FD11B),
+                    ),
+                  ),
                 ),
               ),
             )
           else
             Row(
               children: [
-                Expanded(child: _buildStatusItem('Entrada', _entradaHoy, Icons.login, isEntrada: true)),
+                Expanded(
+                  child: _buildStatusItem(
+                    'Entrada',
+                    _entradaHoy,
+                    Icons.login,
+                    isEntrada: true,
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _buildStatusItem('Salida',  _salidaHoy,  Icons.logout, isEntrada: false)),
+                Expanded(
+                  child: _buildStatusItem(
+                    'Salida',
+                    _salidaHoy,
+                    Icons.logout,
+                    isEntrada: false,
+                  ),
+                ),
               ],
             ),
         ],
@@ -897,11 +1138,16 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     );
   }
 
-  Widget _buildStatusItem(String label, RegistroAsistencia? r, IconData icon, {required bool isEntrada}) {
-    final isDark      = Theme.of(context).brightness == Brightness.dark;
-    final registered  = r != null;
-    const green       = Color(0xFF8FD11B);
-    final col         = isEntrada ? green : Colors.blue;
+  Widget _buildStatusItem(
+    String label,
+    RegistroAsistencia? r,
+    IconData icon, {
+    required bool isEntrada,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final registered = r != null;
+    const green = Color(0xFF8FD11B);
+    final col = isEntrada ? green : Colors.blue;
 
     String horaStr = '--:--';
     if (registered) {
@@ -913,19 +1159,30 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     }
 
     final gpsInfo = registered && r.latitud != null
-        ? (r.precisionM != null ? '±${r.precisionM!.toStringAsFixed(0)}m' : 'GPS ✓')
+        ? (r.precisionM != null
+              ? '±${r.precisionM!.toStringAsFixed(0)}m'
+              : 'GPS ✓')
         : '';
     final scoreInfo = registered ? '${r.score.toStringAsFixed(1)}%' : '';
-    final subtitle  = [scoreInfo, gpsInfo].where((s) => s.isNotEmpty).join(' · ');
+    final subtitle = [
+      scoreInfo,
+      gpsInfo,
+    ].where((s) => s.isNotEmpty).join(' · ');
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: registered
-            ? (isDark ? col.withValues(alpha: 0.12) : col.withValues(alpha: 0.08))
-            : (isDark ? Colors.grey.withValues(alpha: 0.08) : Colors.grey.shade50),
+            ? (isDark
+                  ? col.withValues(alpha: 0.12)
+                  : col.withValues(alpha: 0.08))
+            : (isDark
+                  ? Colors.grey.withValues(alpha: 0.08)
+                  : Colors.grey.shade50),
         borderRadius: BorderRadius.circular(12),
-        border: registered ? Border.all(color: col.withValues(alpha: 0.3)) : null,
+        border: registered
+            ? Border.all(color: col.withValues(alpha: 0.3))
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -934,13 +1191,24 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             children: [
               Icon(icon, size: 14, color: registered ? col : Colors.grey),
               const SizedBox(width: 5),
-              Text(label, style: TextStyle(fontSize: 11, color: registered ? col : Colors.grey, fontWeight: FontWeight.w500)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: registered ? col : Colors.grey,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
             horaStr,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: registered ? col : Colors.grey.shade400),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+              color: registered ? col : Colors.grey.shade400,
+            ),
           ),
           const SizedBox(height: 3),
           Text(
@@ -966,7 +1234,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   Widget _buildPendingBanner() {
     // Detectar si la última razón de fallo fue sesión vencida
     final sessionExpired = sessionExpiredSyncNotifier.value > 0;
-    final bannerColor    = sessionExpired ? Colors.purple : Colors.amber;
+    final bannerColor = sessionExpired ? Colors.purple : Colors.amber;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -974,7 +1242,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
         color: sessionExpired ? Colors.purple.shade50 : Colors.amber.shade50,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: sessionExpired ? Colors.purple.shade300 : Colors.amber.shade300,
+          color: sessionExpired
+              ? Colors.purple.shade300
+              : Colors.amber.shade300,
         ),
       ),
       child: Column(
@@ -985,10 +1255,13 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             children: [
               _syncingBanner
                   ? SizedBox(
-                      width: 18, height: 18,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.2,
-                        valueColor: AlwaysStoppedAnimation<Color>(bannerColor.shade700),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          bannerColor.shade700,
+                        ),
                       ),
                     )
                   : Icon(
@@ -1027,20 +1300,30 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             const SizedBox(height: 6),
             GestureDetector(
               onTap: () => Navigator.pushNamedAndRemoveUntil(
-                context, '/login', (r) => false,
+                context,
+                '/login',
+                (r) => false,
               ),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.purple.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.purple.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: Colors.purple.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.lock_outline_rounded,
-                        size: 13, color: Colors.purple),
+                    const Icon(
+                      Icons.lock_outline_rounded,
+                      size: 13,
+                      color: Colors.purple,
+                    ),
                     const SizedBox(width: 5),
                     const Text(
                       'Sesión vencida — toca para iniciar sesión',
@@ -1062,7 +1345,10 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 TextButton(
                   onPressed: _confirmarLimpiarFallidos,
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     foregroundColor: Colors.red.shade700,
@@ -1079,7 +1365,10 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 TextButton(
                   onPressed: _triggerSync,
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     foregroundColor: bannerColor.shade800,
@@ -1103,43 +1392,68 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
 
   // ── Botón de registro ──────────────────────────────────────────────────────
   Widget _buildRegisterButton() {
-    const green  = Color(0xFF8FD11B);
-    final tipo   = _tipoRegistro;
-    final enabled = !_jornadaCompleta && _tieneFotoBase && !_cargandoInicial && _service != null;
+    const green = Color(0xFF8FD11B);
+    final tipo = _tipoRegistro;
+    final enabled =
+        !_jornadaCompleta &&
+        _tieneFotoBase &&
+        !_cargandoInicial &&
+        _service != null;
 
     return SizedBox(
-      width: double.infinity, height: 58,
+      width: double.infinity,
+      height: 58,
       child: ElevatedButton(
         onPressed: enabled ? _openRegistroSheet : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: _jornadaCompleta
               ? Colors.grey.shade300
-              : (!_tieneFotoBase ? Colors.orange.withValues(alpha: 0.5) : green),
+              : (!_tieneFotoBase
+                    ? Colors.orange.withValues(alpha: 0.5)
+                    : green),
           foregroundColor: _jornadaCompleta ? Colors.grey : Colors.white,
-          disabledBackgroundColor: _jornadaCompleta ? Colors.grey.shade200 : Colors.orange.withValues(alpha: 0.3),
+          disabledBackgroundColor: _jornadaCompleta
+              ? Colors.grey.shade200
+              : Colors.orange.withValues(alpha: 0.3),
           disabledForegroundColor: Colors.white70,
           elevation: enabled ? 4 : 0,
           shadowColor: green.withValues(alpha: 0.45),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (_cargandoInicial)
-              const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+              const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              )
             else
               Icon(
-                _jornadaCompleta ? Icons.check_circle
-                    : (!_tieneFotoBase ? Icons.lock
-                    : (tipo == 'ENTRADA' ? Icons.fingerprint : Icons.logout)),
+                _jornadaCompleta
+                    ? Icons.check_circle
+                    : (!_tieneFotoBase
+                          ? Icons.lock
+                          : (tipo == 'ENTRADA'
+                                ? Icons.fingerprint
+                                : Icons.logout)),
                 size: 24,
               ),
             const SizedBox(width: 10),
             Text(
-              _cargandoInicial ? 'Cargando...'
-                  : (_jornadaCompleta ? 'Jornada Completada'
-                  : (!_tieneFotoBase ? 'Registra tu foto biométrica'
-                  : 'Registrar ${tipo ?? ''}')),
+              _cargandoInicial
+                  ? 'Cargando...'
+                  : (_jornadaCompleta
+                        ? 'Jornada Completada'
+                        : (!_tieneFotoBase
+                              ? 'Registra tu foto biométrica'
+                              : 'Registrar ${tipo ?? ''}')),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ],
@@ -1159,9 +1473,14 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Historial',
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+        Text(
+          'Historial',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
+        ),
         const SizedBox(height: 12),
         if (_cargandoInicial)
           Container(
@@ -1182,11 +1501,15 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 children: [
                   Icon(Icons.history, size: 44, color: Colors.grey),
                   SizedBox(height: 8),
-                  Text('Sin registros previos',
-                      style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text(
+                    'Sin registros previos',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
                   SizedBox(height: 4),
-                  Text('Tu primer registro aparecerá aquí',
-                      style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  Text(
+                    'Tu primer registro aparecerá aquí',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
                 ],
               ),
             ),
@@ -1222,14 +1545,21 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Reportes',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3)),
-                Text('Resumen de tu jornada',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12, color: Colors.grey)),
+                Text(
+                  'Reportes',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                Text(
+                  'Resumen de tu jornada',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
               ],
             ),
             if (_historial.isNotEmpty)
@@ -1238,8 +1568,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 icon: const Icon(Icons.picture_as_pdf_outlined, size: 16),
                 label: const Text('Exportar PDF'),
                 style: TextButton.styleFrom(
-                    foregroundColor: green,
-                    padding: const EdgeInsets.symmetric(horizontal: 4)),
+                  foregroundColor: green,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                ),
               ),
           ],
         ),
@@ -1258,44 +1589,58 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('HORAS ESTA SEMANA',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5)),
+                      Text(
+                        'HORAS ESTA SEMANA',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.baseline,
                         textBaseline: TextBaseline.alphabetic,
                         children: [
-                          Text(_durLabel(r?.minutosTrabajadosSemana ?? 0),
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -1)),
+                          Text(
+                            _durLabel(r?.minutosTrabajadosSemana ?? 0),
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 30,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1,
+                            ),
+                          ),
                           const SizedBox(width: 8),
-                          Text('/ ${r?.metaHorasLabel ?? '48'}h',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  color: Colors.grey,
-                                  fontWeight: FontWeight.w600)),
+                          Text(
+                            '/ ${r?.metaHorasLabel ?? '48'}h',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ],
                       ),
                     ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 11, vertical: 5),
+                      horizontal: 11,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: green.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text('${r?.progresoPct ?? 0}%',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF5E9A1C))),
+                    child: Text(
+                      '${r?.progresoPct ?? 0}%',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF5E9A1C),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -1342,7 +1687,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 icon: Icons.task_alt_outlined,
                 iconBg: green.withValues(alpha: 0.12),
                 iconColor: const Color(0xFF5E9A1C),
-                value: r?.puntualidadPct != null ? '${r!.puntualidadPct}%' : '—',
+                value: r?.puntualidadPct != null
+                    ? '${r!.puntualidadPct}%'
+                    : '—',
                 label: 'Puntualidad',
               ),
             ),
@@ -1359,8 +1706,11 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
       return const SizedBox(
         height: 92,
         child: Center(
-            child: Text('Sin datos de la semana',
-                style: TextStyle(color: Colors.grey, fontSize: 12))),
+          child: Text(
+            'Sin datos de la semana',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ),
       );
     }
     final maxH = r!.maxHorasDia;
@@ -1394,8 +1744,8 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                         color: d.esHoy
                             ? green
                             : (tieneDatos
-                                ? green.withValues(alpha: 0.30)
-                                : const Color(0xFFEAEDE3)),
+                                  ? green.withValues(alpha: 0.30)
+                                  : const Color(0xFFEAEDE3)),
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(7),
                           bottom: Radius.circular(4),
@@ -1438,19 +1788,28 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-                color: iconBg, borderRadius: BorderRadius.circular(9)),
+              color: iconBg,
+              borderRadius: BorderRadius.circular(9),
+            ),
             child: Icon(icon, color: iconColor, size: 16),
           ),
           const SizedBox(height: 9),
-          Text(value,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 18, fontWeight: FontWeight.w800)),
+          Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
           const SizedBox(height: 1),
-          Text(label,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 11,
+              color: Colors.grey,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -1469,12 +1828,19 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     final tardanzas = dias.where((d) => d.llegoTarde).toList();
     if (tardanzas.isEmpty) return const [];
     return [
-      Text('Tardanzas de la semana',
-          style: GoogleFonts.plusJakartaSans(
-              fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+      Text(
+        'Tardanzas de la semana',
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 19,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.3,
+        ),
+      ),
       const SizedBox(height: 4),
-      Text('Justifícalas para que RR.HH. las revise',
-          style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey)),
+      Text(
+        'Justifícalas para que RR.HH. las revise',
+        style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.grey),
+      ),
       const SizedBox(height: 10),
       ...tardanzas.map(_tarjetaTardanza),
       const SizedBox(height: 28),
@@ -1484,10 +1850,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   Widget _tarjetaTardanza(DiaResumen d) {
     final sol = _justifTardanza[d.fecha];
     final fechaDt = DateTime.tryParse(d.fecha);
-    final fechaLabel =
-        fechaDt != null ? '${_dias[fechaDt.weekday - 1]} ${fechaDt.day}' : d.fecha;
-    final minTxt =
-        d.minutosTarde != null ? '${d.minutosTarde} min tarde' : 'Tardanza';
+    final fechaLabel = fechaDt != null
+        ? '${_dias[fechaDt.weekday - 1]} ${fechaDt.day}'
+        : d.fecha;
+    final minTxt = d.minutosTarde != null
+        ? '${d.minutosTarde} min tarde'
+        : 'Tardanza';
 
     final Color estadoColor;
     final String estadoLabel;
@@ -1520,28 +1888,44 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-                color: estadoColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(11)),
-            child: Icon(Icons.running_with_errors_outlined,
-                color: estadoColor, size: 20),
+              color: estadoColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              Icons.running_with_errors_outlined,
+              color: estadoColor,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(fechaLabel,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14, fontWeight: FontWeight.w700)),
+                Text(
+                  fechaLabel,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(minTxt,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12, color: Colors.grey)),
+                Text(
+                  minTxt,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
                 if (sol != null && (sol.observacion ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text('RR.HH.: ${sol.observacion}',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11, color: estadoColor)),
+                  Text(
+                    'RR.HH.: ${sol.observacion}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: estadoColor,
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -1554,29 +1938,41 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                 backgroundColor: const Color(0xFF8FD11B),
                 foregroundColor: Colors.white,
                 elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                shape:
-                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-              child: const Text('Justificar',
-                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+              child: const Text(
+                'Justificar',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
             )
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                  color: estadoColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(estadoIcon, size: 13, color: estadoColor),
-                const SizedBox(width: 4),
-                Text(estadoLabel,
+                color: estadoColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(estadoIcon, size: 13, color: estadoColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    estadoLabel,
                     style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: estadoColor)),
-              ]),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: estadoColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
@@ -1599,37 +1995,56 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
             padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom),
             decoration: BoxDecoration(
               color: Theme.of(ctx).scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
             ),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Justificar tardanza',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(
+                    'Justificar tardanza',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Text(
-                      '${d.fecha}${d.minutosTarde != null ? ' · ${d.minutosTarde} min tarde' : ''}',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12, color: Colors.grey)),
+                    '${d.fecha}${d.minutosTarde != null ? ' · ${d.minutosTarde} min tarde' : ''}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
                   const SizedBox(height: 14),
-                  Text('Motivo',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text(
+                    'Motivo',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Wrap(spacing: 8, runSpacing: 8, children: [
-                    for (final m in kModalidadesTardanza)
-                      ChoiceChip(
-                        label: Text(m, style: const TextStyle(fontSize: 12)),
-                        selected: modalidad == m,
-                        selectedColor:
-                            const Color(0xFF8FD11B).withValues(alpha: 0.2),
-                        onSelected: (_) =>
-                            setLocal(() => modalidad = (modalidad == m ? null : m)),
-                      ),
-                  ]),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final m in kModalidadesTardanza)
+                        ChoiceChip(
+                          label: Text(m, style: const TextStyle(fontSize: 12)),
+                          selected: modalidad == m,
+                          selectedColor: const Color(
+                            0xFF8FD11B,
+                          ).withValues(alpha: 0.2),
+                          onSelected: (_) => setLocal(
+                            () => modalidad = (modalidad == m ? null : m),
+                          ),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 14),
                   TextField(
                     controller: detalleCtrl,
@@ -1650,9 +2065,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                               if (modalidad == null &&
                                   detalleCtrl.text.trim().isEmpty) {
                                 ScaffoldMessenger.of(ctx).showSnackBar(
-                                    const SnackBar(
-                                        content: Text(
-                                            'Elige un motivo o escribe un detalle')));
+                                  const SnackBar(
+                                    content: Text(
+                                      'Elige un motivo o escribe un detalle',
+                                    ),
+                                  ),
+                                );
                                 return;
                               }
                               setLocal(() => enviando = true);
@@ -1667,17 +2085,21 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                                 Navigator.pop(ctx);
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                          content: Text(res.mensaje),
-                                          backgroundColor:
-                                              const Color(0xFF8FD11B)));
+                                    SnackBar(
+                                      content: Text(res.mensaje),
+                                      backgroundColor: const Color(0xFF8FD11B),
+                                    ),
+                                  );
                                   await _cargarJustificaciones();
                                 }
                               } else {
                                 setLocal(() => enviando = false);
-                                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(
                                     content: Text(res.mensaje),
-                                    backgroundColor: Colors.red.shade700));
+                                    backgroundColor: Colors.red.shade700,
+                                  ),
+                                );
                               }
                             },
                       style: ElevatedButton.styleFrom(
@@ -1685,17 +2107,25 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: enviando
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Text('Enviar justificación',
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Enviar justificación',
                               style: TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w700)),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                     ),
                   ),
                 ],
@@ -1708,16 +2138,30 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
   }
 
   BoxDecoration _cardDecoration() {
-    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
-    const green   = Color(0xFF8FD11B);
+    const green = Color(0xFF8FD11B);
     return BoxDecoration(
       color: surface,
       borderRadius: BorderRadius.circular(14),
-      border: isDark ? Border.all(color: green.withValues(alpha: 0.45), width: 1.0) : null,
+      border: isDark
+          ? Border.all(color: green.withValues(alpha: 0.45), width: 1.0)
+          : null,
       boxShadow: isDark
-          ? [BoxShadow(color: green.withValues(alpha: 0.10), blurRadius: 12, spreadRadius: 1)]
-          : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+          ? [
+              BoxShadow(
+                color: green.withValues(alpha: 0.10),
+                blurRadius: 12,
+                spreadRadius: 1,
+              ),
+            ]
+          : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
     );
   }
 }
@@ -1742,11 +2186,27 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
   static const _salmon = Color(0xFFA9897A);
 
   static const _diasSemana = [
-    'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo',
+    'Lunes',
+    'Martes',
+    'Miércoles',
+    'Jueves',
+    'Viernes',
+    'Sábado',
+    'Domingo',
   ];
   static const _mesesAbr = [
-    'ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN',
-    'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC',
+    'ENE',
+    'FEB',
+    'MAR',
+    'ABR',
+    'MAY',
+    'JUN',
+    'JUL',
+    'AGO',
+    'SEP',
+    'OCT',
+    'NOV',
+    'DIC',
   ];
 
   bool _expanded = false;
@@ -1776,7 +2236,10 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
 
     int? minAlmuerzo;
     if (iniAlm != null && finAlm != null) {
-      minAlmuerzo = finAlm.timestamp.difference(iniAlm.timestamp).inMinutes.abs();
+      minAlmuerzo = finAlm.timestamp
+          .difference(iniAlm.timestamp)
+          .inMinutes
+          .abs();
     }
     int? minTrab;
     if (entrada != null && salida != null) {
@@ -1786,7 +2249,9 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
     final totalLabel = minTrab != null ? _dur(minTrab) : '--';
 
     // Estado del día a partir de las marcaciones
-    final hayRechazo = regs.any((r) => r.status != 'APROBADO' && r.resultadoIa == 'rechazado');
+    final hayRechazo = regs.any(
+      (r) => r.status != 'APROBADO' && r.resultadoIa == 'rechazado',
+    );
     final hayRevision = regs.any((r) => r.resultadoIa == 'revision_manual');
     final estadoLabel = hayRechazo
         ? 'Con rechazos'
@@ -1802,7 +2267,11 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
         color: surface,
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
-          BoxShadow(color: Color(0x0D282E2A), blurRadius: 10, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Color(0x0D282E2A),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
@@ -1822,17 +2291,23 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(_mesesAbr[fecha.month - 1],
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w700,
-                              color: widget.isFirst ? _green : Colors.grey)),
-                      Text('${fecha.day}',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              height: 1.1,
-                              color: widget.isFirst ? _green : Colors.grey.shade700)),
+                      Text(
+                        _mesesAbr[fecha.month - 1],
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: widget.isFirst ? _green : Colors.grey,
+                        ),
+                      ),
+                      Text(
+                        '${fecha.day}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          height: 1.1,
+                          color: widget.isFirst ? _green : Colors.grey.shade700,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1841,33 +2316,51 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_diasSemana[fecha.weekday - 1],
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14.5, fontWeight: FontWeight.w700)),
-                      Text('${regs.length} marcaciones',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11.5, color: Colors.grey)),
+                      Text(
+                        _diasSemana[fecha.weekday - 1],
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        '${regs.length} marcaciones',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(totalLabel,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15, fontWeight: FontWeight.w800)),
+                    Text(
+                      totalLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: estadoColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(estadoLabel,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: estadoColor)),
+                      child: Text(
+                        estadoLabel,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: estadoColor,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1879,15 +2372,23 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
             padding: const EdgeInsets.fromLTRB(18, 4, 18, 14),
             child: Row(
               children: [
-                _endpoint('Entrada', entrada != null ? _hhmm(entrada.timestamp) : '--:--', _green, false),
+                _endpoint(
+                  'Entrada',
+                  entrada != null ? _hhmm(entrada.timestamp) : '--:--',
+                  _green,
+                  false,
+                ),
                 Expanded(
                   child: Column(
                     children: [
-                      Text(totalLabel,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFFB6BBAE))),
+                      Text(
+                        totalLabel,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFB6BBAE),
+                        ),
+                      ),
                       const SizedBox(height: 5),
                       Row(
                         children: List.generate(
@@ -1906,7 +2407,12 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
                     ],
                   ),
                 ),
-                _endpoint('Salida', salida != null ? _hhmm(salida.timestamp) : '--:--', _blue, true),
+                _endpoint(
+                  'Salida',
+                  salida != null ? _hhmm(salida.timestamp) : '--:--',
+                  _blue,
+                  true,
+                ),
               ],
             ),
           ),
@@ -1916,7 +2422,10 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
               onTap: () => setState(() => _expanded = !_expanded),
               child: Container(
                 margin: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF7F7F0),
                   borderRadius: BorderRadius.circular(12),
@@ -1925,27 +2434,36 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
                   children: [
                     const Icon(Icons.coffee_outlined, color: _salmon, size: 15),
                     const SizedBox(width: 9),
-                    Text('Almuerzo',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade700)),
+                    Text(
+                      'Almuerzo',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         iniAlm != null && finAlm != null
                             ? '${_hhmm(iniAlm.timestamp)} – ${_hhmm(finAlm.timestamp)} · $minAlmuerzo min'
                             : (iniAlm != null
-                                ? 'Inició ${_hhmm(iniAlm.timestamp)}'
-                                : 'Fin ${_hhmm(finAlm!.timestamp)}'),
+                                  ? 'Inició ${_hhmm(iniAlm.timestamp)}'
+                                  : 'Fin ${_hhmm(finAlm!.timestamp)}'),
                         style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFFB6BBAE)),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFFB6BBAE),
+                        ),
                       ),
                     ),
-                    Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                        color: const Color(0xFFB6BBAE), size: 16),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: const Color(0xFFB6BBAE),
+                      size: 16,
+                    ),
                   ],
                 ),
               ),
@@ -1958,13 +2476,21 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(_expanded ? 'Ocultar marcaciones' : 'Ver marcaciones',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey)),
-                    Icon(_expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                        color: Colors.grey, size: 16),
+                    Text(
+                      _expanded ? 'Ocultar marcaciones' : 'Ver marcaciones',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: Colors.grey,
+                      size: 16,
+                    ),
                   ],
                 ),
               ),
@@ -1980,10 +2506,12 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
                       children: [
                         const Divider(color: Color(0xFFEEF0E8), height: 1),
                         const SizedBox(height: 12),
-                        ...regs.map((r) => Padding(
-                              padding: const EdgeInsets.only(bottom: 11),
-                              child: _eventRow(r),
-                            )),
+                        ...regs.map(
+                          (r) => Padding(
+                            padding: const EdgeInsets.only(bottom: 11),
+                            child: _eventRow(r),
+                          ),
+                        ),
                       ],
                     ),
                   )
@@ -1996,18 +2524,23 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
 
   Widget _endpoint(String label, String time, Color color, bool alignRight) {
     final dot = Container(
-      width: 9, height: 9,
+      width: 9,
+      height: 9,
       decoration: BoxDecoration(shape: BoxShape.circle, color: color),
     );
-    final lbl = Text(label.toUpperCase(),
-        style: GoogleFonts.plusJakartaSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Colors.grey.shade700,
-            letterSpacing: 0.3));
+    final lbl = Text(
+      label.toUpperCase(),
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: Colors.grey.shade700,
+        letterSpacing: 0.3,
+      ),
+    );
     return Column(
-      crossAxisAlignment:
-          alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignRight
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Row(
           children: alignRight
@@ -2016,10 +2549,17 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
         ),
         Padding(
           padding: EdgeInsets.only(
-              left: alignRight ? 0 : 15, right: alignRight ? 15 : 0, top: 3),
-          child: Text(time,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 20, fontWeight: FontWeight.w800)),
+            left: alignRight ? 0 : 15,
+            right: alignRight ? 15 : 0,
+            top: 3,
+          ),
+          child: Text(
+            time,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
       ],
     );
@@ -2047,15 +2587,18 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
     return Row(
       children: [
         Container(
-          width: 30, height: 30,
+          width: 30,
+          height: 30,
           decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(9)),
+            color: color.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(9),
+          ),
           child: Icon(
             esAlmuerzo
                 ? Icons.coffee_outlined
                 : (esEntrada ? Icons.login_rounded : Icons.logout_rounded),
-            color: color, size: 15,
+            color: color,
+            size: 15,
           ),
         ),
         const SizedBox(width: 11),
@@ -2063,20 +2606,31 @@ class _DiaHistorialCardState extends State<_DiaHistorialCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13, fontWeight: FontWeight.w700)),
-              Text(meta,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11, color: Colors.grey)),
+              Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                meta,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: Colors.grey,
+                ),
+              ),
             ],
           ),
         ),
-        Text(_hhmm(r.timestamp),
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 13, fontWeight: FontWeight.w700)),
+        Text(
+          _hhmm(r.timestamp),
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
       ],
     );
   }
 }
-
