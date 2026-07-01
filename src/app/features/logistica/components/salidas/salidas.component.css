@@ -171,42 +171,9 @@
 .sl-pg-info { font-size: .82rem; color: var(--text-muted,#6b7280); }
 
 /* ═══════════════════════════════════════════════════════
-   MODAL DETALLE
+   MODAL DETALLE (chrome del modal viene de <app-modal>, mismo
+   estilo que Rellenar Stock — aquí solo el contenido)
    ═══════════════════════════════════════════════════════ */
-
-.sl-det-overlay {
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(0,0,0,.6);
-  display: flex; align-items: center; justify-content: center;
-  padding: 1.5rem;
-}
-
-.sl-det-modal {
-  background: var(--card-bg,#fff);
-  border-radius: 16px;
-  width: 100%; max-width: 680px;
-  max-height: 88vh; overflow-y: auto;
-  box-shadow: 0 24px 64px rgba(0,0,0,.3);
-  display: flex; flex-direction: column;
-}
-
-.sl-det-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 1.2rem 1.4rem;
-  border-bottom: 1px solid var(--border-color,#e7eae6);
-  flex-shrink: 0;
-}
-.sl-det-titulo { font-size: 1rem; font-weight: 700; color: var(--text-main,#0f172a); margin: 0 0 .2rem; }
-.sl-det-sub    { font-size: .8rem; color: var(--text-muted,#64748b); margin: 0; }
-
-.sl-btn-cerrar {
-  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
-  border: 1px solid var(--border-color,#e7eae6); background: var(--card-bg,#fff);
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  color: var(--text-muted,#64748b);
-}
-.sl-btn-cerrar svg { width: 16px; height: 16px; }
-.sl-btn-cerrar:hover { background: var(--hover-bg,#f3f4f6); }
 
 .sl-det-info {
   display: grid; grid-template-columns: 1fr 1fr;

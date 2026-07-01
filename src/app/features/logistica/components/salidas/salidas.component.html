@@ -170,21 +170,19 @@
 
 <!-- ══ MODAL DETALLE ══ -->
 @if (salidaDetalle) {
-  <div class="sl-det-overlay" (click)="cerrarDetalle()">
-    <div class="sl-det-modal" (click)="$event.stopPropagation()">
+  <app-modal
+    [open]="true"
+    title="Detalle de Salida"
+    [subtitle]="salidaDetalle.proyectoNombre + ' · ' + fechaCorta(salidaDetalle.fechaSalida)"
+    maxWidth="680px"
+    iconBg="rgba(59,130,246,0.12)"
+    iconColor="#2563eb"
+    (closeModal)="cerrarDetalle()">
 
-      <!-- Header -->
-      <div class="sl-det-header">
-        <div>
-          <h3 class="sl-det-titulo">Detalle de Salida</h3>
-          <p class="sl-det-sub">{{ salidaDetalle.proyectoNombre }} · {{ fechaCorta(salidaDetalle.fechaSalida) }}</p>
-        </div>
-        <button class="sl-btn-cerrar" (click)="cerrarDetalle()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+      <path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/>
+    </svg>
 
       <!-- Info rápida -->
       <div class="sl-det-info">
@@ -272,6 +270,5 @@
         </button>
       </div>
 
-    </div>
-  </div>
+  </app-modal>
 }

@@ -4,12 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { Salida, SalidaItem, SalidasKpis } from '../../logistica.models';
 
 @Component({
   selector: 'app-salidas',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './salidas.component.html',
   styleUrls: ['./salidas.component.css'],
 })
