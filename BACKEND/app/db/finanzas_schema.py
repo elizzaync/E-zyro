@@ -360,14 +360,26 @@ FINANZAS_DDL = [
 	FOREIGN KEY(asiento_id) REFERENCES asiento_contable (id)
 )""",
     """CREATE TABLE IF NOT EXISTS aplicacion_pago_proveedor (
-	id uuid NOT NULL, 
-	pago_id uuid NOT NULL, 
-	factura_id uuid NOT NULL, 
-	monto_aplicado NUMERIC(14, 2) NOT NULL, 
-	PRIMARY KEY (id), 
-	CONSTRAINT chk_aplicacion_monto_positivo CHECK (monto_aplicado > 0), 
-	FOREIGN KEY(pago_id) REFERENCES pago_proveedor (id), 
+	id uuid NOT NULL,
+	pago_id uuid NOT NULL,
+	factura_id uuid NOT NULL,
+	monto_aplicado NUMERIC(14, 2) NOT NULL,
+	PRIMARY KEY (id),
+	CONSTRAINT chk_aplicacion_monto_positivo CHECK (monto_aplicado > 0),
+	FOREIGN KEY(pago_id) REFERENCES pago_proveedor (id),
 	FOREIGN KEY(factura_id) REFERENCES factura_proveedor (id)
+)""",
+    """CREATE TABLE IF NOT EXISTS configuracion_contable_empresa (
+	id uuid NOT NULL,
+	empresa_id uuid NOT NULL,
+	cuenta_cierre_codigo VARCHAR(20) NOT NULL,
+	cuenta_utilidad_codigo VARCHAR(20) NOT NULL,
+	cuenta_perdida_codigo VARCHAR(20) NOT NULL,
+	created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+	updated_at TIMESTAMP WITHOUT TIME ZONE,
+	PRIMARY KEY (id),
+	CONSTRAINT uq_config_contable_empresa UNIQUE (empresa_id),
+	FOREIGN KEY(empresa_id) REFERENCES empresa (id)
 )""",
 ]
 

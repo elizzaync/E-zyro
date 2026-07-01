@@ -21,6 +21,18 @@ from ..services import reportes_financieros_service as rep
 router = APIRouter(prefix="/reportes-financieros", tags=["reportes-financieros"])
 
 
+@router.get("/resumen")
+def resumen_financiero(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Dashboard de Finanzas: disponible, CxC/CxP con vencidos, resultado del
+    mes, top gastos, flujo 6 meses y caja proyectada 30/60/90. Permiso propio
+    (`finanzas_resumen.ver`) porque expone la foto económica completa de la
+    empresa: cada rol decide si lo ve, independiente de los submódulos."""
+    exigir_permiso(db, payload, "finanzas_resumen", "ver")
+    return rep.resumen_financiero(db, payload["empresa_id"])
+
+
 @router.get("/balance-comprobacion")
 def balance_comprobacion(
     periodo: str = Query(..., description="YYYY-MM"),

@@ -102,6 +102,12 @@ CATALOGO_PCGE: list[tuple[str, str, str, str | None]] = [
     ("7011", "Mercaderías - terceros", "ingreso", None),
     ("75", "Otros ingresos de gestión", "ingreso", None),
     ("759", "Otros ingresos de gestión", "ingreso", None),
+    # ── Elemento 8 — Saldos intermediarios de gestión ────────────────────────
+    # Cuenta puente del cierre de ejercicio (cierre_ejercicio_service): tras el
+    # cierre su saldo queda en cero, por eso se clasifica como patrimonio (los
+    # 5 tipos del CHECK) y no distorsiona balance ni resultados.
+    ("89", "Determinación del resultado del ejercicio", "patrimonio", None),
+    ("891", "Utilidad", "patrimonio", None),
 ]
 
 

@@ -170,6 +170,8 @@ from app.models import (  # noqa: F401
     planilla as planilla_model,
     # Fase 10 — Bus de eventos contables (mapeos + historial)
     eventos_contables,
+    # Fase 11 — Configuración contable (cuentas del cierre de ejercicio)
+    configuracion_contable,
     # Repositorio de documentos de cumplimiento / SST (homologaciones, ATS, PETAR)
     documento_sst,
 )
@@ -968,10 +970,18 @@ def _run_migrations():
         sembrar_permisos(conn, "asistencia", ["ver", "validar", "registrar", "configurar"],
                          descripcion_base="Asistencia:")
         # ── Finanzas · Fase 1 — Contabilidad / Libro Mayor ───────────────────
+        #   `configurar` = editar la Configuración contable (cuentas del cierre);
+        #   `cerrar_ejercicio` = cierre/reversión anual (más sensible que el mensual).
         sembrar_permisos(conn, "contabilidad",
                          ["ver", "crear_asiento", "gestionar_cuentas",
-                          "abrir_periodo", "cerrar_periodo", "reabrir_periodo"],
+                          "abrir_periodo", "cerrar_periodo", "reabrir_periodo",
+                          "configurar", "cerrar_ejercicio"],
                          descripcion_base="Contabilidad:")
+        # ── Finanzas · Fase 11 — Resumen financiero (dashboard) ──────────────
+        #   Permiso propio: el resumen expone la foto económica completa de la
+        #   empresa, independiente de qué submódulos vea cada rol.
+        sembrar_permisos(conn, "finanzas_resumen", ["ver"],
+                         descripcion_base="Resumen financiero:")
         # ── Finanzas · Fase 2 — Controlling / Centros de costo ───────────────
         sembrar_permisos(conn, "controlling",
                          ["ver", "gestionar_centros_costo"],

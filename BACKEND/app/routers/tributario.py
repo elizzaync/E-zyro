@@ -94,3 +94,23 @@ def registro_ventas(
 ):
     exigir_permiso(db, payload, "tributario", "ver")
     return [RegistroFila(**f) for f in tributario.registro_ventas(db, payload["empresa_id"], periodo)]
+
+
+@router.get("/registro-compras/ple")
+def registro_compras_ple(
+    periodo: str = Query(..., description="YYYY-MM"),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """TXT PLE 8.1 (Registro de Compras) listo para el Validador SUNAT."""
+    exigir_permiso(db, payload, "tributario", "ver")
+    return tributario.registro_compras_ple(db, payload["empresa_id"], periodo)
+
+
+@router.get("/registro-ventas/ple")
+def registro_ventas_ple(
+    periodo: str = Query(..., description="YYYY-MM"),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """TXT PLE 14.1 (Registro de Ventas e Ingresos) listo para el Validador SUNAT."""
+    exigir_permiso(db, payload, "tributario", "ver")
+    return tributario.registro_ventas_ple(db, payload["empresa_id"], periodo)

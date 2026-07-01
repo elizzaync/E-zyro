@@ -123,6 +123,8 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     "Contador": [
         "dashboard:ver",
         "contabilidad:ver",
+        "finanzas_resumen:ver",
+        "tributario:ver",
         "conciliacion_bancaria:ver",
         "conciliacion_bancaria:gestionar",
         "conciliacion_bancaria:conciliar",

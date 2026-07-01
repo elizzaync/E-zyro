@@ -291,3 +291,76 @@ def balance_comprobacion(
         total_acreedor=total_acreedor,
         cuadra=(total_deudor == total_acreedor),
     )
+
+
+# ── Configuración contable y cierre de ejercicio (Fase 11) ───────────────────
+from pydantic import BaseModel  # noqa: E402  (schemas locales, patrón eventos_contables)
+from ..services import cierre_ejercicio_service as cierre  # noqa: E402
+
+
+class ConfigContableOut(BaseModel):
+    cuenta_cierre_codigo: str
+    cuenta_utilidad_codigo: str
+    cuenta_perdida_codigo: str
+
+
+class ConfigContableIn(BaseModel):
+    cuenta_cierre_codigo: Optional[str] = None
+    cuenta_utilidad_codigo: Optional[str] = None
+    cuenta_perdida_codigo: Optional[str] = None
+
+
+def _config_out(cfg) -> ConfigContableOut:
+    return ConfigContableOut(
+        cuenta_cierre_codigo=cfg.cuenta_cierre_codigo,
+        cuenta_utilidad_codigo=cfg.cuenta_utilidad_codigo,
+        cuenta_perdida_codigo=cfg.cuenta_perdida_codigo,
+    )
+
+
+@router.get("/configuracion", response_model=ConfigContableOut)
+def obtener_configuracion(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    return _config_out(cierre.obtener_config(db, payload["empresa_id"]))
+
+
+@router.put("/configuracion", response_model=ConfigContableOut)
+def actualizar_configuracion(
+    datos: ConfigContableIn,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "configurar")
+    cfg = cierre.actualizar_config(db, payload["empresa_id"],
+                                   datos.dict(exclude_unset=True))
+    return _config_out(cfg)
+
+
+@router.get("/ejercicios/{anio}")
+def estado_ejercicio(
+    anio: int,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    return cierre.estado_ejercicio(db, payload["empresa_id"], anio)
+
+
+@router.post("/ejercicios/{anio}/cerrar")
+def cerrar_ejercicio(
+    anio: int,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "cerrar_ejercicio")
+    return cierre.cerrar_ejercicio(db, payload["empresa_id"], anio,
+                                   creado_por_id=_empleado_id(db, payload))
+
+
+@router.post("/ejercicios/{anio}/revertir-cierre")
+def revertir_cierre_ejercicio(
+    anio: int,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "cerrar_ejercicio")
+    return cierre.revertir_cierre(db, payload["empresa_id"], anio,
+                                  creado_por_id=_empleado_id(db, payload))
