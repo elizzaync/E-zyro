@@ -128,6 +128,7 @@ class FinanzasService {
     required double subtotal,
     required double igv,
     String? cuentaGastoId,
+    String? documentoAfectadoId, // nota de crédito: factura cuyo saldo rebaja
   }) async {
     try {
       final r = await _client.post('/cuentas-por-pagar/facturas', {
@@ -139,6 +140,7 @@ class FinanzasService {
         'subtotal': subtotal,
         'igv': igv,
         'cuenta_gasto_id': ?cuentaGastoId,
+        'documento_afectado_id': ?documentoAfectadoId,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -211,6 +213,7 @@ class FinanzasService {
     required double subtotal,
     required double igv,
     bool alContado = false,
+    String? documentoAfectadoId, // nota de crédito: comprobante cuyo saldo rebaja
   }) async {
     try {
       final r = await _client.post('/cuentas-por-cobrar/facturas', {
@@ -222,6 +225,7 @@ class FinanzasService {
         'subtotal': subtotal,
         'igv': igv,
         'al_contado': alContado,
+        'documento_afectado_id': ?documentoAfectadoId,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -1005,6 +1009,38 @@ class FinanzasService {
       _getObj('/tributario/registro-compras/ple?periodo=$periodo', PleArchivo.fromJson);
   Future<ApiResult<PleArchivo>> registroVentasPle(String periodo) =>
       _getObj('/tributario/registro-ventas/ple?periodo=$periodo', PleArchivo.fromJson);
+
+  // ── Saldos iniciales / asiento de apertura ─────────────────────────────────
+  Future<ApiResult<EstadoApertura>> estadoApertura() =>
+      _getObj('/contabilidad/apertura', EstadoApertura.fromJson);
+
+  Future<ApiResult<Map<String, dynamic>>> cargarApertura({
+    required String fecha,
+    required List<Map<String, dynamic>> lineas, // {cuenta_codigo, monto}
+  }) async {
+    try {
+      final r = await _client.post('/contabilidad/apertura',
+          {'fecha': fecha, 'lineas': lineas});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> revertirApertura() async {
+    try {
+      final r = await _client.post('/contabilidad/apertura/revertir', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
 }
 
 int _toIntSvc(dynamic v) {

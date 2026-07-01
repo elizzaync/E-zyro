@@ -232,7 +232,9 @@ class _PantallaTributarioState extends State<PantallaTributario> {
                   const Text('Sin configuración registrada.', style: TextStyle(color: Colors.grey))
                 else ...[
                   _filaConfig('Régimen', '${cfg.regimenCodigo} (${cfg.regimenId})'),
-                  _filaConfig('Tasa IGV', '${(cfg.tasaIgv * 100).toStringAsFixed(2)} %'),
+                  // tasa_igv ya viene como porcentaje (18.00) desde el backend;
+                  // multiplicar por 100 mostraba "1800.00 %".
+                  _filaConfig('Tasa IGV', '${cfg.tasaIgv.toStringAsFixed(2)} %'),
                   _filaConfig('Cuenta IGV crédito fiscal', nombreCuenta(cfg.cuentaIgvCreditoFiscalId)),
                   _filaConfig('Cuenta IGV débito fiscal', nombreCuenta(cfg.cuentaIgvDebitoFiscalId)),
                 ],

@@ -8,6 +8,7 @@ import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
 import '../../utils/ui_insets.dart';
 import '../../widgets/verdant_theme.dart';
+import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
 /// Cierre de ejercicio anual + configuración contable (cuentas del cierre).
@@ -27,6 +28,7 @@ class _PantallaCierreContableState extends State<PantallaCierreContable> {
   FinanzasService? _svc;
   EstadoEjercicio? _estado;
   ConfigContable? _config;
+  EstadoApertura? _apertura;
   List<CuentaContable> _cuentasDetalle = [];
   int _anio = DateTime.now().year;
   bool _cargando = true;
@@ -69,10 +71,12 @@ class _PantallaCierreContableState extends State<PantallaCierreContable> {
     if (_svc == null) return;
     final c = await _svc!.configContable();
     final pc = await _svc!.planCuentas(nivel: 'detalle', soloActivas: true);
+    final ap = await _svc!.estadoApertura();
     if (!mounted) return;
     setState(() {
       _config = c.ok ? c.data : null;
       _cuentasDetalle = pc.ok ? (pc.data ?? []) : [];
+      _apertura = ap.ok ? ap.data : null;
     });
   }
 
@@ -111,6 +115,8 @@ class _PantallaCierreContableState extends State<PantallaCierreContable> {
                   _cardEjercicio(v, _estado!),
                   const SizedBox(height: 12),
                 ],
+                _cardApertura(v),
+                const SizedBox(height: 12),
                 _cardConfiguracion(v),
                 const SizedBox(height: 12),
                 _cardExplicacion(v),
@@ -364,6 +370,124 @@ class _PantallaCierreContableState extends State<PantallaCierreContable> {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Cierre de $_anio revertido.')));
       await _cargar();
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(r.errorMessage)));
+    }
+  }
+
+  // ── Saldos iniciales / asiento de apertura ─────────────────────────────────
+  Widget _cardApertura(VerdantColors v) {
+    final ap = _apertura;
+    final puedeCargar =
+        AppSession.i.isAdmin || AppSession.i.canCargarApertura;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: v.card,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: v.bd),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.flag_outlined, size: 16, color: v.heroSolid),
+          const SizedBox(width: 7),
+          Text('Saldos iniciales',
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: v.ink)),
+          const Spacer(),
+          if (ap != null)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: ap.cargada ? v.grnBg : v.ambBg,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(ap.cargada ? 'CARGADOS' : 'PENDIENTE',
+                  style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: ap.cargada ? v.grn : v.amb)),
+            ),
+        ]),
+        const SizedBox(height: 6),
+        Text(
+          ap != null && ap.cargada
+              ? 'Asiento de apertura ${ap.asientoNumero ?? ''} del ${ap.fecha ?? ''}. '
+                  'Tu contabilidad parte de los saldos reales de la empresa.'
+              : 'Si la empresa ya operaba antes de usar E-Zyro, carga aquí lo que '
+                  'tenía (caja, bancos, deudas, capital) para que los reportes '
+                  'reflejen la realidad desde el día uno.',
+          style: TextStyle(fontSize: 11.5, color: v.sub, height: 1.4),
+        ),
+        if (puedeCargar) ...[
+          const SizedBox(height: 12),
+          if (ap != null && ap.cargada)
+            OutlinedButton.icon(
+              onPressed: _procesando ? null : _confirmarRevertirApertura,
+              icon: const Icon(Icons.undo_rounded, size: 18),
+              label: const Text('Revertir saldos iniciales'),
+              style: OutlinedButton.styleFrom(foregroundColor: v.red),
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _procesando ? null : _abrirFormApertura,
+                icon: const Icon(Icons.flag_rounded, size: 18),
+                label: const Text('Cargar saldos iniciales'),
+                style: FilledButton.styleFrom(
+                    backgroundColor: v.heroSolid,
+                    foregroundColor: Colors.white),
+              ),
+            ),
+        ],
+      ]),
+    );
+  }
+
+  void _abrirFormApertura() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _FormApertura(onGuardado: () async {
+        await _cargarConfig();
+        await _cargar();
+      }),
+    );
+  }
+
+  Future<void> _confirmarRevertirApertura() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('¿Revertir los saldos iniciales?'),
+        content: const Text(
+            'Se generará un asiento de reversión (nada se borra) y podrás '
+            'volver a cargarlos con los montos corregidos.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Revertir')),
+        ],
+      ),
+    );
+    if (ok != true || _svc == null) return;
+    setState(() => _procesando = true);
+    final r = await _svc!.revertirApertura();
+    if (!mounted) return;
+    setState(() => _procesando = false);
+    if (r.ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saldos iniciales revertidos.')));
+      await _cargarConfig();
     } else {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(r.errorMessage)));

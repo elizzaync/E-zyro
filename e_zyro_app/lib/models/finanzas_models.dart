@@ -999,6 +999,18 @@ class EstadoEjercicio {
   }
 }
 
+// ── Saldos iniciales / asiento de apertura ───────────────────────────────────
+class EstadoApertura {
+  final bool cargada;
+  final String? fecha, asientoNumero;
+  EstadoApertura({required this.cargada, this.fecha, this.asientoNumero});
+  factory EstadoApertura.fromJson(Map<String, dynamic> j) => EstadoApertura(
+        cargada: j['cargada'] == true,
+        fecha: j['fecha']?.toString(),
+        asientoNumero: j['asiento_numero']?.toString(),
+      );
+}
+
 // ── Export PLE (SUNAT) ───────────────────────────────────────────────────────
 class PleArchivo {
   final String nombreArchivo, contenido;

@@ -123,10 +123,19 @@ class _State extends State<PantallaCuentasCobrar>
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => _FormComprobante(onGuardado: () {
-        _cargarComprobantes();
-        _cargarSaldos();
-      }),
+      builder: (_) => _FormComprobante(
+        // Comprobantes con saldo, para que una nota de crédito elija a cuál rebaja.
+        comprobantesAbiertos: _comprobantes
+            .where((f) =>
+                (f.estado == 'pendiente' || f.estado == 'cobrada_parcial') &&
+                f.tipoDocumento != 'nota_credito' &&
+                f.saldoPendiente > 0)
+            .toList(),
+        onGuardado: () {
+          _cargarComprobantes();
+          _cargarSaldos();
+        },
+      ),
     );
   }
 
@@ -171,8 +180,11 @@ class _State extends State<PantallaCuentasCobrar>
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _FormCobro(
+        // El backend marca 'cobrada_parcial' (no 'parcial'): sin este valor los
+        // comprobantes con cobro parcial desaparecían y no se podía saldar el resto.
         comprobantesPendientes: _comprobantes
-            .where((f) => f.estado == 'pendiente' || f.estado == 'parcial')
+            .where((f) =>
+                f.estado == 'pendiente' || f.estado == 'cobrada_parcial')
             .toList(),
         onGuardado: () {
           _cargarComprobantes();
@@ -448,8 +460,10 @@ class _TabCobros extends StatelessWidget {
 // ── Formulario emitir comprobante ─────────────────────────────────────────────
 
 class _FormComprobante extends StatefulWidget {
+  final List<Factura> comprobantesAbiertos;
   final VoidCallback onGuardado;
-  const _FormComprobante({required this.onGuardado});
+  const _FormComprobante(
+      {required this.comprobantesAbiertos, required this.onGuardado});
 
   @override
   State<_FormComprobante> createState() => _FormComprobanteState();
@@ -461,8 +475,13 @@ class _FormComprobanteState extends State<_FormComprobante> {
   String? _clienteId;
   final _numCtrl = TextEditingController();
   String _tipo = 'factura';
+  // Nota de crédito: comprobante del cliente cuyo saldo rebaja.
+  String? _documentoAfectadoId;
   DateTime _emision = DateTime.now();
-  DateTime? _vencimiento;
+  // Al crédito el vencimiento SIEMPRE viaja: sin default, si el usuario no
+  // tocaba el campo se enviaba null y el comprobante quedaba sin vencimiento
+  // (invisible para alertas y antigüedad de saldos).
+  DateTime? _vencimiento = DateTime.now().add(const Duration(days: 30));
   final _subtotalCtrl = TextEditingController();
   final _igvCtrl = TextEditingController(text: '18');
   bool _alContado = false;
@@ -474,6 +493,16 @@ class _FormComprobanteState extends State<_FormComprobante> {
   void initState() {
     super.initState();
     _cargarClientes();
+    _cargarTasaIgv();
+  }
+
+  /// Tasa de IGV inicial desde la configuración tributaria de la empresa.
+  Future<void> _cargarTasaIgv() async {
+    final svc = await getFinanzasService();
+    final pct = await svc.getTasaIgv(); // porcentaje (18.0)
+    if (!mounted) return;
+    setState(() =>
+        _igvCtrl.text = pct.toStringAsFixed(pct % 1 == 0 ? 0 : 2));
   }
 
   Future<void> _cargarClientes() async {
@@ -482,10 +511,21 @@ class _FormComprobanteState extends State<_FormComprobante> {
     if (mounted && r.ok) setState(() => _clientes = r.data!);
   }
 
+  bool get _esNotaCredito => _tipo == 'nota_credito';
+
+  List<Factura> get _afectablesDelCliente => widget.comprobantesAbiertos
+      .where((f) => f.terceroId == _clienteId)
+      .toList();
+
   Future<void> _guardar() async {
     if (!_form.currentState!.validate()) return;
     if (_clienteId == null) {
       mostrarError(context, 'Selecciona un cliente');
+      return;
+    }
+    if (_esNotaCredito && _documentoAfectadoId == null) {
+      mostrarError(
+          context, 'Selecciona el comprobante que afecta la nota de crédito');
       return;
     }
     setState(() => _guardando = true);
@@ -499,16 +539,19 @@ class _FormComprobanteState extends State<_FormComprobante> {
       numeroDocumento: _numCtrl.text.trim(),
       tipoDocumento: _tipo,
       fechaEmision: fmt.format(_emision),
-      fechaVencimiento:
-          _vencimiento != null ? fmt.format(_vencimiento!) : null,
+      fechaVencimiento: _esNotaCredito || _vencimiento == null
+          ? null
+          : fmt.format(_vencimiento!),
       subtotal: subtotal,
       igv: igv,
-      alContado: _alContado,
+      alContado: _esNotaCredito ? false : _alContado,
+      documentoAfectadoId: _esNotaCredito ? _documentoAfectadoId : null,
     );
     if (!mounted) return;
     setState(() => _guardando = false);
     if (r.ok) {
-      mostrarOk(context, 'Comprobante emitido');
+      mostrarOk(context,
+          _esNotaCredito ? 'Nota de crédito aplicada' : 'Comprobante emitido');
       Navigator.pop(context);
       widget.onGuardado();
     } else {
@@ -518,78 +561,108 @@ class _FormComprobanteState extends State<_FormComprobante> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
+    return FinFormSheet(
+      titulo: 'Emitir comprobante',
+      subtitulo: 'Crea la cuenta por cobrar y su asiento contable automáticamente',
+      icono: Icons.request_quote_outlined,
+      textoBoton: 'Emitir comprobante',
+      guardando: _guardando,
+      onGuardar: _guardar,
       child: Form(
         key: _form,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Emitir comprobante',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _clienteId,
-                decoration: const InputDecoration(
-                  labelText: 'Cliente',
-                  border: OutlineInputBorder(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _clienteId,
+              decoration: const InputDecoration(labelText: 'Cliente'),
+              items: _clientes
+                  .map((c) => DropdownMenuItem(
+                        value: c.id,
+                        child: Text(c.razonSocial),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() {
+                _clienteId = v;
+                _documentoAfectadoId = null;
+              }),
+              validator: (v) => v == null ? 'Requerido' : null,
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: _numCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'N° documento'),
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Requerido' : null,
                 ),
-                items: _clientes
-                    .map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text(c.razonSocial),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  initialValue: _tipo,
+                  decoration: const InputDecoration(labelText: 'Tipo'),
+                  items: _tipos
+                      .map((t) => DropdownMenuItem(
+                          value: t, child: Text(etiquetaLegible(t))))
+                      .toList(),
+                  onChanged: (v) => setState(() {
+                    _tipo = v!;
+                    if (!_esNotaCredito) _documentoAfectadoId = null;
+                  }),
+                ),
+              ),
+            ]),
+            if (_esNotaCredito) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _documentoAfectadoId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Comprobante que afecta',
+                  helperText:
+                      'La nota de crédito REBAJA el saldo por cobrar de este comprobante',
+                ),
+                items: _afectablesDelCliente
+                    .map((f) => DropdownMenuItem(
+                          value: f.id,
+                          child: Text(
+                              '${f.numeroDocumento} · saldo ${money(f.saldoPendiente)}',
+                              overflow: TextOverflow.ellipsis),
                         ))
                     .toList(),
-                onChanged: (v) => setState(() => _clienteId = v),
-                validator: (v) => v == null ? 'Requerido' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _numCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'N° documento',
-                  border: OutlineInputBorder(),
-                ),
+                onChanged: (v) => setState(() => _documentoAfectadoId = v),
                 validator: (v) =>
-                    (v == null || v.isEmpty) ? 'Requerido' : null,
+                    _esNotaCredito && v == null ? 'Requerido' : null,
               ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _tipo,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo documento',
-                  border: OutlineInputBorder(),
-                ),
-                items: _tipos
-                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                    .toList(),
-                onChanged: (v) => setState(() => _tipo = v!),
-              ),
-              const SizedBox(height: 12),
-              _DateField(
-                label: 'Fecha emisión',
-                value: _emision,
-                onChanged: (d) => setState(() => _emision = d),
-              ),
-              const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 12),
+            _DateField(
+              label: 'Fecha emisión',
+              value: _emision,
+              onChanged: (d) => setState(() => _emision = d),
+            ),
+            if (!_esNotaCredito) ...[
+              const SizedBox(height: 6),
               SwitchListTile(
                 title: const Text('Al contado'),
+                subtitle: const Text('El cobro ingresa a caja en el momento',
+                    style: TextStyle(fontSize: 11.5)),
                 value: _alContado,
                 onChanged: (v) => setState(() {
                   _alContado = v;
-                  if (v) _vencimiento = null;
+                  _vencimiento = v
+                      ? null
+                      : DateTime.now().add(const Duration(days: 30));
                 }),
                 contentPadding: EdgeInsets.zero,
               ),
               if (!_alContado) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 _DateField(
                   label: 'Fecha vencimiento',
                   value: _vencimiento ??
@@ -597,53 +670,44 @@ class _FormComprobanteState extends State<_FormComprobante> {
                   onChanged: (d) => setState(() => _vencimiento = d),
                 ),
               ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: _subtotalCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Subtotal (S/)',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        final d = double.tryParse(v ?? '');
-                        if (d == null || d <= 0) return 'Monto inválido';
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _igvCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'IGV %',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: _guardando ? null : _guardar,
-                child: _guardando
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Emitir'),
-              ),
             ],
-          ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _subtotalCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Subtotal (S/)'),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) {
+                      final d = double.tryParse(v ?? '');
+                      if (d == null || d <= 0) return 'Monto inválido';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _igvCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    decoration: const InputDecoration(labelText: 'IGV %'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            FinTotalesCard(
+              subtotal: double.tryParse(_subtotalCtrl.text) ?? 0,
+              igvPct: double.tryParse(_igvCtrl.text) ?? 18,
+            ),
+          ],
         ),
       ),
     );
@@ -767,147 +831,138 @@ class _FormCobroState extends State<_FormCobro> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Registrar cobro de cliente',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _clienteId,
-              decoration: const InputDecoration(
-                labelText: 'Cliente',
-                border: OutlineInputBorder(),
+    return FinFormSheet(
+      titulo: 'Registrar cobro de cliente',
+      subtitulo: 'Aplica el cobro a los comprobantes y mueve caja/bancos automáticamente',
+      icono: Icons.attach_money_rounded,
+      textoBoton: 'Registrar cobro',
+      guardando: _guardando,
+      onGuardar: _guardar,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: _clienteId,
+            decoration: const InputDecoration(labelText: 'Cliente'),
+            items: _clientes
+                .map((c) =>
+                    DropdownMenuItem(value: c.id, child: Text(c.razonSocial)))
+                .toList(),
+            onChanged: _seleccionarCliente,
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: _DateField(
+                label: 'Fecha de cobro',
+                value: _fecha,
+                onChanged: (d) => setState(() => _fecha = d),
               ),
-              items: _clientes
-                  .map((c) =>
-                      DropdownMenuItem(value: c.id, child: Text(c.razonSocial)))
-                  .toList(),
-              onChanged: _seleccionarCliente,
             ),
-            const SizedBox(height: 12),
-            _DateField(
-              label: 'Fecha de cobro',
-              value: _fecha,
-              onChanged: (d) => setState(() => _fecha = d),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _medioPago,
-              decoration: const InputDecoration(
-                labelText: 'Medio de pago',
-                border: OutlineInputBorder(),
+            const SizedBox(width: 12),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: _medioPago,
+                decoration: const InputDecoration(labelText: 'Medio'),
+                items: _medios
+                    .map((m) => DropdownMenuItem(
+                        value: m, child: Text(etiquetaLegible(m))))
+                    .toList(),
+                onChanged: (v) => setState(() => _medioPago = v!),
               ),
-              items: _medios
-                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                  .toList(),
-              onChanged: (v) => setState(() => _medioPago = v!),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _refCtrl,
-              decoration: const InputDecoration(
+          ]),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _refCtrl,
+            decoration: const InputDecoration(
                 labelText: 'Referencia (opcional)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            if (_comprobantesCliente.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('Comprobantes pendientes',
-                  style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 8),
-              ..._comprobantesCliente.map((f) {
-                final sel = _seleccionados.contains(f.id);
-                _montos.putIfAbsent(
-                  f.id,
-                  () => TextEditingController(
-                      text: f.saldoPendiente.toStringAsFixed(2)),
-                );
-                return Card(
-                  child: CheckboxListTile(
-                    value: sel,
-                    onChanged: (v) => setState(() {
-                      if (v == true) {
-                        _seleccionados.add(f.id);
-                      } else {
-                        _seleccionados.remove(f.id);
-                      }
-                    }),
-                    title: Text(f.numeroDocumento),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Saldo: ${money(f.saldoPendiente)}',
-                            style: const TextStyle(fontSize: 12)),
-                        if (sel)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: TextField(
-                              controller: _montos[f.id],
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Monto a cobrar (S/)',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              onChanged: (_) => setState(() {}),
+                helperText: 'N° de operación, depósito, etc.'),
+          ),
+          if (_comprobantesCliente.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Comprobantes pendientes',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            ..._comprobantesCliente.map((f) {
+              final sel = _seleccionados.contains(f.id);
+              _montos.putIfAbsent(
+                f.id,
+                () => TextEditingController(
+                    text: f.saldoPendiente.toStringAsFixed(2)),
+              );
+              return Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  side: BorderSide(
+                      color: sel
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey.withValues(alpha: 0.25)),
+                ),
+                child: CheckboxListTile(
+                  value: sel,
+                  onChanged: (v) => setState(() {
+                    if (v == true) {
+                      _seleccionados.add(f.id);
+                    } else {
+                      _seleccionados.remove(f.id);
+                    }
+                  }),
+                  title: Text(f.numeroDocumento),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Saldo: ${money(f.saldoPendiente)}',
+                          style: const TextStyle(fontSize: 12)),
+                      if (sel)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: TextField(
+                            controller: _montos[f.id],
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Monto a cobrar (S/)',
+                              isDense: true,
                             ),
+                            onChanged: (_) => setState(() {}),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                );
-              }),
-            ] else if (_clienteId != null) ...[
-              const SizedBox(height: 16),
-              const Text(
-                'Este cliente no tiene comprobantes pendientes',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-            if (_seleccionados.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total a cobrar',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(money(_totalAplicado),
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _guardando ? null : _guardar,
-              child: _guardando
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Text('Registrar cobro'),
+              );
+            }),
+          ] else if (_clienteId != null) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Este cliente no tiene comprobantes pendientes',
+              style: TextStyle(color: Colors.grey),
             ),
           ],
-        ),
+          if (_seleccionados.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                      '${_seleccionados.length} comprobante${_seleccionados.length == 1 ? '' : 's'} · Total a cobrar',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(money(_totalAplicado),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

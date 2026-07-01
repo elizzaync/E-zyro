@@ -123,10 +123,19 @@ class _State extends State<PantallaCuentasPagar>
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => _FormFactura(onGuardado: () {
-        _cargarFacturas();
-        _cargarSaldos();
-      }),
+      builder: (_) => _FormFactura(
+        // Facturas con saldo, para que una nota de crédito elija a cuál rebaja.
+        facturasAbiertas: _facturas
+            .where((f) =>
+                (f.estado == 'pendiente' || f.estado == 'pagada_parcial') &&
+                f.tipoDocumento != 'nota_credito' &&
+                f.saldoPendiente > 0)
+            .toList(),
+        onGuardado: () {
+          _cargarFacturas();
+          _cargarSaldos();
+        },
+      ),
     );
   }
 
@@ -136,8 +145,11 @@ class _State extends State<PantallaCuentasPagar>
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => _FormPago(
+        // El backend marca 'pagada_parcial' (no 'parcial'): sin este valor las
+        // facturas con pago parcial desaparecían y no se podía saldar el resto.
         facturasPendientes: _facturas
-            .where((f) => f.estado == 'pendiente' || f.estado == 'parcial')
+            .where((f) =>
+                f.estado == 'pendiente' || f.estado == 'pagada_parcial')
             .toList(),
         onGuardado: () {
           _cargarFacturas();
@@ -405,8 +417,9 @@ class _TabPagos extends StatelessWidget {
 // ── Formulario nueva factura ─────────────────────────────────────────────────
 
 class _FormFactura extends StatefulWidget {
+  final List<Factura> facturasAbiertas;
   final VoidCallback onGuardado;
-  const _FormFactura({required this.onGuardado});
+  const _FormFactura({required this.facturasAbiertas, required this.onGuardado});
 
   @override
   State<_FormFactura> createState() => _FormFacturaState();
@@ -418,6 +431,8 @@ class _FormFacturaState extends State<_FormFactura> {
   String? _proveedorId;
   final _numCtrl = TextEditingController();
   String _tipo = 'factura';
+  // Nota de crédito: factura del proveedor cuyo saldo rebaja.
+  String? _documentoAfectadoId;
   DateTime _emision = DateTime.now();
   DateTime _vencimiento = DateTime.now().add(const Duration(days: 30));
   final _subtotalCtrl = TextEditingController();
@@ -435,6 +450,17 @@ class _FormFacturaState extends State<_FormFactura> {
     super.initState();
     _cargarProveedores();
     _cargarCuentasGasto();
+    _cargarTasaIgv();
+  }
+
+  /// La tasa de IGV inicial sale de la configuración tributaria de la empresa
+  /// (no de un 18 fijo); sigue siendo editable para casos especiales.
+  Future<void> _cargarTasaIgv() async {
+    final svc = await getFinanzasService();
+    final pct = await svc.getTasaIgv(); // porcentaje (18.0)
+    if (!mounted) return;
+    setState(() =>
+        _igvCtrl.text = pct.toStringAsFixed(pct % 1 == 0 ? 0 : 2));
   }
 
   Future<void> _cargarProveedores() async {
@@ -458,10 +484,20 @@ class _FormFacturaState extends State<_FormFactura> {
     });
   }
 
+  bool get _esNotaCredito => _tipo == 'nota_credito';
+
+  List<Factura> get _afectablesDelProveedor => widget.facturasAbiertas
+      .where((f) => f.terceroId == _proveedorId)
+      .toList();
+
   Future<void> _guardar() async {
     if (!_form.currentState!.validate()) return;
     if (_proveedorId == null) {
       mostrarError(context, 'Selecciona un proveedor');
+      return;
+    }
+    if (_esNotaCredito && _documentoAfectadoId == null) {
+      mostrarError(context, 'Selecciona la factura que afecta la nota de crédito');
       return;
     }
     setState(() => _guardando = true);
@@ -479,11 +515,13 @@ class _FormFacturaState extends State<_FormFactura> {
       subtotal: subtotal,
       igv: igv,
       cuentaGastoId: _cuentaGastoId,
+      documentoAfectadoId: _esNotaCredito ? _documentoAfectadoId : null,
     );
     if (!mounted) return;
     setState(() => _guardando = false);
     if (r.ok) {
-      mostrarOk(context, 'Factura registrada');
+      mostrarOk(context,
+          _esNotaCredito ? 'Nota de crédito aplicada' : 'Factura registrada');
       Navigator.pop(context);
       widget.onGuardado();
     } else {
@@ -493,138 +531,159 @@ class _FormFacturaState extends State<_FormFactura> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
+    return FinFormSheet(
+      titulo: 'Nueva factura de proveedor',
+      subtitulo: 'Crea la cuenta por pagar y su asiento contable automáticamente',
+      icono: Icons.receipt_long_outlined,
+      textoBoton: 'Registrar factura',
+      guardando: _guardando,
+      onGuardar: _guardar,
       child: Form(
         key: _form,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Nueva factura de proveedor',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _proveedorId,
-                decoration: const InputDecoration(
-                  labelText: 'Proveedor',
-                  border: OutlineInputBorder(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _proveedorId,
+              decoration: const InputDecoration(labelText: 'Proveedor'),
+              items: _proveedores
+                  .map((p) => DropdownMenuItem(
+                        value: p.id,
+                        child: Text(p.razonSocial),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() {
+                _proveedorId = v;
+                _documentoAfectadoId = null;
+              }),
+              validator: (v) => v == null ? 'Requerido' : null,
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: _numCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'N° documento'),
+                  validator: (v) =>
+                      (v == null || v.isEmpty) ? 'Requerido' : null,
                 ),
-                items: _proveedores
-                    .map((p) => DropdownMenuItem(
-                          value: p.id,
-                          child: Text(p.razonSocial),
-                        ))
-                    .toList(),
-                onChanged: (v) => setState(() => _proveedorId = v),
-                validator: (v) => v == null ? 'Requerido' : null,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _numCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'N° documento',
-                  border: OutlineInputBorder(),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  initialValue: _tipo,
+                  decoration: const InputDecoration(labelText: 'Tipo'),
+                  items: _tipos
+                      .map((t) => DropdownMenuItem(
+                          value: t, child: Text(etiquetaLegible(t))))
+                      .toList(),
+                  onChanged: (v) => setState(() {
+                    _tipo = v!;
+                    if (!_esNotaCredito) _documentoAfectadoId = null;
+                  }),
                 ),
-                validator: (v) =>
-                    (v == null || v.isEmpty) ? 'Requerido' : null,
               ),
+            ]),
+            if (_esNotaCredito) ...[
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: _tipo,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo documento',
-                  border: OutlineInputBorder(),
-                ),
-                items: _tipos
-                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                    .toList(),
-                onChanged: (v) => setState(() => _tipo = v!),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _cuentaGastoId,
+                initialValue: _documentoAfectadoId,
                 isExpanded: true,
                 decoration: const InputDecoration(
-                  labelText: 'Cuenta de gasto',
-                  helperText: 'Mercadería (601) o servicios (63/65)',
-                  border: OutlineInputBorder(),
+                  labelText: 'Factura que afecta',
+                  helperText:
+                      'La nota de crédito REBAJA la deuda de esta factura',
                 ),
-                items: _cuentasGasto
-                    .map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text('${c.codigo} · ${c.nombre}',
+                items: _afectablesDelProveedor
+                    .map((f) => DropdownMenuItem(
+                          value: f.id,
+                          child: Text(
+                              '${f.numeroDocumento} · saldo ${money(f.saldoPendiente)}',
                               overflow: TextOverflow.ellipsis),
                         ))
                     .toList(),
-                onChanged: (v) => setState(() => _cuentaGastoId = v),
-                validator: (v) => v == null ? 'Requerido' : null,
-              ),
-              const SizedBox(height: 12),
-              _DateField(
-                label: 'Fecha emisión',
-                value: _emision,
-                onChanged: (d) => setState(() => _emision = d),
-              ),
-              const SizedBox(height: 12),
-              _DateField(
-                label: 'Fecha vencimiento',
-                value: _vencimiento,
-                onChanged: (d) => setState(() => _vencimiento = d),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: _subtotalCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Subtotal (S/)',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        final d = double.tryParse(v ?? '');
-                        if (d == null || d <= 0) return 'Monto inválido';
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _igvCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'IGV %',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: _guardando ? null : _guardar,
-                child: _guardando
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Guardar'),
+                onChanged: (v) => setState(() => _documentoAfectadoId = v),
+                validator: (v) =>
+                    _esNotaCredito && v == null ? 'Requerido' : null,
               ),
             ],
-          ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _cuentaGastoId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Cuenta de gasto',
+                helperText: 'Mercadería (601) o servicios (63/65)',
+              ),
+              items: _cuentasGasto
+                  .map((c) => DropdownMenuItem(
+                        value: c.id,
+                        child: Text('${c.codigo} · ${c.nombre}',
+                            overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _cuentaGastoId = v),
+              validator: (v) => v == null ? 'Requerido' : null,
+            ),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: _DateField(
+                  label: 'Emisión',
+                  value: _emision,
+                  onChanged: (d) => setState(() => _emision = d),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _DateField(
+                  label: 'Vencimiento',
+                  value: _vencimiento,
+                  onChanged: (d) => setState(() => _vencimiento = d),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _subtotalCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Subtotal (S/)'),
+                    onChanged: (_) => setState(() {}),
+                    validator: (v) {
+                      final d = double.tryParse(v ?? '');
+                      if (d == null || d <= 0) return 'Monto inválido';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _igvCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    decoration: const InputDecoration(labelText: 'IGV %'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // El usuario ve exactamente lo que se registrará antes de guardar.
+            FinTotalesCard(
+              subtotal: double.tryParse(_subtotalCtrl.text) ?? 0,
+              igvPct: double.tryParse(_igvCtrl.text) ?? 18,
+            ),
+          ],
         ),
       ),
     );
@@ -748,147 +807,138 @@ class _FormPagoState extends State<_FormPago> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Registrar pago a proveedor',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: _proveedorId,
-              decoration: const InputDecoration(
-                labelText: 'Proveedor',
-                border: OutlineInputBorder(),
+    return FinFormSheet(
+      titulo: 'Registrar pago a proveedor',
+      subtitulo: 'Aplica el pago a las facturas y mueve caja/bancos automáticamente',
+      icono: Icons.payments_outlined,
+      textoBoton: 'Registrar pago',
+      guardando: _guardando,
+      onGuardar: _guardar,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: _proveedorId,
+            decoration: const InputDecoration(labelText: 'Proveedor'),
+            items: _proveedores
+                .map((p) =>
+                    DropdownMenuItem(value: p.id, child: Text(p.razonSocial)))
+                .toList(),
+            onChanged: _seleccionarProveedor,
+          ),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: _DateField(
+                label: 'Fecha de pago',
+                value: _fecha,
+                onChanged: (d) => setState(() => _fecha = d),
               ),
-              items: _proveedores
-                  .map((p) =>
-                      DropdownMenuItem(value: p.id, child: Text(p.razonSocial)))
-                  .toList(),
-              onChanged: _seleccionarProveedor,
             ),
-            const SizedBox(height: 12),
-            _DateField(
-              label: 'Fecha de pago',
-              value: _fecha,
-              onChanged: (d) => setState(() => _fecha = d),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _medioPago,
-              decoration: const InputDecoration(
-                labelText: 'Medio de pago',
-                border: OutlineInputBorder(),
+            const SizedBox(width: 12),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: _medioPago,
+                decoration: const InputDecoration(labelText: 'Medio'),
+                items: _medios
+                    .map((m) => DropdownMenuItem(
+                        value: m, child: Text(etiquetaLegible(m))))
+                    .toList(),
+                onChanged: (v) => setState(() => _medioPago = v!),
               ),
-              items: _medios
-                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                  .toList(),
-              onChanged: (v) => setState(() => _medioPago = v!),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _refCtrl,
-              decoration: const InputDecoration(
+          ]),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _refCtrl,
+            decoration: const InputDecoration(
                 labelText: 'Referencia (opcional)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            if (_facturasProveedor.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text('Facturas pendientes',
-                  style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 8),
-              ..._facturasProveedor.map((f) {
-                final sel = _seleccionadas.contains(f.id);
-                _montos.putIfAbsent(
-                  f.id,
-                  () => TextEditingController(
-                      text: f.saldoPendiente.toStringAsFixed(2)),
-                );
-                return Card(
-                  child: CheckboxListTile(
-                    value: sel,
-                    onChanged: (v) => setState(() {
-                      if (v == true) {
-                        _seleccionadas.add(f.id);
-                      } else {
-                        _seleccionadas.remove(f.id);
-                      }
-                    }),
-                    title: Text(f.numeroDocumento),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Saldo: ${money(f.saldoPendiente)}',
-                            style: const TextStyle(fontSize: 12)),
-                        if (sel)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: TextField(
-                              controller: _montos[f.id],
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Monto a aplicar (S/)',
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                              onChanged: (_) => setState(() {}),
+                helperText: 'N° de operación, cheque, etc.'),
+          ),
+          if (_facturasProveedor.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('Facturas pendientes',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            ..._facturasProveedor.map((f) {
+              final sel = _seleccionadas.contains(f.id);
+              _montos.putIfAbsent(
+                f.id,
+                () => TextEditingController(
+                    text: f.saldoPendiente.toStringAsFixed(2)),
+              );
+              return Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  side: BorderSide(
+                      color: sel
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey.withValues(alpha: 0.25)),
+                ),
+                child: CheckboxListTile(
+                  value: sel,
+                  onChanged: (v) => setState(() {
+                    if (v == true) {
+                      _seleccionadas.add(f.id);
+                    } else {
+                      _seleccionadas.remove(f.id);
+                    }
+                  }),
+                  title: Text(f.numeroDocumento),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Saldo: ${money(f.saldoPendiente)}',
+                          style: const TextStyle(fontSize: 12)),
+                      if (sel)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: TextField(
+                            controller: _montos[f.id],
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Monto a aplicar (S/)',
+                              isDense: true,
                             ),
+                            onChanged: (_) => setState(() {}),
                           ),
-                      ],
-                    ),
+                        ),
+                    ],
                   ),
-                );
-              }),
-            ] else if (_proveedorId != null) ...[
-              const SizedBox(height: 16),
-              const Text(
-                'Este proveedor no tiene facturas pendientes',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ],
-            if (_seleccionadas.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total a pagar',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(money(_totalAplicado),
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _guardando ? null : _guardar,
-              child: _guardando
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Text('Registrar pago'),
+              );
+            }),
+          ] else if (_proveedorId != null) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Este proveedor no tiene facturas pendientes',
+              style: TextStyle(color: Colors.grey),
             ),
           ],
-        ),
+          if (_seleccionadas.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                      '${_seleccionadas.length} factura${_seleccionadas.length == 1 ? '' : 's'} · Total a pagar',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  Text(money(_totalAplicado),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

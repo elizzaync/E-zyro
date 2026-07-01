@@ -124,6 +124,7 @@ class AppSession {
   bool get canCrearAsiento      => hasPerm('contabilidad:crear_asiento');
   bool get canConfigurarContabilidad => hasPerm('contabilidad:configurar');
   bool get canCerrarEjercicio   => hasPerm('contabilidad:cerrar_ejercicio');
+  bool get canCargarApertura    => hasPerm('contabilidad:cargar_apertura');
   bool get canVerCxp            => hasPerm('cxp:ver');
   bool get canRegistrarFacturaCxp => hasPerm('cxp:registrar_factura');
   bool get canRegistrarPagoCxp  => hasPerm('cxp:registrar_pago');
