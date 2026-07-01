@@ -37,6 +37,31 @@ def _score_global(promedio_eval: Optional[float], puntualidad: Optional[float]) 
     return round(sum(partes) / len(partes), 1)
 
 
+def _tendencia_por_empleado(db: Session, empresa_id: str, max_periodos: int = 6) -> dict:
+    """{empleado_id: [promedio_1-10 por periodo, ...]} en orden cronológico,
+    últimos `max_periodos` con evaluaciones completadas. Una sola query
+    agregada (sin N+1): agrupa por (empleado, periodo) y ordena por la fecha
+    más antigua de cada periodo."""
+    rows = (
+        db.query(
+            Evaluacion.empleado_id,
+            func.avg(DetalleEvaluacion.puntaje).label("prom"),
+            func.min(Evaluacion.fecha).label("fecha_periodo"),
+        )
+        .join(DetalleEvaluacion, DetalleEvaluacion.evaluacion_id == Evaluacion.id)
+        .filter(Evaluacion.empresa_id == empresa_id, Evaluacion.estado == "completada")
+        .group_by(Evaluacion.empleado_id, Evaluacion.periodo)
+        .order_by(Evaluacion.empleado_id, func.min(Evaluacion.fecha).asc())
+        .all()
+    )
+    out: dict[str, list[float]] = {}
+    for eid, prom, _fecha in rows:
+        out.setdefault(str(eid), []).append(round(float(prom), 2))
+    for eid in out:
+        out[eid] = out[eid][-max_periodos:]
+    return out
+
+
 def _indicadores_por_empleado(db: Session, empresa_id: str) -> List[IndicadorEmpleado]:
     cfg = _get_config(db, empresa_id)
     emps = (
@@ -76,6 +101,8 @@ def _indicadores_por_empleado(db: Session, empresa_id: str) -> List[IndicadorEmp
         )
     )
 
+    tendencias = _tendencia_por_empleado(db, empresa_id)
+
     out: List[IndicadorEmpleado] = []
     for e in emps:
         eid = str(e.id)
@@ -98,6 +125,7 @@ def _indicadores_por_empleado(db: Session, empresa_id: str) -> List[IndicadorEmp
             vacaciones_disponible=saldo.disponible,
             vacaciones_gozado=saldo.gozado,
             score_global=_score_global(prom_eval, puntualidad),
+            tendencia=tendencias.get(eid, []),
         ))
     out.sort(key=lambda i: (i.score_global if i.score_global is not None else -1), reverse=True)
     return out

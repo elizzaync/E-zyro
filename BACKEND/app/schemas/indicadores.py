@@ -21,6 +21,10 @@ class IndicadorEmpleado(BaseModel):
     vacaciones_gozado:     int = 0
     # Score global (0-100): mezcla evaluación y puntualidad cuando hay datos
     score_global:          Optional[float] = None
+    # Tendencia: promedio de evaluación (1-10) por periodo, los últimos N
+    # periodos con evaluaciones completadas, en orden cronológico ascendente.
+    # Vacío/1 elemento = sin suficiente historial para graficar tendencia.
+    tendencia:             List[float] = []
 
 
 class ResumenEmpresa(BaseModel):
