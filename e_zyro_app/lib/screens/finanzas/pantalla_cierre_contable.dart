@@ -637,3 +637,150 @@ class _PantallaCierreContableState extends State<PantallaCierreContable> {
     );
   }
 }
+
+// ── Formulario de saldos iniciales ───────────────────────────────────────────
+
+/// Carga guiada del asiento de apertura: conceptos cotidianos (caja, bancos,
+/// deudas…) mapeados a cuentas PCGE; los campos en cero se ignoran y la
+/// diferencia se ajusta sola contra Capital (501) en el backend.
+class _FormApertura extends StatefulWidget {
+  final Future<void> Function() onGuardado;
+  const _FormApertura({required this.onGuardado});
+
+  @override
+  State<_FormApertura> createState() => _FormAperturaState();
+}
+
+class _FormAperturaState extends State<_FormApertura> {
+  DateTime _fecha = DateTime.now();
+  bool _guardando = false;
+
+  // (código PCGE, etiqueta cotidiana, ícono)
+  static const _conceptos = <(String, String, IconData)>[
+    ('101', 'Dinero en caja', Icons.payments_outlined),
+    ('104', 'Dinero en bancos', Icons.account_balance_outlined),
+    ('121', 'Por cobrar a clientes', Icons.call_received_rounded),
+    ('201', 'Mercaderías / existencias', Icons.inventory_2_outlined),
+    ('333', 'Maquinaria y equipos', Icons.precision_manufacturing_outlined),
+    ('336', 'Equipos diversos', Icons.devices_other_outlined),
+    ('421', 'Deudas a proveedores', Icons.call_made_rounded),
+    ('469', 'Otras deudas', Icons.request_page_outlined),
+    ('501', 'Capital aportado', Icons.savings_outlined),
+  ];
+
+  final Map<String, TextEditingController> _montos = {
+    for (final c in _conceptos) c.$1: TextEditingController(),
+  };
+
+  @override
+  void dispose() {
+    for (final c in _montos.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final lineas = <Map<String, dynamic>>[];
+    for (final c in _conceptos) {
+      final m = double.tryParse(_montos[c.$1]!.text) ?? 0;
+      if (m > 0) lineas.add({'cuenta_codigo': c.$1, 'monto': m});
+    }
+    if (lineas.isEmpty) {
+      mostrarError(context, 'Ingresa al menos un saldo mayor que cero');
+      return;
+    }
+    setState(() => _guardando = true);
+    final svc = await getFinanzasService();
+    final r = await svc.cargarApertura(
+      fecha: DateFormat('yyyy-MM-dd').format(_fecha),
+      lineas: lineas,
+    );
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (r.ok) {
+      final ajuste = toNum(r.data?['ajuste_capital']);
+      mostrarOk(
+          context,
+          ajuste == 0
+              ? 'Saldos iniciales cargados'
+              : 'Saldos cargados · diferencia de ${money(ajuste.abs())} ajustada contra Capital');
+      Navigator.pop(context);
+      await widget.onGuardado();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = VerdantColors.of(context);
+    return FinFormSheet(
+      titulo: 'Saldos iniciales',
+      subtitulo:
+          'Lo que la empresa ya tenía al empezar a usar E-Zyro. Los campos en cero se ignoran.',
+      icono: Icons.flag_outlined,
+      textoBoton: 'Cargar saldos iniciales',
+      guardando: _guardando,
+      onGuardar: _guardar,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () async {
+              final d = await showDatePicker(
+                context: context,
+                initialDate: _fecha,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+              if (d != null) setState(() => _fecha = d);
+            },
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Fecha de corte',
+                helperText: 'El día desde el que la contabilidad es real',
+                suffixIcon: Icon(Icons.calendar_today, size: 18),
+              ),
+              child: Text(DateFormat('dd/MM/yyyy').format(_fecha)),
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (final c in _conceptos) ...[
+            TextField(
+              controller: _montos[c.$1],
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: '${c.$2} (S/)',
+                prefixIcon: Icon(c.$3, size: 19),
+                helperText: 'Cuenta ${c.$1}',
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: v.cardAlt,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.auto_fix_high_outlined, size: 16, color: v.heroSolid),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'No necesitas cuadrar nada: si el total no calza, la '
+                  'diferencia se ajusta automáticamente contra Capital y se '
+                  'registra de forma trazable.',
+                  style: TextStyle(fontSize: 11, color: v.sub, height: 1.4),
+                ),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+}
