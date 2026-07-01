@@ -3722,9 +3722,12 @@ def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> Salid
     sol_nombre, _ = _nombre_empleado(db, req.solicitante_id)
 
     # Ítems no rechazados con su origen (stock directo vs vía compra)
+    # outerjoin a Material Y a Equipo: un requerimiento_detalle puede traer
+    # material_id (consumibles) o equipo_id (herramientas/equipos serializados).
     detalles = (
-        db.query(RequerimientoDetalle, Material.nombre, Material.unidad)
+        db.query(RequerimientoDetalle, Material.nombre, Material.unidad, Equipo.nombre)
         .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
+        .outerjoin(Equipo, Equipo.id == RequerimientoDetalle.equipo_id)
         .filter(
             RequerimientoDetalle.requerimiento_id == req.id,
             RequerimientoDetalle.estado_item.notin_(["rechazado"]),
@@ -3744,14 +3747,14 @@ def _build_salida_out(db: Session, req: Requerimiento, empresa_id: str) -> Salid
 
     items: list[SalidaItemOut] = []
     total_unidades = 0
-    for d, mat_nombre, mat_unidad in detalles:
+    for d, mat_nombre, mat_unidad, equipo_nombre in detalles:
         cant = int(d.cantidad_aprobada or d.cantidad or 0)
         total_unidades += cant
         origen = "compra" if str(d.id) in detalle_ids_via_compra else "stock"
         items.append(SalidaItemOut(
             id=str(d.id),
-            nombre=mat_nombre or d.nombre_libre or "—",
-            unidad=mat_unidad or d.unidad_libre or "",
+            nombre=mat_nombre or equipo_nombre or d.nombre_libre or "—",
+            unidad=mat_unidad or d.unidad_libre or ("UND" if equipo_nombre else ""),
             cantidadSolicitada=int(d.cantidad or 0),
             cantidadEntregada=cant,
             origenItem=origen,
