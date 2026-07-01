@@ -674,10 +674,15 @@ def get_detalle_servicio(
         .scalar()
     )
 
-    # 2. Verificar acceso: miembro del proyecto O jefe de operaciones (admin: bypass).
-    #    Los NO designados reciben una vista BÁSICA de solo lectura (cabecera +
-    #    fechas/estado, con acceso_completo=False) en lugar de un 403, para que
-    #    puedan ver que el servicio existe sin cargar los datos de trabajo.
+    # 2. Verificar acceso: Jefe de Operaciones (cualquiera, por rol) SIEMPRE tiene
+    #    acceso completo; Técnico solo si está designado (miembro del proyecto).
+    #    admin: bypass. Los NO designados reciben una vista BÁSICA (cabecera +
+    #    tareas + equipo asignado, SIN materiales/procedimientos/evidencias) en
+    #    lugar de un 403, para que puedan ver que el servicio existe y quién lo
+    #    integra sin exponer datos de trabajo ni depender de endpoints de
+    #    Logística/Requerimientos a los que Técnico/Jefe de Operaciones no
+    #    tienen acceso (evita el bloqueo/error visto al abrir el detalle).
+    acceso_completo = True
     if payload.get("rol", "") != "Administrador":
         empleado_actual = db.query(Empleado).filter(
             Empleado.usuario_id == usuario_id,
@@ -686,45 +691,13 @@ def get_detalle_servicio(
         if not empleado_actual:
             raise HTTPException(status_code=403, detail="No eres empleado registrado")
 
-        es_jefe    = proyecto.jefe_operaciones_id == empleado_actual.id
+        es_jefe    = (proyecto.jefe_operaciones_id == empleado_actual.id) or es_jefe_operaciones(payload)
         es_miembro = db.query(ProyectoMiembro).filter(
             ProyectoMiembro.proyecto_id == ps.proyecto_id,
             ProyectoMiembro.empleado_id == empleado_actual.id,
         ).first() is not None
 
-        if not es_jefe and not es_miembro:
-            _fp = ps.fecha_programada
-            return ServicioDetalleOut(
-                id=str(ps.id),
-                proyecto_id=str(ps.proyecto_id),
-                cliente=cliente.razon_social if cliente and cliente.razon_social else "Cliente Sin Nombre",
-                tipo_servicio=ps.nombre or "Servicio Técnico",
-                nombre=ps.nombre or "Servicio Técnico",
-                ubicacion=ubicacion or "",
-                fecha_str=_fp.strftime("%d %b %Y") if _fp else "Sin fecha",
-                hora_str=_fp.strftime("%I:%M %p") if _fp else "--:--",
-                descripcion=ps.descripcion or "",
-                estado=ps.estado or "Pendiente",
-                progreso=0.0,
-                equipo=[],
-                procedimientos=[],
-                tareas=[],
-                materiales_asignados=[],
-                materiales_solicitados=[],
-                catalogo_servicio_id=str(ps.catalogo_servicio_id) if ps.catalogo_servicio_id else None,
-                fecha_programada=ps.fecha_programada.isoformat() if ps.fecha_programada else None,
-                fecha_inicio=ps.fecha_inicio.isoformat() if ps.fecha_inicio else None,
-                fecha_fin=ps.fecha_fin.isoformat() if ps.fecha_fin else None,
-                zona_ejecucion=ps.zona_ejecucion or None,
-                ubicacion_id=str(ps.ubicacion_id) if ps.ubicacion_id else None,
-                zona_id=str(ps.zona_id) if ps.zona_id else None,
-                ubicacion_nombre=ubic_nombre,
-                zona_nombre=zona_nombre,
-                sin_procedimientos_estandar=sin_proc_estandar,
-                es_mantenimiento=False,
-                inspeccion_equipos_activa=False,
-                acceso_completo=False,
-            )
+        acceso_completo = es_jefe or es_miembro
 
     fp        = ps.fecha_programada
     fecha_str = fp.strftime("%d %b %Y") if fp else "Sin fecha"
@@ -800,50 +773,53 @@ def get_detalle_servicio(
             rol_proyecto=r.rol_proyecto or "Técnico",
         ))
 
-    # 4. Procedimientos (pasos fijos) + Evidencias
+    # 4. Procedimientos (pasos fijos) + Evidencias — solo con acceso completo.
     # Instanciación perezosa desde la plantilla por tipo de trabajo (cubre
     # servicios creados antes de que existiera la plantilla).
-    if _instanciar_procedimientos(db, ps, empresa_id):
-        db.commit()
-    procs = (
-        db.query(Procedimiento)
-        .filter(Procedimiento.proyecto_servicio_id == servicio_id)
-        .order_by(Procedimiento.orden.asc())
-        .all()
-    )
-    # Recalcular tras la instanciación perezosa (puede haber cambiado).
-    sin_proc_estandar = bool(ps.catalogo_servicio_id) and not procs
-    evidencias = (
-        db.query(EvidenciaProcedimiento)
-        .filter(EvidenciaProcedimiento.proyecto_servicio_id == servicio_id)
-        .order_by(EvidenciaProcedimiento.fecha_captura.asc())
-        .all()
-    )
+    if acceso_completo:
+        if _instanciar_procedimientos(db, ps, empresa_id):
+            db.commit()
+        procs = (
+            db.query(Procedimiento)
+            .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+            .order_by(Procedimiento.orden.asc())
+            .all()
+        )
+        # Recalcular tras la instanciación perezosa (puede haber cambiado).
+        sin_proc_estandar = bool(ps.catalogo_servicio_id) and not procs
+        evidencias = (
+            db.query(EvidenciaProcedimiento)
+            .filter(EvidenciaProcedimiento.proyecto_servicio_id == servicio_id)
+            .order_by(EvidenciaProcedimiento.fecha_captura.asc())
+            .all()
+        )
 
-    ev_by_proc: dict[str, list] = {}
-    for ev in evidencias:
-        ev_by_proc.setdefault(ev.procedimiento_id, []).append(
-            EvidenciaOut(
-                id=str(ev.id),
-                url_cloudinary=ev.url_cloudinary or "",
-                descripcion=ev.descripcion or "",
-                etapa=ev.etapa,
-                fecha_captura=fmt_lima(ev.fecha_captura, "%I:%M %p"),
+        ev_by_proc: dict[str, list] = {}
+        for ev in evidencias:
+            ev_by_proc.setdefault(ev.procedimiento_id, []).append(
+                EvidenciaOut(
+                    id=str(ev.id),
+                    url_cloudinary=ev.url_cloudinary or "",
+                    descripcion=ev.descripcion or "",
+                    etapa=ev.etapa,
+                    fecha_captura=fmt_lima(ev.fecha_captura, "%I:%M %p"),
+                )
             )
-        )
 
-    # Procedimientos = pasos fijos (avance/informe). Las evidencias cuelgan aquí.
-    procedimientos = [
-        ProcedimientoOut(
-            id=str(p.id),
-            nombre=p.nombre or "",
-            descripcion=p.descripcion or "",
-            orden=p.orden or 0,
-            estado=p.estado or "pendiente",
-            evidencias=ev_by_proc.get(p.id, []),
-        )
-        for p in procs
-    ]
+        # Procedimientos = pasos fijos (avance/informe). Las evidencias cuelgan aquí.
+        procedimientos = [
+            ProcedimientoOut(
+                id=str(p.id),
+                nombre=p.nombre or "",
+                descripcion=p.descripcion or "",
+                orden=p.orden or 0,
+                estado=p.estado or "pendiente",
+                evidencias=ev_by_proc.get(p.id, []),
+            )
+            for p in procs
+        ]
+    else:
+        procedimientos = []
 
     # 4b. Tareas (cronograma: responsable + fechas)
     # Técnico: solo sus propias tareas; otros roles: todas
@@ -884,57 +860,61 @@ def get_detalle_servicio(
     completos = sum(1 for (e,) in _tareas_avance if e == "completado")
     progreso  = round(completos / total * 100, 1) if total else 0.0
 
-    # 5. Materiales (excluye borradores; soporta compras externas con material_id=NULL)
-    mat_rows = (
-        db.query(
-            RequerimientoDetalle,
-            Requerimiento.id.label("req_id"),
-            Requerimiento.estado.label("req_estado"),
-            func.coalesce(
-                Material.nombre,
-                RequerimientoDetalle.nombre_libre,
-            ).label("mat_nombre"),
-            func.coalesce(
-                Material.unidad,
-                RequerimientoDetalle.unidad_libre,
-            ).label("mat_unidad"),
-            Material.tipo.label("mat_tipo"),
-        )
-        .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
-        .outerjoin(Material, Material.id      == RequerimientoDetalle.material_id)
-        .filter(
-            Requerimiento.proyecto_servicio_id == servicio_id,
-            Requerimiento.empresa_id           == empresa_id,
-            Requerimiento.tipo                 == "material",
-            Requerimiento.estado               != "borrador",
-        )
-        .order_by(Requerimiento.created_at.asc())
-        .all()
-    )
-
+    # 5. Materiales — solo con acceso completo (excluye borradores; soporta
+    # compras externas con material_id=NULL). Depende de Requerimientos, cuyos
+    # endpoints de Logística bloquean a Técnico/Jefe de Operaciones sin
+    # designación — por eso se omite por completo en la vista básica.
     mat_asignados: list[ItemMaterialOut]   = []
     mat_solicitados: list[ItemMaterialOut] = []
 
-    for m in mat_rows:
-        rd = m.RequerimientoDetalle
-        # Clasificación: campo explícito de la línea; si falta, derivar del
-        # catálogo (material.tipo); por defecto 'material'.
-        tipo_item = (getattr(rd, "tipo_item_compra", None) or "").lower()
-        if tipo_item not in ("material", "herramienta"):
-            tipo_item = "herramienta" if (m.mat_tipo == "herramienta") else "material"
-        item = ItemMaterialOut(
-            id=str(rd.id),
-            requerimiento_id=str(m.req_id),
-            nombre=m.mat_nombre or "Material Sin Nombre",
-            unidad=m.mat_unidad or "Und",
-            cantidad=rd.cantidad or 0,
-            estado_req=m.req_estado or "pendiente",
-            tipo=tipo_item,
+    if acceso_completo:
+        mat_rows = (
+            db.query(
+                RequerimientoDetalle,
+                Requerimiento.id.label("req_id"),
+                Requerimiento.estado.label("req_estado"),
+                func.coalesce(
+                    Material.nombre,
+                    RequerimientoDetalle.nombre_libre,
+                ).label("mat_nombre"),
+                func.coalesce(
+                    Material.unidad,
+                    RequerimientoDetalle.unidad_libre,
+                ).label("mat_unidad"),
+                Material.tipo.label("mat_tipo"),
+            )
+            .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
+            .outerjoin(Material, Material.id      == RequerimientoDetalle.material_id)
+            .filter(
+                Requerimiento.proyecto_servicio_id == servicio_id,
+                Requerimiento.empresa_id           == empresa_id,
+                Requerimiento.tipo                 == "material",
+                Requerimiento.estado               != "borrador",
+            )
+            .order_by(Requerimiento.created_at.asc())
+            .all()
         )
-        if m.req_estado in ("entregado", "aprobado"):
-            mat_asignados.append(item)
-        else:
-            mat_solicitados.append(item)
+
+        for m in mat_rows:
+            rd = m.RequerimientoDetalle
+            # Clasificación: campo explícito de la línea; si falta, derivar del
+            # catálogo (material.tipo); por defecto 'material'.
+            tipo_item = (getattr(rd, "tipo_item_compra", None) or "").lower()
+            if tipo_item not in ("material", "herramienta"):
+                tipo_item = "herramienta" if (m.mat_tipo == "herramienta") else "material"
+            item = ItemMaterialOut(
+                id=str(rd.id),
+                requerimiento_id=str(m.req_id),
+                nombre=m.mat_nombre or "Material Sin Nombre",
+                unidad=m.mat_unidad or "Und",
+                cantidad=rd.cantidad or 0,
+                estado_req=m.req_estado or "pendiente",
+                tipo=tipo_item,
+            )
+            if m.req_estado in ("entregado", "aprobado"):
+                mat_asignados.append(item)
+            else:
+                mat_solicitados.append(item)
 
     return ServicioDetalleOut(
         id=str(ps.id),
@@ -971,6 +951,7 @@ def get_detalle_servicio(
         ubicacion_nombre=ubic_nombre,
         zona_nombre=zona_nombre,
         sin_procedimientos_estandar=sin_proc_estandar,
+        acceso_completo=acceso_completo,
     )
 
 # ── PATCH /operaciones/servicio/{id}/estado ───────────────────────────────────
