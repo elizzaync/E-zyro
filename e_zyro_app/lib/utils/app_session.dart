@@ -118,9 +118,12 @@ class AppSession {
       isAdmin || canVerContabilidad || canVerCxp || canVerCxc ||
       canVerActivosFijos || canVerPlanilla || canVerTributario ||
       canVerControlling || canVerInventarioValorizado || canVerCajaChica ||
-      canVerConciliacionBancaria;
+      canVerConciliacionBancaria || canVerResumenFinanzas;
+  bool get canVerResumenFinanzas => hasPerm('finanzas_resumen:ver');
   bool get canVerContabilidad   => hasPerm('contabilidad:ver');
   bool get canCrearAsiento      => hasPerm('contabilidad:crear_asiento');
+  bool get canConfigurarContabilidad => hasPerm('contabilidad:configurar');
+  bool get canCerrarEjercicio   => hasPerm('contabilidad:cerrar_ejercicio');
   bool get canVerCxp            => hasPerm('cxp:ver');
   bool get canRegistrarFacturaCxp => hasPerm('cxp:registrar_factura');
   bool get canRegistrarPagoCxp  => hasPerm('cxp:registrar_pago');

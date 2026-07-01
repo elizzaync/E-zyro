@@ -951,6 +951,60 @@ class FinanzasService {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));
     }
   }
+
+  // ── Resumen financiero (dashboard) ─────────────────────────────────────────
+  Future<ApiResult<ResumenFinanciero>> resumenFinanciero() =>
+      _getObj('/reportes-financieros/resumen', ResumenFinanciero.fromJson);
+
+  // ── Configuración contable + cierre de ejercicio ───────────────────────────
+  Future<ApiResult<ConfigContable>> configContable() =>
+      _getObj('/contabilidad/configuracion', ConfigContable.fromJson);
+
+  Future<ApiResult<ConfigContable>> actualizarConfigContable({
+    String? cuentaCierreCodigo,
+    String? cuentaUtilidadCodigo,
+    String? cuentaPerdidaCodigo,
+  }) async {
+    try {
+      final r = await _client.put('/contabilidad/configuracion', {
+        'cuenta_cierre_codigo': ?cuentaCierreCodigo,
+        'cuenta_utilidad_codigo': ?cuentaUtilidadCodigo,
+        'cuenta_perdida_codigo': ?cuentaPerdidaCodigo,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(ConfigContable.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<EstadoEjercicio>> estadoEjercicio(int anio) =>
+      _getObj('/contabilidad/ejercicios/$anio', EstadoEjercicio.fromJson);
+
+  Future<ApiResult<Map<String, dynamic>>> _accionEjercicio(int anio, String accion) async {
+    try {
+      final r = await _client.post('/contabilidad/ejercicios/$anio/$accion', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<Map<String, dynamic>>> cerrarEjercicio(int anio) =>
+      _accionEjercicio(anio, 'cerrar');
+  Future<ApiResult<Map<String, dynamic>>> revertirCierreEjercicio(int anio) =>
+      _accionEjercicio(anio, 'revertir-cierre');
+
+  // ── Export PLE SUNAT (TXT) ─────────────────────────────────────────────────
+  Future<ApiResult<PleArchivo>> registroComprasPle(String periodo) =>
+      _getObj('/tributario/registro-compras/ple?periodo=$periodo', PleArchivo.fromJson);
+  Future<ApiResult<PleArchivo>> registroVentasPle(String periodo) =>
+      _getObj('/tributario/registro-ventas/ple?periodo=$periodo', PleArchivo.fromJson);
 }
 
 int _toIntSvc(dynamic v) {

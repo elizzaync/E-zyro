@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../models/finanzas_models.dart';
 import '../../services/finanzas_service.dart';
@@ -82,6 +83,11 @@ class _PantallaTributarioState extends State<PantallaTributario> {
           actions: [
             accionConmutadorFinanzas(context, actual: FinId.tributario),
             IconButton(
+              tooltip: 'Exportar PLE (SUNAT)',
+              icon: const Icon(Icons.file_download_outlined),
+              onPressed: _exportarPle,
+            ),
+            IconButton(
               tooltip: 'Periodo',
               icon: const Icon(Icons.edit_calendar),
               onPressed: () async {
@@ -111,6 +117,86 @@ class _PantallaTributarioState extends State<PantallaTributario> {
               : _registro(_ventas, 'IGV débito fiscal', Colors.teal, 'Ventas'),
           _tabConfiguracion(),
         ]),
+      ),
+    );
+  }
+
+  /// Exporta el registro del periodo como TXT PLE (SUNAT): elige libro,
+  /// muestra el nombre oficial del archivo y copia el contenido para pegarlo
+  /// en un .txt y pasarlo por el Validador PLE.
+  Future<void> _exportarPle() async {
+    if (_svc == null) return;
+    final libro = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.all(14),
+            child: Text('Exportar PLE (SUNAT) — periodo actual',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.shopping_cart_outlined,
+                color: Colors.deepOrange),
+            title: const Text('Registro de Compras (8.1)'),
+            onTap: () => Navigator.pop(ctx, 'compras'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.point_of_sale_outlined, color: Colors.teal),
+            title: const Text('Registro de Ventas (14.1)'),
+            onTap: () => Navigator.pop(ctx, 'ventas'),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (libro == null || !mounted) return;
+    final r = libro == 'compras'
+        ? await _svc!.registroComprasPle(_periodo)
+        : await _svc!.registroVentasPle(_periodo);
+    if (!mounted) return;
+    if (!r.ok || r.data == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(r.errorMessage)));
+      return;
+    }
+    final ple = r.data!;
+    final messenger = ScaffoldMessenger.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Archivo PLE generado'),
+        content: Column(mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SelectableText(ple.nombreArchivo,
+              style: const TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Text('${ple.lineas} comprobante${ple.lineas == 1 ? '' : 's'} en el periodo $_periodo.',
+              style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          const Text(
+            'Copia el contenido, guárdalo en un archivo .txt con ese nombre '
+            'exacto y pásalo por el Validador PLE de SUNAT.',
+            style: TextStyle(fontSize: 11.5, color: Colors.grey),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+          FilledButton.icon(
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Copiar contenido'),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: ple.contenido));
+              if (ctx.mounted) Navigator.pop(ctx);
+              messenger.showSnackBar(const SnackBar(
+                  content: Text('Contenido PLE copiado al portapapeles.')));
+            },
+          ),
+        ],
       ),
     );
   }

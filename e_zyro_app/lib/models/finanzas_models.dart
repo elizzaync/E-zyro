@@ -853,3 +853,160 @@ class ResumenConciliacion {
         pendientes: _toI(j['pendientes']),
       );
 }
+
+// ── Resumen financiero (dashboard) — GET /reportes-financieros/resumen ───────
+class DisponibleResumen {
+  final double total, caja, bancos, otros;
+  DisponibleResumen({required this.total, required this.caja,
+      required this.bancos, required this.otros});
+  factory DisponibleResumen.fromJson(Map<String, dynamic> j) => DisponibleResumen(
+        total: _toD(j['total']), caja: _toD(j['caja']),
+        bancos: _toD(j['bancos']), otros: _toD(j['otros']),
+      );
+}
+
+/// Buckets de vencimiento de CxC o CxP. Lo vencido cuenta dentro de hasta30
+/// (es exigible ya): el backend lo agrega así para la proyección.
+class BucketsVencimiento {
+  final double total, vencido, hasta30, hasta60, hasta90;
+  final int nVencidos;
+  BucketsVencimiento({required this.total, required this.vencido,
+      required this.hasta30, required this.hasta60, required this.hasta90,
+      required this.nVencidos});
+  factory BucketsVencimiento.fromJson(Map<String, dynamic> j) => BucketsVencimiento(
+        total: _toD(j['total']), vencido: _toD(j['vencido']),
+        hasta30: _toD(j['hasta_30']), hasta60: _toD(j['hasta_60']),
+        hasta90: _toD(j['hasta_90']), nVencidos: _toI(j['n_vencidos']),
+      );
+}
+
+class FlujoMesResumen {
+  final String periodo; // YYYY-MM
+  final double entradas, salidas, neto;
+  FlujoMesResumen({required this.periodo, required this.entradas,
+      required this.salidas, required this.neto});
+  factory FlujoMesResumen.fromJson(Map<String, dynamic> j) => FlujoMesResumen(
+        periodo: j['periodo']?.toString() ?? '',
+        entradas: _toD(j['entradas']), salidas: _toD(j['salidas']),
+        neto: _toD(j['neto']),
+      );
+}
+
+class ProyeccionCaja {
+  final int dias;
+  final double cobrosEsperados, pagosComprometidos, saldoProyectado;
+  ProyeccionCaja({required this.dias, required this.cobrosEsperados,
+      required this.pagosComprometidos, required this.saldoProyectado});
+  factory ProyeccionCaja.fromJson(Map<String, dynamic> j) => ProyeccionCaja(
+        dias: _toI(j['dias']),
+        cobrosEsperados: _toD(j['cobros_esperados']),
+        pagosComprometidos: _toD(j['pagos_comprometidos']),
+        saldoProyectado: _toD(j['saldo_proyectado']),
+      );
+}
+
+class TopGastoResumen {
+  final String codigo, nombre;
+  final double monto;
+  TopGastoResumen({required this.codigo, required this.nombre, required this.monto});
+  factory TopGastoResumen.fromJson(Map<String, dynamic> j) => TopGastoResumen(
+        codigo: j['codigo']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        monto: _toD(j['monto']),
+      );
+}
+
+class ResumenFinanciero {
+  final DisponibleResumen disponible;
+  final BucketsVencimiento cxc, cxp;
+  final double ingresosMes, gastosMes, resultadoMes;
+  final List<TopGastoResumen> topGastosMes;
+  final List<FlujoMesResumen> flujoMensual;
+  final List<ProyeccionCaja> proyeccion;
+  final bool periodoActualAbierto;
+  ResumenFinanciero({
+    required this.disponible, required this.cxc, required this.cxp,
+    required this.ingresosMes, required this.gastosMes, required this.resultadoMes,
+    required this.topGastosMes, required this.flujoMensual,
+    required this.proyeccion, required this.periodoActualAbierto,
+  });
+  factory ResumenFinanciero.fromJson(Map<String, dynamic> j) {
+    final rm = (j['resultado_mes'] ?? {}) as Map<String, dynamic>;
+    return ResumenFinanciero(
+      disponible: DisponibleResumen.fromJson((j['disponible'] ?? {}) as Map<String, dynamic>),
+      cxc: BucketsVencimiento.fromJson((j['cxc'] ?? {}) as Map<String, dynamic>),
+      cxp: BucketsVencimiento.fromJson((j['cxp'] ?? {}) as Map<String, dynamic>),
+      ingresosMes: _toD(rm['ingresos']),
+      gastosMes: _toD(rm['gastos']),
+      resultadoMes: _toD(rm['resultado']),
+      topGastosMes: ((j['top_gastos_mes'] ?? []) as List)
+          .map((e) => TopGastoResumen.fromJson(e as Map<String, dynamic>)).toList(),
+      flujoMensual: ((j['flujo_mensual'] ?? []) as List)
+          .map((e) => FlujoMesResumen.fromJson(e as Map<String, dynamic>)).toList(),
+      proyeccion: ((j['proyeccion'] ?? []) as List)
+          .map((e) => ProyeccionCaja.fromJson(e as Map<String, dynamic>)).toList(),
+      periodoActualAbierto: j['periodo_actual_abierto'] == true,
+    );
+  }
+}
+
+// ── Configuración contable + cierre de ejercicio ─────────────────────────────
+class ConfigContable {
+  final String cuentaCierreCodigo, cuentaUtilidadCodigo, cuentaPerdidaCodigo;
+  ConfigContable({required this.cuentaCierreCodigo,
+      required this.cuentaUtilidadCodigo, required this.cuentaPerdidaCodigo});
+  factory ConfigContable.fromJson(Map<String, dynamic> j) => ConfigContable(
+        cuentaCierreCodigo: j['cuenta_cierre_codigo']?.toString() ?? '891',
+        cuentaUtilidadCodigo: j['cuenta_utilidad_codigo']?.toString() ?? '591',
+        cuentaPerdidaCodigo: j['cuenta_perdida_codigo']?.toString() ?? '592',
+      );
+}
+
+class PeriodoEjercicio {
+  final int mes;
+  final String? estado; // abierto|cerrado|null (nunca abierto)
+  PeriodoEjercicio({required this.mes, this.estado});
+}
+
+class EstadoEjercicio {
+  final int anio;
+  final bool cerrado, puedeCerrar;
+  final String? motivo;
+  final double ingresos, gastos, resultado;
+  final List<PeriodoEjercicio> periodos;
+  EstadoEjercicio({
+    required this.anio, required this.cerrado, required this.puedeCerrar,
+    this.motivo, required this.ingresos, required this.gastos,
+    required this.resultado, required this.periodos,
+  });
+  factory EstadoEjercicio.fromJson(Map<String, dynamic> j) {
+    final prev = (j['resultado_preview'] ?? {}) as Map<String, dynamic>;
+    return EstadoEjercicio(
+      anio: _toI(j['anio']),
+      cerrado: j['cerrado'] == true,
+      puedeCerrar: j['puede_cerrar'] == true,
+      motivo: j['motivo']?.toString(),
+      ingresos: _toD(prev['ingresos']),
+      gastos: _toD(prev['gastos']),
+      resultado: _toD(prev['resultado']),
+      periodos: ((j['periodos'] ?? []) as List)
+          .map((e) => PeriodoEjercicio(
+                mes: _toI((e as Map<String, dynamic>)['mes']),
+                estado: e['estado']?.toString(),
+              ))
+          .toList(),
+    );
+  }
+}
+
+// ── Export PLE (SUNAT) ───────────────────────────────────────────────────────
+class PleArchivo {
+  final String nombreArchivo, contenido;
+  final int lineas;
+  PleArchivo({required this.nombreArchivo, required this.contenido, required this.lineas});
+  factory PleArchivo.fromJson(Map<String, dynamic> j) => PleArchivo(
+        nombreArchivo: j['nombre_archivo']?.toString() ?? '',
+        contenido: j['contenido']?.toString() ?? '',
+        lineas: _toI(j['lineas']),
+      );
+}

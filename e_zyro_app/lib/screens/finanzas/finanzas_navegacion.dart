@@ -12,6 +12,7 @@ import 'pantalla_centros_costo.dart';
 import 'pantalla_inventario_valorizado.dart';
 import 'pantalla_caja_chica.dart';
 import 'pantalla_conciliacion_bancaria.dart';
+import 'pantalla_cierre_contable.dart';
 import 'pantalla_manual_finanzas.dart';
 
 /// Fuente única del mapa de navegación de Finanzas: define qué submódulos
@@ -32,6 +33,7 @@ class FinId {
   static const inventario = 'inventario';
   static const planilla = 'planilla';
   static const centrosCosto = 'centros_costo';
+  static const cierre = 'cierre';
   static const manual = 'manual';
 }
 
@@ -72,9 +74,14 @@ List<FinSeccion> finanzasSecciones(AppSession s) {
             (_) => const PantallaReportesFinancieros()),
       if (s.canVerTributario)
         FinModulo(FinId.tributario, 'Tributario / IGV',
-            'Registro de compras y ventas',
+            'Registro de compras, ventas y export PLE',
             Icons.receipt_long_outlined, Colors.blueGrey,
             (_) => const PantallaTributario()),
+      if (s.canVerContabilidad)
+        FinModulo(FinId.cierre, 'Cierre y configuración',
+            'Cierre de ejercicio y cuentas del cierre',
+            Icons.event_available_outlined, Colors.deepPurple,
+            (_) => const PantallaCierreContable()),
     ]),
     FinSeccion('Cuentas', Icons.swap_horiz_outlined, [
       if (s.canVerCxp)
@@ -131,6 +138,17 @@ List<FinSeccion> finanzasSecciones(AppSession s) {
 
 /// True si el usuario puede ver algún módulo de finanzas.
 bool tieneModulosFinanzas(AppSession s) => finanzasSecciones(s).isNotEmpty;
+
+/// Módulo por id respetando el gating por permisos (null si no lo puede ver).
+/// Lo usan las acciones rápidas del dashboard para navegar sin duplicar rutas.
+FinModulo? moduloFinanzasPorId(AppSession s, String id) {
+  for (final sec in finanzasSecciones(s)) {
+    for (final m in sec.modulos) {
+      if (m.id == id) return m;
+    }
+  }
+  return null;
+}
 
 /// Botón de AppBar que abre el conmutador rápido de Finanzas. Colócalo en
 /// `actions:` de cada pantalla de Finanzas; [actual] resalta la pantalla activa.
