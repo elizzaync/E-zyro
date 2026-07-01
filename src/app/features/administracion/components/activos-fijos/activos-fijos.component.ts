@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdministracionService, ActivoFijo } from '../../../../core/services/administracion.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 type TabAF = 'activos' | 'depreciacion';
 
 @Component({
   selector: 'app-activos-fijos',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './activos-fijos.component.html',
   styleUrls: ['./activos-fijos.component.css']
 })

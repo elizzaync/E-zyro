@@ -179,49 +179,16 @@
 .cp-btn svg { width: 13px; height: 13px; }
 .cp-cancelado-lbl { font-size: 12px; color: #b91c1c; font-weight: 600; }
 
-/* ══════════════════════════════════════════════════════
-   OVERLAY COMPARTIDO
-══════════════════════════════════════════════════════ */
-.cp-overlay {
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(15,23,42,.55); backdrop-filter: blur(2px);
-  display: flex; align-items: center; justify-content: center; padding: 16px;
-  font-family: 'Inter', sans-serif;
-}
-
-/* ══════════════════════════════════════════════════════
-   MODAL BASE
-══════════════════════════════════════════════════════ */
-.cp-modal {
-  width: 100%; display: flex; flex-direction: column;
-  max-height: 95vh; overflow: hidden;
-  background: var(--card-bg, #fff); border-radius: 18px;
-  box-shadow: 0 24px 64px rgba(0,0,0,.28);
-  animation: cp-in .18s ease;
-}
-@keyframes cp-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-
-.cp-modal-sm { max-width: 440px; }
-.cp-modal-lg { max-width: 860px; }
-.cp-modal-xl { max-width: 1080px; }
-
-/* ── Modal header ── */
+/* ── Modal header (chips row, dentro de app-modal) ── */
 .cp-modal-header {
-  flex-shrink: 0; border-bottom: 1px solid var(--border-color, #e7eae6);
+  flex-shrink: 0; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color, #e7eae6);
 }
 .cp-modal-htop {
   display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 18px 22px 12px;
+  padding: 0 22px;
 }
-.cp-modal-title { font-size: 17px; font-weight: 800; color: var(--text-main, #0f172a); margin: 0; }
-.cp-modal-close {
-  width: 32px; height: 32px; border-radius: 8px; border: none; background: transparent;
-  cursor: pointer; color: var(--text-muted, #64748b); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.cp-modal-close:hover { background: var(--hover-bg); color: #ef4444; }
-.cp-modal-close svg { width: 18px; height: 18px; }
 
-.cp-modal-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cp-modal-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .cp-mchip {
   display: inline-flex; align-items: center;
   padding: 3px 10px; border-radius: 20px; font-size: 11.5px; font-weight: 600;
@@ -477,7 +444,6 @@
 :host-context([data-theme="dark"]) .cp-table thead tr { background: #0f172a; }
 :host-context([data-theme="dark"]) .cp-table th { color: #64748b; }
 :host-context([data-theme="dark"]) .cp-row { border-color: #334155; color: #e2e8f0; }
-:host-context([data-theme="dark"]) .cp-modal { background: #1e293b; }
 :host-context([data-theme="dark"]) .cp-mode-bar { background: #0f172a; }
 :host-context([data-theme="dark"]) .cp-items-bar { background: #1e293b; }
 :host-context([data-theme="dark"]) .cp-items-table th { background: #0f172a; }
@@ -495,16 +461,6 @@
 /* ══════════════════════════════════════════════════════
    MODAL INGRESO AL INVENTARIO
 ══════════════════════════════════════════════════════ */
-.cp-modal--ing { max-width: 620px; max-height: 80vh; overflow-y: auto; }
-
-.cp-modal-icon--green {
-  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
-  background: rgba(145,211,55,.14); color: var(--brand-green, #5a8a20);
-  display: flex; align-items: center; justify-content: center;
-}
-.cp-modal-icon--green svg { width: 20px; height: 20px; }
-.cp-modal-title-row { display: flex; align-items: center; gap: 12px; }
-
 .cp-ing-info {
   font-size: 13px; color: var(--text-muted, #64748b); line-height: 1.5;
   padding: 12px 16px; background: rgba(145,211,55,.07);
@@ -550,7 +506,6 @@
 .cp-btn-ok:hover:not(:disabled) { opacity: .88; }
 .cp-btn-ok:disabled { opacity: .45; cursor: default; }
 
-:host-context([data-theme="dark"]) .cp-modal--ing { background: #1e293b; }
 :host-context([data-theme="dark"]) .cp-ing-table thead th { background: #0f172a; }
 :host-context([data-theme="dark"]) .cp-ing-table tbody td { border-color: #334155; }
 :host-context([data-theme="dark"]) .cp-ing-qty { background: #0f172a; border-color: #334155; color: #e2e8f0; }
@@ -558,8 +513,6 @@
 /* ══════════════════════════════════════════════════════
    MODAL NUEVO EN INVENTARIO (Fase 2)
 ══════════════════════════════════════════════════════ */
-.cp-modal-nuevo-inv { max-width: 500px; }
-
 .cp-form-row  { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
 .cp-form-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .cp-form-label { font-size: 12.5px; font-weight: 700; color: var(--text-muted, #64748b); }
@@ -588,6 +541,7 @@
   padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 700;
   background: #fef3c7; color: #92400e; margin-left: 6px;
 }
+.cp-modal-sub { font-size: 13px; color: var(--text-muted, #64748b); line-height: 1.5; margin: 0 0 14px; }
 
 /* Responsive: formularios a 1 columna en móvil */
 @media (max-width: 560px) {

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { Retorno, RetornoDetalle } from '../../logistica.models';
 
 interface ItemInspeccionForm {
@@ -21,7 +22,7 @@ interface ItemInspeccionForm {
 @Component({
   selector: 'app-retornos-tabla',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './retornos-tabla.component.html',
   styleUrls: ['./retornos-tabla.component.css'],
 })

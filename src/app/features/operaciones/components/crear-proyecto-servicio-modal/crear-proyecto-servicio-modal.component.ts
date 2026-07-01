@@ -7,6 +7,7 @@ import { ReactiveFormsModule, FormsModule, FormBuilder, FormGroup, Validators } 
 import { Subject, switchMap, takeUntil } from 'rxjs';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 interface ClienteBasico { id: string; razon_social: string; ruc: string | null; }
 interface CatalogoSvc   { id: string; nombre: string; tipo_trabajo: string; }
@@ -16,7 +17,7 @@ interface GeoItem       { id: string; nombre: string; }
 @Component({
   selector: 'app-crear-proyecto-servicio-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './crear-proyecto-servicio-modal.component.html',
   styleUrls: ['./crear-proyecto-servicio-modal.component.css'],
 })

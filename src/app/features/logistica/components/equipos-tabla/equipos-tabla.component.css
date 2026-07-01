@@ -161,24 +161,7 @@
 .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
 
 /* ── Confirmación eliminar ── */
-.conf-overlay {
-  position: fixed; inset: 0; z-index: 1100;
-  background: rgba(15, 23, 42, .55); backdrop-filter: blur(2px);
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-  font-family: 'Inter', sans-serif;
-}
-.conf-dialog {
-  width: 100%; max-width: 400px; text-align: center;
-  background: var(--card-bg, #fff); border-radius: 16px; padding: 26px 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
-}
-.conf-icon {
-  width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%;
-  background: #fef2f2; color: #dc2626;
-  display: flex; align-items: center; justify-content: center;
-}
-.conf-icon svg { width: 24px; height: 24px; }
-.conf-dialog h3 { font-size: 17px; font-weight: 800; color: var(--text-main, #0f172a); margin: 0 0 6px; }
+.conf-dialog { text-align: center; padding: 4px 4px 0; }
 .conf-dialog p { font-size: 13.5px; color: var(--text-muted, #64748b); margin: 0 0 20px; line-height: 1.5; }
 .conf-actions { display: flex; gap: 10px; justify-content: center; }
 .lf-btn-cancel {
@@ -196,8 +179,6 @@
 :host-context([data-theme="dark"]) .tabla tbody tr:hover { background: rgba(145, 211, 55, .08); }
 :host-context([data-theme="dark"]) .est-baja { background: #334155; color: #94a3b8; }
 :host-context([data-theme="dark"]) .est-en-mantenimiento { background: rgba(245,158,11,.18); color: #fbbf24; }
-:host-context([data-theme="dark"]) .conf-dialog { background: #1e293b; }
-:host-context([data-theme="dark"]) .conf-icon { background: rgba(220,38,38,.15); }
 
 /* ── Serie faltante (rojo urgente) ── */
 .td-sin-serie {

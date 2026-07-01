@@ -140,17 +140,18 @@
 <!-- ═══════════════════════════════════════════════════════════
      MODAL CREAR CUENTA
 ═══════════════════════════════════════════════════════════ -->
-@if (showModal) {
-<div class="cc-overlay" (click)="cerrarModal()"></div>
-<div class="cc-modal cc-modal-lg fade-in-up" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="showModal"
+  title="Nueva cuenta de acceso"
+  subtitle="La contraseña se genera automáticamente con el DNI"
+  maxWidth="760px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarModal()">
 
-  <div class="cc-modal-head">
-    <div>
-      <h3 class="cc-modal-title">Nueva cuenta de acceso</h3>
-      <p class="cc-modal-sub">La contraseña se genera automáticamente con el DNI</p>
-    </div>
-    <button class="cc-close-btn" (click)="cerrarModal()">✕</button>
-  </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/>
+  </svg>
 
   <div class="cc-modal-body">
 
@@ -277,19 +278,24 @@
       @if (guardando) { Creando… } @else { Crear cuenta }
     </button>
   </div>
-</div>
-}
+</app-modal>
 
 <!-- ═══════════════════════════════════════════════════════════
      MODAL CAMBIAR ROL
 ═══════════════════════════════════════════════════════════ -->
-@if (showRolModal && rolTarget) {
-<div class="cc-overlay" (click)="cerrarRolModal()"></div>
-<div class="cc-modal cc-modal-sm fade-in-up" (click)="$event.stopPropagation()">
-  <div class="cc-modal-head">
-    <h3 class="cc-modal-title">Cambiar rol</h3>
-    <button class="cc-close-btn" (click)="cerrarRolModal()">✕</button>
-  </div>
+@if (rolTarget) {
+<app-modal
+  [open]="showRolModal"
+  title="Cambiar rol"
+  maxWidth="480px"
+  iconBg="rgba(99,102,241,0.12)"
+  iconColor="#4f46e5"
+  (closeModal)="cerrarRolModal()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
+  </svg>
+
   <div class="cc-modal-body">
     <p class="cc-info-txt">Cambiando rol de <strong>{{ rolTarget.nombre }} {{ rolTarget.apellido }}</strong></p>
     <p class="cc-muted-txt">Rol actual: <strong>{{ rolTarget.rol ?? 'Sin rol' }}</strong></p>
@@ -308,21 +314,25 @@
       @if (cambiandoRol) { Guardando… } @else { Confirmar }
     </button>
   </div>
-</div>
+</app-modal>
 }
 
 <!-- ═══════════════════════════════════════════════════════════
      MODAL ACTIVAR / DESACTIVAR
 ═══════════════════════════════════════════════════════════ -->
-@if (showToggleModal && toggleTarget) {
-<div class="cc-overlay" (click)="cerrarToggleModal()"></div>
-<div class="cc-modal cc-modal-sm fade-in-up" (click)="$event.stopPropagation()">
-  <div class="cc-modal-head">
-    <h3 class="cc-modal-title">
-      {{ toggleTarget.activo ? 'Desactivar cuenta' : 'Activar cuenta' }}
-    </h3>
-    <button class="cc-close-btn" (click)="cerrarToggleModal()">✕</button>
-  </div>
+@if (toggleTarget) {
+<app-modal
+  [open]="showToggleModal"
+  [title]="toggleTarget.activo ? 'Desactivar cuenta' : 'Activar cuenta'"
+  maxWidth="480px"
+  iconBg="rgba(245,158,11,0.12)"
+  iconColor="#d97706"
+  (closeModal)="cerrarToggleModal()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+  </svg>
+
   <div class="cc-modal-body">
     @if (toggleTarget.activo) {
       <div class="cc-warn-box">
@@ -355,19 +365,25 @@
       @else { {{ toggleTarget.activo ? 'Sí, desactivar' : 'Sí, activar' }} }
     </button>
   </div>
-</div>
+</app-modal>
 }
 
 <!-- ═══════════════════════════════════════════════════════════
      MODAL RESET PASSWORD
 ═══════════════════════════════════════════════════════════ -->
-@if (showResetModal && resetTarget) {
-<div class="cc-overlay" (click)="cerrarResetModal()"></div>
-<div class="cc-modal cc-modal-sm fade-in-up" (click)="$event.stopPropagation()">
-  <div class="cc-modal-head">
-    <h3 class="cc-modal-title">Restablecer contraseña</h3>
-    <button class="cc-close-btn" (click)="cerrarResetModal()">✕</button>
-  </div>
+@if (resetTarget) {
+<app-modal
+  [open]="showResetModal"
+  title="Restablecer contraseña"
+  maxWidth="480px"
+  iconBg="rgba(139,92,246,0.12)"
+  iconColor="#7c3aed"
+  (closeModal)="cerrarResetModal()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
+  </svg>
+
   <div class="cc-modal-body">
     <p class="cc-info-txt">
       Usuario: <strong>{{ resetTarget.nombre }} {{ resetTarget.apellido }}</strong>
@@ -451,5 +467,5 @@
       @if (resetandoPass) { Restableciendo… } @else { Restablecer contraseña }
     </button>
   </div>
-</div>
+</app-modal>
 }

@@ -199,14 +199,23 @@
      MODAL DE PROCESO / COMPRA
 ══════════════════════════════════════════════════════ -->
 @if (ticketActivo) {
-<div class="cp-overlay" (click)="cerrarProceso()">
-<div class="cp-modal cp-modal-xl" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Registrar compra"
+  maxWidth="1080px"
+  iconBg="rgba(139,92,246,0.12)"
+  iconColor="#7c3aed"
+  (closeModal)="cerrarProceso()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+  </svg>
 
   <!-- Header -->
   <header class="cp-modal-header">
     <div class="cp-modal-htop">
       <div>
-        <h2 class="cp-modal-title">Registrar compra</h2>
         <div class="cp-modal-chips">
           <span class="cp-mchip cp-mchip--code">{{ ticketActivo.codigo }}</span>
           <span class="cp-mchip">{{ ticketActivo.proyectoNombre }}</span>
@@ -215,11 +224,6 @@
           <span class="cp-mchip cp-mchip--count">{{ ticketActivo.items.length }} ítems</span>
         </div>
       </div>
-      <button class="cp-modal-close" (click)="cerrarProceso()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
     </div>
 
     <!-- Barra de modo -->
@@ -404,8 +408,7 @@
     </button>
   </footer>
 
-</div>
-</div>
+</app-modal>
 }
 
 
@@ -413,13 +416,22 @@
      MODAL DE DETALLE (ticket completado)
 ══════════════════════════════════════════════════════ -->
 @if (ticketDetalle) {
-<div class="cp-overlay" (click)="cerrarDetalle()">
-<div class="cp-modal cp-modal-lg" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Detalle de compra"
+  maxWidth="860px"
+  iconBg="rgba(139,92,246,0.12)"
+  iconColor="#7c3aed"
+  (closeModal)="cerrarDetalle()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
 
   <header class="cp-modal-header">
     <div class="cp-modal-htop">
       <div>
-        <h2 class="cp-modal-title">Detalle de compra</h2>
         <div class="cp-modal-chips">
           <span class="cp-mchip cp-mchip--code">{{ ticketDetalle.codigo }}</span>
           <span class="cp-mchip">{{ ticketDetalle.proyectoNombre }}</span>
@@ -427,11 +439,6 @@
           <span class="cp-badge cp-est-completado">Completado</span>
         </div>
       </div>
-      <button class="cp-modal-close" (click)="cerrarDetalle()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
     </div>
   </header>
 
@@ -518,8 +525,7 @@
     <button class="cp-btn-cancel-modal" (click)="cerrarDetalle()">Cerrar</button>
   </footer>
 
-</div>
-</div>
+</app-modal>
 }
 
 
@@ -527,18 +533,18 @@
      MODAL DE CANCELACIÓN
 ══════════════════════════════════════════════════════ -->
 @if (ticketCancelar) {
-<div class="cp-overlay" (click)="cerrarCancelar()">
-<div class="cp-modal cp-modal-sm" (click)="$event.stopPropagation()">
-  <header class="cp-modal-header">
-    <div class="cp-modal-htop">
-      <h2 class="cp-modal-title">Cancelar ticket</h2>
-      <button class="cp-modal-close" (click)="cerrarCancelar()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-  </header>
+<app-modal
+  [open]="true"
+  title="Cancelar ticket"
+  maxWidth="440px"
+  iconBg="rgba(239,68,68,0.12)"
+  iconColor="#dc2626"
+  (closeModal)="cerrarCancelar()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />
+  </svg>
+
   <div class="cp-modal-body">
     <p class="cp-cancel-info">
       Cancelar <strong>{{ ticketCancelar.codigo }}</strong> · {{ ticketCancelar.proyectoNombre }}
@@ -554,31 +560,23 @@
       Confirmar cancelación
     </button>
   </footer>
-</div>
-</div>
+</app-modal>
+}
 
 <!-- ═══════════════ MODAL INGRESO AL INVENTARIO ═══════════════ -->
 @if (ticketIngreso) {
-<div class="cp-overlay" (click)="cerrarIngreso()">
-  <div class="cp-modal cp-modal--ing" (click)="$event.stopPropagation()">
-    <header class="cp-modal-header">
-      <div class="cp-modal-title-row">
-        <div class="cp-modal-icon cp-modal-icon--green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </div>
-        <div>
-          <h3 class="cp-modal-title">Registrar ingreso al inventario</h3>
-          <p class="cp-modal-sub">{{ ticketIngreso.codigo }} · {{ ticketIngreso.proyectoNombre }}</p>
-        </div>
-      </div>
-      <button class="cp-modal-close" (click)="cerrarIngreso()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+<app-modal
+  [open]="true"
+  title="Registrar ingreso al inventario"
+  [subtitle]="ticketIngreso.codigo + ' · ' + ticketIngreso.proyectoNombre"
+  maxWidth="620px"
+  iconBg="rgba(145,211,55,0.14)"
+  iconColor="var(--brand-green,#5a8a20)"
+  (closeModal)="cerrarIngreso()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M5 12h14M12 5l7 7-7 7"/>
+  </svg>
 
     <div class="cp-modal-body">
       <p class="cp-ing-info">
@@ -623,34 +621,36 @@
         Registrar ingreso
       </button>
     </footer>
-  </div>
-</div>
-}
+</app-modal>
 }
 
 
 <!-- ═══════════════ MODAL: NUEVO ÍTEM EN INVENTARIO (Fase 2) ═══════════════ -->
 @if (nuevoInvItem) {
-<div class="cp-overlay" (click)="cerrarNuevoInv()">
-  <div class="cp-modal cp-modal-nuevo-inv" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Nuevo ítem en inventario"
+  maxWidth="500px"
+  iconBg="rgba(139,92,246,0.12)"
+  iconColor="#7c3aed"
+  (closeModal)="cerrarNuevoInv()">
 
-    <div class="cp-modal-header">
-      <div>
-        <h3 class="cp-modal-title">Nuevo ítem en inventario</h3>
-        <p class="cp-modal-sub">
-          <span class="tipo-badge tipo-badge--{{ nuevoInvItem.tipoItem }}">
-            {{ nuevoInvItem.tipoItem === 'material' ? 'Material' : nuevoInvItem.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
-          </span>
-          Este ítem no existe en el inventario. Completa los datos para registrarlo.
-          @if (nuevoInvCola.length > 1) {
-            <span class="cola-badge">{{ nuevoInvCola.length }} pendientes</span>
-          }
-        </p>
-      </div>
-      <button class="cp-modal-close" (click)="cerrarNuevoInv()">✕</button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+  </svg>
 
     <div class="cp-modal-body">
+
+      <p class="cp-modal-sub">
+        <span class="tipo-badge tipo-badge--{{ nuevoInvItem.tipoItem }}">
+          {{ nuevoInvItem.tipoItem === 'material' ? 'Material' : nuevoInvItem.tipoItem === 'equipo' ? 'Equipo' : 'Herramienta' }}
+        </span>
+        Este ítem no existe en el inventario. Completa los datos para registrarlo.
+        @if (nuevoInvCola.length > 1) {
+          <span class="cola-badge">{{ nuevoInvCola.length }} pendientes</span>
+        }
+      </p>
 
       <!-- Nombre -->
       <div class="cp-form-row">
@@ -717,6 +717,5 @@
         }
       </button>
     </footer>
-  </div>
-</div>
+</app-modal>
 }

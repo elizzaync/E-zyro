@@ -116,23 +116,30 @@
   }
 
   <!-- Modal: Nuevo Activo -->
-  @if (showForm) {
-  <div class="adm-modal-overlay" (click)="showForm = false">
-    <div class="adm-modal adm-modal-lg" (click)="$event.stopPropagation()">
-      <h3 class="adm-modal-title">Nuevo Activo Fijo</h3>
-      <div class="adm-form-grid">
-        <div class="adm-form-row"><label>Nombre</label><input type="text" class="adm-input" [(ngModel)]="nuevo.nombre" placeholder="Nombre del activo"></div>
-        <div class="adm-form-row"><label>Fecha Adquisición</label><input type="date" class="adm-input" [(ngModel)]="nuevo.fecha_adquisicion"></div>
-        <div class="adm-form-row"><label>Valor Adquisición (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.valor_adquisicion" min="0"></div>
-        <div class="adm-form-row"><label>Valor Residual (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.valor_residual" min="0"></div>
-        <div class="adm-form-row"><label>Vida Útil (meses)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.vida_util_meses" min="1"></div>
-        <div class="adm-form-row"><label>Inicio Depreciación</label><input type="date" class="adm-input" [(ngModel)]="nuevo.fecha_adquisicion"></div>
-      </div>
-      <div class="adm-modal-actions">
-        <button class="btn-secondary" (click)="showForm = false">Cancelar</button>
-        <button class="btn-primary" (click)="guardar()" [disabled]="guardando || !nuevo.nombre">{{ guardando ? 'Guardando…' : 'Guardar' }}</button>
-      </div>
+  <app-modal
+    [open]="showForm"
+    title="Nuevo Activo Fijo"
+    maxWidth="580px"
+    iconBg="rgba(100,116,139,0.12)"
+    iconColor="#64748b"
+    (closeModal)="showForm = false">
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="7" width="20" height="15" rx="2"/>
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+      <line x1="12" y1="12" x2="12" y2="16"/>
+      <line x1="10" y1="14" x2="14" y2="14"/>
+    </svg>
+    <div class="adm-form-grid">
+      <div class="adm-form-row"><label>Nombre</label><input type="text" class="adm-input" [(ngModel)]="nuevo.nombre" placeholder="Nombre del activo"></div>
+      <div class="adm-form-row"><label>Fecha Adquisición</label><input type="date" class="adm-input" [(ngModel)]="nuevo.fecha_adquisicion"></div>
+      <div class="adm-form-row"><label>Valor Adquisición (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.valor_adquisicion" min="0"></div>
+      <div class="adm-form-row"><label>Valor Residual (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.valor_residual" min="0"></div>
+      <div class="adm-form-row"><label>Vida Útil (meses)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.vida_util_meses" min="1"></div>
+      <div class="adm-form-row"><label>Inicio Depreciación</label><input type="date" class="adm-input" [(ngModel)]="nuevo.fecha_adquisicion"></div>
     </div>
-  </div>
-  }
+    <div class="adm-modal-actions">
+      <button class="btn-secondary" (click)="showForm = false">Cancelar</button>
+      <button class="btn-primary" (click)="guardar()" [disabled]="guardando || !nuevo.nombre">{{ guardando ? 'Guardando…' : 'Guardar' }}</button>
+    </div>
+  </app-modal>
 </section>

@@ -107,36 +107,30 @@
 
 <!-- ══ MODAL HISTORIAL ════════════════════════════════════════════════════════ -->
 @if (showModal && modalCal) {
-<div class="cal-modal-backdrop" (click)="cerrarModal()"></div>
-<div class="cal-modal fade-in-up" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  [title]="modalCal.equipo_nombre ?? 'Equipo'"
+  [subtitle]="'Última: ' + formatFecha(modalCal.fecha_ultima) + ' · Próxima: ' + formatFecha(modalCal.fecha_proxima)"
+  maxWidth="640px"
+  iconBg="rgba(5,150,105,0.12)"
+  iconColor="#059669"
+  (closeModal)="cerrarModal()">
 
-  <!-- Header modal -->
-  <div class="cal-modal-header">
-    <div class="cal-modal-header-left">
-      <span class="cal-badge" [class]="'cal-badge--' + estado(modalCal)" style="margin-right:8px">
-        {{ estadoLabel(estado(modalCal)) }}
-      </span>
-      <div>
-        <h4 class="cal-modal-title">{{ modalCal.equipo_nombre ?? 'Equipo' }}</h4>
-        <p class="cal-modal-sub">
-          Última: <strong>{{ formatFecha(modalCal.fecha_ultima) }}</strong> ·
-          Próxima: <strong>{{ formatFecha(modalCal.fecha_proxima) }}</strong>
-        </p>
-      </div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <button class="cal-btn-agregar" (click)="addOpen = !addOpen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Nueva calibración
-      </button>
-      <button class="cal-modal-close" (click)="cerrarModal()">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+
+  <!-- Toolbar: estado + acción agregar -->
+  <div class="cal-modal-toolbar">
+    <span class="cal-badge" [class]="'cal-badge--' + estado(modalCal)">
+      {{ estadoLabel(estado(modalCal)) }}
+    </span>
+    <button class="cal-btn-agregar" (click)="addOpen = !addOpen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nueva calibración
+    </button>
   </div>
 
   <!-- Formulario nueva calibración -->
@@ -260,21 +254,24 @@
     }
   </div>
 
-</div>
+</app-modal>
 }
 
 <!-- ══ MODAL BUSCAR EQUIPO ═══════════════════════════════════════════════════ -->
 @if (showNuevoEquipo) {
-<div class="cal-modal-backdrop" (click)="cerrarNuevoEquipo()"></div>
-<div class="cal-eq-modal fade-in-up" (click)="$event.stopPropagation()">
-  <div class="cal-eq-header">
-    <h4>Seleccionar equipo</h4>
-    <button class="cal-modal-close" (click)="cerrarNuevoEquipo()">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" width="20" height="20">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-      </svg>
-    </button>
-  </div>
+<app-modal
+  [open]="true"
+  title="Seleccionar equipo"
+  maxWidth="400px"
+  iconBg="rgba(5,150,105,0.12)"
+  iconColor="#059669"
+  (closeModal)="cerrarNuevoEquipo()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+
+  <div class="cal-eq-modal-body">
   <div class="cal-search-wrap" style="margin:0 0 10px">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -302,5 +299,7 @@
       }
     </div>
   }
-</div>
+  </div>
+
+</app-modal>
 }

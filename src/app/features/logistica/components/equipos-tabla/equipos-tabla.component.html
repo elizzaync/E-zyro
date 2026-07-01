@@ -274,16 +274,20 @@
 }
 
 <!-- ── Confirmación de eliminación ── -->
-@if (equipoAEliminar) {
-<div class="conf-overlay" (click)="cancelarEliminar()">
-  <div class="conf-dialog" (click)="$event.stopPropagation()">
-    <div class="conf-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />
-      </svg>
-    </div>
-    <h3>Eliminar registro</h3>
-    <p>¿Seguro que deseas eliminar <strong>{{ equipoAEliminar.nombre }}</strong>? Esta acción quedará registrada en auditoría.</p>
+<app-modal
+  [open]="!!equipoAEliminar"
+  title="Eliminar registro"
+  maxWidth="400px"
+  iconBg="rgba(239,68,68,0.12)"
+  iconColor="#dc2626"
+  (closeModal)="cancelarEliminar()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" />
+  </svg>
+
+  <div class="conf-dialog">
+    <p>¿Seguro que deseas eliminar <strong>{{ equipoAEliminar?.nombre }}</strong>? Esta acción quedará registrada en auditoría.</p>
     <div class="conf-actions">
       <button class="lf-btn-cancel" (click)="cancelarEliminar()">Cancelar</button>
       <button class="conf-btn-del" (click)="confirmarEliminar()" [disabled]="eliminando">
@@ -292,5 +296,4 @@
       </button>
     </div>
   </div>
-</div>
-}
+</app-modal>

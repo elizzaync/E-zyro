@@ -448,36 +448,7 @@
 :host ::ng-deep .adm-placeholder svg { opacity: 0.4; }
 :host ::ng-deep .adm-placeholder p { font-size: 14px; max-width: 320px; }
 
-/* Modales */
-:host ::ng-deep .adm-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 500;
-  backdrop-filter: blur(2px);
-}
-
-:host ::ng-deep .adm-modal {
-  background: var(--card-bg, #fff);
-  border-radius: 16px;
-  padding: 24px;
-  width: 420px;
-  max-width: 95vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-}
-
-:host ::ng-deep .adm-modal-lg { width: 580px; }
-
-:host ::ng-deep .adm-modal-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary, #111827);
-  margin: 0 0 20px;
-}
-
+/* Modales (chrome ahora provisto por <app-modal>) */
 :host ::ng-deep .adm-form-row {
   display: flex;
   flex-direction: column;

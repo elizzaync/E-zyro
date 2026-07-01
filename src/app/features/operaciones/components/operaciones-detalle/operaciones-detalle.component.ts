@@ -12,6 +12,7 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { JustificacionModalComponent } from '../../../../shared/components/justificacion-modal/justificacion-modal.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { FASES_SERVICIO, faseClase as faseClaseServicio } from '../../fase-servicio';
 import { Requerimiento } from '../../../logistica/logistica.models';
 
@@ -105,7 +106,7 @@ export interface NotaItem {
 @Component({
   selector: 'app-operaciones-detalle',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, SpinnerComponent, JustificacionModalComponent],
+  imports: [CommonModule, RouterModule, FormsModule, SpinnerComponent, JustificacionModalComponent, AppModalComponent],
   templateUrl: './operaciones-detalle.component.html',
   styleUrls: ['./operaciones-detalle.component.css']
 })

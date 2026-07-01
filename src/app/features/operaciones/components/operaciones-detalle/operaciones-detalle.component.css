@@ -772,7 +772,6 @@
 .firma-btn-global svg { width: 16px; height: 16px; }
 
 /* Modal firma global */
-.modal-firma-global { max-width: 620px; }
 .modal-firma-body { display: flex; flex-direction: column; gap: 14px; }
 .firma-resp-nota {
   display: flex; align-items: flex-start; gap: 8px;
@@ -796,7 +795,6 @@
 .firma-o-sep { font-size: 11.5px; color: var(--text-muted, #94a3b8); text-align: center; margin: 0; }
 
 /* Modal de firma */
-.modal-firma { max-width: 600px; }
 .salida-preview {
   border: 1px solid var(--border-color, #e7eae6); border-radius: 12px;
   padding: 16px; margin-bottom: 16px; background: var(--page-bg, #f8fafc);
@@ -872,35 +870,6 @@
    ████  M O D A L E S  ████
 ══════════════════════════════════════════════════════════════ */
 
-/* — OVERLAY — */
-.modal-overlay {
-  position: fixed; inset: 0; z-index: 2000;
-  background: rgba(0,0,0,.45);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-  animation: fadeOverlay .2s ease;
-}
-@keyframes fadeOverlay { from { opacity:0; } to { opacity:1; } }
-
-/* — CAJA BASE — */
-.modal-box {
-  width: 100%; max-width: 520px;
-  background: var(--card-bg,#fff);
-  border-radius: 24px;
-  box-shadow: 0 24px 80px rgba(0,0,0,.18), 0 4px 24px rgba(0,0,0,.08);
-  overflow: hidden;
-  animation: popIn .25s cubic-bezier(.34,1.56,.64,1);
-  display: flex; flex-direction: column;
-}
-@keyframes popIn { from { opacity:0; transform:scale(.92) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
-
-.modal-sm        { max-width: 400px; }
-.modal-md        { max-width: 500px; }
-.modal-solicitar { max-width: 600px; width: 95vw; }
-.modal-pdf       { max-width: 740px; width: 95vw; }
-
 /* ── Botón incidencia en header ── */
 .hb-btn--alert {
   background: rgba(239,68,68,.12) !important;
@@ -930,10 +899,6 @@
 .inc-serie-warn { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: .78rem; color: #dc2626; font-weight: 600; }
 .btn-primary--danger { background: #dc2626 !important; }
 .btn-primary--danger:hover:not([disabled]) { background: #b91c1c !important; }
-
-/* ── Overlay mandatorio (no cierra al clic fuera) ── */
-.modal-overlay--mandatory { cursor: not-allowed; }
-.modal-overlay--mandatory > * { cursor: default; }
 
 /* ── Banner urgente dentro del modal ── */
 .modal-retorno-urgente-banner {
@@ -1010,24 +975,6 @@
 .ret-qty-num { font-size: .95rem; font-weight: 700; color: var(--text-main,#1e293b); }
 .ret-qty-inp { width: 60px; text-align: center; padding: .28rem .35rem; border: 1.5px solid var(--border-color,#e2e8f0); border-radius: 7px; font-size: .9rem; font-weight: 700; outline: none; }
 .ret-qty-inp:focus { border-color: var(--brand-green,#91d337); }
-
-/* — HEADER — */
-.modal-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--border-color,#f1f5f9);
-}
-.modal-title    { margin: 0; font-size: 17px; font-weight: 800; color: var(--text-main,#0f172a); }
-.modal-subtitle { margin: 4px 0 0; font-size: 13px; color: var(--text-muted,#64748b); }
-
-.modal-close {
-  width: 32px; height: 32px; border-radius: 50%; border: none;
-  background: var(--page-bg,#f1f5f9); cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; color: var(--text-muted,#64748b);
-  transition: background .2s, color .2s; margin-left: 12px;
-}
-.modal-close svg    { width: 14px; height: 14px; }
-.modal-close:hover  { background: rgba(239,68,68,.1); color: #ef4444; }
 
 /* — BODY — */
 .modal-body { padding: 20px 24px; overflow-y: auto; max-height: 60vh; }
@@ -1225,12 +1172,6 @@
 :host-context([data-theme="dark"]) .empty-ev         { color: #475569; }
 
 /* ── MODALES dark ── */
-:host-context([data-theme="dark"]) .modal-overlay    { background: rgba(0,0,0,.65); }
-:host-context([data-theme="dark"]) .modal-box        { background: #0f172a; box-shadow: 0 24px 80px rgba(0,0,0,.5); }
-:host-context([data-theme="dark"]) .modal-header     { border-color: #1e293b; }
-:host-context([data-theme="dark"]) .modal-title      { color: #f8fafc; }
-:host-context([data-theme="dark"]) .modal-subtitle   { color: #94a3b8; }
-:host-context([data-theme="dark"]) .modal-close      { background: #1e293b; color: #94a3b8; }
 :host-context([data-theme="dark"]) .modal-footer     { background: #0b1425; border-color: #1e293b; }
 
 :host-context([data-theme="dark"]) .dropzone         { background: #0b1425; border-color: #334155; }
@@ -1262,19 +1203,11 @@
 /* ==========================================================================
    MEJORAS TIPOGRAFÍA EN MODALES (INTER)
    ========================================================================== */
-.modal-box,
-.modal-title,
-.modal-subtitle,
 .modal-body,
 .form-input,
 .btn-cancel,
 .btn-primary {
   font-family: 'Inter', sans-serif !important;
-}
-
-.modal-box {
-  border-radius: 16px; /* Bordes más estéticos */
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
 }
 
 /* ==========================================================================

@@ -5,6 +5,7 @@ import { Router } from '@angular/router';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import {
   TicketCompra, TicketCompraItem, Proveedor, EstadoCompra,
   ProcesarCompraPayload, RegistrarIngresoPayload, VincularInventarioPayload
@@ -31,7 +32,7 @@ type TabCompra = 'pendiente' | 'en_proceso' | 'completado' | 'cancelado';
 @Component({
   selector: 'app-compras',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './compras.component.html',
   styleUrls: ['./compras.component.css']
 })

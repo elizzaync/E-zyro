@@ -283,21 +283,18 @@
      MODAL: Equipo de trabajo del servicio (datos completos + foto)
 ═══════════════════════════════════════════════════════════════ -->
 @if (equipoModalServicio) {
-<div class="pdet-eq-overlay" (click)="cerrarEquipoModal()" role="dialog" aria-modal="true"
-     aria-label="Equipo de trabajo del servicio">
-  <div class="pdet-eq-modal" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Técnicos asignados"
+  [subtitle]="equipoModalServicio.nombre + ' · ' + equipoModalServicio.equipo.length + ' miembro' + (equipoModalServicio.equipo.length !== 1 ? 's' : '')"
+  maxWidth="640px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarEquipoModal()">
 
-    <div class="pdet-eq-head">
-      <div>
-        <h3 class="pdet-eq-title">Técnicos asignados</h3>
-        <p class="pdet-eq-subtitle">{{ equipoModalServicio.nombre }} · {{ equipoModalServicio.equipo.length }} miembro{{ equipoModalServicio.equipo.length !== 1 ? 's' : '' }}</p>
-      </div>
-      <button class="pdet-eq-close" (click)="cerrarEquipoModal()" aria-label="Cerrar">
-        <svg viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4"/>
+  </svg>
 
     <div class="pdet-eq-body">
       @for (m of equipoModalServicio.equipo; track m.id) {
@@ -357,6 +354,5 @@
       }
     </div>
 
-  </div>
-</div>
+</app-modal>
 }

@@ -674,19 +674,22 @@
 <!-- ═══════════════════════════════════════════════════════════════
      HU-13 · Confirmación: técnico ya pertenece a un grupo activo
 ═══════════════════════════════════════════════════════════════ -->
-@if (confirmGrupoOpen && confirmGrupoTecnico) {
-<div class="asm-confirm-overlay" (click)="cancelarAgregarConGrupo()" role="dialog" aria-modal="true">
-  <div class="asm-confirm-dialog" (click)="$event.stopPropagation()">
+@if (confirmGrupoTecnico) {
+<app-modal
+  [open]="confirmGrupoOpen"
+  title="Técnico ya asignado a un grupo de trabajo"
+  maxWidth="480px"
+  iconBg="rgba(245,158,11,0.12)"
+  iconColor="#d97706"
+  (closeModal)="cancelarAgregarConGrupo()">
 
-    <div class="asm-confirm-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/>
-        <line x1="12" y1="17" x2="12.01" y2="17"/>
-      </svg>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/>
+    <line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
 
-    <h3 class="asm-confirm-title">Técnico ya asignado a un grupo de trabajo</h3>
+  <div class="asm-confirm-body-wrap">
     <p class="asm-confirm-body">
       <strong>{{ confirmGrupoTecnico.nombre }} {{ confirmGrupoTecnico.apellido }}</strong>
       ya está en el grupo de trabajo de
@@ -705,9 +708,9 @@
         Añadir igual
       </button>
     </div>
-
   </div>
-</div>
+
+</app-modal>
 }
 
 <!-- Modal de justificación (Jefe de Operaciones — configurar/editar asignación) -->

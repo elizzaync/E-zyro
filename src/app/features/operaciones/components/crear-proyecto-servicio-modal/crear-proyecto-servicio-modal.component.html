@@ -1,27 +1,17 @@
-<div class="cpsm-overlay" (click)="cerrar()">
-  <div class="cpsm-container" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Nuevo Proyecto + Servicio"
+  [subtitle]="paso === 1 ? 'Paso 1 de 2 · Datos del proyecto' : 'Paso 2 de 2 · Datos del servicio'"
+  maxWidth="680px"
+  iconBg="rgba(145,211,55,.14)"
+  iconColor="#5a8a20"
+  (closeModal)="cerrar()">
 
-    <!-- ═══ HEADER ═══ -->
-    <header class="cpsm-header">
-      <div class="cpsm-header-left">
-        <div class="cpsm-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            <line x1="12" y1="11" x2="12" y2="17"/>
-            <line x1="9" y1="14" x2="15" y2="14"/>
-          </svg>
-        </div>
-        <div>
-          <h2 class="cpsm-title">Nuevo Proyecto + Servicio</h2>
-          <p class="cpsm-subtitle">{{ paso === 1 ? 'Paso 1 de 2 · Datos del proyecto' : 'Paso 2 de 2 · Datos del servicio' }}</p>
-        </div>
-      </div>
-      <button class="cpsm-close" type="button" (click)="cerrar()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    <line x1="12" y1="11" x2="12" y2="17"/>
+    <line x1="9" y1="14" x2="15" y2="14"/>
+  </svg>
 
     <!-- ═══ WIZARD STEPS ═══ -->
     <nav class="cpsm-steps">
@@ -274,5 +264,4 @@
       </div>
     </footer>
 
-  </div>
-</div>
+</app-modal>

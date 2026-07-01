@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 interface ProcLocal {
   orden: number;
@@ -33,7 +34,7 @@ interface EquipoInfo {
 @Component({
   selector: 'app-intervencion-equipo',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './intervencion-equipo.component.html',
   styleUrls: ['./intervencion-equipo.component.css'],
 })

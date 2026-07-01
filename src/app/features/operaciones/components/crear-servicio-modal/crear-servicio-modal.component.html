@@ -1,36 +1,18 @@
 <!-- ═══════════════════════════════════════════════════════════════
-     OVERLAY + MODAL — Crear / Editar Servicio de Proyecto
+     MODAL — Crear / Editar Servicio de Proyecto
 ═══════════════════════════════════════════════════════════════ -->
-<div class="csm-overlay" (click)="cerrar()" role="dialog" aria-modal="true"
-     [attr.aria-label]="mode === 'crear' ? 'Agregar nuevo servicio' : 'Editar servicio'">
+<app-modal
+  [open]="true"
+  [title]="mode === 'crear' ? 'Nuevo Servicio' : 'Editar Servicio'"
+  [subtitle]="mode === 'crear' ? 'Agrega un servicio al proyecto' : 'Actualiza los datos del servicio'"
+  maxWidth="720px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrar()">
 
-  <div class="csm-container" (click)="$event.stopPropagation()">
-
-    <!-- ══════════════ HEADER ══════════════ -->
-    <header class="csm-header">
-      <div class="csm-header-left">
-        <div class="csm-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
-          </svg>
-        </div>
-        <div>
-          <h2 class="csm-title">
-            {{ mode === 'crear' ? 'Nuevo Servicio' : 'Editar Servicio' }}
-          </h2>
-          <p class="csm-subtitle">
-            {{ mode === 'crear' ? 'Agrega un servicio al proyecto' : 'Actualiza los datos del servicio' }}
-          </p>
-        </div>
-      </div>
-
-      <button class="csm-close-btn" (click)="cerrar()" aria-label="Cerrar modal">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+  </svg>
 
     <!-- ══════════════ BODY ══════════════ -->
     <div class="csm-body" [formGroup]="form">
@@ -651,8 +633,7 @@
 
     </footer>
 
-  </div><!-- /csm-container -->
-</div><!-- /csm-overlay -->
+</app-modal>
 
 <!-- Modal de justificación (Jefe de Operaciones — edición de servicio) -->
 <app-justificacion-modal

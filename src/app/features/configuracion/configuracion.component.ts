@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
 import { DashboardService } from '../../core/services/dashboard.service';
+import { AppModalComponent } from '../../shared/components/modal/app-modal.component';
 
 @Component({
   selector: 'app-configuracion',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, AppModalComponent],
   templateUrl: './configuracion.component.html',
   styleUrls: ['./configuracion.component.css']
 })

@@ -7,13 +7,14 @@ import { SoporteService, AuditoriaDto, SesionDto } from '../../../../core/servic
 import { ToastService } from '../../../../core/services/toast.service';
 import { SoporteWsService } from '../../../../core/services/soporte-ws.service';
 import { AuthService } from '../../../../core/services/auth.service';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 type TabMonitoreo = 'actividad' | 'sesiones';
 
 @Component({
   selector: 'app-monitoreo',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './monitoreo.component.html',
   styleUrls: ['./monitoreo.component.css']
 })

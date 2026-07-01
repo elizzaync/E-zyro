@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdministracionService, CuentaContable, PeriodoContable, Asiento } from '../../../../core/services/administracion.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 type TabCont = 'plan' | 'periodos' | 'asientos';
 
 @Component({
   selector: 'app-contabilidad',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './contabilidad.component.html',
   styleUrls: ['./contabilidad.component.css']
 })

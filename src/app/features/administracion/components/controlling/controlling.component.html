@@ -75,26 +75,33 @@
   }
   }
 
-  @if (showForm) {
-  <div class="adm-modal-overlay" (click)="showForm = false">
-    <div class="adm-modal" (click)="$event.stopPropagation()">
-      <h3 class="adm-modal-title">Nuevo Centro de Costo</h3>
-      <div class="adm-form-row"><label>Nombre</label><input type="text" class="adm-input" [(ngModel)]="nuevo.nombre" placeholder="Nombre del centro"></div>
-      <div class="adm-form-row">
-        <label>Tipo referencia</label>
-        <select class="adm-input" [(ngModel)]="nuevo.tipo_referencia">
-          <option value="">Sin referencia</option>
-          <option value="proyecto">Proyecto</option>
-          <option value="servicio">Servicio</option>
-          <option value="departamento">Departamento</option>
-        </select>
-      </div>
-      <div class="adm-form-row"><label>Presupuesto (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.presupuesto" min="0"></div>
-      <div class="adm-modal-actions">
-        <button class="btn-secondary" (click)="showForm = false">Cancelar</button>
-        <button class="btn-primary" (click)="guardar()" [disabled]="guardando || !nuevo.nombre">{{ guardando ? 'Guardando…' : 'Guardar' }}</button>
-      </div>
+  <app-modal
+    [open]="showForm"
+    title="Nuevo Centro de Costo"
+    maxWidth="420px"
+    iconBg="rgba(20,184,166,0.12)"
+    iconColor="#14b8a6"
+    (closeModal)="showForm = false">
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="9"/>
+      <circle cx="12" cy="12" r="4"/>
+      <line x1="12" y1="2" x2="12" y2="5"/>
+      <line x1="12" y1="19" x2="12" y2="22"/>
+    </svg>
+    <div class="adm-form-row"><label>Nombre</label><input type="text" class="adm-input" [(ngModel)]="nuevo.nombre" placeholder="Nombre del centro"></div>
+    <div class="adm-form-row">
+      <label>Tipo referencia</label>
+      <select class="adm-input" [(ngModel)]="nuevo.tipo_referencia">
+        <option value="">Sin referencia</option>
+        <option value="proyecto">Proyecto</option>
+        <option value="servicio">Servicio</option>
+        <option value="departamento">Departamento</option>
+      </select>
     </div>
-  </div>
-  }
+    <div class="adm-form-row"><label>Presupuesto (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevo.presupuesto" min="0"></div>
+    <div class="adm-modal-actions">
+      <button class="btn-secondary" (click)="showForm = false">Cancelar</button>
+      <button class="btn-primary" (click)="guardar()" [disabled]="guardando || !nuevo.nombre">{{ guardando ? 'Guardando…' : 'Guardar' }}</button>
+    </div>
+  </app-modal>
 </section>

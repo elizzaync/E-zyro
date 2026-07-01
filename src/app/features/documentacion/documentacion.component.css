@@ -213,34 +213,8 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ══ MODALS ═════════════════════════════════════════════════════════════════ */
-.modal-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200;
-  backdrop-filter: blur(2px);
-}
-.modal-box {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: 90%; max-width: 520px; max-height: 90vh;
-  background: var(--card-bg,#fff); border-radius: 18px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.2); z-index: 201;
-  display: flex; flex-direction: column; overflow: hidden;
-}
-.modal-box.modal-sm { max-width: 400px; }
-
-.modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px 16px; border-bottom: 1px solid var(--border-color,#e2e8f0);
-}
-.modal-header h3 { margin: 0; font-size: 17px; font-weight: 800; color: var(--text-main,#0f172a); }
-.danger-header h3 { color: #dc2626; }
-.mh-close {
-  background: none; border: none; padding: 6px; border-radius: 8px;
-  color: var(--text-muted,#94a3b8); cursor: pointer; transition: all 0.2s;
-  display: flex; align-items: center; justify-content: center;
-}
-.mh-close:hover { background: var(--page-bg,#f1f5f9); color: var(--text-main,#0f172a); }
-
-.modal-body { padding: 20px 24px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border-color,#e2e8f0); }
+.modal-body { padding: 4px 0 0; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 0 0; border-top: 1px solid var(--border-color,#e2e8f0); margin-top: 4px; }
 
 .modal-hint { margin: 0; font-size: 14px; color: var(--text-main,#0f172a); }
 
@@ -298,8 +272,6 @@ textarea.field-input { resize: vertical; min-height: 70px; }
 /* ══ ANIMATIONS ═════════════════════════════════════════════════════════════ */
 .fade-in { animation: fadeIn 0.35s ease forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in-up { animation: fadeInUp 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-@keyframes fadeInUp { from { opacity: 0; transform: translate(-50%,-54%); } to { opacity: 1; transform: translate(-50%,-50%); } }
 
 /* ══ RESPONSIVE ═════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
@@ -315,7 +287,6 @@ textarea.field-input { resize: vertical; min-height: 70px; }
   .lt-row span:nth-child(2),
   .lt-row span:nth-child(3),
   .lt-row span:nth-child(4) { display: none; }
-  .modal-box { width: 95%; max-width: none; max-height: 85vh; }
 }
 
 /* ══ DARK MODE ══════════════════════════════════════════════════════════════ */
@@ -327,14 +298,12 @@ textarea.field-input { resize: vertical; min-height: 70px; }
 :host-context([data-theme="dark"]) .folder-card,
 :host-context([data-theme="dark"]) .plano-card,
 :host-context([data-theme="dark"]) .list-table,
-:host-context([data-theme="dark"]) .modal-box,
 :host-context([data-theme="dark"]) .field-input { background: #0f172a; border-color: #1e293b; color: #f8fafc; }
 :host-context([data-theme="dark"]) .tb-input,
 :host-context([data-theme="dark"]) .fc-name,
 :host-context([data-theme="dark"]) .pc-name,
 :host-context([data-theme="dark"]) .lt-name,
 :host-context([data-theme="dark"]) .field-label,
-:host-context([data-theme="dark"]) .modal-header h3,
 :host-context([data-theme="dark"]) .versions-title,
 :host-context([data-theme="dark"]) .modal-hint { color: #f8fafc; }
 :host-context([data-theme="dark"]) .lt-header,
@@ -347,8 +316,6 @@ textarea.field-input { resize: vertical; min-height: 70px; }
 :host-context([data-theme="dark"]) .file-drop:hover { border-color: var(--brand-green,#91d337); }
 :host-context([data-theme="dark"]) .file-drop.has-file { background: rgba(145,211,55,0.05); color: #f8fafc; }
 :host-context([data-theme="dark"]) .pc-preview { background: linear-gradient(135deg,#1f0f0f 0%,#2d1515 100%); }
-:host-context([data-theme="dark"]) .modal-backdrop { background: rgba(0,0,0,0.65); }
-:host-context([data-theme="dark"]) .modal-header,
 :host-context([data-theme="dark"]) .modal-footer { border-color: #1e293b; }
 :host-context([data-theme="dark"]) .disc-otro { background: #1e293b; color: #94a3b8; }
 :host-context([data-theme="dark"]) .vista-toggle,

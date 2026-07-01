@@ -131,23 +131,18 @@
 
 <!-- ══ MODAL DETALLE ══ -->
 @if (ingresoDetalle) {
-  <div class="ing-det-overlay" (click)="cerrarDetalle()">
-    <div class="ing-det-modal" (click)="$event.stopPropagation()">
+  <app-modal
+    [open]="true"
+    title="Detalle de Ingreso"
+    [subtitle]="ingresoDetalle.ticketCodigo + ' · ' + ingresoDetalle.proyectoNombre + ' · ' + fechaCorta(ingresoDetalle.fechaIngreso)"
+    maxWidth="720px"
+    iconBg="rgba(59,130,246,0.12)"
+    iconColor="#2563eb"
+    (closeModal)="cerrarDetalle()">
 
-      <!-- Header -->
-      <div class="ing-det-header">
-        <div>
-          <h3 class="ing-det-titulo">Detalle de Ingreso</h3>
-          <p class="ing-det-sub">
-            {{ ingresoDetalle.ticketCodigo }} · {{ ingresoDetalle.proyectoNombre }} · {{ fechaCorta(ingresoDetalle.fechaIngreso) }}
-          </p>
-        </div>
-        <button class="ing-btn-cerrar" (click)="cerrarDetalle()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M5 12h14M12 5l7 7-7 7"/>
+    </svg>
 
       <!-- Info rápida -->
       <div class="ing-det-info">
@@ -234,6 +229,5 @@
         <button class="ing-btn-cerrar-footer" (click)="cerrarDetalle()">Cerrar</button>
       </div>
 
-    </div>
-  </div>
+  </app-modal>
 }

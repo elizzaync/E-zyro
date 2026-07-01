@@ -125,16 +125,20 @@
 </div>
 
 @if (showLogoutModal) {
-<div class="modal-backdrop-pro" (click)="cerrarModalLogout()"></div>
-<div class="modal-dialog-pro fade-in-up" style="max-width: 400px; text-align: center; padding-top: 30px;">
-    <div class="modal-body-pro" style="padding-bottom: 0;">
-        <div class="logout-icon-wrapper">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-        </div>
-        <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 800; color: var(--text-main);">Cerrar Sesión</h3>
+<app-modal
+    [open]="true"
+    title="Cerrar Sesión"
+    maxWidth="400px"
+    iconBg="rgba(245,158,11,0.12)"
+    iconColor="#d97706"
+    (closeModal)="cerrarModalLogout()">
+
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+    </svg>
+
+    <div class="modal-body-pro" style="padding-top: 20px; padding-bottom: 0;">
         <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">¿Estás seguro de que deseas cerrar tu
             sesión en el sistema?</p>
     </div>
@@ -145,5 +149,5 @@
             style="flex: 1; background-color: #ef4444; box-shadow: 0 4px 10px rgba(239, 68, 68, 0.25);"
             (click)="ejecutarCerrarSesion()">Sí, salir</button>
     </div>
-</div>
+</app-modal>
 }

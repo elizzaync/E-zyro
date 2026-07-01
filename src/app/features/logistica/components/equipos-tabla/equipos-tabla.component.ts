@@ -9,6 +9,7 @@ import { EquipoFormModalComponent } from '../equipo-form-modal/equipo-form-modal
 import { EquipoMovimientosModalComponent } from '../equipo-movimientos-modal/equipo-movimientos-modal.component';
 import { RellenarStockModalComponent } from '../rellenar-stock-modal/rellenar-stock-modal.component';
 import { ReporteModalComponent } from '../reporte-modal/reporte-modal.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import {
   EquipoHerramienta, ClaseArticulo, EstadoEquipo, FrecuenciaMantenimiento,
   EquipoStockDesglose,
@@ -17,7 +18,7 @@ import {
 @Component({
   selector: 'app-equipos-tabla',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, EquipoFormModalComponent, EquipoMovimientosModalComponent, RellenarStockModalComponent, ReporteModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, EquipoFormModalComponent, EquipoMovimientosModalComponent, RellenarStockModalComponent, ReporteModalComponent, AppModalComponent],
   templateUrl: './equipos-tabla.component.html',
   styleUrls: ['./equipos-tabla.component.css']
 })

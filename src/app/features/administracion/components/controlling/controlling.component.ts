@@ -3,11 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdministracionService, CentroCosto, ComparativoCentro } from '../../../../core/services/administracion.service';
 import { ToastService } from '../../../../core/services/toast.service';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 @Component({
   selector: 'app-controlling',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './controlling.component.html',
   styleUrls: ['./controlling.component.css']
 })

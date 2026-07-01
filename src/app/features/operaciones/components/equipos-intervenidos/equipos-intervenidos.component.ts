@@ -9,6 +9,7 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { ToastService } from '../../../../core/services/toast.service';
 import { TipoEquipoProcedimientosModalComponent } from '../../../logistica/components/tipo-equipo-procedimientos-modal/tipo-equipo-procedimientos-modal.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import {
   EPPS_CONFIG, MATERIALES_CONFIG, HERRAMIENTAS_CONFIG, determinarTipoBase,
   MaterialItem, HerramientaItem, TipoBase,
@@ -48,7 +49,7 @@ export interface EquipoIntervenido {
 @Component({
   selector: 'app-equipos-intervenidos',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, TipoEquipoProcedimientosModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, TipoEquipoProcedimientosModalComponent, AppModalComponent],
   templateUrl: './equipos-intervenidos.component.html',
   styleUrls: ['./equipos-intervenidos.component.css'],
 })

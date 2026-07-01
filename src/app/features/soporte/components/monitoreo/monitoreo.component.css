@@ -226,30 +226,7 @@
 .detail-json-after  { background: rgba(22,163,74,.07);  border: 1px solid rgba(22,163,74,.2);  color: #14532d; }
 
 /* ── Modal detalle auditoría ─────────────────────────────────────────────────── */
-.aud-modal-overlay {
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center;
-  padding: 24px;
-}
-.aud-modal-panel {
-  background: var(--card-bg); border-radius: 14px; width: 100%; max-width: 860px;
-  max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.2);
-  display: flex; flex-direction: column; gap: 0;
-}
-.aud-modal-header {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-  padding: 20px 24px 16px; border-bottom: 1px solid var(--border-color); position: sticky; top: 0;
-  background: var(--card-bg); z-index: 1;
-}
-.aud-modal-title-wrap { display: flex; align-items: center; gap: 12px; }
-.aud-modal-title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin: 0; }
-.aud-modal-sub   { font-size: 0.75rem; color: var(--text-muted); margin: 0; font-family: monospace; }
-.aud-modal-close {
-  background: none; border: 1px solid var(--border-color); border-radius: 7px;
-  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: var(--text-muted); flex-shrink: 0; transition: all .15s;
-}
-.aud-modal-close:hover { border-color: #ef4444; color: #ef4444; }
+.aud-modal-body { padding-top: 4px; }
 
 .aud-modal-meta {
   display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 24px 0;

@@ -244,17 +244,16 @@
 <!-- ════════════════════════════════════════════════════════
      MODAL — Subir Documento
      ════════════════════════════════════════════════════════ -->
-@if (showUploadModal) {
-<div class="modal-backdrop-pro" (click)="cerrarUploadModal()"></div>
-<div class="modal-card fade-in-up" (click)="$event.stopPropagation()">
-    <div class="modal-head">
-        <h2 class="modal-title">Subir Documento</h2>
-        <button class="modal-close" (click)="cerrarUploadModal()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-        </button>
-    </div>
+<app-modal
+    [open]="showUploadModal"
+    title="Subir Documento"
+    maxWidth="520px"
+    iconBg="rgba(59,130,246,0.12)"
+    iconColor="#2563eb"
+    (closeModal)="cerrarUploadModal()">
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+    </svg>
 
     <div class="modal-body">
         @if (uploadError) {
@@ -363,23 +362,22 @@
             @if (uploadCargando) { Subiendo… } @else { Subir Documento }
         </button>
     </div>
-</div>
-}
+</app-modal>
 
 <!-- ════════════════════════════════════════════════════════
      MODAL — Firmar Documento
      ════════════════════════════════════════════════════════ -->
-@if (showFirmarModal) {
-<div class="modal-backdrop-pro" (click)="cerrarFirmarModal()"></div>
-<div class="modal-card modal-firma fade-in-up" (click)="$event.stopPropagation()">
-    <div class="modal-head">
-        <h2 class="modal-title">Firma Electrónica</h2>
-        <button class="modal-close" (click)="cerrarFirmarModal()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-        </button>
-    </div>
+<app-modal
+    [open]="showFirmarModal"
+    title="Firma Electrónica"
+    maxWidth="460px"
+    iconBg="rgba(124,58,237,0.12)"
+    iconColor="#7c3aed"
+    (closeModal)="cerrarFirmarModal()">
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+    </svg>
     <div class="modal-body">
         @if (firmarError) { <div class="alert-error">{{ firmarError }}</div> }
         <p class="firma-doc-nombre"><strong>Documento:</strong> {{ docParaFirmar?.nombre }}</p>
@@ -407,18 +405,22 @@
             @if (firmarCargando) { Firmando… } @else { Confirmar Firma }
         </button>
     </div>
-</div>
-}
+</app-modal>
 
 <!-- ════════════════════════════════════════════════════════
      MODAL — Confirmar Eliminar
      ════════════════════════════════════════════════════════ -->
-@if (showConfirmEliminar) {
-<div class="modal-backdrop-pro" (click)="cancelarEliminar()"></div>
-<div class="modal-card modal-confirm fade-in-up" (click)="$event.stopPropagation()">
-    <div class="modal-head">
-        <h2 class="modal-title modal-title-danger">Eliminar documento</h2>
-    </div>
+<app-modal
+    [open]="showConfirmEliminar"
+    title="Eliminar documento"
+    maxWidth="400px"
+    iconBg="rgba(239,68,68,0.12)"
+    iconColor="#ef4444"
+    (closeModal)="cancelarEliminar()">
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+    </svg>
     <div class="modal-body">
         <p>¿Seguro que deseas eliminar <strong>{{ docParaEliminar?.nombre }}</strong>?
             Esta acción no puede deshacerse.</p>
@@ -429,5 +431,4 @@
             @if (eliminandoCargando) { Eliminando… } @else { Sí, eliminar }
         </button>
     </div>
-</div>
-}
+</app-modal>

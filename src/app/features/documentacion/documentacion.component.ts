@@ -4,13 +4,14 @@ import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { PlanosService, CarpetaOut, PlanoOut, PlanoDetalleOut } from '../../core/services/planos.service';
 import { ToastService } from '../../core/services/toast.service';
+import { AppModalComponent } from '../../shared/components/modal/app-modal.component';
 
 interface BreadcrumbItem { id: string; nombre: string; }
 
 @Component({
   selector: 'app-documentacion',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './documentacion.component.html',
   styleUrls: ['./documentacion.component.css']
 })

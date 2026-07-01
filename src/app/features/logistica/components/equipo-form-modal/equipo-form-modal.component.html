@@ -1,20 +1,17 @@
-<div class="lf-overlay" (click)="cerrar.emit()" role="dialog" aria-modal="true">
-  <div class="lf-modal" (click)="$event.stopPropagation()" [formGroup]="form">
+<app-modal
+  [open]="true"
+  [title]="esEdicion ? 'Editar Equipo / Herramienta' : 'Nuevo Equipo / Herramienta'"
+  [subtitle]="esEdicion ? ('Registro del activo — código ' + (equipo?.codigo || '')) : ('El código será generado automáticamente: ' + (codigoPreview || '…'))"
+  maxWidth="720px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrar.emit()">
 
-    <header class="lf-header">
-      <div>
-        <h2 class="lf-title">{{ esEdicion ? 'Editar Equipo / Herramienta' : 'Nuevo Equipo / Herramienta' }}</h2>
-        <p class="lf-subtitle">
-          @if (esEdicion) { Registro del activo — código <strong>{{ equipo?.codigo }}</strong> }
-          @else { El código será generado automáticamente: <strong>{{ codigoPreview || '…' }}</strong> }
-        </p>
-      </div>
-      <button class="lf-close" (click)="cerrar.emit()" aria-label="Cerrar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+  </svg>
+
+  <div [formGroup]="form">
 
     <div class="lf-body">
       <div class="lf-grid">
@@ -274,5 +271,5 @@
     </footer>
 
   </div>
-</div>
+</app-modal>
 

@@ -7,6 +7,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angula
 import { Subject, takeUntil } from 'rxjs';
 import { OperacionesService } from '../../../../core/services/operaciones.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 export interface ClienteBasico {
   id: string;
@@ -17,7 +18,7 @@ export interface ClienteBasico {
 @Component({
   selector: 'app-crear-proyecto-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './crear-proyecto-modal.component.html',
   styleUrls: ['./crear-proyecto-modal.component.css']
 })

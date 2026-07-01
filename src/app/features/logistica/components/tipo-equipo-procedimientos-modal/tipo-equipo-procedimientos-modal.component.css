@@ -1,50 +1,6 @@
-/* ── Backdrop (usa modal-backdrop-pro de styles.css para romper isolation de main) ── */
-.pm-backdrop {
-  backdrop-filter: blur(3px);
-}
-
-/* ── Dialog centrado ── */
-.pm-dialog {
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 999999;
-  width: calc(100% - 40px); max-width: 820px;
-  background: var(--card-bg, #fff); border-radius: 20px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, .28);
-  display: flex; flex-direction: column;
-  max-height: 90vh; overflow: hidden;
-  font-family: 'Inter', sans-serif;
-}
-
-/* ── Header ── */
-.pm-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border-color, #e7eae6);
-  flex-shrink: 0;
-}
-.pm-header-left { display: flex; align-items: center; gap: 14px; }
-.pm-icon {
-  width: 42px; height: 42px; border-radius: 12px;
-  background: rgba(124, 58, 237, .1); color: #7c3aed;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.pm-icon svg { width: 22px; height: 22px; }
-.pm-title { font-size: 16px; font-weight: 800; color: var(--text-main, #0f172a); margin: 0; }
-.pm-sub   { font-size: 12px; color: var(--text-muted, #94a3b8); margin: 2px 0 0; }
-.pm-close {
-  width: 34px; height: 34px; border-radius: 8px;
-  border: 1px solid var(--border-color, #e2e8f0); background: transparent;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: var(--text-muted, #94a3b8);
-}
-.pm-close svg { width: 16px; height: 16px; }
-.pm-close:hover { border-color: #fca5a5; color: #dc2626; background: #fef2f2; }
-
 /* ── Body two-panel ── */
 .pm-body {
-  display: flex; flex: 1; overflow: hidden;
+  display: flex;
 }
 
 /* ── Sidebar ── */
@@ -299,7 +255,6 @@
 .pm-btn-save:disabled { opacity: .6; cursor: not-allowed; }
 
 /* ── Dark mode ── */
-:host-context([data-theme="dark"]) .pm-dialog { background: #1e293b; }
 :host-context([data-theme="dark"]) .pm-proc-row { background: #1e293b; border-color: #334155; }
 :host-context([data-theme="dark"]) .pm-tipo-active { background: rgba(124, 58, 237, .18) !important; }
 :host-context([data-theme="dark"]) .pm-add-form { background: rgba(124, 58, 237, .08); }

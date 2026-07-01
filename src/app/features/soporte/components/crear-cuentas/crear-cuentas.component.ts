@@ -2,11 +2,12 @@ import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UsuariosService, UsuarioOut, RolOut, CrearUsuarioIn } from '../../../../core/services/usuarios.service';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 @Component({
   selector: 'app-crear-cuentas',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './crear-cuentas.component.html',
   styleUrls: ['./crear-cuentas.component.css'],
 })

@@ -235,31 +235,7 @@
 
 @media (max-width: 540px) { .pdet-dw { max-width: 100%; } }
 
-/* ── Modal: equipo del servicio ── */
-.pdet-eq-overlay {
-  position: fixed; inset: 0; z-index: 2000;
-  background: rgba(15, 23, 42, .55);
-  display: flex; align-items: center; justify-content: center;
-  padding: 1.5rem;
-  animation: pdetFade .18s ease;
-}
-@keyframes pdetFade { from { opacity: 0; } to { opacity: 1; } }
-.pdet-eq-modal {
-  width: 100%; max-width: 640px; max-height: 85vh;
-  background: var(--card-bg,#fff);
-  border-radius: var(--radius-lg,16px);
-  box-shadow: var(--shadow-modal, 0 20px 60px rgba(0,0,0,.25));
-  display: flex; flex-direction: column; overflow: hidden;
-  animation: pdetUp .22s ease;
-}
-@keyframes pdetUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.pdet-eq-head {
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
-  padding: 1.25rem 1.5rem 1rem;
-  border-bottom: 1px solid var(--border-color,#e5e7eb);
-}
-.pdet-eq-title { margin: 0; font-size: 17px; font-weight: 700; color: var(--text-main); }
-.pdet-eq-subtitle { margin: 3px 0 0; font-size: 13px; color: var(--text-muted); }
+/* Botón de cerrar redondo, reutilizado por el drawer lateral (pdet-dw-head) */
 .pdet-eq-close {
   width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
   border: none; background: var(--bg-color,#f3f4f6); color: var(--text-muted);
@@ -268,6 +244,8 @@
 }
 .pdet-eq-close:hover { background: #fee2e2; color: #dc2626; }
 .pdet-eq-close svg { width: 16px; height: 16px; }
+
+/* ── Modal: equipo del servicio ── */
 .pdet-eq-body {
   padding: 1.125rem 1.5rem 1.5rem;
   display: flex; flex-direction: column; gap: 0.875rem;

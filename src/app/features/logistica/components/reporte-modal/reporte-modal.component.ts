@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialLog, EquipoHerramienta } from '../../logistica.models';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import * as ExcelJSLib from 'exceljs';
 
 // ── ARGB color palette ─────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ type BorderStyle = import('exceljs').BorderStyle;
 @Component({
   selector: 'app-reporte-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './reporte-modal.component.html',
   styleUrls: ['./reporte-modal.component.css'],
 })

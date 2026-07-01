@@ -1,20 +1,17 @@
-<div class="lf-overlay" (click)="cerrar.emit()" role="dialog" aria-modal="true">
-  <div class="lf-modal" (click)="$event.stopPropagation()" [formGroup]="form">
+<app-modal
+  [open]="true"
+  [title]="esEdicion ? 'Editar Material' : 'Nuevo Material'"
+  [subtitle]="esEdicion ? ('Datos del material — código ' + (material?.codigo || '')) : ('El código será generado automáticamente: ' + (codigoPreview || '…'))"
+  maxWidth="640px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrar.emit()">
 
-    <header class="lf-header">
-      <div>
-        <h2 class="lf-title">{{ esEdicion ? 'Editar Material' : 'Nuevo Material' }}</h2>
-        <p class="lf-subtitle">
-          @if (esEdicion) { Datos del material — código <strong>{{ material?.codigo }}</strong> }
-          @else { El código será generado automáticamente: <strong>{{ codigoPreview || '…' }}</strong> }
-        </p>
-      </div>
-      <button class="lf-close" (click)="cerrar.emit()" aria-label="Cerrar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M20 7 12 3 4 7v10l8 4 8-4V7Z"/><path d="M4 7l8 4 8-4"/><path d="M12 11v10"/>
+  </svg>
+
+  <div [formGroup]="form">
 
     <div class="lf-body">
       <div class="lf-grid">
@@ -171,4 +168,4 @@
     </footer>
 
   </div>
-</div>
+</app-modal>

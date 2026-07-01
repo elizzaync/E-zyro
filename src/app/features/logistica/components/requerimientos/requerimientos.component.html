@@ -158,28 +158,27 @@
 
 <!-- ═══════════════════════ MODAL GESTIÓN DE SERVICIO ═══════════════════════ -->
 @if (servicioModal) {
-<div class="rm-overlay" (click)="cerrarModalServicio()">
-  <div class="rm-modal rm-modal-svc" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  [title]="servicioModal.servicioNombre"
+  [subtitle]="servicioModal.proyectoNombre + ' · ' + itemsModalServicio(servicioModal).length + ' ítems solicitados'"
+  maxWidth="660px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarModalServicio()">
 
-    <header class="rm-header">
-      <div>
-        <h2 class="rm-title">{{ servicioModal.servicioNombre }}</h2>
-        <p class="rm-subtitle">{{ servicioModal.proyectoNombre }} · {{ itemsModalServicio(servicioModal).length }} ítems solicitados</p>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="rm-btn-actualizar" (click)="actualizarModalServicio()" title="Actualizar estado">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
-            <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-          </svg>
-          Actualizar
-        </button>
-        <button class="rm-close" (click)="cerrarModalServicio()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+  </svg>
+
+    <div class="rm-svc-toolbar">
+      <button class="rm-btn-actualizar" (click)="actualizarModalServicio()" title="Actualizar estado">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Actualizar
+      </button>
+    </div>
 
     <div class="rm-svc-body">
 
@@ -407,28 +406,24 @@
       }
 
     </div><!-- /.rm-svc-body -->
-  </div>
-</div>
+</app-modal>
 }
 
 
 <!-- ═══ MODAL REVISIÓN / APROBACIÓN ═══ -->
 @if (reqActivo) {
-<div class="rm-overlay" (click)="cerrarRevision()">
-  <div class="rm-modal rm-modal-lg" (click)="$event.stopPropagation()">
-    <header class="rm-header">
-      <div>
-        <h2 class="rm-title">Revisar requerimiento</h2>
-        <p class="rm-subtitle">{{ reqActivo.solicitanteNombre }} · {{ reqActivo.proyectoNombre }}
-          @if (reqActivo.servicioNombre) { · {{ reqActivo.servicioNombre }} }
-        </p>
-      </div>
-      <button class="rm-close" (click)="cerrarRevision()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+<app-modal
+  [open]="true"
+  title="Revisar requerimiento"
+  [subtitle]="reqActivo.solicitanteNombre + ' · ' + reqActivo.proyectoNombre + (reqActivo.servicioNombre ? ' · ' + reqActivo.servicioNombre : '')"
+  maxWidth="900px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarRevision()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+  </svg>
 
     <div class="rm-body rm-body-split">
       <div class="rm-panel-items">
@@ -537,23 +532,24 @@
         @else { Confirmar }
       </button>
     </footer>
-  </div>
-</div>
+</app-modal>
 }
 
 
 <!-- ═══ MODAL RECHAZO ═══ -->
 @if (reqRechazar) {
-<div class="rm-overlay" (click)="cerrarRechazo()">
-  <div class="rm-modal rm-modal-sm" (click)="$event.stopPropagation()">
-    <header class="rm-header">
-      <h2 class="rm-title">Rechazar requerimiento</h2>
-      <button class="rm-close" (click)="cerrarRechazo()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+<app-modal
+  [open]="true"
+  title="Rechazar requerimiento"
+  maxWidth="440px"
+  iconBg="rgba(239,68,68,0.12)"
+  iconColor="#dc2626"
+  (closeModal)="cerrarRechazo()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+  </svg>
+
     <div class="rm-body">
       <label class="rm-label">Motivo del rechazo (visible para el técnico)</label>
       <textarea class="rm-textarea" rows="3" [(ngModel)]="motivoRechazo"
@@ -566,15 +562,27 @@
         @else { Rechazar pedido }
       </button>
     </footer>
-  </div>
-</div>
+</app-modal>
 }
 
 
 <!-- ═══ MODAL REPORTE / COMPROBANTE ═══ -->
 @if (reqReporte) {
-<div class="rm-overlay no-print" (click)="cerrarReporte()">
-  <div class="rm-modal rm-modal-report" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Comprobante de Salida"
+  [subtitle]="reqReporte.proyectoNombre + ' · N° ' + reqReporte.id.slice(-6).toUpperCase()"
+  maxWidth="820px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarReporte()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+  </svg>
+
     <div class="rm-report-ctrl no-print">
       <button class="rm-btn-imprimir" (click)="imprimirReporte()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px">
@@ -587,11 +595,6 @@
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
         Descargar PDF
-      </button>
-      <button class="rm-btn-cerrar-rep no-print" (click)="cerrarReporte()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
       </button>
     </div>
 
@@ -706,25 +709,23 @@
 
       </div><!-- /.rm-comprobante -->
     </div><!-- /.rm-comprobante-scroll -->
-  </div>
-</div>
+</app-modal>
 }
 
 <!-- ═══════════════════════ PANEL FIRMAS ═══════════════════════ -->
 @if (firmasReqId) {
-<div class="rm-overlay" (click)="cerrarFirmas()">
-  <div class="rm-modal rm-modal-firmas" (click)="$event.stopPropagation()">
-    <header class="rm-header">
-      <div>
-        <h2 class="rm-title">Registro de Firmas</h2>
-        <p class="rm-subtitle">Requerimiento {{ firmasReqId.slice(0,8).toUpperCase() }}</p>
-      </div>
-      <button class="rm-close" (click)="cerrarFirmas()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+<app-modal
+  [open]="true"
+  title="Registro de Firmas"
+  [subtitle]="'Requerimiento ' + firmasReqId.slice(0,8).toUpperCase()"
+  maxWidth="460px"
+  iconBg="rgba(139,92,246,0.12)"
+  iconColor="#7c3aed"
+  (closeModal)="cerrarFirmas()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+  </svg>
 
     <div class="firmas-body">
       @if (firmasCargando) {
@@ -753,6 +754,5 @@
         </div>
       }
     </div>
-  </div>
-</div>
+</app-modal>
 }

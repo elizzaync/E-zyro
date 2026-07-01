@@ -2,6 +2,7 @@ import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
+import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
 
 export interface MiembroServicioPortal {
   id: string;
@@ -47,7 +48,7 @@ export interface ServicioPortal {
 @Component({
   selector: 'app-portal-proyecto-detalle',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule, RouterLink, AppModalComponent],
   templateUrl: './portal-proyecto-detalle.component.html',
   styleUrls: ['./portal-proyecto-detalle.component.css'],
 })

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { RrhhService, DocumentoDto, EmpleadoInfoDto, LegajoStatsDto } from '../../../../../core/services/rrhh.service';
 import { AuthService } from '../../../../../core/services/auth.service';
+import { AppModalComponent } from '../../../../../shared/components/modal/app-modal.component';
 
 const TIPOS_DOCUMENTO = [
   'Boleta Mensual',
@@ -30,7 +31,7 @@ type CatFiltro = 'todos' | 'contratos' | 'certificaciones' | 'otros';
 @Component({
   selector: 'app-legajo-detalle',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './legajo-detalle.component.html',
   styleUrls: ['./legajo-detalle.component.css']
 })

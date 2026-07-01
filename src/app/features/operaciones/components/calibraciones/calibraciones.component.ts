@@ -6,13 +6,14 @@ import {
 } from '../../../../core/services/calibraciones.service';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { EquipoHerramienta } from '../../../logistica/logistica.models';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 type EstadoCal = 'ok' | 'por_vencer' | 'vencida' | 'sin_fecha';
 
 @Component({
   selector: 'app-calibraciones',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   templateUrl: './calibraciones.component.html',
   styleUrls: ['./calibraciones.component.css'],
 })

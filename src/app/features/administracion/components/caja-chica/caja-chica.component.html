@@ -87,41 +87,52 @@
   </div>
   }
 
-  @if (showNuevaCaja) {
-  <div class="adm-modal-overlay" (click)="showNuevaCaja = false">
-    <div class="adm-modal" (click)="$event.stopPropagation()">
-      <h3 class="adm-modal-title">Nueva Caja Chica</h3>
-      <div class="adm-form-row"><label>Nombre</label><input type="text" class="adm-input" [(ngModel)]="nuevaCajaNombre" placeholder="Nombre de la caja"></div>
-      <div class="adm-form-row"><label>Saldo inicial (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevaCajaSaldo" min="0"></div>
-      <div class="adm-modal-actions">
-        <button class="btn-secondary" (click)="showNuevaCaja = false">Cancelar</button>
-        <button class="btn-primary" (click)="crearCaja()" [disabled]="guardandoCaja || !nuevaCajaNombre">{{ guardandoCaja ? 'Creando…' : 'Crear' }}</button>
-      </div>
+  <app-modal
+    [open]="showNuevaCaja"
+    title="Nueva Caja Chica"
+    maxWidth="420px"
+    iconBg="rgba(245,158,11,0.12)"
+    iconColor="#f59e0b"
+    (closeModal)="showNuevaCaja = false">
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
+      <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
+      <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/>
+    </svg>
+    <div class="adm-form-row"><label>Nombre</label><input type="text" class="adm-input" [(ngModel)]="nuevaCajaNombre" placeholder="Nombre de la caja"></div>
+    <div class="adm-form-row"><label>Saldo inicial (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevaCajaSaldo" min="0"></div>
+    <div class="adm-modal-actions">
+      <button class="btn-secondary" (click)="showNuevaCaja = false">Cancelar</button>
+      <button class="btn-primary" (click)="crearCaja()" [disabled]="guardandoCaja || !nuevaCajaNombre">{{ guardandoCaja ? 'Creando…' : 'Crear' }}</button>
     </div>
-  </div>
-  }
+  </app-modal>
 
-  @if (showNuevoMov) {
-  <div class="adm-modal-overlay" (click)="showNuevoMov = false">
-    <div class="adm-modal" (click)="$event.stopPropagation()">
-      <h3 class="adm-modal-title">Registrar Movimiento · {{ cajaSeleccionada?.nombre }}</h3>
-      <div class="adm-form-row">
-        <label>Tipo</label>
-        <select class="adm-input" [(ngModel)]="nuevoMov.tipo">
-          <option value="ingreso">Ingreso</option>
-          <option value="egreso">Egreso</option>
-        </select>
-      </div>
-      <div class="adm-form-row"><label>Monto (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevoMov.monto" min="0.01" step="0.01"></div>
-      <div class="adm-form-row"><label>Descripción</label><input type="text" class="adm-input" [(ngModel)]="nuevoMov.descripcion" placeholder="Descripción del movimiento"></div>
-      <div class="adm-form-row"><label>Concepto (opcional)</label><input type="text" class="adm-input" [(ngModel)]="nuevoMov.concepto"></div>
-      <div class="adm-modal-actions">
-        <button class="btn-secondary" (click)="showNuevoMov = false">Cancelar</button>
-        <button class="btn-primary" (click)="registrarMovimiento()" [disabled]="guardandoMov || !nuevoMov.tipo || !nuevoMov.monto">
-          {{ guardandoMov ? 'Registrando…' : 'Registrar' }}
-        </button>
-      </div>
+  <app-modal
+    [open]="showNuevoMov"
+    [title]="'Registrar Movimiento · ' + (cajaSeleccionada?.nombre || '')"
+    maxWidth="420px"
+    iconBg="rgba(245,158,11,0.12)"
+    iconColor="#f59e0b"
+    (closeModal)="showNuevoMov = false">
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="12" y1="19" x2="12" y2="5"/>
+      <polyline points="5 12 12 5 19 12"/>
+    </svg>
+    <div class="adm-form-row">
+      <label>Tipo</label>
+      <select class="adm-input" [(ngModel)]="nuevoMov.tipo">
+        <option value="ingreso">Ingreso</option>
+        <option value="egreso">Egreso</option>
+      </select>
     </div>
-  </div>
-  }
+    <div class="adm-form-row"><label>Monto (S/)</label><input type="number" class="adm-input" [(ngModel)]="nuevoMov.monto" min="0.01" step="0.01"></div>
+    <div class="adm-form-row"><label>Descripción</label><input type="text" class="adm-input" [(ngModel)]="nuevoMov.descripcion" placeholder="Descripción del movimiento"></div>
+    <div class="adm-form-row"><label>Concepto (opcional)</label><input type="text" class="adm-input" [(ngModel)]="nuevoMov.concepto"></div>
+    <div class="adm-modal-actions">
+      <button class="btn-secondary" (click)="showNuevoMov = false">Cancelar</button>
+      <button class="btn-primary" (click)="registrarMovimiento()" [disabled]="guardandoMov || !nuevoMov.tipo || !nuevoMov.monto">
+        {{ guardandoMov ? 'Registrando…' : 'Registrar' }}
+      </button>
+    </div>
+  </app-modal>
 </section>

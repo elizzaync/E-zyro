@@ -1,36 +1,18 @@
 <!-- ═══════════════════════════════════════════════════════════════
-     OVERLAY + MODAL — Crear / Editar Proyecto
+     MODAL — Crear / Editar Proyecto
 ═══════════════════════════════════════════════════════════════ -->
-<div class="cpm-overlay" (click)="cerrar()" role="dialog" aria-modal="true"
-     [attr.aria-label]="mode === 'crear' ? 'Crear nuevo proyecto' : 'Editar proyecto'">
+<app-modal
+  [open]="true"
+  [title]="mode === 'crear' ? 'Nuevo Proyecto' : 'Editar Proyecto'"
+  [subtitle]="mode === 'crear' ? 'Registra un nuevo proyecto de operaciones' : 'Actualiza los datos del proyecto'"
+  maxWidth="680px"
+  iconBg="rgba(145,211,55,.14)"
+  iconColor="#5a8a20"
+  (closeModal)="cerrar()">
 
-  <div class="cpm-container" (click)="$event.stopPropagation()">
-
-    <!-- ══════════════ HEADER ══════════════ -->
-    <header class="cpm-header">
-      <div class="cpm-header-left">
-        <div class="cpm-header-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
-        </div>
-        <div>
-          <h2 class="cpm-title">
-            {{ mode === 'crear' ? 'Nuevo Proyecto' : 'Editar Proyecto' }}
-          </h2>
-          <p class="cpm-subtitle">
-            {{ mode === 'crear' ? 'Registra un nuevo proyecto de operaciones' : 'Actualiza los datos del proyecto' }}
-          </p>
-        </div>
-      </div>
-
-      <button class="cpm-close-btn" (click)="cerrar()" aria-label="Cerrar modal">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/>
-          <line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+  </svg>
 
     <!-- ══════════════ WIZARD STEPS ══════════════ -->
     <nav class="cpm-steps">
@@ -357,5 +339,4 @@
 
     </footer>
 
-  </div><!-- /cpm-container -->
-</div><!-- /cpm-overlay -->
+</app-modal>

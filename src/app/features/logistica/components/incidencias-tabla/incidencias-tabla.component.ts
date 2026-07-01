@@ -4,12 +4,13 @@ import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { Incidencia, EstadoIncidencia } from '../../logistica.models';
 
 @Component({
   selector: 'app-incidencias-tabla',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './incidencias-tabla.component.html',
   styleUrls: ['./incidencias-tabla.component.css'],
 })

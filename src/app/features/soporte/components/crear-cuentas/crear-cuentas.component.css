@@ -198,64 +198,7 @@
 }
 .cc-btn-new:hover { background: var(--accent-hover, #4f46e5); transform: translateY(-1px); }
 
-/* ─── OVERLAY + MODAL ─────────────────────────────────────────────────── */
-/*
- * main tiene isolation:isolate + z-index:0 (ver app shell CSS).
- * _lockMain() desactiva isolation en runtime antes de abrir cualquier modal,
- * permitiendo que .cc-overlay y .cc-modal sean globalmente z-index 1100/1200.
- */
-.cc-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(3px);
-  z-index: 1100;
-  animation: fadeIn .18s ease;
-}
-
-.cc-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 1200;
-  background: var(--card-bg, #fff);
-  border-radius: 16px;
-  box-shadow: 0 25px 60px rgba(0,0,0,.22), 0 0 0 1px rgba(0,0,0,.06);
-  display: flex;
-  flex-direction: column;
-  max-height: 90vh;
-  overflow: hidden;
-  width: 90vw;
-}
-.cc-modal-sm { max-width: 480px; }
-.cc-modal-lg { max-width: 760px; }
-
-@keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
-.fade-in-up { animation: fadeInUp .2s ease; }
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translate(-50%, calc(-50% + 20px)); }
-  to   { opacity: 1; transform: translate(-50%, -50%); }
-}
-
 /* ─── Modal internals ─────────────────────────────────────────────────── */
-.cc-modal-head {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 12px; padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-  flex-shrink: 0;
-}
-.cc-modal-title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary, #0f172a); margin: 0; }
-.cc-modal-sub   { font-size: .8rem; color: var(--text-muted, #64748b); margin: 3px 0 0; }
-.cc-close-btn {
-  flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px;
-  border: 1px solid var(--border-color, #e2e8f0);
-  background: transparent; cursor: pointer; font-size: .9rem;
-  color: var(--text-muted, #94a3b8); display: flex; align-items: center; justify-content: center;
-  transition: all .15s;
-}
-.cc-close-btn:hover { background: #fee2e2; color: #ef4444; border-color: #fca5a5; }
-
 .cc-modal-body {
   padding: 20px 24px;
   overflow-y: auto;
@@ -459,7 +402,5 @@
 /* Responsive */
 @media (max-width: 640px) {
   .cc-grid-2   { grid-template-columns: 1fr; }
-  .cc-modal-lg { max-width: 96vw; }
-  .cc-modal-sm { max-width: 96vw; }
   .cc-page     { padding: 16px; }
 }

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { RrhhService } from '../../../../core/services/rrhh.service';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 const MESES_MAP: Record<string, number> = {
   enero:0, febrero:1, marzo:2, abril:3, mayo:4, junio:5,
@@ -35,7 +36,7 @@ interface DiaCell {
 @Component({
   selector: 'app-calendario',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AppModalComponent],
   templateUrl: './calendario.component.html',
   styleUrls: ['./calendario.component.css']
 })

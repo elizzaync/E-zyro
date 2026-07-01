@@ -1,28 +1,25 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { AppModalComponent } from '../modal/app-modal.component';
 
 @Component({
   selector: 'app-justificacion-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppModalComponent],
   template: `
-    @if (visible) {
-    <div class="jm-backdrop" (click)="cancelar()"></div>
-    <div class="jm-box fade-in-up" (click)="$event.stopPropagation()">
-      <div class="jm-header">
-        <h3 class="jm-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="jm-icon">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-          </svg>
-          {{ titulo }}
-        </h3>
-        <button class="jm-close" (click)="cancelar()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+    <app-modal
+      [open]="visible"
+      [title]="titulo"
+      maxWidth="520px"
+      iconBg="rgba(245,158,11,0.12)"
+      iconColor="#f59e0b"
+      (closeModal)="cancelar()">
+
+      <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      </svg>
+
       <p class="jm-desc">{{ descripcion }}</p>
       <textarea
         class="jm-textarea"
@@ -39,28 +36,10 @@ import { FormsModule } from '@angular/forms';
           Confirmar cambio
         </button>
       </div>
-    </div>
-    }
+    </app-modal>
   `,
   styles: [`
-    .jm-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 900;
-    }
-    .jm-box {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      background: var(--card-bg, #1e2330); border: 1px solid var(--border, #2d3448);
-      border-radius: 14px; padding: 28px; width: min(520px, 92vw);
-      box-shadow: 0 20px 60px rgba(0,0,0,.5); z-index: 901;
-    }
-    .jm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    .jm-title { font-size: 1.05rem; font-weight: 600; color: var(--text-primary, #e2e8f0);
-                display: flex; align-items: center; gap: 8px; margin: 0; }
-    .jm-icon { width: 18px; height: 18px; color: var(--accent, #f59e0b); }
-    .jm-close { background: none; border: none; cursor: pointer; color: var(--text-muted, #6b7280); padding: 4px;
-                display: flex; border-radius: 6px; }
-    .jm-close:hover { color: var(--text-primary, #e2e8f0); background: var(--hover, rgba(255,255,255,.06)); }
-    .jm-close svg { width: 18px; height: 18px; }
-    .jm-desc { font-size: .85rem; color: var(--text-muted, #9ca3af); margin-bottom: 14px; }
+    .jm-desc { font-size: .85rem; color: var(--text-muted, #9ca3af); margin: 0 0 14px; }
     .jm-textarea {
       width: 100%; resize: vertical; padding: 10px 12px; font-size: .9rem; line-height: 1.5;
       background: var(--input-bg, #161b26); border: 1.5px solid var(--border, #2d3448);
@@ -77,8 +56,6 @@ import { FormsModule } from '@angular/forms';
                       cursor: pointer; font-size: .9rem; }
     .jm-btn-confirm:hover:not(:disabled) { filter: brightness(1.1); }
     .jm-btn-confirm:disabled { opacity: .45; cursor: not-allowed; }
-    .fade-in-up { animation: fadeInUp .2s ease; }
-    @keyframes fadeInUp { from { opacity: 0; transform: translate(-50%, -46%); } to { opacity: 1; transform: translate(-50%, -50%); } }
   `]
 })
 export class JustificacionModalComponent {

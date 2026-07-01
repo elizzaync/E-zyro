@@ -239,52 +239,6 @@
   background: rgba(145,211,55,.06);
 }
 
-/* ── Modal agregar equipo ────────────────────────────────────────── */
-.modal-backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.45);
-  backdrop-filter: blur(4px);
-  z-index: 2000;
-  display: flex; align-items: center; justify-content: center;
-  padding: 24px; animation: eiFade .2s ease;
-  /* El modal vive fuera de .ei-layout: fijamos aquí la fuente del app para que
-     TODO el texto del modal (título, labels, avisos) use el mismo stack y no
-     caiga al serif por defecto del navegador (body global no define font-family). */
-  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
-}
-.modal-backdrop * { font-family: inherit; }
-
-.modal-panel {
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border-color, #e2e8f0);
-  border-radius: 18px; width: 100%; max-width: 560px; max-height: 80vh;
-  display: flex; flex-direction: column; overflow: hidden;
-  box-shadow: 0 24px 64px rgba(0,0,0,.12);
-}
-
-.modal-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 20px 24px 14px;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-}
-.modal-title {
-  margin: 0; font-size: 15px; font-weight: 800;
-  color: var(--text-main, #0f1a14);
-}
-.modal-sub {
-  margin: 4px 0 0; font-size: 12px; color: var(--text-muted, #64748b);
-}
-.modal-close {
-  width: 30px; height: 30px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 8px; border: none;
-  background: var(--page-bg, #f1f5f9);
-  color: var(--text-muted, #64748b);
-  cursor: pointer; transition: background .15s;
-}
-.modal-close svg { width: 15px; height: 15px; }
-.modal-close:hover { background: var(--border-color, #e2e8f0); }
-
 .modal-search {
   display: flex; align-items: center; gap: 10px;
   padding: 12px 24px;
@@ -362,12 +316,8 @@
 :host-context([data-theme="dark"]) .eq-codigo       { background: rgba(255,255,255,.07); }
 :host-context([data-theme="dark"]) .btn-intervenir  { background: var(--card-bg, #131f35); border-color: var(--border-color, #1e3050); color: var(--text-main, #e2e8f0); }
 :host-context([data-theme="dark"]) .badge--muted    { background: rgba(255,255,255,.08); }
-:host-context([data-theme="dark"]) .modal-panel     { background: var(--card-bg, #131f35); border-color: var(--border-color, #1e3050); }
-:host-context([data-theme="dark"]) .modal-header    { border-color: var(--border-color, #1e3050); }
-:host-context([data-theme="dark"]) .modal-title     { color: var(--text-main, #e2e8f0); }
 :host-context([data-theme="dark"]) .modal-search    { background: rgba(0,0,0,.2); border-color: var(--border-color, #1e3050); }
 :host-context([data-theme="dark"]) .modal-input     { color: var(--text-main, #e2e8f0); }
-:host-context([data-theme="dark"]) .modal-close     { background: rgba(255,255,255,.06); }
 :host-context([data-theme="dark"]) .modal-item      { border-color: var(--border-color, #1e3050); }
 :host-context([data-theme="dark"]) .modal-item:hover { background: rgba(255,255,255,.03); }
 :host-context([data-theme="dark"]) .modal-item-nombre { color: var(--text-main, #e2e8f0); }
@@ -481,9 +431,6 @@
   background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.30); color: #fbbf24;
 }
 
-/* ── Modal ancho (formulario) ─────────────────────────────────────── */
-.modal-panel--wide { max-width: 680px; }
-
 /* ── Placeholder "[EN CONSTRUCCIÓN]" ──────────────────────────────── */
 .modal-construccion {
   display: flex; align-items: center; justify-content: center;
@@ -498,8 +445,6 @@
 }
 
 /* ── Modal "Generar Informe" ──────────────────────────────────────── */
-.modal-panel--informe { max-width: 720px; }
-
 .inf-section { margin-bottom: 18px; }
 .inf-title {
   margin: 0 0 8px; font-size: 12px; font-weight: 800;

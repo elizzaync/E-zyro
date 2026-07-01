@@ -978,52 +978,9 @@
 }
 
 /* ─── HU-13 · Confirm dialog (técnico con grupo activo) ─────────────── */
-.asm-confirm-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--asm-overlay-bg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 9100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  animation: fadeOverlay 0.18s ease;
-}
-
-.asm-confirm-dialog {
-  background: var(--asm-bg);
-  border: 1px solid var(--asm-border);
-  border-radius: var(--asm-radius);
-  width: 100%;
-  max-width: 420px;
-  padding: 28px 24px 20px;
-  text-align: center;
-  box-shadow: var(--asm-shadow);
-  animation: slideUp 0.24s cubic-bezier(.22,.68,0,1.2);
+.asm-confirm-body-wrap {
+  padding: 20px 24px 24px;
   font-family: 'Inter', sans-serif;
-}
-
-.asm-confirm-icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  margin: 0 auto 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(245, 158, 11, 0.14);
-  color: var(--asm-warn);
-}
-.asm-confirm-icon svg { width: 28px; height: 28px; }
-
-.asm-confirm-title {
-  margin: 0 0 8px;
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--asm-text);
-  letter-spacing: -.2px;
 }
 
 .asm-confirm-body {

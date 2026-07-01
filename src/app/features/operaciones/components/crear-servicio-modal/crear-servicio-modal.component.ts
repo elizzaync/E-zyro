@@ -10,6 +10,7 @@ import { OperacionesService } from '../../../../core/services/operaciones.servic
 import { AuthService } from '../../../../core/services/auth.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { JustificacionModalComponent } from '../../../../shared/components/justificacion-modal/justificacion-modal.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 export interface CatalogoServicio {
   id: string;
@@ -34,7 +35,7 @@ interface ProyectoBasico { id: string; nombre: string; cliente: string; orden_tr
 @Component({
   selector: 'app-crear-servicio-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, JustificacionModalComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, JustificacionModalComponent, AppModalComponent],
   templateUrl: './crear-servicio-modal.component.html',
   styleUrls: ['./crear-servicio-modal.component.css']
 })

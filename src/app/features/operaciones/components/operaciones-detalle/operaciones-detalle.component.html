@@ -1056,21 +1056,18 @@
      MODAL 1 — EVIDENCIA POR ETAPAS
 ══════════════════════════════════════════════════════════ -->
 @if (showModalEvidencia) {
-<div class="modal-overlay" (click)="cerrarModalEvidencia()">
-  <div class="modal-box modal-evidencia" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Subir Evidencia"
+  [subtitle]="(procedimientoActivo?.orden ?? '') + '. ' + (procedimientoActivo?.nombre ?? '')"
+  maxWidth="560px"
+  iconBg="rgba(145,211,55,0.12)"
+  iconColor="#5a8a20"
+  (closeModal)="cerrarModalEvidencia()">
 
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Subir Evidencia</h3>
-        <p class="modal-subtitle">{{ procedimientoActivo?.orden }}. {{ procedimientoActivo?.nombre }}</p>
-      </div>
-      <button class="modal-close" (click)="cerrarModalEvidencia()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>
+  </svg>
 
     <div class="modal-body">
       <div class="slots-container">
@@ -1149,8 +1146,8 @@
     <div class="modal-footer">
       <button class="btn-cancel" (click)="cerrarModalEvidencia()">Cerrar</button>
     </div>
-  </div>
-</div>
+
+</app-modal>
 }
 
 
@@ -1158,21 +1155,19 @@
      MODAL 2 — EDITAR MATERIAL
 ══════════════════════════════════════════════════════════ -->
 @if (showModalEditarMat && materialActivo) {
-<div class="modal-overlay" (click)="cerrarModalEditarMat()">
-  <div class="modal-box modal-sm" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Editar Material"
+  subtitle="Modifica la cantidad del ítem"
+  maxWidth="400px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarModalEditarMat()">
 
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Editar Material</h3>
-        <p class="modal-subtitle">Modifica la cantidad del ítem</p>
-      </div>
-      <button class="modal-close" (click)="cerrarModalEditarMat()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+    <path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/>
+  </svg>
 
     <div class="modal-body">
       <div class="form-field">
@@ -1200,8 +1195,8 @@
         }
       </button>
     </div>
-  </div>
-</div>
+
+</app-modal>
 }
 
 
@@ -1209,24 +1204,18 @@
      MODAL 3 — AGREGAR MATERIAL / HERRAMIENTA / EQUIPO
 ══════════════════════════════════════════════════════════ -->
 @if (showModalSolicitar) {
-<div class="modal-overlay" (click)="cerrarModalSolicitar()">
-  <div class="modal-box modal-solicitar" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Agregar al Requerimiento"
+  [subtitle]="tabSolicitar === 'materiales' ? 'Busca un material en el inventario' : tabSolicitar === 'equipos' ? 'Busca un equipo o herramienta del inventario' : 'Solicita un ítem que no existe en inventario'"
+  maxWidth="640px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarModalSolicitar()">
 
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Agregar al Requerimiento</h3>
-        <p class="modal-subtitle">
-          @if (tabSolicitar === 'materiales') { Busca un material en el inventario }
-          @else if (tabSolicitar === 'equipos') { Busca un equipo o herramienta del inventario }
-          @else { Solicita un ítem que no existe en inventario }
-        </p>
-      </div>
-      <button class="modal-close" (click)="cerrarModalSolicitar()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
 
     <div class="modal-body">
       <!-- ── 3 Pestañas ── -->
@@ -1452,8 +1441,8 @@
         </button>
       }
     </div>
-  </div>
-</div>
+
+</app-modal>
 }
 
 
@@ -1461,21 +1450,21 @@
      MODAL 4 — PRE-INFORME PDF
 ══════════════════════════════════════════════════════════ -->
 @if (showModalPDF) {
-<div class="modal-overlay" (click)="cerrarModalPDF()">
-  <div class="modal-box modal-pdf" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Pre-Informe del Servicio"
+  [subtitle]="(servicio?.cliente ?? '') + ' · ' + (servicio?.fechaStr ?? '')"
+  maxWidth="760px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarModalPDF()">
 
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Pre-Informe del Servicio</h3>
-        <p class="modal-subtitle">{{ servicio?.cliente }} · {{ servicio?.fechaStr }}</p>
-      </div>
-      <button class="modal-close" (click)="cerrarModalPDF()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+    <polyline points="14 2 14 8 20 8"/>
+    <line x1="9" y1="13" x2="15" y2="13"/>
+    <line x1="9" y1="17" x2="13" y2="17"/>
+  </svg>
 
     <div class="modal-body pdf-body">
       @if (pdfCargando) {
@@ -1508,27 +1497,26 @@
         Descargar PDF
       </button>
     </div>
-  </div>
-</div>
+
+</app-modal>
 }
 
 <!-- ══════════════════════════════════════════════════════════
      HU-16 — MODAL DE FIRMA DE RECEPCIÓN + PREVIEW REPORTE SALIDA
 ══════════════════════════════════════════════════════════ -->
 @if (showFirmaModal && reqAFirmar) {
-<div class="modal-overlay" (click)="cerrarFirma()">
-  <div class="modal-box modal-firma" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Firmar recepción de materiales</h3>
-        <p class="modal-subtitle">Reporte de salida · {{ servicio?.cliente }}</p>
-      </div>
-      <button class="modal-close" (click)="cerrarFirma()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-    </div>
+<app-modal
+  [open]="true"
+  title="Firmar recepción de materiales"
+  [subtitle]="'Reporte de salida · ' + (servicio?.cliente ?? '')"
+  maxWidth="600px"
+  iconBg="rgba(145,211,55,0.12)"
+  iconColor="#5a8a20"
+  (closeModal)="cerrarFirma()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </svg>
 
     <div class="modal-body">
       <!-- Previsualización del reporte de salida (stub del PDF) -->
@@ -1579,25 +1567,26 @@
         @else { Confirmar recepción }
       </button>
     </div>
-  </div>
-</div>
+
+</app-modal>
 }
 
 <!-- ══════════════════════════════════════════════════════════
      HU-16 — MODAL DE FIRMA GLOBAL DEL TÉCNICO (confirmar recepción)
 ══════════════════════════════════════════════════════════ -->
 @if (showFirmaGlobalModal) {
-<div class="modal-overlay" (click)="cerrarFirmaGlobal()">
-  <div class="modal-box modal-firma-global" (click)="$event.stopPropagation()">
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Confirmar recepción de materiales</h3>
-        <p class="modal-subtitle">
-          Logística entregó {{ reqsParaFirmar.length }} requerimiento{{ reqsParaFirmar.length !== 1 ? 's' : '' }} · Servicio: {{ servicio?.tipoServicio }}
-        </p>
-      </div>
-      <button class="modal-close" (click)="cerrarFirmaGlobal()">✕</button>
-    </div>
+<app-modal
+  [open]="true"
+  title="Confirmar recepción de materiales"
+  [subtitle]="'Logística entregó ' + reqsParaFirmar.length + ' requerimiento' + (reqsParaFirmar.length !== 1 ? 's' : '') + ' · Servicio: ' + (servicio?.tipoServicio ?? '')"
+  maxWidth="620px"
+  iconBg="rgba(145,211,55,0.12)"
+  iconColor="#5a8a20"
+  (closeModal)="cerrarFirmaGlobal()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+  </svg>
 
     <div class="modal-body modal-firma-body">
 
@@ -1667,8 +1656,8 @@
         @else { Confirmar recepción con firma }
       </button>
     </div>
-  </div>
-</div>
+
+</app-modal>
 }
 
 
@@ -1676,9 +1665,18 @@
      MODAL: DECLARAR DEVOLUCIÓN (técnico)
 ══════════════════════════════════════════════════════ -->
 @if (showModalRetorno) {
-<div class="modal-overlay" [class.modal-overlay--mandatory]="retornoObligatorio"
-     (click)="intentarCerrarRetorno()">
-  <div class="modal-box modal-solicitar" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Declarar devolución"
+  subtitle="Indica qué materiales, equipos y herramientas estás devolviendo al almacén."
+  maxWidth="640px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="intentarCerrarRetorno()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.54"/>
+  </svg>
 
     <!-- Banner urgente cuando es obligatorio -->
     @if (retornoObligatorio) {
@@ -1690,20 +1688,6 @@
         Acción obligatoria — Debes registrar la devolución para continuar
       </div>
     }
-
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Declarar devolución</h3>
-        <p class="modal-subtitle">Indica qué materiales, equipos y herramientas estás devolviendo al almacén.</p>
-      </div>
-      @if (!retornoObligatorio) {
-        <button class="modal-close" (click)="cerrarModalRetorno()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      }
-    </div>
 
     <div class="modal-body">
 
@@ -1769,8 +1753,7 @@
       </button>
     </footer>
 
-  </div>
-</div>
+</app-modal>
 }
 
 
@@ -1778,20 +1761,19 @@
      MODAL: REPORTAR INCIDENCIA (técnico)
 ══════════════════════════════════════════════════════ -->
 @if (showModalIncidencia) {
-<div class="modal-overlay" (click)="cerrarIncidencia()">
-  <div class="modal-box modal-solicitar" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Reportar Incidencia"
+  subtitle="Selecciona el equipo o herramienta afectado y describe el problema."
+  maxWidth="600px"
+  iconBg="rgba(239,68,68,0.12)"
+  iconColor="#dc2626"
+  (closeModal)="cerrarIncidencia()">
 
-    <div class="modal-header">
-      <div>
-        <h3 class="modal-title">Reportar Incidencia</h3>
-        <p class="modal-subtitle">Selecciona el equipo o herramienta afectado y describe el problema.</p>
-      </div>
-      <button class="modal-close" (click)="cerrarIncidencia()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
 
     <div class="modal-body">
 
@@ -1890,8 +1872,7 @@
       </button>
     </footer>
 
-  </div>
-</div>
+</app-modal>
 }
 
 <!-- ══ Modal de Justificación (Jefe de Operaciones — cambio de tarea) ══ -->

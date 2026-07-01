@@ -1,27 +1,17 @@
-<div class="modal-backdrop-pro pm-backdrop" (click)="cerrar()"></div>
-<div class="pm-dialog" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Procedimientos por tipo de equipo"
+  subtitle="Plantilla de checklist para inspecciones y mantenimientos"
+  maxWidth="820px"
+  iconBg="rgba(124,58,237,0.1)"
+  iconColor="#7c3aed"
+  (closeModal)="cerrar()">
 
-    <!-- Header -->
-    <div class="pm-header">
-      <div class="pm-header-left">
-        <div class="pm-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
-            <rect x="9" y="3" width="6" height="4" rx="1"/>
-            <path d="M9 12h6M9 16h4"/>
-          </svg>
-        </div>
-        <div>
-          <h2 class="pm-title">Procedimientos por tipo de equipo</h2>
-          <p class="pm-sub">Plantilla de checklist para inspecciones y mantenimientos</p>
-        </div>
-      </div>
-      <button class="pm-close" (click)="cerrar()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+    <rect x="9" y="3" width="6" height="4" rx="1"/>
+    <path d="M9 12h6M9 16h4"/>
+  </svg>
 
     <!-- Body -->
     <div class="pm-body">
@@ -259,5 +249,5 @@
       </div>
     </div>
 
-  </div>
+</app-modal>
 

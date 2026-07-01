@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { CatalogoItem } from '../../logistica.models';
 
 interface FilaProcedimiento {
@@ -16,7 +17,7 @@ interface FilaProcedimiento {
 @Component({
   selector: 'app-tipo-equipo-procedimientos-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './tipo-equipo-procedimientos-modal.component.html',
   styleUrls: ['./tipo-equipo-procedimientos-modal.component.css'],
 })

@@ -6,12 +6,13 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { MaterialLog, CatalogoItem, AlmacenItem, UnidadItem } from '../../logistica.models';
 
 @Component({
   selector: 'app-material-form-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './material-form-modal.component.html',
   styleUrls: ['./material-form-modal.component.css']
 })

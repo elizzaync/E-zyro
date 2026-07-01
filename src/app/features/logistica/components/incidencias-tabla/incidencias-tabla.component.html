@@ -123,30 +123,19 @@
      MODAL DE RESOLUCIÓN
 ══════════════════════════════════════════════ -->
 @if (incActiva) {
-<div class="inc-overlay" (click)="cerrarResolucion()">
-  <div class="inc-modal" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Resolver Incidencia"
+  [subtitle]="incActiva.equipoNombre + (incActiva.numeroSerie ? ' · ' + incActiva.numeroSerie : '')"
+  maxWidth="560px"
+  iconBg="rgba(239,68,68,0.1)"
+  iconColor="#dc2626"
+  (closeModal)="cerrarResolucion()">
 
-    <header class="inc-modal-header">
-      <div class="inc-modal-hinfo">
-        <div class="inc-modal-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-        </div>
-        <div>
-          <h3 class="inc-modal-title">Resolver Incidencia</h3>
-          <p class="inc-modal-sub">{{ incActiva.equipoNombre }}
-            @if (incActiva.numeroSerie) { · <em>{{ incActiva.numeroSerie }}</em> }
-          </p>
-        </div>
-      </div>
-      <button class="inc-modal-close" (click)="cerrarResolucion()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+    <line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
 
     <div class="inc-modal-body">
       <!-- Datos de la incidencia -->
@@ -227,6 +216,5 @@
       </button>
     </footer>
 
-  </div>
-</div>
+</app-modal>
 }

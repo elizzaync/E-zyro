@@ -102,36 +102,25 @@
      MODAL DE INSPECCIÓN
 ══════════════════════════════════════════════ -->
 @if (retornoActivo) {
-<div class="ret-overlay" (click)="cerrarInspeccion()">
-  <div class="ret-modal" (click)="$event.stopPropagation()">
+<app-modal
+  [open]="true"
+  title="Inspeccionar Retorno"
+  [subtitle]="(retornoActivo.servicioNombre ?? '—') + (retornoActivo.proyectoNombre ? ' · ' + retornoActivo.proyectoNombre : '')"
+  maxWidth="680px"
+  iconBg="rgba(59,130,246,0.1)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarInspeccion()">
 
-    <header class="ret-modal-header">
-      <div class="ret-modal-hinfo">
-        <div class="ret-modal-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-        </div>
-        <div>
-          <h3 class="ret-modal-title">Inspeccionar Retorno</h3>
-          <p class="ret-modal-sub">
-            {{ retornoActivo.servicioNombre ?? '—' }}
-            @if (retornoActivo.proyectoNombre) { · {{ retornoActivo.proyectoNombre }} }
-          </p>
-          <p class="ret-modal-tecnico">Técnico: <strong>{{ retornoActivo.iniciadoPorNombre ?? '—' }}</strong>
-            · Fecha: {{ fechaCorta(retornoActivo.creadoEn) }}
-          </p>
-        </div>
-      </div>
-      <div class="ret-modal-hright">
-        <span class="ret-estado-badge ret-est-{{ retornoActivo.estado }}">{{ estadoLabel(retornoActivo.estado) }}</span>
-        <button class="ret-modal-close" (click)="cerrarInspeccion()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-    </header>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M19 12H5M12 19l-7-7 7-7"/>
+  </svg>
+
+    <div class="ret-modal-hright">
+      <p class="ret-modal-tecnico">Técnico: <strong>{{ retornoActivo.iniciadoPorNombre ?? '—' }}</strong>
+        · Fecha: {{ fechaCorta(retornoActivo.creadoEn) }}
+      </p>
+      <span class="ret-estado-badge ret-est-{{ retornoActivo.estado }}">{{ estadoLabel(retornoActivo.estado) }}</span>
+    </div>
 
     @if (retornoActivo.notaTecnico) {
       <div class="ret-nota-tecnico">
@@ -230,6 +219,5 @@
       </footer>
     }
 
-  </div>
-</div>
+</app-modal>
 }

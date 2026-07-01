@@ -7,6 +7,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup, Validators, FormsModule } 
 import { Subject, takeUntil } from 'rxjs';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import {
   EquipoHerramienta, ClaseArticulo,
   CLASES_ARTICULO, ESTADOS_EQUIPO, FRECUENCIAS_MANTENIMIENTO,
@@ -16,7 +17,7 @@ import {
 @Component({
   selector: 'app-equipo-form-modal',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './equipo-form-modal.component.html',
   styleUrls: ['./equipo-form-modal.component.css']
 })
