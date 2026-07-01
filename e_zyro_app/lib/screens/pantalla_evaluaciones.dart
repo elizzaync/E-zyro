@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/evaluacion_models.dart';
 import '../models/personal_models.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
+import '../widgets/verdant_theme.dart';
 import 'pantalla_plantillas_evaluacion.dart';
 
 /// Evaluaciones de desempeño (Punto 3.2): lista, creación con puntuación de
@@ -668,6 +670,7 @@ class _CriteriosTabState extends State<CriteriosTab> {
   }
 
   Future<void> _nuevo([CriterioEvaluacion? existing]) async {
+    final v = VerdantColors.of(context);
     final nombre = TextEditingController(text: existing?.nombre ?? '');
     final desc = TextEditingController(text: existing?.descripcion ?? '');
     final pregunta = TextEditingController(text: existing?.pregunta ?? '');
@@ -675,64 +678,123 @@ class _CriteriosTabState extends State<CriteriosTab> {
       text: existing?.peso.toStringAsFixed(1) ?? '1.0',
     );
 
-    final ok = await showDialog<bool>(
+    final ok = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(existing == null ? 'Nuevo criterio' : 'Editar criterio'),
-        scrollable: true,
-        content: SizedBox(
-          width: 400,
+      isScrollControlled: true,
+      backgroundColor: v.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 16, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: nombre,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre del criterio *',
-                  helperText: 'Ej: Puntualidad, Trabajo en equipo',
+              Center(
+                child: Container(
+                  width: 42, height: 5,
+                  decoration: BoxDecoration(color: v.track, borderRadius: BorderRadius.circular(3)),
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 18),
+              Text(existing == null ? 'Nuevo criterio' : 'Editar criterio',
+                  style: GoogleFonts.spaceGrotesk(fontSize: 20, fontWeight: FontWeight.w700, color: v.ink)),
+              const SizedBox(height: 18),
+              _campo(v, 'Nombre del criterio *'),
+              TextField(
+                controller: nombre,
+                decoration: _decoracion(v, 'Ej: Puntualidad, Trabajo en equipo'),
+              ),
+              const SizedBox(height: 13),
+              _campo(v, 'Pregunta que verá el colaborador'),
               TextField(
                 controller: pregunta,
                 maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Pregunta que verá el colaborador',
-                  helperText: 'Ej: ¿Cómo evalúas tu puntualidad este periodo?',
-                ),
+                decoration: _decoracion(v, 'Ej: ¿Cómo evalúas tu puntualidad?'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 13),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _campo(v, 'Peso'),
+                        TextField(
+                          controller: peso,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.w800, color: v.ink),
+                          decoration: _decoracion(v, '1.0'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _campo(v, 'Tipo'),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: v.bd),
+                            borderRadius: BorderRadius.circular(14),
+                            color: v.cardAlt,
+                          ),
+                          child: Text('Escala 1 – 10',
+                              style: TextStyle(fontSize: 13, color: v.sub)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 13),
+              _campo(v, 'Descripción interna (opcional)'),
               TextField(
                 controller: desc,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción interna (opcional)',
-                ),
+                decoration: _decoracion(v, ''),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: peso,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Peso (ponderación)',
-                  helperText:
-                      'Ej: 2.0 = vale el doble que un criterio con peso 1.0',
-                ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: v.bd),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      ),
+                      child: Text('Cancelar', style: TextStyle(color: v.sub, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                  const SizedBox(width: 13),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: v.lime,
+                        foregroundColor: v.limeInk,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      ),
+                      child: const Text('Guardar criterio', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Guardar'),
-          ),
-        ],
       ),
     );
     if (ok != true) return;
@@ -795,14 +857,40 @@ class _CriteriosTabState extends State<CriteriosTab> {
     r.ok ? _cargar() : _snack(r.errorMessage, error: true);
   }
 
+  Widget _campo(VerdantColors v, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 7),
+        child: Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: v.ink)),
+      );
+
+  InputDecoration _decoracion(VerdantColors v, String hint) => InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 13, color: v.mut),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        filled: true,
+        fillColor: v.cardAlt,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: v.bd),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: v.bd),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
+    final v = VerdantColors.of(context);
     return Scaffold(
+      backgroundColor: Colors.transparent,
       floatingActionButton: AppSession.i.canCrearEvaluacion
           ? FloatingActionButton.extended(
-              onPressed: _nuevo,
+              onPressed: () => _nuevo(),
+              backgroundColor: v.lime,
+              foregroundColor: v.limeInk,
               icon: const Icon(Icons.add),
-              label: const Text('Criterio'),
+              label: const Text('Criterio', style: TextStyle(fontWeight: FontWeight.w800)),
             )
           : null,
       body: _cargando
@@ -810,72 +898,85 @@ class _CriteriosTabState extends State<CriteriosTab> {
           : _error != null
           ? Center(child: Text(_error!))
           : _items.isEmpty
-          ? const Center(
-              child: Text('Sin criterios. Crea el primero con el botón +.'),
+          ? Center(
+              child: Text('Sin criterios. Crea el primero con el botón +.',
+                  style: TextStyle(color: v.mut)),
             )
           : RefreshIndicator(
               onRefresh: _cargar,
               child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                 itemCount: _items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final c = _items[i];
-                  return ListTile(
-                    leading: const Icon(Icons.checklist_outlined),
-                    title: Text(
-                      c.nombre,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (c.pregunta != null)
-                          Text(
-                            '❓ ${c.pregunta}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        if (c.descripcion != null)
-                          Text(
-                            c.descripcion!,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                      ],
-                    ),
-                    isThreeLine: c.pregunta != null || c.descripcion != null,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Chip(
-                          label: Text(
-                            'peso ${c.peso.toStringAsFixed(1)}',
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          visualDensity: VisualDensity.compact,
-                          side: BorderSide.none,
-                        ),
-                        if (AppSession.i.canEditarEvaluacion)
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            onPressed: () => _nuevo(c),
-                          ),
-                        if (AppSession.i.canEliminarEvaluacion)
-                          IconButton(
-                            icon: Icon(
-                              Icons.delete_outline,
-                              color: Colors.red.shade400,
-                              size: 20,
-                            ),
-                            onPressed: () => _eliminar(c),
-                          ),
-                      ],
-                    ),
-                  );
-                },
+                separatorBuilder: (_, _) => const SizedBox(height: 11),
+                itemBuilder: (_, i) => _tarjetaCriterio(v, _items[i]),
               ),
             ),
+    );
+  }
+
+  Widget _tarjetaCriterio(VerdantColors v, CriterioEvaluacion c) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: v.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: v.bd),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: v.dark ? 0.30 : 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Icon(Icons.drag_indicator, size: 18, color: v.mut),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(c.nombre, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: v.ink)),
+                if (c.pregunta != null && c.pregunta!.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(c.pregunta!, style: TextStyle(fontSize: 12.5, color: v.sub)),
+                ],
+                if (c.descripcion != null && c.descripcion!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(c.descripcion!, style: TextStyle(fontSize: 11.5, color: v.mut)),
+                ],
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: v.cardAlt, borderRadius: BorderRadius.circular(11)),
+                child: Text('×${c.peso.toStringAsFixed(1)}',
+                    style: GoogleFonts.spaceGrotesk(fontSize: 12, fontWeight: FontWeight.w700, color: v.linkc)),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (AppSession.i.canEditarEvaluacion)
+                    IconButton(
+                      icon: Icon(Icons.edit_outlined, size: 17, color: v.mut),
+                      onPressed: () => _nuevo(c),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  if (AppSession.i.canEliminarEvaluacion)
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, size: 18, color: v.red),
+                      onPressed: () => _eliminar(c),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -889,42 +990,80 @@ class ConfigEvaluacionesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final v = VerdantColors.of(context);
     return DefaultTabController(
       length: TipoEvaluacion.todos.length,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text(
-            'Config. Evaluaciones',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          bottom: TabBar(
-            isScrollable: true,
-            tabs: [
-              for (final t in TipoEvaluacion.todos)
-                Tab(text: TipoEvaluacion.etiquetaCorta(t)),
-            ],
-          ),
-        ),
-        body: TabBarView(
+        backgroundColor: v.dark ? const Color(0xFF091310) : const Color(0xFFF4F6EF),
+        body: Column(
           children: [
-            for (final t in TipoEvaluacion.todos)
-              Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                    child: Text(
-                      'Criterios de la ${TipoEvaluacion.etiqueta(t)}. '
-                      'Estos forman el formulario que se aplicará al asignarla a un colaborador.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+              decoration: BoxDecoration(
+                gradient: v.heroGradient,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        IconButton(
+                          onPressed: () => Navigator.maybePop(context),
+                          icon: Icon(Icons.arrow_back, color: v.onHero),
+                        ),
+                        Expanded(
+                          child: Text('Config. Evaluaciones',
+                              style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 19, fontWeight: FontWeight.w700, color: v.onHero)),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+                      child: Text(
+                        'Define los criterios que forman el formulario de evaluación.',
+                        style: TextStyle(fontSize: 12.5, color: v.onHeroSub, height: 1.4),
                       ),
                     ),
-                  ),
-                  Expanded(child: CriteriosTab(tipo: t)),
+                    SizedBox(
+                      height: 40,
+                      child: TabBar(
+                        isScrollable: true,
+                        indicator: BoxDecoration(color: v.lime, borderRadius: BorderRadius.circular(20)),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        dividerColor: Colors.transparent,
+                        labelColor: v.limeInk,
+                        unselectedLabelColor: v.onHeroSub,
+                        labelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                        unselectedLabelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                        padding: EdgeInsets.zero,
+                        tabAlignment: TabAlignment.start,
+                        tabs: [
+                          for (final t in TipoEvaluacion.todos)
+                            Tab(
+                              height: 36,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Text(TipoEvaluacion.etiquetaCorta(t)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  for (final t in TipoEvaluacion.todos) CriteriosTab(tipo: t),
                 ],
               ),
+            ),
           ],
         ),
       ),

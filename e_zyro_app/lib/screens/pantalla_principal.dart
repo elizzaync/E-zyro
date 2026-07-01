@@ -811,7 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '/ ${r.metaHoras}h',
+                        '/ ${r.metaHorasLabel}h',
                         style: const TextStyle(
                             fontSize: 13,
                             color: Colors.grey,

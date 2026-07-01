@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../models/control_asistencia_models.dart';
 import '../services/asistencia_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
 import '../utils/descarga_archivo.dart';
+import '../widgets/verdant_charts.dart';
+import '../widgets/verdant_theme.dart';
 
 /// Tablero de supervisión de asistencias diarias (permiso asistencia:ver).
 /// Muestra, por empleado: entrada/salida, almuerzo, horas netas trabajadas y
@@ -19,11 +22,6 @@ class PantallaControlAsistencias extends StatefulWidget {
 
 class _PantallaControlAsistenciasState
     extends State<PantallaControlAsistencias> {
-  static const _green = Color(0xFF8FD11B);
-  static const _amber = Color(0xFFF59E0B);
-  static const _danger = Color(0xFFE53935);
-  static const _blue = Color(0xFF3B82F6);
-
   AsistenciaService? _svc;
   DateTime _fecha = DateTime.now();
   bool _cargando = true;
@@ -68,73 +66,179 @@ class _PantallaControlAsistenciasState
     }
   }
 
+  static const _avatarPalette = [
+    Color(0xFF3E9A4E), Color(0xFF3E80C0), Color(0xFFC58A1C),
+    Color(0xFF7E57C2), Color(0xFFD6584F), Color(0xFF2BA89F),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final v = VerdantColors.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Control de Asistencias'),
-        actions: [
-          IconButton(
-            tooltip: 'Descargar asistencias',
-            icon: const Icon(Icons.download_outlined),
-            onPressed: _cargando ? null : _abrirDescarga,
-          ),
-          IconButton(
-            tooltip: 'Elegir fecha',
-            icon: const Icon(Icons.calendar_today_outlined),
-            onPressed: _pickFecha,
-          ),
-        ],
-      ),
+      backgroundColor: v.dark ? const Color(0xFF091310) : const Color(0xFFF4F6EF),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _cargar,
-              child: _data == null
-                  ? ListView(
-                      children: const [
-                        SizedBox(height: 120),
-                        Center(
-                            child: Text(
-                                'No se pudo cargar el control de asistencias.')),
-                      ],
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: _hero(v)),
+                  if (_data == null)
+                    const SliverFillRemaining(
+                      child: Center(
+                          child: Text(
+                              'No se pudo cargar el control de asistencias.')),
                     )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                      children: [
-                        _barraFecha(isDark),
-                        const SizedBox(height: 12),
-                        _resumen(_data!.resumen),
-                        const SizedBox(height: 16),
-                        if (_data!.items.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 60),
-                            child: Center(
-                                child: Text('No hay empleados para mostrar.')),
-                          )
-                        else
-                          ..._data!.items.map(_tarjetaEmpleado),
-                      ],
+                  else if (_data!.items.isEmpty)
+                    const SliverPadding(
+                      padding: EdgeInsets.only(top: 60),
+                      sliver: SliverToBoxAdapter(
+                        child: Center(
+                            child: Text('No hay empleados para mostrar.')),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      sliver: SliverList.separated(
+                        itemCount: _data!.items.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (_, i) =>
+                            _tarjetaEmpleado(v, _data!.items[i], i),
+                      ),
                     ),
+                ],
+              ),
             ),
     );
   }
 
-  Widget _barraFecha(bool isDark) {
+  Widget _hero(VerdantColors v) {
     final etiqueta = _esHoy(_fecha) ? 'Hoy · $_fechaIso' : _fechaIso;
-    return Row(
-      children: [
-        const Icon(Icons.event_note_outlined, size: 18, color: Colors.grey),
-        const SizedBox(width: 8),
-        Text(etiqueta,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-        const Spacer(),
-        TextButton.icon(
-          onPressed: _pickFecha,
-          icon: const Icon(Icons.edit_calendar_outlined, size: 18),
-          label: const Text('Cambiar'),
+    final r = _data?.resumen;
+    final total = r?.total ?? 0;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+      decoration: BoxDecoration(
+        gradient: v.heroGradient,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.maybePop(context),
+                  icon: Icon(Icons.arrow_back, color: v.onHero),
+                ),
+                Expanded(
+                  child: Text('Control de Asistencias',
+                      style: GoogleFonts.spaceGrotesk(
+                          fontSize: 19, fontWeight: FontWeight.w700, color: v.onHero)),
+                ),
+                IconButton(
+                  tooltip: 'Descargar asistencias',
+                  onPressed: _cargando ? null : _abrirDescarga,
+                  icon: Icon(Icons.download_outlined, color: v.onHero),
+                  style: IconButton.styleFrom(backgroundColor: v.heroChip),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: v.heroChip,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.calendar_today_outlined, size: 15, color: v.onHero),
+                        const SizedBox(width: 7),
+                        Text(etiqueta,
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700, color: v.onHero)),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: _pickFecha,
+                    child: Text('Cambiar',
+                        style: TextStyle(fontWeight: FontWeight.w700, color: v.lime)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: v.heroCard,
+                border: Border.all(color: v.heroBd),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Asistencia de hoy',
+                      style: TextStyle(fontSize: 12, color: v.onHeroSub)),
+                  RichText(
+                    text: TextSpan(children: [
+                      TextSpan(
+                          text: '${r?.completos ?? 0} + ${(r?.enCurso ?? 0)} ',
+                          style: GoogleFonts.spaceGrotesk(
+                              fontSize: 21, fontWeight: FontWeight.w700, color: v.onHero)),
+                      TextSpan(
+                          text: '/ $total marcaron',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600, color: v.onHeroSub)),
+                    ]),
+                  ),
+                  const SizedBox(height: 11),
+                  StackBarChart(segments: [
+                    StackBarSegment((r?.completos ?? 0).toDouble(), v.grn),
+                    StackBarSegment((r?.incompletos ?? 0).toDouble(), v.amb),
+                    StackBarSegment((r?.enCurso ?? 0).toDouble(), v.blu),
+                    StackBarSegment((r?.ausentes ?? 0).toDouble(), v.red),
+                  ], height: 13),
+                  const SizedBox(height: 13),
+                  Wrap(
+                    spacing: 13,
+                    runSpacing: 8,
+                    children: [
+                      _resumenDot('Completos', r?.completos ?? 0, v.grn, v),
+                      _resumenDot('Incompletos', r?.incompletos ?? 0, v.amb, v),
+                      _resumenDot('En curso', r?.enCurso ?? 0, v.blu, v),
+                      _resumenDot('Ausentes', r?.ausentes ?? 0, v.red, v),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _resumenDot(String label, int count, Color color, VerdantColors v) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 9, height: 9, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+        const SizedBox(width: 6),
+        Text('$count', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: v.onHero)),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11.5, color: v.onHeroSub)),
       ],
     );
   }
@@ -144,121 +248,73 @@ class _PantallaControlAsistenciasState
     return d.year == n.year && d.month == n.month && d.day == n.day;
   }
 
-  Widget _resumen(ControlResumen r) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        _chip('Completos', r.completos, _green),
-        _chip('Incompletos', r.incompletos, _amber),
-        _chip('En curso', r.enCurso, _blue),
-        _chip('Ausentes', r.ausentes, _danger),
-      ],
-    );
-  }
-
-  Widget _chip(String label, int valor, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$valor',
-              style: TextStyle(
-                  color: color, fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(width: 6),
-          Text(label,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  ({Color color, String texto, IconData icon}) _estadoVisual(String estado) {
+  ({Color color, String texto, IconData icon}) _estadoVisual(VerdantColors v, String estado) {
     switch (estado) {
       case 'completo':
-        return (color: _green, texto: 'Completo', icon: Icons.check_circle);
+        return (color: v.grn, texto: 'Completo', icon: Icons.check_circle);
       case 'incompleto':
-        return (color: _amber, texto: 'Incompleto', icon: Icons.error_outline);
+        return (color: v.amb, texto: 'Incompleto', icon: Icons.error_outline);
       case 'en_curso':
-        return (color: _blue, texto: 'En curso', icon: Icons.timelapse);
+        return (color: v.blu, texto: 'En curso', icon: Icons.timelapse);
       default:
-        return (color: _danger, texto: 'Ausente', icon: Icons.remove_circle_outline);
+        return (color: v.red, texto: 'Ausente', icon: Icons.remove_circle_outline);
     }
   }
 
-  Widget _tarjetaEmpleado(ControlItem it) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final vis = _estadoVisual(it.estado);
-    final surface = Theme.of(context).colorScheme.surface;
+  String _iniciales(ControlItem it) {
+    final n = it.nombre.trim();
+    final a = it.apellido.trim();
+    final i1 = n.isNotEmpty ? n[0] : '';
+    final i2 = a.isNotEmpty ? a[0] : '';
+    return ('$i1$i2').toUpperCase();
+  }
+
+  Widget _tarjetaEmpleado(VerdantColors v, ControlItem it, int index) {
+    final vis = _estadoVisual(v, it.estado);
+    final avatarColor = _avatarPalette[index % _avatarPalette.length];
+    final pct = it.minutosRequeridos > 0
+        ? ((it.minutosTrabajados ?? 0) / it.minutosRequeridos * 100).clamp(0, 100).toDouble()
+        : 0.0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: vis.color.withValues(alpha: 0.30)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: v.card,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: v.bd),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: v.dark ? 0.30 : 0.05), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(color: avatarColor, borderRadius: BorderRadius.circular(14)),
+                alignment: Alignment.center,
+                child: Text(_iniciales(it), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14)),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(it.nombreCompleto,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: v.ink)),
                     const SizedBox(height: 2),
-                    Text(it.cargo,
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.grey)),
+                    Text(
+                      it.turnoHorario.isEmpty
+                          ? '${it.cargo} · ${it.esExcepcion ? "Excepción · " : ""}${it.turnoNombre}'
+                          : '${it.cargo} · ${it.turnoHorario}',
+                      style: TextStyle(fontSize: 12, color: v.mut),
+                    ),
                   ],
                 ),
               ),
               _badgeEstado(vis),
             ],
           ),
-          const SizedBox(height: 10),
-          // Turno + horario designado
-          Row(
-            children: [
-              Icon(
-                it.esExcepcion ? Icons.star_outline : Icons.schedule,
-                size: 15,
-                color: it.esExcepcion ? _amber : Colors.grey,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  it.turnoHorario.isEmpty
-                      ? (it.esExcepcion ? 'Excepción · ${it.turnoNombre}' : it.turnoNombre)
-                      : '${it.esExcepcion ? 'Excepción · ' : ''}${it.turnoNombre} · ${it.turnoHorario}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: it.esExcepcion ? _amber : Colors.grey.shade600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          // Puntualidad: tardanza / salida temprana
           if (it.llegoTarde || it.salioTemprano) ...[
             const SizedBox(height: 8),
             Wrap(
@@ -266,43 +322,43 @@ class _PantallaControlAsistenciasState
               runSpacing: 6,
               children: [
                 if (it.llegoTarde)
-                  _flagPuntualidad(
-                      Icons.login, 'Tardanza ${_min(it.minutosTarde)}', _danger),
+                  _flagPuntualidad(Icons.login, 'Tardanza ${_min(it.minutosTarde)}', v.red),
                 if (it.salioTemprano)
-                  _flagPuntualidad(Icons.logout,
-                      'Salió ${_min(it.minutosAntesSalida)} antes', _amber),
+                  _flagPuntualidad(Icons.logout, 'Salió ${_min(it.minutosAntesSalida)} antes', v.amb),
               ],
             ),
           ],
-          const SizedBox(height: 10),
-          // Marcas
-          Row(
-            children: [
-              _marca('Entrada', it.entradaHora),
-              _marca('Salida', it.salidaHora),
-              _marca('Almuerzo',
-                  _rangoAlmuerzo(it.inicioAlmuerzoHora, it.finAlmuerzoHora)),
-            ],
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            decoration: BoxDecoration(color: v.cardAlt, borderRadius: BorderRadius.circular(14)),
+            child: Row(
+              children: [
+                _marca(v, 'Entrada', it.entradaHora, it.entradaHora == null ? v.mut : v.grn),
+                _marca(v, 'Salida', it.salidaHora, it.salidaHora == null ? v.mut : v.ink),
+                _marca(v, 'Almuerzo', _rangoAlmuerzo(it.inicioAlmuerzoHora, it.finAlmuerzoHora), v.sub),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          Divider(height: 1, color: Colors.grey.withValues(alpha: 0.2)),
-          const SizedBox(height: 10),
-          // Horas
           Row(
             children: [
-              const Icon(Icons.timer_outlined, size: 16, color: Colors.grey),
-              const SizedBox(width: 6),
-              Text(
-                'Trabajado: ${it.trabajadoLabel}',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: it.cumple ? _green : (it.estado == 'incompleto' ? _amber : null),
+              Text('Trabajado', style: TextStyle(fontSize: 12, color: v.mut)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: LinearProgressIndicator(
+                    value: pct / 100,
+                    minHeight: 7,
+                    backgroundColor: v.track,
+                    valueColor: AlwaysStoppedAnimation<Color>(it.estado == 'ausente' ? v.red : (it.cumple ? v.grn : v.lime)),
+                  ),
                 ),
               ),
-              const Spacer(),
-              Text('Requerido: ${it.requeridoLabel}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(width: 10),
+              Text(it.trabajadoLabel,
+                  style: GoogleFonts.spaceGrotesk(fontSize: 12.5, fontWeight: FontWeight.w800, color: v.ink)),
             ],
           ),
           if (_puedeGestionar) ...[
@@ -328,18 +384,8 @@ class _PantallaControlAsistenciasState
         color: vis.color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(vis.icon, size: 14, color: vis.color),
-          const SizedBox(width: 4),
-          Text(vis.texto,
-              style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: vis.color)),
-        ],
-      ),
+      child: Text(vis.texto,
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: vis.color)),
     );
   }
 
@@ -371,19 +417,17 @@ class _PantallaControlAsistenciasState
     );
   }
 
-  Widget _marca(String label, String? valor) {
+  Widget _marca(VerdantColors v, String label, String? valor, Color valColor) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(label, style: TextStyle(fontSize: 10.5, color: v.mut)),
           const SizedBox(height: 2),
           Text(valor ?? '—',
-              style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: valor == null ? Colors.grey : null)),
+              style: GoogleFonts.spaceGrotesk(
+                  fontSize: 14, fontWeight: FontWeight.w800,
+                  color: valor == null ? v.mut : valColor)),
         ],
       ),
     );

@@ -392,7 +392,7 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
                 IconButton.filled(
                   onPressed: _abrirFormNuevo,
                   style: IconButton.styleFrom(backgroundColor: _green),
-                  tooltip: 'Agregar equipo',
+                  tooltip: 'Dar de alta un equipo nuevo en el catálogo',
                   icon: const Icon(Icons.add, color: Colors.white, size: 20),
                 ),
               ],
@@ -765,10 +765,14 @@ class _AgregarEquipoSheetState extends State<_AgregarEquipoSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Agregar equipo',
+            const Text('Equipo nuevo en el catálogo',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text('La ubicación y zona se heredan de la sede del servicio.',
+            Text(
+                'Usa esto solo si el equipo nunca estuvo registrado. La ubicación '
+                'y zona se heredan de la sede del servicio. Para inspeccionar o dar '
+                'seguimiento a un equipo que ya existe, ciérralo y tócalo '
+                'directamente en la lista.',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             const SizedBox(height: 14),
             TextField(
@@ -832,7 +836,7 @@ class _AgregarEquipoSheetState extends State<_AgregarEquipoSheet> {
                         height: 18,
                         child: CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white))
-                    : const Text('Agregar al catálogo',
+                    : const Text('Crear equipo nuevo',
                         style: TextStyle(
                             color: Colors.white, fontWeight: FontWeight.w700)),
               ),

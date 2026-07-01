@@ -127,7 +127,7 @@ class DiaResumen {
 /// el backend contra el plan/turno designado (respeta excepciones tipo TI).
 class ResumenSemanal {
   final String semanaInicio; // ISO del lunes
-  final int metaHoras; // p. ej. 48
+  final double metaHoras; // p. ej. 48, o 27.5 si el turno-excepción no es de 8h
   final int minutosTrabajadosSemana;
   final int diasTrabajados;
   final int promedioMinDiario;
@@ -146,7 +146,7 @@ class ResumenSemanal {
 
   factory ResumenSemanal.fromJson(Map<String, dynamic> j) => ResumenSemanal(
         semanaInicio: j['semana_inicio'] as String? ?? '',
-        metaHoras: (j['meta_horas'] as num?)?.toInt() ?? 48,
+        metaHoras: (j['meta_horas'] as num?)?.toDouble() ?? 48.0,
         minutosTrabajadosSemana:
             (j['minutos_trabajados_semana'] as num?)?.toInt() ?? 0,
         diasTrabajados: (j['dias_trabajados'] as num?)?.toInt() ?? 0,
@@ -158,6 +158,10 @@ class ResumenSemanal {
       );
 
   double get horasSemana => minutosTrabajadosSemana / 60.0;
+  /// Meta formateada sin decimales sobrantes ("48" en vez de "48.0", "27.5" tal cual).
+  String get metaHorasLabel => metaHoras == metaHoras.roundToDouble()
+      ? metaHoras.toStringAsFixed(0)
+      : metaHoras.toStringAsFixed(1);
   double get progreso =>
       metaHoras == 0 ? 0 : (horasSemana / metaHoras).clamp(0.0, 1.0);
   int get progresoPct => (progreso * 100).round();

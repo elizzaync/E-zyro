@@ -81,7 +81,10 @@ class _MoreScreenState extends State<MoreScreen> {
     if (mounted) {
       setState(() {
         _userName = prefs.getString('user_name') ?? 'Usuario';
-        _userRol  = prefs.getString('user_rol') ?? '';
+        // Cargo (puesto laboral) para mostrar, no el rol RBAC (ese gobierna
+        // permisos y se gestiona en Gestión de Usuarios).
+        final cargo = prefs.getString('user_cargo') ?? '';
+        _userRol  = cargo.isNotEmpty ? cargo : (prefs.getString('user_rol') ?? '');
         _fotoUrl  = prefs.getString('user_foto_url') ?? '';
         _puedeVerAuditoria   = AppSession.i.canVerAuditoria;
         _esAdmin             = AppSession.i.isAdmin;

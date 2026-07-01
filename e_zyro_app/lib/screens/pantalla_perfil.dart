@@ -209,7 +209,13 @@ class _ProfileTabState extends State<_ProfileTab> {
         setState(() {
           _name = '${resumen.usuario.nombre} ${resumen.usuario.apellido}'
               .trim();
-          _rol = prefs.getString('user_rol') ?? 'Colaborador';
+          // Cargo (puesto laboral), no el rol RBAC: mismo dato que muestra la
+          // web en Personal. El rol RBAC sigue siendo la fuente de permisos
+          // y se gestiona aparte en Gestión de Usuarios.
+          final cargo = prefs.getString('user_cargo') ?? '';
+          _rol = cargo.isNotEmpty
+              ? cargo
+              : (prefs.getString('user_rol') ?? 'Colaborador');
           _email = resumen.usuario.email;
           _phone = resumen.usuario.telefono;
           _fotoUrl = resumen.usuario.fotoUrl;
@@ -225,7 +231,10 @@ class _ProfileTabState extends State<_ProfileTab> {
       if (mounted) {
         setState(() {
           _name = prefs.getString('user_name') ?? 'Usuario';
-          _rol = prefs.getString('user_rol') ?? 'Colaborador';
+          final cargo = prefs.getString('user_cargo') ?? '';
+          _rol = cargo.isNotEmpty
+              ? cargo
+              : (prefs.getString('user_rol') ?? 'Colaborador');
           _email = prefs.getString('user_email') ?? '';
           _phone = prefs.getString('user_phone') ?? '';
           _fotoUrl = prefs.getString('user_foto_url') ?? '';

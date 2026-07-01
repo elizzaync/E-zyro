@@ -26,11 +26,11 @@ class PantallaCrearServicio extends StatefulWidget {
 
 const _green = Color(0xFF8FD11B);
 const _danger = Color(0xFFE53935);
+const _amber = Color(0xFFF59E0B);
 
 class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
   final _nombre = TextEditingController();
   final _descripcion = TextEditingController();
-  final _zona = TextEditingController();
   final _alcance = TextEditingController();
   final _nroDocumento = TextEditingController();
 
@@ -79,7 +79,6 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
   void dispose() {
     _nombre.dispose();
     _descripcion.dispose();
-    _zona.dispose();
     _alcance.dispose();
     _nroDocumento.dispose();
     super.dispose();
@@ -104,7 +103,6 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
         _catalogoId = s.catalogoServicioId;
         _liderId = s.liderId;
         _responsableId = s.responsableId;
-        _zona.text = s.zonaEjecucion ?? '';
         _geo = GeoSeleccion(ubicacionId: s.ubicacionId, zonaId: s.zonaId);
         _alcance.text = s.alcance ?? '';
         _tipoDoc = s.tipoDocumentoCliente ?? 'SIN_OC';
@@ -186,7 +184,6 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
           _descripcion.text.trim().isEmpty ? null : _descripcion.text.trim(),
       'lider_id': _liderId,
       'responsable_id': _responsableId,
-      'zona_ejecucion': _zona.text.trim().isEmpty ? null : _zona.text.trim(),
       'ubicacion_id': _geo.ubicacionId,
       'zona_id': _geo.zonaId,
       'alcance': _alcance.text.trim().isEmpty ? null : _alcance.text.trim(),
@@ -204,16 +201,27 @@ class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
     };
 
     bool ok;
+    bool sinProcedimientos = false;
     if (_esEditar) {
       ok = await widget.service.actualizarServicio(widget.servicioId!, payload);
     } else {
-      ok = (await widget.service.crearServicio(widget.proyectoId, payload)) !=
-          null;
+      final creado = await widget.service.crearServicio(widget.proyectoId, payload);
+      ok = creado.id != null;
+      sinProcedimientos = creado.sinProcedimientosEstandar;
     }
 
     if (!mounted) return;
     setState(() => _guardando = false);
     if (ok) {
+      if (sinProcedimientos) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Servicio creado. Aviso: su tipo aún no tiene procedimientos '
+              'estándar definidos (Procedimientos Estándar).'),
+          backgroundColor: _amber,
+          duration: Duration(seconds: 5),
+        ));
+      }
       Navigator.pop(context, true);
     } else {
       setState(() => _errorMsg = 'No se pudo guardar el servicio.');

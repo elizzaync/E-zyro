@@ -1275,7 +1275,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: -1)),
                           const SizedBox(width: 8),
-                          Text('/ ${r?.metaHoras ?? 48}h',
+                          Text('/ ${r?.metaHorasLabel ?? '48'}h',
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13,
                                   color: Colors.grey,

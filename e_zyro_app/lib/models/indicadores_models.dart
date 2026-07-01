@@ -12,6 +12,10 @@ class IndicadorEmpleado {
   final double vacacionesDisponible;
   final int vacacionesGozado;
   final double? scoreGlobal;
+  /// Promedio de evaluación (1-10) por periodo, últimos periodos con
+  /// evaluaciones completadas, orden cronológico ascendente. <2 elementos =
+  /// sin historial suficiente para graficar tendencia.
+  final List<double> tendencia;
 
   const IndicadorEmpleado({
     required this.empleadoId,
@@ -25,6 +29,7 @@ class IndicadorEmpleado {
     this.vacacionesDisponible = 0,
     this.vacacionesGozado = 0,
     this.scoreGlobal,
+    this.tendencia = const [],
   });
 
   factory IndicadorEmpleado.fromJson(Map<String, dynamic> j) => IndicadorEmpleado(
@@ -39,6 +44,9 @@ class IndicadorEmpleado {
         vacacionesDisponible: (j['vacaciones_disponible'] as num?)?.toDouble() ?? 0,
         vacacionesGozado: (j['vacaciones_gozado'] as num?)?.toInt() ?? 0,
         scoreGlobal: (j['score_global'] as num?)?.toDouble(),
+        tendencia: ((j['tendencia'] as List?) ?? [])
+            .map((e) => (e as num).toDouble())
+            .toList(),
       );
 }
 

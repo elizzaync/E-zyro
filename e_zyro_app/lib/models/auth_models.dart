@@ -30,6 +30,7 @@ class LoginResponse {
 class LoginData {
   final String nombreCompleto;
   final String rol;
+  final String cargo;
   final String token;
   final String fotoUrl;
   final List<String> permisos;
@@ -37,6 +38,7 @@ class LoginData {
   LoginData({
     required this.nombreCompleto,
     required this.rol,
+    this.cargo = '',
     required this.token,
     required this.fotoUrl,
     this.permisos = const [],
@@ -46,6 +48,7 @@ class LoginData {
     return LoginData(
       nombreCompleto: json['nombre_completo'] ?? '',
       rol: json['rol'] ?? '',
+      cargo: json['cargo'] ?? '',
       token: json['token'] ?? '',
       fotoUrl: json['foto_url'] ?? '',
       permisos: (json['permisos'] as List?)?.cast<String>() ?? [],

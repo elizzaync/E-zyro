@@ -7,6 +7,7 @@ class AppSession {
   static final AppSession i = AppSession._();
 
   String _rol = '';
+  String _cargo = '';
   List<String> _permisos = [];
 
   // ── Carga desde SharedPreferences ────────────────────────────────────────
@@ -14,11 +15,13 @@ class AppSession {
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     i._rol      = (prefs.getString('user_rol') ?? '').toLowerCase().trim();
+    i._cargo    = prefs.getString('user_cargo') ?? '';
     i._permisos = prefs.getStringList('user_permisos') ?? [];
   }
 
   static void clear() {
     i._rol      = '';
+    i._cargo    = '';
     i._permisos = [];
   }
 
@@ -200,5 +203,11 @@ class AppSession {
   /// Solo Jefatura de Operaciones (o Admin) puede finalizar/cerrar un servicio.
   bool get canFinalizarServicio => isAdmin || _esJefeOp;
 
+  /// Rol RBAC (controla permisos) — NO mostrar como "rol/cargo" del usuario en
+  /// la UI, ver [cargo] para el puesto laboral (lo que muestra la web).
   String get rol => _rol;
+
+  /// Cargo (puesto laboral, ficha de empleado en RR.HH.) — mismo dato que la
+  /// web muestra en Personal. Solo informativo: no participa en permisos.
+  String get cargo => _cargo;
 }

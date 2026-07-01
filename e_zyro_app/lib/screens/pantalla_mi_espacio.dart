@@ -286,9 +286,11 @@ class _ResumenTabState extends State<_ResumenTab>
                             ),
                             const SizedBox(height: 1),
                             Text(
-                              AppSession.i.rol.isEmpty
-                                  ? 'Colaborador'
-                                  : AppSession.i.rol,
+                              AppSession.i.cargo.isNotEmpty
+                                  ? AppSession.i.cargo
+                                  : (AppSession.i.rol.isEmpty
+                                      ? 'Colaborador'
+                                      : AppSession.i.rol),
                               style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,

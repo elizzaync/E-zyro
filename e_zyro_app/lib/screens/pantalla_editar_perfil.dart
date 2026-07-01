@@ -46,7 +46,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (mounted) {
       setState(() {
         _nameCtrl.text = prefs.getString('user_name') ?? '';
-        _rolCtrl.text = prefs.getString('user_rol') ?? '';
+        final cargo = prefs.getString('user_cargo') ?? '';
+        _rolCtrl.text = cargo.isNotEmpty ? cargo : (prefs.getString('user_rol') ?? '');
         _emailCtrl.text = prefs.getString('user_email') ?? '';
         _phoneCtrl.text = prefs.getString('user_phone') ?? '';
         _fotoUrl = prefs.getString('user_foto_url') ?? '';

@@ -76,6 +76,7 @@ class AuthService {
 
         await _prefs.setString('user_name', res.data.nombreCompleto);
         await _prefs.setString('user_rol', res.data.rol);
+        await _prefs.setString('user_cargo', res.data.cargo);
         await _prefs.setStringList('user_permisos', res.data.permisos);
         // Escribir SIEMPRE la foto (vacía = limpiar): si el nuevo usuario no
         // tiene foto, así no se hereda la del usuario anterior.
@@ -232,11 +233,14 @@ class AuthService {
       if (data == null) return false;
 
       final rol = (data['rol'] ?? '') as String;
+      final cargo = (data['cargo'] ?? '') as String;
       final permisos = (data['permisos'] as List?)?.cast<String>() ?? <String>[];
       final nombre = (data['nombre_completo'] ?? '') as String;
       final fotoUrl = (data['foto_url'] ?? '') as String;
 
       if (rol.isNotEmpty) await _prefs.setString('user_rol', rol);
+      // Escribir SIEMPRE el cargo (vacío = limpiar) por la misma razón que la foto.
+      await _prefs.setString('user_cargo', cargo);
       await _prefs.setStringList('user_permisos', permisos);
       if (nombre.isNotEmpty) await _prefs.setString('user_name', nombre);
       // Escribir SIEMPRE la foto (vacía = limpiar) para no heredar la del
@@ -293,6 +297,7 @@ class AuthService {
     await _prefs.remove(_tokenKey);
     await _prefs.remove('user_name');
     await _prefs.remove('user_rol');
+    await _prefs.remove('user_cargo');
     await _prefs.remove('user_permisos');
     await _prefs.remove('user_foto_url');
     // Limpiar caché offline para no mezclar datos entre usuarios.
@@ -320,6 +325,7 @@ class AuthService {
   bool get isAuthenticated => _prefs.getString(_tokenKey) != null;
   String? get userName => _prefs.getString('user_name');
   String? get userRol => _prefs.getString('user_rol');
+  String? get userCargo => _prefs.getString('user_cargo');
   List<String> get userPermisos => _prefs.getStringList('user_permisos') ?? [];
 
   bool hasPermiso(String permiso) {

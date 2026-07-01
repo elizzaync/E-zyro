@@ -85,6 +85,10 @@ class _Header extends StatelessWidget {
           _InfoRow(Icons.access_time_outlined, detalle.horaStr),
           if (detalle.descripcion.isNotEmpty)
             _InfoRow(Icons.notes_outlined, detalle.descripcion),
+          if (detalle.sinProcedimientosEstandar) ...[
+            const SizedBox(height: 8),
+            const _AlertaSinProcedimientos(),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [
@@ -108,6 +112,39 @@ class _Header extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation<Color>(
                   _progreso >= 100 ? _green : _amber),
               minHeight: 5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Alerta: tipo de servicio sin procedimientos estándar definidos ───────────
+
+class _AlertaSinProcedimientos extends StatelessWidget {
+  const _AlertaSinProcedimientos();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: _amber.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _amber.withValues(alpha: 0.35)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 16, color: _amber),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Este tipo de servicio aún no tiene procedimientos estándar definidos. '
+              'Pide a un administrador que los configure en Procedimientos Estándar.',
+              style: TextStyle(
+                  fontSize: 11.5, color: _amber, fontWeight: FontWeight.w600),
             ),
           ),
         ],

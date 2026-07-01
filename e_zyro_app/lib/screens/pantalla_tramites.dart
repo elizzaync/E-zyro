@@ -183,7 +183,8 @@ class _PantallaTramitesState extends State<PantallaTramites>
     final horaFinStr = _model.horaFin?.format(context) ?? '';
     final prefs = await SharedPreferences.getInstance();
     final nombre = prefs.getString('user_name') ?? 'Usuario';
-    final puesto = prefs.getString('user_rol') ?? 'Colaborador';
+    final cargo = prefs.getString('user_cargo') ?? '';
+    final puesto = cargo.isNotEmpty ? cargo : (prefs.getString('user_rol') ?? 'Colaborador');
     final area = prefs.getString('user_area') ?? 'TIC';
     final dataPdf = {
       'tipo': _model.tipoPemiso,

@@ -288,11 +288,12 @@ class ProyectoService {
     return [];
   }
 
-  // GET /operaciones/plantillas-procedimiento/{tipo_trabajo}
-  Future<Map<String, dynamic>?> getPlantilla(String tipoTrabajo) async {
+  // GET /operaciones/plantillas-procedimiento/por-catalogo/{catalogo_servicio_id}
+  Future<Map<String, dynamic>?> getPlantillaPorCatalogo(
+      String catalogoServicioId) async {
     try {
-      final r = await _client
-          .get('/operaciones/plantillas-procedimiento/$tipoTrabajo');
+      final r = await _client.get(
+          '/operaciones/plantillas-procedimiento/por-catalogo/$catalogoServicioId');
       if (r.statusCode == 200) {
         return jsonDecode(r.body) as Map<String, dynamic>;
       }
@@ -300,8 +301,8 @@ class ProyectoService {
     return null;
   }
 
-  // PUT /operaciones/plantillas-procedimiento  (upsert por tipo_trabajo)
-  // body: { tipo_trabajo, nombre, procesos: [{orden, nombre, descripcion}], activo }
+  // PUT /operaciones/plantillas-procedimiento  (upsert por catalogo_servicio_id)
+  // body: { catalogo_servicio_id, nombre, procesos: [{orden, nombre, descripcion}], activo }
   Future<bool> guardarPlantilla(Map<String, dynamic> body) async {
     try {
       final r =
@@ -771,9 +772,12 @@ class ProyectoService {
   }
 
   // GET /operaciones/catalogo-servicios
-  Future<List<CatalogoServicio>> getCatalogoServicios() async {
+  Future<List<CatalogoServicio>> getCatalogoServicios({
+    bool incluirInactivos = false,
+  }) async {
     try {
-      final r = await _client.get('/operaciones/catalogo-servicios');
+      final r = await _client.get(
+          '/operaciones/catalogo-servicios${incluirInactivos ? '?incluir_inactivos=true' : ''}');
       if (r.statusCode == 200) {
         final list = (await decodeJson(r.body)) as List? ?? [];
         return list
@@ -782,6 +786,39 @@ class ProyectoService {
       }
     } catch (_) {}
     return [];
+  }
+
+  // POST /operaciones/catalogo-servicios — crea un tipo de servicio nuevo.
+  Future<bool> crearCatalogoServicio(Map<String, dynamic> body) async {
+    try {
+      final r = await _client.post('/operaciones/catalogo-servicios', body);
+      return r.statusCode == 200 || r.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // PUT /operaciones/catalogo-servicios/{id}
+  Future<bool> editarCatalogoServicio(
+      String id, Map<String, dynamic> body) async {
+    try {
+      final r =
+          await _client.put('/operaciones/catalogo-servicios/$id', body);
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // PATCH /operaciones/catalogo-servicios/{id}/estado
+  Future<bool> cambiarEstadoCatalogoServicio(String id, bool activo) async {
+    try {
+      final r = await _client.patch(
+          '/operaciones/catalogo-servicios/$id/estado', {'activo': activo});
+      return r.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   // GET /operaciones/lideres-servicio
@@ -864,8 +901,8 @@ class ProyectoService {
 
   // ── CRUD Servicio ─────────────────────────────────────────────────────────
 
-  // POST /operaciones/proyecto/{id}/servicios → { ok, id }
-  Future<String?> crearServicio(
+  // POST /operaciones/proyecto/{id}/servicios → { ok, id, sin_procedimientos_estandar }
+  Future<({String? id, bool sinProcedimientosEstandar})> crearServicio(
     String proyectoId,
     Map<String, dynamic> payload,
   ) async {
@@ -876,10 +913,14 @@ class ProyectoService {
       );
       if (r.statusCode == 200 || r.statusCode == 201) {
         final body = jsonDecode(r.body) as Map<String, dynamic>;
-        return body['id'] as String?;
+        return (
+          id: body['id'] as String?,
+          sinProcedimientosEstandar:
+              body['sin_procedimientos_estandar'] as bool? ?? false,
+        );
       }
     } catch (_) {}
-    return null;
+    return (id: null, sinProcedimientosEstandar: false);
   }
 
   // PATCH /operaciones/servicio/{id}

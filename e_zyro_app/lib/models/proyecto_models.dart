@@ -415,12 +415,14 @@ class CatalogoServicio {
   final String nombre;
   final String tipoTrabajo;
   final String? descripcion;
+  final bool activo;
 
   const CatalogoServicio({
     required this.id,
     required this.nombre,
     required this.tipoTrabajo,
     this.descripcion,
+    this.activo = true,
   });
 
   factory CatalogoServicio.fromJson(Map<String, dynamic> j) => CatalogoServicio(
@@ -428,6 +430,7 @@ class CatalogoServicio {
         nombre: j['nombre'] as String? ?? '',
         tipoTrabajo: j['tipo_trabajo'] as String? ?? '',
         descripcion: j['descripcion'] as String?,
+        activo: j['activo'] as bool? ?? true,
       );
 }
 
@@ -703,6 +706,9 @@ class ServicioDetalle {
   final bool inspeccionEquiposActiva;
   // false = el usuario no está designado: solo cabecera (lectura), sin datos de trabajo.
   final bool accesoCompleto;
+  // true = el tipo de servicio no tiene procedimientos estándar definidos, así
+  // que este servicio quedó sin ellos (no bloquea, solo alerta — ver Procedimientos Estándar).
+  final bool sinProcedimientosEstandar;
 
   ServicioDetalle({
     required this.id,
@@ -735,6 +741,7 @@ class ServicioDetalle {
     this.nroDocumento,
     this.inspeccionEquiposActiva = false,
     this.accesoCompleto = true,
+    this.sinProcedimientosEstandar = false,
   });
 
   /// Estado terminal del servicio: el backend usa 'Completado', pero en
@@ -796,6 +803,8 @@ class ServicioDetalle {
             (j['es_mantenimiento'] as bool?) ??
             false,
         accesoCompleto: j['acceso_completo'] as bool? ?? true,
+        sinProcedimientosEstandar:
+            j['sin_procedimientos_estandar'] as bool? ?? false,
       );
 }
 
