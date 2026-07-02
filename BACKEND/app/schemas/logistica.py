@@ -280,6 +280,7 @@ class ModeloIn(BaseModel):
 class RequerimientoItemOut(BaseModel):
     id:              str
     materialId:      Optional[str] = None
+    equipoId:        Optional[str] = None
     nombre:          str
     unidad:          str
     cantidad:        int
@@ -290,6 +291,7 @@ class RequerimientoItemOut(BaseModel):
     especificacion:  Optional[str] = None
     estadoItem:      str = "pendiente"
     agregadoPor:     Optional[str] = None
+    tipo:            str = "material"  # material | herramienta | equipo
 
 
 class RequerimientoOut(BaseModel):
