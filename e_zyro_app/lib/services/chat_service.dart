@@ -88,7 +88,9 @@ class ChatService {
 
       // Eventos de control del servidor (no son mensajes de chat).
       final tipo = decoded['tipo'] as String?;
-      if (tipo == 'borrador_actualizado' || tipo == 'requerimiento_actualizado') {
+      if (tipo == 'borrador_actualizado' ||
+          tipo == 'requerimiento_actualizado' ||
+          tipo == 'servicio_completado_retorno') {
         if (!_eventosCtrl.isClosed) _eventosCtrl.add(tipo!);
         return;
       }

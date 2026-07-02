@@ -14,6 +14,7 @@ import '../services/historial_service.dart';
 import '../services/auditoria_service.dart';
 import '../services/seguridad_service.dart';
 import '../services/prestamo_service.dart';
+import '../services/retorno_service.dart';
 import '../services/galeria_service.dart';
 import '../services/epp_service.dart';
 import '../services/calibracion_service.dart';
@@ -114,6 +115,11 @@ Future<SeguridadService> getSeguridadService() async {
 Future<PrestamoService> getPrestamoService() async {
   final prefs = await SharedPreferences.getInstance();
   return PrestamoService(ApiClient(prefs));
+}
+
+Future<RetornoService> getRetornoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return RetornoService(ApiClient(prefs));
 }
 
 Future<GaleriaService> getGaleriaService() async {
