@@ -115,9 +115,53 @@ def buscar_duplicado(db: Session, empresa_id: str, nombre: str,
     return q.first()
 
 
+def _instanciar_procedimientos_equipo(
+    e: EquipoIntervenido, db: Session,
+) -> List[Procedimiento]:
+    """Crea los procedimientos PROPIOS del equipo copiando los generales del
+    servicio (que a su vez vienen de Procedimientos Estándar por tipo de
+    trabajo). Se hace la primera vez que se abre el detalle del equipo, solo
+    si el servicio sigue abierto. Cada equipo lleva así su propio avance y
+    sus propias evidencias."""
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id == str(e.proyecto_servicio_id),
+    ).first()
+    if not ps or ps.estado in ("Completado", "Cancelado"):
+        return []
+    generales = (
+        db.query(Procedimiento)
+        .filter(
+            Procedimiento.proyecto_servicio_id == e.proyecto_servicio_id,
+            Procedimiento.equipo_intervenido_id.is_(None),
+        )
+        .order_by(Procedimiento.orden.asc())
+        .all()
+    )
+    if not generales:
+        return []
+    ahora = datetime.utcnow()
+    copias = [
+        Procedimiento(
+            id                    = str(uuid.uuid4()),
+            proyecto_servicio_id  = str(e.proyecto_servicio_id),
+            equipo_intervenido_id = str(e.id),
+            empresa_id            = str(e.empresa_id),
+            nombre                = g.nombre,
+            descripcion           = g.descripcion,
+            orden                 = g.orden,
+            estado                = "pendiente",
+            created_at            = ahora,
+        )
+        for g in generales
+    ]
+    db.add_all(copias)
+    db.commit()
+    return copias
+
+
 def _procedimientos_de(e: EquipoIntervenido, db: Session) -> List[ProcedimientoOut]:
-    """Procedimientos designados (pasos fijos avance/informe) del servicio al
-    que está vinculado este equipo intervenido, con sus evidencias. Ids/FKs
+    """Procedimientos PROPIOS del equipo intervenido (instanciados desde los
+    generales del servicio la primera vez), con sus evidencias. Ids/FKs
     casteados a str explícitamente: columnas declaradas String(36) en el
     modelo pueden ser uuid nativo en la BD real (ver [[ezyro-plan-erp-crecimiento]]
     2026-07-02, mismo patrón que rompió ItemMaterialOut.equipo_id)."""
@@ -125,10 +169,15 @@ def _procedimientos_de(e: EquipoIntervenido, db: Session) -> List[ProcedimientoO
         return []
     filas = (
         db.query(Procedimiento)
-        .filter(Procedimiento.proyecto_servicio_id == e.proyecto_servicio_id)
+        .filter(
+            Procedimiento.proyecto_servicio_id  == e.proyecto_servicio_id,
+            Procedimiento.equipo_intervenido_id == str(e.id),
+        )
         .order_by(Procedimiento.orden.asc())
         .all()
     )
+    if not filas:
+        filas = _instanciar_procedimientos_equipo(e, db)
     if not filas:
         return []
     proc_ids = [str(p.id) for p in filas]

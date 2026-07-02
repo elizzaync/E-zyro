@@ -20,6 +20,7 @@ from ..models.proyecto_servicio import ProyectoServicio
 from ..models.proyecto import Proyecto
 from ..models.procedimiento import Procedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
+from ..models.equipo_intervenido import EquipoIntervenido
 from ..models.empresa import Empresa
 from ..services.pdf_informe_servicio import generar_informe_servicio_pdf
 from ..services.cloudinary_service import subir_pdf_bytes_cloudinary, registrar_recurso
@@ -41,17 +42,38 @@ def _servicio_or_404(db: Session, empresa_id: str, servicio_id: str) -> Proyecto
 
 def _armar_data(db: Session, empresa_id: str, ps: ProyectoServicio, tipo: str) -> dict:
     empresa = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
-    procs = (
+    filas_proc = (
         db.query(Procedimiento)
         .filter(Procedimiento.proyecto_servicio_id == ps.id)
         .order_by(Procedimiento.orden).all()
     )
-    proc_nombre = {str(p.id): p.nombre for p in procs}
+    proc_nombre = {str(p.id): p.nombre for p in filas_proc}
+    proc_equipo = {
+        str(p.id): str(p.equipo_intervenido_id)
+        for p in filas_proc if p.equipo_intervenido_id
+    }
+    # La sección de procedimientos lista solo los GENERALES del servicio; las
+    # copias por equipo repetirían la misma plantilla una vez por equipo.
+    procs = [p for p in filas_proc if not p.equipo_intervenido_id]
     evs = (
         db.query(EvidenciaProcedimiento)
         .filter(EvidenciaProcedimiento.proyecto_servicio_id == ps.id)
         .order_by(EvidenciaProcedimiento.fecha_captura).all()
     )
+    # Nombre del equipo para etiquetar evidencias de procedimientos por equipo.
+    eq_nombre: dict[str, str] = {}
+    if proc_equipo:
+        eq_nombre = {
+            str(x.id): (x.nombre or "")
+            for x in db.query(EquipoIntervenido)
+            .filter(EquipoIntervenido.id.in_(set(proc_equipo.values()))).all()
+        }
+
+    def _label_proc(e: EvidenciaProcedimiento) -> str:
+        base = proc_nombre.get(str(e.procedimiento_id), "")
+        eqn  = eq_nombre.get(proc_equipo.get(str(e.procedimiento_id), ""), "")
+        return f"{eqn} · {base}" if eqn else base
+
     return {
         "tipo": tipo,
         "empresa": empresa,
@@ -66,7 +88,7 @@ def _armar_data(db: Session, empresa_id: str, ps: ProyectoServicio, tipo: str) -
             "descripcion": p.descripcion,
         } for p in procs],
         "evidencias": [{
-            "procedimiento": proc_nombre.get(str(e.procedimiento_id), ""),
+            "procedimiento": _label_proc(e),
             "etapa": e.etapa, "descripcion": e.descripcion,
             "fecha": e.fecha_captura, "url": e.url_cloudinary,
         } for e in evs],

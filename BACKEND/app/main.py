@@ -1911,6 +1911,25 @@ def _run_migrations():
             print(f"[migración] DROP estado_operativo omitido: {e}")
         conn.commit()
 
+        # ── Evidencias por equipo intervenido (2026-07-02) ────────────────────
+        # Denormaliza el equipo en la evidencia (copiado del procedimiento al
+        # subir) para informes de evidencias por equipo sin joins frágiles.
+        conn.execute(text(
+            "ALTER TABLE evidencia_procedimiento "
+            "ADD COLUMN IF NOT EXISTS equipo_intervenido_id uuid "
+            "REFERENCES equipo_intervenido(id)"
+        ))
+        # Backfill idempotente para evidencias previas a la columna.
+        conn.execute(text("""
+            UPDATE evidencia_procedimiento ev
+               SET equipo_intervenido_id = p.equipo_intervenido_id::uuid
+              FROM procedimiento p
+             WHERE ev.procedimiento_id = p.id
+               AND ev.equipo_intervenido_id IS NULL
+               AND p.equipo_intervenido_id IS NOT NULL
+        """))
+        conn.commit()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

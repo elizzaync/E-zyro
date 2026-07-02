@@ -125,7 +125,8 @@ def _instanciar_procedimientos(db: Session, ps: ProyectoServicio, empresa_id: st
     `tipo_trabajo` de su catálogo. Devuelve cuántos creó (0 si ya tenía o no hay
     plantilla). NO hace commit (lo hace el caller)."""
     ya = db.query(func.count(Procedimiento.id)).filter(
-        Procedimiento.proyecto_servicio_id == ps.id
+        Procedimiento.proyecto_servicio_id == ps.id,
+        Procedimiento.equipo_intervenido_id.is_(None),
     ).scalar()
     if ya:
         return 0
@@ -670,7 +671,10 @@ def get_detalle_servicio(
     # definida para ese tipo, o instanciación pendiente). No bloquea — solo avisa.
     sin_proc_estandar = bool(ps.catalogo_servicio_id) and not (
         db.query(func.count(Procedimiento.id))
-        .filter(Procedimiento.proyecto_servicio_id == ps.id)
+        .filter(
+            Procedimiento.proyecto_servicio_id == ps.id,
+            Procedimiento.equipo_intervenido_id.is_(None),
+        )
         .scalar()
     )
 
@@ -809,9 +813,14 @@ def get_detalle_servicio(
     if acceso_completo:
         if _instanciar_procedimientos(db, ps, empresa_id):
             db.commit()
+        # Solo los procedimientos GENERALES del servicio: los ligados a un
+        # equipo intervenido viven en el detalle de cada equipo.
         procs = (
             db.query(Procedimiento)
-            .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+            .filter(
+                Procedimiento.proyecto_servicio_id == servicio_id,
+                Procedimiento.equipo_intervenido_id.is_(None),
+            )
             .order_by(Procedimiento.orden.asc())
             .all()
         )
@@ -819,7 +828,10 @@ def get_detalle_servicio(
         sin_proc_estandar = bool(ps.catalogo_servicio_id) and not procs
         evidencias = (
             db.query(EvidenciaProcedimiento)
-            .filter(EvidenciaProcedimiento.proyecto_servicio_id == servicio_id)
+            .filter(
+                EvidenciaProcedimiento.proyecto_servicio_id == servicio_id,
+                EvidenciaProcedimiento.equipo_intervenido_id.is_(None),
+            )
             .order_by(EvidenciaProcedimiento.fecha_captura.asc())
             .all()
         )
@@ -1004,9 +1016,14 @@ def _motivos_inicio(db: Session, servicio_id: str) -> list[str]:
     servidor para que la regla no dependa solo de la UI (web o móvil).
     """
     motivos: list[str] = []
+    # Solo los procedimientos GENERALES: las copias por equipo intervenido no
+    # llevan responsable y bloquearían el inicio para siempre.
     procs = (
         db.query(Procedimiento)
-        .filter(Procedimiento.proyecto_servicio_id == servicio_id)
+        .filter(
+            Procedimiento.proyecto_servicio_id == servicio_id,
+            Procedimiento.equipo_intervenido_id.is_(None),
+        )
         .all()
     )
     if not procs:
@@ -1126,6 +1143,30 @@ async def actualizar_estado_servicio(
                     detail="No puedes finalizar el servicio: faltan tareas por completar.",
                 )
 
+            # 3b. Si el servicio maneja Equipos Intervenidos (botón al crear/
+            #     editar el servicio), no puede cerrarse con equipos a medias.
+            #     Los cancelados no bloquean.
+            if ps.tiene_equipos_intervenidos:
+                sin_completar = (
+                    db.query(EquipoIntervenido)
+                    .filter(
+                        EquipoIntervenido.proyecto_servicio_id == servicio_id,
+                        EquipoIntervenido.empresa_id           == payload["empresa_id"],
+                        EquipoIntervenido.activo               == True,
+                        EquipoIntervenido.estado_intervencion.notin_(
+                            ("completado", "cancelado")),
+                    )
+                    .count()
+                )
+                if sin_completar:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"No puedes finalizar el servicio: {sin_completar} "
+                            "equipo(s) intervenido(s) sin completar."
+                        ),
+                    )
+
         # 4. Iniciar (Pendiente → En_Proceso) exige el checklist de Preparación.
         if nuevo == "En_Proceso" and estado_actual == "Pendiente":
             faltan = _motivos_inicio(db, servicio_id)
@@ -1173,6 +1214,7 @@ def actualizar_estado_procedimiento(
 
     proc.estado     = body.estado
     proc.updated_at = datetime.utcnow()
+    _rollup_equipo_por_procedimientos(db, proc)
     db.commit()
     return {"ok": True, "estado": body.estado}
 
@@ -1385,6 +1427,40 @@ def guardar_plantilla_procedimiento(
 _ETAPAS_VALIDAS = {"antes", "durante", "despues"}
 
 
+def _rollup_equipo_por_procedimientos(db: Session, proc: Procedimiento) -> None:
+    """Deriva estado_intervencion del equipo desde sus procedimientos del
+    servicio vigente: todos completados → completado; todos pendientes →
+    pendiente; mezcla → en_proceso. No toca equipos sin procedimientos
+    ligados (los maneja el motor de inspección) ni equipos cuya intervención
+    vigente pertenece a otro servicio."""
+    eq_id = proc.equipo_intervenido_id
+    if not eq_id:
+        return
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == eq_id,
+        EquipoIntervenido.empresa_id == proc.empresa_id,
+    ).first()
+    if not ei or str(ei.proyecto_servicio_id or "") != str(proc.proyecto_servicio_id):
+        return
+    estados = [
+        e for (e,) in db.query(Procedimiento.estado).filter(
+            Procedimiento.equipo_intervenido_id == eq_id,
+            Procedimiento.proyecto_servicio_id  == proc.proyecto_servicio_id,
+        ).all()
+    ]
+    if not estados:
+        return
+    if all(e == "completado" for e in estados):
+        nuevo = "completado"
+    elif all(e == "pendiente" for e in estados):
+        nuevo = "pendiente"
+    else:
+        nuevo = "en_proceso"
+    if ei.estado_intervencion != nuevo:
+        ei.estado_intervencion = nuevo
+        ei.updated_at = datetime.utcnow()
+
+
 @router.post("/procedimiento/{proc_id}/evidencia", status_code=status.HTTP_201_CREATED)
 async def subir_evidencia(
     proc_id:     str,
@@ -1425,6 +1501,7 @@ async def subir_evidencia(
         proyecto_id          = ps.proyecto_id,
         empresa_id           = empresa_id,
         subido_por           = empleado.id,
+        equipo_intervenido_id = proc.equipo_intervenido_id,
         url_cloudinary       = url,
         public_id_cloudinary = pub_id,
         etapa                = etapa,
@@ -1432,8 +1509,13 @@ async def subir_evidencia(
     )
     db.add(ev)
 
-    proc.estado     = "completado"
-    proc.updated_at = datetime.utcnow()
+    # 'durante' es la evidencia estándar del trabajo y completa el
+    # procedimiento. 'antes'/'despues' son registro fotográfico opcional:
+    # no cambian estados ni alimentan observaciones del informe.
+    if etapa == "durante":
+        proc.estado     = "completado"
+        proc.updated_at = datetime.utcnow()
+        _rollup_equipo_por_procedimientos(db, proc)
     db.commit()
 
     return {"ok": True, "evidencia_id": ev.id, "url": url, "etapa": etapa}
@@ -3967,13 +4049,16 @@ def agregar_nota_servicio(
             detail="No hay empleados registrados en la empresa.",
         )
 
-    # Calcular el progreso actual del servicio
+    # Calcular el progreso actual del servicio (solo procedimientos generales;
+    # las copias por equipo se instancian tarde y distorsionarían el %).
     total_procs  = db.query(func.count(Procedimiento.id)).filter(
-        Procedimiento.proyecto_servicio_id == servicio_id
+        Procedimiento.proyecto_servicio_id  == servicio_id,
+        Procedimiento.equipo_intervenido_id.is_(None),
     ).scalar() or 0
     completos    = db.query(func.count(Procedimiento.id)).filter(
-        Procedimiento.proyecto_servicio_id == servicio_id,
-        Procedimiento.estado               == "completado",
+        Procedimiento.proyecto_servicio_id  == servicio_id,
+        Procedimiento.equipo_intervenido_id.is_(None),
+        Procedimiento.estado                == "completado",
     ).scalar() or 0
     pct = round(completos / total_procs * 100, 2) if total_procs else 0.0
 

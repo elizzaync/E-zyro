@@ -118,6 +118,12 @@ _ALLOWED_EVIDENCE_TYPES = {
     "image/jpeg", "image/jpg", "image/png", "image/webp",
     "image/gif", "application/pdf",
 }
+# Clientes que no declaran MIME (mandan application/octet-stream o nada):
+# inferirlo por la extensión del filename antes de rechazar.
+_EXT_TO_MIME = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "webp": "image/webp", "gif": "image/gif", "pdf": "application/pdf",
+}
 _MAX_EVIDENCE_BYTES = 20 * 1024 * 1024  # 20 MB
 
 
@@ -130,6 +136,9 @@ async def subir_archivo_cloudinary(archivo, folder: str) -> str:
     from fastapi import HTTPException
 
     content_type = (archivo.content_type or "").split(";")[0].strip().lower()
+    if content_type in ("", "application/octet-stream"):
+        ext = (archivo.filename or "").rsplit(".", 1)[-1].lower()
+        content_type = _EXT_TO_MIME.get(ext, content_type)
     if content_type not in _ALLOWED_EVIDENCE_TYPES:
         raise HTTPException(
             status_code=422,

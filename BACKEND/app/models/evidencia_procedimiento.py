@@ -15,6 +15,10 @@ class EvidenciaProcedimiento(Base):
     procedimiento_id     = Column(String(36), ForeignKey("procedimiento.id"),      nullable=False)
     proyecto_servicio_id = Column(String(36), ForeignKey("proyecto_servicio.id"),  nullable=False)
     proyecto_id          = Column(String(36), ForeignKey("proyecto.id"),           nullable=False)
+    # Denormalizado desde procedimiento.equipo_intervenido_id al subir, para
+    # informes de evidencias por equipo sin joins (NULL si el procedimiento
+    # es general del servicio).
+    equipo_intervenido_id = Column(String(36), ForeignKey("equipo_intervenido.id"), nullable=True)
     empresa_id           = Column(String(36), ForeignKey("empresa.id"),            nullable=False)
     subido_por           = Column(String(36), ForeignKey("empleado.id"),           nullable=False)
     url_cloudinary       = Column(String(500), nullable=False)
