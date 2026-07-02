@@ -128,15 +128,26 @@ def _instanciar_procedimientos_equipo(
     ).first()
     if not ps or ps.estado in ("Completado", "Cancelado"):
         return []
-    generales = (
-        db.query(Procedimiento)
-        .filter(
-            Procedimiento.proyecto_servicio_id == e.proyecto_servicio_id,
-            Procedimiento.equipo_intervenido_id.is_(None),
+
+    def _generales() -> List[Procedimiento]:
+        return (
+            db.query(Procedimiento)
+            .filter(
+                Procedimiento.proyecto_servicio_id == e.proyecto_servicio_id,
+                Procedimiento.equipo_intervenido_id.is_(None),
+            )
+            .order_by(Procedimiento.orden.asc())
+            .all()
         )
-        .order_by(Procedimiento.orden.asc())
-        .all()
-    )
+
+    generales = _generales()
+    if not generales:
+        # El servicio aún no instanció su plantilla estándar (eso pasa al abrir
+        # su detalle); hacerlo aquí para no depender del orden de navegación.
+        from .operaciones import _instanciar_procedimientos
+        if _instanciar_procedimientos(db, ps, str(e.empresa_id)):
+            db.commit()
+            generales = _generales()
     if not generales:
         return []
     ahora = datetime.utcnow()
