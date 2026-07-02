@@ -33,6 +33,10 @@ class EquipoIntervenido {
   final String? zonaNombre;
   final String? areaNombre;
   final String? tipoEquipoNombre;
+  // Servicio al que está vinculado ahora (si alguien inició una inspección
+  // sobre este equipo dentro de un servicio).
+  final String? proyectoServicioId;
+  final String? proyectoServicioNombre;
   // Procedimientos designados del servicio vinculado (solo viene en el detalle).
   final List<ProcedimientoDetalle> procedimientos;
 
@@ -66,6 +70,8 @@ class EquipoIntervenido {
     this.zonaNombre,
     this.areaNombre,
     this.tipoEquipoNombre,
+    this.proyectoServicioId,
+    this.proyectoServicioNombre,
     this.procedimientos = const [],
   });
 
@@ -101,6 +107,8 @@ class EquipoIntervenido {
         zonaNombre: j['zona_nombre']?.toString(),
         areaNombre: j['area_nombre']?.toString(),
         tipoEquipoNombre: j['tipo_equipo_nombre']?.toString(),
+        proyectoServicioId: j['proyecto_servicio_id']?.toString(),
+        proyectoServicioNombre: j['proyecto_servicio_nombre']?.toString(),
         procedimientos: (j['procedimientos'] as List? ?? [])
             .map((p) => ProcedimientoDetalle.fromJson(p as Map<String, dynamic>))
             .toList(),

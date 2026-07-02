@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../core/api_client.dart';
 import '../core/api_result.dart';
+import '../core/app_constants.dart';
 import '../models/accion_pendiente.dart';
 import '../models/evidencia_pendiente.dart';
 import '../models/proyecto_models.dart';
@@ -16,6 +17,15 @@ import '../repositories/accion_local_repo.dart';
 import '../repositories/cache_repo.dart';
 import '../repositories/evidencia_local_repo.dart';
 import '../utils/app_notifiers.dart';
+
+enum _EstadoEnvioEvidencia { exito, redCaida, rechazoPermanente, errorTransitorio }
+
+class _ResultadoEnvioEvidencia {
+  final _EstadoEnvioEvidencia estado;
+  final String? url;
+  final String? mensaje;
+  const _ResultadoEnvioEvidencia(this.estado, {this.url, this.mensaje});
+}
 
 class ProyectoService {
   final ApiClient _client;
@@ -313,16 +323,53 @@ class ProyectoService {
     }
   }
 
+  /// Verifica que el servidor de Railway es alcanzable con HTTP crudo, SIN
+  /// token — cualquier respuesta HTTP (incluido 401/404) significa que el
+  /// servidor está UP; solo una excepción de red indica que está DOWN.
+  /// Espeja [AsistenciaService.canReachServer] — misma idea, para que la
+  /// evidencia de procedimientos se comporte offline-first igual que asistencia.
+  Future<bool> canReachServer() async {
+    final client = http.Client();
+    try {
+      await client
+          .get(Uri.parse(AppConstants.baseUrl))
+          .timeout(const Duration(seconds: 5));
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close();
+    }
+  }
+
+  String _extraerMensajeError(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final detail = decoded['detail'];
+        if (detail is String) return detail;
+        if (detail is List && detail.isNotEmpty) {
+          return (detail.first as Map)['msg']?.toString() ??
+              'El servidor rechazó la evidencia.';
+        }
+      }
+    } catch (_) {}
+    return 'El servidor rechazó la evidencia.';
+  }
+
   // POST /operaciones/procedimiento/{id}/evidencia  (multipart)
-  // etapa: 'antes' | 'durante' | 'despues'. Devuelve la URL subida o null.
-  Future<String?> subirEvidencia(
+  // etapa: 'antes' | 'durante' | 'despues'. Distingue éxito, caída de red
+  // (reintentable) y rechazo permanente del servidor (4xx, no reintentable —
+  // ej. etapa inválida, servicio cerrado) para no tratarlos igual.
+  Future<_ResultadoEnvioEvidencia> _intentarSubirEvidencia(
     String procId,
     String etapa,
     String filePath, {
     String descripcion = '',
   }) async {
+    final http.Response r;
     try {
-      final r = await _client.postMultipart(
+      r = await _client.postMultipart(
         '/operaciones/procedimiento/$procId/evidencia',
         {
           'etapa': etapa,
@@ -331,12 +378,19 @@ class ProyectoService {
         'archivo',
         filePath,
       );
-      if (r.statusCode == 200 || r.statusCode == 201) {
-        final body = jsonDecode(r.body) as Map<String, dynamic>;
-        return body['url'] as String?;
-      }
-    } catch (_) {}
-    return null;
+    } catch (_) {
+      return const _ResultadoEnvioEvidencia(_EstadoEnvioEvidencia.redCaida);
+    }
+    if (r.statusCode == 200 || r.statusCode == 201) {
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      return _ResultadoEnvioEvidencia(_EstadoEnvioEvidencia.exito,
+          url: body['url'] as String?);
+    }
+    if (r.statusCode >= 400 && r.statusCode < 500) {
+      return _ResultadoEnvioEvidencia(_EstadoEnvioEvidencia.rechazoPermanente,
+          mensaje: _extraerMensajeError(r.body));
+    }
+    return const _ResultadoEnvioEvidencia(_EstadoEnvioEvidencia.errorTransitorio);
   }
 
   // ── Evidencias offline-first (cola local + subida diferida) ─────────────────
@@ -374,9 +428,14 @@ class ProyectoService {
     } catch (_) {}
   }
 
-  /// Guarda la evidencia localmente y la intenta subir de inmediato.
-  /// Devuelve true si se subió ya; false si quedó en cola para reenviar.
-  Future<bool> encolarEvidencia({
+  /// Guarda la evidencia localmente PRIMERO (siempre — es la red de
+  /// seguridad) y solo intenta subirla de inmediato si el servidor es
+  /// realmente alcanzable (no solo si hay WiFi/datos encendidos — mismo
+  /// criterio que asistencia vía [canReachServer]). Si el servidor la
+  /// rechaza con un 4xx (ej. etapa inválida, servicio cerrado), NO se deja
+  /// reintentando para siempre: se marca error permanente y se devuelve el
+  /// motivo real para que la UI lo muestre, en vez del genérico "sin conexión".
+  Future<EvidenciaEnvioResultado> encolarEvidencia({
     required String procedimientoId,
     String? servicioId,
     required String etapa,
@@ -410,24 +469,37 @@ class ProyectoService {
     );
     await _actualizarNotifierEvidencias();
 
-    // Intento inmediato de subida.
-    final url = await subirEvidencia(
+    if (!await canReachServer()) {
+      return const EvidenciaEnvioResultado(enviada: false);
+    }
+
+    final resultado = await _intentarSubirEvidencia(
       procedimientoId,
       etapa,
       stablePath,
       descripcion: descripcion,
     );
-    if (url != null) {
-      await _evidenciaRepo.eliminar(uuid);
-      _borrarArchivo(stablePath);
-      await _actualizarNotifierEvidencias();
-      return true;
+
+    switch (resultado.estado) {
+      case _EstadoEnvioEvidencia.exito:
+        await _evidenciaRepo.eliminar(uuid);
+        _borrarArchivo(stablePath);
+        await _actualizarNotifierEvidencias();
+        return const EvidenciaEnvioResultado(enviada: true);
+      case _EstadoEnvioEvidencia.rechazoPermanente:
+        await _evidenciaRepo.marcarErrorPermanente(uuid);
+        await _actualizarNotifierEvidencias();
+        return EvidenciaEnvioResultado(
+            enviada: false, errorPermanente: resultado.mensaje);
+      case _EstadoEnvioEvidencia.redCaida:
+      case _EstadoEnvioEvidencia.errorTransitorio:
+        return const EvidenciaEnvioResultado(enviada: false);
     }
-    return false;
   }
 
   /// Drena la cola de evidencias pendientes. Reintenta hasta 5 veces por
-  /// evidencia; al subir borra la fila y su archivo local.
+  /// evidencia (los rechazos permanentes quedan en retry_count=99, también
+  /// excluidos); al subir borra la fila y su archivo local.
   Future<int> sincronizarEvidencias() async {
     if (_isSyncingEvidencias) return 0;
     _isSyncingEvidencias = true;
@@ -435,7 +507,7 @@ class ProyectoService {
       final pendientes = await _evidenciaRepo.obtenerPendientes();
       int enviadas = 0;
       for (final e in pendientes) {
-        if (e.retryCount >= 5) continue; // abandonada tras 5 intentos
+        if (e.retryCount >= 5) continue; // abandonada o rechazo permanente
         await _evidenciaRepo.marcarEnviando(e.uuid);
 
         // Si la foto ya no existe en disco, descartar para no reintentar infinito.
@@ -447,18 +519,25 @@ class ProyectoService {
           continue;
         }
 
-        final url = await subirEvidencia(
+        final resultado = await _intentarSubirEvidencia(
           e.procedimientoId,
           e.etapa,
           e.fotoPath,
           descripcion: e.descripcion ?? '',
         );
-        if (url != null) {
-          await _evidenciaRepo.eliminar(e.uuid);
-          _borrarArchivo(e.fotoPath);
-          enviadas++;
-        } else {
-          await _evidenciaRepo.registrarFallo(e.uuid);
+        switch (resultado.estado) {
+          case _EstadoEnvioEvidencia.exito:
+            await _evidenciaRepo.eliminar(e.uuid);
+            _borrarArchivo(e.fotoPath);
+            enviadas++;
+            break;
+          case _EstadoEnvioEvidencia.rechazoPermanente:
+            await _evidenciaRepo.marcarErrorPermanente(e.uuid);
+            break;
+          case _EstadoEnvioEvidencia.redCaida:
+          case _EstadoEnvioEvidencia.errorTransitorio:
+            await _evidenciaRepo.registrarFallo(e.uuid);
+            break;
         }
       }
       await _actualizarNotifierEvidencias();

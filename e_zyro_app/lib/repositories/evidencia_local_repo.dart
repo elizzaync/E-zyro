@@ -63,6 +63,20 @@ class EvidenciaLocalRepo {
     ''', [EstadoSync.fallido.index, DateTime.now().toIso8601String(), uuid]);
   }
 
+  /// Marca un rechazo PERMANENTE del servidor (4xx ≠ 401): no tiene sentido
+  /// reintentar. Espeja [AsistenciaLocalRepo.marcarErrorPermanente] — usa
+  /// retry_count = 99 como centinela para distinguirlo de un abandono por
+  /// reintentos normales (retry_count >= 5 por fallas transitorias).
+  Future<void> marcarErrorPermanente(String uuid) async {
+    final db = await LocalDb.instance.database;
+    if (db == null) return;
+    await db.rawUpdate('''
+      UPDATE $_table
+      SET retry_count = 99, estado_sync = ?, last_attempt_at = ?
+      WHERE uuid = ?
+    ''', [EstadoSync.fallido.index, DateTime.now().toIso8601String(), uuid]);
+  }
+
   /// Elimina la evidencia de la cola (tras subirla con éxito o descartarla).
   Future<void> eliminar(String uuid) async {
     final db = await LocalDb.instance.database;

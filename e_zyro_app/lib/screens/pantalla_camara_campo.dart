@@ -16,13 +16,13 @@ const _kGreen = Color(0xFF8FD11B);
 
 // ─── Datos de selección activa ────────────────────────────────────────────────
 
-class _Seleccion {
+class SeleccionProcedimientoCampo {
   final String procId;
   final String procNombre;
   final String servicioId;
   final String servicioNombre;
 
-  const _Seleccion({
+  const SeleccionProcedimientoCampo({
     required this.procId,
     required this.procNombre,
     required this.servicioId,
@@ -33,12 +33,38 @@ class _Seleccion {
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 
 class CamaraCampoScreen extends StatefulWidget {
-  const CamaraCampoScreen({super.key});
+  final SeleccionProcedimientoCampo? preseleccion;
+
+  const CamaraCampoScreen({super.key, this.preseleccion});
 
   static Future<void> open(BuildContext context) => Navigator.push<void>(
         context,
         MaterialPageRoute(
           builder: (_) => const CamaraCampoScreen(),
+          fullscreenDialog: true,
+        ),
+      );
+
+  /// Abre la cámara ya apuntando a un procedimiento específico (ej. desde
+  /// el detalle de un equipo intervenido) sin pasar por el selector manual.
+  static Future<void> openPara(
+    BuildContext context, {
+    required String procId,
+    required String procNombre,
+    required String servicioId,
+    required String servicioNombre,
+  }) =>
+      Navigator.push<void>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => CamaraCampoScreen(
+            preseleccion: SeleccionProcedimientoCampo(
+              procId: procId,
+              procNombre: procNombre,
+              servicioId: servicioId,
+              servicioNombre: servicioNombre,
+            ),
+          ),
           fullscreenDialog: true,
         ),
       );
@@ -60,7 +86,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
   bool _confirming = false;
 
   // Selección activa
-  _Seleccion? _sel;
+  SeleccionProcedimientoCampo? _sel;
   String _etapa = 'durante';
 
   // Servicio de datos
@@ -87,6 +113,15 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
   }
 
   Future<void> _restaurarSeleccion() async {
+    final pre = widget.preseleccion;
+    if (pre != null) {
+      // Vino con un procedimiento específico (ej. desde Equipos Intervenidos):
+      // usarlo directo y guardarlo como "última selección" para la próxima vez.
+      if (!mounted) return;
+      setState(() => _sel = pre);
+      await _guardarSeleccion(pre, _etapa);
+      return;
+    }
     final prefs = await SharedPreferences.getInstance();
     final procId     = prefs.getString(_kProcId);
     final procNombre = prefs.getString(_kProcNombre);
@@ -98,7 +133,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
       _etapa = etapa;
       if (procId != null && procNombre != null &&
           servId != null && servNombre != null) {
-        _sel = _Seleccion(
+        _sel = SeleccionProcedimientoCampo(
           procId: procId,
           procNombre: procNombre,
           servicioId: servId,
@@ -108,7 +143,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
     });
   }
 
-  Future<void> _guardarSeleccion(_Seleccion sel, String etapa) async {
+  Future<void> _guardarSeleccion(SeleccionProcedimientoCampo sel, String etapa) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kProcId,     sel.procId);
     await prefs.setString(_kProcNombre, sel.procNombre);
@@ -233,7 +268,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
       );
       final finalPath = result?.path ?? raw;
 
-      final subido = await _svc!.encolarEvidencia(
+      final resultado = await _svc!.encolarEvidencia(
         procedimientoId: sel.procId,
         servicioId: sel.servicioId,
         etapa: _etapa,
@@ -241,19 +276,33 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
       );
 
       if (!mounted) return;
+      final rechazo = resultado.errorPermanente;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(children: [
             Icon(
-              subido ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+              rechazo != null
+                  ? Icons.error_outline
+                  : (resultado.enviada
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_off_outlined),
               color: Colors.white, size: 18,
             ),
             const SizedBox(width: 8),
-            Text(subido ? 'Evidencia enviada' : 'Guardada para sincronizar'),
+            Expanded(
+              child: Text(rechazo ??
+                  (resultado.enviada
+                      ? 'Evidencia enviada'
+                      : 'Guardada para sincronizar')),
+            ),
           ]),
-          backgroundColor: subido ? const Color(0xFF2D7A00) : const Color(0xFF795500),
+          backgroundColor: rechazo != null
+              ? const Color(0xFFB3261E)
+              : (resultado.enviada
+                  ? const Color(0xFF2D7A00)
+                  : const Color(0xFF795500)),
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: rechazo != null ? 4 : 2),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
@@ -281,7 +330,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
 
   Future<void> _abrirSelector() async {
     if (_svc == null) return;
-    final resultado = await showModalBottomSheet<_Seleccion>(
+    final resultado = await showModalBottomSheet<SeleccionProcedimientoCampo>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -407,7 +456,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
 // ─── Overlay superior ─────────────────────────────────────────────────────────
 
 class _OverlaySuperior extends StatelessWidget {
-  final _Seleccion? sel;
+  final SeleccionProcedimientoCampo? sel;
   final VoidCallback onTap;
   final VoidCallback onClose;
 
@@ -1083,7 +1132,7 @@ class _SelectorSheetState extends State<_SelectorSheet> {
           ),
           onTap: () => Navigator.pop(
             context,
-            _Seleccion(
+            SeleccionProcedimientoCampo(
               procId:         proc.id,
               procNombre:     proc.nombre,
               servicioId:     _servicio!.id,

@@ -58,3 +58,13 @@ class EvidenciaPendiente {
             DateTime.tryParse(m['created_at'] as String? ?? '') ?? DateTime.now(),
       );
 }
+
+/// Resultado de intentar encolar/enviar una evidencia. Distingue un envío
+/// exitoso, una cola por falta de conexión real (reintentable) y un
+/// rechazo PERMANENTE del servidor (4xx — reintentar es inútil, hay que
+/// avisarle al usuario el motivo real en vez del genérico "sin conexión").
+class EvidenciaEnvioResultado {
+  final bool enviada;
+  final String? errorPermanente;
+  const EvidenciaEnvioResultado({required this.enviada, this.errorPermanente});
+}

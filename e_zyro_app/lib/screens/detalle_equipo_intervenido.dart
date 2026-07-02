@@ -4,6 +4,7 @@ import '../models/equipo_intervenido_models.dart';
 import '../services/equipo_intervenido_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
+import 'pantalla_camara_campo.dart';
 
 /// Detalle de un equipo intervenido: identidad, gauge de próximo
 /// mantenimiento, recordatorio local, historial (timeline), ficha técnica
@@ -918,8 +919,9 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
 
   /// Pasos fijos (avance/informe) del servicio al que está vinculado este
   /// equipo — designados por tipo de servicio en Procedimientos Estándar.
-  /// Solo lectura: la captura de evidencia sigue viviendo en el detalle de
-  /// servicio (pantalla_detalle_servicio.dart).
+  /// El botón de cámara abre "cámara de campo" (pantalla_camara_campo.dart)
+  /// ya apuntando a este paso, para capturar evidencia sin salir del flujo
+  /// de Equipos Intervenidos.
   Widget _procedimientosCard(bool isDark, Color surface) {
     final pasos = _equipo.procedimientos;
     return _card(
@@ -987,6 +989,22 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                       ],
                     ),
                   ),
+                  if (_equipo.proyectoServicioId != null)
+                    IconButton(
+                      tooltip: 'Capturar evidencia',
+                      icon: const Icon(Icons.add_a_photo_outlined, size: 20, color: _green),
+                      onPressed: () async {
+                        await CamaraCampoScreen.openPara(
+                          context,
+                          procId: pasos[i].id,
+                          procNombre: pasos[i].nombre,
+                          servicioId: _equipo.proyectoServicioId!,
+                          servicioNombre:
+                              _equipo.proyectoServicioNombre ?? _equipo.nombre,
+                        );
+                        await _refrescarEquipo();
+                      },
+                    ),
                 ],
               ),
             ),

@@ -216,17 +216,18 @@ class _EvidenciaSheetState extends State<_EvidenciaSheet> {
     if (picked == null) return;
 
     setState(() => _subiendo = etapa);
-    final subida = await widget.service.encolarEvidencia(
+    final resultado = await widget.service.encolarEvidencia(
       procedimientoId: widget.proc.id,
       etapa: etapa,
       fotoPath: picked.path,
     );
     if (!mounted) return;
+    final rechazo = resultado.errorPermanente;
     setState(() {
       _subiendo = null;
-      if (!subida) _encoladas.add(etapa);
+      if (!resultado.enviada && rechazo == null) _encoladas.add(etapa);
     });
-    if (subida) {
+    if (resultado.enviada) {
       // Subida directa (con conexión).
       await widget.onUploaded();
       if (!mounted) return;
@@ -238,8 +239,18 @@ class _EvidenciaSheetState extends State<_EvidenciaSheet> {
         ),
       );
       Navigator.pop(context);
+    } else if (rechazo != null) {
+      // El servidor la rechazó (4xx): no tiene sentido reintentar, avisar el motivo real.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(rechazo, style: const TextStyle(color: Colors.white)),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } else {
-      // Sin conexión: guardada en cola, se enviará al reconectar.
+      // Sin conexión real: guardada en cola, se enviará al reconectar.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
