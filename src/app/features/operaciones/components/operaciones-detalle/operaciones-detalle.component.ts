@@ -1641,7 +1641,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
       for (const it of req.items.filter(i => i.estadoItem === 'aprobado')) {
         if (vistos.has(it.id)) continue;
         vistos.add(it.id);
-        const tipo = (it as any).tipoItemCompra || 'material';
+        const tipo = it.tipo || 'material';
         const esOblig = ['equipo','herramienta'].includes(tipo);
         this.retornoItems.push({
           detalleId:         it.id,

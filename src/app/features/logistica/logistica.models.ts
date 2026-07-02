@@ -79,6 +79,7 @@ export interface ModeloItem  extends CatalogoItem { marcaId: string; }
 export interface RequerimientoItem {
   id: string;
   materialId: string | null;
+  equipoId: string | null;
   nombre: string;
   unidad: string;
   cantidad: number;
@@ -89,6 +90,7 @@ export interface RequerimientoItem {
   especificacion: string | null;
   estadoItem: string;          // pendiente | aprobado | para_compra | rechazado
   agregadoPor: string | null;
+  tipo: string;                // material | herramienta | equipo
 }
 
 export interface Requerimiento {
