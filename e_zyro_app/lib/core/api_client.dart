@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_constants.dart';
 
@@ -101,6 +102,25 @@ class ApiClient {
       )
       .timeout(AppConstants.defaultTimeout);
 
+  /// MIME por extensión: MultipartFile.fromPath NO lo infiere y manda
+  /// application/octet-stream, que el backend rechaza al validar evidencias.
+  static const Map<String, String> _mimePorExtension = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'webp': 'image/webp',
+    'gif': 'image/gif',
+    'pdf': 'application/pdf',
+  };
+
+  static MediaType? _mediaTypeDe(String filePath) {
+    final ext = filePath.split('.').last.toLowerCase();
+    final mime = _mimePorExtension[ext];
+    if (mime == null) return null;
+    final parts = mime.split('/');
+    return MediaType(parts[0], parts[1]);
+  }
+
   /// POST multipart/form-data (photo uploads).
   Future<http.Response> postMultipart(
     String path,
@@ -116,7 +136,11 @@ class ApiClient {
     final request = http.MultipartRequest('POST', uri)
       ..headers['Authorization'] = 'Bearer $token'
       ..fields.addAll(fields)
-      ..files.add(await http.MultipartFile.fromPath(fileField, filePath));
+      ..files.add(await http.MultipartFile.fromPath(
+        fileField,
+        filePath,
+        contentType: _mediaTypeDe(filePath),
+      ));
     final streamed = await _http.send(request).timeout(AppConstants.uploadTimeout);
     return http.Response.fromStream(streamed);
   }

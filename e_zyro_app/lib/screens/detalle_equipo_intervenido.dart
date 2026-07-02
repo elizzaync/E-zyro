@@ -906,15 +906,15 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
   }
 
   Color _colorEstadoProc(String estado) => switch (estado) {
-        'completado'  => _green,
-        'en_progreso' => Colors.orange.shade700,
-        _             => Colors.grey,
+        'completado' => _green,
+        'en_proceso' => Colors.orange.shade700,
+        _            => Colors.grey,
       };
 
   String _labelEstadoProc(String estado) => switch (estado) {
-        'completado'  => 'Completado',
-        'en_progreso' => 'En progreso',
-        _             => 'Pendiente',
+        'completado' => 'Completado',
+        'en_proceso' => 'En proceso',
+        _            => 'Pendiente',
       };
 
   /// Pasos fijos (avance/informe) del servicio al que está vinculado este

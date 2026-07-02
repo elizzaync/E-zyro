@@ -92,12 +92,12 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
   // Servicio de datos
   ProyectoService? _svc;
 
-  // Prefs keys para persistir la última selección
+  // Prefs keys para persistir la última selección. La etapa NO se persiste:
+  // la cámara siempre abre en 'durante' (la evidencia estándar del trabajo).
   static const _kProcId       = 'campo_last_proc_id';
   static const _kProcNombre   = 'campo_last_proc_nombre';
   static const _kServId       = 'campo_last_serv_id';
   static const _kServNombre   = 'campo_last_serv_nombre';
-  static const _kEtapa        = 'campo_last_etapa';
 
   @override
   void initState() {
@@ -119,7 +119,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
       // usarlo directo y guardarlo como "última selección" para la próxima vez.
       if (!mounted) return;
       setState(() => _sel = pre);
-      await _guardarSeleccion(pre, _etapa);
+      await _guardarSeleccion(pre);
       return;
     }
     final prefs = await SharedPreferences.getInstance();
@@ -127,10 +127,8 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
     final procNombre = prefs.getString(_kProcNombre);
     final servId     = prefs.getString(_kServId);
     final servNombre = prefs.getString(_kServNombre);
-    final etapa      = prefs.getString(_kEtapa) ?? 'durante';
     if (!mounted) return;
     setState(() {
-      _etapa = etapa;
       if (procId != null && procNombre != null &&
           servId != null && servNombre != null) {
         _sel = SeleccionProcedimientoCampo(
@@ -143,13 +141,12 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
     });
   }
 
-  Future<void> _guardarSeleccion(SeleccionProcedimientoCampo sel, String etapa) async {
+  Future<void> _guardarSeleccion(SeleccionProcedimientoCampo sel) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kProcId,     sel.procId);
     await prefs.setString(_kProcNombre, sel.procNombre);
     await prefs.setString(_kServId,     sel.servicioId);
     await prefs.setString(_kServNombre, sel.servicioNombre);
-    await prefs.setString(_kEtapa,      etapa);
   }
 
   // ── Cámara ─────────────────────────────────────────────────────────────────
@@ -338,7 +335,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
     );
     if (resultado != null && mounted) {
       setState(() => _sel = resultado);
-      await _guardarSeleccion(resultado, _etapa);
+      await _guardarSeleccion(resultado);
     }
   }
 
@@ -439,10 +436,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
                 etapa: _etapa,
                 capturing: _capturing,
                 enabled: _ready && _sel != null,
-                onEtapaChanged: (e) async {
-                  setState(() => _etapa = e);
-                  if (_sel != null) await _guardarSeleccion(_sel!, e);
-                },
+                onEtapaChanged: (e) => setState(() => _etapa = e),
                 onCaptura: _capturar,
               ),
             ),
