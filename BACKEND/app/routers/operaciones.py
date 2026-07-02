@@ -773,6 +773,36 @@ def get_detalle_servicio(
             rol_proyecto=r.rol_proyecto or "Técnico",
         ))
 
+    # Quien solicitó materiales/herramientas para este servicio también cuenta
+    # como parte del equipo (solo puede pedir quien está en el servicio). No
+    # se usa una Tarea sintética para esto porque Tarea alimenta el cálculo de
+    # progreso (completado/total) y una tarea inventada lo distorsionaría.
+    solicitante_rows = (
+        db.query(Usuario, Empleado.cargo, Empleado.id.label("empleado_id"))
+        .select_from(Requerimiento)
+        .join(Empleado, Empleado.id == Requerimiento.solicitante_id)
+        .join(Usuario,  Usuario.id  == Empleado.usuario_id)
+        .filter(
+            Requerimiento.proyecto_servicio_id == servicio_id,
+            Requerimiento.solicitante_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    for r in solicitante_rows:
+        emp_id = str(r.empleado_id)
+        if emp_id in _vistos:
+            continue
+        _vistos.add(emp_id)
+        equipo.append(MiembroEquipoOut(
+            id=emp_id,
+            nombre=r.Usuario.nombre or "",
+            apellido=r.Usuario.apellido or "",
+            foto_url=r.Usuario.foto_url or "",
+            cargo=r.cargo or "Sin Cargo",
+            rol_proyecto="Solicitante de Materiales",
+        ))
+
     # 4. Procedimientos (pasos fijos) + Evidencias — solo con acceso completo.
     # Instanciación perezosa desde la plantilla por tipo de trabajo (cubre
     # servicios creados antes de que existiera la plantilla).
