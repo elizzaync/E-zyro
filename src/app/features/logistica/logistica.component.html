@@ -54,6 +54,12 @@
       </svg>
       Equipos y Herramientas
     </button>
+    <button class="log-tab" [class.active]="tab === 'epp'" (click)="setTab('epp')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+      </svg>
+      EPPs
+    </button>
     @if (!esOperativo) {
     <button class="log-tab" [class.active]="tab === 'salidas'" (click)="setTab('salidas')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -61,7 +67,7 @@
         <rect x="9" y="11" width="14" height="10" rx="2"/>
         <path d="M16 11v-1"/>
       </svg>
-      Salidas de Materiales
+      Salida de Inventario
     </button>
     <button class="log-tab" [class.active]="tab === 'ingresos'" (click)="setTab('ingresos')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -91,6 +97,8 @@
     <app-materiales-tabla (cambio)="cargarKpis()"></app-materiales-tabla>
   } @else if (tab === 'equipos') {
     <app-equipos-tabla (cambio)="cargarKpis()"></app-equipos-tabla>
+  } @else if (tab === 'epp') {
+    <app-epp-tabla></app-epp-tabla>
   } @else if (tab === 'salidas') {
     <app-salidas></app-salidas>
   } @else if (tab === 'ingresos') {

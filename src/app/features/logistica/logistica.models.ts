@@ -411,6 +411,65 @@ export interface Incidencia {
   fechaResolucion: string | null;
 }
 
+// ── EPP (Equipos de Protección Personal) ────────────────────────────────────
+// Módulo backend independiente (`/epp/*`, no `/logistica/*`). Su JSON usa
+// snake_case (no camelCase como el resto de Logística) — estas interfaces
+// reflejan los campos EXACTOS que manda el backend (app/schemas/epp.py).
+
+export interface Epp {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  marca_id: string | null;
+  unidad_id: string | null;
+  zona_id: string | null;
+  stock_actual: number;
+  stock_min: number;
+  precio: number | null;
+  imagen_url: string | null;
+  activo: boolean;
+}
+
+export interface EppIn {
+  nombre: string;
+  descripcion?: string | null;
+  marca_id?: string | null;
+  unidad_id?: string | null;
+  zona_id?: string | null;
+  stock_min?: number;
+  precio?: number | null;
+}
+
+export interface EppEntregaItemIn {
+  epp_id: string;
+  cantidad: number;
+}
+
+export interface EppEntregaIn {
+  empleado_id: string;
+  items: EppEntregaItemIn[];
+  firma_base64?: string | null;
+  observacion?: string | null;
+}
+
+export interface EppEntregaItem {
+  epp_id: string;
+  nombre: string;
+  cantidad: number;
+}
+
+export interface EppEntrega {
+  id: string;
+  empleado_id: string;
+  empleado_nombre: string | null;
+  fecha: string | null;
+  estado: string;          // registrada | anulada
+  firma_url: string | null;
+  pdf_url: string | null;
+  observacion: string | null;
+  items: EppEntregaItem[];
+}
+
 export interface EquipoStockDesglose {
   equipoId: string;
   cantidadTotal: number;

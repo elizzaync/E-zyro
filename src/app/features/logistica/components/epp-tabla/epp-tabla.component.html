@@ -1,0 +1,249 @@
+<div class="epp-layout">
+
+  <!-- ─── Sub-tabs ─── -->
+  <div class="epp-subtabs">
+    <button class="epp-subtab" [class.active]="subTab === 'catalogo'" (click)="setSubTab('catalogo')">
+      Catálogo
+    </button>
+    <button class="epp-subtab" [class.active]="subTab === 'entregas'" (click)="setSubTab('entregas')">
+      Entregas
+    </button>
+  </div>
+
+  <!-- ══════════════════ CATÁLOGO ══════════════════ -->
+  @if (subTab === 'catalogo') {
+    <div class="epp-toolbar">
+      <div class="epp-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" [(ngModel)]="busquedaCatalogo" (keydown.enter)="buscarCatalogo()"
+               placeholder="Buscar EPP por nombre…">
+      </div>
+      <label class="epp-check">
+        <input type="checkbox" [(ngModel)]="soloStockBajo" (change)="buscarCatalogo()">
+        Solo stock bajo
+      </label>
+      <button class="epp-btn-buscar" (click)="buscarCatalogo()">Buscar</button>
+      <div class="epp-spacer"></div>
+      <button class="epp-btn-nuevo" (click)="abrirNuevoEpp()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Nuevo EPP
+      </button>
+      <button class="epp-btn-entrega" (click)="abrirNuevaEntrega()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+        Nueva entrega
+      </button>
+    </div>
+
+    @if (cargandoCatalogo) {
+      <div class="epp-loading"><app-spinner [size]="28"></app-spinner></div>
+    } @else if (epps.length === 0) {
+      <div class="epp-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+        </svg>
+        <p>Sin EPPs registrados.</p>
+        <span>Los equipos de protección personal (cascos, guantes, arneses…) aparecerán aquí.</span>
+      </div>
+    } @else {
+      <div class="epp-grid">
+        @for (e of epps; track e.id) {
+          <div class="epp-card" [class.epp-card--bajo]="e.stock_actual <= e.stock_min">
+            <div class="epp-card-img">
+              @if (e.imagen_url) {
+                <img [src]="e.imagen_url" [alt]="e.nombre">
+              } @else {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                </svg>
+              }
+            </div>
+            <div class="epp-card-body">
+              <h4 class="epp-card-nombre">{{ e.nombre }}</h4>
+              @if (e.descripcion) { <p class="epp-card-desc">{{ e.descripcion }}</p> }
+              <div class="epp-card-stock">
+                <span class="epp-stock-chip" [class.epp-stock-chip--bajo]="e.stock_actual <= e.stock_min">
+                  Stock: {{ e.stock_actual }}
+                </span>
+                @if (e.stock_actual <= e.stock_min) {
+                  <span class="epp-stock-warn">⚠ Bajo mínimo ({{ e.stock_min }})</span>
+                }
+                @if (e.precio != null) {
+                  <span class="epp-precio">S/ {{ e.precio | number:'1.2-2' }}</span>
+                }
+              </div>
+            </div>
+            <div class="epp-card-actions">
+              <button class="epp-btn-icon" title="Editar" (click)="editarEpp(e)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+              <button class="epp-btn-icon epp-btn-icon--danger" title="Dar de baja" (click)="eliminarEpp(e)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <!-- ══════════════════ ENTREGAS ══════════════════ -->
+  @if (subTab === 'entregas') {
+    <div class="epp-toolbar">
+      <div class="epp-spacer"></div>
+      <button class="epp-btn-entrega" (click)="abrirNuevaEntrega()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+        </svg>
+        Nueva entrega
+      </button>
+    </div>
+
+    @if (cargandoEntregas) {
+      <div class="epp-loading"><app-spinner [size]="28"></app-spinner></div>
+    } @else if (entregas.length === 0) {
+      <div class="epp-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+        <p>Sin entregas registradas.</p>
+        <span>Cuando se entregue EPP a un técnico, aparecerá aquí con su constancia en PDF.</span>
+      </div>
+    } @else {
+      <div class="epp-table-wrap">
+        <table class="epp-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Técnico</th>
+              <th>Ítems</th>
+              <th>Estado</th>
+              <th class="th-acc">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (en of entregas; track en.id) {
+              <tr class="epp-row" (click)="abrirDetalleEntrega(en)">
+                <td>{{ fechaCorta(en.fecha) }}</td>
+                <td>{{ en.empleado_nombre || '—' }}</td>
+                <td>{{ resumenItems(en.items) }}</td>
+                <td>
+                  <span class="epp-estado-badge" [class.epp-estado-badge--anulada]="en.estado === 'anulada'">
+                    {{ en.estado === 'anulada' ? 'Anulada' : 'Registrada' }}
+                  </span>
+                </td>
+                <td class="td-acc">
+                  <button class="epp-btn-icon" title="Generar constancia PDF"
+                          [disabled]="generandoConstancia === en.id"
+                          (click)="generarConstancia(en, $event)">
+                    @if (generandoConstancia === en.id) {
+                      <app-spinner [size]="14"></app-spinner>
+                    } @else {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                    }
+                  </button>
+                  @if (en.estado !== 'anulada') {
+                    <button class="epp-btn-icon epp-btn-icon--danger" title="Anular entrega"
+                            (click)="anularEntrega(en, $event)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                      </svg>
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+</div>
+
+<!-- ══ MODAL: NUEVO / EDITAR EPP ══ -->
+@if (showFormModal) {
+  <app-epp-form-modal
+    [epp]="eppEditar"
+    [guardando]="guardandoEpp"
+    (guardar)="guardarEpp($event)"
+    (cerrar)="cerrarFormModal()">
+  </app-epp-form-modal>
+}
+
+<!-- ══ MODAL: NUEVA ENTREGA ══ -->
+@if (showEntregaModal) {
+  <app-epp-entrega-modal
+    [epps]="epps"
+    (registrada)="onEntregaRegistrada()"
+    (cerrar)="cerrarEntregaModal()">
+  </app-epp-entrega-modal>
+}
+
+<!-- ══ MODAL: DETALLE DE ENTREGA ══ -->
+@if (entregaDetalle) {
+  <app-modal
+    [open]="true"
+    title="Detalle de entrega EPP"
+    [subtitle]="(entregaDetalle.empleado_nombre || '') + ' · ' + fechaCorta(entregaDetalle.fecha)"
+    maxWidth="560px"
+    iconBg="rgba(59,130,246,0.12)"
+    iconColor="#2563eb"
+    (closeModal)="cerrarDetalleEntrega()">
+
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+    </svg>
+
+    <div class="epp-det-body">
+      <table class="epp-det-table">
+        <thead><tr><th>Ítem</th><th class="th-right">Cantidad</th></tr></thead>
+        <tbody>
+          @for (it of entregaDetalle.items; track it.epp_id) {
+            <tr><td>{{ it.nombre }}</td><td class="th-right">{{ it.cantidad }}</td></tr>
+          }
+        </tbody>
+      </table>
+
+      @if (entregaDetalle.observacion) {
+        <div class="epp-det-obs">
+          <span class="epp-det-lbl">Observaciones</span>
+          <p>{{ entregaDetalle.observacion }}</p>
+        </div>
+      }
+
+      @if (entregaDetalle.firma_url) {
+        <div class="epp-det-firma">
+          <span class="epp-det-lbl">Firma del receptor</span>
+          <img [src]="entregaDetalle.firma_url" alt="Firma">
+        </div>
+      }
+    </div>
+
+    <div class="epp-det-footer">
+      <button class="epp-btn-buscar" [disabled]="generandoConstancia === entregaDetalle.id"
+              (click)="generarConstancia(entregaDetalle)">
+        @if (generandoConstancia === entregaDetalle.id) {
+          <app-spinner [size]="14" theme="light"></app-spinner>
+        } @else {
+          Generar / ver constancia PDF
+        }
+      </button>
+    </div>
+
+  </app-modal>
+}

@@ -22,6 +22,7 @@ import {
   RegistrarIngresoPayload,
   Retorno,
   Incidencia, EquipoStockDesglose, CategoriaEquipoItem,
+  Epp, EppIn, EppEntrega, EppEntregaIn,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -491,5 +492,55 @@ export class LogisticaService {
     return this.http.post<any>(`${this.api}/logistica/inventario/ajuste`, {
       material_id: materialId, tipo: 'entrada', cantidad, motivo,
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // EPP (Equipos de Protección Personal) — módulo backend independiente,
+  // NO vive bajo /logistica/*. Espejo de lib/services/epp_service.dart
+  // (app móvil), adaptado para web.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  getEpps(filtros: { q?: string; zonaId?: string; stockBajo?: boolean } = {}): Observable<Epp[]> {
+    let params = new HttpParams();
+    if (filtros.q)                params = params.set('q', filtros.q);
+    if (filtros.zonaId)           params = params.set('zona_id', filtros.zonaId);
+    if (filtros.stockBajo)        params = params.set('stock_bajo', 'true');
+    return this.http.get<Epp[]>(`${this.api}/epp`, { params });
+  }
+
+  crearEpp(body: EppIn): Observable<Epp> {
+    return this.http.post<Epp>(`${this.api}/epp`, body);
+  }
+
+  actualizarEpp(eppId: string, body: EppIn): Observable<Epp> {
+    return this.http.put<Epp>(`${this.api}/epp/${eppId}`, body);
+  }
+
+  eliminarEpp(eppId: string): Observable<void> {
+    return this.http.delete<void>(`${this.api}/epp/${eppId}`);
+  }
+
+  getEntregasEpp(empleadoId?: string): Observable<EppEntrega[]> {
+    let params = new HttpParams();
+    if (empleadoId) params = params.set('empleado_id', empleadoId);
+    return this.http.get<EppEntrega[]>(`${this.api}/epp/entregas`, { params });
+  }
+
+  crearEntregaEpp(body: EppEntregaIn): Observable<EppEntrega> {
+    return this.http.post<EppEntrega>(`${this.api}/epp/entregas`, body);
+  }
+
+  anularEntregaEpp(entregaId: string): Observable<EppEntrega> {
+    return this.http.post<EppEntrega>(`${this.api}/epp/entregas/${entregaId}/anular`, {});
+  }
+
+  generarConstanciaEpp(entregaId: string): Observable<EppEntrega> {
+    return this.http.post<EppEntrega>(`${this.api}/epp/entregas/${entregaId}/constancia`, {});
+  }
+
+  reporteEppEmpleado(empleadoId: string): Observable<{ pdf_url: string; tecnico: string; total_entregas: number }> {
+    return this.http.get<{ pdf_url: string; tecnico: string; total_entregas: number }>(
+      `${this.api}/epp/empleado/${empleadoId}/reporte`
+    );
   }
 }

@@ -1,0 +1,72 @@
+<app-modal
+  [open]="true"
+  [title]="esEdicion ? 'Editar EPP' : 'Nuevo EPP'"
+  subtitle="Equipo de Protección Personal — casco, guantes, arnés, etc."
+  maxWidth="520px"
+  iconBg="rgba(145,211,55,0.12)"
+  iconColor="#5b8a0f"
+  (closeModal)="cerrar.emit()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+  </svg>
+
+  <div [formGroup]="form" class="epf-body">
+
+    <div class="epf-field">
+      <label class="epf-label">Nombre <span class="req">*</span></label>
+      <input class="epf-input" type="text" formControlName="nombre" placeholder="Ej: Casco de seguridad blanco"
+             [class.invalid]="ctrl('nombre')?.invalid && ctrl('nombre')?.touched">
+      @if (ctrl('nombre')?.invalid && ctrl('nombre')?.touched) {
+        <span class="epf-error">El nombre es obligatorio.</span>
+      }
+    </div>
+
+    <div class="epf-field">
+      <label class="epf-label">Descripción</label>
+      <textarea class="epf-input" rows="2" formControlName="descripcion" placeholder="Detalles adicionales (opcional)"></textarea>
+    </div>
+
+    <div class="epf-row">
+      <div class="epf-field">
+        <label class="epf-label">Marca</label>
+        <select class="epf-input" formControlName="marcaId">
+          <option value="">— Sin marca —</option>
+          @for (m of marcas; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
+        </select>
+      </div>
+      <div class="epf-field">
+        <label class="epf-label">Unidad</label>
+        <select class="epf-input" formControlName="unidadId">
+          <option value="">— Sin unidad —</option>
+          @for (u of unidades; track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
+        </select>
+      </div>
+    </div>
+
+    <div class="epf-row">
+      <div class="epf-field">
+        <label class="epf-label">Stock mínimo</label>
+        <input class="epf-input" type="number" min="0" formControlName="stockMin">
+      </div>
+      <div class="epf-field">
+        <label class="epf-label">Precio (S/)</label>
+        <input class="epf-input" type="number" min="0" step="0.01" formControlName="precio" placeholder="Opcional">
+      </div>
+    </div>
+
+    @if (esEdicion) {
+      <p class="epf-nota">El stock actual no se edita aquí — usa "Nueva entrega" o los ingresos de EPP para moverlo.</p>
+    }
+
+  </div>
+
+  <footer class="epf-footer">
+    <button class="epf-btn-cancel" (click)="cerrar.emit()">Cancelar</button>
+    <button class="epf-btn-save" (click)="onGuardar()" [disabled]="guardando">
+      @if (guardando) { <app-spinner [size]="15" theme="light"></app-spinner> }
+      {{ esEdicion ? 'Guardar cambios' : 'Crear EPP' }}
+    </button>
+  </footer>
+
+</app-modal>

@@ -1,0 +1,95 @@
+<app-modal
+  [open]="true"
+  title="Nueva entrega de EPP"
+  subtitle="Registra qué equipos de protección personal recibe un técnico."
+  maxWidth="640px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrar.emit()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+  </svg>
+
+  <div class="eem-body">
+
+    <div class="eem-field">
+      <label class="eem-label">Técnico que recibe <span class="req">*</span></label>
+      <select class="eem-input" [(ngModel)]="empleadoId">
+        <option value="">— Selecciona un técnico —</option>
+        @for (t of tecnicos; track t.id) {
+          <option [value]="t.id">{{ t.nombre }} · {{ t.cargo }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="eem-field">
+      <label class="eem-label">Agregar ítem del catálogo</label>
+      <div class="eem-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" [(ngModel)]="buscarItem" placeholder="Buscar EPP por nombre…">
+      </div>
+      @if (buscarItem.trim()) {
+        <div class="eem-dropdown">
+          @for (e of eppsFiltrados; track e.id) {
+            <button type="button" class="eem-dropdown-item" (click)="agregarItem(e)">
+              <span>{{ e.nombre }}</span>
+              <span class="eem-dropdown-stock">Stock: {{ e.stock_actual }}</span>
+            </button>
+          } @empty {
+            <div class="eem-dropdown-empty">Sin resultados.</div>
+          }
+        </div>
+      }
+    </div>
+
+    @if (seleccionados.length > 0) {
+      <div class="eem-items">
+        @for (it of seleccionados; track it.eppId) {
+          <div class="eem-item-row">
+            <span class="eem-item-nombre">{{ it.nombre }}</span>
+            <div class="eem-item-qty">
+              <input type="number" min="1" [max]="it.stockDisponible" [ngModel]="it.cantidad"
+                     (ngModelChange)="ajustarCantidad(it, $event)">
+              <span class="eem-item-max">/ {{ it.stockDisponible }} disp.</span>
+            </div>
+            <button type="button" class="eem-item-quitar" (click)="quitarItem(it)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="eem-nota">Aún no agregas ítems. Busca arriba y toca uno para agregarlo.</p>
+    }
+
+    <div class="eem-field">
+      <label class="eem-label">Observaciones (opcional)</label>
+      <textarea class="eem-input" rows="2" [(ngModel)]="observacion" placeholder="Ej: Reposición por desgaste"></textarea>
+    </div>
+
+    <div class="eem-field">
+      <label class="eem-label">Firma del receptor (opcional)</label>
+      <div class="eem-firma-wrap">
+        <canvas #firmaCanvas width="560" height="150" class="eem-firma-canvas"></canvas>
+        @if (hayFirma) {
+          <button type="button" class="eem-firma-limpiar" (click)="limpiarFirma()">Limpiar</button>
+        }
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="eem-footer">
+    <button class="eem-btn-cancel" (click)="cerrar.emit()">Cancelar</button>
+    <button class="eem-btn-save" (click)="onGuardar()" [disabled]="guardando">
+      @if (guardando) { <app-spinner [size]="15" theme="light"></app-spinner> }
+      Registrar entrega
+    </button>
+  </footer>
+
+</app-modal>

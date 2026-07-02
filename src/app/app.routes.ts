@@ -188,7 +188,7 @@ export const routes: Routes = [
   {
     path: 'logistica/salidas',
     component: SalidasComponent,
-    title: 'Salidas de Materiales | e-zyro TIC',
+    title: 'Salida de Inventario | e-zyro TIC',
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_LOGISTICA_AVANZADA)]
   },
   {
