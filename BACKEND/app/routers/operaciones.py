@@ -1016,24 +1016,43 @@ def _motivos_inicio(db: Session, servicio_id: str) -> list[str]:
     return motivos
 
 
-def _notificar_cambio_estado_servicio(db: Session, ps: ProyectoServicio, nuevo: str) -> None:
-    """Notifica a los miembros del proyecto el cierre/cancelación del servicio."""
+async def _notificar_cambio_estado_servicio(db: Session, ps: ProyectoServicio, nuevo: str) -> None:
+    """Notifica SOLO a los técnicos asignados a ESTE servicio (líder, técnico
+    líder y responsables de sus tareas) — no a todo el proyecto, que puede
+    tener otros servicios ajenos a este cierre."""
     from ..services.fcm_service import notificar_usuario
-    miembros = (
-        db.query(Empleado.usuario_id)
-        .join(ProyectoMiembro, ProyectoMiembro.empleado_id == Empleado.id)
-        .filter(ProyectoMiembro.proyecto_id == str(ps.proyecto_id),
-                ProyectoMiembro.activo.is_(True),
-                Empleado.usuario_id.isnot(None))
+    from .chat_ws import manager as _ws_manager
+
+    emp_ids: set[str] = set()
+    if ps.lider_id:
+        emp_ids.add(str(ps.lider_id))
+    if ps.responsable_id:
+        emp_ids.add(str(ps.responsable_id))
+    tarea_resps = (
+        db.query(Tarea.responsable_id)
+        .filter(Tarea.proyecto_servicio_id == str(ps.id), Tarea.responsable_id.isnot(None))
         .distinct()
         .all()
     )
+    emp_ids.update(str(r) for (r,) in tarea_resps)
+
+    usuario_ids: list[str] = []
+    if emp_ids:
+        rows = (
+            db.query(Empleado.usuario_id)
+            .filter(Empleado.id.in_(emp_ids), Empleado.usuario_id.isnot(None))
+            .distinct()
+            .all()
+        )
+        usuario_ids = [uid for (uid,) in rows]
+
     nombre_srv = ps.nombre or "El servicio"
     if nuevo == "Completado":
-        titulo, mensaje = "Servicio completado", f"{nombre_srv} fue marcado como completado."
+        titulo  = "Servicio finalizado"
+        mensaje = f"{nombre_srv} finalizó. Revisa qué materiales/herramientas debes retornar."
     else:
         titulo, mensaje = "Servicio cancelado", f"{nombre_srv} fue cancelado."
-    for (uid,) in miembros:
+    for uid in usuario_ids:
         notificar_usuario(
             db, empresa_id=ps.empresa_id, usuario_id=uid,
             titulo=titulo, mensaje=mensaje,
@@ -1042,9 +1061,15 @@ def _notificar_cambio_estado_servicio(db: Session, ps: ProyectoServicio, nuevo: 
         )
     db.commit()
 
+    if nuevo == "Completado":
+        try:
+            await _ws_manager.broadcast_servicio(str(ps.id), {"tipo": "servicio_completado_retorno"})
+        except Exception:
+            pass
+
 
 @router.patch("/servicio/{servicio_id}/estado")
-def actualizar_estado_servicio(
+async def actualizar_estado_servicio(
     servicio_id: str,
     body: ActualizarEstadoBody,
     payload: dict    = Depends(verificar_token),
@@ -1114,10 +1139,10 @@ def actualizar_estado_servicio(
     ps.updated_at = datetime.utcnow()
     db.commit()
 
-    # Avisar a los miembros del servicio cuando se cierra o cancela.
+    # Avisar a los técnicos del servicio cuando se cierra o cancela.
     if estado_actual != nuevo and nuevo in ("Completado", "Cancelado"):
         try:
-            _notificar_cambio_estado_servicio(db, ps, nuevo)
+            await _notificar_cambio_estado_servicio(db, ps, nuevo)
         except Exception:
             pass
 
