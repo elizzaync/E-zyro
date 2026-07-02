@@ -20,6 +20,7 @@ from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.equipo_intervenido import EquipoIntervenido, EquipoIntervenidoMantenimiento
 from ..models.proyecto import Proyecto
+from ..models.proyecto_servicio import ProyectoServicio
 from ..models.cliente import Cliente
 from ..models.ubicacion import Ubicacion
 from ..models.usuario import Usuario
@@ -193,6 +194,12 @@ def _to_out(e: EquipoIntervenido, db: Session, incluir_procedimientos: bool = Fa
         if t:
             tipo_equipo_nombre = t.nombre
 
+    proyecto_servicio_nombre = None
+    if e.proyecto_servicio_id:
+        ps = db.query(ProyectoServicio).filter(ProyectoServicio.id == e.proyecto_servicio_id).first()
+        if ps:
+            proyecto_servicio_nombre = ps.nombre
+
     return EquipoIntervenidoOut(
         id=str(e.id), empresa_id=str(e.empresa_id),
         proyecto_id=str(e.proyecto_id) if e.proyecto_id else None,
@@ -215,6 +222,8 @@ def _to_out(e: EquipoIntervenido, db: Session, incluir_procedimientos: bool = Fa
         ubicacion_nombre=ubicacion_nombre, zona_nombre=zona_nombre,
         area_nombre=area_nombre,
         tipo_equipo_nombre=tipo_equipo_nombre,
+        proyecto_servicio_id=str(e.proyecto_servicio_id) if e.proyecto_servicio_id else None,
+        proyecto_servicio_nombre=proyecto_servicio_nombre,
         procedimientos=_procedimientos_de(e, db) if incluir_procedimientos else [],
     )
 

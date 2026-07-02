@@ -65,6 +65,11 @@ class EquipoIntervenidoOut(BaseModel):
     area_nombre:       Optional[str] = None
     tipo_equipo_nombre: Optional[str] = None
 
+    # Servicio al que está vinculado ahora mismo (si alguien inició una
+    # inspección/mantenimiento sobre este equipo dentro de un servicio).
+    proyecto_servicio_id:     Optional[str] = None
+    proyecto_servicio_nombre: Optional[str] = None
+
     # Procedimientos designados del servicio al que está vinculado (solo en
     # el detalle; la lista los omite para no pagar el join por cada fila).
     procedimientos: list[ProcedimientoOut] = []
