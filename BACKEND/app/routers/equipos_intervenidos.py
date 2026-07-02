@@ -26,12 +26,15 @@ from ..models.usuario import Usuario
 from ..models.zona import Zona
 from ..models.area import Area
 from ..models.tipo_equipo import TipoEquipo
+from ..models.procedimiento import Procedimiento
+from ..models.evidencia_procedimiento import EvidenciaProcedimiento
 from ..schemas.equipo_intervenido import (
     EquipoIntervenidoIn,
     EquipoIntervenidoOut,
     MantenimientoEquipoIn,
     MantenimientoEquipoOut,
 )
+from ..schemas.operaciones import ProcedimientoOut, EvidenciaOut
 
 router = APIRouter(prefix="/equipos-intervenidos", tags=["equipos-intervenidos"])
 
@@ -111,7 +114,53 @@ def buscar_duplicado(db: Session, empresa_id: str, nombre: str,
     return q.first()
 
 
-def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
+def _procedimientos_de(e: EquipoIntervenido, db: Session) -> List[ProcedimientoOut]:
+    """Procedimientos designados (pasos fijos avance/informe) del servicio al
+    que está vinculado este equipo intervenido, con sus evidencias. Ids/FKs
+    casteados a str explícitamente: columnas declaradas String(36) en el
+    modelo pueden ser uuid nativo en la BD real (ver [[ezyro-plan-erp-crecimiento]]
+    2026-07-02, mismo patrón que rompió ItemMaterialOut.equipo_id)."""
+    if not e.proyecto_servicio_id:
+        return []
+    filas = (
+        db.query(Procedimiento)
+        .filter(Procedimiento.proyecto_servicio_id == e.proyecto_servicio_id)
+        .order_by(Procedimiento.orden.asc())
+        .all()
+    )
+    if not filas:
+        return []
+    proc_ids = [str(p.id) for p in filas]
+    evidencias_por_proc: dict[str, list[EvidenciaOut]] = {}
+    for ev in (
+        db.query(EvidenciaProcedimiento)
+        .filter(EvidenciaProcedimiento.procedimiento_id.in_(proc_ids))
+        .order_by(EvidenciaProcedimiento.fecha_captura.asc())
+        .all()
+    ):
+        evidencias_por_proc.setdefault(str(ev.procedimiento_id), []).append(
+            EvidenciaOut(
+                id=str(ev.id),
+                url_cloudinary=ev.url_cloudinary,
+                descripcion=ev.descripcion,
+                etapa=ev.etapa,
+                fecha_captura=ev.fecha_captura.isoformat(),
+            )
+        )
+    return [
+        ProcedimientoOut(
+            id=str(p.id),
+            nombre=p.nombre,
+            descripcion=p.descripcion,
+            orden=p.orden,
+            estado=p.estado,
+            evidencias=evidencias_por_proc.get(str(p.id), []),
+        )
+        for p in filas
+    ]
+
+
+def _to_out(e: EquipoIntervenido, db: Session, incluir_procedimientos: bool = False) -> EquipoIntervenidoOut:
     proyecto_nombre   = None
     cliente_nombre    = None
     ubicacion_nombre  = None
@@ -166,6 +215,7 @@ def _to_out(e: EquipoIntervenido, db: Session) -> EquipoIntervenidoOut:
         ubicacion_nombre=ubicacion_nombre, zona_nombre=zona_nombre,
         area_nombre=area_nombre,
         tipo_equipo_nombre=tipo_equipo_nombre,
+        procedimientos=_procedimientos_de(e, db) if incluir_procedimientos else [],
     )
 
 
@@ -216,7 +266,7 @@ def detalle(
     ).first()
     if not e:
         raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
-    return _to_out(e, db)
+    return _to_out(e, db, incluir_procedimientos=True)
 
 
 # ── GET /equipos-intervenidos/{id}/mantenimientos ────────────────────────────

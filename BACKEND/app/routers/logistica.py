@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from ..core.security import verificar_token
-from ..core.permisos import es_tecnico, es_jefe_operaciones, exigir_no_roles_operativos
+from ..core.permisos import es_tecnico, es_jefe_operaciones, exigir_no_roles_operativos, tiene_permiso
 from ..core.audit_context import get_audit_context
 from ..db.database import get_db
 from ..services.firma_seguridad import registrar_firma, verificar_evento
@@ -138,6 +138,18 @@ def _bloquear_seccion_logistica(payload: dict, seccion: str = "esta sección de 
     """Bloquea el acceso de Técnico y Jefe de Operaciones a secciones que no pueden ver
     (Salidas, Ingresos, Retornos, Incidencias, Requerimientos, Compras)."""
     exigir_no_roles_operativos(payload, f"Técnico y Jefe de Operaciones no tienen acceso a {seccion}")
+
+
+def _bloquear_lista_requerimientos(payload: dict, db: Session) -> None:
+    """Como _bloquear_seccion_logistica, pero deja pasar a quien tenga
+    'requerimientos:ver' o 'requerimientos:solicitar' (Técnico/Jefe de
+    Operaciones consultando el estado de sus propios pedidos). NO excepciona
+    aprobar/rechazar/entregar (_autorizar_logistica) — eso sigue siendo
+    exclusivo de Logística/Admin, sin cambios."""
+    if tiene_permiso(db, payload, "requerimientos", "ver") or \
+       tiene_permiso(db, payload, "requerimientos", "solicitar"):
+        return
+    _bloquear_seccion_logistica(payload, "Requerimientos")
 
 
 def _ocultar_precio(payload: dict, out: dict) -> dict:
@@ -1529,7 +1541,7 @@ def listar_requerimientos(
     db:          Session = Depends(get_db),
 ):
     """Lista requerimientos para el panel de Logística (excluye borradores)."""
-    _bloquear_seccion_logistica(payload, "Requerimientos")
+    _bloquear_lista_requerimientos(payload, db)
     empresa_id = payload["empresa_id"]
     base = db.query(Requerimiento).filter(
         Requerimiento.empresa_id == empresa_id,
@@ -1579,7 +1591,7 @@ def historial_requerimientos(
     db:          Session = Depends(get_db),
 ):
     """Historial de consumo: requerimientos ya aprobados / entregados / rechazados."""
-    _bloquear_seccion_logistica(payload, "Requerimientos")
+    _bloquear_lista_requerimientos(payload, db)
     empresa_id = payload["empresa_id"]
     base = db.query(Requerimiento).filter(
         Requerimiento.empresa_id == empresa_id,

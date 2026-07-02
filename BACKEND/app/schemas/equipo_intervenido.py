@@ -3,6 +3,8 @@ from datetime import date, datetime
 from typing import Any, Optional
 from pydantic import BaseModel
 
+from .operaciones import ProcedimientoOut
+
 
 class EquipoIntervenidoIn(BaseModel):
     proyecto_id:      Optional[str]  = None
@@ -62,6 +64,10 @@ class EquipoIntervenidoOut(BaseModel):
     zona_nombre:       Optional[str] = None
     area_nombre:       Optional[str] = None
     tipo_equipo_nombre: Optional[str] = None
+
+    # Procedimientos designados del servicio al que está vinculado (solo en
+    # el detalle; la lista los omite para no pagar el join por cada fila).
+    procedimientos: list[ProcedimientoOut] = []
 
     class Config:
         from_attributes = True
