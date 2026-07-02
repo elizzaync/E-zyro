@@ -26,6 +26,23 @@
       </label>
       <button class="epp-btn-buscar" (click)="buscarCatalogo()">Buscar</button>
       <div class="epp-spacer"></div>
+
+      <div class="epp-vista-toggle">
+        <button type="button" [class.active]="vistaCatalogo === 'grid'" (click)="setVistaCatalogo('grid')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          Grid
+        </button>
+        <button type="button" [class.active]="vistaCatalogo === 'tabla'" (click)="setVistaCatalogo('tabla')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+          Tabla
+        </button>
+      </div>
+
       <button class="epp-btn-nuevo" (click)="abrirNuevoEpp()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -50,10 +67,85 @@
         <p>Sin EPPs registrados.</p>
         <span>Los equipos de protección personal (cascos, guantes, arneses…) aparecerán aquí.</span>
       </div>
+    } @else if (vistaCatalogo === 'tabla') {
+      <!-- ─── Vista tabla ─── -->
+      <div class="epp-table-wrap">
+        <table class="epp-cat-table">
+          <thead>
+            <tr>
+              <th class="th-img"></th>
+              <th>Nombre</th>
+              <th>Marca</th>
+              <th class="th-stock">Stock actual / mín.</th>
+              <th class="th-precio">Precio</th>
+              <th class="th-estado">Estado</th>
+              <th class="th-acc">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (e of epps; track e.id) {
+              <tr class="epp-cat-row" [class.epp-cat-row--bajo]="bajoMinimo(e)">
+                <td class="td-img">
+                  <div class="epp-thumb">
+                    @if (e.imagen_url) {
+                      <img [src]="e.imagen_url" [alt]="e.nombre">
+                    } @else {
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                      </svg>
+                    }
+                  </div>
+                </td>
+                <td>
+                  <div class="epp-cat-nombre">{{ e.nombre }}</div>
+                  @if (e.descripcion) { <div class="epp-cat-desc">{{ e.descripcion }}</div> }
+                </td>
+                <td class="epp-cat-marca">{{ marcaNombre(e) }}</td>
+                <td>
+                  <div class="epp-stock-num">
+                    <span class="epp-stock-actual" [class.epp-stock-actual--bajo]="bajoMinimo(e)">{{ e.stock_actual }}</span>
+                    <span class="epp-stock-min">/ {{ e.stock_min }}</span>
+                  </div>
+                  <div class="epp-stock-bar">
+                    <div class="epp-stock-bar-fill" [class.epp-stock-bar-fill--bajo]="bajoMinimo(e)"
+                         [style.width.%]="barraStockPct(e)"></div>
+                  </div>
+                </td>
+                <td class="epp-cat-precio">
+                  {{ e.precio != null ? ('S/ ' + (e.precio | number:'1.2-2')) : '—' }}
+                </td>
+                <td>
+                  @if (bajoMinimo(e)) {
+                    <span class="epp-estado-badge epp-estado-badge--bajo">⚠ Bajo mín.</span>
+                  } @else {
+                    <span class="epp-estado-badge epp-estado-badge--ok">Activo</span>
+                  }
+                </td>
+                <td class="td-acc">
+                  <button class="epp-btn-icon" title="Editar" (click)="editarEpp(e)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                  <button class="epp-btn-icon epp-btn-icon--danger" title="Dar de baja" (click)="eliminarEpp(e)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="epp-table-footer">Mostrando {{ epps.length }} EPP{{ epps.length !== 1 ? 's' : '' }} · las filas en rojo están en o bajo su stock mínimo</div>
     } @else {
+      <!-- ─── Vista grid ─── -->
       <div class="epp-grid">
         @for (e of epps; track e.id) {
-          <div class="epp-card" [class.epp-card--bajo]="e.stock_actual <= e.stock_min">
+          <div class="epp-card" [class.epp-card--bajo]="bajoMinimo(e)">
             <div class="epp-card-img">
               @if (e.imagen_url) {
                 <img [src]="e.imagen_url" [alt]="e.nombre">
@@ -66,12 +158,16 @@
             <div class="epp-card-body">
               <h4 class="epp-card-nombre">{{ e.nombre }}</h4>
               @if (e.descripcion) { <p class="epp-card-desc">{{ e.descripcion }}</p> }
+              <div class="epp-stock-bar">
+                <div class="epp-stock-bar-fill" [class.epp-stock-bar-fill--bajo]="bajoMinimo(e)"
+                     [style.width.%]="barraStockPct(e)"></div>
+              </div>
               <div class="epp-card-stock">
-                <span class="epp-stock-chip" [class.epp-stock-chip--bajo]="e.stock_actual <= e.stock_min">
-                  Stock: {{ e.stock_actual }}
+                <span class="epp-stock-chip" [class.epp-stock-chip--bajo]="bajoMinimo(e)">
+                  Stock: {{ e.stock_actual }} / {{ e.stock_min }}
                 </span>
-                @if (e.stock_actual <= e.stock_min) {
-                  <span class="epp-stock-warn">⚠ Bajo mínimo ({{ e.stock_min }})</span>
+                @if (bajoMinimo(e)) {
+                  <span class="epp-stock-warn">⚠ Bajo mínimo</span>
                 }
                 @if (e.precio != null) {
                   <span class="epp-precio">S/ {{ e.precio | number:'1.2-2' }}</span>
@@ -128,18 +224,41 @@
               <th>Fecha</th>
               <th>Técnico</th>
               <th>Ítems</th>
+              <th>Firma</th>
               <th>Estado</th>
               <th class="th-acc">Acciones</th>
             </tr>
           </thead>
           <tbody>
             @for (en of entregas; track en.id) {
-              <tr class="epp-row" (click)="abrirDetalleEntrega(en)">
-                <td>{{ fechaCorta(en.fecha) }}</td>
-                <td>{{ en.empleado_nombre || '—' }}</td>
-                <td>{{ resumenItems(en.items) }}</td>
+              <tr class="epp-row" [class.epp-row--anulada]="en.estado === 'anulada'" (click)="abrirDetalleEntrega(en)">
+                <td class="epp-fecha">{{ fechaCorta(en.fecha) }}</td>
                 <td>
-                  <span class="epp-estado-badge" [class.epp-estado-badge--anulada]="en.estado === 'anulada'">
+                  <div class="epp-tecnico">
+                    <span class="epp-avatar">{{ inicialesEmpleado(en.empleado_nombre) }}</span>
+                    <span class="epp-tecnico-nombre">{{ en.empleado_nombre || '—' }}</span>
+                  </div>
+                </td>
+                <td>
+                  <div class="epp-items-chips">
+                    @for (it of en.items.slice(0, 3); track it.epp_id) {
+                      <span class="epp-item-chip">{{ it.nombre }} ×{{ it.cantidad }}</span>
+                    }
+                    @if (en.items.length > 3) {
+                      <span class="epp-item-chip epp-item-chip--mas">+{{ en.items.length - 3 }} más</span>
+                    }
+                  </div>
+                </td>
+                <td>
+                  @if (en.firma_url) {
+                    <span class="epp-firma-ind epp-firma-ind--si">✓ Firmada</span>
+                  } @else {
+                    <span class="epp-firma-ind epp-firma-ind--no">Sin firma</span>
+                  }
+                </td>
+                <td>
+                  <span class="epp-estado-badge" [class.epp-estado-badge--anulada]="en.estado === 'anulada'"
+                        [class.epp-estado-badge--ok]="en.estado !== 'anulada'">
                     {{ en.estado === 'anulada' ? 'Anulada' : 'Registrada' }}
                   </span>
                 </td>
@@ -170,6 +289,7 @@
           </tbody>
         </table>
       </div>
+      <div class="epp-table-footer">✓ verde = firma capturada · filas anuladas quedan atenuadas</div>
     }
   }
 
@@ -198,8 +318,8 @@
 @if (entregaDetalle) {
   <app-modal
     [open]="true"
-    title="Detalle de entrega EPP"
-    [subtitle]="(entregaDetalle.empleado_nombre || '') + ' · ' + fechaCorta(entregaDetalle.fecha)"
+    title="Detalle de entrega"
+    [subtitle]="fechaCorta(entregaDetalle.fecha)"
     maxWidth="560px"
     iconBg="rgba(59,130,246,0.12)"
     iconColor="#2563eb"
@@ -209,15 +329,28 @@
       <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
     </svg>
 
+    <div class="epp-det-estado-row">
+      <span class="epp-estado-badge" [class.epp-estado-badge--anulada]="entregaDetalle.estado === 'anulada'"
+            [class.epp-estado-badge--ok]="entregaDetalle.estado !== 'anulada'">
+        {{ entregaDetalle.estado === 'anulada' ? 'Anulada' : 'Registrada' }}
+      </span>
+    </div>
+
+    <div class="epp-det-receptor">
+      <span class="epp-avatar epp-avatar--lg">{{ inicialesEmpleado(entregaDetalle.empleado_nombre) }}</span>
+      <div>
+        <div class="epp-det-receptor-nombre">{{ entregaDetalle.empleado_nombre || '—' }}</div>
+        <div class="epp-det-receptor-sub">recibió esta entrega</div>
+      </div>
+    </div>
+
     <div class="epp-det-body">
-      <table class="epp-det-table">
-        <thead><tr><th>Ítem</th><th class="th-right">Cantidad</th></tr></thead>
-        <tbody>
-          @for (it of entregaDetalle.items; track it.epp_id) {
-            <tr><td>{{ it.nombre }}</td><td class="th-right">{{ it.cantidad }}</td></tr>
-          }
-        </tbody>
-      </table>
+      <span class="epp-det-lbl">Ítems entregados</span>
+      <div class="epp-det-items">
+        @for (it of entregaDetalle.items; track it.epp_id) {
+          <div class="epp-det-item-row"><span>{{ it.nombre }}</span><span class="epp-det-item-cant">× {{ it.cantidad }}</span></div>
+        }
+      </div>
 
       @if (entregaDetalle.observacion) {
         <div class="epp-det-obs">
@@ -226,23 +359,36 @@
         </div>
       }
 
-      @if (entregaDetalle.firma_url) {
-        <div class="epp-det-firma">
-          <span class="epp-det-lbl">Firma del receptor</span>
-          <img [src]="entregaDetalle.firma_url" alt="Firma">
-        </div>
-      }
+      <div class="epp-det-firma">
+        <span class="epp-det-lbl">Firma del receptor</span>
+        @if (entregaDetalle.firma_url) {
+          <div class="epp-det-firma-box epp-det-firma-box--si">
+            <img [src]="entregaDetalle.firma_url" alt="Firma">
+          </div>
+        } @else {
+          <div class="epp-det-firma-box epp-det-firma-box--no">Sin firma registrada</div>
+        }
+      </div>
     </div>
 
     <div class="epp-det-footer">
-      <button class="epp-btn-buscar" [disabled]="generandoConstancia === entregaDetalle.id"
-              (click)="generarConstancia(entregaDetalle)">
-        @if (generandoConstancia === entregaDetalle.id) {
-          <app-spinner [size]="14" theme="light"></app-spinner>
-        } @else {
-          Generar / ver constancia PDF
+      <span class="epp-det-footer-nota">Constancia disponible {{ entregaDetalle.firma_url ? 'con firma incluida' : '' }}</span>
+      <div class="epp-det-footer-btns">
+        @if (entregaDetalle.estado !== 'anulada') {
+          <button class="epp-btn-anular" (click)="anularEntrega(entregaDetalle)">Anular</button>
         }
-      </button>
+        <button class="epp-btn-pdf" [disabled]="generandoConstancia === entregaDetalle.id"
+                (click)="generarConstancia(entregaDetalle)">
+          @if (generandoConstancia === entregaDetalle.id) {
+            <app-spinner [size]="14" theme="light"></app-spinner>
+          } @else {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Generar PDF
+          }
+        </button>
+      </div>
     </div>
 
   </app-modal>

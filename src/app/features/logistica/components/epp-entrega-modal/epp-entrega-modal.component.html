@@ -2,7 +2,7 @@
   [open]="true"
   title="Nueva entrega de EPP"
   subtitle="Registra qué equipos de protección personal recibe un técnico."
-  maxWidth="640px"
+  maxWidth="720px"
   iconBg="rgba(59,130,246,0.12)"
   iconColor="#2563eb"
   (closeModal)="cerrar.emit()">
@@ -11,85 +11,167 @@
     <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
   </svg>
 
+  <!-- ─── Stepper ─── -->
+  <div class="eem-stepper">
+    <button type="button" class="eem-step" [class.eem-step--done]="paso > 1" [class.eem-step--current]="paso === 1"
+            (click)="irPaso(1)">
+      <span class="eem-step-dot">@if (paso > 1) { ✓ } @else { 1 }</span>
+      <span class="eem-step-label">Técnico</span>
+    </button>
+    <span class="eem-step-line" [class.eem-step-line--done]="paso > 1"></span>
+    <button type="button" class="eem-step" [class.eem-step--done]="paso > 2" [class.eem-step--current]="paso === 2"
+            [class.eem-step--disabled]="!puedeAvanzarPaso1" (click)="irPaso(2)">
+      <span class="eem-step-dot">@if (paso > 2) { ✓ } @else { 2 }</span>
+      <span class="eem-step-label">Ítems</span>
+    </button>
+    <span class="eem-step-line" [class.eem-step-line--done]="paso > 2"></span>
+    <button type="button" class="eem-step" [class.eem-step--current]="paso === 3"
+            [class.eem-step--disabled]="!puedeAvanzarPaso2" (click)="irPaso(3)">
+      <span class="eem-step-dot">3</span>
+      <span class="eem-step-label">Firma</span>
+    </button>
+  </div>
+
   <div class="eem-body">
 
-    <div class="eem-field">
-      <label class="eem-label">Técnico que recibe <span class="req">*</span></label>
-      <select class="eem-input" [(ngModel)]="empleadoId">
-        <option value="">— Selecciona un técnico —</option>
-        @for (t of tecnicos; track t.id) {
-          <option [value]="t.id">{{ t.nombre }} · {{ t.cargo }}</option>
-        }
-      </select>
-    </div>
-
-    <div class="eem-field">
-      <label class="eem-label">Agregar ítem del catálogo</label>
-      <div class="eem-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" [(ngModel)]="buscarItem" placeholder="Buscar EPP por nombre…">
-      </div>
-      @if (buscarItem.trim()) {
-        <div class="eem-dropdown">
-          @for (e of eppsFiltrados; track e.id) {
-            <button type="button" class="eem-dropdown-item" (click)="agregarItem(e)">
-              <span>{{ e.nombre }}</span>
-              <span class="eem-dropdown-stock">Stock: {{ e.stock_actual }}</span>
-            </button>
-          } @empty {
-            <div class="eem-dropdown-empty">Sin resultados.</div>
+    <!-- ═══ PASO 1 · TÉCNICO ═══ -->
+    @if (paso === 1) {
+      <div class="eem-field">
+        <label class="eem-label">Técnico que recibe <span class="req">*</span></label>
+        <select class="eem-input" [(ngModel)]="empleadoId">
+          <option value="">— Selecciona un técnico —</option>
+          @for (t of tecnicos; track t.id) {
+            <option [value]="t.id">{{ t.nombre }} · {{ t.cargo }}</option>
           }
-        </div>
-      }
-    </div>
-
-    @if (seleccionados.length > 0) {
-      <div class="eem-items">
-        @for (it of seleccionados; track it.eppId) {
-          <div class="eem-item-row">
-            <span class="eem-item-nombre">{{ it.nombre }}</span>
-            <div class="eem-item-qty">
-              <input type="number" min="1" [max]="it.stockDisponible" [ngModel]="it.cantidad"
-                     (ngModelChange)="ajustarCantidad(it, $event)">
-              <span class="eem-item-max">/ {{ it.stockDisponible }} disp.</span>
+        </select>
+        @if (tecnicoSeleccionado) {
+          <div class="eem-tecnico-preview">
+            <span class="eem-tecnico-avatar">{{ iniciales(tecnicoSeleccionado.nombre) }}</span>
+            <div>
+              <div class="eem-tecnico-nombre">{{ tecnicoSeleccionado.nombre }}</div>
+              <div class="eem-tecnico-cargo">{{ tecnicoSeleccionado.cargo }}</div>
             </div>
-            <button type="button" class="eem-item-quitar" (click)="quitarItem(it)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
           </div>
         }
       </div>
-    } @else {
-      <p class="eem-nota">Aún no agregas ítems. Busca arriba y toca uno para agregarlo.</p>
     }
 
-    <div class="eem-field">
-      <label class="eem-label">Observaciones (opcional)</label>
-      <textarea class="eem-input" rows="2" [(ngModel)]="observacion" placeholder="Ej: Reposición por desgaste"></textarea>
-    </div>
-
-    <div class="eem-field">
-      <label class="eem-label">Firma del receptor (opcional)</label>
-      <div class="eem-firma-wrap">
-        <canvas #firmaCanvas width="560" height="150" class="eem-firma-canvas"></canvas>
-        @if (hayFirma) {
-          <button type="button" class="eem-firma-limpiar" (click)="limpiarFirma()">Limpiar</button>
+    <!-- ═══ PASO 2 · ÍTEMS ═══ -->
+    @if (paso === 2) {
+      <div class="eem-field">
+        <label class="eem-label">Agregar ítem del catálogo</label>
+        <div class="eem-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" [(ngModel)]="buscarItem" placeholder="Buscar EPP por nombre…">
+        </div>
+        @if (buscarItem.trim()) {
+          <div class="eem-dropdown">
+            @for (e of eppsFiltrados; track e.id) {
+              <button type="button" class="eem-dropdown-item" (click)="agregarItem(e)">
+                <span>{{ e.nombre }}</span>
+                <span class="eem-dropdown-stock">Stock: {{ e.stock_actual }}</span>
+              </button>
+            } @empty {
+              <div class="eem-dropdown-empty">Sin resultados.</div>
+            }
+          </div>
         }
       </div>
-    </div>
+
+      @if (seleccionados.length > 0) {
+        <div class="eem-items">
+          @for (it of seleccionados; track it.eppId) {
+            <div class="eem-item-row" [class.eem-item-row--limite]="it.cantidad >= it.stockDisponible">
+              <div class="eem-item-info">
+                <span class="eem-item-nombre">{{ it.nombre }}</span>
+                @if (it.cantidad >= it.stockDisponible) {
+                  <span class="eem-item-limite-nota">⚠ Al límite del stock disponible ({{ it.stockDisponible }})</span>
+                }
+              </div>
+              <div class="eem-item-qty">
+                <button type="button" class="eem-qty-btn" (click)="decrementar(it)" [disabled]="it.cantidad <= 1">−</button>
+                <span class="eem-qty-num" [class.eem-qty-num--limite]="it.cantidad >= it.stockDisponible">{{ it.cantidad }}</span>
+                <button type="button" class="eem-qty-btn" (click)="incrementar(it)" [disabled]="it.cantidad >= it.stockDisponible">+</button>
+              </div>
+              <button type="button" class="eem-item-quitar" (click)="quitarItem(it)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="eem-nota">Aún no agregas ítems. Busca arriba y toca uno para agregarlo.</p>
+      }
+    }
+
+    <!-- ═══ PASO 3 · FIRMA ═══ -->
+    @if (paso === 3) {
+      <div class="eem-field">
+        <label class="eem-label">Firma del receptor (opcional)</label>
+        <div class="eem-firma-wrap" [class.eem-firma-wrap--vacia]="!hayFirma" [class.eem-firma-wrap--llena]="hayFirma">
+          <canvas #firmaCanvas width="640" height="150" class="eem-firma-canvas"></canvas>
+          @if (!hayFirma) {
+            <div class="eem-firma-placeholder">
+              <span class="eem-firma-icon">✎</span>
+              <span class="eem-firma-txt">Pendiente de firma</span>
+              <span class="eem-firma-sub">El técnico firma aquí para confirmar la recepción</span>
+            </div>
+          } @else {
+            <span class="eem-firma-badge">✓ Firmada</span>
+          }
+        </div>
+        <div class="eem-firma-actions">
+          <button type="button" class="eem-firma-limpiar" (click)="limpiarFirma()">Limpiar</button>
+        </div>
+      </div>
+
+      <div class="eem-field">
+        <label class="eem-label">Observaciones (opcional)</label>
+        <textarea class="eem-input" rows="2" [(ngModel)]="observacion" placeholder="Ej: Reposición por desgaste"></textarea>
+      </div>
+
+      <!-- Resumen final -->
+      <div class="eem-resumen">
+        <div class="eem-resumen-item">
+          <span class="eem-resumen-lbl">Técnico</span>
+          <span class="eem-resumen-val">{{ tecnicoSeleccionado?.nombre || '—' }}</span>
+        </div>
+        <div class="eem-resumen-item">
+          <span class="eem-resumen-lbl">Ítems</span>
+          <span class="eem-resumen-val" [title]="resumenItemsTexto">{{ totalItems }} unidad{{ totalItems !== 1 ? 'es' : '' }}</span>
+        </div>
+        <div class="eem-resumen-item">
+          <span class="eem-resumen-lbl">Firma</span>
+          <span class="eem-resumen-val" [class.eem-resumen-val--ok]="hayFirma">{{ hayFirma ? '✓ Capturada' : 'Sin firma' }}</span>
+        </div>
+      </div>
+    }
 
   </div>
 
   <footer class="eem-footer">
     <button class="eem-btn-cancel" (click)="cerrar.emit()">Cancelar</button>
-    <button class="eem-btn-save" (click)="onGuardar()" [disabled]="guardando">
-      @if (guardando) { <app-spinner [size]="15" theme="light"></app-spinner> }
-      Registrar entrega
-    </button>
+    <div class="eem-footer-nav">
+      @if (paso > 1) {
+        <button class="eem-btn-atras" (click)="atras()">Atrás</button>
+      }
+      @if (paso < 3) {
+        <button class="eem-btn-siguiente"
+                [disabled]="(paso === 1 && !puedeAvanzarPaso1) || (paso === 2 && !puedeAvanzarPaso2)"
+                (click)="siguiente()">
+          Siguiente
+        </button>
+      } @else {
+        <button class="eem-btn-save" (click)="onGuardar()" [disabled]="guardando">
+          @if (guardando) { <app-spinner [size]="15" theme="light"></app-spinner> }
+          Registrar entrega
+        </button>
+      }
+    </div>
   </footer>
 
 </app-modal>

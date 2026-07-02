@@ -7,9 +7,10 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { EppFormModalComponent } from '../epp-form-modal/epp-form-modal.component';
 import { EppEntregaModalComponent } from '../epp-entrega-modal/epp-entrega-modal.component';
-import { Epp, EppIn, EppEntrega } from '../../logistica.models';
+import { Epp, EppIn, EppEntrega, CatalogoItem } from '../../logistica.models';
 
 type SubTabEpp = 'catalogo' | 'entregas';
+type VistaCatalogo = 'grid' | 'tabla';
 
 @Component({
   selector: 'app-epp-tabla',
@@ -23,11 +24,14 @@ export class EppTablaComponent implements OnInit {
   private toast = inject(ToastService);
 
   subTab: SubTabEpp = 'catalogo';
+  vistaCatalogo: VistaCatalogo = 'tabla';
 
   cargandoCatalogo = true;
   epps: Epp[] = [];
   busquedaCatalogo = '';
   soloStockBajo = false;
+  marcas: CatalogoItem[] = [];
+  private marcaPorId = new Map<string, string>();
 
   cargandoEntregas = true;
   entregas: EppEntrega[] = [];
@@ -44,11 +48,35 @@ export class EppTablaComponent implements OnInit {
   ngOnInit(): void {
     this.cargarCatalogo();
     this.cargarEntregas();
+    this.svc.getMarcas().subscribe({
+      next: r => { this.marcas = r; this.marcaPorId = new Map(r.map(m => [m.id, m.nombre])); },
+      error: () => {},
+    });
   }
 
   setSubTab(t: SubTabEpp): void {
     this.subTab = t;
     if (t === 'entregas' && this.entregas.length === 0) this.cargarEntregas();
+  }
+
+  setVistaCatalogo(v: VistaCatalogo): void { this.vistaCatalogo = v; }
+
+  marcaNombre(e: Epp): string {
+    return (e.marca_id && this.marcaPorId.get(e.marca_id)) || '—';
+  }
+
+  bajoMinimo(e: Epp): boolean { return e.stock_actual <= e.stock_min; }
+
+  /** Ancho de la barra de stock: proporción respecto al mínimo, capado a 100%.
+   * El color (verde/rojo) es lo que comunica salud del stock, no el relleno. */
+  barraStockPct(e: Epp): number {
+    if (e.stock_min > 0) return Math.min(100, Math.round((e.stock_actual / e.stock_min) * 100));
+    return e.stock_actual > 0 ? 100 : 0;
+  }
+
+  inicialesEmpleado(nombre: string | null): string {
+    if (!nombre) return '—';
+    return nombre.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
   }
 
   cargarCatalogo(): void {
@@ -147,11 +175,5 @@ export class EppTablaComponent implements OnInit {
   fechaCorta(iso: string | null): string {
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
-  }
-
-  resumenItems(items: { nombre: string }[]): string {
-    if (!items.length) return '—';
-    const primeros = items.slice(0, 2).map(i => i.nombre).join(', ');
-    return items.length > 2 ? `${primeros} +${items.length - 2} más` : primeros;
   }
 }

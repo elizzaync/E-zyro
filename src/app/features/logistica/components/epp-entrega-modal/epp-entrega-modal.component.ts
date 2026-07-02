@@ -51,6 +51,10 @@ export class EppEntregaModalComponent implements OnInit, AfterViewInit {
 
   guardando = false;
 
+  /** Wizard de 3 pasos: Técnico → Ítems → Firma (espejo del flujo de entrega
+   * en papel: primero quién recibe, luego qué recibe, luego su conformidad). */
+  paso: 1 | 2 | 3 = 1;
+
   ngOnInit(): void {
     document.body.style.overflow = 'hidden';
     this.operaciones.getPersonalTecnicos().subscribe({
@@ -66,7 +70,47 @@ export class EppEntregaModalComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this._initCanvas();
+    // El canvas del paso 3 no existe en el DOM hasta llegar a ese paso.
+    if (this.paso === 3) this._initCanvas();
+  }
+
+  get tecnicoSeleccionado(): TecnicoOpt | undefined {
+    return this.tecnicos.find(t => t.id === this.empleadoId);
+  }
+
+  iniciales(nombre: string): string {
+    return nombre.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
+  }
+
+  get totalItems(): number {
+    return this.seleccionados.reduce((sum, it) => sum + it.cantidad, 0);
+  }
+
+  get resumenItemsTexto(): string {
+    if (!this.seleccionados.length) return '—';
+    return this.seleccionados.map(it => `${it.nombre} ×${it.cantidad}`).join(', ');
+  }
+
+  get puedeAvanzarPaso1(): boolean { return !!this.empleadoId; }
+  get puedeAvanzarPaso2(): boolean { return this.seleccionados.length > 0; }
+
+  irPaso(n: 1 | 2 | 3): void {
+    // Solo se puede saltar a un paso ya alcanzable (no te deja "adelantarte"
+    // saltándote la validación de un paso anterior sin completar).
+    if (n === 2 && !this.puedeAvanzarPaso1) return;
+    if (n === 3 && !this.puedeAvanzarPaso2) return;
+    this.paso = n;
+    if (n === 3) setTimeout(() => this._initCanvas());
+  }
+
+  siguiente(): void {
+    if (this.paso === 1 && this.puedeAvanzarPaso1) this.irPaso(2);
+    else if (this.paso === 2 && this.puedeAvanzarPaso2) this.irPaso(3);
+  }
+
+  atras(): void {
+    if (this.paso === 2) this.paso = 1;
+    else if (this.paso === 3) this.paso = 2;
   }
 
   get eppsFiltrados(): Epp[] {
@@ -87,6 +131,9 @@ export class EppEntregaModalComponent implements OnInit, AfterViewInit {
   quitarItem(it: ItemSeleccionado): void {
     this.seleccionados = this.seleccionados.filter(s => s.eppId !== it.eppId);
   }
+
+  incrementar(it: ItemSeleccionado): void { this.ajustarCantidad(it, it.cantidad + 1); }
+  decrementar(it: ItemSeleccionado): void { this.ajustarCantidad(it, it.cantidad - 1); }
 
   ajustarCantidad(it: ItemSeleccionado, valor: number): void {
     let n = Math.floor(valor);
