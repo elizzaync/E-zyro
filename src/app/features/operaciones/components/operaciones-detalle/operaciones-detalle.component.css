@@ -956,8 +956,11 @@
 .ret-legend { font-size: .78rem; color: var(--text-muted,#64748b); }
 .ret-legend-oblig { color: #ef4444; }
 .ret-legend-opt   { color: #91d337; }
+.ret-top-actions-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ret-confirm-oblig-btn { padding: .32rem .8rem; border-radius: 7px; border: 1px solid rgba(239,68,68,.3); background: rgba(239,68,68,.07); color: #dc2626; font-size: .78rem; font-weight: 600; cursor: pointer; }
 .ret-confirm-oblig-btn:hover { background: rgba(239,68,68,.14); }
+.ret-nada-retorna-btn { padding: .32rem .8rem; border-radius: 7px; border: 1px solid rgba(100,116,139,.3); background: rgba(100,116,139,.07); color: var(--text-muted,#64748b); font-size: .78rem; font-weight: 600; cursor: pointer; }
+.ret-nada-retorna-btn:hover { background: rgba(100,116,139,.14); }
 
 .ret-decl-list { display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow-y: auto; }
 .ret-decl-item {

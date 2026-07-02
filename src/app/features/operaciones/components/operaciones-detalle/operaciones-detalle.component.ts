@@ -1677,6 +1677,14 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
     });
   }
 
+  /** Un clic: declara que nada retorna (todo fue consumible). Si hay ítems
+   * obligatorios (equipos/herramientas), la validación en enviarRetorno()
+   * sigue exigiendo que se complete su devolución — este botón solo agiliza
+   * el caso común de servicios sin equipos/herramientas pendientes. */
+  retornoNadaVuelve(): void {
+    this.retornoItems.forEach(it => { it.cantidadRetornada = 0; });
+  }
+
   enviarRetorno(): void {
     if (!this.retornoServicioId || this.enviandoRetorno) return;
 

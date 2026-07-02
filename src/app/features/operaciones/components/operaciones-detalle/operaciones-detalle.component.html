@@ -1696,9 +1696,14 @@
           <span class="ret-legend-oblig">■</span> Obligatorio devolver &nbsp;
           <span class="ret-legend-opt">■</span> Opcional
         </span>
-        <button class="ret-confirm-oblig-btn" type="button" (click)="retornoTodosObligatorios()">
-          Completar obligatorios
-        </button>
+        <div class="ret-top-actions-btns">
+          <button class="ret-nada-retorna-btn" type="button" (click)="retornoNadaVuelve()">
+            Nada retorna (todo consumible)
+          </button>
+          <button class="ret-confirm-oblig-btn" type="button" (click)="retornoTodosObligatorios()">
+            Completar obligatorios
+          </button>
+        </div>
       </div>
 
       <div class="ret-decl-list">
