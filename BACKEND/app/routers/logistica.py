@@ -4672,7 +4672,6 @@ def crear_retorno(
     db:      Session = Depends(get_db),
 ):
     """Técnico declara ítems a devolver. Crea retorno en estado='enviado'."""
-    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -4767,8 +4766,10 @@ def items_pendientes_retorno_servicio(
     aprobados/entregados de sus requerimientos), ANTES de crear el Retorno.
     Usado por los clientes (web/móvil) para armar el formulario de
     declaración sin tener que reconstruir la agregación ellos mismos.
+    Técnico/Jefe de Operaciones SÍ tienen acceso (son quienes declaran la
+    devolución) — a diferencia de listar/inspeccionar/completar retornos,
+    que siguen siendo exclusivos de Logística.
     """
-    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
 
     ps = db.query(ProyectoServicio).filter(
@@ -4835,7 +4836,6 @@ def crear_retorno_desde_servicio(
     del servicio en un único retorno. Un servicio solo puede tener
     un retorno activo (409 si ya existe).
     """
-    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     usuario_id = payload["id"]
 
@@ -4942,7 +4942,6 @@ def check_retorno_servicio(
     El frontend lo usa al cargar un servicio Completado para decidir
     si debe forzar el modal de devolución.
     """
-    _bloquear_seccion_logistica(payload, "Retornos")
     empresa_id = payload["empresa_id"]
     retorno = db.query(Retorno).filter(
         Retorno.proyecto_servicio_id == servicio_id,
