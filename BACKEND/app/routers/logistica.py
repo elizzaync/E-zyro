@@ -1438,22 +1438,30 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
 
     solicitante_nombre, solicitante_foto = _nombre_empleado(db, req.solicitante_id)
 
-    # Ítems
+    # Ítems — outerjoin a Material Y a Equipo: un requerimiento_detalle puede
+    # traer material_id (consumibles) o equipo_id (herramientas/equipos de
+    # inventario propio, serializados o no).
     detalles = (
-        db.query(RequerimientoDetalle, Material.nombre, Material.unidad)
+        db.query(RequerimientoDetalle, Material.nombre, Material.unidad, Equipo.nombre, Equipo.cantidad, Equipo.cantidad_inoperativa)
         .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
+        .outerjoin(Equipo, Equipo.id == RequerimientoDetalle.equipo_id)
         .filter(RequerimientoDetalle.requerimiento_id == req.id)
         .all()
     )
     items: list[RequerimientoItemOut] = []
-    for d, mat_nombre, mat_unidad in detalles:
-        es_externa = d.material_id is None
-        stock = 0 if es_externa else _stock_de_material(db, d.material_id, empresa_id)
+    for d, mat_nombre, mat_unidad, equipo_nombre, equipo_cant, equipo_cant_inop in detalles:
+        es_externa = d.material_id is None and d.equipo_id is None
+        if d.material_id:
+            stock = _stock_de_material(db, d.material_id, empresa_id)
+        elif d.equipo_id:
+            stock = max(int(equipo_cant or 0) - int(equipo_cant_inop or 0), 0)
+        else:
+            stock = 0
         items.append(RequerimientoItemOut(
             id=str(d.id),
             materialId=str(d.material_id) if d.material_id else None,
-            nombre=mat_nombre or d.nombre_libre or "—",
-            unidad=mat_unidad or d.unidad_libre or "",
+            nombre=mat_nombre or equipo_nombre or d.nombre_libre or "—",
+            unidad=mat_unidad or d.unidad_libre or ("UND" if equipo_nombre else ""),
             cantidad=int(d.cantidad or 0),
             cantidadAprobada=d.cantidad_aprobada,
             stockDisponible=stock,
