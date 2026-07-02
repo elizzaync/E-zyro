@@ -919,7 +919,7 @@ def get_detalle_servicio(
                 cantidad=rd.cantidad or 0,
                 estado_req=m.req_estado or "pendiente",
                 tipo=tipo_item,
-                equipo_id=m.equipo_id,
+                equipo_id=str(m.equipo_id) if m.equipo_id else None,
                 numero_serie=m.equipo_serie,
             )
             if m.req_estado in ("entregado", "aprobado"):
