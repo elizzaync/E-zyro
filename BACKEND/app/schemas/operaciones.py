@@ -53,6 +53,8 @@ class ItemMaterialOut(BaseModel):
     cantidad: int
     estado_req: str
     tipo: str = "material"   # material | herramienta
+    equipo_id: Optional[str] = None
+    numero_serie: Optional[str] = None
 
 
 class ServicioDetalleOut(BaseModel):

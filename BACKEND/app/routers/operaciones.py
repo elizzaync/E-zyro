@@ -860,8 +860,9 @@ def get_detalle_servicio(
     completos = sum(1 for (e,) in _tareas_avance if e == "completado")
     progreso  = round(completos / total * 100, 1) if total else 0.0
 
-    # 5. Materiales — solo con acceso completo (excluye borradores; soporta
-    # compras externas con material_id=NULL). Depende de Requerimientos, cuyos
+    # 5. Materiales/Herramientas/Equipos — solo con acceso completo (excluye
+    # borradores; soporta compras externas con material_id=NULL y salidas de
+    # equipo/herramienta con equipo_id). Depende de Requerimientos, cuyos
     # endpoints de Logística bloquean a Técnico/Jefe de Operaciones sin
     # designación — por eso se omite por completo en la vista básica.
     mat_asignados: list[ItemMaterialOut]   = []
@@ -875,6 +876,7 @@ def get_detalle_servicio(
                 Requerimiento.estado.label("req_estado"),
                 func.coalesce(
                     Material.nombre,
+                    Equipo.nombre,
                     RequerimientoDetalle.nombre_libre,
                 ).label("mat_nombre"),
                 func.coalesce(
@@ -882,13 +884,16 @@ def get_detalle_servicio(
                     RequerimientoDetalle.unidad_libre,
                 ).label("mat_unidad"),
                 Material.tipo.label("mat_tipo"),
+                Equipo.id.label("equipo_id"),
+                Equipo.numero_serie.label("equipo_serie"),
             )
             .join(Requerimiento, Requerimiento.id == RequerimientoDetalle.requerimiento_id)
             .outerjoin(Material, Material.id      == RequerimientoDetalle.material_id)
+            .outerjoin(Equipo, Equipo.id          == RequerimientoDetalle.equipo_id)
             .filter(
                 Requerimiento.proyecto_servicio_id == servicio_id,
                 Requerimiento.empresa_id           == empresa_id,
-                Requerimiento.tipo                 == "material",
+                Requerimiento.tipo.in_(["material", "herramienta", "equipo_especial"]),
                 Requerimiento.estado               != "borrador",
             )
             .order_by(Requerimiento.created_at.asc())
@@ -898,10 +903,14 @@ def get_detalle_servicio(
         for m in mat_rows:
             rd = m.RequerimientoDetalle
             # Clasificación: campo explícito de la línea; si falta, derivar del
-            # catálogo (material.tipo); por defecto 'material'.
+            # catálogo (material.tipo) o de si es un equipo/herramienta de
+            # inventario propio (equipo_id); por defecto 'material'.
             tipo_item = (getattr(rd, "tipo_item_compra", None) or "").lower()
             if tipo_item not in ("material", "herramienta"):
-                tipo_item = "herramienta" if (m.mat_tipo == "herramienta") else "material"
+                if m.mat_tipo == "herramienta" or m.equipo_id:
+                    tipo_item = "herramienta"
+                else:
+                    tipo_item = "material"
             item = ItemMaterialOut(
                 id=str(rd.id),
                 requerimiento_id=str(m.req_id),
@@ -910,6 +919,8 @@ def get_detalle_servicio(
                 cantidad=rd.cantidad or 0,
                 estado_req=m.req_estado or "pendiente",
                 tipo=tipo_item,
+                equipo_id=m.equipo_id,
+                numero_serie=m.equipo_serie,
             )
             if m.req_estado in ("entregado", "aprobado"):
                 mat_asignados.append(item)
