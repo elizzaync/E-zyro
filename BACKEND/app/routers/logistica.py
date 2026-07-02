@@ -78,6 +78,7 @@ from ..schemas.logistica import (
     SalidaItemOut, SalidaOut, SalidasListResponse, SalidasKpis,
     IngresoItemOut, IngresoOut, IngresosListResponse,
     RetornoDetalleOut, RetornoOut, RetornosListResponse,
+    RetornoItemPendienteOut, RetornoItemsPendientesOut,
     CrearRetornoBody, CrearRetornoServicioBody, InspectionarRetornoBody,
     CrearIncidenciaBody, ResolverIncidenciaBody,
     IncidenciaOut, IncidenciasListResponse, EquipoStockDesglose,
@@ -4753,6 +4754,73 @@ def crear_retorno(
     db.commit()
     db.refresh(retorno)
     return _retorno_out(db, retorno)
+
+
+@router.get("/retornos/servicio/{servicio_id}/items-pendientes", response_model=RetornoItemsPendientesOut)
+def items_pendientes_retorno_servicio(
+    servicio_id: str,
+    payload:     dict    = Depends(verificar_token),
+    db:          Session = Depends(get_db),
+):
+    """
+    Lista los ítems candidatos a devolución de un servicio (todos los
+    aprobados/entregados de sus requerimientos), ANTES de crear el Retorno.
+    Usado por los clientes (web/móvil) para armar el formulario de
+    declaración sin tener que reconstruir la agregación ellos mismos.
+    """
+    _bloquear_seccion_logistica(payload, "Retornos")
+    empresa_id = payload["empresa_id"]
+
+    ps = db.query(ProyectoServicio).filter(
+        ProyectoServicio.id == servicio_id,
+        ProyectoServicio.empresa_id == empresa_id,
+    ).first()
+    if not ps:
+        raise HTTPException(status_code=404, detail="Servicio no encontrado")
+
+    reqs_ids = [
+        str(r.id) for r in db.query(Requerimiento).filter(
+            Requerimiento.proyecto_servicio_id == ps.id,
+            Requerimiento.empresa_id           == empresa_id,
+            Requerimiento.estado.in_(["aprobado", "entregado", "listo"]),
+        ).all()
+    ]
+    detalles = (
+        db.query(RequerimientoDetalle)
+        .filter(
+            RequerimientoDetalle.requerimiento_id.in_(reqs_ids),
+            RequerimientoDetalle.estado_item == "aprobado",
+        )
+        .all()
+    ) if reqs_ids else []
+
+    items: list[RetornoItemPendienteOut] = []
+    for d in detalles:
+        explicit = (getattr(d, "tipo_item_compra", None) or "").lower()
+        nombre   = d.nombre_libre or ""
+        unidad   = d.unidad_libre or "Unidades"
+        mat      = None
+        if d.material_id:
+            mat = db.query(Material).filter(Material.id == d.material_id).first()
+            if mat:
+                nombre = mat.nombre
+                unidad = mat.unidad or unidad
+        if explicit in ("material", "herramienta", "equipo"):
+            tipo = explicit
+        elif mat is not None:
+            tipo = "herramienta" if mat.tipo == "herramienta" else "material"
+        else:
+            tipo = "material"
+        items.append(RetornoItemPendienteOut(
+            detalleId=str(d.id),
+            nombre=nombre or "Ítem",
+            unidad=unidad,
+            tipoItem=tipo,
+            cantidadEntregada=int(d.cantidad_aprobada or d.cantidad or 0),
+            esObligatorio=(tipo in ("equipo", "herramienta")),
+        ))
+
+    return RetornoItemsPendientesOut(items=items)
 
 
 @router.post("/retornos/desde-servicio", response_model=RetornoOut, status_code=201)

@@ -653,6 +653,21 @@ class CrearRetornoServicioBody(BaseModel):
     notaTecnico:        Optional[str] = None
 
 
+class RetornoItemPendienteOut(BaseModel):
+    """Ítem candidato a devolución, ANTES de crear el Retorno — usado por el
+    cliente (web/móvil) para armar el formulario de declaración."""
+    detalleId:         str
+    nombre:             str
+    unidad:             str
+    tipoItem:           str
+    cantidadEntregada:  int
+    esObligatorio:      bool
+
+
+class RetornoItemsPendientesOut(BaseModel):
+    items: List[RetornoItemPendienteOut]
+
+
 class InspeccionItemIn(BaseModel):
     detalleId:          str
     cantidadConfirmada: int
