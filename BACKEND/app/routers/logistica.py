@@ -1455,14 +1455,15 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
     # traer material_id (consumibles) o equipo_id (herramientas/equipos de
     # inventario propio, serializados o no).
     detalles = (
-        db.query(RequerimientoDetalle, Material.nombre, Material.unidad, Equipo.nombre, Equipo.cantidad, Equipo.cantidad_inoperativa)
+        db.query(RequerimientoDetalle, Material.nombre, Material.unidad, Material.tipo,
+                 Equipo.nombre, Equipo.cantidad, Equipo.cantidad_inoperativa)
         .outerjoin(Material, Material.id == RequerimientoDetalle.material_id)
         .outerjoin(Equipo, Equipo.id == RequerimientoDetalle.equipo_id)
         .filter(RequerimientoDetalle.requerimiento_id == req.id)
         .all()
     )
     items: list[RequerimientoItemOut] = []
-    for d, mat_nombre, mat_unidad, equipo_nombre, equipo_cant, equipo_cant_inop in detalles:
+    for d, mat_nombre, mat_unidad, mat_tipo, equipo_nombre, equipo_cant, equipo_cant_inop in detalles:
         es_externa = d.material_id is None and d.equipo_id is None
         if d.material_id:
             stock = _stock_de_material(db, d.material_id, empresa_id)
@@ -1470,9 +1471,24 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
             stock = max(int(equipo_cant or 0) - int(equipo_cant_inop or 0), 0)
         else:
             stock = 0
+        # Clasificación: valor explícito de la línea tiene prioridad; si no,
+        # se deriva del catálogo (equipo_id -> herramienta, material.tipo);
+        # por defecto 'material'. Es la MISMA regla que crear_retorno_desde_servicio
+        # e items_pendientes_retorno_servicio — el frontend usa este campo para
+        # marcar ítems "Obligatorio" (equipo/herramienta) en el modal de retorno.
+        explicit = (getattr(d, "tipo_item_compra", None) or "").lower()
+        if explicit in ("material", "herramienta", "equipo"):
+            tipo = explicit
+        elif d.equipo_id:
+            tipo = "herramienta"
+        elif mat_tipo == "herramienta":
+            tipo = "herramienta"
+        else:
+            tipo = "material"
         items.append(RequerimientoItemOut(
             id=str(d.id),
             materialId=str(d.material_id) if d.material_id else None,
+            equipoId=str(d.equipo_id) if d.equipo_id else None,
             nombre=mat_nombre or equipo_nombre or d.nombre_libre or "—",
             unidad=mat_unidad or d.unidad_libre or ("UND" if equipo_nombre else ""),
             cantidad=int(d.cantidad or 0),
@@ -1483,6 +1499,7 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
             especificacion=d.especificacion,
             estadoItem=d.estado_item or "pendiente",
             agregadoPor=None,
+            tipo=tipo,
         ))
 
     # Entrega
