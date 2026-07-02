@@ -393,6 +393,12 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                       _tituloSeccion('HISTORIAL DE MANTENIMIENTOS'),
                       const SizedBox(height: 8),
                       _historialCard(isDark, surface),
+                      if (_equipo.procedimientos.isNotEmpty) ...[
+                        const SizedBox(height: 18),
+                        _tituloSeccion('PROCEDIMIENTOS DEL SERVICIO'),
+                        const SizedBox(height: 8),
+                        _procedimientosCard(isDark, surface),
+                      ],
                       const SizedBox(height: 18),
                       _tituloSeccion('FICHA TÉCNICA'),
                       const SizedBox(height: 8),
@@ -888,6 +894,97 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                           ],
                         ],
                       ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Color _colorEstadoProc(String estado) => switch (estado) {
+        'completado'  => _green,
+        'en_progreso' => Colors.orange.shade700,
+        _             => Colors.grey,
+      };
+
+  String _labelEstadoProc(String estado) => switch (estado) {
+        'completado'  => 'Completado',
+        'en_progreso' => 'En progreso',
+        _             => 'Pendiente',
+      };
+
+  /// Pasos fijos (avance/informe) del servicio al que está vinculado este
+  /// equipo — designados por tipo de servicio en Procedimientos Estándar.
+  /// Solo lectura: la captura de evidencia sigue viviendo en el detalle de
+  /// servicio (pantalla_detalle_servicio.dart).
+  Widget _procedimientosCard(bool isDark, Color surface) {
+    final pasos = _equipo.procedimientos;
+    return _card(
+      isDark, surface,
+      child: Column(
+        children: [
+          for (int i = 0; i < pasos.length; i++)
+            Padding(
+              padding: EdgeInsets.only(bottom: i < pasos.length - 1 ? 14 : 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 26, height: 26,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _colorEstadoProc(pasos[i].estado).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: pasos[i].estado == 'completado'
+                        ? Icon(Icons.check_rounded, size: 15, color: _colorEstadoProc(pasos[i].estado))
+                        : Text('${pasos[i].orden}',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                                color: _colorEstadoProc(pasos[i].estado))),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(pasos[i].nombre,
+                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
+                        if (pasos[i].descripcion.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(pasos[i].descripcion,
+                              style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _colorEstadoProc(pasos[i].estado).withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(_labelEstadoProc(pasos[i].estado),
+                                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700,
+                                      color: _colorEstadoProc(pasos[i].estado))),
+                            ),
+                            if (pasos[i].evidencias.isNotEmpty)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.photo_camera_outlined, size: 13, color: Colors.grey),
+                                  const SizedBox(width: 3),
+                                  Text('${pasos[i].evidencias.length}',
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],

@@ -1,3 +1,5 @@
+import 'proyecto_models.dart' show ProcedimientoDetalle;
+
 /// DTOs de Equipos Intervenidos — equipos del cliente mantenidos por E-System.
 class EquipoIntervenido {
   final String id;
@@ -31,6 +33,8 @@ class EquipoIntervenido {
   final String? zonaNombre;
   final String? areaNombre;
   final String? tipoEquipoNombre;
+  // Procedimientos designados del servicio vinculado (solo viene en el detalle).
+  final List<ProcedimientoDetalle> procedimientos;
 
   const EquipoIntervenido({
     required this.id,
@@ -62,6 +66,7 @@ class EquipoIntervenido {
     this.zonaNombre,
     this.areaNombre,
     this.tipoEquipoNombre,
+    this.procedimientos = const [],
   });
 
   factory EquipoIntervenido.fromJson(Map<String, dynamic> j) => EquipoIntervenido(
@@ -96,6 +101,9 @@ class EquipoIntervenido {
         zonaNombre: j['zona_nombre']?.toString(),
         areaNombre: j['area_nombre']?.toString(),
         tipoEquipoNombre: j['tipo_equipo_nombre']?.toString(),
+        procedimientos: (j['procedimientos'] as List? ?? [])
+            .map((p) => ProcedimientoDetalle.fromJson(p as Map<String, dynamic>))
+            .toList(),
       );
 
   /// Cadena de ubicación: "Talma › Ayacucho › Almacén A › Área Logística".

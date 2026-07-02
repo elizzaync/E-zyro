@@ -30,6 +30,7 @@ import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
 import 'pantalla_documentos_sst.dart';
 import 'pantalla_privilegios.dart';
+import 'logistica/almacen/pantalla_requerimientos_logistica.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -59,6 +60,9 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _canEquipoIntervenido = false;
   bool _canFinanzas = false;
   bool _canDocumentosSst = false;
+  // Vista acotada de Requerimientos para Técnico/Jefe de Operaciones (sin el
+  // panel completo de Logística, que sigue exclusivo de Logística/Admin).
+  bool _canVerRequerimientos = false;
 
   @override
   void initState() {
@@ -102,6 +106,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _canEquipoIntervenido = AppSession.i.canVerEquipoIntervenido;
         _canFinanzas = AppSession.i.canVerFinanzas;
         _canDocumentosSst = AppSession.i.canVerDocumentosSst;
+        _canVerRequerimientos = AppSession.i.canVerRequerimientosAcotado;
       });
     }
   }
@@ -329,13 +334,21 @@ class _MoreScreenState extends State<MoreScreen> {
 
             // ── 4. Módulos operativos (plan migración ERP) ─────────────
             // Cada módulo se muestra solo si el rol tiene su permiso :ver (admin: todos).
-            if (_canFinanzas || _canEquipoIntervenido || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canDocumentosSst) ...[
+            if (_canFinanzas || _canEquipoIntervenido || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canDocumentosSst || _canVerRequerimientos) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Módulos operativos'),
               const SizedBox(height: 10),
               _buildMenuGroup(
                 surface: surface,
                 items: [
+                  if (_canVerRequerimientos)
+                    _MenuItem(
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Requerimientos',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(
+                            builder: (_) => const PantallaRequerimientosLogistica())),
+                    ),
                   if (_canFinanzas)
                     _MenuItem(
                       icon: Icons.account_balance_outlined,

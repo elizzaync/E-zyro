@@ -71,12 +71,19 @@ class AppSession {
   //  recibe por la matriz rol→permiso.)
   bool get canEnviarComunicado => hasPerm('comunicados:enviar');
   // Logística: admin (bypass) · rol Logístico · o cualquiera con permiso de inventario.
-  // El Jefe de Operaciones queda EXCLUIDO: el backend bloquea todas las secciones
-  // operativas de logística (Requerimientos/Compras/Salidas/Ingresos/...) para él,
-  // así que el panel le saldría vacío. Él solicita materiales desde el servicio.
+  // El Jefe de Operaciones queda EXCLUIDO del panel completo: aprobar/rechazar/
+  // entregar/Compras/Salidas/Ingresos siguen siendo exclusivos de Logística/Admin
+  // (backend: _autorizar_logistica). Para VER el estado de Requerimientos sin el
+  // panel completo, usar canVerRequerimientosAcotado.
   bool get canGestInventario   =>
       !_esJefeOp &&
       (isAdmin || _esLogistica || hasPerm('inventario:ver') || hasPerm('inventario:gestionar'));
+  // Vista acotada de Requerimientos (2026-07-02): Técnico/Jefe de Operaciones
+  // consultan el estado de sus propios pedidos (backend ya lo permite vía
+  // requerimientos:ver/solicitar) sin entrar al panel completo de Logística.
+  // Si ya tiene canGestInventario no hace falta (entra por el panel completo).
+  bool get canVerRequerimientosAcotado =>
+      !canGestInventario && (hasPerm('requerimientos:ver') || hasPerm('requerimientos:solicitar'));
   // Personal: visibilidad (ver) separada de gestión (crear/editar).
   bool get canVerPersonal      => isAdmin || hasPerm('empleados:ver');
   bool get canGestPersonal     => isAdmin || hasPerm('empleados:crear') || hasPerm('empleados:editar');

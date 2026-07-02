@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../models/proyecto_models.dart';
 import '../services/proyecto_service.dart';
@@ -552,10 +551,26 @@ class _EditorPlantilla extends StatefulWidget {
   State<_EditorPlantilla> createState() => _EditorPlantillaState();
 }
 
+/// Controllers de un paso editable (nombre + descripción). El orden lo da
+/// la posición en la lista, no un campo propio.
+class _PasoCtrl {
+  final TextEditingController nombre;
+  final TextEditingController descripcion;
+
+  _PasoCtrl({String nombre = '', String descripcion = ''})
+      : nombre = TextEditingController(text: nombre),
+        descripcion = TextEditingController(text: descripcion);
+
+  void dispose() {
+    nombre.dispose();
+    descripcion.dispose();
+  }
+}
+
 class _EditorPlantillaState extends State<_EditorPlantilla> {
   late final TextEditingController _tipoTrabajoLegacy;
   late final TextEditingController _nombre;
-  late final TextEditingController _json;
+  final List<_PasoCtrl> _pasos = [];
   bool _activo = true;
   bool _guardando = false;
   String? _error;
@@ -573,23 +588,46 @@ class _EditorPlantillaState extends State<_EditorPlantilla> {
         text: p?['nombre'] as String? ?? widget.catalogo?.nombre ?? '');
     _activo = p?['activo'] as bool? ?? true;
     final procesos = (p?['procesos'] as List? ?? []);
-    _json = TextEditingController(
-      text: const JsonEncoder.withIndent('  ').convert(
-        procesos.isEmpty
-            ? [
-                {'orden': 1, 'nombre': '', 'descripcion': ''}
-              ]
-            : procesos,
-      ),
-    );
+    if (procesos.isEmpty) {
+      _pasos.add(_PasoCtrl());
+    } else {
+      for (final item in procesos) {
+        final m = item as Map;
+        _pasos.add(_PasoCtrl(
+          nombre: m['nombre'] as String? ?? '',
+          descripcion: m['descripcion'] as String? ?? '',
+        ));
+      }
+    }
   }
 
   @override
   void dispose() {
     _tipoTrabajoLegacy.dispose();
     _nombre.dispose();
-    _json.dispose();
+    for (final p in _pasos) {
+      p.dispose();
+    }
     super.dispose();
+  }
+
+  void _agregarPaso() => setState(() => _pasos.add(_PasoCtrl()));
+
+  void _eliminarPaso(int i) {
+    setState(() {
+      _pasos[i].dispose();
+      _pasos.removeAt(i);
+    });
+  }
+
+  void _moverPaso(int i, int dir) {
+    final j = i + dir;
+    if (j < 0 || j >= _pasos.length) return;
+    setState(() {
+      final tmp = _pasos[i];
+      _pasos[i] = _pasos[j];
+      _pasos[j] = tmp;
+    });
   }
 
   Future<void> _guardar() async {
@@ -604,33 +642,20 @@ class _EditorPlantillaState extends State<_EditorPlantilla> {
       return;
     }
 
-    // Validar y normalizar el JSON de procesos.
-    List<Map<String, dynamic>> procesos;
-    try {
-      final parsed = jsonDecode(_json.text);
-      if (parsed is! List) {
-        setState(() => _error = 'El JSON debe ser una lista de procesos.');
-        return;
-      }
-      procesos = [];
-      var i = 1;
-      for (final e in parsed) {
-        if (e is! Map) continue;
-        final nom = (e['nombre'] as String? ?? '').trim();
-        if (nom.isEmpty) continue;
-        procesos.add({
-          'orden': (e['orden'] as num?)?.toInt() ?? i,
-          'nombre': nom,
-          'descripcion': (e['descripcion'] as String? ?? '').trim(),
-        });
-        i++;
-      }
-    } catch (_) {
-      setState(() => _error = 'JSON inválido. Revisa el formato.');
-      return;
+    final procesos = <Map<String, dynamic>>[];
+    var i = 1;
+    for (final paso in _pasos) {
+      final nom = paso.nombre.text.trim();
+      if (nom.isEmpty) continue;
+      procesos.add({
+        'orden': i,
+        'nombre': nom,
+        'descripcion': paso.descripcion.text.trim(),
+      });
+      i++;
     }
     if (procesos.isEmpty) {
-      setState(() => _error = 'Añade al menos un proceso con nombre.');
+      setState(() => _error = 'Añade al menos un paso con nombre.');
       return;
     }
 
@@ -724,23 +749,111 @@ class _EditorPlantillaState extends State<_EditorPlantilla> {
               onChanged: (v) => setState(() => _activo = v),
             ),
             const SizedBox(height: 8),
-            const Text('Procesos (JSON)',
+            const Text('Pasos del procedimiento',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             const Text(
-              'Lista de objetos: {"orden", "nombre", "descripcion"}.',
+              'Un paso a la vez. Quedan en el orden mostrado; usa las flechas para reordenar.',
               style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _json,
-              maxLines: 14,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-              decoration: InputDecoration(
-                isDense: true,
-                alignLabelWithHint: true,
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            const SizedBox(height: 10),
+            for (int i = 0; i < _pasos.length; i++)
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _green.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text('${i + 1}',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: _green)),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Subir',
+                          icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                          onPressed: i == 0 ? null : () => _moverPaso(i, -1),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          tooltip: 'Bajar',
+                          icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                          onPressed: i == _pasos.length - 1
+                              ? null
+                              : () => _moverPaso(i, 1),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'Eliminar paso',
+                          icon: const Icon(Icons.delete_outline,
+                              size: 20, color: _danger),
+                          onPressed: _pasos.length == 1
+                              ? null
+                              : () => _eliminarPaso(i),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _pasos[i].nombre,
+                      decoration: InputDecoration(
+                        labelText: 'Nombre del paso',
+                        isDense: true,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _pasos[i].descripcion,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: 'Descripción (opcional)',
+                        isDense: true,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _agregarPaso,
+                icon: const Icon(Icons.add, color: _green),
+                label: const Text('Agregar paso',
+                    style:
+                        TextStyle(color: _green, fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: _green),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
               ),
             ),
             if (_error != null) ...[
