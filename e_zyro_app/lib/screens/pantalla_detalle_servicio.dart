@@ -27,6 +27,8 @@ import '../services/comunicado_service.dart';
 import '../services/chat_service.dart';
 import 'pantalla_informes_servicio.dart';
 import '../services/prestamo_service.dart';
+import '../services/retorno_service.dart';
+import '../models/retorno_models.dart';
 import '../widgets/firma_sheet.dart';
 import 'pantalla_prestamos_servicio.dart';
 import '../services/fcm_flutter_service.dart';
@@ -48,6 +50,7 @@ part 'detalle_servicio/materiales_recepcion.dart';
 part 'detalle_servicio/tab_notas.dart';
 part 'detalle_servicio/tab_comunicados.dart';
 part 'detalle_servicio/tab_equipos_intervenidos.dart';
+part 'detalle_servicio/retorno_sheet.dart';
 part 'detalle_servicio/shared.dart';
 
 const _green = Color(0xFF8FD11B);
@@ -304,6 +307,11 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   late TabController _tabController;
   DateTime? _lastDetailLoad;
 
+  // ── Declarar Devolución (al finalizar el servicio) ──────────────────────────
+  RetornoService? _retornoService;
+  bool _retornoPendiente = false;   // servicio Completado sin retorno registrado
+  bool _chequeandoRetorno = false;
+
   // ── Tiempo real: WS del servicio para borrador y recepción ─────────────────
   ChatService? _eventosWs;
   Timer? _eventDebounce;
@@ -315,6 +323,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     _checkRol();
     _load();
     _conectarEventos();
+    getRetornoService().then((s) { if (mounted) _retornoService = s; });
     pendientesEvidenciaNotifier.addListener(_onEvidenciaSync);
     syncCompletedNotifier.addListener(_onSyncCompleted);
   }
@@ -344,6 +353,18 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
   }
 
   void _onEventoServidor(String tipo) {
+    if (tipo == 'servicio_completado_retorno') {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('¡Servicio finalizado! Debes registrar la devolución de materiales.',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: const Color(0xFF3B82F6),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+      _reloadDetalle().then((_) => _verificarRetornoPendiente());
+      return;
+    }
     // Coalescer ráfagas de eventos en una sola recarga.
     _eventDebounce?.cancel();
     _eventDebounce = Timer(const Duration(milliseconds: 700), () {
@@ -400,6 +421,40 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
     // Refrescar el badge de acciones offline pendientes.
     pendientesAccionNotifier.value =
         await widget.service.contarAccionesPendientes();
+
+    if (detalle?.estado == 'Completado') {
+      // Da tiempo a que la pantalla termine de montarse antes de forzar el
+      // sheet (igual criterio que el modal web, que espera 800ms).
+      Future.delayed(const Duration(milliseconds: 600), _verificarRetornoPendiente);
+    }
+  }
+
+  /// Comprueba si el servicio (ya Completado) tiene un retorno registrado.
+  /// Si no lo tiene, abre el sheet de forma OBLIGATORIA (no se puede cerrar
+  /// sin declarar, igual que en la web).
+  Future<void> _verificarRetornoPendiente() async {
+    if (_chequeandoRetorno || !mounted) return;
+    final svc = _retornoService ?? await getRetornoService();
+    _retornoService = svc;
+    _chequeandoRetorno = true;
+    final check = await svc.checkRetornoServicio(widget.servicioId);
+    _chequeandoRetorno = false;
+    if (!mounted) return;
+
+    final tiene = check.data?.tieneRetorno ?? true; // si falla, no forzar
+    setState(() => _retornoPendiente = !tiene);
+    if (tiene) return;
+
+    final itemsRes = await svc.getItemsPendientes(widget.servicioId);
+    if (!mounted || itemsRes.data == null || itemsRes.data!.isEmpty) return;
+    final ok = await abrirDeclararRetornoSheet(
+      context,
+      servicioId: widget.servicioId,
+      items: itemsRes.data!,
+      service: svc,
+      obligatorio: true,
+    );
+    if (ok && mounted) setState(() => _retornoPendiente = false);
   }
 
   Future<void> _reloadDetalle() async {
