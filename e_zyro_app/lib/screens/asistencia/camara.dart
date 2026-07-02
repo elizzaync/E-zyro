@@ -33,11 +33,12 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
   }
 
   Future<void> _initCamera() async {
-    if (mounted)
+    if (mounted) {
       setState(() {
         _initError = null;
         _permDeniedForever = false;
       });
+    }
     final status = await Permission.camera.request();
     if (status.isPermanentlyDenied) {
       if (mounted) {
@@ -60,11 +61,12 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        if (mounted)
+        if (mounted) {
           setState(
             () => _initError =
                 'No se encontró ninguna cámara en este dispositivo.',
           );
+        }
         return;
       }
       final front = cameras.firstWhere(

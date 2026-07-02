@@ -149,11 +149,12 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     final prefs = await SharedPreferences.getInstance();
     final svc = await getAsistenciaService();
     _solSvc = await getSolicitudService();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _service = svc;
         _userName = prefs.getString('user_name') ?? 'Usuario';
       });
+    }
     await _cargarDatos(svc);
     await _cargarJustificaciones();
     await _refreshPendientes();
@@ -266,31 +267,34 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
       if (!enabled) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _fetchingLocation = false;
             _locationStatus = 'GPS desactivado';
           });
+        }
         return;
       }
       LocationPermission perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
         if (perm == LocationPermission.denied) {
-          if (mounted)
+          if (mounted) {
             setState(() {
               _fetchingLocation = false;
               _locationStatus = 'Permiso denegado';
             });
+          }
           return;
         }
       }
       if (perm == LocationPermission.deniedForever) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _fetchingLocation = false;
             _locationStatus = 'Permiso denegado permanentemente';
           });
+        }
         return;
       }
       // Mostrar última posición conocida de inmediato como fallback offline
@@ -426,8 +430,9 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
     if (_service == null ||
         _tipoRegistro == null ||
         !_tieneFotoBase ||
-        _cargandoInicial)
+        _cargandoInicial) {
       return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
