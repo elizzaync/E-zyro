@@ -311,6 +311,27 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
     if (mounted) await _cargar();
   }
 
+  // ── Procedimientos del equipo (detalle con evidencias + cámara) ────────────
+  Future<void> _verProcedimientos(EquipoIntervenidoServicio eq) async {
+    final svc = await getEquipoIntervenidoService();
+    final res = await svc.obtener(eq.id);
+    if (!mounted) return;
+    if (!res.ok || res.data == null) {
+      _snackTab(
+          res.errorMessage.isEmpty
+              ? 'No se pudo cargar el equipo.'
+              : res.errorMessage,
+          _danger);
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => DetalleEquipoIntervenido(equipo: res.data!)),
+    );
+    if (mounted) await _cargar();
+  }
+
   static String _estadoIntervencionLabel(String e) => switch (e) {
         'sin_inspeccion' => 'Sin inspección',
         'en_proceso' => 'En Proceso',
@@ -652,6 +673,23 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
                   const SizedBox(width: 6),
                   const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
                 ],
+              ),
+              const SizedBox(height: 2),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => _verProcedimientos(eq),
+                  icon: const Icon(Icons.photo_camera_outlined, size: 15),
+                  label: const Text('Procedimientos',
+                      style: TextStyle(
+                          fontSize: 11.5, fontWeight: FontWeight.w700)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: _green,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
               ),
             ],
           ),

@@ -39,6 +39,7 @@ import 'pantalla_chat.dart';
 import 'pantalla_asignacion_servicio.dart';
 import 'pantalla_crear_servicio.dart';
 import 'pantalla_intervencion_equipo.dart';
+import 'detalle_equipo_intervenido.dart';
 
 part 'detalle_servicio/tab_procedimientos.dart';
 part 'detalle_servicio/header.dart';

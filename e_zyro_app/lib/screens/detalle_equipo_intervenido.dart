@@ -396,7 +396,7 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                       _historialCard(isDark, surface),
                       if (_equipo.procedimientos.isNotEmpty) ...[
                         const SizedBox(height: 18),
-                        _tituloSeccion('PROCEDIMIENTOS DEL SERVICIO'),
+                        _tituloSeccion('PROCEDIMIENTOS DEL EQUIPO'),
                         const SizedBox(height: 8),
                         _procedimientosCard(isDark, surface),
                       ],
