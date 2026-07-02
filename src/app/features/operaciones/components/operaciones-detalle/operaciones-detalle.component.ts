@@ -1299,20 +1299,14 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
           etapa:         (e.etapa as 'antes' | 'durante' | 'despues') ?? 'antes'
         }))
       })),
-      itemsAsignados:   [
-        ...this._mapItems(raw.materiales_asignados, 'material'),
-        ...this._mapItems(raw.herramientas_asignadas, undefined),
-      ],
-      itemsSolicitados: [
-        ...this._mapItems(raw.materiales_solicitados, 'material'),
-        ...this._mapItems(raw.herramientas_solicitadas, undefined),
-      ],
+      itemsAsignados:   this._mapItems(raw.materiales_asignados),
+      itemsSolicitados: this._mapItems(raw.materiales_solicitados),
       zonaEjecucion:   raw.zona_ejecucion ?? null,
       esMantenimiento: raw.es_mantenimiento ?? false,
     };
   }
 
-  private _mapItems(list: any[], defaultClase?: 'material'): ItemMaterial[] {
+  private _mapItems(list: any[]): ItemMaterial[] {
     return (list ?? []).map((m: any) => ({
       id:              m.id,
       requerimientoId: m.requerimiento_id,
@@ -1320,7 +1314,7 @@ export class OperacionesDetalleComponent implements OnInit, OnDestroy, AfterView
       unidad:          m.unidad ?? 'Unidades',
       cantidad:        m.cantidad,
       estadoReq:       m.estado_req,
-      clase:           (m.clase ?? defaultClase ?? 'material') as 'material' | 'herramienta' | 'equipo',
+      clase:           (m.tipo ?? 'material') as 'material' | 'herramienta' | 'equipo',
       estadoEquipo:    m.estado_equipo ?? m.estado ?? undefined,
       equipoId:        m.equipo_id ?? null,
       numeroSerie:     m.numero_serie ?? null,
