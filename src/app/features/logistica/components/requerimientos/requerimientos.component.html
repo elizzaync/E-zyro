@@ -45,7 +45,12 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
-    <input type="text" [(ngModel)]="busqueda" placeholder="Buscar por proyecto, servicio, solicitante o material…">
+    <input type="text" [(ngModel)]="busqueda"
+           (keydown.enter)="tab === 'historial' ? buscarHistorial() : null"
+           placeholder="Buscar por proyecto, servicio, solicitante o material…">
+    @if (tab === 'historial') {
+      <button class="req-btn-buscar" (click)="buscarHistorial()">Buscar</button>
+    }
   </div>
 
   <!-- ═════════════════════ LISTADO ═════════════════════ -->
@@ -58,16 +63,76 @@
       </svg>
       <span>{{ tab === 'activos' ? 'No hay requerimientos activos.' : 'Sin historial.' }}</span>
     </div>
+  } @else if (tab === 'historial') {
+
+    <!-- Tabla de historial, paginada server-side -->
+    <div class="req-table-wrap">
+      <table class="req-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Proyecto</th>
+            <th>Servicio</th>
+            <th>Solicitante</th>
+            <th>Ítems</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of historial; track r.id) {
+            <tr>
+              <td>{{ fechaCortaReq(r.fechaEntrega ?? r.fecha) }}</td>
+              <td>{{ r.proyectoNombre }}</td>
+              <td>{{ r.servicioNombre || '—' }}</td>
+              <td>{{ r.solicitanteNombre }}</td>
+              <td>{{ r.items.length }}</td>
+              <td><span class="req-est-badge" [class]="estadoClase(r.estado)">{{ estadoLabel(r.estado) }}</span></td>
+              <td class="req-table-acciones">
+                <button class="req-tbl-btn" title="Ver detalle" (click)="verDetalleHistorial(r)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                @if (r.estado === 'entregado' || r.estado === 'aprobado') {
+                  <button class="req-tbl-btn" title="Firmas" (click)="verFirmas(r)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                  </button>
+                }
+                @if (r.estado === 'entregado') {
+                  <button class="req-tbl-btn" title="Descargar PDF" (click)="generarPDFSalida(null, r)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="req-table-footer-row">
+      <span class="req-table-footer">Mostrando {{ historial.length }} de {{ historialTotal }} registro{{ historialTotal !== 1 ? 's' : '' }}</span>
+      @if (historialTotalPaginas > 1) {
+        <div class="req-paginacion">
+          <button class="req-pag-btn" title="Anterior" [disabled]="historialPage === 1" (click)="irPaginaHistorial(historialPage - 1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="req-pag-info">Página {{ historialPage }} de {{ historialTotalPaginas }}</span>
+          <button class="req-pag-btn" title="Siguiente" [disabled]="historialPage === historialTotalPaginas" (click)="irPaginaHistorial(historialPage + 1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      }
+    </div>
+
   } @else {
 
-    <!-- Cards por servicio -->
+    <!-- Cards por servicio (solo Activos) -->
     <div class="req-cards-grid">
       @for (grupo of gruposPorServicio; track grupo.key) {
         <div class="svc-card"
              [class.svc-card--pend]="cuentaEstado(grupo, 'pendiente') > 0"
              [class.svc-card--comp]="cuentaEstado(grupo, 'comprando') > 0 && cuentaEstado(grupo, 'pendiente') === 0"
              [class.svc-card--listo]="todosListosParaEntregar(grupo)"
-             [class.svc-card--apro]="cuentaEstado(grupo, 'aprobado') > 0 && cuentaEstado(grupo, 'listo') === 0 && tab === 'historial'"
+             [class.svc-card--apro]="cuentaEstado(grupo, 'aprobado') > 0 && cuentaEstado(grupo, 'listo') === 0"
              [class.svc-card--done]="cuentaEstado(grupo, 'entregado') === grupo.reqs.length">
 
           <div class="svc-card-head">
@@ -113,7 +178,7 @@
                 {{ razonNoPuedeEntregar(grupo) }}
               </p>
             }
-            @if (cuentaEstado(grupo, 'aprobado') > 0 && tab === 'historial') {
+            @if (cuentaEstado(grupo, 'aprobado') > 0) {
               <p class="svc-card-waiting">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px">
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>

@@ -5,13 +5,22 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
+import { CatalogoItem, UnidadItem } from '../../logistica.models';
+
+type ClaseCompraDirecta = 'material' | 'equipo' | 'herramienta' | 'epp';
 
 interface ItemIngreso {
-  clase: 'material' | 'equipo' | 'herramienta';
+  clase: ClaseCompraDirecta;
   nombre: string;
   cantidad: number;
   precioCompra: number | null;
   codigo: string;
+  existenteId: string | null;  // set cuando el ítem viene de "buscar por código" (reingreso a stock)
+  // material
+  categoriaId: string;
+  unidadId: string;
+  // epp
+  marcaId: string;
 }
 
 @Component({
@@ -37,15 +46,36 @@ export class IngresoDirectoModalComponent implements OnInit {
   buscando       = false;
   busquedaError  = '';
 
+  categorias: CatalogoItem[] = [];
+  unidades:   UnidadItem[]   = [];
+  marcas:     CatalogoItem[] = [];
+
   items: ItemIngreso[] = [];
 
-  ngOnInit(): void { this.agregarItem(); }
-
-  agregarItem(): void {
-    this.items.push({ clase: 'material', nombre: '', cantidad: 1, precioCompra: null, codigo: '' });
+  ngOnInit(): void {
+    this.agregarItem();
+    this.svc.getCategorias().subscribe({ next: r => (this.categorias = r) });
+    this.svc.getUnidades().subscribe({ next: r => (this.unidades = r) });
+    this.svc.getMarcas().subscribe({ next: r => (this.marcas = r) });
   }
 
+  private _nuevoItem(): ItemIngreso {
+    return {
+      clase: 'material', nombre: '', cantidad: 1, precioCompra: null, codigo: '',
+      existenteId: null, categoriaId: '', unidadId: '', marcaId: '',
+    };
+  }
+
+  agregarItem(): void { this.items.push(this._nuevoItem()); }
+
   quitarItem(i: number): void { this.items.splice(i, 1); }
+
+  // Al cambiar de clase, limpiamos los campos que no aplican a la nueva clase.
+  onClaseChange(item: ItemIngreso): void {
+    if (item.clase !== 'material') item.categoriaId = '';
+    if (item.clase !== 'material' && item.clase !== 'epp') item.unidadId = '';
+    if (item.clase !== 'epp') item.marcaId = '';
+  }
 
   buscarPorCodigo(): void {
     const cod = this.codigoBusqueda.trim();
@@ -55,12 +85,15 @@ export class IngresoDirectoModalComponent implements OnInit {
     this.svc.getArticuloPorCodigo(cod).subscribe({
       next: (art: any) => {
         this.buscando = false;
-        const clase: 'material' | 'equipo' | 'herramienta' =
+        const clase: ClaseCompraDirecta =
           art.tipo === 'material' ? 'material' : art.clase === 'herramienta' ? 'herramienta' : 'equipo';
-        this.items.push({
-          clase, nombre: art.nombre || '', cantidad: 1,
-          precioCompra: art.precioCompra ?? null, codigo: cod,
-        });
+        const item = this._nuevoItem();
+        item.clase = clase;
+        item.nombre = art.nombre || '';
+        item.precioCompra = art.precioCompra ?? null;
+        item.codigo = cod;
+        item.existenteId = art.id;
+        this.items.push(item);
         this.codigoBusqueda = '';
       },
       error: (err: any) => {
@@ -74,6 +107,12 @@ export class IngresoDirectoModalComponent implements OnInit {
     if (this.items.length === 0) { this.errorMsg = 'Agrega al menos un ítem.'; return; }
     const itemsInvalidos = this.items.filter(i => !i.nombre.trim() || i.cantidad < 1);
     if (itemsInvalidos.length) { this.errorMsg = 'Completa nombre y cantidad de todos los ítems.'; return; }
+    const materialesSinCatalogo = this.items.filter(i =>
+      i.clase === 'material' && !i.existenteId && (!i.categoriaId || !i.unidadId));
+    if (materialesSinCatalogo.length) {
+      this.errorMsg = 'Selecciona categoría y unidad para los materiales nuevos.';
+      return;
+    }
 
     this.errorMsg  = '';
     this.guardando = true;
@@ -84,11 +123,14 @@ export class IngresoDirectoModalComponent implements OnInit {
       destino:   { tipo: 'stock' },
       items:     this.items.map(i => ({
         clase:        i.clase,
-        modo:         'nuevo',
+        modo:         i.existenteId ? 'existente' : 'nuevo',
+        existenteId:  i.existenteId ?? undefined,
         nombre:       i.nombre.trim(),
         cantidad:     i.cantidad,
         precioCompra: i.precioCompra ?? null,
-        codigo:       i.codigo || null,
+        categoriaId:  i.clase === 'material' ? (i.categoriaId || null) : null,
+        unidadId:     (i.clase === 'material' || i.clase === 'epp') ? (i.unidadId || null) : null,
+        marcaId:      i.clase === 'epp' ? (i.marcaId || null) : null,
       })),
     };
 
@@ -108,6 +150,6 @@ export class IngresoDirectoModalComponent implements OnInit {
   cerrar(): void { this.closed.emit({ guardado: false }); }
 
   claseLabel(c: string): string {
-    return { material: 'Material', equipo: 'Equipo', herramienta: 'Herramienta' }[c] ?? c;
+    return { material: 'Material', equipo: 'Equipo', herramienta: 'Herramienta', epp: 'EPP' }[c] ?? c;
   }
 }

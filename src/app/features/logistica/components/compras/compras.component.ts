@@ -6,6 +6,7 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
+import { IngresoDirectoModalComponent } from '../ingreso-directo-modal/ingreso-directo-modal.component';
 import {
   TicketCompra, TicketCompraItem, Proveedor, EstadoCompra,
   ProcesarCompraPayload, RegistrarIngresoPayload, VincularInventarioPayload
@@ -32,7 +33,7 @@ type TabCompra = 'pendiente' | 'en_proceso' | 'completado' | 'cancelado';
 @Component({
   selector: 'app-compras',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent, IngresoDirectoModalComponent],
   templateUrl: './compras.component.html',
   styleUrls: ['./compras.component.css']
 })
@@ -88,6 +89,9 @@ export class ComprasComponent implements OnInit, OnDestroy {
   // ── Modal de cancelación ──
   ticketCancelar: TicketCompra | null = null;
   motivoCancelacion = '';
+
+  // ── Modal de compra directa (herramientas/equipos/materiales/EPP → stock) ──
+  mostrarIngresoDirecto = false;
 
   // Proveedores cargados desde la API
   proveedores: Proveedor[] = [];
@@ -473,6 +477,18 @@ export class ComprasComponent implements OnInit, OnDestroy {
   // ── Modal detalle ──
   abrirDetalle(t: TicketCompra): void { this.ticketDetalle = t; this.setMainModal(true); }
   cerrarDetalle(): void { this.ticketDetalle = null; this.setMainModal(false); }
+
+  // ── Modal de compra directa ──
+  abrirIngresoDirecto(): void { this.mostrarIngresoDirecto = true; this.setMainModal(true); }
+  cerrarIngresoDirecto(res: { guardado: boolean }): void {
+    this.mostrarIngresoDirecto = false;
+    this.setMainModal(false);
+    if (res.guardado) {
+      this.toast.mostrar('Compra directa registrada. Revisa Ingresos para verla reflejada.', 'success');
+      this.cargar();
+      this.cargarResumen();
+    }
+  }
 
   volverInventario(): void { this.router.navigate(['/logistica']); }
 

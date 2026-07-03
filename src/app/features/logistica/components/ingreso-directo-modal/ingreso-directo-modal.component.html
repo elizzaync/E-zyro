@@ -53,15 +53,16 @@
         <div class="id-row-3">
           <div class="id-field">
             <label class="id-label">Clase *</label>
-            <select class="id-select" [(ngModel)]="item.clase">
+            <select class="id-select" [(ngModel)]="item.clase" (ngModelChange)="onClaseChange(item)" [disabled]="!!item.existenteId">
               <option value="material">Material</option>
               <option value="equipo">Equipo</option>
               <option value="herramienta">Herramienta</option>
+              <option value="epp">EPP</option>
             </select>
           </div>
           <div class="id-field id-field--wide">
             <label class="id-label">Nombre *</label>
-            <input class="id-input" type="text" [(ngModel)]="item.nombre" placeholder="Nombre del artículo">
+            <input class="id-input" type="text" [(ngModel)]="item.nombre" placeholder="Nombre del artículo" [disabled]="!!item.existenteId">
           </div>
           <div class="id-field id-field--sm">
             <label class="id-label">Cantidad *</label>
@@ -72,6 +73,44 @@
             <input class="id-input" type="number" [(ngModel)]="item.precioCompra" min="0" step="0.01" placeholder="0.00">
           </div>
         </div>
+
+        @if (item.clase === 'material' && !item.existenteId) {
+          <div class="id-row-2">
+            <div class="id-field">
+              <label class="id-label">Categoría *</label>
+              <select class="id-select" [(ngModel)]="item.categoriaId">
+                <option value="">Selecciona…</option>
+                @for (c of categorias; track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+              </select>
+            </div>
+            <div class="id-field">
+              <label class="id-label">Unidad *</label>
+              <select class="id-select" [(ngModel)]="item.unidadId">
+                <option value="">Selecciona…</option>
+                @for (u of unidades; track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
+              </select>
+            </div>
+          </div>
+        }
+
+        @if (item.clase === 'epp' && !item.existenteId) {
+          <div class="id-row-2">
+            <div class="id-field">
+              <label class="id-label">Marca</label>
+              <select class="id-select" [(ngModel)]="item.marcaId">
+                <option value="">Sin marca</option>
+                @for (m of marcas; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
+              </select>
+            </div>
+            <div class="id-field">
+              <label class="id-label">Unidad</label>
+              <select class="id-select" [(ngModel)]="item.unidadId">
+                <option value="">Sin unidad</option>
+                @for (u of unidades; track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
+              </select>
+            </div>
+          </div>
+        }
       </div>
       }
     </div>

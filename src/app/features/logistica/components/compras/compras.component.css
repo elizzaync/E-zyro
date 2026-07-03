@@ -69,17 +69,27 @@
 /* ══════════════════════════════════════════════════════
    BUSCADOR
 ══════════════════════════════════════════════════════ */
+.cp-search-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .cp-search {
   display: flex; align-items: center; gap: 8px;
-  padding: 9px 14px; margin-bottom: 16px;
+  padding: 9px 14px;
   background: var(--card-bg, #fff); border: 1px solid var(--border-color, #e7eae6);
-  border-radius: 11px; max-width: 560px;
+  border-radius: 11px; max-width: 560px; flex: 1; min-width: 240px;
 }
 .cp-search svg { width: 16px; height: 16px; color: var(--text-muted, #94a3b8); flex-shrink: 0; }
 .cp-search input { border: none; background: transparent; outline: none; flex: 1; font-size: 13.5px; font-family: 'Inter', sans-serif; color: var(--input-text, #111827); }
 .cp-search-clear { background: none; border: none; cursor: pointer; color: var(--text-muted, #94a3b8); display: flex; align-items: center; padding: 0; }
 .cp-search-clear svg { width: 15px; height: 15px; }
 .cp-search-clear:hover { color: #ef4444; }
+
+.cp-btn-directa {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 9px 16px; border-radius: 11px; border: none; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; font-family: 'Inter', sans-serif;
+  background: #8dc63f; color: #1a3409;
+}
+.cp-btn-directa svg { width: 15px; height: 15px; }
+.cp-btn-directa:hover { background: #7ab52f; }
 
 /* ══════════════════════════════════════════════════════
    ESTADO VACÍO

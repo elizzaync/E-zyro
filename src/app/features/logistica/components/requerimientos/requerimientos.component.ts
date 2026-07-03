@@ -49,6 +49,15 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
   historial: Requerimiento[] = [];
   busqueda = '';
 
+  // ── Paginación del historial (server-side) ──
+  historialPage     = 1;
+  historialPageSize = 20;
+  historialTotal    = 0;
+
+  get historialTotalPaginas(): number {
+    return Math.max(1, Math.ceil(this.historialTotal / this.historialPageSize));
+  }
+
   // ── Modal de gestión del servicio ──
   servicioModal: GrupoServicio | null = null;
   firmaModalAbierta = false;
@@ -79,7 +88,11 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void { this._clearTimer(this.padFirma); }
 
-  setTab(t: TabReq): void { this.tab = t; this.cargar(); }
+  setTab(t: TabReq): void {
+    this.tab = t;
+    if (t === 'historial') this.historialPage = 1;
+    this.cargar();
+  }
 
   cargar(): void {
     this.cargando = true;
@@ -89,23 +102,50 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
         error: () => { this.cargando = false; this.toast.mostrar('Error al cargar requerimientos.', 'error'); },
       });
     } else {
-      this.svc.getHistorialRequerimientos().subscribe({
-        next: d => { this.historial = d; this.cargando = false; },
+      this.svc.getHistorialRequerimientos({
+        q: this.busqueda || undefined,
+        page: this.historialPage,
+        pageSize: this.historialPageSize,
+      }).subscribe({
+        next: r => { this.historial = r.items; this.historialTotal = r.total; this.cargando = false; },
         error: () => { this.cargando = false; this.toast.mostrar('Error al cargar historial.', 'error'); },
       });
     }
   }
 
+  // Buscador: en "Activos" filtra en memoria (get lista); en "Historial" es
+  // server-side (paginado), así que hay que recargar desde la página 1.
+  buscarHistorial(): void {
+    this.historialPage = 1;
+    this.cargar();
+  }
+
+  irPaginaHistorial(p: number): void {
+    if (p < 1 || p > this.historialTotalPaginas) return;
+    this.historialPage = p;
+    this.cargar();
+  }
+
   get lista(): Requerimiento[] {
-    const base = this.tab === 'activos' ? this.activos : this.historial;
+    if (this.tab === 'historial') return this.historial;
     const q = this.busqueda.toLowerCase().trim();
-    if (!q) return base;
-    return base.filter(r =>
+    if (!q) return this.activos;
+    return this.activos.filter(r =>
       r.proyectoNombre.toLowerCase().includes(q) ||
       (r.servicioNombre ?? '').toLowerCase().includes(q) ||
       r.solicitanteNombre.toLowerCase().includes(q) ||
       r.items.some(i => i.nombre.toLowerCase().includes(q))
     );
+  }
+
+  verDetalleHistorial(r: Requerimiento): void {
+    this.abrirModalServicio({
+      key: r.id,
+      servicioId: r.servicioId,
+      servicioNombre: r.servicioNombre ?? r.proyectoNombre,
+      proyectoNombre: r.proyectoNombre,
+      reqs: [r],
+    });
   }
 
   get pendientesCount(): number { return this.activos.filter(r => r.estado === 'pendiente').length; }
@@ -445,6 +485,13 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
     return m[e] ?? e;
   }
   estadoClase(e: string): string { return 'est-' + e.replace('_', '-'); }
+
+  fechaCortaReq(f: string | null): string {
+    if (!f) return '—';
+    const d = new Date(f);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
 
   itemEstadoLabel(e: string): string {
     const m: Record<string, string> = {

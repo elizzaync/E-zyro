@@ -26,7 +26,7 @@ import {
   HistoricoLegacyResponse,
 } from '../../features/logistica/logistica.models';
 
-interface RequerimientosListResponse {
+export interface RequerimientosListResponse {
   items: Requerimiento[];
   total: number;
   page: number;
@@ -238,13 +238,17 @@ export class LogisticaService {
       .pipe(map(r => r.items));
   }
 
-  getHistorialRequerimientos(filtros: { proyectoId?: string; servicioId?: string } = {}): Observable<Requerimiento[]> {
-    let params = new HttpParams();
+  getHistorialRequerimientos(filtros: {
+    proyectoId?: string; servicioId?: string; q?: string; page?: number; pageSize?: number;
+  } = {}): Observable<RequerimientosListResponse> {
+    let params = new HttpParams()
+      .set('page',      String(filtros.page     ?? 1))
+      .set('page_size', String(filtros.pageSize ?? 30));
     if (filtros.proyectoId) params = params.set('proyecto_id', filtros.proyectoId);
     if (filtros.servicioId) params = params.set('servicio_id', filtros.servicioId);
+    if (filtros.q)          params = params.set('q', filtros.q);
     return this.http
-      .get<RequerimientosListResponse>(`${this.api}/logistica/requerimientos/historial`, { params })
-      .pipe(map(r => r.items));
+      .get<RequerimientosListResponse>(`${this.api}/logistica/requerimientos/historial`, { params });
   }
 
   getRequerimiento(id: string): Observable<Requerimiento> {
