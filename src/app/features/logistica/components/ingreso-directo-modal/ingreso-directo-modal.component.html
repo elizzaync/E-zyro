@@ -1,8 +1,8 @@
 <app-modal
   [open]="true"
-  title="Ingreso Directo de Inventario"
+  title="Compra Directa"
   subtitle="Registra artículos al stock sin necesidad de un requerimiento previo"
-  maxWidth="680px"
+  maxWidth="720px"
   iconBg="rgba(141,198,63,0.12)"
   iconColor="#5a8a20"
   (closeModal)="cerrar()">
@@ -15,12 +15,65 @@
 
   <div class="id-body">
 
-    <!-- Búsqueda por código -->
-    <div class="id-section">
-      <label class="id-label">Buscar artículo por código</label>
+    <!-- ═══ Paso 1 — Proveedor ═══ -->
+    <section class="id-step">
+      <header class="id-step-head">
+        <span class="id-step-num">1</span>
+        <span class="id-step-title">¿A quién le compraste?</span>
+      </header>
+
+      @if (!canalCustom && !mostrarNuevoProveedor) {
+        <div class="id-prov-chips">
+          @for (p of proveedores; track p.id) {
+            <button type="button" class="id-prov-chip" [class.selected]="proveedorId === p.id" (click)="selProveedor(p)">
+              <span class="id-prov-chip-name">{{ p.nombre }}</span>
+              <span class="id-prov-chip-stars">{{ starsText(p.rating) }}</span>
+            </button>
+          }
+          <button type="button" class="id-prov-chip id-prov-chip--add" (click)="toggleNuevoProveedor()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Nuevo proveedor
+          </button>
+        </div>
+        <button type="button" class="id-canal-toggle" (click)="toggleCanalCustom()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Otro canal de compra (sin registrar proveedor)
+        </button>
+      } @else if (mostrarNuevoProveedor) {
+        <div class="id-inline-form">
+          <button type="button" class="id-canal-back" (click)="toggleNuevoProveedor()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <input class="id-input" type="text" [(ngModel)]="nuevoProveedorNombre"
+                 placeholder="Nombre o razón social" (keydown.enter)="confirmarNuevoProveedor()">
+          <input class="id-input id-input--ruc" type="text" [(ngModel)]="nuevoProveedorRuc"
+                 placeholder="RUC (opcional)" maxlength="11" (keydown.enter)="confirmarNuevoProveedor()">
+          <button type="button" class="btn-buscar" (click)="confirmarNuevoProveedor()"
+                  [disabled]="creandoProveedor || !nuevoProveedorNombre.trim()">
+            @if (creandoProveedor) { <app-spinner></app-spinner> } @else { Agregar }
+          </button>
+        </div>
+      } @else {
+        <div class="id-inline-form">
+          <button type="button" class="id-canal-back" (click)="toggleCanalCustom()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <input class="id-input" type="text" [(ngModel)]="canalTexto"
+                 placeholder="Ej: Mercado libre, ferretería local, importación directa…">
+        </div>
+      }
+    </section>
+
+    <!-- ═══ Paso 2 — Artículos ═══ -->
+    <section class="id-step">
+      <header class="id-step-head">
+        <span class="id-step-num">2</span>
+        <span class="id-step-title">Artículos comprados</span>
+      </header>
+
       <div class="id-code-row">
         <input class="id-input" type="text" [(ngModel)]="codigoBusqueda"
-          placeholder="Ej: MAT-0042 o EQ-0010"
+          placeholder="Reingresar un artículo existente por código (ej: MAT-0042)"
           (keydown.enter)="buscarPorCodigo()">
         <button class="btn-buscar" (click)="buscarPorCodigo()" [disabled]="buscando || !codigoBusqueda.trim()">
           @if (buscando) { <app-spinner></app-spinner> } @else {
@@ -32,160 +85,256 @@
         </button>
       </div>
       @if (busquedaError) { <span class="id-field-error">{{ busquedaError }}</span> }
-    </div>
 
-    <div class="id-divider"><span>o agrega manualmente</span></div>
+      <div class="id-items">
+        @for (item of items; track $index; let i = $index) {
+          <div class="id-item" [class]="'id-item--' + item.clase" [class.expanded]="expandedIndex === i">
 
-    <!-- Lista de ítems -->
-    <div class="id-items">
-      @for (item of items; track $index) {
-      <div class="id-item" [class]="'id-item--' + item.clase">
-        <div class="id-item-header">
-          <span class="id-item-num">
-            <span class="id-clase-dot" [class]="'id-clase-dot--' + item.clase"></span>
-            #{{ $index + 1 }} · {{ claseLabel(item.clase) }}
-            @if (item.existenteId) { <span class="id-item-reingreso">reingreso a stock</span> }
-          </span>
-          @if (items.length > 1) {
-          <button class="btn-quitar" (click)="quitarItem($index)">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-          }
-        </div>
-        <div class="id-row-3">
-          <div class="id-field">
-            <label class="id-label">Clase *</label>
-            <select class="id-select" [(ngModel)]="item.clase" (ngModelChange)="onClaseChange(item)" [disabled]="!!item.existenteId">
-              <option value="material">Material</option>
-              <option value="equipo">Equipo</option>
-              <option value="herramienta">Herramienta</option>
-              <option value="epp">EPP</option>
-            </select>
-          </div>
-          <div class="id-field id-field--wide">
-            <label class="id-label">Nombre *</label>
-            <input class="id-input" type="text" [(ngModel)]="item.nombre" placeholder="Nombre del artículo" [disabled]="!!item.existenteId">
-          </div>
-          <div class="id-field id-field--sm">
-            <label class="id-label">Cantidad *</label>
-            <input class="id-input" type="number" [(ngModel)]="item.cantidad" min="1" step="1">
-          </div>
-          <div class="id-field id-field--sm">
-            <label class="id-label">Precio unit.</label>
-            <input class="id-input" type="number" [(ngModel)]="item.precioCompra" min="0" step="0.01" placeholder="0.00">
-          </div>
-        </div>
+            <div class="id-item-summary" (click)="toggleExpandir(i)">
+              <span class="id-clase-dot" [class]="'id-clase-dot--' + item.clase"></span>
+              <span class="id-item-summary-text">{{ resumenItem(item) }}</span>
+              @if (item.existenteId) { <span class="id-item-reingreso">reingreso</span> }
+              <span class="id-item-summary-spacer"></span>
+              @if (items.length > 1) {
+                <button type="button" class="btn-quitar" (click)="$event.stopPropagation(); quitarItem(i)" title="Quitar ítem">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              }
+              <svg class="id-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </div>
 
-        @if (item.clase === 'material' && !item.existenteId) {
-          <div class="id-row-2">
-            <div class="id-field">
-              <label class="id-label">Categoría *</label>
-              <select class="id-select" [(ngModel)]="item.categoriaId">
-                <option value="">Selecciona…</option>
-                @for (c of categorias; track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
-              </select>
-            </div>
-            <div class="id-field">
-              <label class="id-label">Unidad *</label>
-              <select class="id-select" [(ngModel)]="item.unidadId">
-                <option value="">Selecciona…</option>
-                @for (u of unidades; track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
-              </select>
-            </div>
-          </div>
-        }
+            @if (expandedIndex === i) {
+              <div class="id-item-body">
 
-        @if (item.clase === 'epp' && !item.existenteId) {
-          <div class="id-row-2">
-            <div class="id-field">
-              <label class="id-label">Marca</label>
-              <select class="id-select" [(ngModel)]="item.marcaId">
-                <option value="">Sin marca</option>
-                @for (m of marcas; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
-              </select>
-            </div>
-            <div class="id-field">
-              <label class="id-label">Unidad</label>
-              <select class="id-select" [(ngModel)]="item.unidadId">
-                <option value="">Sin unidad</option>
-                @for (u of unidades; track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
-              </select>
-            </div>
+                @if (!item.existenteId) {
+                  <div class="id-clase-toggle">
+                    @for (c of clasesDisponibles; track c) {
+                      <button type="button" [class.active]="item.clase === c"
+                              (click)="item.clase = c; onClaseChange(item)">{{ claseLabel(c) }}</button>
+                    }
+                  </div>
+                }
+
+                <div class="id-row-3">
+                  <div class="id-field id-field--wide">
+                    <label class="id-label">Nombre *</label>
+                    <input class="id-input" type="text" [(ngModel)]="item.nombre" placeholder="Nombre del artículo" [disabled]="!!item.existenteId">
+                  </div>
+                  <div class="id-field id-field--sm">
+                    <label class="id-label">Cantidad *</label>
+                    <input class="id-input" type="number" [(ngModel)]="item.cantidad" min="1" step="1">
+                  </div>
+                  <div class="id-field id-field--sm">
+                    <label class="id-label">Precio unit.</label>
+                    <input class="id-input" type="number" [(ngModel)]="item.precioCompra" min="0" step="0.01" placeholder="0.00">
+                  </div>
+                </div>
+
+                @if (!item.existenteId) {
+
+                  @if (item.clase === 'material') {
+                    <div class="id-row-2">
+                      <div class="id-field">
+                        <label class="id-label">Categoría *</label>
+                        @if (!showAddCategoria) {
+                          <select class="id-select" [(ngModel)]="item.categoriaId">
+                            <option value="">Selecciona…</option>
+                            @for (c of categorias; track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+                          </select>
+                          <button type="button" class="id-link-add" (click)="toggleAddCategoria()">+ Nueva categoría</button>
+                        } @else {
+                          <div class="id-inline-add">
+                            <input class="id-input" type="text" [(ngModel)]="nuevaCategoria" placeholder="Nueva categoría" (keydown.enter)="confirmarNuevaCategoria()">
+                            <button type="button" class="id-link-add" (click)="confirmarNuevaCategoria()" [disabled]="creandoCategoria">Agregar</button>
+                            <button type="button" class="id-link-cancel" (click)="toggleAddCategoria()">Cancelar</button>
+                          </div>
+                        }
+                      </div>
+                      <div class="id-field">
+                        <label class="id-label">Unidad *</label>
+                        <select class="id-select" [(ngModel)]="item.unidadId">
+                          <option value="">Selecciona…</option>
+                          @for (u of unidades; track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
+                        </select>
+                      </div>
+                    </div>
+                  }
+
+                  @if (item.clase === 'equipo' || item.clase === 'herramienta') {
+                    <div class="id-row-2">
+                      <div class="id-field">
+                        <label class="id-label">Categoría</label>
+                        @if (!showAddCategoriaEq) {
+                          <select class="id-select" [(ngModel)]="item.categoriaEquipoId">
+                            <option value="">Sin categoría</option>
+                            @for (c of categoriasEquipoDe(item); track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+                          </select>
+                          <button type="button" class="id-link-add" (click)="toggleAddCategoriaEq()">+ Nueva categoría</button>
+                        } @else {
+                          <div class="id-inline-add">
+                            <input class="id-input" type="text" [(ngModel)]="nuevaCategoriaEq" placeholder="Nueva categoría" (keydown.enter)="confirmarNuevaCategoriaEq()">
+                            <button type="button" class="id-link-add" (click)="confirmarNuevaCategoriaEq()" [disabled]="creandoCategoriaEq">Agregar</button>
+                            <button type="button" class="id-link-cancel" (click)="toggleAddCategoriaEq()">Cancelar</button>
+                          </div>
+                        }
+                      </div>
+                      <div class="id-field">
+                        <label class="id-label">Marca</label>
+                        @if (!showAddMarca) {
+                          <select class="id-select" [(ngModel)]="item.marcaId" (ngModelChange)="onMarcaChange(item)">
+                            <option value="">Sin marca</option>
+                            @for (m of marcas; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
+                          </select>
+                          <button type="button" class="id-link-add" (click)="toggleAddMarca()">+ Nueva marca</button>
+                        } @else {
+                          <div class="id-inline-add">
+                            <input class="id-input" type="text" [(ngModel)]="nuevaMarca" placeholder="Nueva marca" (keydown.enter)="confirmarNuevaMarca()">
+                            <button type="button" class="id-link-add" (click)="confirmarNuevaMarca()" [disabled]="creandoMarca">Agregar</button>
+                            <button type="button" class="id-link-cancel" (click)="toggleAddMarca()">Cancelar</button>
+                          </div>
+                        }
+                      </div>
+                    </div>
+                    @if (item.marcaId && item.modelosDisponibles.length > 0) {
+                      <div class="id-field">
+                        <label class="id-label">Modelo</label>
+                        <select class="id-select" [(ngModel)]="item.modeloId">
+                          <option value="">Sin modelo</option>
+                          @for (m of item.modelosDisponibles; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
+                        </select>
+                      </div>
+                    }
+                  }
+
+                  @if (item.clase === 'epp') {
+                    <div class="id-row-2">
+                      <div class="id-field">
+                        <label class="id-label">Marca</label>
+                        @if (!showAddMarca) {
+                          <select class="id-select" [(ngModel)]="item.marcaId">
+                            <option value="">Sin marca</option>
+                            @for (m of marcas; track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }
+                          </select>
+                          <button type="button" class="id-link-add" (click)="toggleAddMarca()">+ Nueva marca</button>
+                        } @else {
+                          <div class="id-inline-add">
+                            <input class="id-input" type="text" [(ngModel)]="nuevaMarca" placeholder="Nueva marca" (keydown.enter)="confirmarNuevaMarca()">
+                            <button type="button" class="id-link-add" (click)="confirmarNuevaMarca()" [disabled]="creandoMarca">Agregar</button>
+                            <button type="button" class="id-link-cancel" (click)="toggleAddMarca()">Cancelar</button>
+                          </div>
+                        }
+                      </div>
+                      <div class="id-field">
+                        <label class="id-label">Unidad</label>
+                        <select class="id-select" [(ngModel)]="item.unidadId">
+                          <option value="">Sin unidad</option>
+                          @for (u of unidades; track u.id) { <option [value]="u.id">{{ u.nombre }}</option> }
+                        </select>
+                      </div>
+                    </div>
+                  }
+                }
+
+                @if (!item.existenteId) {
+                <button type="button" class="id-toggle-detalles" (click)="toggleDetalles(item)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" [class.rotated]="item.mostrarDetalles">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                  Más detalles (opcional)
+                </button>
+
+                @if (item.mostrarDetalles) {
+                  <div class="id-detalles">
+                    <div class="id-row-2">
+                      <div class="id-field">
+                        <label class="id-label">Almacén</label>
+                        <select class="id-select" [(ngModel)]="item.almacenId">
+                          <option value="">Almacén por defecto</option>
+                          @for (a of almacenes; track a.id) { <option [value]="a.id">{{ a.nombre }}</option> }
+                        </select>
+                      </div>
+                      @if (item.clase === 'material' || item.clase === 'epp') {
+                        <div class="id-field">
+                          <label class="id-label">Stock mínimo</label>
+                          <input class="id-input" type="number" [(ngModel)]="item.stockMinimo" min="0" step="1" placeholder="0">
+                        </div>
+                      }
+                      @if (item.clase === 'equipo' || item.clase === 'herramienta') {
+                        <div class="id-field">
+                          <label class="id-label">N° de serie</label>
+                          <input class="id-input" type="text" [(ngModel)]="item.numeroSerie" placeholder="Ej: SN-20240001">
+                        </div>
+                      }
+                    </div>
+
+                    @if (item.clase === 'equipo' || item.clase === 'herramienta') {
+                      <div class="id-row-2">
+                        <div class="id-field">
+                          <label class="id-label">Estado</label>
+                          <select class="id-select" [(ngModel)]="item.estado">
+                            @for (e of estadosEquipo; track e.value) { <option [value]="e.value">{{ e.label }}</option> }
+                          </select>
+                        </div>
+                        <div class="id-field id-field--check">
+                          <label class="id-check">
+                            <input type="checkbox" [(ngModel)]="item.requiereMantenimiento">
+                            Requiere mantenimiento
+                          </label>
+                          @if (item.requiereMantenimiento) {
+                            <select class="id-select" [(ngModel)]="item.frecuenciaMantenimiento">
+                              <option value="mensual">Mensual</option>
+                              <option value="trimestral">Trimestral</option>
+                              <option value="semestral">Semestral</option>
+                              <option value="anual">Anual</option>
+                            </select>
+                          }
+                        </div>
+                      </div>
+                    }
+
+                    <div class="id-field">
+                      <label class="id-label">Descripción / notas</label>
+                      <input class="id-input" type="text" [(ngModel)]="item.descripcion" placeholder="Opcional">
+                    </div>
+                  </div>
+                }
+                }
+
+              </div>
+            }
           </div>
         }
       </div>
-      }
-    </div>
 
-    <button class="btn-agregar-item" (click)="agregarItem()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      Agregar otro ítem
-    </button>
+      <button class="btn-agregar-item" (click)="agregarItem()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Agregar otro ítem
+      </button>
+    </section>
 
-    <div class="id-divider"><span>proveedor y notas</span></div>
+    <!-- ═══ Paso 3 — Confirmar ═══ -->
+    <section class="id-step">
+      <header class="id-step-head">
+        <span class="id-step-num">3</span>
+        <span class="id-step-title">Confirmar</span>
+      </header>
 
-    <!-- Proveedor: chip picker + canal libre + alta rápida -->
-    <div class="id-section">
-      <label class="id-label">¿A quién le compraste?</label>
+      <div class="id-field">
+        <label class="id-label">Notas</label>
+        <input class="id-input" type="text" [(ngModel)]="notas" placeholder="Observaciones generales de la compra (opcional)">
+      </div>
 
-      @if (!canalCustom && !mostrarNuevoProveedor) {
-        <div class="id-prov-chips">
-          @for (p of proveedores; track p.id) {
-            <button type="button" class="id-prov-chip" [class.selected]="proveedorId === p.id" (click)="selProveedor(p)">
-              <span class="id-prov-chip-name">{{ p.nombre }}</span>
-              <span class="id-prov-chip-stars">{{ starsText(p.rating) }}</span>
-              @if (p.contacto) { <span class="id-prov-chip-tel">{{ p.contacto }}</span> }
-            </button>
-          }
-        </div>
-        <div class="id-prov-actions">
-          <button type="button" class="id-canal-toggle" (click)="toggleNuevoProveedor()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nuevo proveedor
-          </button>
-          <button type="button" class="id-canal-toggle" (click)="toggleCanalCustom()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            Otro canal de compra
-          </button>
-        </div>
-      } @else if (mostrarNuevoProveedor) {
-        <div class="id-canal-custom-row">
-          <button type="button" class="id-canal-back" (click)="toggleNuevoProveedor()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <input class="id-input" type="text" [(ngModel)]="nuevoProveedorNombre"
-                 placeholder="Nombre del nuevo proveedor" (keydown.enter)="confirmarNuevoProveedor()">
-          <button type="button" class="btn-buscar" (click)="confirmarNuevoProveedor()"
-                  [disabled]="creandoProveedor || !nuevoProveedorNombre.trim()">
-            @if (creandoProveedor) { <app-spinner></app-spinner> } @else { Agregar }
-          </button>
-        </div>
-      } @else {
-        <div class="id-canal-custom-row">
-          <button type="button" class="id-canal-back" (click)="toggleCanalCustom()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <input class="id-input" type="text" [(ngModel)]="canalTexto"
-                 placeholder="Ej: Mercado libre, ferretería local, importación directa…">
-        </div>
-      }
-    </div>
-
-    <!-- Notas -->
-    <div class="id-section">
-      <label class="id-label">Notas</label>
-      <input class="id-input" type="text" [(ngModel)]="notas" placeholder="Observaciones (opcional)">
-    </div>
-
-    <!-- Resumen -->
-    <div class="id-summary-bar">
-      <span>{{ items.length }} ítem{{ items.length !== 1 ? 's' : '' }}</span>
-      @if (totalEstimado > 0) { <span class="id-summary-total">Total estimado: S/ {{ totalEstimado.toFixed(2) }}</span> }
-    </div>
+      <div class="id-summary-bar">
+        <span>{{ items.length }} ítem{{ items.length !== 1 ? 's' : '' }}</span>
+        @if (totalEstimado > 0) { <span class="id-summary-total">Total estimado: S/ {{ totalEstimado.toFixed(2) }}</span> }
+      </div>
+    </section>
 
     @if (errorMsg) {
     <div class="id-error">
