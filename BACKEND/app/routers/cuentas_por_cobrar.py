@@ -73,7 +73,8 @@ def _cobro_out(db: Session, c: CobroCliente) -> CobroOut:
     )
     return CobroOut(
         id=str(c.id), cliente_id=str(c.cliente_id), fecha_cobro=c.fecha_cobro,
-        monto=c.monto, medio_pago=c.medio_pago, referencia=c.referencia,
+        monto=c.monto, moneda=(c.moneda or "PEN"), medio_pago=c.medio_pago,
+        referencia=c.referencia,
         asiento_id=(str(c.asiento_id) if c.asiento_id else None),
         aplicaciones=[AplicacionCobroOut(factura_id=str(a.factura_id), monto_aplicado=a.monto_aplicado)
                       for a in aplicaciones],

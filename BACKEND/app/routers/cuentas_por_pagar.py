@@ -63,7 +63,8 @@ def _pago_out(db: Session, p: PagoProveedor) -> PagoOut:
     )
     return PagoOut(
         id=str(p.id), proveedor_id=str(p.proveedor_id), fecha_pago=p.fecha_pago,
-        monto=p.monto, medio_pago=p.medio_pago, referencia=p.referencia,
+        monto=p.monto, moneda=(p.moneda or "PEN"), medio_pago=p.medio_pago,
+        referencia=p.referencia,
         asiento_id=(str(p.asiento_id) if p.asiento_id else None),
         aplicaciones=[AplicacionOut(factura_id=str(a.factura_id), monto_aplicado=a.monto_aplicado)
                       for a in aplicaciones],

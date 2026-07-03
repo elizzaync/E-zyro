@@ -57,6 +57,13 @@ def _nombre_empleado(db: Session, empleado_id) -> str:
     return f"{fila.nombre} {fila.apellido}" if fila else "—"
 
 
+def _monto_doc(f) -> str:
+    """Monto con el símbolo de la moneda del documento ('S/', 'US$')."""
+    moneda = getattr(f, "moneda", None) or "PEN"
+    simbolo = "S/" if moneda == "PEN" else ("US$" if moneda == "USD" else moneda)
+    return f"{simbolo} {f.total}"
+
+
 @router.get("", response_model=List[PendienteSeccion])
 def mis_pendientes(
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
@@ -104,7 +111,7 @@ def mis_pendientes(
             PendienteItem(
                 id=str(f.id),
                 titulo=f"{f.numero_documento} — {razon}",
-                subtitulo=f"S/ {f.total}" + (" · VENCIDA" if f.fecha_vencimiento < hoy else ""),
+                subtitulo=_monto_doc(f) + (" · VENCIDA" if f.fecha_vencimiento < hoy else ""),
                 fecha=f.fecha_vencimiento,
             ) for f, razon in q.limit(5)
         ], total)
@@ -124,7 +131,7 @@ def mis_pendientes(
             PendienteItem(
                 id=str(f.id),
                 titulo=f"{f.numero_documento} — {razon}",
-                subtitulo=f"S/ {f.total}" + (" · VENCIDA" if f.fecha_vencimiento < hoy else ""),
+                subtitulo=_monto_doc(f) + (" · VENCIDA" if f.fecha_vencimiento < hoy else ""),
                 fecha=f.fecha_vencimiento,
             ) for f, razon in q.limit(5)
         ], total)

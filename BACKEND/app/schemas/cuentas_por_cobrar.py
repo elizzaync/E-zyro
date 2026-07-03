@@ -168,6 +168,7 @@ class CobroOut(BaseModel):
     cliente_id: str
     fecha_cobro: date
     monto: Decimal
+    moneda: str = "PEN"
     medio_pago: str
     referencia: Optional[str] = None
     asiento_id: Optional[str] = None

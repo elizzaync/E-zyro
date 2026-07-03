@@ -128,6 +128,7 @@ class PagoOut(BaseModel):
     proveedor_id: str
     fecha_pago: date
     monto: Decimal
+    moneda: str = "PEN"
     medio_pago: str
     referencia: Optional[str] = None
     asiento_id: Optional[str] = None
