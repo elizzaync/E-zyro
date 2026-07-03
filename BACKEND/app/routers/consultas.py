@@ -1,10 +1,12 @@
 """
-Router: /consultas — consulta RUC (SUNAT) y DNI (RENIEC) vía apis.net.pe.
+Router: /consultas — consulta RUC (SUNAT) y DNI (RENIEC).
 
 Autocompleta razón social / nombre y dirección al dar de alta clientes y
 proveedores. Solo lectura contra un servicio externo; requiere usuario
-autenticado. El token del proveedor se configura en APIS_NET_PE_TOKEN
-(https://apis.net.pe — plan gratuito disponible).
+autenticado. El token se configura en APIS_NET_PE_TOKEN y el proveedor se
+detecta por su prefijo:
+  - sk_...          → decolecta.com
+  - cualquier otro  → apis.net.pe
 """
 from __future__ import annotations
 
@@ -19,8 +21,12 @@ from ..core.security import verificar_token
 
 router = APIRouter(prefix="/consultas", tags=["consultas"])
 
-_BASE = "https://api.apis.net.pe/v2"
 _TIMEOUT = 10
+# (base_url, path_ruc, path_dni) por proveedor
+_PROVEEDORES = {
+    "decolecta":  ("https://api.decolecta.com/v1", "sunat/ruc", "reniec/dni"),
+    "apisnetpe":  ("https://api.apis.net.pe/v2",   "sunat/ruc", "reniec/dni"),
+}
 
 
 class RucOut(BaseModel):
@@ -42,7 +48,7 @@ class DniOut(BaseModel):
     nombre_completo: str
 
 
-def _consultar(path: str, numero: str) -> dict:
+def _token() -> str:
     # Tolerante a errores de pegado: comillas, espacios o el prefijo "Bearer".
     token = os.getenv("APIS_NET_PE_TOKEN", "").strip().strip('"').strip("'")
     if token.lower().startswith("bearer "):
@@ -52,9 +58,18 @@ def _consultar(path: str, numero: str) -> dict:
             status_code=503,
             detail="Consulta no configurada: falta APIS_NET_PE_TOKEN en el servidor.",
         )
+    return token
+
+
+def _consultar(tipo: str, numero: str) -> dict:
+    """tipo: 'ruc' | 'dni'. Detecta el proveedor por el prefijo del token."""
+    token = _token()
+    proveedor = "decolecta" if token.startswith("sk_") else "apisnetpe"
+    base, path_ruc, path_dni = _PROVEEDORES[proveedor]
+    path = path_ruc if tipo == "ruc" else path_dni
     try:
         r = requests.get(
-            f"{_BASE}/{path}", params={"numero": numero},
+            f"{base}/{path}", params={"numero": numero},
             headers={"Authorization": f"Bearer {token}"}, timeout=_TIMEOUT,
         )
     except requests.RequestException:
@@ -62,8 +77,8 @@ def _consultar(path: str, numero: str) -> dict:
     if r.status_code in (401, 403):
         raise HTTPException(
             status_code=502,
-            detail="Token rechazado por apis.net.pe: verifica que el token sea de "
-                   "apis.net.pe (no de otro proveedor) y esté pegado sin comillas.",
+            detail=f"Token rechazado por {proveedor}: verifica que esté vigente "
+                   "y pegado sin comillas ni espacios.",
         )
     if r.status_code == 404:
         raise HTTPException(status_code=404, detail="Número no encontrado.")
@@ -84,16 +99,23 @@ def consultar_ruc(ruc: str, payload: dict = Depends(verificar_token)):
     ruc = ruc.strip()
     if not (ruc.isdigit() and len(ruc) == 11):
         raise HTTPException(status_code=422, detail="El RUC debe tener 11 dígitos.")
-    d = _consultar("sunat/ruc", ruc)
+    d = _consultar("ruc", ruc)
+
+    def g(*claves):  # primer valor presente entre variantes snake/camel
+        for k in claves:
+            if d.get(k):
+                return d[k]
+        return None
+
     return RucOut(
-        ruc=d.get("numeroDocumento", ruc),
-        razon_social=d.get("razonSocial") or d.get("nombre") or "",
-        direccion=d.get("direccion"),
-        estado=d.get("estado"),
-        condicion=d.get("condicion"),
-        distrito=d.get("distrito"),
-        provincia=d.get("provincia"),
-        departamento=d.get("departamento"),
+        ruc=g("numeroDocumento", "numero_documento") or ruc,
+        razon_social=g("razonSocial", "razon_social", "nombre") or "",
+        direccion=g("direccion", "direccion_completa"),
+        estado=g("estado"),
+        condicion=g("condicion"),
+        distrito=g("distrito"),
+        provincia=g("provincia"),
+        departamento=g("departamento"),
     )
 
 
@@ -103,14 +125,15 @@ def consultar_dni(dni: str, payload: dict = Depends(verificar_token)):
     dni = dni.strip()
     if not (dni.isdigit() and len(dni) == 8):
         raise HTTPException(status_code=422, detail="El DNI debe tener 8 dígitos.")
-    d = _consultar("reniec/dni", dni)
-    nombres = d.get("nombres", "")
-    ap = d.get("apellidoPaterno", "")
-    am = d.get("apellidoMaterno", "")
+    d = _consultar("dni", dni)
+    nombres = d.get("nombres") or d.get("first_name") or ""
+    ap = d.get("apellidoPaterno") or d.get("first_last_name") or ""
+    am = d.get("apellidoMaterno") or d.get("second_last_name") or ""
+    completo = d.get("full_name") or " ".join(x for x in (nombres, ap, am) if x)
     return DniOut(
-        dni=d.get("numeroDocumento", dni),
+        dni=d.get("numeroDocumento") or d.get("document_number") or dni,
         nombres=nombres,
         apellido_paterno=ap or None,
         apellido_materno=am or None,
-        nombre_completo=" ".join(x for x in (nombres, ap, am) if x),
+        nombre_completo=completo,
     )
