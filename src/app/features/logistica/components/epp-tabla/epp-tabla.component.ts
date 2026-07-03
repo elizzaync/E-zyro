@@ -7,7 +7,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { EppFormModalComponent } from '../epp-form-modal/epp-form-modal.component';
 import { EppEntregaModalComponent } from '../epp-entrega-modal/epp-entrega-modal.component';
-import { Epp, EppIn, EppEntrega, CatalogoItem } from '../../logistica.models';
+import { Epp, EppIn, CatalogoItem, EppTrabajadorResumen, EppEntregaHistItem } from '../../logistica.models';
 
 type SubTabEpp = 'catalogo' | 'entregas';
 type VistaCatalogo = 'grid' | 'tabla';
@@ -34,7 +34,7 @@ export class EppTablaComponent implements OnInit {
   private marcaPorId = new Map<string, string>();
 
   cargandoEntregas = true;
-  entregas: EppEntrega[] = [];
+  trabajadores: EppTrabajadorResumen[] = [];
 
   showFormModal = false;
   eppEditar: Epp | null = null;
@@ -42,12 +42,14 @@ export class EppTablaComponent implements OnInit {
 
   showEntregaModal = false;
   generandoConstancia: string | null = null;
+  generandoReporteTrabajador: string | null = null;
+  generandoReporteGlobal = false;
 
-  entregaDetalle: EppEntrega | null = null;
+  trabajadorDetalle: EppTrabajadorResumen | null = null;
 
   ngOnInit(): void {
     this.cargarCatalogo();
-    this.cargarEntregas();
+    this.cargarTrabajadores();
     this.svc.getMarcas().subscribe({
       next: r => { this.marcas = r; this.marcaPorId = new Map(r.map(m => [m.id, m.nombre])); },
       error: () => {},
@@ -56,7 +58,7 @@ export class EppTablaComponent implements OnInit {
 
   setSubTab(t: SubTabEpp): void {
     this.subTab = t;
-    if (t === 'entregas' && this.entregas.length === 0) this.cargarEntregas();
+    if (t === 'entregas' && this.trabajadores.length === 0) this.cargarTrabajadores();
   }
 
   setVistaCatalogo(v: VistaCatalogo): void { this.vistaCatalogo = v; }
@@ -89,12 +91,22 @@ export class EppTablaComponent implements OnInit {
 
   buscarCatalogo(): void { this.cargarCatalogo(); }
 
-  cargarEntregas(): void {
+  cargarTrabajadores(reabrirEmpleadoId?: string): void {
     this.cargandoEntregas = true;
-    this.svc.getEntregasEpp().subscribe({
-      next:  r => { this.entregas = r; this.cargandoEntregas = false; },
+    this.svc.getEppPorTrabajador().subscribe({
+      next: r => {
+        this.trabajadores = r;
+        this.cargandoEntregas = false;
+        if (reabrirEmpleadoId) {
+          this.trabajadorDetalle = r.find(t => t.empleado_id === reabrirEmpleadoId) ?? null;
+        }
+      },
       error: () => { this.cargandoEntregas = false; this.toast.mostrar('Error al cargar las entregas de EPP.', 'error'); },
     });
+  }
+
+  ultimaEntrega(t: EppTrabajadorResumen): EppEntregaHistItem | undefined {
+    return t.entregas[0];
   }
 
   abrirNuevoEpp(): void { this.eppEditar = null; this.showFormModal = true; }
@@ -133,23 +145,21 @@ export class EppTablaComponent implements OnInit {
   onEntregaRegistrada(): void {
     this.showEntregaModal = false;
     this.cargarCatalogo();
-    this.cargarEntregas();
+    this.cargarTrabajadores();
   }
 
-  abrirDetalleEntrega(en: EppEntrega): void { this.entregaDetalle = en; document.body.style.overflow = 'hidden'; }
-  cerrarDetalleEntrega(): void { this.entregaDetalle = null; document.body.style.overflow = ''; }
+  abrirHistorial(t: EppTrabajadorResumen): void { this.trabajadorDetalle = t; document.body.style.overflow = 'hidden'; }
+  cerrarHistorial(): void { this.trabajadorDetalle = null; document.body.style.overflow = ''; }
 
-  generarConstancia(en: EppEntrega, ev?: Event): void {
+  generarConstancia(en: EppEntregaHistItem, ev?: Event): void {
     ev?.stopPropagation();
     this.generandoConstancia = en.id;
     this.svc.generarConstanciaEpp(en.id).subscribe({
       next: (r) => {
         this.generandoConstancia = null;
-        if (this.entregaDetalle?.id === en.id) this.entregaDetalle = r;
-        const idx = this.entregas.findIndex(e => e.id === en.id);
-        if (idx >= 0) this.entregas[idx] = r;
         if (r.pdf_url) window.open(r.pdf_url, '_blank');
         this.toast.mostrar('Constancia generada.', 'success');
+        this.cargarTrabajadores(this.trabajadorDetalle?.empleado_id);
       },
       error: () => {
         this.generandoConstancia = null;
@@ -158,17 +168,47 @@ export class EppTablaComponent implements OnInit {
     });
   }
 
-  anularEntrega(en: EppEntrega, ev?: Event): void {
+  anularEntrega(en: EppEntregaHistItem, ev?: Event): void {
     ev?.stopPropagation();
     if (!confirm('¿Anular esta entrega? El stock devuelto vuelve al catálogo.')) return;
     this.svc.anularEntregaEpp(en.id).subscribe({
       next: () => {
         this.toast.mostrar('Entrega anulada.', 'success');
-        this.cargarEntregas();
         this.cargarCatalogo();
-        if (this.entregaDetalle?.id === en.id) this.cerrarDetalleEntrega();
+        this.cargarTrabajadores(this.trabajadorDetalle?.empleado_id);
       },
       error: (err) => this.toast.mostrar(err?.error?.detail ?? 'Error al anular la entrega.', 'error'),
+    });
+  }
+
+  generarReporteTrabajador(t: EppTrabajadorResumen, ev?: Event): void {
+    ev?.stopPropagation();
+    this.generandoReporteTrabajador = t.empleado_id;
+    this.svc.reporteEppEmpleado(t.empleado_id).subscribe({
+      next: (r) => {
+        this.generandoReporteTrabajador = null;
+        if (r.pdf_url) window.open(r.pdf_url, '_blank');
+        this.toast.mostrar('Reporte generado.', 'success');
+      },
+      error: () => {
+        this.generandoReporteTrabajador = null;
+        this.toast.mostrar('Error al generar el reporte.', 'error');
+      },
+    });
+  }
+
+  generarReporteGlobal(): void {
+    this.generandoReporteGlobal = true;
+    this.svc.reporteEppGlobal().subscribe({
+      next: (r) => {
+        this.generandoReporteGlobal = false;
+        if (r.pdf_url) window.open(r.pdf_url, '_blank');
+        this.toast.mostrar('Reporte global generado.', 'success');
+      },
+      error: () => {
+        this.generandoReporteGlobal = false;
+        this.toast.mostrar('Error al generar el reporte global.', 'error');
+      },
     });
   }
 

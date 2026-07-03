@@ -470,6 +470,33 @@ export interface EppEntrega {
   items: EppEntregaItem[];
 }
 
+// Fila de GET /epp/reportes/por-empleado — historial de EPP agrupado por
+// trabajador (para la tabla de "Entregas" y el detalle "ojo" con línea de
+// tiempo). Solo lectura, no genera PDF.
+export interface EppEntregaHistItem {
+  id: string;
+  fecha: string | null;
+  estado: string;
+  firma_url: string | null;
+  pdf_url: string | null;
+  items: EppEntregaItem[];
+}
+
+export interface EppTotalPorTipo {
+  nombre: string;
+  cantidad: number;
+}
+
+export interface EppTrabajadorResumen {
+  empleado_id: string;
+  empleado_nombre: string;
+  cargo: string;
+  total_entregas: number;
+  ultima_fecha: string | null;
+  totales: EppTotalPorTipo[];
+  entregas: EppEntregaHistItem[];
+}
+
 export interface EquipoStockDesglose {
   equipoId: string;
   cantidadTotal: number;

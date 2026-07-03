@@ -194,10 +194,21 @@
     }
   }
 
-  <!-- ══════════════════ ENTREGAS ══════════════════ -->
+  <!-- ══════════════════ ENTREGAS (agrupado por trabajador) ══════════════════ -->
   @if (subTab === 'entregas') {
     <div class="epp-toolbar">
       <div class="epp-spacer"></div>
+      <button class="epp-btn-reporte-global" [disabled]="generandoReporteGlobal || trabajadores.length === 0"
+              (click)="generarReporteGlobal()">
+        @if (generandoReporteGlobal) {
+          <app-spinner [size]="14"></app-spinner>
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        }
+        Reporte global
+      </button>
       <button class="epp-btn-entrega" (click)="abrirNuevaEntrega()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
@@ -208,65 +219,71 @@
 
     @if (cargandoEntregas) {
       <div class="epp-loading"><app-spinner [size]="28"></app-spinner></div>
-    } @else if (entregas.length === 0) {
+    } @else if (trabajadores.length === 0) {
       <div class="epp-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <path d="M5 12h14M12 5l7 7-7 7"/>
         </svg>
         <p>Sin entregas registradas.</p>
-        <span>Cuando se entregue EPP a un técnico, aparecerá aquí con su constancia en PDF.</span>
+        <span>Cuando se entregue EPP a un técnico, aparecerá aquí agrupado por trabajador.</span>
       </div>
     } @else {
       <div class="epp-table-wrap">
         <table class="epp-table">
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Técnico</th>
-              <th>Ítems</th>
+              <th>Trabajador</th>
+              <th>Entregas</th>
+              <th>Último EPP recibido</th>
               <th>Firma</th>
-              <th>Estado</th>
               <th class="th-acc">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            @for (en of entregas; track en.id) {
-              <tr class="epp-row" [class.epp-row--anulada]="en.estado === 'anulada'" (click)="abrirDetalleEntrega(en)">
-                <td class="epp-fecha">{{ fechaCorta(en.fecha) }}</td>
+            @for (t of trabajadores; track t.empleado_id) {
+              <tr class="epp-row" (click)="abrirHistorial(t)">
                 <td>
                   <div class="epp-tecnico">
-                    <span class="epp-avatar">{{ inicialesEmpleado(en.empleado_nombre) }}</span>
-                    <span class="epp-tecnico-nombre">{{ en.empleado_nombre || '—' }}</span>
+                    <span class="epp-avatar">{{ inicialesEmpleado(t.empleado_nombre) }}</span>
+                    <div>
+                      <div class="epp-tecnico-nombre">{{ t.empleado_nombre }}</div>
+                      @if (t.cargo) { <div class="epp-tecnico-cargo">{{ t.cargo }}</div> }
+                    </div>
                   </div>
                 </td>
+                <td class="epp-fecha">{{ t.total_entregas }} entrega{{ t.total_entregas !== 1 ? 's' : '' }}</td>
                 <td>
-                  <div class="epp-items-chips">
-                    @for (it of en.items.slice(0, 3); track it.epp_id) {
-                      <span class="epp-item-chip">{{ it.nombre }} ×{{ it.cantidad }}</span>
-                    }
-                    @if (en.items.length > 3) {
-                      <span class="epp-item-chip epp-item-chip--mas">+{{ en.items.length - 3 }} más</span>
-                    }
-                  </div>
+                  @if (ultimaEntrega(t); as u) {
+                    <div class="epp-items-chips">
+                      @for (it of u.items.slice(0, 2); track it.epp_id) {
+                        <span class="epp-item-chip">{{ it.nombre }} ×{{ it.cantidad }}</span>
+                      }
+                      @if (u.items.length > 2) {
+                        <span class="epp-item-chip epp-item-chip--mas">+{{ u.items.length - 2 }} más</span>
+                      }
+                    </div>
+                    <div class="epp-fecha-sub">{{ fechaCorta(u.fecha) }}</div>
+                  } @else {
+                    <span>—</span>
+                  }
                 </td>
                 <td>
-                  @if (en.firma_url) {
+                  @if (ultimaEntrega(t)?.firma_url) {
                     <span class="epp-firma-ind epp-firma-ind--si">✓ Firmada</span>
                   } @else {
                     <span class="epp-firma-ind epp-firma-ind--no">Sin firma</span>
                   }
                 </td>
-                <td>
-                  <span class="epp-estado-badge" [class.epp-estado-badge--anulada]="en.estado === 'anulada'"
-                        [class.epp-estado-badge--ok]="en.estado !== 'anulada'">
-                    {{ en.estado === 'anulada' ? 'Anulada' : 'Registrada' }}
-                  </span>
-                </td>
                 <td class="td-acc">
-                  <button class="epp-btn-icon" title="Generar constancia PDF"
-                          [disabled]="generandoConstancia === en.id"
-                          (click)="generarConstancia(en, $event)">
-                    @if (generandoConstancia === en.id) {
+                  <button class="epp-btn-icon" title="Ver historial completo" (click)="abrirHistorial(t); $event.stopPropagation()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                  <button class="epp-btn-icon" title="Generar reporte PDF de este trabajador"
+                          [disabled]="generandoReporteTrabajador === t.empleado_id"
+                          (click)="generarReporteTrabajador(t, $event)">
+                    @if (generandoReporteTrabajador === t.empleado_id) {
                       <app-spinner [size]="14"></app-spinner>
                     } @else {
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -275,21 +292,13 @@
                       </svg>
                     }
                   </button>
-                  @if (en.estado !== 'anulada') {
-                    <button class="epp-btn-icon epp-btn-icon--danger" title="Anular entrega"
-                            (click)="anularEntrega(en, $event)">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
-                      </svg>
-                    </button>
-                  }
                 </td>
               </tr>
             }
           </tbody>
         </table>
       </div>
-      <div class="epp-table-footer">✓ verde = firma capturada · filas anuladas quedan atenuadas</div>
+      <div class="epp-table-footer">{{ trabajadores.length }} trabajador{{ trabajadores.length !== 1 ? 'es' : '' }} con entregas de EPP · click en una fila para ver el historial completo</div>
     }
   }
 
@@ -314,80 +323,97 @@
   </app-epp-entrega-modal>
 }
 
-<!-- ══ MODAL: DETALLE DE ENTREGA ══ -->
-@if (entregaDetalle) {
+<!-- ══ MODAL: HISTORIAL DE EPP POR TRABAJADOR ══ -->
+@if (trabajadorDetalle; as t) {
   <app-modal
     [open]="true"
-    title="Detalle de entrega"
-    [subtitle]="fechaCorta(entregaDetalle.fecha)"
-    maxWidth="560px"
+    title="Historial de EPP"
+    [subtitle]="t.empleado_nombre"
+    maxWidth="640px"
     iconBg="rgba(59,130,246,0.12)"
     iconColor="#2563eb"
-    (closeModal)="cerrarDetalleEntrega()">
+    (closeModal)="cerrarHistorial()">
 
     <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
     </svg>
 
-    <div class="epp-det-estado-row">
-      <span class="epp-estado-badge" [class.epp-estado-badge--anulada]="entregaDetalle.estado === 'anulada'"
-            [class.epp-estado-badge--ok]="entregaDetalle.estado !== 'anulada'">
-        {{ entregaDetalle.estado === 'anulada' ? 'Anulada' : 'Registrada' }}
-      </span>
+    <div class="epp-det-receptor">
+      <span class="epp-avatar epp-avatar--lg">{{ inicialesEmpleado(t.empleado_nombre) }}</span>
+      <div class="epp-det-receptor-info">
+        <div class="epp-det-receptor-nombre">{{ t.empleado_nombre }}</div>
+        <div class="epp-det-receptor-sub">{{ t.cargo || 'Sin cargo registrado' }} · {{ t.total_entregas }} entrega{{ t.total_entregas !== 1 ? 's' : '' }}</div>
+      </div>
+      <button class="epp-btn-pdf epp-btn-pdf--sm" [disabled]="generandoReporteTrabajador === t.empleado_id"
+              (click)="generarReporteTrabajador(t)">
+        @if (generandoReporteTrabajador === t.empleado_id) {
+          <app-spinner [size]="14" theme="light"></app-spinner>
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Generar PDF
+        }
+      </button>
     </div>
 
-    <div class="epp-det-receptor">
-      <span class="epp-avatar epp-avatar--lg">{{ inicialesEmpleado(entregaDetalle.empleado_nombre) }}</span>
-      <div>
-        <div class="epp-det-receptor-nombre">{{ entregaDetalle.empleado_nombre || '—' }}</div>
-        <div class="epp-det-receptor-sub">recibió esta entrega</div>
+    @if (t.totales.length) {
+      <div class="epp-det-body">
+        <span class="epp-det-lbl">Consolidado por tipo de EPP</span>
+        <div class="epp-items-chips">
+          @for (tot of t.totales; track tot.nombre) {
+            <span class="epp-item-chip">{{ tot.nombre }} ×{{ tot.cantidad }}</span>
+          }
+        </div>
       </div>
-    </div>
+    }
 
     <div class="epp-det-body">
-      <span class="epp-det-lbl">Ítems entregados</span>
-      <div class="epp-det-items">
-        @for (it of entregaDetalle.items; track it.epp_id) {
-          <div class="epp-det-item-row"><span>{{ it.nombre }}</span><span class="epp-det-item-cant">× {{ it.cantidad }}</span></div>
-        }
-      </div>
-
-      @if (entregaDetalle.observacion) {
-        <div class="epp-det-obs">
-          <span class="epp-det-lbl">Observaciones</span>
-          <p>{{ entregaDetalle.observacion }}</p>
-        </div>
-      }
-
-      <div class="epp-det-firma">
-        <span class="epp-det-lbl">Firma del receptor</span>
-        @if (entregaDetalle.firma_url) {
-          <div class="epp-det-firma-box epp-det-firma-box--si">
-            <img [src]="entregaDetalle.firma_url" alt="Firma">
+      <span class="epp-det-lbl">Línea de tiempo ({{ t.entregas.length }})</span>
+      <div class="epp-historial-list">
+        @for (en of t.entregas; track en.id) {
+          <div class="epp-historial-item" [class.epp-historial-item--anulada]="en.estado === 'anulada'">
+            <div class="epp-historial-item-head">
+              <span class="epp-historial-fecha">{{ fechaCorta(en.fecha) }}</span>
+              <span class="epp-estado-badge" [class.epp-estado-badge--anulada]="en.estado === 'anulada'"
+                    [class.epp-estado-badge--ok]="en.estado !== 'anulada'">
+                {{ en.estado === 'anulada' ? 'Anulada' : 'Registrada' }}
+              </span>
+              @if (en.firma_url) {
+                <span class="epp-firma-ind epp-firma-ind--si">✓ Firmada</span>
+              } @else {
+                <span class="epp-firma-ind epp-firma-ind--no">Sin firma</span>
+              }
+            </div>
+            <div class="epp-items-chips">
+              @for (it of en.items; track it.epp_id) {
+                <span class="epp-item-chip">{{ it.nombre }} ×{{ it.cantidad }}</span>
+              }
+            </div>
+            <div class="epp-historial-item-actions">
+              <button class="epp-btn-icon" title="Generar constancia PDF"
+                      [disabled]="generandoConstancia === en.id"
+                      (click)="generarConstancia(en, $event)">
+                @if (generandoConstancia === en.id) {
+                  <app-spinner [size]="14"></app-spinner>
+                } @else {
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                }
+              </button>
+              @if (en.estado !== 'anulada') {
+                <button class="epp-btn-icon epp-btn-icon--danger" title="Anular entrega"
+                        (click)="anularEntrega(en, $event)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                  </svg>
+                </button>
+              }
+            </div>
           </div>
-        } @else {
-          <div class="epp-det-firma-box epp-det-firma-box--no">Sin firma registrada</div>
         }
-      </div>
-    </div>
-
-    <div class="epp-det-footer">
-      <span class="epp-det-footer-nota">Constancia disponible {{ entregaDetalle.firma_url ? 'con firma incluida' : '' }}</span>
-      <div class="epp-det-footer-btns">
-        @if (entregaDetalle.estado !== 'anulada') {
-          <button class="epp-btn-anular" (click)="anularEntrega(entregaDetalle)">Anular</button>
-        }
-        <button class="epp-btn-pdf" [disabled]="generandoConstancia === entregaDetalle.id"
-                (click)="generarConstancia(entregaDetalle)">
-          @if (generandoConstancia === entregaDetalle.id) {
-            <app-spinner [size]="14" theme="light"></app-spinner>
-          } @else {
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Generar PDF
-          }
-        </button>
       </div>
     </div>
 

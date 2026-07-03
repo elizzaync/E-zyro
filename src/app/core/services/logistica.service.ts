@@ -22,7 +22,7 @@ import {
   RegistrarIngresoPayload,
   Retorno,
   Incidencia, EquipoStockDesglose, CategoriaEquipoItem,
-  Epp, EppIn, EppEntrega, EppEntregaIn,
+  Epp, EppIn, EppEntrega, EppEntregaIn, EppTrabajadorResumen,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -542,5 +542,14 @@ export class LogisticaService {
     return this.http.get<{ pdf_url: string; tecnico: string; total_entregas: number }>(
       `${this.api}/epp/empleado/${empleadoId}/reporte`
     );
+  }
+
+  // Historial de EPP agrupado por trabajador (tabla "Entregas" + detalle "ojo").
+  getEppPorTrabajador(): Observable<EppTrabajadorResumen[]> {
+    return this.http.get<EppTrabajadorResumen[]>(`${this.api}/epp/reportes/por-empleado`);
+  }
+
+  reporteEppGlobal(): Observable<{ pdf_url: string; total_empleados: number }> {
+    return this.http.get<{ pdf_url: string; total_empleados: number }>(`${this.api}/epp/reportes/global`);
   }
 }

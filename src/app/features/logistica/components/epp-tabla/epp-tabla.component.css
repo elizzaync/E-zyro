@@ -159,6 +159,8 @@
 }
 .epp-avatar--lg { width: 38px; height: 38px; font-size: .82rem; }
 .epp-tecnico-nombre { font-weight: 600; color: var(--text-main,#111827); white-space: nowrap; }
+.epp-tecnico-cargo { font-size: .72rem; color: var(--text-muted,#9ca3af); margin-top: 1px; }
+.epp-fecha-sub { font-size: .7rem; color: var(--text-muted,#9ca3af); margin-top: 3px; }
 
 .epp-items-chips { display: flex; flex-wrap: wrap; gap: 5px; max-width: 320px; }
 .epp-item-chip { font-size: .72rem; font-weight: 500; padding: 3px 8px; border-radius: 5px; background: var(--hover-bg,#f3f4f6); color: var(--text-main,#374151); white-space: nowrap; }
@@ -168,12 +170,22 @@
 .epp-firma-ind--si { color: #15803d; }
 .epp-firma-ind--no { color: var(--text-muted,#9ca3af); font-weight: 500; }
 
-/* ── Detalle de entrega (modal) ── */
+.epp-btn-reporte-global {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-md,10px);
+  font-size: .82rem; font-weight: 600; cursor: pointer; border: 1px solid transparent; white-space: nowrap;
+  background: rgba(22,163,74,.1); color: #15803d;
+}
+.epp-btn-reporte-global svg { width: 14px; height: 14px; }
+.epp-btn-reporte-global:hover:not(:disabled) { background: rgba(22,163,74,.18); }
+.epp-btn-reporte-global:disabled { opacity: .55; cursor: default; }
+
+/* ── Historial de EPP por trabajador (modal) ── */
 .epp-det-estado-row { padding: 2px 24px 0; }
 .epp-det-receptor {
   display: flex; align-items: center; gap: 12px; padding: 16px 24px;
   border-bottom: 1px solid var(--border-color,#f1f2f4);
 }
+.epp-det-receptor-info { flex: 1; min-width: 0; }
 .epp-det-receptor-nombre { font-size: .92rem; font-weight: 700; color: var(--text-main,#111827); }
 .epp-det-receptor-sub { font-size: .78rem; color: var(--text-muted,#6b7280); margin-top: 1px; }
 
@@ -212,11 +224,24 @@
 .epp-btn-anular:hover { background: var(--hover-bg,#f3f4f6); }
 .epp-btn-pdf {
   display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: var(--radius-md,9px); border: none;
-  background: #2563eb; color: #fff; font-weight: 700; font-size: .82rem; cursor: pointer;
+  background: #2563eb; color: #fff; font-weight: 700; font-size: .82rem; cursor: pointer; flex-shrink: 0;
 }
 .epp-btn-pdf svg { width: 14px; height: 14px; }
-.epp-btn-pdf:hover { background: #1d4ed8; }
+.epp-btn-pdf:hover:not(:disabled) { background: #1d4ed8; }
 .epp-btn-pdf:disabled { opacity: .6; cursor: default; }
+.epp-btn-pdf--sm { padding: 7px 12px; font-size: .76rem; }
+
+.epp-historial-list { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
+.epp-historial-item {
+  border: 1px solid var(--border-color,#e5e7eb); border-radius: var(--radius-md,10px); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px; background: var(--card-bg,#fff);
+}
+.epp-historial-item--anulada { opacity: .55; }
+.epp-historial-item--anulada .epp-historial-fecha,
+.epp-historial-item--anulada .epp-item-chip { text-decoration: line-through; }
+.epp-historial-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.epp-historial-fecha { font-size: .82rem; font-weight: 600; color: var(--text-main,#111827); }
+.epp-historial-item-actions { display: flex; justify-content: flex-end; gap: 4px; margin-top: -4px; }
 
 /* ═══════════════════════════════════════════════════════
    DARK MODE
@@ -241,6 +266,9 @@
 :host-context([data-theme="dark"]) .epp-btn-pdf:hover         { background: #2563eb; }
 :host-context([data-theme="dark"]) .epp-vista-toggle button.active { background: #3b82f6; }
 :host-context([data-theme="dark"]) .epp-det-firma-box--si     { background: #f1f5f9; }
+:host-context([data-theme="dark"]) .epp-btn-reporte-global     { background: rgba(74,222,128,.12); color: #4ade80; }
+:host-context([data-theme="dark"]) .epp-btn-reporte-global:hover:not(:disabled) { background: rgba(74,222,128,.2); }
+:host-context([data-theme="dark"]) .epp-historial-item         { background: var(--input-bg,#111827); }
 
 @media (max-width: 900px) {
   .epp-items-chips { max-width: 180px; }
