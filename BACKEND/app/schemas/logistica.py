@@ -783,7 +783,7 @@ class EquipoStockDesglose(BaseModel):
 # maquinaria de inventario (MovimientoInventario + costeo + asiento). El destino
 # decide si el ingreso queda en stock o se imputa a un servicio/correctivo.
 
-ClaseArticuloIngreso = Literal["material", "equipo", "herramienta", "equipo_tecnologico"]
+ClaseArticuloIngreso = Literal["material", "equipo", "herramienta", "equipo_tecnologico", "epp"]
 TipoDestino          = Literal["stock", "servicio", "correctivo"]
 ModoItem             = Literal["nuevo", "existente"]
 
