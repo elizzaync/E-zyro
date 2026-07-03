@@ -240,9 +240,11 @@ def _documentos_abiertos(db: Session, empresa_id: str, lado: str) -> list[tuple[
     if lado == "cxp":
         from app.models.cuentas_por_pagar import FacturaProveedor as Doc, AplicacionPagoProveedor as Apl
         col_factura = Apl.factura_id
+        estados = ("pendiente", "pagada_parcial")
     else:
         from app.models.cuentas_por_cobrar import FacturaCliente as Doc, AplicacionCobroCliente as Apl
         col_factura = Apl.factura_id
+        estados = ("pendiente", "cobrada_parcial")
     aplicado = (
         db.query(col_factura.label("fid"),
                  func.coalesce(func.sum(Apl.monto_aplicado), 0).label("apl"))
@@ -250,14 +252,24 @@ def _documentos_abiertos(db: Session, empresa_id: str, lado: str) -> list[tuple[
         .subquery()
     )
     filas = (
-        db.query(Doc.fecha_vencimiento,
+        db.query(Doc.fecha_vencimiento, Doc.moneda, Doc.tipo_cambio,
                  (Doc.total - func.coalesce(aplicado.c.apl, 0)).label("saldo"))
         .outerjoin(aplicado, aplicado.c.fid == Doc.id)
         .filter(Doc.empresa_id == empresa_id,
-                Doc.estado.in_(("pendiente", "pagada_parcial")))
+                Doc.estado.in_(estados))
         .all()
     )
-    return [(fv, _d(s)) for fv, s in filas if _d(s) > CERO]
+    # Los documentos en moneda extranjera se agregan convertidos al TC de emisión
+    # (el mismo de su asiento): el dashboard suma soles con soles.
+    out = []
+    for fv, moneda, tc, s in filas:
+        saldo = _d(s)
+        if saldo <= CERO:
+            continue
+        if (moneda or "PEN") != "PEN":
+            saldo = (saldo * _d(tc or 1)).quantize(Q2)
+        out.append((fv, saldo))
+    return out
 
 
 def _buckets_vencimiento(pares: list[tuple[date, Decimal]], hoy: date) -> dict:

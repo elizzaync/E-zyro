@@ -73,6 +73,7 @@ from app.routers import consultas             as consultas_router
 from app.routers import cotizaciones          as cotizaciones_router
 from app.routers import facturacion_electronica as facturacion_electronica_router
 from app.routers import presupuesto           as presupuesto_router
+from app.routers import chatbot               as chatbot_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -2281,6 +2282,7 @@ app.include_router(consultas_router.router)
 app.include_router(cotizaciones_router.router)
 app.include_router(facturacion_electronica_router.router)
 app.include_router(presupuesto_router.router)
+app.include_router(chatbot_router.router)
 
 
 @app.get("/")

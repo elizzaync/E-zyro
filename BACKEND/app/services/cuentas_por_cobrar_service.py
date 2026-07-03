@@ -261,6 +261,8 @@ def registrar_cobro(db: Session, empresa_id: str, datos, creado_por_id: str | No
         if f.estado == "anulada":
             raise HTTPException(status_code=422, detail=f"El comprobante {f.numero_documento} está anulado.")
         aplicado = _d(ap.monto_aplicado)
+        # Saldo en la MONEDA DEL DOCUMENTO: el monto aplicado llega en esa misma
+        # moneda; aquí no se convierte (la conversión es solo para reportes).
         saldo = saldo_pendiente(db, f)
         if aplicado > saldo:
             raise HTTPException(
@@ -423,6 +425,15 @@ def anular_comprobante(db: Session, empresa_id: str, factura_id: str, creado_por
 
 
 # ── Reportes ─────────────────────────────────────────────────────────────────
+def _saldo_funcional(f, saldo: Decimal) -> Decimal:
+    """Saldo en moneda funcional (PEN): los documentos en moneda extranjera se
+    convierten al TC de emisión (el mismo de su asiento) para poder agregarlos
+    con los documentos en soles sin mezclar monedas."""
+    if (getattr(f, "moneda", None) or "PEN") == "PEN":
+        return saldo
+    return (saldo * (f.tipo_cambio or Decimal("1"))).quantize(Decimal("0.01"))
+
+
 def reporte_saldos(db: Session, empresa_id: str) -> list[dict]:
     facturas = (
         db.query(FacturaCliente)
@@ -432,7 +443,7 @@ def reporte_saldos(db: Session, empresa_id: str) -> list[dict]:
     )
     acc: dict[str, dict] = {}
     for f in facturas:
-        saldo = saldo_pendiente(db, f)
+        saldo = _saldo_funcional(f, saldo_pendiente(db, f))
         if saldo <= CERO:
             continue
         # cliente_id puede venir como uuid.UUID (columna UUID nativa); normalizar
@@ -457,7 +468,7 @@ def reporte_antiguedad(db: Session, empresa_id: str, corte: date | None = None) 
     )
     acc: dict[str, dict] = {}
     for f in facturas:
-        saldo = saldo_pendiente(db, f)
+        saldo = _saldo_funcional(f, saldo_pendiente(db, f))
         if saldo <= CERO or f.fecha_vencimiento is None:
             continue
         cid = str(f.cliente_id)
