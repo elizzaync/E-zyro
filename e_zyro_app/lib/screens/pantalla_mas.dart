@@ -30,6 +30,8 @@ import 'pantalla_planos.dart';
 import 'finanzas/pantalla_finanzas.dart';
 import 'pantalla_documentos_sst.dart';
 import 'pantalla_privilegios.dart';
+import 'pantalla_pendientes.dart';
+import 'pantalla_cotizaciones.dart';
 import 'logistica/almacen/pantalla_requerimientos_logistica.dart';
 
 class MoreScreen extends StatefulWidget {
@@ -60,6 +62,7 @@ class _MoreScreenState extends State<MoreScreen> {
   bool _canEquipoIntervenido = false;
   bool _canFinanzas = false;
   bool _canDocumentosSst = false;
+  bool _canCotizaciones = false;
   // Vista acotada de Requerimientos para Técnico/Jefe de Operaciones (sin el
   // panel completo de Logística, que sigue exclusivo de Logística/Admin).
   bool _canVerRequerimientos = false;
@@ -106,6 +109,9 @@ class _MoreScreenState extends State<MoreScreen> {
         _canEquipoIntervenido = AppSession.i.canVerEquipoIntervenido;
         _canFinanzas = AppSession.i.canVerFinanzas;
         _canDocumentosSst = AppSession.i.canVerDocumentosSst;
+        _canCotizaciones = AppSession.i.isAdmin ||
+            AppSession.i.hasPerm('cotizaciones:ver') ||
+            AppSession.i.hasPerm('cotizaciones:gestionar');
         _canVerRequerimientos = AppSession.i.canVerRequerimientosAcotado;
       });
     }
@@ -223,6 +229,14 @@ class _MoreScreenState extends State<MoreScreen> {
               surface: surface,
               items: [
                 _MenuItem(
+                  icon: Icons.pending_actions_outlined,
+                  label: 'Mis pendientes',
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PantallaPendientes()),
+                  ),
+                ),
+                _MenuItem(
                   icon: Icons.campaign_outlined,
                   label: 'Comunicados',
                   onTap: () => Navigator.push(
@@ -334,7 +348,7 @@ class _MoreScreenState extends State<MoreScreen> {
 
             // ── 4. Módulos operativos (plan migración ERP) ─────────────
             // Cada módulo se muestra solo si el rol tiene su permiso :ver (admin: todos).
-            if (_canFinanzas || _canEquipoIntervenido || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canDocumentosSst || _canVerRequerimientos) ...[
+            if (_canFinanzas || _canEquipoIntervenido || _canCalibracion || _canCorrectivo || _canItse || _canCatalogos || _canDocumentosSst || _canVerRequerimientos || _canCotizaciones) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Módulos operativos'),
               const SizedBox(height: 10),
@@ -348,6 +362,14 @@ class _MoreScreenState extends State<MoreScreen> {
                       onTap: () => Navigator.push(
                         context, MaterialPageRoute(
                             builder: (_) => const PantallaRequerimientosLogistica())),
+                    ),
+                  if (_canCotizaciones)
+                    _MenuItem(
+                      icon: Icons.request_quote_outlined,
+                      label: 'Cotizaciones',
+                      onTap: () => Navigator.push(
+                        context, MaterialPageRoute(
+                            builder: (_) => const PantallaCotizaciones())),
                     ),
                   if (_canFinanzas)
                     _MenuItem(

@@ -9,6 +9,7 @@ import 'pantalla_activos_fijos.dart';
 import 'pantalla_planilla.dart';
 import 'pantalla_tributario.dart';
 import 'pantalla_centros_costo.dart';
+import 'pantalla_rentabilidad.dart';
 import 'pantalla_inventario_valorizado.dart';
 import 'pantalla_caja_chica.dart';
 import 'pantalla_conciliacion_bancaria.dart';
@@ -33,6 +34,7 @@ class FinId {
   static const inventario = 'inventario';
   static const planilla = 'planilla';
   static const centrosCosto = 'centros_costo';
+  static const rentabilidad = 'rentabilidad';
   static const cierre = 'cierre';
   static const manual = 'manual';
 }
@@ -130,6 +132,11 @@ List<FinSeccion> finanzasSecciones(AppSession s) {
             'Controlling: presupuesto vs. costo real',
             Icons.workspaces_outline, Colors.cyan.shade700,
             (_) => const PantallaCentrosCosto()),
+      if (s.canVerControlling)
+        FinModulo(FinId.rentabilidad, 'Rentabilidad',
+            'Margen por proyecto: ingresos vs. costos',
+            Icons.trending_up, Colors.green.shade700,
+            (_) => const PantallaRentabilidad()),
     ]),
   ];
   // Solo secciones con al menos un módulo visible.

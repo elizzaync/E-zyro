@@ -5,6 +5,7 @@ import '../core/api_client.dart';
 import '../core/api_result.dart';
 import '../services/auth_service.dart';
 import 'pantalla_portal_analytics.dart';
+import 'pantalla_portal_comercial.dart';
 import 'pantalla_portal_proyecto.dart';
 import 'portal_design.dart';
 import 'portal_estilos.dart';
@@ -238,6 +239,7 @@ class _PortalShellState extends State<PortalShell> {
                   cargar: () => _svc!.getDocumentos(),
                   builder: _vistaDocumentos,
                 ),
+                PantallaPortalComercial(client: _client!),
               ],
             ),
       bottomNavigationBar: BottomNavigationBar(
@@ -266,6 +268,11 @@ class _PortalShellState extends State<PortalShell> {
             icon: Icon(Icons.description_outlined),
             activeIcon: Icon(Icons.description),
             label: 'Documentos',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.request_quote_outlined),
+            activeIcon: Icon(Icons.request_quote),
+            label: 'Comercial',
           ),
         ],
       ),

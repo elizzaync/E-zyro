@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/compras_models.dart';
 import '../services/compras_service.dart';
+import '../services/consulta_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
@@ -264,8 +265,35 @@ class _ProveedorSheetState extends State<_ProveedorSheet> {
   late final TextEditingController _telefono;
   late final TextEditingController _direccion;
   bool _guardando = false;
+  bool _consultandoRuc = false;
 
   bool get _esEdicion => widget.proveedor != null;
+
+  Future<void> _buscarRuc() async {
+    final ruc = _ruc.text.trim();
+    if (ruc.length != 11) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('El RUC debe tener 11 dígitos'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    setState(() => _consultandoRuc = true);
+    final r = await ConsultaService.ruc(ruc);
+    if (!mounted) return;
+    setState(() => _consultandoRuc = false);
+    if (r == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('No se encontró el RUC (o consulta no configurada)'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    setState(() {
+      if (r.razonSocial.isNotEmpty) _razon.text = r.razonSocial;
+      if ((r.direccion ?? '').isNotEmpty) _direccion.text = r.direccion!;
+    });
+  }
 
   @override
   void initState() {
@@ -388,7 +416,39 @@ class _ProveedorSheetState extends State<_ProveedorSheet> {
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             _campo('Razón social *', _razon, 'Nombre de la empresa'),
-            _campo('RUC', _ruc, 'Opcional'),
+            // RUC con búsqueda SUNAT: autocompleta razón social y dirección.
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('RUC',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _ruc,
+                  keyboardType: TextInputType.number,
+                  decoration: _dec('11 dígitos — toca la lupa para buscar')
+                      .copyWith(
+                    suffixIcon: _consultandoRuc
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2)),
+                          )
+                        : IconButton(
+                            tooltip: 'Buscar en SUNAT',
+                            icon: const Icon(Icons.search),
+                            onPressed: _buscarRuc,
+                          ),
+                  ),
+                  onSubmitted: (_) => _buscarRuc(),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
             _campo('Contacto', _contacto, 'Persona de contacto'),
             _campo('Teléfono', _telefono, 'Opcional',
                 keyboard: TextInputType.phone),

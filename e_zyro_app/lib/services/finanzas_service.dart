@@ -750,6 +750,22 @@ class FinanzasService {
         ComparativoCentro.fromJson);
   }
 
+  // ── Rentabilidad por proyecto ───────────────────────────────────────────────
+  Future<ApiResult<List<RentabilidadProyecto>>> rentabilidadProyectos({String? desde, String? hasta}) {
+    final params = <String, String>{'desde': ?desde, 'hasta': ?hasta};
+    final qs = Uri(queryParameters: params).query;
+    return _getList('/controlling/rentabilidad${qs.isEmpty ? '' : '?$qs'}',
+        RentabilidadProyecto.fromJson);
+  }
+
+  Future<ApiResult<RentabilidadProyecto>> rentabilidadProyecto(String proyectoId,
+      {String? desde, String? hasta}) {
+    final params = <String, String>{'desde': ?desde, 'hasta': ?hasta};
+    final qs = Uri(queryParameters: params).query;
+    return _getObj('/controlling/rentabilidad/$proyectoId${qs.isEmpty ? '' : '?$qs'}',
+        RentabilidadProyecto.fromJson);
+  }
+
   // ── Inventario valorizado ───────────────────────────────────────────────────
   Future<ApiResult<List<KardexFila>>> kardexValorizado({String? almacen, String? material}) {
     final params = <String, String>{'almacen': ?almacen, 'material': ?material};

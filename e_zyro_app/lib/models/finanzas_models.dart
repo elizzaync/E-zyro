@@ -637,6 +637,72 @@ class ComparativoCentro {
       );
 }
 
+// ── Rentabilidad por proyecto ────────────────────────────────────────────────
+class RentabilidadCentro {
+  final String centroCostoId, codigo, nombre;
+  final double costoReal;
+  RentabilidadCentro({
+    required this.centroCostoId, required this.codigo,
+    required this.nombre, required this.costoReal,
+  });
+  factory RentabilidadCentro.fromJson(Map<String, dynamic> j) => RentabilidadCentro(
+        centroCostoId: j['centro_costo_id'].toString(),
+        codigo: j['codigo']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        costoReal: _toD(j['costo_real']),
+      );
+}
+
+class RentabilidadEmpleado {
+  final String empleadoId, nombre;
+  final double horas, costo;
+  RentabilidadEmpleado({
+    required this.empleadoId, required this.nombre,
+    required this.horas, required this.costo,
+  });
+  factory RentabilidadEmpleado.fromJson(Map<String, dynamic> j) => RentabilidadEmpleado(
+        empleadoId: j['empleado_id'].toString(),
+        nombre: j['nombre']?.toString() ?? '',
+        horas: _toD(j['horas']),
+        costo: _toD(j['costo']),
+      );
+}
+
+class RentabilidadProyecto {
+  final String proyectoId, nombreProyecto, clienteId, cliente, estado;
+  final double ingresos, costosImputados, manoObra, horasManoObra, margen;
+  final double? margenPct;
+  final List<RentabilidadCentro> centros;
+  final List<RentabilidadEmpleado> empleados;
+  RentabilidadProyecto({
+    required this.proyectoId, required this.nombreProyecto,
+    required this.clienteId, required this.cliente, required this.estado,
+    required this.ingresos, required this.costosImputados,
+    required this.manoObra, required this.horasManoObra,
+    required this.margen, this.margenPct,
+    this.centros = const [], this.empleados = const [],
+  });
+  factory RentabilidadProyecto.fromJson(Map<String, dynamic> j) => RentabilidadProyecto(
+        proyectoId: j['proyecto_id'].toString(),
+        nombreProyecto: j['nombre_proyecto']?.toString() ?? '',
+        clienteId: j['cliente_id'].toString(),
+        cliente: j['cliente']?.toString() ?? '',
+        estado: j['estado']?.toString() ?? '',
+        ingresos: _toD(j['ingresos']),
+        costosImputados: _toD(j['costos_imputados']),
+        manoObra: _toD(j['mano_obra']),
+        horasManoObra: _toD(j['horas_mano_obra']),
+        margen: _toD(j['margen']),
+        margenPct: j['margen_pct'] == null ? null : _toD(j['margen_pct']),
+        centros: (j['centros'] as List? ?? [])
+            .map((e) => RentabilidadCentro.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        empleados: (j['empleados'] as List? ?? [])
+            .map((e) => RentabilidadEmpleado.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+}
+
 // ── Inventario valorizado ────────────────────────────────────────────────────
 class MovimientoValorizado {
   final String id, materialId, tipo;
