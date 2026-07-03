@@ -43,7 +43,10 @@ class DniOut(BaseModel):
 
 
 def _consultar(path: str, numero: str) -> dict:
-    token = os.getenv("APIS_NET_PE_TOKEN", "")
+    # Tolerante a errores de pegado: comillas, espacios o el prefijo "Bearer".
+    token = os.getenv("APIS_NET_PE_TOKEN", "").strip().strip('"').strip("'")
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
     if not token:
         raise HTTPException(
             status_code=503,
@@ -56,10 +59,19 @@ def _consultar(path: str, numero: str) -> dict:
         )
     except requests.RequestException:
         raise HTTPException(status_code=502, detail="Servicio de consulta no disponible.")
+    if r.status_code in (401, 403):
+        raise HTTPException(
+            status_code=502,
+            detail="Token rechazado por apis.net.pe: verifica que el token sea de "
+                   "apis.net.pe (no de otro proveedor) y esté pegado sin comillas.",
+        )
     if r.status_code == 404:
         raise HTTPException(status_code=404, detail="Número no encontrado.")
     if r.status_code == 422:
         raise HTTPException(status_code=422, detail="Número inválido.")
+    if r.status_code == 429:
+        raise HTTPException(status_code=502,
+                            detail="Límite de consultas del plan alcanzado.")
     if r.status_code != 200:
         raise HTTPException(status_code=502,
                             detail=f"Servicio de consulta respondió {r.status_code}.")
