@@ -214,6 +214,7 @@ class FinanzasService {
     required double igv,
     bool alContado = false,
     String? documentoAfectadoId, // nota de crédito: comprobante cuyo saldo rebaja
+    String? moneda,
   }) async {
     try {
       final r = await _client.post('/cuentas-por-cobrar/facturas', {
@@ -226,6 +227,7 @@ class FinanzasService {
         'igv': igv,
         'al_contado': alContado,
         'documento_afectado_id': ?documentoAfectadoId,
+        'moneda': ?moneda,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -750,6 +752,106 @@ class FinanzasService {
         ComparativoCentro.fromJson);
   }
 
+  // ── Configuración ERP: facturación electrónica ──────────────────────────────
+  Future<ApiResult<ConfigFE>> configFE() =>
+      _getObj('/facturacion-electronica/configuracion', ConfigFE.fromJson);
+
+  Future<ApiResult<ConfigFE>> actualizarConfigFE({
+    bool? habilitado, String? apiUrl, String? apiToken,
+    String? serieFactura, String? serieBoleta,
+  }) async {
+    try {
+      final r = await _client.put('/facturacion-electronica/configuracion', {
+        'habilitado': ?habilitado,
+        'api_url': ?apiUrl,
+        'api_token': ?apiToken,
+        'serie_factura': ?serieFactura,
+        'serie_boleta': ?serieBoleta,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(ConfigFE.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<Factura>> reintentarCpe(String facturaId) async {
+    try {
+      final r = await _client.post(
+          '/cuentas-por-cobrar/facturas/$facturaId/emitir-cpe', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  // ── Tipo de cambio (multimoneda) ─────────────────────────────────────────────
+  Future<ApiResult<List<TipoCambioDia>>> tiposCambio({int dias = 30}) =>
+      _getList('/contabilidad/tipo-cambio?dias=$dias', TipoCambioDia.fromJson);
+
+  Future<ApiResult<TipoCambioDia>> actualizarTipoCambioHoy() async {
+    try {
+      final r = await _client.post('/contabilidad/tipo-cambio/actualizar', {});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(TipoCambioDia.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<TipoCambioDia>> registrarTipoCambio(
+      String fecha, double venta, {double? compra}) async {
+    try {
+      final r = await _client.post('/contabilidad/tipo-cambio', {
+        'fecha': fecha,
+        'venta': venta,
+        'compra': ?compra,
+      });
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(TipoCambioDia.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  // ── Presupuesto anual ────────────────────────────────────────────────────────
+  Future<ApiResult<PresupuestoAnual>> presupuesto(int anio) =>
+      _getObj('/presupuesto/$anio', PresupuestoAnual.fromJson);
+
+  Future<ApiResult<PresupuestoAnual>> guardarPresupuesto(
+      int anio, List<Map<String, dynamic>> lineas) async {
+    try {
+      final r = await _client.put('/presupuesto/$anio', {'lineas': lineas});
+      if (r.statusCode == 200) {
+        return ApiResult.ok(PresupuestoAnual.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  // ── Export Excel de reportes ─────────────────────────────────────────────────
+  /// Devuelve la URL del XLSX generado, o null si falló.
+  Future<String?> excelReporte(String pathConQuery) async {
+    try {
+      final r = await _client.get('/reportes-financieros/$pathConQuery');
+      if (r.statusCode != 200) return null;
+      return (jsonDecode(r.body) as Map<String, dynamic>)['url']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Rentabilidad por proyecto ───────────────────────────────────────────────
   Future<ApiResult<List<RentabilidadProyecto>>> rentabilidadProyectos({String? desde, String? hasta}) {
     final params = <String, String>{'desde': ?desde, 'hasta': ?hasta};
@@ -984,12 +1086,14 @@ class FinanzasService {
     String? cuentaCierreCodigo,
     String? cuentaUtilidadCodigo,
     String? cuentaPerdidaCodigo,
+    bool? multimoneda,
   }) async {
     try {
       final r = await _client.put('/contabilidad/configuracion', {
         'cuenta_cierre_codigo': ?cuentaCierreCodigo,
         'cuenta_utilidad_codigo': ?cuentaUtilidadCodigo,
         'cuenta_perdida_codigo': ?cuentaPerdidaCodigo,
+        'multimoneda': ?multimoneda,
       });
       if (r.statusCode == 200) {
         return ApiResult.ok(ConfigContable.fromJson(jsonDecode(r.body) as Map<String, dynamic>));

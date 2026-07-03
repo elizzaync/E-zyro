@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/finanzas_models.dart';
 import '../../services/finanzas_service.dart';
@@ -98,6 +99,60 @@ class _PantallaReportesFinancierosState extends State<PantallaReportesFinanciero
     });
   }
 
+  /// Exporta a XLSX (lo genera el backend) y lo abre con Excel/navegador.
+  Future<void> _exportarExcel() async {
+    if (_svc == null) return;
+    final fechaStr = _iso(_fecha);
+    final inicioMes = '${_fecha.year}-${_fecha.month.toString().padLeft(2, '0')}-01';
+    final opcion = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(8),
+              child: Text('Exportar a Excel',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_outlined),
+              title: const Text('Balance general'),
+              subtitle: Text('al $fechaStr', style: const TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(ctx, 'balance-general/excel?fecha=$fechaStr'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.assessment_outlined),
+              title: const Text('Estado de resultados'),
+              subtitle: Text('del $inicioMes al $fechaStr',
+                  style: const TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(
+                  ctx, 'estado-resultados/excel?desde=$inicioMes&hasta=$fechaStr'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.balance_outlined),
+              title: const Text('Balance de comprobación'),
+              subtitle: Text('período $_periodo', style: const TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(
+                  ctx, 'balance-comprobacion/excel?periodo=$_periodo'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (opcion == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Generando Excel…')));
+    final url = await _svc!.excelReporte(opcion);
+    if (!mounted) return;
+    if (url != null) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } else {
+      mostrarError(context, 'No se pudo generar el Excel');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -114,6 +169,11 @@ class _PantallaReportesFinancierosState extends State<PantallaReportesFinanciero
           ]),
           actions: [
             accionConmutadorFinanzas(context, actual: FinId.reportes),
+            IconButton(
+              tooltip: 'Exportar a Excel',
+              icon: const Icon(Icons.table_view_outlined),
+              onPressed: _exportarExcel,
+            ),
             IconButton(
               tooltip: 'Fecha de corte',
               icon: const Icon(Icons.event),

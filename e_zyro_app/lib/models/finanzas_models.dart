@@ -77,12 +77,16 @@ class Factura {
   final String id, numeroDocumento, tipoDocumento, estado, fechaEmision, fechaVencimiento;
   final double subtotal, igv, total, saldoPendiente;
   final String? asientoId, terceroId, cuentaGastoCodigo;
+  final String moneda;
+  // CPE (facturación electrónica) — null si la feature está apagada
+  final String? cpeEstado, cpePdfUrl, cpeMensaje;
   Factura({
     required this.id, required this.numeroDocumento, required this.tipoDocumento,
     required this.estado, required this.fechaEmision, required this.fechaVencimiento,
     required this.subtotal, required this.igv, required this.total,
     required this.saldoPendiente, this.asientoId, this.terceroId,
-    this.cuentaGastoCodigo,
+    this.cuentaGastoCodigo, this.moneda = 'PEN',
+    this.cpeEstado, this.cpePdfUrl, this.cpeMensaje,
   });
   factory Factura.fromJson(Map<String, dynamic> j) => Factura(
         id: j['id'].toString(),
@@ -98,6 +102,10 @@ class Factura {
         asientoId: j['asiento_id']?.toString(),
         terceroId: (j['proveedor_id'] ?? j['cliente_id'])?.toString(),
         cuentaGastoCodigo: j['cuenta_gasto_codigo']?.toString(),
+        moneda: j['moneda']?.toString() ?? 'PEN',
+        cpeEstado: j['cpe_estado']?.toString(),
+        cpePdfUrl: j['cpe_pdf_url']?.toString(),
+        cpeMensaje: j['cpe_mensaje']?.toString(),
       );
 }
 
@@ -1019,12 +1027,87 @@ class ResumenFinanciero {
 // ── Configuración contable + cierre de ejercicio ─────────────────────────────
 class ConfigContable {
   final String cuentaCierreCodigo, cuentaUtilidadCodigo, cuentaPerdidaCodigo;
+  final bool multimoneda;
   ConfigContable({required this.cuentaCierreCodigo,
-      required this.cuentaUtilidadCodigo, required this.cuentaPerdidaCodigo});
+      required this.cuentaUtilidadCodigo, required this.cuentaPerdidaCodigo,
+      this.multimoneda = false});
   factory ConfigContable.fromJson(Map<String, dynamic> j) => ConfigContable(
         cuentaCierreCodigo: j['cuenta_cierre_codigo']?.toString() ?? '891',
         cuentaUtilidadCodigo: j['cuenta_utilidad_codigo']?.toString() ?? '591',
         cuentaPerdidaCodigo: j['cuenta_perdida_codigo']?.toString() ?? '592',
+        multimoneda: j['multimoneda'] == true,
+      );
+}
+
+// ── Configuración ERP: facturación electrónica, TC, presupuesto ─────────────
+class ConfigFE {
+  final bool habilitado, tokenConfigurado;
+  final String proveedor, serieFactura, serieBoleta;
+  final String? apiUrl;
+  ConfigFE({
+    required this.habilitado, required this.tokenConfigurado,
+    required this.proveedor, required this.serieFactura,
+    required this.serieBoleta, this.apiUrl,
+  });
+  factory ConfigFE.fromJson(Map<String, dynamic> j) => ConfigFE(
+        habilitado: j['habilitado'] == true,
+        tokenConfigurado: j['token_configurado'] == true,
+        proveedor: j['proveedor']?.toString() ?? 'nubefact',
+        serieFactura: j['serie_factura']?.toString() ?? 'F001',
+        serieBoleta: j['serie_boleta']?.toString() ?? 'B001',
+        apiUrl: j['api_url']?.toString(),
+      );
+}
+
+class TipoCambioDia {
+  final String fecha, moneda, fuente;
+  final double? compra;
+  final double venta;
+  TipoCambioDia({required this.fecha, required this.moneda,
+      required this.fuente, this.compra, required this.venta});
+  factory TipoCambioDia.fromJson(Map<String, dynamic> j) => TipoCambioDia(
+        fecha: j['fecha']?.toString() ?? '',
+        moneda: j['moneda']?.toString() ?? 'USD',
+        fuente: j['fuente']?.toString() ?? '',
+        compra: j['compra'] == null ? null : _toD(j['compra']),
+        venta: _toD(j['venta']),
+      );
+}
+
+class PresupuestoLinea {
+  final String cuentaCodigo, nombre;
+  final double montoAnual, ejecutado, disponible;
+  final double? ejecucionPct;
+  final String? notas;
+  PresupuestoLinea({
+    required this.cuentaCodigo, required this.nombre,
+    required this.montoAnual, required this.ejecutado,
+    required this.disponible, this.ejecucionPct, this.notas,
+  });
+  factory PresupuestoLinea.fromJson(Map<String, dynamic> j) => PresupuestoLinea(
+        cuentaCodigo: j['cuenta_codigo']?.toString() ?? '',
+        nombre: j['nombre']?.toString() ?? '',
+        montoAnual: _toD(j['monto_anual']),
+        ejecutado: _toD(j['ejecutado']),
+        disponible: _toD(j['disponible']),
+        ejecucionPct: j['ejecucion_pct'] == null ? null : _toD(j['ejecucion_pct']),
+        notas: j['notas']?.toString(),
+      );
+}
+
+class PresupuestoAnual {
+  final int anio;
+  final List<PresupuestoLinea> lineas;
+  final double totalPresupuestado, totalEjecutado;
+  PresupuestoAnual({required this.anio, required this.lineas,
+      required this.totalPresupuestado, required this.totalEjecutado});
+  factory PresupuestoAnual.fromJson(Map<String, dynamic> j) => PresupuestoAnual(
+        anio: (j['anio'] as num).toInt(),
+        lineas: (j['lineas'] as List? ?? [])
+            .map((e) => PresupuestoLinea.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        totalPresupuestado: _toD(j['total_presupuestado']),
+        totalEjecutado: _toD(j['total_ejecutado']),
       );
 }
 

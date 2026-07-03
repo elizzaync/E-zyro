@@ -1,10 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
+
+// ── CPE (facturación electrónica) — helpers de UI ────────────────────────────
+Color colorCpe(String estado) => switch (estado) {
+      'aceptado' => Colors.green,
+      'pendiente_sunat' => Colors.orange,
+      'error' => Colors.red,
+      _ => Colors.blueGrey, // no_soportado u otros
+    };
+
+/// Hoja con el estado SUNAT del comprobante: PDF oficial y reintento si falló.
+Future<void> mostrarDetalleCpe(BuildContext context, Factura f,
+    {Future<void> Function()? onReintentar}) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.receipt_long_outlined,
+                  color: colorCpe(f.cpeEstado ?? ''), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('SUNAT — ${f.numeroDocumento}',
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+              chipEstado(f.cpeEstado ?? '—'),
+            ]),
+            const SizedBox(height: 10),
+            if ((f.cpeMensaje ?? '').isNotEmpty)
+              Text(f.cpeMensaje!,
+                  style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
+            const SizedBox(height: 14),
+            if ((f.cpePdfUrl ?? '').isNotEmpty)
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44)),
+                onPressed: () => launchUrl(Uri.parse(f.cpePdfUrl!),
+                    mode: LaunchMode.externalApplication),
+                icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('Ver PDF oficial'),
+              ),
+            if (f.cpeEstado == 'error' && onReintentar != null) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(44)),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await onReintentar();
+                },
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reintentar emisión a SUNAT'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 class PantallaCuentasCobrar extends StatefulWidget {
   const PantallaCuentasCobrar({super.key});
@@ -84,6 +151,23 @@ class _State extends State<PantallaCuentasCobrar>
       if (r.ok) _cobros = r.data!;
     });
     if (!r.ok) mostrarError(context, r.errorMessage);
+  }
+
+  Future<void> _reintentarCpe(Factura f) async {
+    final svc = await getFinanzasService();
+    final r = await svc.reintentarCpe(f.id);
+    if (!mounted) return;
+    if (r.ok) {
+      final estado = r.data?.cpeEstado ?? '';
+      if (estado == 'aceptado' || estado == 'pendiente_sunat') {
+        mostrarOk(context, 'Comprobante enviado a SUNAT ($estado)');
+      } else {
+        mostrarError(context, r.data?.cpeMensaje ?? 'La emisión volvió a fallar');
+      }
+      _cargarComprobantes();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
   }
 
   Future<void> _anular(Factura f) async {
@@ -247,6 +331,7 @@ class _State extends State<PantallaCuentasCobrar>
             canAnular: canAnular,
             onAnular: _anular,
             onRefresh: _cargarComprobantes,
+            onReintentarCpe: _reintentarCpe,
           ),
           _TabSaldos(
             saldos: _saldos,
@@ -272,6 +357,7 @@ class _TabComprobantes extends StatelessWidget {
   final bool canAnular;
   final void Function(Factura) onAnular;
   final Future<void> Function() onRefresh;
+  final Future<void> Function(Factura)? onReintentarCpe;
 
   const _TabComprobantes({
     required this.comprobantes,
@@ -279,6 +365,7 @@ class _TabComprobantes extends StatelessWidget {
     required this.canAnular,
     required this.onAnular,
     required this.onRefresh,
+    this.onReintentarCpe,
   });
 
   @override
@@ -301,11 +388,25 @@ class _TabComprobantes extends StatelessWidget {
           final f = comprobantes[i];
           return Card(
             child: ListTile(
-              title: Text(f.numeroDocumento),
+              // Ícono SUNAT solo cuando la feature CPE está activa (cpe_estado
+              // llega null con la feature apagada: la tarjeta no cambia).
+              leading: f.cpeEstado == null
+                  ? null
+                  : Icon(Icons.cloud_done_outlined,
+                      color: colorCpe(f.cpeEstado!), size: 22),
+              title: Text(f.numeroDocumento +
+                  (f.moneda != 'PEN' ? ' · ${f.moneda}' : '')),
               subtitle: Text(
-                '${f.tipoDocumento} · Vence ${f.fechaVencimiento}',
+                '${f.tipoDocumento} · Vence ${f.fechaVencimiento}'
+                '${f.cpeEstado != null ? ' · SUNAT: ${f.cpeEstado}' : ''}',
                 style: const TextStyle(fontSize: 12),
               ),
+              onTap: f.cpeEstado == null
+                  ? null
+                  : () => mostrarDetalleCpe(context, f,
+                      onReintentar: onReintentarCpe == null
+                          ? null
+                          : () => onReintentarCpe!(f)),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -486,6 +587,9 @@ class _FormComprobanteState extends State<_FormComprobante> {
   final _igvCtrl = TextEditingController(text: '18');
   bool _alContado = false;
   bool _guardando = false;
+  // Multimoneda: el selector USD solo aparece si la empresa la tiene activa.
+  bool _multimoneda = false;
+  String _moneda = 'PEN';
 
   static const _tipos = ['factura', 'boleta', 'nota_credito'];
 
@@ -494,6 +598,15 @@ class _FormComprobanteState extends State<_FormComprobante> {
     super.initState();
     _cargarClientes();
     _cargarTasaIgv();
+    _cargarMultimoneda();
+  }
+
+  Future<void> _cargarMultimoneda() async {
+    final svc = await getFinanzasService();
+    final r = await svc.configContable();
+    if (mounted && r.ok) {
+      setState(() => _multimoneda = r.data?.multimoneda ?? false);
+    }
   }
 
   /// Tasa de IGV inicial desde la configuración tributaria de la empresa.
@@ -546,6 +659,7 @@ class _FormComprobanteState extends State<_FormComprobante> {
       igv: igv,
       alContado: _esNotaCredito ? false : _alContado,
       documentoAfectadoId: _esNotaCredito ? _documentoAfectadoId : null,
+      moneda: _moneda == 'PEN' ? null : _moneda,
     );
     if (!mounted) return;
     setState(() => _guardando = false);
@@ -646,6 +760,22 @@ class _FormComprobanteState extends State<_FormComprobante> {
               value: _emision,
               onChanged: (d) => setState(() => _emision = d),
             ),
+            if (_multimoneda && !_esNotaCredito) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _moneda,
+                decoration: const InputDecoration(
+                  labelText: 'Moneda',
+                  helperText:
+                      'En USD el asiento se convierte al TC SUNAT del día',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'PEN', child: Text('S/ Soles')),
+                  DropdownMenuItem(value: 'USD', child: Text('US\$ Dólares')),
+                ],
+                onChanged: (v) => setState(() => _moneda = v ?? 'PEN'),
+              ),
+            ],
             if (!_esNotaCredito) ...[
               const SizedBox(height: 6),
               SwitchListTile(

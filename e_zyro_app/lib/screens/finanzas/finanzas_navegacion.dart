@@ -10,6 +10,8 @@ import 'pantalla_planilla.dart';
 import 'pantalla_tributario.dart';
 import 'pantalla_centros_costo.dart';
 import 'pantalla_rentabilidad.dart';
+import 'pantalla_configuracion_erp.dart';
+import 'pantalla_presupuesto.dart';
 import 'pantalla_inventario_valorizado.dart';
 import 'pantalla_caja_chica.dart';
 import 'pantalla_conciliacion_bancaria.dart';
@@ -35,6 +37,8 @@ class FinId {
   static const planilla = 'planilla';
   static const centrosCosto = 'centros_costo';
   static const rentabilidad = 'rentabilidad';
+  static const configuracionErp = 'configuracion_erp';
+  static const presupuesto = 'presupuesto';
   static const cierre = 'cierre';
   static const manual = 'manual';
 }
@@ -84,6 +88,16 @@ List<FinSeccion> finanzasSecciones(AppSession s) {
             'Cierre de ejercicio y cuentas del cierre',
             Icons.event_available_outlined, Colors.deepPurple,
             (_) => const PantallaCierreContable()),
+      if (s.canVerContabilidad)
+        FinModulo(FinId.configuracionErp, 'Configuración ERP',
+            'Facturación electrónica y multimoneda',
+            Icons.settings_suggest_outlined, Colors.blueGrey,
+            (_) => const PantallaConfiguracionErp()),
+      if (s.canVerContabilidad)
+        FinModulo(FinId.presupuesto, 'Presupuesto',
+            'Presupuesto anual vs. ejecutado',
+            Icons.savings_outlined, Colors.orange.shade800,
+            (_) => const PantallaPresupuesto()),
     ]),
     FinSeccion('Cuentas', Icons.swap_horiz_outlined, [
       if (s.canVerCxp)
