@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { HistoricoLegacyItem } from '../../logistica.models';
 
 type FiltroTipo = '' | 'material' | 'equipo';
@@ -11,7 +12,7 @@ type FiltroTipo = '' | 'material' | 'equipo';
 @Component({
   selector: 'app-historico-legacy',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './historico-legacy.component.html',
   styleUrls: ['./historico-legacy.component.css'],
 })
@@ -27,6 +28,11 @@ export class HistoricoLegacyComponent implements OnInit {
 
   busqueda   = '';
   filtroTipo: FiltroTipo = '';
+
+  detalleItem: HistoricoLegacyItem | null = null;
+
+  abrirDetalle(i: HistoricoLegacyItem): void { this.detalleItem = i; }
+  cerrarDetalle(): void { this.detalleItem = null; }
 
   get totalPaginas(): number {
     return Math.max(1, Math.ceil(this.total / this.pageSize));

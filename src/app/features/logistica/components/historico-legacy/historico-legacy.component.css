@@ -66,10 +66,26 @@
 .hl-nombre { font-weight: 600; color: var(--text-main,#111827); }
 .hl-cantidad { font-weight: 700; color: var(--text-main,#111827); }
 .hl-fecha { color: var(--text-main,#374151); white-space: nowrap; }
+.hl-motivo-cell { display: flex; align-items: center; gap: 6px; }
 .hl-motivo {
-  max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--text-muted,#6b7280); font-size: .78rem;
 }
+.hl-btn-ver {
+  flex-shrink: 0; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-color,#e5e7eb); border-radius: 7px; background: var(--card-bg,#fff);
+  color: #b45309; cursor: pointer;
+}
+.hl-btn-ver svg { width: 13px; height: 13px; }
+.hl-btn-ver:hover { background: rgba(180,83,9,.1); border-color: rgba(180,83,9,.35); }
+
+/* ── Modal de detalle ── */
+.hl-det-body { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+.hl-det-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hl-det-row--full { flex-direction: column; align-items: flex-start; }
+.hl-det-lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted,#6b7280); font-weight: 700; }
+.hl-det-val { font-size: .85rem; font-weight: 600; color: var(--text-main,#111827); text-align: right; }
+.hl-det-texto { margin: 6px 0 0; font-size: .85rem; color: var(--text-main,#374151); line-height: 1.5; }
 
 /* ── Paginación ── */
 .hl-table-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 2px 4px; }
@@ -95,3 +111,5 @@
 :host-context([data-theme="dark"]) .hl-badge--material      { background: rgba(96,165,250,.14); color: #60a5fa; }
 :host-context([data-theme="dark"]) .hl-badge--equipo        { background: rgba(167,139,250,.14); color: #a78bfa; }
 :host-context([data-theme="dark"]) .hl-pag-btn               { background: var(--input-bg,#111827); border-color: var(--border-color,#334155); }
+:host-context([data-theme="dark"]) .hl-btn-ver                { background: var(--input-bg,#111827); border-color: var(--border-color,#334155); color: #fbbf24; }
+:host-context([data-theme="dark"]) .hl-btn-ver:hover           { background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.4); }

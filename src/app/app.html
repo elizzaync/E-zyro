@@ -10,7 +10,12 @@
 
 <app-toast></app-toast>
 
-@if (mostrarNavbar && !esPortalCliente) {
+<!-- Chatbot desactivado temporalmente en todo el sistema (a pedido del
+     usuario, 2026-07-03): bloqueaba la vista de ciertas instancias/pantallas.
+     No se borra el componente ni su import en app.ts, solo se deja de
+     renderizar -- para reactivarlo, restaurar la condición original:
+     @if (mostrarNavbar && !esPortalCliente) { <app-chatbot></app-chatbot> } -->
+@if (false) {
 <app-chatbot></app-chatbot>
 }
 

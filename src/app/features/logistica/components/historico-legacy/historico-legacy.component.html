@@ -70,7 +70,16 @@
               <td class="hl-cantidad">{{ i.cantidad != null ? i.cantidad : '—' }}</td>
               <td class="hl-fecha">{{ fechaCorta(i.fecha) }}</td>
               <td>{{ i.responsable_nombre || '—' }}</td>
-              <td class="hl-motivo" [title]="i.motivo || ''">{{ i.motivo || '—' }}</td>
+              <td class="hl-motivo-cell">
+                <span class="hl-motivo" [title]="i.motivo || ''">{{ i.motivo || '—' }}</span>
+                @if (i.motivo) {
+                  <button class="hl-btn-ver" title="Ver detalle completo" (click)="abrirDetalle(i)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                }
+              </td>
             </tr>
           }
         </tbody>
@@ -93,3 +102,52 @@
   }
 
 </div>
+
+<!-- ══ MODAL: DETALLE COMPLETO ══ -->
+@if (detalleItem; as d) {
+  <app-modal
+    [open]="true"
+    title="Detalle del registro histórico"
+    [subtitle]="fechaCorta(d.fecha)"
+    maxWidth="520px"
+    iconBg="rgba(217,119,6,0.12)"
+    iconColor="#b45309"
+    (closeModal)="cerrarDetalle()">
+
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+
+    <div class="hl-det-body">
+      <div class="hl-det-row">
+        <span class="hl-det-lbl">Tipo</span>
+        @if (d.tipo_item === 'material') {
+          <span class="hl-badge hl-badge--material">Material</span>
+        } @else {
+          <span class="hl-badge hl-badge--equipo">Equipo</span>
+        }
+      </div>
+      <div class="hl-det-row">
+        <span class="hl-det-lbl">Nombre</span>
+        <span class="hl-det-val">{{ d.nombre }}</span>
+      </div>
+      <div class="hl-det-row">
+        <span class="hl-det-lbl">Cantidad</span>
+        <span class="hl-det-val">{{ d.cantidad != null ? d.cantidad : '—' }}</span>
+      </div>
+      <div class="hl-det-row">
+        <span class="hl-det-lbl">Fecha</span>
+        <span class="hl-det-val">{{ fechaCorta(d.fecha) }}</span>
+      </div>
+      <div class="hl-det-row">
+        <span class="hl-det-lbl">Comprado por</span>
+        <span class="hl-det-val">{{ d.responsable_nombre || '—' }}</span>
+      </div>
+      <div class="hl-det-row hl-det-row--full">
+        <span class="hl-det-lbl">Detalle completo</span>
+        <p class="hl-det-texto">{{ d.motivo || '—' }}</p>
+      </div>
+    </div>
+
+  </app-modal>
+}
