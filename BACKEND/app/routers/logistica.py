@@ -91,6 +91,8 @@ from ..schemas.cuentas_por_pagar import FacturaCreate
 from ..services import cuentas_por_pagar_service as cxp_srv
 from datetime import date as _date
 from decimal import Decimal as _Decimal
+from ..models.epp import Epp, EppIngreso, EppIngresoDetalle
+from .epp import _contabilizar_epp, CTA_MERCADERIAS, CTA_VARIACION, Q2 as _EPP_Q2, _d as _epp_d
 
 
 router = APIRouter(prefix="/logistica", tags=["logistica"])
@@ -1603,6 +1605,7 @@ def listar_requerimientos(
 def historial_requerimientos(
     proyecto_id: str = Query(""),
     servicio_id: str = Query(""),
+    q:           str = Query(""),
     page:        int = Query(1, ge=1),
     page_size:   int = Query(50, ge=1, le=200),
     payload:     dict    = Depends(verificar_token),
@@ -1627,10 +1630,19 @@ def historial_requerimientos(
         .limit(page_size)
         .all()
     )
-    return RequerimientosListResponse(
-        items=[_req_out(db, r, empresa_id) for r in rows],
-        total=total, page=page, pageSize=page_size,
-    )
+    items = [_req_out(db, r, empresa_id) for r in rows]
+
+    if q:
+        ql = q.lower()
+        items = [
+            it for it in items
+            if ql in it.proyectoNombre.lower()
+            or ql in (it.servicioNombre or "").lower()
+            or ql in it.solicitanteNombre.lower()
+            or any(ql in i.nombre.lower() for i in it.items)
+        ]
+
+    return RequerimientosListResponse(items=items, total=total, page=page, pageSize=page_size)
 
 
 @router.get("/requerimientos/{req_id}", response_model=RequerimientoOut)
@@ -3239,6 +3251,19 @@ def _form_schema(clase: str) -> FormSchemaOut:
         ]
         return FormSchemaOut(clase=clase, titulo="Ingreso de Material", campos=campos)
 
+    if clase == "epp":
+        campos = [
+            FormFieldDef(key="nombre", label="Nombre", inputType="text", required=True, nativo=True, grupo=G_BAS, placeholder="Ej: Casco de seguridad"),
+            FormFieldDef(key="descripcion", label="Descripción", inputType="textarea", nativo=True, grupo=G_BAS, placeholder="Descripción breve"),
+            FormFieldDef(key="cantidad", label="Cantidad", inputType="number", required=True, nativo=True, grupo=G_BAS),
+            FormFieldDef(key="stockMinimo", label="Stock Mínimo", inputType="number", nativo=True, grupo=G_BAS),
+            FormFieldDef(key="marcaId", label="Marca", inputType="select", nativo=True, grupo=G_BAS),
+            FormFieldDef(key="unidadId", label="Unidad", inputType="select", nativo=True, grupo=G_BAS),
+            FormFieldDef(key="precioCompra", label="Precio de Compra (S/.)", inputType="number", nativo=True, grupo=G_COMP),
+            FormFieldDef(key="imagenUrl", label="Imagen", inputType="image", nativo=True, grupo=G_BAS),
+        ]
+        return FormSchemaOut(clase=clase, titulo="Ingreso de EPP", campos=campos)
+
     # equipo / herramienta / equipo_tecnologico
     estado_field = FormFieldDef(
         key="estado", label="Estado", inputType="select", required=True, nativo=True, grupo=G_BAS,
@@ -3363,7 +3388,7 @@ def form_schema(
     Rellena las `opciones` de los selects de catálogo (categoría/unidad/marca/
     tipo/almacén) con los registros de la empresa. `modeloId` queda dinámico
     (depende de la marca elegida → el frontend lo carga por marca)."""
-    if clase not in ("material", "equipo", "herramienta", "equipo_tecnologico"):
+    if clase not in ("material", "equipo", "herramienta", "equipo_tecnologico", "epp"):
         raise HTTPException(status_code=404, detail="Clase de artículo no soportada")
     schema = _form_schema(clase)
     empresa_id = payload["empresa_id"]
@@ -3503,6 +3528,8 @@ def ingreso_directo(
         precio = float(item.precioCompra) if item.precioCompra is not None else None
         almacen_id = item.almacenId or alm_def_id
         atributos = dict(item.atributos or {})
+        if item.stockMinimo:
+            atributos["stock_minimo"] = int(item.stockMinimo)
 
         if item.clase == "material":
             if item.modo == "existente":
@@ -3552,6 +3579,67 @@ def ingreso_directo(
                     f"Ingreso directo → {destino.tipo} {ref_id}",
                 )
             resultados.append(IngresoItemResult(clase=item.clase, articuloId=mat.id, nombre=mat.nombre, cantidad=cant, creado=creado))
+
+        elif item.clase == "epp":
+            if item.modo == "existente":
+                epp = db.query(Epp).filter(
+                    Epp.id == item.existenteId, Epp.empresa_id == empresa_id
+                ).first()
+                if not epp:
+                    raise HTTPException(status_code=404, detail=f"EPP existente no encontrado: {item.existenteId}")
+                creado = False
+            else:
+                if not item.nombre:
+                    raise HTTPException(status_code=422, detail="nombre es requerido para un EPP nuevo")
+                epp = Epp(
+                    id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                    nombre=item.nombre.strip(), descripcion=(item.descripcion or "").strip() or None,
+                    marca_id=item.marcaId or None, unidad_id=item.unidadId or None,
+                    stock_actual=0, stock_min=item.stockMinimo or 0,
+                    imagen_url=item.imagenUrl, activo=True,
+                )
+                db.add(epp)
+                db.flush()
+                creado = True
+
+            # Ingreso de stock EPP: misma mecánica que POST /epp/ingresos
+            # (costo promedio móvil), para que quede auditado en epp_ingreso.
+            ing = EppIngreso(
+                id=str(_uuid.uuid4()), empresa_id=empresa_id,
+                personal_compro_id=emp_id, fecha_compra=fecha_compra,
+                registrado_por_id=payload.get("id"),
+            )
+            db.add(ing)
+            db.flush()
+            prev = int(epp.stock_actual or 0)
+            precio_d = _epp_d(precio)
+            if precio_d > 0:
+                avg_prev = _epp_d(epp.precio)
+                nueva = prev + cant
+                epp.precio = (
+                    ((_Decimal(prev) * avg_prev + _Decimal(cant) * precio_d) / _Decimal(nueva)).quantize(_EPP_Q2)
+                    if nueva > 0 else precio_d
+                )
+            epp.stock_actual = prev + cant
+            epp.updated_at = datetime.utcnow()
+            db.add(EppIngresoDetalle(
+                id=str(_uuid.uuid4()), ingreso_id=ing.id, epp_id=epp.id,
+                cantidad=cant, precio_unitario=precio,
+            ))
+            if precio_d > 0:
+                _contabilizar_epp(
+                    db, empresa_id, CTA_MERCADERIAS, CTA_VARIACION, precio_d * _Decimal(cant),
+                    f"Ingreso directo de EPP {epp.nombre} (vía Compras)", str(ing.id),
+                )
+
+            db.add(TicketCompraItem(
+                id=str(_uuid.uuid4()), ticket_id=tc.id,
+                nombre=epp.nombre, cantidad=cant, cantidad_comprada=cant,
+                unidad="Unidades", precio_unitario=precio,
+                total_item=(precio * cant) if precio else None,
+                estado_item="comprado", tipo_item="epp",
+            ))
+            resultados.append(IngresoItemResult(clase=item.clase, articuloId=epp.id, nombre=epp.nombre, cantidad=cant, creado=creado))
 
         else:  # equipo | herramienta | equipo_tecnologico
             clase = item.clase
@@ -3611,6 +3699,11 @@ def ingreso_directo(
                     imagen_url=item.imagenUrl, observaciones=item.observaciones,
                     fecha_adquisicion=fecha_compra,
                     atributos=atributos or None,
+                    requiere_mantenimiento=bool(item.requiereMantenimiento),
+                    frecuencia_mantenimiento=(
+                        item.frecuenciaMantenimiento or ("mensual" if item.requiereMantenimiento else "ninguno")
+                    ),
+                    proxima_fecha_mantenimiento=item.proximaFechaMantenimiento if item.requiereMantenimiento else None,
                 )
                 db.add(eq)
                 db.flush()
