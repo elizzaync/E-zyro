@@ -27,7 +27,7 @@ from ..services.cloudinary_service import (
     subir_e_indexar, eliminar_imagen_cloudinary, subir_pdf_bytes_cloudinary, registrar_recurso,
 )
 from ..services.cloudinary_paths import carpeta_epp, carpeta_epp_entrega, carpeta_epp_reportes
-from ..services.pdf_docs import generar_constancia_epp, generar_reporte_epp_empleado
+from ..services.pdf_docs import generar_constancia_epp, generar_reporte_epp_empleado, generar_reporte_epp_global
 from ..models.usuario import Usuario
 from ..models.empresa import Empresa
 from ..schemas.epp import (
@@ -175,6 +175,21 @@ def _items_out(db: Session, detalles) -> List[EntregaItemOut]:
     return out
 
 
+def _nombres_empleados(db: Session, empresa_id: str, empleado_ids) -> dict[str, str]:
+    """Batch: id de empleado -> "Nombre Apellido" (join Empleado.usuario_id -> Usuario).
+    Evita el N+1 de resolver el nombre entrega por entrega."""
+    ids = {str(i) for i in empleado_ids if i}
+    if not ids:
+        return {}
+    filas = (
+        db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
+        .join(Usuario, Empleado.usuario_id == Usuario.id)
+        .filter(Empleado.id.in_(ids), Empleado.empresa_id == empresa_id)
+        .all()
+    )
+    return {str(eid): f"{nom} {ape or ''}".strip() for eid, nom, ape in filas}
+
+
 @router.post("/entregas", response_model=EntregaOut, status_code=201)
 def crear_entrega(body: EntregaIn, payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
     exigir_permiso(db, payload, "epp", "entregar")
@@ -222,9 +237,10 @@ def crear_entrega(body: EntregaIn, payload: dict = Depends(verificar_token), db:
     # NOTA: la constancia PDF (pdf_url) se generará en una iteración posterior (pdf_service).
 
     detalles = db.query(EppEntregaDetalle).filter(EppEntregaDetalle.entrega_id == entrega.id).all()
+    nombre = _nombres_empleados(db, empresa_id, [entrega.empleado_id]).get(str(entrega.empleado_id))
     return EntregaOut(
         id=str(entrega.id), empleado_id=str(entrega.empleado_id),
-        empleado_nombre=None, fecha=str(entrega.fecha), estado=entrega.estado,
+        empleado_nombre=nombre, fecha=str(entrega.fecha), estado=entrega.estado,
         firma_url=entrega.firma_url, pdf_url=entrega.pdf_url, observacion=entrega.observacion,
         items=_items_out(db, detalles),
     )
@@ -235,14 +251,18 @@ def listar_entregas(
     empleado_id: Optional[str] = Query(None),
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
-    qry = db.query(EppEntrega).filter(EppEntrega.empresa_id == payload["empresa_id"])
+    empresa_id = payload["empresa_id"]
+    qry = db.query(EppEntrega).filter(EppEntrega.empresa_id == empresa_id)
     if empleado_id:
         qry = qry.filter(EppEntrega.empleado_id == empleado_id)
+    rows = qry.order_by(EppEntrega.created_at.desc()).limit(200).all()
+    nombres = _nombres_empleados(db, empresa_id, [r.empleado_id for r in rows])
     out = []
-    for en in qry.order_by(EppEntrega.created_at.desc()).limit(200).all():
+    for en in rows:
         detalles = db.query(EppEntregaDetalle).filter(EppEntregaDetalle.entrega_id == en.id).all()
         out.append(EntregaOut(
-            id=str(en.id), empleado_id=str(en.empleado_id), fecha=str(en.fecha),
+            id=str(en.id), empleado_id=str(en.empleado_id),
+            empleado_nombre=nombres.get(str(en.empleado_id)), fecha=str(en.fecha),
             estado=en.estado, firma_url=en.firma_url, pdf_url=en.pdf_url,
             observacion=en.observacion, items=_items_out(db, detalles),
         ))
@@ -270,8 +290,9 @@ def anular_entrega(entrega_id: str, payload: dict = Depends(verificar_token), db
                       f"Anulación entrega EPP {_d(total_costo)}", str(en.id))
     en.estado = "anulada"
     db.commit()
+    nombre = _nombres_empleados(db, empresa_id, [en.empleado_id]).get(str(en.empleado_id))
     return EntregaOut(
-        id=str(en.id), empleado_id=str(en.empleado_id), fecha=str(en.fecha),
+        id=str(en.id), empleado_id=str(en.empleado_id), empleado_nombre=nombre, fecha=str(en.fecha),
         estado=en.estado, firma_url=en.firma_url, pdf_url=en.pdf_url,
         observacion=en.observacion, items=_items_out(db, detalles),
     )
@@ -383,6 +404,116 @@ def reporte_empleado(empleado_id: str, payload: dict = Depends(verificar_token),
         descripcion=f"Reporte EPP de {tecnico}", creado_por_id=payload.get("id"),
     )
     return {"pdf_url": url, "tecnico": tecnico, "total_entregas": len(entregas)}
+
+
+@router.get("/reportes/por-empleado")
+def reporte_por_empleado_json(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Historial de EPP entregado agrupado por trabajador (solo lectura, JSON).
+    Alimenta la vista web de 'Entregas' (fila = trabajador) y el detalle tipo
+    'ojo' con el histórico completo de ese trabajador. No genera PDF ni toca
+    lo que usa la app móvil (ver /empleado/{id}/reporte más arriba)."""
+    exigir_permiso(db, payload, "epp", "ver")
+    empresa_id = payload["empresa_id"]
+
+    entregas = (
+        db.query(EppEntrega)
+        .filter(EppEntrega.empresa_id == empresa_id)
+        .order_by(EppEntrega.fecha.desc(), EppEntrega.created_at.desc())
+        .all()
+    )
+    if not entregas:
+        return []
+
+    ids = {str(en.empleado_id) for en in entregas}
+    nombres = _nombres_empleados(db, empresa_id, ids)
+    cargos = {
+        str(e.id): (e.cargo or "")
+        for e in db.query(Empleado).filter(Empleado.id.in_(ids)).all()
+    }
+
+    por_empleado: dict[str, dict] = {}
+    for en in entregas:
+        eid = str(en.empleado_id)
+        grupo = por_empleado.setdefault(eid, {
+            "empleado_id": eid,
+            "empleado_nombre": nombres.get(eid) or eid,
+            "cargo": cargos.get(eid, ""),
+            "total_entregas": 0,
+            "totales": {},
+            "entregas": [],
+        })
+        detalles = db.query(EppEntregaDetalle).filter(EppEntregaDetalle.entrega_id == en.id).all()
+        items = _items_out(db, detalles)
+        grupo["entregas"].append({
+            "id": str(en.id), "fecha": str(en.fecha), "estado": en.estado,
+            "firma_url": en.firma_url, "pdf_url": en.pdf_url,
+            "items": [{"nombre": it.nombre, "cantidad": it.cantidad} for it in items],
+        })
+        if en.estado != "anulada":
+            grupo["total_entregas"] += 1
+            for it in items:
+                grupo["totales"][it.nombre] = grupo["totales"].get(it.nombre, 0) + (it.cantidad or 0)
+
+    out = []
+    for g in por_empleado.values():
+        out.append({
+            "empleado_id": g["empleado_id"],
+            "empleado_nombre": g["empleado_nombre"],
+            "cargo": g["cargo"],
+            "total_entregas": g["total_entregas"],
+            "ultima_fecha": g["entregas"][0]["fecha"] if g["entregas"] else None,
+            "totales": [{"nombre": k, "cantidad": v} for k, v in sorted(g["totales"].items())],
+            "entregas": g["entregas"],
+        })
+    out.sort(key=lambda x: x["empleado_nombre"].lower())
+    return out
+
+
+@router.get("/reportes/global")
+def reporte_global(payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """PDF consolidado con el resumen de EPP entregado a TODOS los trabajadores
+    de la empresa (una fila por trabajador). Para el detalle completo de un
+    trabajador puntual se sigue usando /empleado/{empleado_id}/reporte, el
+    mismo endpoint que ya consume la app móvil — no se modifica su contrato."""
+    exigir_permiso(db, payload, "epp", "ver")
+    empresa_id = payload["empresa_id"]
+    empresa = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+
+    entregas = (
+        db.query(EppEntrega)
+        .filter(EppEntrega.empresa_id == empresa_id, EppEntrega.estado != "anulada")
+        .all()
+    )
+    ids = {str(en.empleado_id) for en in entregas}
+    nombres = _nombres_empleados(db, empresa_id, ids)
+    cargos = {
+        str(e.id): (e.cargo or "")
+        for e in db.query(Empleado).filter(Empleado.id.in_(ids)).all()
+    }
+
+    resumen: dict[str, dict] = {}
+    for en in entregas:
+        eid = str(en.empleado_id)
+        g = resumen.setdefault(eid, {
+            "nombre": nombres.get(eid) or eid, "cargo": cargos.get(eid, ""),
+            "total_entregas": 0, "total_items": 0,
+        })
+        g["total_entregas"] += 1
+        detalles = db.query(EppEntregaDetalle).filter(EppEntregaDetalle.entrega_id == en.id).all()
+        g["total_items"] += sum(int(d.cantidad) for d in detalles)
+
+    filas = sorted(resumen.values(), key=lambda x: x["nombre"].lower())
+    data = {"empresa": empresa, "generado": str(date.today()), "empleados": filas}
+    pdf = generar_reporte_epp_global(data)
+    pid = f"e-zyro/{empresa_id}/epp-reportes/global/reporte_global_{date.today().isoformat()}"
+    url = subir_pdf_bytes_cloudinary(pdf, pid)
+    registrar_recurso(
+        db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+        folder=carpeta_epp_reportes(empresa_id, "global"), recurso_tipo="pdf",
+        entidad_tipo="empresa", entidad_id=empresa_id,
+        descripcion="Reporte global de EPP", creado_por_id=payload.get("id"),
+    )
+    return {"pdf_url": url, "total_empleados": len(filas)}
 
 
 # ── Ingresos ─────────────────────────────────────────────────────────────────
