@@ -60,11 +60,14 @@ def obtener_config(db: Session, empresa_id: str) -> ConfiguracionContableEmpresa
 def actualizar_config(db: Session, empresa_id: str, datos: dict) -> ConfiguracionContableEmpresa:
     """Actualiza las cuentas del cierre validando que existan como detalle activo."""
     cfg = obtener_config(db, empresa_id)
-    for campo in ("cuenta_cierre_codigo", "cuenta_utilidad_codigo", "cuenta_perdida_codigo"):
+    for campo in ("cuenta_cierre_codigo", "cuenta_utilidad_codigo", "cuenta_perdida_codigo",
+                  "cuenta_ganancia_cambio_codigo", "cuenta_perdida_cambio_codigo"):
         codigo = datos.get(campo)
         if codigo:
             _cuenta_detalle(db, empresa_id, codigo)  # valida o lanza 422
             setattr(cfg, campo, codigo)
+    if datos.get("multimoneda") is not None:
+        cfg.multimoneda = bool(datos["multimoneda"])
     db.commit()
     db.refresh(cfg)
     return cfg

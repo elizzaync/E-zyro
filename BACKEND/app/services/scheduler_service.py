@@ -974,6 +974,23 @@ def _generar_servicios_mantenimiento():
         db.close()
 
 
+def _actualizar_tipo_cambio():
+    """Diario 07:00: trae el TC SUNAT del día (API externa). Best-effort: si no
+    hay token o la API falla, se puede registrar manualmente desde Finanzas."""
+    from app.services import tipo_cambio_service as tcs
+
+    db: Session = SessionLocal()
+    try:
+        t = tcs.fetch_tc_hoy(db)
+        if t is not None:
+            print(f"[Scheduler] 💱 TC {t.fecha}: venta {t.venta}")
+    except Exception as e:
+        print(f"[Scheduler] ⚠️ TC no actualizado: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _depreciacion_mensual_automatica():
     """Día 1 de cada mes (01:00 Lima): deprecia el MES ANTERIOR para todas las
     empresas. Por cada empresa: asegura un periodo contable abierto para ese mes
@@ -1100,6 +1117,13 @@ def iniciar_scheduler():
         func=_generar_servicios_mantenimiento,
         trigger=CronTrigger(hour=7, minute=30),
         id="mantenimiento_recurrente",
+        replace_existing=True
+    )
+    # Tipo de cambio SUNAT del día — 07:00 AM
+    scheduler.add_job(
+        func=_actualizar_tipo_cambio,
+        trigger=CronTrigger(hour=7, minute=0),
+        id="tipo_cambio_diario",
         replace_existing=True
     )
     scheduler.start()

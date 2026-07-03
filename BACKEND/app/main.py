@@ -71,6 +71,8 @@ from app.routers import conciliacion_bancaria as conciliacion_bancaria_router
 from app.routers import pendientes            as pendientes_router
 from app.routers import consultas             as consultas_router
 from app.routers import cotizaciones          as cotizaciones_router
+from app.routers import facturacion_electronica as facturacion_electronica_router
+from app.routers import presupuesto           as presupuesto_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -179,6 +181,12 @@ from app.models import (  # noqa: F401
     documento_sst,
     # Ciclo comercial: cotización → aceptación → proyecto
     cotizacion as cotizacion_model,
+    # Facturación electrónica (CPE) — feature opcional por empresa
+    facturacion_electronica as facturacion_electronica_model,
+    # Multimoneda: tipo de cambio diario
+    tipo_cambio as tipo_cambio_model,
+    # Presupuesto anual por cuenta PCGE
+    presupuesto as presupuesto_model,
 )
 
 
@@ -1243,6 +1251,82 @@ def _run_migrations():
             "ON cotizacion (empresa_id, estado)"))
         conn.commit()
 
+        # ── Facturación electrónica (CPE) — feature opcional ─────────────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS configuracion_facturacion_electronica (
+                id            uuid PRIMARY KEY,
+                empresa_id    uuid NOT NULL REFERENCES empresa(id),
+                habilitado    BOOLEAN NOT NULL DEFAULT FALSE,
+                proveedor     VARCHAR(30) NOT NULL DEFAULT 'nubefact',
+                api_url       VARCHAR(300),
+                api_token     VARCHAR(300),
+                serie_factura VARCHAR(10) NOT NULL DEFAULT 'F001',
+                serie_boleta  VARCHAR(10) NOT NULL DEFAULT 'B001',
+                created_at    TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMP,
+                CONSTRAINT uq_config_fe_empresa UNIQUE (empresa_id)
+            )
+        """))
+        for col, tipo in (("cpe_estado", "VARCHAR(20)"), ("cpe_pdf_url", "TEXT"),
+                          ("cpe_xml_url", "TEXT"), ("cpe_cdr_url", "TEXT"),
+                          ("cpe_mensaje", "TEXT")):
+            conn.execute(text(
+                f"ALTER TABLE factura_cliente ADD COLUMN IF NOT EXISTS {col} {tipo}"))
+        conn.commit()
+
+        # ── Multimoneda (feature opcional): TC diario + TC en documentos ─────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS tipo_cambio (
+                id         uuid PRIMARY KEY,
+                fecha      DATE NOT NULL,
+                moneda     VARCHAR(3) NOT NULL DEFAULT 'USD',
+                compra     NUMERIC(10,4),
+                venta      NUMERIC(10,4) NOT NULL,
+                fuente     VARCHAR(30) NOT NULL DEFAULT 'SUNAT',
+                created_at TIMESTAMP NOT NULL DEFAULT now(),
+                CONSTRAINT uq_tipo_cambio_fecha_moneda UNIQUE (fecha, moneda)
+            )
+        """))
+        conn.execute(text(
+            "ALTER TABLE configuracion_contable_empresa "
+            "ADD COLUMN IF NOT EXISTS multimoneda BOOLEAN NOT NULL DEFAULT FALSE"))
+        conn.execute(text(
+            "ALTER TABLE configuracion_contable_empresa "
+            "ADD COLUMN IF NOT EXISTS cuenta_ganancia_cambio_codigo VARCHAR(20) NOT NULL DEFAULT '776'"))
+        conn.execute(text(
+            "ALTER TABLE configuracion_contable_empresa "
+            "ADD COLUMN IF NOT EXISTS cuenta_perdida_cambio_codigo VARCHAR(20) NOT NULL DEFAULT '676'"))
+        conn.execute(text(
+            "ALTER TABLE factura_cliente ADD COLUMN IF NOT EXISTS tipo_cambio NUMERIC(10,4)"))
+        conn.execute(text(
+            "ALTER TABLE factura_proveedor ADD COLUMN IF NOT EXISTS tipo_cambio NUMERIC(10,4)"))
+        conn.execute(text(
+            "ALTER TABLE cobro_cliente ADD COLUMN IF NOT EXISTS moneda VARCHAR(3) NOT NULL DEFAULT 'PEN'"))
+        conn.execute(text(
+            "ALTER TABLE cobro_cliente ADD COLUMN IF NOT EXISTS tipo_cambio NUMERIC(10,4)"))
+        conn.execute(text(
+            "ALTER TABLE pago_proveedor ADD COLUMN IF NOT EXISTS moneda VARCHAR(3) NOT NULL DEFAULT 'PEN'"))
+        conn.execute(text(
+            "ALTER TABLE pago_proveedor ADD COLUMN IF NOT EXISTS tipo_cambio NUMERIC(10,4)"))
+        conn.commit()
+
+        # ── Presupuesto anual por cuenta/grupo PCGE ──────────────────────────
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS presupuesto_anual (
+                id            uuid PRIMARY KEY,
+                empresa_id    uuid NOT NULL REFERENCES empresa(id),
+                anio          INTEGER NOT NULL,
+                cuenta_codigo VARCHAR(20) NOT NULL,
+                monto_anual   NUMERIC(14,2) NOT NULL DEFAULT 0,
+                notas         VARCHAR(300),
+                created_at    TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at    TIMESTAMP,
+                CONSTRAINT uq_presupuesto_empresa_anio_cuenta
+                    UNIQUE (empresa_id, anio, cuenta_codigo)
+            )
+        """))
+        conn.commit()
+
         # ── Ledger de seguridad de firmas (firma_evento) ─────────────────────
         # FKs uuid a empresa/empleado/usuario → se crea aquí (no por create_all,
         # que las haría VARCHAR(36) y chocaría con las PK uuid). entidad_id NO es
@@ -2195,6 +2279,8 @@ app.include_router(conciliacion_bancaria_router.router)
 app.include_router(pendientes_router.router)
 app.include_router(consultas_router.router)
 app.include_router(cotizaciones_router.router)
+app.include_router(facturacion_electronica_router.router)
+app.include_router(presupuesto_router.router)
 
 
 @app.get("/")

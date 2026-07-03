@@ -114,6 +114,10 @@ class ComprobanteOut(BaseModel):
     saldo_pendiente: Decimal
     asiento_id: Optional[str] = None
     documento_afectado_id: Optional[str] = None  # solo notas de crédito
+    # CPE (facturación electrónica) — null si la feature está apagada
+    cpe_estado: Optional[str] = None
+    cpe_pdf_url: Optional[str] = None
+    cpe_mensaje: Optional[str] = None
 
 
 class AplicacionCobroIn(BaseModel):

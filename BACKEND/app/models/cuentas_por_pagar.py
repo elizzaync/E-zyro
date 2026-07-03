@@ -38,6 +38,8 @@ class FacturaProveedor(Base):
     fecha_emision     = Column(Date, nullable=False)
     fecha_vencimiento = Column(Date, nullable=False)
     moneda            = Column(String(3), nullable=False, default="PEN")
+    # TC venta del día de emisión (solo facturas en moneda extranjera).
+    tipo_cambio       = Column(Numeric(10, 4), nullable=True)
     subtotal          = Column(Numeric(14, 2), nullable=False, default=0)
     igv               = Column(Numeric(14, 2), nullable=False, default=0)
     total             = Column(Numeric(14, 2), nullable=False, default=0)
@@ -76,6 +78,8 @@ class PagoProveedor(Base):
     proveedor_id = Column(String(36), ForeignKey("proveedor.id"), nullable=False)
     fecha_pago   = Column(Date, nullable=False)
     monto        = Column(Numeric(14, 2), nullable=False)
+    moneda       = Column(String(3), nullable=False, default="PEN")
+    tipo_cambio  = Column(Numeric(10, 4), nullable=True)   # TC venta del día del pago
     medio_pago   = Column(String(20), nullable=False)   # efectivo|transferencia|cheque
     referencia   = Column(String(100), nullable=True)
     asiento_id   = Column(String(36), ForeignKey("asiento_contable.id"), nullable=True)

@@ -12,7 +12,7 @@ evita FKs varchar→uuid contra cuenta_contable (PK uuid nativa en prod).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Boolean, Column, String, DateTime, ForeignKey, UniqueConstraint
 
 from app.db.database import Base
 
@@ -31,6 +31,13 @@ class ConfiguracionContableEmpresa(Base):
     # Destino del resultado en patrimonio: utilidad (59.1) o pérdida (59.2).
     cuenta_utilidad_codigo = Column(String(20), nullable=False, default="591")
     cuenta_perdida_codigo  = Column(String(20), nullable=False, default="592")
+    # ── Multimoneda (feature opcional) ────────────────────────────────────────
+    # Apagada: todo opera en la moneda funcional (PEN) como siempre. Encendida:
+    # facturas CxC/CxP pueden emitirse en USD; los asientos se convierten a PEN
+    # al TC del día y los cobros/pagos generan diferencia de cambio (776/676).
+    multimoneda                    = Column(Boolean, nullable=False, default=False)
+    cuenta_ganancia_cambio_codigo  = Column(String(20), nullable=False, default="776")
+    cuenta_perdida_cambio_codigo   = Column(String(20), nullable=False, default="676")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 

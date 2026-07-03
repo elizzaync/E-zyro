@@ -28,6 +28,7 @@ from ..schemas.cuentas_por_cobrar import (
     FacturarServicioIn, ServicioFacturableOut,
 )
 from ..services import cuentas_por_cobrar_service as cxc
+from ..services import facturacion_electronica_service as fe
 
 router = APIRouter(prefix="/cuentas-por-cobrar", tags=["cuentas-por-cobrar"])
 
@@ -48,7 +49,21 @@ def _factura_out(db: Session, f: FacturaCliente) -> ComprobanteOut:
         asiento_id=(str(f.asiento_id) if f.asiento_id else None),
         documento_afectado_id=(str(f.documento_afectado_id)
                                if f.documento_afectado_id else None),
+        cpe_estado=f.cpe_estado, cpe_pdf_url=f.cpe_pdf_url,
+        cpe_mensaje=f.cpe_mensaje,
     )
+
+
+def _intentar_cpe(db: Session, empresa_id: str, f: FacturaCliente) -> None:
+    """Emisión electrónica best-effort tras facturar: nunca bloquea la emisión
+    interna (el asiento ya está registrado); el resultado queda en cpe_*."""
+    if not fe.habilitada(db, empresa_id):
+        return
+    try:
+        fe.emitir_cpe(db, empresa_id, f)
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _cobro_out(db: Session, c: CobroCliente) -> CobroOut:
@@ -91,6 +106,7 @@ def emitir_comprobante(
 ):
     exigir_permiso(db, payload, "cxc", "emitir_comprobante")
     f = cxc.emitir_comprobante(db, payload["empresa_id"], body, _empleado_id(db, payload))
+    _intentar_cpe(db, payload["empresa_id"], f)
     return _factura_out(db, f)
 
 
@@ -201,6 +217,29 @@ def facturar_servicio(
         al_contado=body.al_contado,
     )
     f = cxc.emitir_comprobante(db, empresa_id, datos, _empleado_id(db, payload))
+    _intentar_cpe(db, empresa_id, f)
+    return _factura_out(db, f)
+
+
+@router.post("/facturas/{factura_id}/emitir-cpe", response_model=ComprobanteOut)
+def reintentar_cpe(
+    factura_id: str,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Reintenta la emisión electrónica de un comprobante (feature CPE activa)."""
+    exigir_permiso(db, payload, "cxc", "emitir_comprobante")
+    empresa_id = payload["empresa_id"]
+    f = cxc.get_factura(db, empresa_id, factura_id)
+    if f.estado == "anulada":
+        raise HTTPException(status_code=409, detail="El comprobante está anulado.")
+    if f.cpe_estado == "aceptado":
+        raise HTTPException(status_code=409, detail="El comprobante ya fue aceptado por SUNAT.")
+    if not fe.habilitada(db, empresa_id):
+        raise HTTPException(status_code=409,
+                            detail="La facturación electrónica no está habilitada.")
+    fe.emitir_cpe(db, empresa_id, f)
+    db.commit()
+    db.refresh(f)
     return _factura_out(db, f)
 
 

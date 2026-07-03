@@ -302,12 +302,19 @@ class ConfigContableOut(BaseModel):
     cuenta_cierre_codigo: str
     cuenta_utilidad_codigo: str
     cuenta_perdida_codigo: str
+    # Multimoneda (feature opcional)
+    multimoneda: bool
+    cuenta_ganancia_cambio_codigo: str
+    cuenta_perdida_cambio_codigo: str
 
 
 class ConfigContableIn(BaseModel):
     cuenta_cierre_codigo: Optional[str] = None
     cuenta_utilidad_codigo: Optional[str] = None
     cuenta_perdida_codigo: Optional[str] = None
+    multimoneda: Optional[bool] = None
+    cuenta_ganancia_cambio_codigo: Optional[str] = None
+    cuenta_perdida_cambio_codigo: Optional[str] = None
 
 
 def _config_out(cfg) -> ConfigContableOut:
@@ -315,6 +322,9 @@ def _config_out(cfg) -> ConfigContableOut:
         cuenta_cierre_codigo=cfg.cuenta_cierre_codigo,
         cuenta_utilidad_codigo=cfg.cuenta_utilidad_codigo,
         cuenta_perdida_codigo=cfg.cuenta_perdida_codigo,
+        multimoneda=bool(getattr(cfg, "multimoneda", False)),
+        cuenta_ganancia_cambio_codigo=getattr(cfg, "cuenta_ganancia_cambio_codigo", None) or "776",
+        cuenta_perdida_cambio_codigo=getattr(cfg, "cuenta_perdida_cambio_codigo", None) or "676",
     )
 
 
@@ -364,6 +374,70 @@ def revertir_cierre_ejercicio(
     exigir_permiso(db, payload, "contabilidad", "cerrar_ejercicio")
     return cierre.revertir_cierre(db, payload["empresa_id"], anio,
                                   creado_por_id=_empleado_id(db, payload))
+
+
+# ── Tipo de cambio (multimoneda) ─────────────────────────────────────────────
+from ..services import tipo_cambio_service as tcs  # noqa: E402
+from ..models.tipo_cambio import TipoCambio  # noqa: E402
+
+
+class TipoCambioOut(BaseModel):
+    fecha: date
+    moneda: str
+    compra: Optional[Decimal] = None
+    venta: Decimal
+    fuente: str
+
+
+class TipoCambioIn(BaseModel):
+    fecha: date
+    venta: Decimal
+    compra: Optional[Decimal] = None
+    moneda: str = "USD"
+
+
+def _tc_out(t: TipoCambio) -> TipoCambioOut:
+    return TipoCambioOut(fecha=t.fecha, moneda=t.moneda, compra=t.compra,
+                         venta=t.venta, fuente=t.fuente)
+
+
+@router.get("/tipo-cambio", response_model=list[TipoCambioOut])
+def listar_tipo_cambio(
+    dias: int = 30,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    filas = (
+        db.query(TipoCambio).order_by(TipoCambio.fecha.desc()).limit(max(1, min(dias, 365))).all()
+    )
+    return [_tc_out(t) for t in filas]
+
+
+@router.post("/tipo-cambio", response_model=TipoCambioOut, status_code=201)
+def registrar_tipo_cambio(
+    body: TipoCambioIn,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Registro manual (upsert) del TC de una fecha."""
+    exigir_permiso(db, payload, "contabilidad", "configurar")
+    if body.venta <= 0:
+        raise HTTPException(status_code=422, detail="El TC venta debe ser mayor que 0.")
+    return _tc_out(tcs.registrar(db, body.fecha, body.venta, body.compra, body.moneda))
+
+
+@router.post("/tipo-cambio/actualizar", response_model=TipoCambioOut)
+def actualizar_tipo_cambio(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Trae el TC SUNAT de hoy desde la API externa (mismo token de consultas)."""
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    t = tcs.fetch_tc_hoy(db)
+    if t is None:
+        raise HTTPException(
+            status_code=502,
+            detail="No se pudo obtener el TC del día (¿token de consultas configurado?). "
+                   "Puedes registrarlo manualmente.")
+    return _tc_out(t)
 
 
 # ── Saldos iniciales / asiento de apertura (Fase 11) ─────────────────────────

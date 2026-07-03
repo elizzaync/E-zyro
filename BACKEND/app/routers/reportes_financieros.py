@@ -86,3 +86,50 @@ def libro_mayor(
 ):
     exigir_permiso(db, payload, "contabilidad", "ver")
     return rep.libro_mayor(db, payload["empresa_id"], cuenta_id, periodo)
+
+
+# ── Export a Excel (para el contador) ────────────────────────────────────────
+def _razon_social(db: Session, empresa_id: str) -> str:
+    from ..models.empresa import Empresa
+    e = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).first()
+    return e.razon_social if e else ""
+
+
+@router.get("/balance-comprobacion/excel")
+def balance_comprobacion_excel(
+    periodo: str = Query(..., description="YYYY-MM"),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Genera el XLSX, lo sube a Cloudinary y devuelve {url}."""
+    from ..services import excel_reportes_service as xls
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    empresa_id = payload["empresa_id"]
+    data = rep.balance_comprobacion(db, empresa_id, periodo)
+    xlsx = xls.xlsx_balance_comprobacion(data, _razon_social(db, empresa_id))
+    return {"url": xls.subir_xlsx(xlsx, f"balance-comprobacion-{periodo}")}
+
+
+@router.get("/estado-resultados/excel")
+def estado_resultados_excel(
+    desde: date = Query(...), hasta: date = Query(...),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    from ..services import excel_reportes_service as xls
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    empresa_id = payload["empresa_id"]
+    data = rep.estado_resultados(db, empresa_id, desde, hasta)
+    xlsx = xls.xlsx_estado_resultados(data, _razon_social(db, empresa_id))
+    return {"url": xls.subir_xlsx(xlsx, "estado-resultados")}
+
+
+@router.get("/balance-general/excel")
+def balance_general_excel(
+    fecha: date = Query(...),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    from ..services import excel_reportes_service as xls
+    exigir_permiso(db, payload, "contabilidad", "ver")
+    empresa_id = payload["empresa_id"]
+    data = rep.balance_general(db, empresa_id, fecha)
+    xlsx = xls.xlsx_balance_general(data, _razon_social(db, empresa_id))
+    return {"url": xls.subir_xlsx(xlsx, "balance-general")}

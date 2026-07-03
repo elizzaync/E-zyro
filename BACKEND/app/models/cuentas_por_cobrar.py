@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, String, Date, DateTime, Numeric,
+    Column, String, Date, DateTime, Numeric, Text,
     ForeignKey, CheckConstraint, UniqueConstraint,
 )
 from app.db.database import Base
@@ -38,11 +38,20 @@ class FacturaCliente(Base):
     # Referencia lógica a factura_cliente.id (columna uuid en prod, ver migración).
     documento_afectado_id = Column(String(36), nullable=True)
     moneda            = Column(String(3), nullable=False, default="PEN")
+    # TC venta del día de emisión (solo facturas en moneda extranjera).
+    tipo_cambio       = Column(Numeric(10, 4), nullable=True)
     subtotal          = Column(Numeric(14, 2), nullable=False, default=0)
     igv               = Column(Numeric(14, 2), nullable=False, default=0)
     total             = Column(Numeric(14, 2), nullable=False, default=0)
     estado            = Column(String(20), nullable=False, default="pendiente")  # pendiente|cobrada_parcial|cobrada|anulada
     asiento_id        = Column(String(36), ForeignKey("asiento_contable.id"), nullable=True)
+    # ── CPE (facturación electrónica, feature opcional) ──────────────────────
+    # null = no aplica (feature apagada); aceptado|pendiente_sunat|error|no_soportado
+    cpe_estado        = Column(String(20), nullable=True)
+    cpe_pdf_url       = Column(Text, nullable=True)
+    cpe_xml_url       = Column(Text, nullable=True)
+    cpe_cdr_url       = Column(Text, nullable=True)
+    cpe_mensaje       = Column(Text, nullable=True)
     created_at        = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at        = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 
@@ -70,6 +79,8 @@ class CobroCliente(Base):
     cliente_id   = Column(String(36), ForeignKey("cliente.id"), nullable=False)
     fecha_cobro  = Column(Date, nullable=False)
     monto        = Column(Numeric(14, 2), nullable=False)
+    moneda       = Column(String(3), nullable=False, default="PEN")
+    tipo_cambio  = Column(Numeric(10, 4), nullable=True)   # TC venta del día del cobro
     medio_pago   = Column(String(20), nullable=False)   # efectivo|transferencia|cheque
     referencia   = Column(String(100), nullable=True)
     asiento_id   = Column(String(36), ForeignKey("asiento_contable.id"), nullable=True)

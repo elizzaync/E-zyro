@@ -52,6 +52,25 @@ def _d(v) -> Decimal:
     return Decimal(str(v if v is not None else 0)).quantize(Decimal("0.01"))
 
 
+def _tc_emision(db: Session, empresa_id: str, moneda: str, fecha) -> Decimal | None:
+    """TC venta si la factura es en moneda extranjera (multimoneda activa)."""
+    from app.services import tipo_cambio_service as tcs
+
+    if moneda == "PEN":
+        return None
+    if not tcs.multimoneda_activa(db, empresa_id):
+        raise HTTPException(
+            status_code=422,
+            detail="Multimoneda no habilitada: actívala en Finanzas → "
+                   "Configuración contable para registrar en moneda extranjera.")
+    return tcs.obtener_venta(db, fecha, moneda)
+
+
+def _pen(monto: Decimal, tc: Decimal | None) -> Decimal:
+    """Convierte a PEN para el asiento (los libros van en moneda funcional)."""
+    return _d(monto if tc is None else monto * tc)
+
+
 def _cuenta(db: Session, empresa_id: str, codigo: str) -> CuentaContable:
     c = (
         db.query(CuentaContable)
@@ -193,6 +212,8 @@ def registrar_factura(db: Session, empresa_id: str, datos, creado_por_id: str | 
                 detail=f"La nota de crédito ({total}) excede el saldo pendiente "
                        f"({saldo_afectado}) de la factura {doc_afectado.numero_documento}.")
 
+    tc = _tc_emision(db, empresa_id, moneda, datos.fecha_emision)
+
     factura = FacturaProveedor(
         empresa_id=empresa_id,
         proveedor_id=datos.proveedor_id,
@@ -202,6 +223,7 @@ def registrar_factura(db: Session, empresa_id: str, datos, creado_por_id: str | 
         fecha_emision=datos.fecha_emision,
         fecha_vencimiento=datos.fecha_vencimiento,
         moneda=moneda,
+        tipo_cambio=tc,
         subtotal=subtotal,
         igv=igv,
         total=total,
@@ -217,19 +239,24 @@ def registrar_factura(db: Session, empresa_id: str, datos, creado_por_id: str | 
     # Asiento (sin commit; lo hace esta fn). Factura/boleta/ND: Db gasto (+IGV) /
     # Cr Por pagar. Nota de crédito: el espejo — Db Por pagar / Cr gasto (+IGV).
     # La cuenta de IGV la resuelve el servicio tributario (Fase 6) por configuración.
+    # Asiento en PEN; la factura conserva su moneda origen y el TC usado.
+    sub_pen = _pen(subtotal, tc)
+    igv_pen = _pen(igv, tc)
+    total_pen = sub_pen + igv_pen
+
     from app.services import tributario_service as tributario
     if es_nc:
-        lineas = [LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, debito=total),
-                  LineaAsiento(cuenta_id=cuenta_gasto.id, credito=subtotal)]
+        lineas = [LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, debito=total_pen),
+                  LineaAsiento(cuenta_id=cuenta_gasto.id, credito=sub_pen)]
         if igv > CERO:
-            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, credito=igv))
+            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, credito=igv_pen))
         descripcion = (f"Nota de crédito {datos.numero_documento} sobre "
                        f"factura {doc_afectado.numero_documento}")
     else:
-        lineas = [LineaAsiento(cuenta_id=cuenta_gasto.id, debito=subtotal)]
+        lineas = [LineaAsiento(cuenta_id=cuenta_gasto.id, debito=sub_pen)]
         if igv > CERO:
-            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, debito=igv))
-        lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, credito=total))
+            lineas.append(LineaAsiento(cuenta_id=tributario.cuenta_igv(db, empresa_id, "credito_fiscal").id, debito=igv_pen))
+        lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, credito=total_pen))
         descripcion = f"Factura {datos.tipo_documento} {datos.numero_documento}"
 
     try:
@@ -292,11 +319,23 @@ def registrar_pago(db: Session, empresa_id: str, datos, creado_por_id: str | Non
     if monto_total <= CERO:
         raise HTTPException(status_code=422, detail="El monto del pago debe ser mayor que 0.")
 
+    # Multimoneda: un pago aplica a facturas de UNA sola moneda.
+    monedas = {f.moneda for f, _a, _s in facturas_estado}
+    if len(monedas) > 1:
+        raise HTTPException(status_code=422,
+                            detail="Un pago no puede mezclar facturas de distintas monedas.")
+    moneda_pago = monedas.pop()
+    tc_pago = None
+    if moneda_pago != "PEN":
+        from app.services import tipo_cambio_service as tcs
+        tc_pago = tcs.obtener_venta(db, datos.fecha_pago, moneda_pago)
+
     cuenta_origen = _cuenta(db, empresa_id, MEDIO_A_CUENTA[datos.medio_pago])
 
     pago = PagoProveedor(
         empresa_id=empresa_id, proveedor_id=datos.proveedor_id,
         fecha_pago=datos.fecha_pago, monto=monto_total,
+        moneda=moneda_pago, tipo_cambio=tc_pago,
         medio_pago=datos.medio_pago, referencia=datos.referencia,
     )
     db.add(pago)
@@ -305,10 +344,26 @@ def registrar_pago(db: Session, empresa_id: str, datos, creado_por_id: str | Non
     for f, aplicado, _saldo_nuevo in facturas_estado:
         db.add(AplicacionPagoProveedor(pago_id=pago.id, factura_id=f.id, monto_aplicado=aplicado))
 
+    # Asiento en PEN: la 421 se rebaja al TC HISTÓRICO de cada factura; la caja
+    # sale al TC de HOY. Pagar más caro que lo provisionado es pérdida (Db 676);
+    # más barato, ganancia (Cr 776).
+    caja_pen = _pen(monto_total, tc_pago)
+    hist_pen = sum((_pen(aplicado, Decimal(str(f.tipo_cambio)) if f.tipo_cambio else None)
+                    for f, aplicado, _s in facturas_estado), CERO)
     lineas = [
-        LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, debito=monto_total),
-        LineaAsiento(cuenta_id=cuenta_origen.id, credito=monto_total),
+        LineaAsiento(cuenta_id=_cuenta(db, empresa_id, CTA_POR_PAGAR).id, debito=hist_pen),
+        LineaAsiento(cuenta_id=cuenta_origen.id, credito=caja_pen),
     ]
+    dif = caja_pen - hist_pen
+    if dif != CERO:
+        from app.services import tipo_cambio_service as tcs
+        cta_gan, cta_per = tcs.cuentas_diferencia_cambio(db, empresa_id)
+        if dif > CERO:
+            lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, cta_per).id,
+                                       debito=dif, glosa="Pérdida por diferencia de cambio"))
+        else:
+            lineas.append(LineaAsiento(cuenta_id=_cuenta(db, empresa_id, cta_gan).id,
+                                       credito=-dif, glosa="Ganancia por diferencia de cambio"))
     try:
         asiento = contab.registrar_asiento(
             db, empresa_id=empresa_id, fecha=datos.fecha_pago,
