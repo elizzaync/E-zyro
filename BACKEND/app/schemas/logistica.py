@@ -844,6 +844,9 @@ class IngresoItemIn(BaseModel):
     asignadoA:    Optional[str] = None
     fechaGarantia: Optional[date] = None
     observaciones: Optional[str] = None
+    requiereMantenimiento:     Optional[bool] = None
+    frecuenciaMantenimiento:   Optional[str] = None   # mensual|trimestral|semestral|anual
+    proximaFechaMantenimiento: Optional[date] = None
     # libres por tipo (procesador, RAM, IP, MAC, SO…)
     atributos:    Optional[Dict[str, Any]] = None
 

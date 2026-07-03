@@ -3528,6 +3528,8 @@ def ingreso_directo(
         precio = float(item.precioCompra) if item.precioCompra is not None else None
         almacen_id = item.almacenId or alm_def_id
         atributos = dict(item.atributos or {})
+        if item.stockMinimo:
+            atributos["stock_minimo"] = int(item.stockMinimo)
 
         if item.clase == "material":
             if item.modo == "existente":
@@ -3697,6 +3699,11 @@ def ingreso_directo(
                     imagen_url=item.imagenUrl, observaciones=item.observaciones,
                     fecha_adquisicion=fecha_compra,
                     atributos=atributos or None,
+                    requiere_mantenimiento=bool(item.requiereMantenimiento),
+                    frecuencia_mantenimiento=(
+                        item.frecuenciaMantenimiento or ("mensual" if item.requiereMantenimiento else "ninguno")
+                    ),
+                    proxima_fecha_mantenimiento=item.proximaFechaMantenimiento if item.requiereMantenimiento else None,
                 )
                 db.add(eq)
                 db.flush()
