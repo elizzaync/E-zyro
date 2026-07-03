@@ -41,6 +41,11 @@ _NO_DISPONIBLE = HTTPException(
 class ChatIn(BaseModel):
     message: str
     pantalla: Optional[str] = None
+    # Catálogo de pantallas que la app sabe abrir para este usuario
+    # ([{clave, nombre, descripcion}], ya filtrado por permisos del lado de la
+    # app). Se reenvía al chatbot para que el LLM conozca el universo válido
+    # de la acción `abrir_pantalla` sin redeployar su servidor.
+    pantallas: Optional[list[dict]] = None
 
 
 def _nombre_y_permisos(db: Session, usuario_id: str) -> tuple[str, list[str]]:
@@ -84,6 +89,7 @@ def chat(
                     "nombre": nombre,
                     "permisos": permisos,
                     "pantalla": body.pantalla,
+                    "pantallas": body.pantallas or [],
                 },
             },
             timeout=_TIMEOUT_SEGUNDOS,
