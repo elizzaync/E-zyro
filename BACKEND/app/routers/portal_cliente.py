@@ -5,7 +5,7 @@ leídos EN VIVO desde la BD (no del JWT) para resistir JWTs obsoletos.
 """
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -1246,3 +1246,162 @@ def portal_perfil(
         "empresaEmail":  row[9],
         "debeCambiarPassword": bool(row[10]),
     }
+
+
+# ── Estado de cuenta (facturas y saldos del cliente) ─────────────────────────
+
+@router.get("/estado-cuenta")
+def portal_estado_cuenta(
+    payload: dict = Depends(_requires_client),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Comprobantes emitidos al cliente con su saldo pendiente (CxC)."""
+    empresa_id, cliente_id = _ctx(payload)
+    filas = db.execute(text("""
+        SELECT f.id, f.numero_documento, f.tipo_documento, f.fecha_emision,
+               f.fecha_vencimiento, f.moneda, f.total, f.estado,
+               f.total - COALESCE((
+                   SELECT SUM(a.monto_aplicado) FROM aplicacion_cobro_cliente a
+                   WHERE a.factura_id = f.id
+               ), 0) AS saldo
+        FROM factura_cliente f
+        WHERE f.empresa_id::text = :eid AND f.cliente_id::text = :cid
+          AND f.estado != 'anulada'
+        ORDER BY f.fecha_emision DESC
+        LIMIT 100
+    """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
+
+    hoy = date.today()
+    docs, total_pendiente, total_vencido = [], 0.0, 0.0
+    for r in filas:
+        saldo = float(r[8] or 0)
+        vencida = bool(r[4] and r[4] < hoy and saldo > 0)
+        if saldo > 0:
+            total_pendiente += saldo
+            if vencida:
+                total_vencido += saldo
+        docs.append({
+            "id": str(r[0]),
+            "numero": r[1],
+            "tipo": r[2],
+            "fecha_emision": r[3].isoformat() if r[3] else None,
+            "fecha_vencimiento": r[4].isoformat() if r[4] else None,
+            "moneda": r[5],
+            "total": float(r[6] or 0),
+            "estado": r[7],
+            "saldo": saldo,
+            "vencida": vencida,
+        })
+    return {
+        "documentos": docs,
+        "total_pendiente": round(total_pendiente, 2),
+        "total_vencido": round(total_vencido, 2),
+    }
+
+
+# ── Cotizaciones del cliente (ver, PDF, aceptar/rechazar) ────────────────────
+
+class _RespuestaCotizacion(BaseModel):
+    estado: str  # aceptada | rechazada
+
+
+@router.get("/cotizaciones")
+def portal_cotizaciones(
+    payload: dict = Depends(_requires_client),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    """Cotizaciones del cliente (todas menos borradores internos)."""
+    empresa_id, cliente_id = _ctx(payload)
+    filas = db.execute(text("""
+        SELECT id, numero, fecha_emision, validez_dias, estado, moneda,
+               subtotal, igv, total, condiciones_pago, notas
+        FROM cotizacion
+        WHERE empresa_id::text = :eid AND cliente_id::text = :cid
+          AND estado != 'borrador'
+        ORDER BY created_at DESC
+    """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
+    out = []
+    for r in filas:
+        items = db.execute(text("""
+            SELECT descripcion, unidad, cantidad, precio_unitario, total
+            FROM cotizacion_item WHERE cotizacion_id = :cot ORDER BY orden
+        """), {"cot": r[0]}).fetchall()
+        out.append({
+            "id": str(r[0]),
+            "numero": r[1],
+            "fecha_emision": r[2].isoformat() if r[2] else None,
+            "vence": (r[2] + timedelta(days=r[3])).isoformat() if r[2] else None,
+            "estado": r[4],
+            "moneda": r[5],
+            "subtotal": float(r[6] or 0),
+            "igv": float(r[7] or 0),
+            "total": float(r[8] or 0),
+            "condiciones_pago": r[9],
+            "notas": r[10],
+            "items": [{
+                "descripcion": i[0], "unidad": i[1],
+                "cantidad": float(i[2] or 0),
+                "precio_unitario": float(i[3] or 0),
+                "total": float(i[4] or 0),
+            } for i in items],
+        })
+    return out
+
+
+def _cotizacion_del_cliente(db: Session, empresa_id: str, cliente_id: str, cot_id: str):
+    from app.models.cotizacion import Cotizacion as _Cot
+
+    c = db.query(_Cot).filter(
+        _Cot.id == cot_id,
+        _Cot.empresa_id == empresa_id,
+        _Cot.cliente_id == cliente_id,
+    ).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    return c
+
+
+@router.post("/cotizaciones/{cot_id}/responder")
+def portal_responder_cotizacion(
+    cot_id: str,
+    body: _RespuestaCotizacion,
+    payload: dict = Depends(_requires_client),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """El cliente acepta o rechaza una cotización enviada, desde el portal."""
+    if body.estado not in ("aceptada", "rechazada"):
+        raise HTTPException(status_code=422, detail="estado debe ser 'aceptada' o 'rechazada'")
+    empresa_id, cliente_id = _ctx(payload)
+    c = _cotizacion_del_cliente(db, empresa_id, cliente_id, cot_id)
+    if c.estado != "enviada":
+        raise HTTPException(
+            status_code=409,
+            detail=f"La cotización ya no admite respuesta (estado: {c.estado}).",
+        )
+    c.estado = body.estado
+    c.resuelto_via = "portal"
+    c.fecha_resolucion = datetime.utcnow()
+    db.commit()
+    return {"id": str(c.id), "estado": c.estado, "mensaje": f"Cotización {c.estado}."}
+
+
+@router.get("/cotizaciones/{cot_id}/pdf")
+def portal_pdf_cotizacion(
+    cot_id: str,
+    payload: dict = Depends(_requires_client),
+    db: Session = Depends(get_db),
+):
+    from fastapi import Response
+
+    from app.routers.cotizaciones import armar_data_pdf
+    from app.services.pdf_docs import generar_cotizacion_pdf
+
+    empresa_id, cliente_id = _ctx(payload)
+    c = _cotizacion_del_cliente(db, empresa_id, cliente_id, cot_id)
+    if c.estado == "borrador":
+        raise HTTPException(status_code=404, detail="Cotización no encontrada")
+    return Response(
+        content=generar_cotizacion_pdf(armar_data_pdf(db, c)),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{c.numero}.pdf"'},
+    )

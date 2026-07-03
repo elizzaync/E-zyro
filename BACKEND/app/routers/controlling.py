@@ -19,7 +19,7 @@ from ..db.database import get_db
 from ..models.contabilidad import CentroCosto
 from ..schemas.controlling import (
     CentroCostoCreate, CentroCostoUpdate, CentroCostoOut,
-    CostoRealOut, ComparativoOut,
+    CostoRealOut, ComparativoOut, RentabilidadProyectoOut,
 )
 from ..services import controlling_service as controlling
 
@@ -141,3 +141,29 @@ def comparativo(
     data = controlling.comparativo_presupuesto_vs_real(
         db, payload["empresa_id"], centro_id, desde, hasta)
     return ComparativoOut(**data)
+
+
+# ── Rentabilidad por proyecto ────────────────────────────────────────────────
+@router.get("/rentabilidad", response_model=List[RentabilidadProyectoOut])
+def rentabilidad(
+    desde: Optional[date] = Query(None), hasta: Optional[date] = Query(None),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Ingresos − costos imputados − mano de obra estimada, por proyecto."""
+    exigir_permiso(db, payload, "controlling", "ver")
+    return controlling.rentabilidad_proyectos(db, payload["empresa_id"], desde, hasta)
+
+
+@router.get("/rentabilidad/{proyecto_id}", response_model=RentabilidadProyectoOut)
+def rentabilidad_detalle(
+    proyecto_id: str,
+    desde: Optional[date] = Query(None), hasta: Optional[date] = Query(None),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Detalle de un proyecto con desglose por centro de costo y por empleado."""
+    exigir_permiso(db, payload, "controlling", "ver")
+    filas = controlling.rentabilidad_proyectos(
+        db, payload["empresa_id"], desde, hasta, proyecto_id=proyecto_id)
+    if not filas:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    return filas[0]

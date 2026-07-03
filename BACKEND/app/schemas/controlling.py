@@ -71,3 +71,36 @@ class ComparativoOut(BaseModel):
     costo_real: Decimal
     desviacion: Optional[Decimal] = None
     ejecucion_pct: Optional[Decimal] = None
+
+
+# ── Rentabilidad por proyecto ────────────────────────────────────────────────
+
+class RentabilidadCentroOut(BaseModel):
+    centro_costo_id: str
+    codigo: str
+    nombre: str
+    costo_real: Decimal
+
+
+class RentabilidadEmpleadoOut(BaseModel):
+    empleado_id: str
+    nombre: str
+    horas: Decimal
+    costo: Decimal
+
+
+class RentabilidadProyectoOut(BaseModel):
+    proyecto_id: str
+    nombre_proyecto: str
+    cliente_id: str
+    cliente: str
+    estado: str
+    ingresos: Decimal            # subtotales facturados sin IGV (NC restan)
+    costos_imputados: Decimal    # líneas de asiento en centros de costo del proyecto
+    mano_obra: Decimal           # estimada: horas asistencia × sueldo_base/240
+    horas_mano_obra: Decimal
+    margen: Decimal
+    margen_pct: Optional[Decimal] = None
+    # Solo en el detalle de un proyecto:
+    centros: Optional[list[RentabilidadCentroOut]] = None
+    empleados: Optional[list[RentabilidadEmpleadoOut]] = None

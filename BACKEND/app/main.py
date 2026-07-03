@@ -68,6 +68,9 @@ from app.routers import reportes_financieros as reportes_financieros_router
 from app.routers import eventos_contables    as eventos_contables_router
 from app.routers import caja_chica           as caja_chica_router
 from app.routers import conciliacion_bancaria as conciliacion_bancaria_router
+from app.routers import pendientes            as pendientes_router
+from app.routers import consultas             as consultas_router
+from app.routers import cotizaciones          as cotizaciones_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
@@ -174,6 +177,8 @@ from app.models import (  # noqa: F401
     configuracion_contable,
     # Repositorio de documentos de cumplimiento / SST (homologaciones, ATS, PETAR)
     documento_sst,
+    # Ciclo comercial: cotización → aceptación → proyecto
+    cotizacion as cotizacion_model,
 )
 
 
@@ -977,6 +982,9 @@ def _run_migrations():
                           "abrir_periodo", "cerrar_periodo", "reabrir_periodo",
                           "configurar", "cerrar_ejercicio", "cargar_apertura"],
                          descripcion_base="Contabilidad:")
+        # ── Ciclo comercial — Cotizaciones ───────────────────────────────────
+        sembrar_permisos(conn, "cotizaciones", ["ver", "gestionar"],
+                         descripcion_base="Cotizaciones:")
         # ── Finanzas · Fase 11 — Resumen financiero (dashboard) ──────────────
         #   Permiso propio: el resumen expone la foto económica completa de la
         #   empresa, independiente de qué submódulos vea cada rol.
@@ -1184,6 +1192,55 @@ def _run_migrations():
                 WHERE c.empresa_id = a.empresa_id AND c.predeterminado IS TRUE
             )
         """))
+        conn.commit()
+
+        # ── Cotizaciones (ciclo comercial) ───────────────────────────────────
+        # FKs uuid a empresa/cliente/proyecto/contrato_comercial/usuario → SQL
+        # crudo (create_all las haría VARCHAR(36) y chocaría con PK uuid).
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS cotizacion (
+                id                    uuid PRIMARY KEY,
+                empresa_id            uuid NOT NULL REFERENCES empresa(id),
+                cliente_id            uuid NOT NULL REFERENCES cliente(id),
+                numero                VARCHAR(30) NOT NULL,
+                fecha_emision         DATE NOT NULL DEFAULT CURRENT_DATE,
+                validez_dias          INTEGER NOT NULL DEFAULT 30,
+                estado                VARCHAR(20) NOT NULL DEFAULT 'borrador',
+                moneda                VARCHAR(3) NOT NULL DEFAULT 'PEN',
+                subtotal              NUMERIC(14,2) NOT NULL DEFAULT 0,
+                igv                   NUMERIC(14,2) NOT NULL DEFAULT 0,
+                total                 NUMERIC(14,2) NOT NULL DEFAULT 0,
+                condiciones_pago      VARCHAR(300),
+                notas                 TEXT,
+                proyecto_id           uuid REFERENCES proyecto(id),
+                contrato_comercial_id uuid REFERENCES contrato_comercial(id),
+                resuelto_via          VARCHAR(20),
+                fecha_resolucion      TIMESTAMP,
+                creado_por_id         uuid REFERENCES usuario(id),
+                created_at            TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at            TIMESTAMP,
+                CONSTRAINT uq_cotizacion_empresa_numero UNIQUE (empresa_id, numero),
+                CONSTRAINT chk_cotizacion_estado CHECK (estado IN
+                    ('borrador','enviada','aceptada','rechazada','vencida','convertida'))
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS cotizacion_item (
+                id              uuid PRIMARY KEY,
+                cotizacion_id   uuid NOT NULL REFERENCES cotizacion(id) ON DELETE CASCADE,
+                descripcion     VARCHAR(500) NOT NULL,
+                unidad          VARCHAR(30),
+                cantidad        NUMERIC(12,2) NOT NULL DEFAULT 1,
+                precio_unitario NUMERIC(14,2) NOT NULL DEFAULT 0,
+                total           NUMERIC(14,2) NOT NULL DEFAULT 0,
+                orden           INTEGER NOT NULL DEFAULT 1,
+                CONSTRAINT chk_cotizacion_item_cantidad CHECK (cantidad > 0),
+                CONSTRAINT chk_cotizacion_item_montos CHECK (precio_unitario >= 0 AND total >= 0)
+            )
+        """))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_cotizacion_empresa_estado "
+            "ON cotizacion (empresa_id, estado)"))
         conn.commit()
 
         # ── Ledger de seguridad de firmas (firma_evento) ─────────────────────
@@ -2135,6 +2192,9 @@ app.include_router(reportes_financieros_router.router)
 app.include_router(eventos_contables_router.router)
 app.include_router(caja_chica_router.router)
 app.include_router(conciliacion_bancaria_router.router)
+app.include_router(pendientes_router.router)
+app.include_router(consultas_router.router)
+app.include_router(cotizaciones_router.router)
 
 
 @app.get("/")

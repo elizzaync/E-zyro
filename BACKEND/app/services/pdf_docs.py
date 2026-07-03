@@ -260,3 +260,74 @@ def generar_informe_itse(data: dict) -> bytes:
 
     doc.build(e)
     return buf.getvalue()
+
+
+# ── Cotización comercial ─────────────────────────────────────────────────────
+def generar_cotizacion_pdf(data: dict) -> bytes:
+    """PDF de cotización: cabecera empresa/cliente, tabla de ítems y totales.
+
+    data = {empresa, empresa_ruc, empresa_direccion, numero, fecha, vence,
+            cliente, cliente_ruc, moneda, items: [{descripcion, unidad,
+            cantidad, precio_unitario, total}], subtotal, igv, total,
+            condiciones_pago, notas}
+    """
+    buf = io.BytesIO()
+    doc = _doc(buf, f"Cotización {data.get('numero', '')}")
+    st = _styles()
+    e = [Paragraph(f"COTIZACIÓN {data.get('numero', '')}", st["h1"]),
+         Paragraph(data.get("empresa", "") or "", st["sub"])]
+    sub2 = " · ".join(x for x in (
+        f"RUC {data['empresa_ruc']}" if data.get("empresa_ruc") else "",
+        data.get("empresa_direccion") or "",
+    ) if x)
+    if sub2:
+        e.append(Paragraph(sub2, st["sub"]))
+    e.append(Spacer(1, 6))
+
+    e.append(_kv_table([
+        ("Cliente",     data.get("cliente", "") or "-"),
+        ("RUC",         data.get("cliente_ruc", "") or "-"),
+        ("Fecha",       data.get("fecha", "") or "-"),
+        ("Válida hasta", data.get("vence", "") or "-"),
+        ("Moneda",      data.get("moneda", "PEN")),
+    ], st))
+    e.append(Spacer(1, 8))
+
+    filas = [["#", "Descripción", "Und.", "Cant.", "P. Unit.", "Total"]]
+    for i, it in enumerate(data.get("items", []), start=1):
+        filas.append([
+            str(i), it.get("descripcion", ""), it.get("unidad") or "-",
+            str(it.get("cantidad", "")), str(it.get("precio_unitario", "")),
+            str(it.get("total", "")),
+        ])
+    e.append(_data_table(filas,
+                         [8 * mm, _PAGE_W - 8 * mm - 14 * mm - 18 * mm - 24 * mm - 26 * mm,
+                          14 * mm, 18 * mm, 24 * mm, 26 * mm], st))
+    e.append(Spacer(1, 6))
+
+    mon = data.get("moneda", "PEN")
+    sim = "S/ " if mon == "PEN" else f"{mon} "
+    tot = Table([
+        ["Subtotal", f"{sim}{data.get('subtotal', '')}"],
+        ["IGV",      f"{sim}{data.get('igv', '')}"],
+        ["TOTAL",    f"{sim}{data.get('total', '')}"],
+    ], colWidths=[_PAGE_W - 40 * mm, 40 * mm])
+    tot.setStyle(TableStyle([
+        ("ALIGN",     (0, 0), (-1, -1), "RIGHT"),
+        ("FONTSIZE",  (0, 0), (-1, -1), 9),
+        ("FONTNAME",  (0, 2), (-1, 2), "Helvetica-Bold"),
+        ("LINEABOVE", (0, 2), (-1, 2), 0.6, _AZUL),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    e.append(tot)
+
+    if data.get("condiciones_pago"):
+        e.append(Paragraph("Condiciones de pago", st["h2"]))
+        e.append(Paragraph(data["condiciones_pago"], st["n"]))
+    if data.get("notas"):
+        e.append(Paragraph("Notas", st["h2"]))
+        e.append(Paragraph(data["notas"], st["n"]))
+
+    doc.build(e)
+    return buf.getvalue()

@@ -843,6 +843,137 @@ def _aviso_pre_horario():
         db.close()
 
 
+def _generar_servicios_mantenimiento():
+    """Mantenimiento recurrente (v1): cuando a un equipo intervenido le toca
+    mantenimiento (proximo_mantenimiento ≤ hoy+7), genera automáticamente el
+    servicio preventivo en su proyecto, vincula los equipos y avisa.
+
+    - NO factura: al completarse, el servicio entra solo al flujo existente de
+      "servicios facturables" de CxC (decisión humana, es ruta de dinero).
+    - Idempotente: un equipo cuyo servicio vinculado sigue abierto
+      (Pendiente/En_Proceso) no genera otro; al completarse el servicio,
+      operaciones ya rueda proximo_mantenimiento hacia adelante.
+    """
+    from app.models.catalogo_servicio import CatalogoServicio
+    from app.models.equipo_intervenido import EquipoIntervenido
+    from app.models.proyecto import Proyecto
+    from app.models.proyecto_servicio import ProyectoServicio
+    from app.models.cliente import Cliente
+    from sqlalchemy import func as _f
+
+    VENTANA_DIAS = 7
+    CAT_NOMBRE = "Mantenimiento preventivo"
+
+    db: Session = SessionLocal()
+    try:
+        hoy = date.today()
+        limite = hoy + timedelta(days=VENTANA_DIAS)
+
+        equipos = (
+            db.query(EquipoIntervenido)
+            .filter(
+                EquipoIntervenido.activo.is_(True),
+                EquipoIntervenido.proyecto_id.isnot(None),
+                EquipoIntervenido.proximo_mantenimiento.isnot(None),
+                EquipoIntervenido.proximo_mantenimiento <= limite,
+            )
+            .all()
+        )
+        if not equipos:
+            return
+
+        # Descarta equipos con un servicio vinculado aún abierto (ya programado).
+        abiertos = {
+            str(sid) for (sid,) in db.query(ProyectoServicio.id).filter(
+                ProyectoServicio.id.in_(
+                    [e.proyecto_servicio_id for e in equipos if e.proyecto_servicio_id]),
+                ProyectoServicio.estado.in_(["Pendiente", "En_Proceso"]),
+            )
+        }
+        pendientes = [e for e in equipos
+                      if not (e.proyecto_servicio_id and str(e.proyecto_servicio_id) in abiertos)]
+        if not pendientes:
+            return
+
+        # Agrupa por proyecto: un servicio de mantenimiento por proyecto y ciclo.
+        por_proyecto: dict[str, list] = {}
+        for e in pendientes:
+            por_proyecto.setdefault(str(e.proyecto_id), []).append(e)
+
+        creados = 0
+        for proyecto_id, eqs in por_proyecto.items():
+            p = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+            if p is None:
+                continue
+            empresa_id = str(p.empresa_id)
+
+            # Catálogo "Mantenimiento preventivo" de la empresa (se crea una vez).
+            cat = db.query(CatalogoServicio).filter(
+                CatalogoServicio.empresa_id == empresa_id,
+                CatalogoServicio.nombre == CAT_NOMBRE,
+            ).first()
+            if cat is None:
+                cat = CatalogoServicio(
+                    empresa_id=empresa_id, tipo_trabajo="Mantenimiento",
+                    nombre=CAT_NOMBRE,
+                    descripcion="Generado automáticamente para mantenimientos recurrentes",
+                    activo=True,
+                )
+                db.add(cat)
+                db.flush()
+
+            max_orden = (
+                db.query(_f.coalesce(_f.max(ProyectoServicio.orden), 0))
+                .filter(ProyectoServicio.proyecto_id == proyecto_id).scalar() or 0
+            )
+            fecha_prog = min(e.proximo_mantenimiento for e in eqs)
+            nombres_eq = ", ".join(e.nombre for e in eqs[:5])
+            if len(eqs) > 5:
+                nombres_eq += f" y {len(eqs) - 5} más"
+            servicio = ProyectoServicio(
+                proyecto_id=proyecto_id, empresa_id=empresa_id,
+                catalogo_servicio_id=str(cat.id),
+                nombre=f"{CAT_NOMBRE} — {fecha_prog.strftime('%Y-%m')}",
+                descripcion=(f"Servicio generado automáticamente por plan de "
+                             f"mantenimiento. Equipos: {nombres_eq}."),
+                estado="Pendiente", orden=max_orden + 1,
+                lider_id=p.jefe_operaciones_id,
+                fecha_programada=fecha_prog,
+                tiene_equipos_intervenidos=True,
+            )
+            db.add(servicio)
+            db.flush()
+            for e in eqs:
+                e.proyecto_servicio_id = servicio.id
+                e.estado_intervencion = "pendiente"
+                e.updated_at = datetime.utcnow()
+
+            c = db.query(Cliente.razon_social).filter(Cliente.id == p.cliente_id).first()
+            cliente_txt = f" de {c.razon_social}" if c else ""
+            _emitir(
+                db, empresa_id=empresa_id,
+                usuarios=_usuarios_por_rol(db, empresa_id,
+                                           ["Administrador", "Jefe de Operaciones"]),
+                tipo="info", categoria="mantenimiento",
+                titulo="🔁 Mantenimiento programado automáticamente",
+                mensaje=(f"Se creó el servicio «{servicio.nombre}» en el proyecto "
+                         f"{p.nombre_proyecto}{cliente_txt} con {len(eqs)} equipo(s) "
+                         f"por vencer (programado: {fecha_prog.isoformat()}). "
+                         f"Asignar equipo técnico para ejecutarlo."),
+                ref_key=f"mant_auto:{servicio.id}",
+            )
+            creados += 1
+
+        db.commit()
+        if creados:
+            print(f"[Scheduler] 🔁 Servicios de mantenimiento generados: {creados}")
+    except Exception as e:
+        print(f"[Scheduler] ❌ Error generando mantenimientos recurrentes: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def _depreciacion_mensual_automatica():
     """Día 1 de cada mes (01:00 Lima): deprecia el MES ANTERIOR para todas las
     empresas. Por cada empresa: asegura un periodo contable abierto para ese mes
@@ -962,6 +1093,13 @@ def iniciar_scheduler():
         func=_depreciacion_mensual_automatica,
         trigger=CronTrigger(day=1, hour=1, minute=0),
         id="depreciacion_mensual",
+        replace_existing=True
+    )
+    # Mantenimiento recurrente: genera servicios preventivos — 07:30 AM
+    scheduler.add_job(
+        func=_generar_servicios_mantenimiento,
+        trigger=CronTrigger(hour=7, minute=30),
+        id="mantenimiento_recurrente",
         replace_existing=True
     )
     scheduler.start()
