@@ -129,6 +129,7 @@ class FinanzasService {
     required double igv,
     String? cuentaGastoId,
     String? documentoAfectadoId, // nota de crédito: factura cuyo saldo rebaja
+    String? moneda,
   }) async {
     try {
       final r = await _client.post('/cuentas-por-pagar/facturas', {
@@ -141,6 +142,7 @@ class FinanzasService {
         'igv': igv,
         'cuenta_gasto_id': ?cuentaGastoId,
         'documento_afectado_id': ?documentoAfectadoId,
+        'moneda': ?moneda,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(Factura.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
@@ -279,7 +281,7 @@ class FinanzasService {
       _getList('/cuentas-por-cobrar/servicios-facturables', ServicioFacturable.fromJson);
 
   /// Emite el comprobante de un servicio completado. El cliente se deriva en el
-  /// backend del proyecto del servicio (no se envía). moneda se inyecta como null.
+  /// backend del proyecto del servicio (no se envía).
   Future<ApiResult<Factura>> facturarServicio({
     required String servicioId,
     required String numeroDocumento,
@@ -288,6 +290,7 @@ class FinanzasService {
     String? fechaVencimiento,
     required double subtotal,
     required double igv,
+    String? moneda,
     bool alContado = false,
   }) async {
     try {
@@ -299,7 +302,7 @@ class FinanzasService {
         'fecha_vencimiento': ?fechaVencimiento,
         'subtotal': subtotal,
         'igv': igv,
-        'moneda': null,
+        'moneda': ?moneda,
         'al_contado': alContado,
       });
       if (r.statusCode == 201 || r.statusCode == 200) {

@@ -4,6 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api_client.dart';
+import 'finanzas/pantalla_cuentas_cobrar.dart';
+import 'finanzas/pantalla_cuentas_pagar.dart';
+import 'logistica/almacen/pantalla_requerimientos_logistica.dart';
+import 'pantalla_bandeja_solicitudes.dart';
+import 'pantalla_vacaciones.dart';
 
 /// Bandeja unificada "Mis pendientes": todo lo que espera acción del usuario
 /// (requerimientos, cobros/pagos por vencer, vacaciones, solicitudes), en una
@@ -92,6 +97,30 @@ class _PantallaPendientesState extends State<PantallaPendientes> {
     }
   }
 
+  Widget? _destino(String id) {
+    switch (id) {
+      case 'requerimientos':
+        return const PantallaRequerimientosLogistica();
+      case 'cxc_vencer':
+        return const PantallaCuentasCobrar();
+      case 'cxp_vencer':
+        return const PantallaCuentasPagar();
+      case 'vacaciones':
+        return const PantallaVacaciones();
+      case 'solicitudes':
+        return const PantallaBandejaSolicitudes();
+    }
+    return null;
+  }
+
+  Future<void> _abrir(_Seccion s) async {
+    final destino = _destino(s.id);
+    if (destino == null) return;
+    await Navigator.push(
+        context, MaterialPageRoute(builder: (_) => destino));
+    if (mounted) _cargar();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,19 +168,28 @@ class _PantallaPendientesState extends State<PantallaPendientes> {
               title: Text(s.titulo,
                   style: const TextStyle(
                       fontWeight: FontWeight.w700, fontSize: 13.5)),
-              trailing: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text('${s.total}',
-                    style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text('${s.total}',
+                        style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13)),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.chevron_right,
+                      size: 18, color: Colors.grey),
+                ],
               ),
+              onTap: () => _abrir(s),
             ),
             const Divider(height: 1, indent: 16, endIndent: 16),
             for (final it in s.items)
@@ -173,6 +211,7 @@ class _PantallaPendientesState extends State<PantallaPendientes> {
                     : Text(it.fecha!,
                         style:
                             const TextStyle(fontSize: 11, color: Colors.grey)),
+                onTap: () => _abrir(s),
               ),
             if (s.total > s.items.length)
               Padding(

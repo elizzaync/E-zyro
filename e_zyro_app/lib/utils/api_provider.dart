@@ -36,6 +36,7 @@ import '../services/drive_service.dart';
 import '../services/soporte_service.dart';
 import '../services/finanzas_service.dart';
 import '../services/ingreso_directo_service.dart';
+import '../services/chatbot_service.dart';
 
 Future<IngresoDirectoService> getIngresoDirectoService() async {
   final prefs = await SharedPreferences.getInstance();
@@ -215,4 +216,9 @@ Future<DriveService> getDriveService() async {
 Future<SoporteService> getSoporteService() async {
   final prefs = await SharedPreferences.getInstance();
   return SoporteService(ApiClient(prefs));
+}
+
+Future<ChatbotService> getChatbotService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return ChatbotService(ApiClient(prefs));
 }

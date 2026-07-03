@@ -258,7 +258,8 @@ class _TabFacturas extends StatelessWidget {
           final f = facturas[i];
           return Card(
             child: ListTile(
-              title: Text(f.numeroDocumento),
+              title: Text(f.numeroDocumento +
+                  (f.moneda != 'PEN' ? ' · ${f.moneda}' : '')),
               subtitle: Text(
                 '${f.tipoDocumento} · Vence ${f.fechaVencimiento}'
                 '${f.cuentaGastoCodigo != null ? ' · Cta ${f.cuentaGastoCodigo}' : ''}',
@@ -271,7 +272,7 @@ class _TabFacturas extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(money(f.total),
+                      Text(money(f.total, f.moneda),
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                       chipEstado(f.estado),
                     ],
@@ -391,7 +392,7 @@ class _TabPagos extends StatelessWidget {
           return Card(
             child: ExpansionTile(
               leading: const CircleAvatar(child: Icon(Icons.payment)),
-              title: Text(money(p.monto),
+              title: Text(money(p.monto, p.moneda),
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
                 '${p.fechaPago} · ${p.medioPago}'
@@ -403,7 +404,7 @@ class _TabPagos extends StatelessWidget {
                         dense: true,
                         leading: const Icon(Icons.receipt_outlined, size: 16),
                         title: Text('Factura ${a.facturaId}'),
-                        trailing: Text(money(a.montoAplicado)),
+                        trailing: Text(money(a.montoAplicado, p.moneda)),
                       ))
                   .toList(),
             ),
@@ -438,6 +439,9 @@ class _FormFacturaState extends State<_FormFactura> {
   final _subtotalCtrl = TextEditingController();
   final _igvCtrl = TextEditingController(text: '18');
   bool _guardando = false;
+  // Multimoneda: el selector USD solo aparece si la empresa la tiene activa.
+  bool _multimoneda = false;
+  String _moneda = 'PEN';
 
   // Cuenta de gasto a debitar: 601 mercadería (defecto) o 63/65 para servicios.
   List<CuentaContable> _cuentasGasto = [];
@@ -451,6 +455,15 @@ class _FormFacturaState extends State<_FormFactura> {
     _cargarProveedores();
     _cargarCuentasGasto();
     _cargarTasaIgv();
+    _cargarMultimoneda();
+  }
+
+  Future<void> _cargarMultimoneda() async {
+    final svc = await getFinanzasService();
+    final r = await svc.configContable();
+    if (mounted && r.ok) {
+      setState(() => _multimoneda = r.data?.multimoneda ?? false);
+    }
   }
 
   /// La tasa de IGV inicial sale de la configuración tributaria de la empresa
@@ -516,6 +529,7 @@ class _FormFacturaState extends State<_FormFactura> {
       igv: igv,
       cuentaGastoId: _cuentaGastoId,
       documentoAfectadoId: _esNotaCredito ? _documentoAfectadoId : null,
+      moneda: _moneda == 'PEN' ? null : _moneda,
     );
     if (!mounted) return;
     setState(() => _guardando = false);
@@ -601,7 +615,7 @@ class _FormFacturaState extends State<_FormFactura> {
                     .map((f) => DropdownMenuItem(
                           value: f.id,
                           child: Text(
-                              '${f.numeroDocumento} · saldo ${money(f.saldoPendiente)}',
+                              '${f.numeroDocumento} · saldo ${money(f.saldoPendiente, f.moneda)}',
                               overflow: TextOverflow.ellipsis),
                         ))
                     .toList(),
@@ -646,6 +660,22 @@ class _FormFacturaState extends State<_FormFactura> {
                 ),
               ),
             ]),
+            if (_multimoneda && !_esNotaCredito) ...[
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _moneda,
+                decoration: const InputDecoration(
+                  labelText: 'Moneda',
+                  helperText:
+                      'En USD el asiento se convierte al TC SUNAT del día',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'PEN', child: Text('S/ Soles')),
+                  DropdownMenuItem(value: 'USD', child: Text('US\$ Dólares')),
+                ],
+                onChanged: (v) => setState(() => _moneda = v ?? 'PEN'),
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -655,8 +685,8 @@ class _FormFacturaState extends State<_FormFactura> {
                     controller: _subtotalCtrl,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
-                    decoration: const InputDecoration(
-                        labelText: 'Subtotal (S/)'),
+                    decoration: InputDecoration(
+                        labelText: 'Subtotal (${simboloMoneda(_moneda)})'),
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
                       final d = double.tryParse(v ?? '');
@@ -682,6 +712,7 @@ class _FormFacturaState extends State<_FormFactura> {
             FinTotalesCard(
               subtotal: double.tryParse(_subtotalCtrl.text) ?? 0,
               igvPct: double.tryParse(_igvCtrl.text) ?? 18,
+              moneda: _moneda,
             ),
           ],
         ),
@@ -763,6 +794,15 @@ class _FormPagoState extends State<_FormPago> {
       t += double.tryParse(_montos[id]?.text ?? '') ?? 0;
     }
     return t;
+  }
+
+  // El backend exige que un pago aplique a facturas de UNA sola moneda;
+  // el total se muestra en la moneda de la primera seleccionada.
+  String get _monedaSeleccion {
+    for (final f in _facturasProveedor) {
+      if (_seleccionadas.contains(f.id)) return f.moneda;
+    }
+    return 'PEN';
   }
 
   Future<void> _guardar() async {
@@ -889,7 +929,7 @@ class _FormPagoState extends State<_FormPago> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Saldo: ${money(f.saldoPendiente)}',
+                      Text('Saldo: ${money(f.saldoPendiente, f.moneda)}',
                           style: const TextStyle(fontSize: 12)),
                       if (sel)
                         Padding(
@@ -899,8 +939,9 @@ class _FormPagoState extends State<_FormPago> {
                             keyboardType:
                                 const TextInputType.numberWithOptions(
                                     decimal: true),
-                            decoration: const InputDecoration(
-                              labelText: 'Monto a aplicar (S/)',
+                            decoration: InputDecoration(
+                              labelText:
+                                  'Monto a aplicar (${simboloMoneda(f.moneda)})',
                               isDense: true,
                             ),
                             onChanged: (_) => setState(() {}),
@@ -932,7 +973,7 @@ class _FormPagoState extends State<_FormPago> {
                   Text(
                       '${_seleccionadas.length} factura${_seleccionadas.length == 1 ? '' : 's'} · Total a pagar',
                       style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text(money(_totalAplicado),
+                  Text(money(_totalAplicado, _monedaSeleccion),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),

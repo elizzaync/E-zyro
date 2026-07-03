@@ -414,7 +414,7 @@ class _TabComprobantes extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(money(f.total),
+                      Text(money(f.total, f.moneda),
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                       chipEstado(f.estado),
                     ],
@@ -534,7 +534,7 @@ class _TabCobros extends StatelessWidget {
           return Card(
             child: ExpansionTile(
               leading: const CircleAvatar(child: Icon(Icons.attach_money)),
-              title: Text(money(c.monto),
+              title: Text(money(c.monto, c.moneda),
                   style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
                 '${c.fechaCobro} · ${c.medioPago}'
@@ -547,7 +547,7 @@ class _TabCobros extends StatelessWidget {
                         leading:
                             const Icon(Icons.receipt_outlined, size: 16),
                         title: Text('Comprobante ${a.facturaId}'),
-                        trailing: Text(money(a.montoAplicado)),
+                        trailing: Text(money(a.montoAplicado, c.moneda)),
                       ))
                   .toList(),
             ),
@@ -745,7 +745,7 @@ class _FormComprobanteState extends State<_FormComprobante> {
                     .map((f) => DropdownMenuItem(
                           value: f.id,
                           child: Text(
-                              '${f.numeroDocumento} · saldo ${money(f.saldoPendiente)}',
+                              '${f.numeroDocumento} · saldo ${money(f.saldoPendiente, f.moneda)}',
                               overflow: TextOverflow.ellipsis),
                         ))
                     .toList(),
@@ -810,8 +810,8 @@ class _FormComprobanteState extends State<_FormComprobante> {
                     controller: _subtotalCtrl,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true),
-                    decoration:
-                        const InputDecoration(labelText: 'Subtotal (S/)'),
+                    decoration: InputDecoration(
+                        labelText: 'Subtotal (${simboloMoneda(_moneda)})'),
                     onChanged: (_) => setState(() {}),
                     validator: (v) {
                       final d = double.tryParse(v ?? '');
@@ -836,6 +836,7 @@ class _FormComprobanteState extends State<_FormComprobante> {
             FinTotalesCard(
               subtotal: double.tryParse(_subtotalCtrl.text) ?? 0,
               igvPct: double.tryParse(_igvCtrl.text) ?? 18,
+              moneda: _moneda,
             ),
           ],
         ),
@@ -917,6 +918,15 @@ class _FormCobroState extends State<_FormCobro> {
       t += double.tryParse(_montos[id]?.text ?? '') ?? 0;
     }
     return t;
+  }
+
+  // El backend exige que un cobro aplique a comprobantes de UNA sola moneda;
+  // el total se muestra en la moneda del primer seleccionado.
+  String get _monedaSeleccion {
+    for (final f in _comprobantesCliente) {
+      if (_seleccionados.contains(f.id)) return f.moneda;
+    }
+    return 'PEN';
   }
 
   Future<void> _guardar() async {
@@ -1043,7 +1053,7 @@ class _FormCobroState extends State<_FormCobro> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Saldo: ${money(f.saldoPendiente)}',
+                      Text('Saldo: ${money(f.saldoPendiente, f.moneda)}',
                           style: const TextStyle(fontSize: 12)),
                       if (sel)
                         Padding(
@@ -1053,8 +1063,9 @@ class _FormCobroState extends State<_FormCobro> {
                             keyboardType:
                                 const TextInputType.numberWithOptions(
                                     decimal: true),
-                            decoration: const InputDecoration(
-                              labelText: 'Monto a cobrar (S/)',
+                            decoration: InputDecoration(
+                              labelText:
+                                  'Monto a cobrar (${simboloMoneda(f.moneda)})',
                               isDense: true,
                             ),
                             onChanged: (_) => setState(() {}),
@@ -1086,7 +1097,7 @@ class _FormCobroState extends State<_FormCobro> {
                   Text(
                       '${_seleccionados.length} comprobante${_seleccionados.length == 1 ? '' : 's'} · Total a cobrar',
                       style: const TextStyle(fontWeight: FontWeight.bold)),
-                  Text(money(_totalAplicado),
+                  Text(money(_totalAplicado, _monedaSeleccion),
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
@@ -1174,6 +1185,9 @@ class _FormFacturarServicioState extends State<_FormFacturarServicio> {
   bool _guardando = false;
   bool _igvEditadoManual = false;
   double _tasaIgv = 18.0;
+  // Multimoneda: el selector USD solo aparece si la empresa la tiene activa.
+  bool _multimoneda = false;
+  String _moneda = 'PEN';
 
   static const _tipos = ['factura', 'boleta', 'nota_credito', 'nota_debito'];
 
@@ -1181,6 +1195,15 @@ class _FormFacturarServicioState extends State<_FormFacturarServicio> {
   void initState() {
     super.initState();
     _cargarTasaIgv();
+    _cargarMultimoneda();
+  }
+
+  Future<void> _cargarMultimoneda() async {
+    final svc = await getFinanzasService();
+    final r = await svc.configContable();
+    if (mounted && r.ok) {
+      setState(() => _multimoneda = r.data?.multimoneda ?? false);
+    }
   }
 
   @override
@@ -1235,6 +1258,7 @@ class _FormFacturarServicioState extends State<_FormFacturarServicio> {
           _alContado || _vencimiento == null ? null : fmt.format(_vencimiento!),
       subtotal: _subtotal,
       igv: _igv,
+      moneda: _moneda == 'PEN' ? null : _moneda,
       alContado: _alContado,
     );
     if (!mounted) return;
@@ -1309,6 +1333,24 @@ class _FormFacturarServicioState extends State<_FormFacturarServicio> {
                 value: _emision,
                 onChanged: (d) => setState(() => _emision = d),
               ),
+              if (_multimoneda && _tipo != 'nota_credito') ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _moneda,
+                  decoration: const InputDecoration(
+                    labelText: 'Moneda',
+                    helperText:
+                        'En USD el asiento se convierte al TC SUNAT del día',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'PEN', child: Text('S/ Soles')),
+                    DropdownMenuItem(
+                        value: 'USD', child: Text('US\$ Dólares')),
+                  ],
+                  onChanged: (v) => setState(() => _moneda = v ?? 'PEN'),
+                ),
+              ],
               const SizedBox(height: 12),
               SwitchListTile(
                 title: const Text('Al contado'),
@@ -1337,9 +1379,9 @@ class _FormFacturarServicioState extends State<_FormFacturarServicio> {
                       controller: _subtotalCtrl,
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Subtotal (S/)',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: 'Subtotal (${simboloMoneda(_moneda)})',
+                        border: const OutlineInputBorder(),
                       ),
                       onChanged: (_) => setState(_recalcularIgv),
                       validator: (v) {
@@ -1355,9 +1397,9 @@ class _FormFacturarServicioState extends State<_FormFacturarServicio> {
                       controller: _igvCtrl,
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'IGV (S/)',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        labelText: 'IGV (${simboloMoneda(_moneda)})',
+                        border: const OutlineInputBorder(),
                       ),
                       onChanged: (_) => setState(() => _igvEditadoManual = true),
                     ),
@@ -1376,7 +1418,7 @@ class _FormFacturarServicioState extends State<_FormFacturarServicio> {
                   children: [
                     const Text('Total',
                         style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(money(_total),
+                    Text(money(_total, _moneda),
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),

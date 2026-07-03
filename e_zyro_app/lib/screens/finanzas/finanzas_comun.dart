@@ -6,9 +6,17 @@ import '../../widgets/verdant_theme.dart';
 
 /// Utilidades compartidas por las pantallas del módulo de Finanzas.
 
-final NumberFormat _fmtMoneda = NumberFormat.currency(locale: 'es_PE', symbol: 'S/ ');
+final Map<String, NumberFormat> _fmtPorMoneda = {};
 
-String money(num v) => _fmtMoneda.format(v);
+/// Símbolo de presentación por código de moneda ('PEN' → 'S/', 'USD' → 'US$').
+String simboloMoneda(String moneda) =>
+    moneda == 'PEN' ? 'S/' : (moneda == 'USD' ? 'US\$' : moneda);
+
+/// Formatea un monto en la moneda del documento (por defecto soles).
+String money(num v, [String moneda = 'PEN']) =>
+    (_fmtPorMoneda[moneda] ??= NumberFormat.currency(
+            locale: 'es_PE', symbol: '${simboloMoneda(moneda)} '))
+        .format(v);
 
 /// Convierte de forma segura un valor JSON (num/String/null) a double.
 /// El backend serializa los Decimal como string ("0.00"); castear a `num`
@@ -321,8 +329,13 @@ class FinFormSheet extends StatelessWidget {
 class FinTotalesCard extends StatelessWidget {
   final double subtotal;
   final double igvPct;
+  final String moneda;
 
-  const FinTotalesCard({super.key, required this.subtotal, required this.igvPct});
+  const FinTotalesCard(
+      {super.key,
+      required this.subtotal,
+      required this.igvPct,
+      this.moneda = 'PEN'});
 
   @override
   Widget build(BuildContext context) {
@@ -359,11 +372,11 @@ class FinTotalesCard extends StatelessWidget {
         border: Border.all(color: v.bd),
       ),
       child: Column(children: [
-        fila('Subtotal', money(subtotal)),
+        fila('Subtotal', money(subtotal, moneda)),
         fila('IGV (${igvPct.toStringAsFixed(igvPct % 1 == 0 ? 0 : 2)}%)',
-            money(igv)),
+            money(igv, moneda)),
         Divider(height: 14, color: v.track),
-        fila('Total a registrar', money(total), destacar: true),
+        fila('Total a registrar', money(total, moneda), destacar: true),
       ]),
     );
   }

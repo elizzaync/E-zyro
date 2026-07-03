@@ -514,12 +514,13 @@ class AplicacionPago {
 class PagoProveedor {
   final String id, proveedorId, fechaPago, medioPago;
   final double monto;
+  final String moneda;
   final String? referencia, asientoId;
   final List<AplicacionPago> aplicaciones;
   PagoProveedor({
     required this.id, required this.proveedorId, required this.fechaPago,
-    required this.medioPago, required this.monto, this.referencia,
-    this.asientoId, required this.aplicaciones,
+    required this.medioPago, required this.monto, this.moneda = 'PEN',
+    this.referencia, this.asientoId, required this.aplicaciones,
   });
   factory PagoProveedor.fromJson(Map<String, dynamic> j) => PagoProveedor(
         id: j['id'].toString(),
@@ -527,6 +528,7 @@ class PagoProveedor {
         fechaPago: j['fecha_pago']?.toString() ?? '',
         medioPago: j['medio_pago']?.toString() ?? '',
         monto: _toD(j['monto']),
+        moneda: j['moneda']?.toString() ?? 'PEN',
         referencia: j['referencia']?.toString(),
         asientoId: j['asiento_id']?.toString(),
         aplicaciones: ((j['aplicaciones'] ?? []) as List)
@@ -547,12 +549,13 @@ class AplicacionCobro {
 class CobroCliente {
   final String id, clienteId, fechaCobro, medioPago;
   final double monto;
+  final String moneda;
   final String? referencia, asientoId;
   final List<AplicacionCobro> aplicaciones;
   CobroCliente({
     required this.id, required this.clienteId, required this.fechaCobro,
-    required this.medioPago, required this.monto, this.referencia,
-    this.asientoId, required this.aplicaciones,
+    required this.medioPago, required this.monto, this.moneda = 'PEN',
+    this.referencia, this.asientoId, required this.aplicaciones,
   });
   factory CobroCliente.fromJson(Map<String, dynamic> j) => CobroCliente(
         id: j['id'].toString(),
@@ -560,6 +563,7 @@ class CobroCliente {
         fechaCobro: j['fecha_cobro']?.toString() ?? '',
         medioPago: j['medio_pago']?.toString() ?? '',
         monto: _toD(j['monto']),
+        moneda: j['moneda']?.toString() ?? 'PEN',
         referencia: j['referencia']?.toString(),
         asientoId: j['asiento_id']?.toString(),
         aplicaciones: ((j['aplicaciones'] ?? []) as List)
