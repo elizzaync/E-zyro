@@ -33,15 +33,22 @@ class ChatbotService {
   ChatbotService(this._client);
 
   /// Envía [message] y devuelve la respuesta del asistente (markdown) con sus
-  /// acciones estructuradas. [pantalla] es la pantalla de origen (contexto).
+  /// acciones estructuradas. [pantalla] es la pantalla de origen (contexto) y
+  /// [pantallas] el catálogo de pantallas que la app sabe abrir para este
+  /// usuario ([{clave, nombre, descripcion}]) — el LLM lo usa como universo
+  /// válido de la acción `abrir_pantalla`.
   /// Lanza [Exception] con mensaje legible si el asistente no responde.
   Future<ChatbotRespuesta> preguntar(String message,
-      {String? pantalla}) async {
+      {String? pantalla, List<Map<String, String>>? pantallas}) async {
     // El backend espera hasta 60 s al chatbot: el timeout local debe ser mayor
     // que ese, no el default de 30 s del ApiClient.
     final r = await _client.post(
       '/chatbot/chat',
-      {'message': message, 'pantalla': ?pantalla},
+      {
+        'message': message,
+        'pantalla': ?pantalla,
+        'pantallas': ?pantallas,
+      },
       timeout: const Duration(seconds: 70),
     );
     _client.checkResponse(r, fallback: 'No se pudo contactar al asistente');

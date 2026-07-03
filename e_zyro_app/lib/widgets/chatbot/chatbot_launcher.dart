@@ -116,7 +116,13 @@ class _ChatbotLauncherState extends State<ChatbotLauncher> {
             ),
           ]),
         ),
-        Expanded(child: ChatConversacion(pantalla: widget.pantalla)),
+        Expanded(
+          child: ChatConversacion(
+            pantalla: widget.pantalla,
+            // Al navegar desde un chip, minimizar para no tapar el destino.
+            onNavegar: () => setState(() => _abierto = false),
+          ),
+        ),
       ]),
     );
   }

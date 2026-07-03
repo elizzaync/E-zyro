@@ -1,40 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
-import '../../screens/logistica/almacen/pantalla_requerimientos_logistica.dart';
-import '../../screens/logistica/almacen/pantalla_transferencias_almacen.dart';
-import '../../screens/logistica/pantalla_ingreso_directo.dart';
-import '../../screens/pantalla_compras_logistica.dart';
-import '../../screens/pantalla_equipos_logistica.dart';
-import '../../screens/pantalla_inventario_panel.dart';
-import '../../screens/pantalla_logistica.dart';
-import '../../screens/pantalla_materiales_logistica.dart';
-import '../../screens/pantalla_movimientos_logistica.dart';
-import '../../screens/pantalla_proveedores_logistica.dart';
 import '../../services/chatbot_service.dart';
 import '../../utils/api_provider.dart';
-
-/// Catálogo de navegación del asistente: clave que emite el backend →
-/// (etiqueta visible, constructor de la pantalla). Clave desconocida = la
-/// acción se ignora sin romper (el backend puede ir por delante de la app).
-final Map<String, (String, Widget Function())> _pantallasNavegables = {
-  'bandeja_requerimientos': (
-    'Requerimientos',
-    () => const PantallaRequerimientosLogistica()
-  ),
-  'catalogo_logistica': ('Catálogo', () => const LogisticsScreen()),
-  'inventario': ('Panel de inventario', () => const PantallaInventarioPanel()),
-  'compras': ('Compras', () => const PantallaComprasLogistica()),
-  'movimientos': ('Movimientos', () => const PantallaMovimientosLogistica()),
-  'materiales': ('Materiales', () => const PantallaMaterialesLogistica()),
-  'equipos': ('Equipos', () => const PantallaEquiposLogistica()),
-  'proveedores': ('Proveedores', () => const PantallaProveedoresLogistica()),
-  'transferencias': (
-    'Transferencias',
-    () => const PantallaTransferenciasAlmacen()
-  ),
-  'ingreso_directo': ('Ingreso directo', () => const PantallaIngresoDirecto()),
-};
+import '../../utils/app_notifiers.dart';
+import 'catalogo_navegacion.dart';
 
 /// Conversación con el Asistente E-zyro — REST puro contra el proxy del
 /// backend (POST /chatbot/chat). Reutilizada por el panel flotante
@@ -45,7 +15,11 @@ class ChatConversacion extends StatefulWidget {
   /// Pantalla de origen (contexto que viaja al asistente). Puede cambiar en
   /// caliente (p. ej. al cambiar de tab con el panel abierto).
   final String? pantalla;
-  const ChatConversacion({super.key, this.pantalla});
+
+  /// Avisa que el usuario navegó desde un chip (el launcher minimiza el panel
+  /// para no tapar la pantalla destino).
+  final VoidCallback? onNavegar;
+  const ChatConversacion({super.key, this.pantalla, this.onNavegar});
 
   @override
   State<ChatConversacion> createState() => _ChatConversacionState();
@@ -63,6 +37,9 @@ class _Mensaje {
 class _ChatConversacionState extends State<ChatConversacion> {
   static const _green = Color(0xFF8FD11B); // mismo verde del ChatTab
 
+  // Catálogo completo de pantallas navegables (clave desconocida = la acción
+  // se ignora sin romper; el backend puede ir por delante de la app).
+  final _catalogo = catalogoNavegacion();
   ChatbotService? _service;
   final _mensajes = <_Mensaje>[];
   final _inputCtrl = TextEditingController();
@@ -128,7 +105,8 @@ class _ChatConversacionState extends State<ChatConversacion> {
     setState(() => _esperando = true);
     _scrollAbajo();
     try {
-      final r = await _service!.preguntar(texto, pantalla: widget.pantalla);
+      final r = await _service!.preguntar(texto,
+          pantalla: widget.pantalla, pantallas: pantallasParaLlm());
       if (!mounted) return;
       setState(() {
         _esperando = false;
@@ -147,10 +125,17 @@ class _ChatConversacionState extends State<ChatConversacion> {
   }
 
   void _ejecutarAccion(AccionChat a) {
-    final destino = _pantallasNavegables[a.pantalla];
+    final destino = _catalogo[a.pantalla];
     if (destino == null) return; // clave desconocida: ignorar sin romper
-    Navigator.push(
-        context, MaterialPageRoute(builder: (_) => destino.$2()));
+    widget.onNavegar?.call();
+    if (destino.tabIndex != null) {
+      // Destino = pestaña del MainShell: volver a la raíz y conmutar la tab.
+      // Pushear la tab crearía una copia sin bottom nav (ISSUE-002).
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      tabNotifier.value = destino.tabIndex!;
+      return;
+    }
+    Navigator.push(context, MaterialPageRoute(builder: destino.builder!));
   }
 
   @override
@@ -283,9 +268,14 @@ class _ChatConversacionState extends State<ChatConversacion> {
   /// Chips "Abrir X" bajo la respuesta del bot para las acciones de navegación
   /// con clave conocida (las desconocidas se ignoran en silencio).
   List<Widget> _chipsNavegacion(_Mensaje m) {
+    // Dedupe por pantalla: el bot a veces emite la misma acción varias veces
+    // en un turno (bucle de tools); un solo chip por destino.
+    final vistas = <String>{};
     final navegables = m.acciones
         .where((a) =>
-            a.tipo == 'navegar' && _pantallasNavegables.containsKey(a.pantalla))
+            a.tipo == 'navegar' &&
+            _catalogo.containsKey(a.pantalla) &&
+            vistas.add(a.pantalla))
         .toList();
     if (navegables.isEmpty) return const [];
     return [
@@ -298,7 +288,7 @@ class _ChatConversacionState extends State<ChatConversacion> {
             ActionChip(
               avatar: const Icon(Icons.open_in_new_rounded,
                   size: 15, color: Color(0xFF5E8F0D)),
-              label: Text('Abrir ${_pantallasNavegables[a.pantalla]!.$1}',
+              label: Text('Abrir ${_catalogo[a.pantalla]!.nombre}',
                   style: const TextStyle(fontSize: 12.5)),
               onPressed: () => _ejecutarAccion(a),
               visualDensity: VisualDensity.compact,
