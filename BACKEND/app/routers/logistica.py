@@ -3965,6 +3965,104 @@ def listar_salidas(
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# HISTÓRICO LEGACY — bitácora migrada del sistema anterior (esystemtic).
+# NO es lo mismo que "INGRESOS" (más abajo): eso es el flujo actual de
+# TicketCompra con ingreso_registrado=True. Esto es solo lectura de
+# movimiento_inventario/movimiento_equipo con referencia_tipo='ingreso_legacy'
+# — registros históricos que NO pasaron por ningún ticket ni afectan el
+# stock/cantidad actual, cargados en una migración masiva (2026-07).
+# ══════════════════════════════════════════════════════════════════════════
+
+@router.get("/historico-legacy")
+def listar_historico_legacy(
+    tipo_item: str = Query("", description="'material' | 'equipo' | '' (ambos)"),
+    q:         str = Query(""),
+    page:      int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=200),
+    payload:   dict    = Depends(verificar_token),
+    db:        Session = Depends(get_db),
+):
+    """Bitácora histórica migrada del sistema anterior (ingresos de materiales
+    y equipos/herramientas que ya ocurrieron, sin ticket de compra asociado).
+    Solo lectura — no afecta stock ni cantidad de equipo."""
+    empresa_id = payload["empresa_id"]
+    REF_TIPO = "ingreso_legacy"
+
+    items: list[dict] = []
+
+    if tipo_item != "equipo":
+        mov_mat = (
+            db.query(MovimientoInventario)
+            .filter(
+                MovimientoInventario.empresa_id == empresa_id,
+                MovimientoInventario.referencia_tipo == REF_TIPO,
+            )
+            .all()
+        )
+        mat_ids = {m.material_id for m in mov_mat if m.material_id}
+        mats = {
+            m.id: m.nombre
+            for m in db.query(Material.id, Material.nombre).filter(Material.id.in_(mat_ids)).all()
+        } if mat_ids else {}
+        for m in mov_mat:
+            items.append({
+                "id": str(m.id), "tipo_item": "material",
+                "nombre": mats.get(m.material_id, "—"),
+                "cantidad": int(m.cantidad or 0),
+                "motivo": m.motivo or None,
+                "fecha": m.fecha.strftime("%Y-%m-%d") if m.fecha else "",
+                "responsable_id": str(m.responsable_id) if m.responsable_id else None,
+            })
+
+    if tipo_item != "material":
+        mov_eq = (
+            db.query(MovimientoEquipo)
+            .filter(
+                MovimientoEquipo.empresa_id == empresa_id,
+                MovimientoEquipo.referencia_tipo == REF_TIPO,
+            )
+            .all()
+        )
+        eq_ids = {m.equipo_id for m in mov_eq if m.equipo_id}
+        eqs = {
+            e.id: e.nombre
+            for e in db.query(Equipo.id, Equipo.nombre).filter(Equipo.id.in_(eq_ids)).all()
+        } if eq_ids else {}
+        for m in mov_eq:
+            items.append({
+                "id": str(m.id), "tipo_item": "equipo",
+                "nombre": eqs.get(m.equipo_id, "—"),
+                "cantidad": None,
+                "motivo": m.detalle or None,
+                "fecha": m.fecha.strftime("%Y-%m-%d") if m.fecha else "",
+                "responsable_id": str(m.responsable_id) if m.responsable_id else None,
+            })
+
+    resp_ids = {i["responsable_id"] for i in items if i["responsable_id"]}
+    resps: dict[str, str] = {}
+    if resp_ids:
+        rows_r = (
+            db.query(Empleado.id, Usuario.nombre, Usuario.apellido)
+            .join(Usuario, Usuario.id == Empleado.usuario_id)
+            .filter(Empleado.id.in_(resp_ids))
+            .all()
+        )
+        for r in rows_r:
+            resps[str(r.id)] = f"{r.nombre or ''} {r.apellido or ''}".strip()
+    for i in items:
+        i["responsable_nombre"] = resps.get(i.pop("responsable_id"))
+
+    if q:
+        ql = q.lower()
+        items = [i for i in items if ql in i["nombre"].lower()]
+
+    items.sort(key=lambda i: i["fecha"], reverse=True)
+    total = len(items)
+    start = (page - 1) * page_size
+    return {"items": items[start:start + page_size], "total": total, "page": page, "pageSize": page_size}
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # INGRESOS — historial de compras recibidas que afectaron el inventario
 # Filtra por defecto al mes actual; soporta rango de fechas y búsqueda libre.
 # ══════════════════════════════════════════════════════════════════════════
