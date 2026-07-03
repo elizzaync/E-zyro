@@ -11,7 +11,7 @@ import '../../../services/requerimiento_service.dart';
 import '../../../services/prestamo_service.dart';
 import '../../../utils/api_provider.dart';
 import '../../../utils/ui_insets.dart';
-import '../pantalla_asistente_logistica.dart';
+import '../pantalla_asistente_ezyro.dart';
 import 'es_tokens.dart';
 import 'es_widgets.dart';
 import 'req_unificado.dart';
@@ -128,7 +128,7 @@ class _PantallaRequerimientosLogisticaState
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const PantallaAsistenteLogistica(
+                    builder: (_) => const PantallaAsistenteEzyro(
                         pantalla: 'bandeja_requerimientos')),
               );
             }),

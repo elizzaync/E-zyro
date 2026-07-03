@@ -14,6 +14,7 @@ import 'services/auth_service.dart';
 import 'services/proyecto_service.dart';
 import 'utils/app_notifiers.dart';
 import 'utils/app_session.dart';
+import 'widgets/chatbot/chatbot_launcher.dart';
 import 'widgets/offline_overlay.dart';
 import 'screens/pantalla_splash.dart';
 import 'screens/pantalla_principal.dart';
@@ -356,6 +357,11 @@ class _MainShellState extends State<MainShell>
   static const _logisticaScreenIdx = 2;
   static const _personalScreenIdx = 3;
 
+  // Nombre de cada tab para el contexto `pantalla` del asistente E-Zybot.
+  static const _nombresTab = [
+    'inicio', 'operaciones', 'logistica', 'personal', 'mas',
+  ];
+
   // Inicio (0) y Operaciones (1) funcionan offline con datos cacheados.
   // El resto aún requiere red → OfflineOverlay los bloquea automáticamente.
   static const List<Widget> _screens = [
@@ -686,6 +692,11 @@ class _MainShellState extends State<MainShell>
           ),
         ],
       ),
+      // E-Zybot: burbuja flotante global (recuperada de la rama chatbot-app).
+      // Mismo gate que la pestaña Logística: solo quien gestiona inventario.
+      floatingActionButton: _puedeLogistica
+          ? ChatbotLauncher(pantalla: _nombresTab[_currentIndex])
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _visualSelectedIndex,
         onDestinationSelected: _onTabTappedWithOfflineCheck,

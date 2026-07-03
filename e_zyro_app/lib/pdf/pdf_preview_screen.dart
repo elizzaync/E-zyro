@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
-/// Visor de PDF reutilizable para TODO el módulo `lib/pdf/`.
 ///
 /// Reemplaza las pantallas de preview que vivían embebidas en `pantalla_tramites`
 /// (`VistaPreviaPdfScreen`) e `informe_servicio_pdf` (`InformeServicioPreviewScreen`).
@@ -87,7 +86,9 @@ class PdfPreviewScreen extends StatelessWidget {
               label: Text(
                 confirmLabel,
                 style: const TextStyle(
-                    color: Colors.black, fontWeight: FontWeight.w700),
+                  color: Colors.black,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
     );

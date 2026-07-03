@@ -1,20 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
+import '../../screens/logistica/almacen/pantalla_requerimientos_logistica.dart';
+import '../../screens/logistica/almacen/pantalla_transferencias_almacen.dart';
+import '../../screens/logistica/pantalla_ingreso_directo.dart';
+import '../../screens/pantalla_compras_logistica.dart';
+import '../../screens/pantalla_equipos_logistica.dart';
+import '../../screens/pantalla_inventario_panel.dart';
+import '../../screens/pantalla_logistica.dart';
+import '../../screens/pantalla_materiales_logistica.dart';
+import '../../screens/pantalla_movimientos_logistica.dart';
+import '../../screens/pantalla_proveedores_logistica.dart';
 import '../../services/chatbot_service.dart';
 import '../../utils/api_provider.dart';
 
-/// Asistente de Logística — chat REST puro contra el proxy del backend.
-/// Sin WebSocket: cada pregunta es un POST /chatbot/chat y el historial por
-/// usuario vive en el servidor; aquí la lista de mensajes es solo en memoria.
-class PantallaAsistenteLogistica extends StatefulWidget {
-  /// Pantalla de origen (contexto que viaja al asistente).
+/// Catálogo de navegación del asistente: clave que emite el backend →
+/// (etiqueta visible, constructor de la pantalla). Clave desconocida = la
+/// acción se ignora sin romper (el backend puede ir por delante de la app).
+final Map<String, (String, Widget Function())> _pantallasNavegables = {
+  'bandeja_requerimientos': (
+    'Requerimientos',
+    () => const PantallaRequerimientosLogistica()
+  ),
+  'catalogo_logistica': ('Catálogo', () => const LogisticsScreen()),
+  'inventario': ('Panel de inventario', () => const PantallaInventarioPanel()),
+  'compras': ('Compras', () => const PantallaComprasLogistica()),
+  'movimientos': ('Movimientos', () => const PantallaMovimientosLogistica()),
+  'materiales': ('Materiales', () => const PantallaMaterialesLogistica()),
+  'equipos': ('Equipos', () => const PantallaEquiposLogistica()),
+  'proveedores': ('Proveedores', () => const PantallaProveedoresLogistica()),
+  'transferencias': (
+    'Transferencias',
+    () => const PantallaTransferenciasAlmacen()
+  ),
+  'ingreso_directo': ('Ingreso directo', () => const PantallaIngresoDirecto()),
+};
+
+/// Conversación con el Asistente E-zyro — REST puro contra el proxy del
+/// backend (POST /chatbot/chat). Reutilizada por el panel flotante
+/// (ChatbotLauncher) y por la pantalla completa (PantallaAsistenteEzyro).
+/// Al montarse envía "__init__": el bot saluda primero. La lista de mensajes
+/// es en memoria; el historial por usuario vive en el servidor.
+class ChatConversacion extends StatefulWidget {
+  /// Pantalla de origen (contexto que viaja al asistente). Puede cambiar en
+  /// caliente (p. ej. al cambiar de tab con el panel abierto).
   final String? pantalla;
-  const PantallaAsistenteLogistica({super.key, this.pantalla});
+  const ChatConversacion({super.key, this.pantalla});
 
   @override
-  State<PantallaAsistenteLogistica> createState() =>
-      _PantallaAsistenteLogisticaState();
+  State<ChatConversacion> createState() => _ChatConversacionState();
 }
 
 enum _Autor { usuario, bot, error }
@@ -22,11 +56,11 @@ enum _Autor { usuario, bot, error }
 class _Mensaje {
   final _Autor autor;
   final String texto;
-  const _Mensaje(this.autor, this.texto);
+  final List<AccionChat> acciones;
+  const _Mensaje(this.autor, this.texto, {this.acciones = const []});
 }
 
-class _PantallaAsistenteLogisticaState
-    extends State<PantallaAsistenteLogistica> {
+class _ChatConversacionState extends State<ChatConversacion> {
   static const _green = Color(0xFF8FD11B); // mismo verde del ChatTab
 
   ChatbotService? _service;
@@ -44,6 +78,10 @@ class _PantallaAsistenteLogisticaState
 
   Future<void> _init() async {
     _service = await getChatbotService();
+    if (!mounted) return;
+    // El bot saluda él primero: el saludo se pide al montar la conversación
+    // (el launcher solo la monta cuando el usuario abre el panel).
+    _preguntar('__init__');
   }
 
   @override
@@ -90,12 +128,11 @@ class _PantallaAsistenteLogisticaState
     setState(() => _esperando = true);
     _scrollAbajo();
     try {
-      final answer =
-          await _service!.preguntar(texto, pantalla: widget.pantalla);
+      final r = await _service!.preguntar(texto, pantalla: widget.pantalla);
       if (!mounted) return;
       setState(() {
         _esperando = false;
-        _mensajes.add(_Mensaje(_Autor.bot, answer));
+        _mensajes.add(_Mensaje(_Autor.bot, r.answer, acciones: r.acciones));
       });
     } catch (e) {
       if (!mounted) return;
@@ -109,30 +146,31 @@ class _PantallaAsistenteLogisticaState
     _scrollAbajo();
   }
 
+  void _ejecutarAccion(AccionChat a) {
+    final destino = _pantallasNavegables[a.pantalla];
+    if (destino == null) return; // clave desconocida: ignorar sin romper
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => destino.$2()));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Asistente de Logística',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+    return Column(children: [
+      Expanded(
+        child: _mensajes.isEmpty && !_esperando
+            ? _vacio()
+            : ListView.builder(
+                controller: _scrollCtrl,
+                padding: const EdgeInsets.all(12),
+                itemCount: _mensajes.length + (_esperando ? 1 : 0),
+                itemBuilder: (_, i) {
+                  if (i == _mensajes.length) return _burbujaEscribiendo();
+                  return _burbuja(_mensajes[i]);
+                },
+              ),
       ),
-      body: Column(children: [
-        Expanded(
-          child: _mensajes.isEmpty && !_esperando
-              ? _vacio()
-              : ListView.builder(
-                  controller: _scrollCtrl,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: _mensajes.length + (_esperando ? 1 : 0),
-                  itemBuilder: (_, i) {
-                    if (i == _mensajes.length) return _burbujaEscribiendo();
-                    return _burbuja(_mensajes[i]);
-                  },
-                ),
-        ),
-        _inputBar(),
-      ]),
-    );
+      _inputBar(),
+    ]);
   }
 
   Widget _vacio() {
@@ -198,11 +236,18 @@ class _PantallaAsistenteLogisticaState
                 bottomRight: Radius.circular(14),
               ),
             ),
-            child: MarkdownBody(
-              data: m.texto,
-              selectable: true,
-              styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
-                  .copyWith(p: const TextStyle(fontSize: 14, height: 1.35)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                MarkdownBody(
+                  data: m.texto,
+                  selectable: true,
+                  styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+                      .copyWith(
+                          p: const TextStyle(fontSize: 14, height: 1.35)),
+                ),
+                ..._chipsNavegacion(m),
+              ],
             ),
           ),
         );
@@ -233,6 +278,34 @@ class _PantallaAsistenteLogisticaState
           ),
         );
     }
+  }
+
+  /// Chips "Abrir X" bajo la respuesta del bot para las acciones de navegación
+  /// con clave conocida (las desconocidas se ignoran en silencio).
+  List<Widget> _chipsNavegacion(_Mensaje m) {
+    final navegables = m.acciones
+        .where((a) =>
+            a.tipo == 'navegar' && _pantallasNavegables.containsKey(a.pantalla))
+        .toList();
+    if (navegables.isEmpty) return const [];
+    return [
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final a in navegables)
+            ActionChip(
+              avatar: const Icon(Icons.open_in_new_rounded,
+                  size: 15, color: Color(0xFF5E8F0D)),
+              label: Text('Abrir ${_pantallasNavegables[a.pantalla]!.$1}',
+                  style: const TextStyle(fontSize: 12.5)),
+              onPressed: () => _ejecutarAccion(a),
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
+      ),
+    ];
   }
 
   Widget _burbujaEscribiendo() {
