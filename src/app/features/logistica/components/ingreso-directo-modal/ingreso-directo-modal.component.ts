@@ -5,7 +5,7 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
-import { CatalogoItem, UnidadItem } from '../../logistica.models';
+import { CatalogoItem, UnidadItem, Proveedor } from '../../logistica.models';
 
 type ClaseCompraDirecta = 'material' | 'equipo' | 'herramienta' | 'epp';
 
@@ -36,7 +36,6 @@ export class IngresoDirectoModalComponent implements OnInit {
   private svc   = inject(LogisticaService);
   private toast = inject(ToastService);
 
-  proveedor = '';
   notas     = '';
   guardando = false;
   errorMsg  = '';
@@ -50,6 +49,16 @@ export class IngresoDirectoModalComponent implements OnInit {
   unidades:   UnidadItem[]   = [];
   marcas:     CatalogoItem[] = [];
 
+  // ── Proveedor: elegir de la lista, escribir un canal libre, o dar de alta uno nuevo ──
+  proveedores: Proveedor[] = [];
+  proveedorId       : string | null = null;
+  proveedorNombre   : string | null = null;
+  canalCustom       = false;
+  canalTexto        = '';
+  mostrarNuevoProveedor = false;
+  nuevoProveedorNombre  = '';
+  creandoProveedor      = false;
+
   items: ItemIngreso[] = [];
 
   ngOnInit(): void {
@@ -57,6 +66,50 @@ export class IngresoDirectoModalComponent implements OnInit {
     this.svc.getCategorias().subscribe({ next: r => (this.categorias = r) });
     this.svc.getUnidades().subscribe({ next: r => (this.unidades = r) });
     this.svc.getMarcas().subscribe({ next: r => (this.marcas = r) });
+    this.svc.getProveedores().subscribe({ next: r => (this.proveedores = r) });
+  }
+
+  get totalEstimado(): number {
+    return this.items.reduce((s, i) => s + (i.cantidad * (i.precioCompra ?? 0)), 0);
+  }
+
+  starsText(n: number): string { return '★'.repeat(n) + '☆'.repeat(5 - n); }
+
+  selProveedor(p: Proveedor): void {
+    if (this.proveedorId === p.id) { this.proveedorId = null; this.proveedorNombre = null; return; }
+    this.proveedorId = p.id; this.proveedorNombre = p.nombre;
+    this.canalCustom = false; this.canalTexto = '';
+    this.mostrarNuevoProveedor = false;
+  }
+
+  toggleCanalCustom(): void {
+    this.canalCustom = !this.canalCustom;
+    if (this.canalCustom) { this.proveedorId = null; this.proveedorNombre = null; this.mostrarNuevoProveedor = false; }
+    else { this.canalTexto = ''; }
+  }
+
+  toggleNuevoProveedor(): void {
+    this.mostrarNuevoProveedor = !this.mostrarNuevoProveedor;
+    this.nuevoProveedorNombre = '';
+    if (this.mostrarNuevoProveedor) { this.canalCustom = false; this.canalTexto = ''; }
+  }
+
+  confirmarNuevoProveedor(): void {
+    const nombre = this.nuevoProveedorNombre.trim();
+    if (!nombre) return;
+    this.creandoProveedor = true;
+    this.svc.crearProveedor({ nombre }).subscribe({
+      next: p => {
+        this.creandoProveedor = false;
+        this.proveedores = [p, ...this.proveedores];
+        this.selProveedor(p);
+        this.mostrarNuevoProveedor = false;
+      },
+      error: err => {
+        this.creandoProveedor = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo registrar el proveedor.', 'error');
+      },
+    });
   }
 
   private _nuevoItem(): ItemIngreso {
@@ -118,7 +171,7 @@ export class IngresoDirectoModalComponent implements OnInit {
     this.guardando = true;
 
     const body = {
-      proveedor: this.proveedor || null,
+      proveedor: this.canalCustom ? (this.canalTexto.trim() || null) : this.proveedorNombre,
       notas:     this.notas     || null,
       destino:   { tipo: 'stock' },
       items:     this.items.map(i => ({
