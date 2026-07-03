@@ -317,6 +317,27 @@ export interface RegistrarIngresoPayload {
   items: IngresoItem[];
 }
 
+// ── Histórico legacy (sistema anterior) ─────────────────────────────────────
+// Bitácora migrada de esystemtic (ingresos ya ocurridos, sin ticket de
+// compra asociado). Endpoint devuelve snake_case (mismo criterio que
+// /logistica/inventario/movimientos, del cual esta pantalla es hermana).
+export interface HistoricoLegacyItem {
+  id: string;
+  tipo_item: 'material' | 'equipo';
+  nombre: string;
+  cantidad: number | null;
+  motivo: string | null;
+  fecha: string;
+  responsable_nombre: string | null;
+}
+
+export interface HistoricoLegacyResponse {
+  items: HistoricoLegacyItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 /** KPIs de la cabecera de Logística. */
 export interface LogisticaKpis {
   totalMateriales: number;

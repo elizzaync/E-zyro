@@ -1,0 +1,95 @@
+<div class="hl-layout">
+
+  <!-- ─── Aclaración: qué es esta pantalla y qué NO es ─── -->
+  <div class="hl-disclaimer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <div>
+      <p class="hl-disclaimer-title">Esto NO es el flujo de compras actual</p>
+      <p class="hl-disclaimer-text">
+        Es un registro histórico migrado del sistema anterior: ingresos de materiales y equipos que
+        <strong>ya ocurrieron</strong>, sin un ticket de compra asociado. Es solo de lectura, aquí no se
+        puede editar ni anular nada, y <strong>no afecta el stock ni la cantidad actual</strong> de ningún
+        ítem. Para compras nuevas usa la pestaña "Compras"; para ver ingresos ya registrados por ticket,
+        usa la pestaña "Ingresos".
+      </p>
+    </div>
+  </div>
+
+  <!-- ─── Toolbar ─── -->
+  <div class="hl-toolbar">
+    <div class="hl-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" [(ngModel)]="busqueda" (keydown.enter)="buscar()" placeholder="Buscar por nombre…">
+    </div>
+    <button class="hl-btn-buscar" (click)="buscar()">Buscar</button>
+    <div class="hl-spacer"></div>
+    <div class="hl-tipo-toggle">
+      <button type="button" [class.active]="filtroTipo === ''" (click)="setFiltroTipo('')">Todos</button>
+      <button type="button" [class.active]="filtroTipo === 'material'" (click)="setFiltroTipo('material')">Materiales</button>
+      <button type="button" [class.active]="filtroTipo === 'equipo'" (click)="setFiltroTipo('equipo')">Equipos/Herramientas</button>
+    </div>
+  </div>
+
+  @if (cargando) {
+    <div class="hl-loading"><app-spinner [size]="28"></app-spinner></div>
+  } @else if (items.length === 0) {
+    <div class="hl-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-2.8-2.8L7 14"/>
+      </svg>
+      <p>Sin registros históricos.</p>
+    </div>
+  } @else {
+    <div class="hl-table-wrap">
+      <table class="hl-table">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Nombre</th>
+            <th>Cantidad</th>
+            <th>Fecha</th>
+            <th>Comprado por</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (i of items; track i.id) {
+            <tr>
+              <td>
+                @if (i.tipo_item === 'material') {
+                  <span class="hl-badge hl-badge--material">Material</span>
+                } @else {
+                  <span class="hl-badge hl-badge--equipo">Equipo</span>
+                }
+              </td>
+              <td class="hl-nombre">{{ i.nombre }}</td>
+              <td class="hl-cantidad">{{ i.cantidad != null ? i.cantidad : '—' }}</td>
+              <td class="hl-fecha">{{ fechaCorta(i.fecha) }}</td>
+              <td>{{ i.responsable_nombre || '—' }}</td>
+              <td class="hl-motivo" [title]="i.motivo || ''">{{ i.motivo || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="hl-table-footer-row">
+      <span class="hl-table-footer">Mostrando {{ items.length }} de {{ total }} registro{{ total !== 1 ? 's' : '' }}</span>
+      @if (totalPaginas > 1) {
+        <div class="hl-paginacion">
+          <button class="hl-pag-btn" title="Anterior" [disabled]="page === 1" (click)="irPagina(page - 1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="hl-pag-info">Página {{ page }} de {{ totalPaginas }}</span>
+          <button class="hl-pag-btn" title="Siguiente" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+</div>

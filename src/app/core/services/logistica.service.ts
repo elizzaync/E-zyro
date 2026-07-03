@@ -23,6 +23,7 @@ import {
   Retorno,
   Incidencia, EquipoStockDesglose, CategoriaEquipoItem,
   Epp, EppIn, EppEntrega, EppEntregaIn, EppTrabajadorResumen,
+  HistoricoLegacyResponse,
 } from '../../features/logistica/logistica.models';
 
 interface RequerimientosListResponse {
@@ -382,6 +383,21 @@ export class LogisticaService {
         `${this.api}/logistica/ingresos`, { params }
       )
       .pipe(map(r => ({ items: r.items, total: r.total })));
+  }
+
+  // ── Histórico legacy (sistema anterior, NO es "Ingresos") ───────────────
+  getHistoricoLegacy(filtros: {
+    tipoItem?: 'material' | 'equipo';
+    q?: string;
+    page?: number;
+    pageSize?: number;
+  } = {}): Observable<HistoricoLegacyResponse> {
+    let params = new HttpParams()
+      .set('page',      String(filtros.page     ?? 1))
+      .set('page_size', String(filtros.pageSize ?? 30));
+    if (filtros.tipoItem) params = params.set('tipo_item', filtros.tipoItem);
+    if (filtros.q)        params = params.set('q', filtros.q);
+    return this.http.get<HistoricoLegacyResponse>(`${this.api}/logistica/historico-legacy`, { params });
   }
 
   // ── Retornos ──────────────────────────────────────────────────────────

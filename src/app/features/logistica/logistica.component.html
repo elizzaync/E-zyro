@@ -89,6 +89,12 @@
       </svg>
       Incidencias
     </button>
+    <button class="log-tab" [class.active]="tab === 'historico-legacy'" (click)="setTab('historico-legacy')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+      Histórico (Sistema Anterior)
+    </button>
     }
   </nav>
 
@@ -105,8 +111,10 @@
     <app-ingresos-tabla></app-ingresos-tabla>
   } @else if (tab === 'retornos') {
     <app-retornos-tabla></app-retornos-tabla>
-  } @else {
+  } @else if (tab === 'incidencias') {
     <app-incidencias-tabla></app-incidencias-tabla>
+  } @else {
+    <app-historico-legacy></app-historico-legacy>
   }
 
 </div>

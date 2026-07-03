@@ -10,13 +10,14 @@ import { SalidasComponent } from './components/salidas/salidas.component';
 import { IngresosTablaComponent } from './components/ingresos-tabla/ingresos-tabla.component';
 import { RetornosTablaComponent } from './components/retornos-tabla/retornos-tabla.component';
 import { IncidenciasTablaComponent } from './components/incidencias-tabla/incidencias-tabla.component';
+import { HistoricoLegacyComponent } from './components/historico-legacy/historico-legacy.component';
 
-type TabLogistica = 'materiales' | 'equipos' | 'epp' | 'salidas' | 'ingresos' | 'retornos' | 'incidencias';
+type TabLogistica = 'materiales' | 'equipos' | 'epp' | 'salidas' | 'ingresos' | 'retornos' | 'incidencias' | 'historico-legacy';
 
 @Component({
   selector: 'app-logistica',
   standalone: true,
-  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, EppTablaComponent, SalidasComponent, IngresosTablaComponent, RetornosTablaComponent, IncidenciasTablaComponent],
+  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, EppTablaComponent, SalidasComponent, IngresosTablaComponent, RetornosTablaComponent, IncidenciasTablaComponent, HistoricoLegacyComponent],
   templateUrl: './logistica.component.html',
   styleUrls: ['./logistica.component.css']
 })
