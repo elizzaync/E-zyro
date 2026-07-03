@@ -163,6 +163,41 @@ def generar_reporte_epp_empleado(data: dict) -> bytes:
     return buf.getvalue()
 
 
+def generar_reporte_epp_global(data: dict) -> bytes:
+    """Reporte consolidado de EPP entregado, una fila por trabajador.
+
+    data = {
+      empresa, generado,
+      empleados: [{nombre, cargo, total_entregas, total_items}],
+    }
+    Para el detalle completo de un trabajador puntual se usa
+    `generar_reporte_epp_empleado` (PDF individual, el mismo que usa la app móvil).
+    """
+    buf = io.BytesIO()
+    doc = _doc(buf, "Reporte global de EPP")
+    st = _styles()
+    empleados = data.get("empleados", []) or []
+    e = [Paragraph("REPORTE GLOBAL DE EPP ENTREGADO", st["h1"]),
+         Paragraph(data.get("empresa", "") or "", st["sub"]), Spacer(1, 6)]
+    e.append(_kv_table([
+        ("Generado",   str(data.get("generado") or "-")),
+        ("Trabajadores", str(len(empleados))),
+    ], st))
+    e.append(Paragraph("Resumen por trabajador", st["h2"]))
+    if empleados:
+        filas = [["Trabajador", "Cargo", "Entregas", "Ítems totales"]]
+        for emp in empleados:
+            filas.append([
+                emp.get("nombre", "") or "", emp.get("cargo", "") or "-",
+                str(emp.get("total_entregas", "") or "0"), str(emp.get("total_items", "") or "0"),
+            ])
+        e.append(_data_table(filas, [70 * mm, 58 * mm, 25 * mm, _PAGE_W - 153 * mm], st))
+    else:
+        e.append(Paragraph("Sin entregas registradas.", st["n"]))
+    doc.build(e)
+    return buf.getvalue()
+
+
 # ── Informe de correctivo ────────────────────────────────────────────────────
 def generar_informe_correctivo(data: dict) -> bytes:
     buf = io.BytesIO()
