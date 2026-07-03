@@ -84,7 +84,7 @@ export class EppTablaComponent implements OnInit {
   cargarCatalogo(): void {
     this.cargandoCatalogo = true;
     this.svc.getEpps({ q: this.busquedaCatalogo || undefined, stockBajo: this.soloStockBajo }).subscribe({
-      next:  r => { this.epps = r; this.cargandoCatalogo = false; },
+      next:  r => { this.epps = r; this.cargandoCatalogo = false; this.paginaCatalogo = 1; },
       error: () => { this.cargandoCatalogo = false; this.toast.mostrar('Error al cargar el catálogo de EPPs.', 'error'); },
     });
   }
@@ -97,6 +97,7 @@ export class EppTablaComponent implements OnInit {
       next: r => {
         this.trabajadores = r;
         this.cargandoEntregas = false;
+        this.paginaTrabajadores = Math.min(this.paginaTrabajadores, this.totalPaginasTrabajadores);
         if (reabrirEmpleadoId) {
           this.trabajadorDetalle = r.find(t => t.empleado_id === reabrirEmpleadoId) ?? null;
         }
@@ -107,6 +108,35 @@ export class EppTablaComponent implements OnInit {
 
   ultimaEntrega(t: EppTrabajadorResumen): EppEntregaHistItem | undefined {
     return t.entregas[0];
+  }
+
+  // ── Paginación (client-side, catálogo + trabajadores) ──────────────────────
+  porPagina = 8;
+  paginaCatalogo = 1;
+  paginaTrabajadores = 1;
+
+  get eppsPaginados(): Epp[] {
+    const inicio = (this.paginaCatalogo - 1) * this.porPagina;
+    return this.epps.slice(inicio, inicio + this.porPagina);
+  }
+  get totalPaginasCatalogo(): number {
+    return Math.max(1, Math.ceil(this.epps.length / this.porPagina));
+  }
+  irPaginaCatalogo(p: number): void {
+    if (p < 1 || p > this.totalPaginasCatalogo) return;
+    this.paginaCatalogo = p;
+  }
+
+  get trabajadoresPaginados(): EppTrabajadorResumen[] {
+    const inicio = (this.paginaTrabajadores - 1) * this.porPagina;
+    return this.trabajadores.slice(inicio, inicio + this.porPagina);
+  }
+  get totalPaginasTrabajadores(): number {
+    return Math.max(1, Math.ceil(this.trabajadores.length / this.porPagina));
+  }
+  irPaginaTrabajadores(p: number): void {
+    if (p < 1 || p > this.totalPaginasTrabajadores) return;
+    this.paginaTrabajadores = p;
   }
 
   abrirNuevoEpp(): void { this.eppEditar = null; this.showFormModal = true; }

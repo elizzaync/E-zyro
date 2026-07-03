@@ -1,5 +1,9 @@
+/* ── Contenedor con espaciado (el ng-content del app-modal compartido no
+   aplica padding propio, cada consumidor debe darle aire al contenido) ── */
+.eem-content { padding: 20px 24px 6px; }
+
 /* ── Stepper ── */
-.eem-stepper { display: flex; align-items: center; padding: 4px 0 18px; }
+.eem-stepper { display: flex; align-items: center; padding: 4px 0 20px; }
 .eem-step {
   display: flex; align-items: center; gap: 8px; background: none; border: none; cursor: pointer; padding: 4px 2px;
 }
@@ -123,7 +127,10 @@
 .eem-resumen-val--ok { color: #15803d; }
 
 /* ── Footer ── */
-.eem-footer { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; }
+.eem-footer {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 16px 24px; margin-top: 4px; border-top: 1px solid var(--border-color,#e5e7eb);
+}
 .eem-footer-nav { display: flex; gap: 10px; margin-left: auto; }
 .eem-btn-cancel {
   padding: 9px 18px; border-radius: var(--radius-md,9px); border: 1px solid var(--border-color,#d1d5db);

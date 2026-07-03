@@ -12,6 +12,7 @@
   </svg>
 
   <!-- ─── Stepper ─── -->
+  <div class="eem-content">
   <div class="eem-stepper">
     <button type="button" class="eem-step" [class.eem-step--done]="paso > 1" [class.eem-step--current]="paso === 1"
             (click)="irPaso(1)">
@@ -151,6 +152,7 @@
       </div>
     }
 
+  </div>
   </div>
 
   <footer class="eem-footer">

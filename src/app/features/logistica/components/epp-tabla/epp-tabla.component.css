@@ -93,6 +93,42 @@
 .epp-btn-icon--danger:hover { color: #dc2626; background: rgba(220,38,38,.08); }
 .epp-btn-icon:disabled { opacity: .5; cursor: default; }
 
+/* Iconos de acciones (columna de tabla + historial): pill con borde y color
+   semántico por acción, para que se lean como botones distintos a simple vista. */
+.td-acc { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.td-acc .epp-btn-icon,
+.epp-historial-item-actions .epp-btn-icon {
+  flex: none; width: 30px; height: 30px; border: 1px solid var(--border-color,#e5e7eb);
+  border-radius: 8px; background: var(--card-bg,#fff);
+}
+.td-acc .epp-btn-icon--edit:hover { color: #2563eb; background: rgba(37,99,235,.08); border-color: rgba(37,99,235,.35); }
+.td-acc .epp-btn-icon--archive { color: #b45309; }
+.td-acc .epp-btn-icon--archive:hover { color: #b45309; background: rgba(180,83,9,.1); border-color: rgba(180,83,9,.35); }
+.td-acc .epp-btn-icon--view { color: #7c3aed; }
+.td-acc .epp-btn-icon--view:hover { color: #7c3aed; background: rgba(124,58,237,.1); border-color: rgba(124,58,237,.35); }
+.td-acc .epp-btn-icon--pdf,
+.epp-historial-item-actions .epp-btn-icon--pdf { color: #2563eb; }
+.td-acc .epp-btn-icon--pdf:hover,
+.epp-historial-item-actions .epp-btn-icon--pdf:hover { color: #2563eb; background: rgba(37,99,235,.1); border-color: rgba(37,99,235,.35); }
+.td-acc .epp-btn-icon--danger,
+.epp-historial-item-actions .epp-btn-icon--danger { color: #dc2626; }
+.td-acc .epp-btn-icon--danger:hover,
+.epp-historial-item-actions .epp-btn-icon--danger:hover { border-color: rgba(220,38,38,.35); background: rgba(220,38,38,.08); }
+
+/* ── Paginación ── */
+.epp-table-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 2px 4px; }
+.epp-table-footer-row .epp-table-footer { padding: 0; }
+.epp-paginacion { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.epp-pag-info { font-size: .76rem; color: var(--text-muted,#6b7280); white-space: nowrap; }
+.epp-pag-btn {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-color,#d1d5db); border-radius: 6px; background: var(--card-bg,#fff);
+  color: var(--text-main,#374151); cursor: pointer;
+}
+.epp-pag-btn svg { width: 13px; height: 13px; }
+.epp-pag-btn:hover:not(:disabled) { background: var(--hover-bg,#f3f4f6); }
+.epp-pag-btn:disabled { opacity: .4; cursor: default; }
+
 /* ── Tabla (base compartida) ── */
 .epp-table-wrap {
   background: var(--card-bg,#fff); border: 1px solid var(--border-color,#e5e7eb);
@@ -269,6 +305,20 @@
 :host-context([data-theme="dark"]) .epp-btn-reporte-global     { background: rgba(74,222,128,.12); color: #4ade80; }
 :host-context([data-theme="dark"]) .epp-btn-reporte-global:hover:not(:disabled) { background: rgba(74,222,128,.2); }
 :host-context([data-theme="dark"]) .epp-historial-item         { background: var(--input-bg,#111827); }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon,
+:host-context([data-theme="dark"]) .epp-historial-item-actions .epp-btn-icon { background: var(--input-bg,#111827); border-color: var(--border-color,#334155); }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--edit:hover        { color: #60a5fa; background: rgba(96,165,250,.12); border-color: rgba(96,165,250,.4); }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--archive           { color: #fbbf24; }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--archive:hover     { color: #fbbf24; background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.4); }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--view              { color: #a78bfa; }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--view:hover        { color: #a78bfa; background: rgba(167,139,250,.14); border-color: rgba(167,139,250,.4); }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--pdf,
+:host-context([data-theme="dark"]) .epp-historial-item-actions .epp-btn-icon--pdf { color: #60a5fa; }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--pdf:hover,
+:host-context([data-theme="dark"]) .epp-historial-item-actions .epp-btn-icon--pdf:hover { color: #60a5fa; background: rgba(96,165,250,.14); border-color: rgba(96,165,250,.4); }
+:host-context([data-theme="dark"]) .td-acc .epp-btn-icon--danger,
+:host-context([data-theme="dark"]) .epp-historial-item-actions .epp-btn-icon--danger { color: #f87171; }
+:host-context([data-theme="dark"]) .epp-pag-btn                { background: var(--input-bg,#111827); border-color: var(--border-color,#334155); }
 
 @media (max-width: 900px) {
   .epp-items-chips { max-width: 180px; }
