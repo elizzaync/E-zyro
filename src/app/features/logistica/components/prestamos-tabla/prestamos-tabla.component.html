@@ -1,0 +1,314 @@
+<div class="pre-layout">
+
+  <!-- ─── Filtros ─── -->
+  <div class="pre-filtros">
+    <select class="pre-select-estado" [(ngModel)]="filtroEstado" (change)="filtrar()">
+      <option value="todos">Todos los estados</option>
+      <option value="solicitado">Solicitado</option>
+      <option value="por_recibir">Por recibir (firma técnico)</option>
+      <option value="entregado">En uso en servicio</option>
+      <option value="devuelto">Devuelto · por confirmar</option>
+      <option value="confirmado">Confirmado</option>
+      <option value="rechazado">Rechazado</option>
+    </select>
+    <span class="pre-total-badge"><strong>{{ prestamos.length }}</strong> préstamos</span>
+  </div>
+
+  <!-- ─── Tabla ─── -->
+  @if (cargando) {
+    <div class="pre-loading"><app-spinner [size]="28"></app-spinner></div>
+  } @else if (prestamos.length === 0) {
+    <div class="pre-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+      <p>Sin préstamos registrados.</p>
+      <span>Aparecerán aquí cuando un técnico solicite equipos/herramientas en préstamo para un servicio.</span>
+    </div>
+  } @else {
+    <div class="pre-table-wrap">
+      <table class="pre-table">
+        <thead>
+          <tr>
+            <th>Fecha solicitud</th>
+            <th>Servicio / Proyecto</th>
+            <th>Solicitante</th>
+            <th>Ítems</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of prestamos; track p.id) {
+            <tr class="pre-row">
+              <td class="td-fecha">{{ fechaCorta(p.fecha_solicitud) }}</td>
+              <td class="td-servicio">
+                <div class="pre-srv">{{ p.servicio_nombre ?? '—' }}</div>
+                @if (p.proyecto_nombre) {
+                  <div class="pre-proy">{{ p.proyecto_nombre }}</div>
+                }
+              </td>
+              <td class="td-solicitante">{{ p.solicitante_nombre }}</td>
+              <td class="td-items-count">{{ p.items.length }}</td>
+              <td class="td-estado">
+                <span class="pre-estado-badge {{ estadoClase(p.estado) }}">{{ estadoLabel(p.estado) }}</span>
+              </td>
+              <td class="td-accion">
+                <button class="pre-btn-ver" (click)="abrirDetalle(p)">Ver detalle</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     MODAL DETALLE
+══════════════════════════════════════════════ -->
+@if (prestamoActivo) {
+<app-modal
+  [open]="true"
+  title="Préstamo de Equipo"
+  [subtitle]="(prestamoActivo.servicio_nombre ?? '—') + (prestamoActivo.proyecto_nombre ? ' · ' + prestamoActivo.proyecto_nombre : '')"
+  maxWidth="680px"
+  iconBg="rgba(124,58,237,0.1)"
+  iconColor="#7c3aed"
+  (closeModal)="cerrarDetalle()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+  </svg>
+
+  <div class="pre-modal-hright">
+    <p class="pre-modal-solicitante">Solicitante: <strong>{{ prestamoActivo.solicitante_nombre }}</strong>
+      · Fecha: {{ fechaCorta(prestamoActivo.fecha_solicitud) }}
+    </p>
+    <span class="pre-estado-badge {{ estadoClase(prestamoActivo.estado) }}">{{ estadoLabel(prestamoActivo.estado) }}</span>
+  </div>
+
+  @if (prestamoActivo.observacion) {
+    <div class="pre-nota">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+      <span><strong>Nota del solicitante:</strong> {{ prestamoActivo.observacion }}</span>
+    </div>
+  }
+  @if (prestamoActivo.observacion_logistico) {
+    <div class="pre-nota pre-nota-log">
+      <span><strong>Nota de logística:</strong> {{ prestamoActivo.observacion_logistico }}</span>
+    </div>
+  }
+
+  <div class="pre-modal-body">
+    <div class="pre-items-list">
+      @for (it of prestamoActivo.items; track it.id) {
+        <div class="pre-item-card">
+          <div class="pre-item-left">
+            <span class="tipo-badge tipo-badge--{{ it.clase }}">{{ it.clase === 'equipo' ? 'Equipo' : 'Herramienta' }}</span>
+            <span class="pre-item-nombre">{{ it.equipo_nombre }}</span>
+            @if (it.equipo_codigo) { <span class="pre-item-codigo">{{ it.equipo_codigo }}</span> }
+          </div>
+          <div class="pre-item-right">
+            <div class="pre-qty-group">
+              <span class="pre-qty-label">Solicitado</span>
+              <span class="pre-qty-val">{{ it.cantidad_solicitada }}</span>
+            </div>
+            @if (it.cantidad_entregada !== null) {
+              <div class="pre-qty-group">
+                <span class="pre-qty-label">Entregado</span>
+                <span class="pre-qty-val">{{ it.cantidad_entregada }}</span>
+              </div>
+            }
+            @if (it.cantidad_devuelta !== null) {
+              <div class="pre-qty-group">
+                <span class="pre-qty-label">Devuelto</span>
+                <span class="pre-qty-val">{{ it.cantidad_devuelta }}</span>
+              </div>
+            }
+            @if (it.cantidad_perdida > 0) {
+              <div class="pre-qty-group">
+                <span class="pre-qty-label">Pérdida</span>
+                <span class="pre-qty-val pre-qty-perdida">{{ it.cantidad_perdida }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- ── Estados intermedios: sin acción de logística disponible ── -->
+    @if (prestamoActivo.estado === 'por_recibir') {
+      <div class="pre-info-banner">Logística ya despachó. Esperando que el técnico firme la recepción en el servicio (desde la app móvil).</div>
+    } @else if (prestamoActivo.estado === 'entregado') {
+      <div class="pre-info-banner">Equipo en uso en el servicio. Aparecerá aquí para confirmar cuando el técnico registre la devolución.</div>
+    }
+  </div>
+
+  <!-- ── Footer: acciones según estado ── -->
+  @if (prestamoActivo.estado === 'solicitado') {
+    <footer class="pre-modal-footer">
+      <button class="pre-btn-cancel" (click)="cerrarDetalle()">Cerrar</button>
+      <button class="pre-btn-rechazar" (click)="abrirRechazo()">Rechazar</button>
+      <button class="pre-btn-entregar" (click)="abrirEntrega()">Entregar</button>
+    </footer>
+  } @else if (prestamoActivo.estado === 'devuelto') {
+    <footer class="pre-modal-footer">
+      <button class="pre-btn-cancel" (click)="cerrarDetalle()">Cerrar</button>
+      <button class="pre-btn-rechazar" (click)="abrirObservar()">Observar</button>
+      <button class="pre-btn-entregar" (click)="confirmarRecepcion()" [disabled]="procesando">
+        @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+        Confirmar recepción
+      </button>
+    </footer>
+  } @else {
+    <footer class="pre-modal-footer">
+      <button class="pre-btn-cancel" (click)="cerrarDetalle()">Cerrar</button>
+    </footer>
+  }
+
+</app-modal>
+}
+
+
+<!-- ══════════════════════════════════════════════
+     SUB-MODAL: ENTREGAR (firma de logística)
+══════════════════════════════════════════════ -->
+@if (entregaAbierta) {
+<app-modal
+  [open]="true"
+  title="Entregar Préstamo"
+  subtitle="Firma de logística requerida para despachar"
+  maxWidth="560px"
+  iconBg="rgba(145,211,55,0.12)"
+  iconColor="#4d7d18"
+  (closeModal)="cerrarEntrega()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+
+  <div class="pre-modal-body">
+    <label class="pre-nota-label">Cantidad a entregar por ítem</label>
+    <div class="pre-items-list">
+      @for (f of itemsEntrega; track f.item_id) {
+        <div class="pre-item-card">
+          <div class="pre-item-left">
+            <span class="tipo-badge tipo-badge--{{ f.clase }}">{{ f.clase === 'equipo' ? 'Equipo' : 'Herramienta' }}</span>
+            <span class="pre-item-nombre">{{ f.equipo_nombre }}</span>
+          </div>
+          <div class="pre-item-right">
+            <div class="pre-qty-group">
+              <span class="pre-qty-label">Solicitado</span>
+              <span class="pre-qty-val">{{ f.cantidad_solicitada }}</span>
+            </div>
+            <div class="pre-qty-group">
+              <span class="pre-qty-label">Entregar</span>
+              <input type="number" class="pre-qty-input" [(ngModel)]="f.cantidad_entregada" [min]="0" [max]="f.cantidad_solicitada" step="1">
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <label class="pre-nota-label" style="margin-top:16px;">Firma de logística (entregador)</label>
+
+    @if (usandoFirmaGuardada) {
+      <div class="pre-firma-preview">
+        <img [src]="firmaGuardadaUrl" class="pre-firma-img" alt="Firma guardada">
+      </div>
+      <button class="pre-btn-limpiar-firma" type="button" (click)="dibujarNuevaFirma()">Dibujar una nueva</button>
+    } @else {
+      @if (firmaGuardadaUrl) {
+        <button class="pre-btn-firma-guardada" type="button" (click)="usarFirmaGuardada()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2h-2"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Usar mi firma guardada
+        </button>
+      }
+      <div class="pre-firma-wrap">
+        <canvas #firmaCanvas width="500" height="160" class="pre-firma-canvas"></canvas>
+      </div>
+      <button class="pre-btn-limpiar-firma" type="button" (click)="limpiarFirma()">Limpiar firma</button>
+    }
+  </div>
+
+  <footer class="pre-modal-footer">
+    <button class="pre-btn-cancel" (click)="cerrarEntrega()">Cancelar</button>
+    <button class="pre-btn-entregar" (click)="confirmarEntrega()" [disabled]="procesando">
+      @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+      Confirmar entrega
+    </button>
+  </footer>
+</app-modal>
+}
+
+
+<!-- ══════════════════════════════════════════════
+     SUB-MODAL: RECHAZAR
+══════════════════════════════════════════════ -->
+@if (rechazoAbierto) {
+<app-modal
+  [open]="true"
+  title="Rechazar Préstamo"
+  maxWidth="440px"
+  iconBg="rgba(239,68,68,0.1)"
+  iconColor="#dc2626"
+  (closeModal)="cerrarRechazo()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+  </svg>
+
+  <div class="pre-modal-body">
+    <label class="pre-nota-label">Motivo del rechazo</label>
+    <textarea class="pre-nota-input" rows="3" [(ngModel)]="motivoRechazo" placeholder="Explica por qué se rechaza la solicitud…"></textarea>
+  </div>
+
+  <footer class="pre-modal-footer">
+    <button class="pre-btn-cancel" (click)="cerrarRechazo()">Cancelar</button>
+    <button class="pre-btn-rechazar" (click)="confirmarRechazo()" [disabled]="procesando || !motivoRechazo.trim()">
+      @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+      Rechazar
+    </button>
+  </footer>
+</app-modal>
+}
+
+
+<!-- ══════════════════════════════════════════════
+     SUB-MODAL: OBSERVAR DEVOLUCIÓN
+══════════════════════════════════════════════ -->
+@if (observarAbierto) {
+<app-modal
+  [open]="true"
+  title="Observar Devolución"
+  maxWidth="440px"
+  iconBg="rgba(234,179,8,0.12)"
+  iconColor="#b45309"
+  (closeModal)="cerrarObservar()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+
+  <div class="pre-modal-body">
+    <label class="pre-nota-label">¿Qué debe corregir el técnico?</label>
+    <textarea class="pre-nota-input" rows="3" [(ngModel)]="motivoObservar" placeholder="Ej: falta devolver 1 taladro, la cantidad no coincide…"></textarea>
+  </div>
+
+  <footer class="pre-modal-footer">
+    <button class="pre-btn-cancel" (click)="cerrarObservar()">Cancelar</button>
+    <button class="pre-btn-rechazar" (click)="confirmarObservar()" [disabled]="procesando || !motivoObservar.trim()">
+      @if (procesando) { <app-spinner [size]="14" theme="light"></app-spinner> }
+      Observar
+    </button>
+  </footer>
+</app-modal>
+}

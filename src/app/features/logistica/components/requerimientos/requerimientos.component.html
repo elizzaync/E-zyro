@@ -519,6 +519,14 @@
               <button class="rm-seg-btn" [class.on-re]="decisiones[it.id] === 'rechazar'"
                       (click)="setDecision(it.id, 'rechazar')">Rechazar</button>
             </div>
+            @if (decisiones[it.id] === 'rechazar') {
+              <select class="rm-select rm-select-inline" [(ngModel)]="categoriasRechazoItem[it.id]">
+                <option value="">Motivo del rechazo…</option>
+                @for (m of motivosRechazo; track m.value) {
+                  <option [value]="m.value">{{ m.label }}</option>
+                }
+              </select>
+            }
           </div>
           }
         </div>
@@ -616,7 +624,14 @@
   </svg>
 
     <div class="rm-body">
-      <label class="rm-label">Motivo del rechazo (visible para el técnico)</label>
+      <label class="rm-label">Categoría del rechazo</label>
+      <select class="rm-select" [(ngModel)]="categoriaRechazo">
+        <option value="">Selecciona una categoría…</option>
+        @for (m of motivosRechazo; track m.value) {
+          <option [value]="m.value">{{ m.label }}</option>
+        }
+      </select>
+      <label class="rm-label" style="margin-top:14px;">Motivo del rechazo (visible para el técnico)</label>
       <textarea class="rm-textarea" rows="3" [(ngModel)]="motivoRechazo"
                 placeholder="Ej: El material no corresponde al alcance del servicio…"></textarea>
     </div>

@@ -9,7 +9,7 @@ import { LogisticaService } from '../../../../core/services/logistica.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
-import { Requerimiento, RequerimientoItem, AprobarItemDecision, EntregarPayload } from '../../logistica.models';
+import { Requerimiento, RequerimientoItem, AprobarItemDecision, EntregarPayload, MotivoRechazo, MOTIVOS_RECHAZO } from '../../logistica.models';
 
 type TabReq = 'activos' | 'historial';
 
@@ -70,11 +70,14 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
   // ── Modal revisión / aprobación ──
   reqActivo: Requerimiento | null = null;
   decisiones: Record<string, 'aprobar' | 'compra' | 'rechazar'> = {};
+  categoriasRechazoItem: Record<string, MotivoRechazo | ''> = {};
   procesando = false;
 
   // ── Modal rechazo ──
   reqRechazar: Requerimiento | null = null;
   motivoRechazo = '';
+  categoriaRechazo: MotivoRechazo | '' = '';
+  readonly motivosRechazo = MOTIVOS_RECHAZO;
 
   // ── Reporte / comprobante ──
   reqReporte: Requerimiento | null = null;
@@ -306,6 +309,14 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
       const req = this.servicioModal.reqs.find(r => r.estado === 'listo');
       if (req) this.svc.liberarFirma(req.id).subscribe({ error: () => {} });
     }
+    // Firma dibujada de nuevo (no reutilizada de la guardada) → la guardamos
+    // para la próxima vez. Fire-and-forget: no bloquea la entrega.
+    if (this.padFirma.firma && this.padFirma.firma !== this.firmaGuardadaUrl) {
+      this.svc.guardarFirma(this.padFirma.firma).subscribe({
+        next: r => { this.firmaGuardadaUrl = r.data.url_firma; },
+        error: err => console.error('No se pudo guardar la firma para reutilizar después.', err),
+      });
+    }
   }
 
   limpiarFirmaModal(): void {
@@ -372,11 +383,12 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
   abrirRevision(r: Requerimiento): void {
     this.reqActivo = r;
     this.decisiones = {};
+    this.categoriasRechazoItem = {};
     for (const it of r.items) {
       this.decisiones[it.id] = it.esCompraExterna || !it.enStock ? 'compra' : 'aprobar';
     }
   }
-  cerrarRevision(): void { this.reqActivo = null; this.decisiones = {}; }
+  cerrarRevision(): void { this.reqActivo = null; this.decisiones = {}; this.categoriasRechazoItem = {}; }
   setDecision(id: string, d: 'aprobar' | 'compra' | 'rechazar'): void {
     if (d === 'aprobar') {
       const item = this.reqActivo?.items.find(it => it.id === id);
@@ -387,15 +399,20 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
       }
     }
     this.decisiones[id] = d;
+    if (d === 'rechazar' && !this.categoriasRechazoItem[id]) this.categoriasRechazoItem[id] = '';
   }
 
   confirmarAprobacion(): void {
     if (!this.reqActivo) return;
     this.procesando = true;
-    const decisiones: AprobarItemDecision[] = this.reqActivo.items.map(it => ({
-      detalleId: it.id,
-      decision:  this.decisiones[it.id] ?? 'aprobar',
-    }));
+    const decisiones: AprobarItemDecision[] = this.reqActivo.items.map(it => {
+      const decision = this.decisiones[it.id] ?? 'aprobar';
+      const out: AprobarItemDecision = { detalleId: it.id, decision };
+      if (decision === 'rechazar' && this.categoriasRechazoItem[it.id]) {
+        out.motivoRechazo = this.categoriasRechazoItem[it.id] as MotivoRechazo;
+      }
+      return out;
+    });
     this.svc.aprobarRequerimiento(this.reqActivo.id, { decisiones }).subscribe({
       next: () => {
         this.procesando = false;
@@ -430,12 +447,12 @@ export class RequerimientosComponent implements OnInit, OnDestroy {
   }
 
   // ── Modal rechazo ──
-  abrirRechazo(r: Requerimiento): void { this.reqRechazar = r; this.motivoRechazo = ''; }
-  cerrarRechazo(): void { this.reqRechazar = null; this.motivoRechazo = ''; }
+  abrirRechazo(r: Requerimiento): void { this.reqRechazar = r; this.motivoRechazo = ''; this.categoriaRechazo = ''; }
+  cerrarRechazo(): void { this.reqRechazar = null; this.motivoRechazo = ''; this.categoriaRechazo = ''; }
   confirmarRechazo(): void {
     if (!this.reqRechazar || !this.motivoRechazo.trim()) return;
     this.procesando = true;
-    this.svc.rechazarRequerimiento(this.reqRechazar.id, this.motivoRechazo.trim()).subscribe({
+    this.svc.rechazarRequerimiento(this.reqRechazar.id, this.motivoRechazo.trim(), this.categoriaRechazo || undefined).subscribe({
       next: () => {
         this.procesando = false;
         this.toast.mostrar('Requerimiento rechazado.', 'success');

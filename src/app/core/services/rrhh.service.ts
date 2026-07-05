@@ -1,6 +1,6 @@
 ﻿import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../../environments/environment';
 
 export interface EmpleadoLegajoDto {
@@ -292,8 +292,18 @@ export class RrhhService {
     return this.http.get<{ documentos: DocumentoDto[] }>(`${this.api}/rrhh/mis-documentos-pendientes`);
   }
 
+  // Antes apuntaba a `/rrhh/mi-firma` (ruta duplicada del backend que consulta
+  // la misma tabla FirmaDigital). Se unificó contra `/permisos/mi-firma` para
+  // no depender de un endpoint redundante. Esa ruta responde
+  // { status, data: { url_firma } | null }; se adapta aquí al shape original
+  // ({ firma: { id, url_cloudinary, primera_vez } | null }) para no romper a
+  // legajo-detalle.component.ts, que solo lee `firma?.url_cloudinary`.
   getMiFirma(): Observable<{ firma: { id: string; url_cloudinary: string; primera_vez: boolean } | null }> {
-    return this.http.get<any>(`${this.api}/rrhh/mi-firma`);
+    return this.http
+      .get<{ status: string; data: { url_firma: string } | null }>(`${this.api}/permisos/mi-firma`)
+      .pipe(map(r => ({
+        firma: r.data ? { id: '', url_cloudinary: r.data.url_firma, primera_vez: false } : null,
+      })));
   }
 
   // ── Solicitudes Laborales ────────────────────────────────────────────────

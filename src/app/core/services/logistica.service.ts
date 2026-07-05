@@ -21,9 +21,10 @@ import {
   SalidasKpis,
   RegistrarIngresoPayload,
   Retorno,
+  Prestamo,
   Incidencia, EquipoStockDesglose, CategoriaEquipoItem,
   Epp, EppIn, EppEntrega, EppEntregaIn, EppTrabajadorResumen,
-  HistoricoLegacyResponse,
+  HistoricoLegacyResponse, MotivoRechazo,
 } from '../../features/logistica/logistica.models';
 
 export interface RequerimientosListResponse {
@@ -261,8 +262,10 @@ export class LogisticaService {
     return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/aprobar`, body);
   }
 
-  rechazarRequerimiento(id: string, observacion: string): Observable<Requerimiento> {
-    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/rechazar`, { observacion });
+  rechazarRequerimiento(id: string, observacion: string, motivoRechazo?: MotivoRechazo): Observable<Requerimiento> {
+    const body: { observacion: string; motivoRechazo?: MotivoRechazo } = { observacion };
+    if (motivoRechazo) body.motivoRechazo = motivoRechazo;
+    return this.http.post<Requerimiento>(`${this.api}/logistica/requerimientos/${id}/rechazar`, body);
   }
 
   firmarRequerimiento(id: string, recibidoPorId: string, firmaUrl: string): Observable<Requerimiento> {
@@ -281,8 +284,22 @@ export class LogisticaService {
     return this.http.delete<{ ok: boolean }>(`${this.api}/logistica/requerimientos/${reqId}/bloquear-firma`);
   }
 
+  // El backend responde { status, data: { url_firma } | null } — se mapea
+  // a { url } | null para no tener que tocar a los consumidores existentes.
   getFirmaGuardada(): Observable<{ url: string } | null> {
-    return this.http.get<{ url: string } | null>(`${this.api}/permisos/mi-firma`);
+    return this.http
+      .get<{ status: string; data: { url_firma: string } | null }>(`${this.api}/permisos/mi-firma`)
+      .pipe(map(r => r.data ? { url: r.data.url_firma } : null));
+  }
+
+  // Sube/actualiza la firma digital global del usuario (tabla FirmaDigital,
+  // upsert automático en backend — archiva la anterior en HistorialFirma).
+  guardarFirma(firmaBase64DataUrl: string): Observable<{ status: string; data: { url_firma: string } }> {
+    const form = new FormData();
+    form.append('firma_base64', firmaBase64DataUrl);
+    return this.http.post<{ status: string; data: { url_firma: string } }>(
+      `${this.api}/permisos/guardar-firma`, form
+    );
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -442,6 +459,28 @@ export class LogisticaService {
 
   completarRetorno(id: string): Observable<Retorno> {
     return this.http.patch<Retorno>(`${this.api}/logistica/retornos/${id}/completar`, {});
+  }
+
+  // ── Préstamos de equipo (router aparte: /prestamos, NO /logistica/prestamos) ──
+  getPrestamos(estado: string = 'todos'): Observable<Prestamo[]> {
+    const params = new HttpParams().set('estado', estado);
+    return this.http.get<Prestamo[]>(`${this.api}/prestamos`, { params });
+  }
+
+  entregarPrestamo(id: string, body: {
+    items?: { item_id: string; cantidad_entregada: number }[];
+    observacion?: string;
+    firmaEntregadorUrl: string;
+  }): Observable<Prestamo> {
+    return this.http.post<Prestamo>(`${this.api}/prestamos/${id}/entregar`, body);
+  }
+
+  rechazarPrestamo(id: string, observacion: string): Observable<Prestamo> {
+    return this.http.post<Prestamo>(`${this.api}/prestamos/${id}/rechazar`, { observacion });
+  }
+
+  confirmarDevolucionPrestamo(id: string, aceptar: boolean, observacion?: string): Observable<Prestamo> {
+    return this.http.post<Prestamo>(`${this.api}/prestamos/${id}/confirmar-devolucion`, { aceptar, observacion });
   }
 
   // ── Incidencias ────────────────────────────────────────────────────────

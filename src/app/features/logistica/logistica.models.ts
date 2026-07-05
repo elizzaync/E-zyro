@@ -76,6 +76,19 @@ export interface ModeloItem  extends CatalogoItem { marcaId: string; }
 
 // ── Requerimientos (HU-16) ──────────────────────────────────────────────────
 
+// Categoría del motivo de rechazo (item individual o requerimiento completo).
+// Nombre de campo verificado contra `app/schemas/logistica.py` del backend;
+// si el otro agente (trabajo en paralelo) todavía no lo había expuesto al
+// momento de escribir esto, se asumió `motivoRechazo` como definido aquí.
+export type MotivoRechazo = 'sin_tiempo_compra' | 'no_disponible_catalogo' | 'duplicado' | 'otro';
+
+export const MOTIVOS_RECHAZO: { value: MotivoRechazo; label: string }[] = [
+  { value: 'sin_tiempo_compra',      label: 'Sin tiempo para comprar' },
+  { value: 'no_disponible_catalogo', label: 'No disponible en catálogo' },
+  { value: 'duplicado',              label: 'Pedido duplicado' },
+  { value: 'otro',                   label: 'Otro' },
+];
+
 export interface RequerimientoItem {
   id: string;
   materialId: string | null;
@@ -91,6 +104,7 @@ export interface RequerimientoItem {
   estadoItem: string;          // pendiente | aprobado | para_compra | rechazado
   agregadoPor: string | null;
   tipo: string;                // material | herramienta | equipo
+  motivoRechazo?: MotivoRechazo;
 }
 
 export interface Requerimiento {
@@ -127,6 +141,7 @@ export interface AprobarItemDecision {
   detalleId: string;
   decision: 'aprobar' | 'compra' | 'rechazar';
   cantidadAprobada?: number | null;
+  motivoRechazo?: MotivoRechazo;
 }
 
 // ── Compras (HU-17) ────────────────────────────────────────────────────────
@@ -405,6 +420,50 @@ export interface Retorno {
   totalItems: number;
   itemsObligatorios: number;
   itemsPendientes: number;
+}
+
+// ── Préstamos de equipo (HU-FASE5) ─────────────────────────────────────────
+// OJO: a diferencia de Retorno (arriba), el backend de /prestamos serializa
+// sus schemas en snake_case nativo (no camelCase) — respetar tal cual, no es
+// un error de tipeo.
+
+export interface PrestamoItem {
+  id: string;
+  equipo_id: string;
+  equipo_nombre: string;
+  equipo_codigo: string | null;
+  clase: 'equipo' | 'herramienta';
+  cantidad_solicitada: number;
+  cantidad_entregada: number | null;
+  cantidad_devuelta: number | null;
+  cantidad_perdida: number;
+  observacion: string | null;
+}
+
+export type PrestamoEstado = 'solicitado' | 'por_recibir' | 'entregado' | 'devuelto' | 'confirmado' | 'rechazado';
+
+export interface Prestamo {
+  id: string;
+  servicio_id: string;
+  servicio_nombre: string | null;
+  proyecto_nombre: string | null;
+  solicitante_id: string;
+  solicitante_nombre: string;
+  estado: PrestamoEstado;
+  observacion: string | null;
+  observacion_logistico: string | null;
+  entregado_por_nombre: string | null;
+  devuelto_por_nombre: string | null;
+  confirmado_por_nombre: string | null;
+  fecha_solicitud: string;
+  fecha_entrega: string | null;
+  fecha_devolucion: string | null;
+  fecha_confirmacion: string | null;
+  firma_receptor_url: string | null;
+  firma_entregador_url: string | null;
+  firma_solicitante_url: string | null;
+  firmando_por_nombre: string | null;
+  items: PrestamoItem[];
 }
 
 // ── Incidencias ───────────────────────────────────────────────────────────

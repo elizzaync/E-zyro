@@ -9,15 +9,16 @@ import { EppTablaComponent } from './components/epp-tabla/epp-tabla.component';
 import { SalidasComponent } from './components/salidas/salidas.component';
 import { IngresosTablaComponent } from './components/ingresos-tabla/ingresos-tabla.component';
 import { RetornosTablaComponent } from './components/retornos-tabla/retornos-tabla.component';
+import { PrestamosTablaComponent } from './components/prestamos-tabla/prestamos-tabla.component';
 import { IncidenciasTablaComponent } from './components/incidencias-tabla/incidencias-tabla.component';
 import { HistoricoLegacyComponent } from './components/historico-legacy/historico-legacy.component';
 
-type TabLogistica = 'materiales' | 'equipos' | 'epp' | 'salidas' | 'ingresos' | 'retornos' | 'incidencias' | 'historico-legacy';
+type TabLogistica = 'materiales' | 'equipos' | 'epp' | 'salidas' | 'ingresos' | 'retornos' | 'prestamos' | 'incidencias' | 'historico-legacy';
 
 @Component({
   selector: 'app-logistica',
   standalone: true,
-  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, EppTablaComponent, SalidasComponent, IngresosTablaComponent, RetornosTablaComponent, IncidenciasTablaComponent, HistoricoLegacyComponent],
+  imports: [CommonModule, MaterialesTablaComponent, EquiposTablaComponent, EppTablaComponent, SalidasComponent, IngresosTablaComponent, RetornosTablaComponent, PrestamosTablaComponent, IncidenciasTablaComponent, HistoricoLegacyComponent],
   templateUrl: './logistica.component.html',
   styleUrls: ['./logistica.component.css']
 })
