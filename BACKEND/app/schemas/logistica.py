@@ -292,6 +292,7 @@ class RequerimientoItemOut(BaseModel):
     estadoItem:      str = "pendiente"
     agregadoPor:     Optional[str] = None
     tipo:            str = "material"  # material | herramienta | equipo
+    motivoRechazo:   Optional[str] = None  # solo cuando estadoItem == 'rechazado'
 
 
 class RequerimientoOut(BaseModel):
@@ -331,6 +332,8 @@ class AprobarItemDecision(BaseModel):
     detalleId:        str
     decision:         Literal["aprobar", "compra", "rechazar"]
     cantidadAprobada: Optional[int] = None   # si None → toma cantidad solicitada (o stock disponible)
+    motivoRechazo:    Optional[str] = None   # sin_tiempo_compra | no_disponible_catalogo | duplicado | otro
+    observacion:      Optional[str] = None   # nota libre por ítem (ej. detalle del rechazo)
 
 
 class AprobarBody(BaseModel):
@@ -340,7 +343,8 @@ class AprobarBody(BaseModel):
 
 
 class RechazarBody(BaseModel):
-    observacion: str
+    observacion:   str
+    motivoRechazo: Optional[str] = None   # sin_tiempo_compra | no_disponible_catalogo | duplicado | otro
 
 
 class EntregarBody(BaseModel):

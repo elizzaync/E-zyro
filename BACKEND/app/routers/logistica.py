@@ -23,6 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from ..core.security import verificar_token
 from ..core.permisos import es_tecnico, es_jefe_operaciones, exigir_no_roles_operativos, tiene_permiso
 from ..core.audit_context import get_audit_context
+from ..core.reposicion import calcular_cantidad_sugerida
 from ..db.database import get_db
 from ..services.firma_seguridad import registrar_firma, verificar_evento
 from ..services.fcm_service import enviar_push_a_usuario
@@ -1502,6 +1503,7 @@ def _req_out(db: Session, req: Requerimiento, empresa_id: str) -> RequerimientoO
             estadoItem=d.estado_item or "pendiente",
             agregadoPor=None,
             tipo=tipo,
+            motivoRechazo=getattr(d, "motivo_rechazo", None),
         ))
 
     # Entrega
@@ -1660,6 +1662,22 @@ def detalle_requerimiento(
     return _req_out(db, req, empresa_id)
 
 
+def _nombre_detalle(db: Session, d: RequerimientoDetalle) -> str:
+    """Nombre legible de un RequerimientoDetalle (material, equipo o ítem libre).
+    Usado para armar la notificación de ítems rechazados en aprobar_requerimiento()."""
+    if d.nombre_libre:
+        return d.nombre_libre
+    if d.material_id:
+        m = db.query(Material.nombre).filter(Material.id == d.material_id).first()
+        if m:
+            return m[0]
+    if d.equipo_id:
+        e = db.query(Equipo.nombre).filter(Equipo.id == d.equipo_id).first()
+        if e:
+            return e[0]
+    return "ítem"
+
+
 @router.post("/requerimientos/{req_id}/aprobar", response_model=RequerimientoOut)
 async def aprobar_requerimiento(
     req_id:  str,
@@ -1706,11 +1724,17 @@ async def aprobar_requerimiento(
     hay_aprobado = False
     for d in detalles:
         dec = decisiones.get(str(d.id))
-        # Por defecto: si está en stock se aprueba, si no, va a compra
+        # Por defecto: si queda por encima del mínimo tras descontar el pedido,
+        # se aprueba; si no (o rompería la reserva mínima), va a compra.
         if dec is None:
             es_externa = d.material_id is None
-            stock = 0 if es_externa else _stock_de_material(db, d.material_id, empresa_id)
-            decision = "aprobar" if (not es_externa and stock >= int(d.cantidad or 0)) else "compra"
+            if es_externa:
+                stock_total, stock_minimo = 0, 0
+            else:
+                stock_total, stock_minimo, _, _ = _stock_principal(db, d.material_id, empresa_id)
+            decision = ("aprobar"
+                        if (not es_externa and (stock_total - int(d.cantidad or 0)) >= stock_minimo)
+                        else "compra")
             cant_aprob = int(d.cantidad or 0)
         else:
             decision = dec.decision
@@ -1769,8 +1793,12 @@ async def aprobar_requerimiento(
         else:  # rechazar
             d.estado_item = "rechazado"
             d.cantidad_aprobada = 0
+            d.motivo_rechazo = dec.motivoRechazo if dec else None
+            if dec and dec.observacion:
+                d.observacion = dec.observacion
 
     hay_para_compra  = any(d.estado_item == "para_compra"  for d in detalles)
+    hay_rechazados   = any(d.estado_item == "rechazado"    for d in detalles)
     todos_rechazados = all(d.estado_item == "rechazado" for d in detalles)
     if todos_rechazados:
         req.estado = "rechazado"
@@ -1806,6 +1834,14 @@ async def aprobar_requerimiento(
         _msg = "Tu pedido fue aceptado. Los materiales están siendo adquiridos."
     else:
         _msg = "Tu pedido de materiales fue aprobado por Logística."
+
+    # Lote mixto (aprobado/compra + rechazado): listar los ítems rechazados en
+    # vez de dejar el mensaje genérico de arriba sin ese detalle.
+    if hay_rechazados and not todos_rechazados:
+        nombres_rechazados = [_nombre_detalle(db, d) for d in detalles if d.estado_item == "rechazado"]
+        if nombres_rechazados:
+            _msg += f" Se rechazó: {', '.join(nombres_rechazados)}. Revisa si puedes reemplazarlos."
+
     _notificar_solicitante(
         db, req, empresa_id,
         titulo="Requerimiento procesado",
@@ -1841,6 +1877,7 @@ def rechazar_requerimiento(
         RequerimientoDetalle.requerimiento_id == req.id
     ).all():
         d.estado_item = "rechazado"
+        d.motivo_rechazo = body.motivoRechazo
     db.commit()
 
     _notificar_solicitante(
@@ -2462,8 +2499,8 @@ def _crear_ticket_compra(
             # Faltante para cubrir el pedido
             faltante   = max(0, qty_solicitada - stock_total)
             # Reposición para dejar el stock por encima del mínimo en un 50 %
-            reposicion = int(stock_minimo * 1.5)
-            sugerida   = faltante + reposicion
+            # (fórmula compartida con prestamo.py::_crear_ticket_compra_faltante)
+            sugerida   = calcular_cantidad_sugerida(faltante, stock_minimo)
 
             # Si la sugerencia fuera 0 o negativa (edge case), usamos al menos
             # la cantidad solicitada para no generar un ticket inútil

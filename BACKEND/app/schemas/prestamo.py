@@ -16,7 +16,8 @@ class EquipoCatalogoOut(BaseModel):
     modelo:        Optional[str] = None
     almacen_nombre: Optional[str] = None
     cantidad_total: int                       # stock teórico (campo Equipo.cantidad)
-    cantidad_disponible: int                  # cantidad - prestados activos
+    cantidad_disponible: int                  # cantidad - prestados activos - stock_minimo
+    stock_minimo: int = 0                     # mínimo de reserva (equipo.atributos['stock_minimo'])
     requiere_mantenimiento: bool = False
 
 

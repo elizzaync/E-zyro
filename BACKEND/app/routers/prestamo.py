@@ -17,6 +17,7 @@ from sqlalchemy import func, or_, case
 from sqlalchemy.orm import Session
 
 from ..core.security import verificar_token
+from ..core.reposicion import calcular_cantidad_sugerida
 from ..db.database import get_db
 
 from ..models.prestamo import Prestamo, PrestamoItem
@@ -104,6 +105,20 @@ def _log_equipo(db: Session, empresa_id: str, equipo_id, tipo: str,
     ))
 
 
+def _stock_minimo_equipo(equipo: Equipo) -> int:
+    """Mínimo de reserva configurado para el equipo/herramienta (JSONB flexible
+    en equipo.atributos['stock_minimo'] — ver EquipoIn/EquipoOut.stockMinimo)."""
+    return int(equipo.atributos.get("stock_minimo", 0)) if equipo.atributos else 0
+
+
+def _disponible_equipo(equipo: Equipo, prestados_activos: int) -> int:
+    """Cantidad disponible para un nuevo préstamo: total - prestados activos -
+    mínimo de reserva. Centraliza la resta del mínimo para no duplicarla en
+    equipos_catalogo() y crear_prestamo()."""
+    total = int(equipo.cantidad or 0)
+    return max(0, total - prestados_activos - _stock_minimo_equipo(equipo))
+
+
 def _prestamos_activos_por_equipo(db: Session, empresa_id: str) -> dict[str, int]:
     """Suma de cantidades en préstamos NO cerrados (solicitado/por_recibir/entregado/devuelto),
     agrupado por equipo_id. Usado para calcular disponibilidad. 'por_recibir' ya está
@@ -152,6 +167,11 @@ def _crear_ticket_compra_faltante(
     `solicitante_id` permiten, al completar la compra, auto-generar el préstamo
     de las unidades compradas para el técnico. `prestamo_id` apunta al préstamo
     original (lo disponible) para fusionar en él al recibir la compra.
+
+    La cantidad de cada ítem del ticket usa la misma fórmula de sugerencia de
+    reposición que `logistica.py::_crear_ticket_compra` (faltante + 50% del
+    mínimo configurado en `equipo.atributos['stock_minimo']`), en vez de
+    comprar solo el faltante exacto.
     """
     # _siguiente_codigo_ticket vive en logistica; import local para evitar ciclo.
     from .logistica import _siguiente_codigo_ticket
@@ -179,6 +199,8 @@ def _crear_ticket_compra_faltante(
 
     for eq, faltante in faltantes:
         clase = eq.clase or "equipo"
+        stock_minimo = _stock_minimo_equipo(eq)
+        cantidad_sugerida = calcular_cantidad_sugerida(int(faltante), stock_minimo)
         db.add(TicketCompraItem(
             id=str(_uuid.uuid4()),
             ticket_id=tc.id,
@@ -186,9 +208,11 @@ def _crear_ticket_compra_faltante(
             material_id=None,
             equipo_id=str(eq.id),   # equipo EXISTENTE → al recibir reabastece (no crea nuevo)
             nombre=eq.nombre,
-            cantidad=int(faltante),
+            cantidad=cantidad_sugerida,
             unidad="Unidad",
             estado_item="pendiente",
+            cantidad_sugerida=cantidad_sugerida,
+            stock_minimo_al_aprobar=stock_minimo,
             tipo_item="herramienta" if clase == "herramienta" else "equipo",
         ))
     return str(tc.id)
@@ -331,7 +355,8 @@ def equipos_catalogo(
             modelo=r.Equipo.modelo,
             almacen_nombre=r.almacen_nombre,
             cantidad_total=int(r.Equipo.cantidad or 0),
-            cantidad_disponible=max(0, int(r.Equipo.cantidad or 0) - activos.get(r.Equipo.id, 0)),
+            cantidad_disponible=_disponible_equipo(r.Equipo, activos.get(r.Equipo.id, 0)),
+            stock_minimo=_stock_minimo_equipo(r.Equipo),
             requiere_mantenimiento=bool(r.Equipo.requiere_mantenimiento),
         )
         for r in rows
@@ -566,8 +591,9 @@ def crear_prestamo(
         if it.cantidad <= 0:
             raise HTTPException(status_code=422, detail="Cantidad debe ser > 0")
 
-        # Se presta lo disponible; el excedente se solicita a compra.
-        disponible = max(0, int(equipo.cantidad or 0) - activos.get(equipo.id, 0))
+        # Se presta lo disponible (respetando el mínimo de reserva); el
+        # excedente se solicita a compra.
+        disponible = _disponible_equipo(equipo, activos.get(equipo.id, 0))
         a_prestar  = min(int(it.cantidad), disponible)
         faltante   = int(it.cantidad) - a_prestar
 

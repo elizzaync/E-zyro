@@ -49,6 +49,9 @@ class RequerimientoDetalle(Base):
     cantidad          = Column(Integer, nullable=False)
     cantidad_aprobada = Column(Integer)
     observacion       = Column(String(255))
+    # Motivo categórico del rechazo (solo relevante cuando estado_item='rechazado')
+    #   sin_tiempo_compra | no_disponible_catalogo | duplicado | otro
+    motivo_rechazo    = Column(String(30), nullable=True)
     nombre_libre      = Column(String(255))   # nombre cuando material_id es None (compra externa)
     unidad_libre      = Column(String(50))
     especificacion    = Column(String(500))
