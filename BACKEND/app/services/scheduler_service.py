@@ -1047,6 +1047,77 @@ def _depreciacion_mensual_automatica():
         db.close()
 
 
+# ── Backups automáticos (módulo Gestión de TIC) ─────────────────────────────
+# Import perezoso dentro de cada job para evitar ciclos (backup_service importa
+# _usuarios_por_rol/_emitir de este módulo para notificar a Soporte).
+
+def _backup_bd_horario():
+    """Dump de BD cada hora — SILENCIOSO (solo historial, sin push). A las 23h
+    no corre: lo cubre el diario de 23:30 con retención GFS."""
+    from app.services import backup_service
+    if datetime.now().hour == 23:
+        return
+    db = SessionLocal()
+    try:
+        job = backup_service.crear_job(db, tipo="auto", nivel="bd_horario",
+                                       contenido="bd", disparado_por=None,
+                                       retencion="horario")
+    finally:
+        db.close()
+    backup_service.ejecutar_backup(job.id, notificar=False)
+
+
+def _backup_bd_diario():
+    """Backup diario de BD 23:30 — notifica a Soporte + envía el dump por
+    correo. Promoción GFS: domingo → semanal, día 1 → mensual."""
+    from app.services import backup_service
+    retencion, _dias = backup_service._retencion_de_hoy()
+    db = SessionLocal()
+    try:
+        job = backup_service.crear_job(db, tipo="auto", nivel="bd_diario",
+                                       contenido="bd", disparado_por=None,
+                                       retencion=retencion)
+    finally:
+        db.close()
+    backup_service.ejecutar_backup(job.id, notificar=True, enviar_correo=True)
+
+
+def _backup_archivos_incremental():
+    """Archivos nuevos de Cloudinary desde el último backup de archivos —
+    cada hora, silencioso; si no hay novedades el job queda sin artefacto."""
+    from app.services import backup_service
+    db = SessionLocal()
+    try:
+        desde = backup_service.ultimo_backup_archivos_ok(db)
+        job = backup_service.crear_job(db, tipo="auto", nivel="archivos_incremental",
+                                       contenido="pdfs,cloudinary", disparado_por=None,
+                                       retencion="diario")
+    finally:
+        db.close()
+    backup_service.ejecutar_backup(job.id, notificar=False,
+                                   incremental_desde=desde or datetime.utcnow() - timedelta(days=7))
+
+
+def _backup_archivos_full_semanal():
+    """Paquete COMPLETO de archivos Cloudinary (reconciliación incluida:
+    lista todo, no solo lo nuevo) — domingos 22:00, notifica a Soporte."""
+    from app.services import backup_service
+    db = SessionLocal()
+    try:
+        job = backup_service.crear_job(db, tipo="auto", nivel="archivos_full",
+                                       contenido="pdfs,cloudinary", disparado_por=None,
+                                       retencion="semanal")
+    finally:
+        db.close()
+    backup_service.ejecutar_backup(job.id, notificar=True, incremental_desde=None)
+
+
+def _rotacion_backups():
+    """Borra artefactos expirados según GFS (la fila de auditoría se conserva)."""
+    from app.services import backup_service
+    backup_service.aplicar_retencion()
+
+
 def iniciar_scheduler():
     """Registra las tareas y arranca el scheduler. Llamar desde main.py."""
     # Recordatorio diario a las 08:00 AM
@@ -1126,6 +1197,29 @@ def iniciar_scheduler():
         id="tipo_cambio_diario",
         replace_existing=True
     )
+    # ── Backups (Gestión de TIC) ──
+    # BD cada hora en punto (silencioso; se salta las 23h, cubierta por el diario)
+    scheduler.add_job(func=_backup_bd_horario, trigger=CronTrigger(minute=0),
+                      id="backup_bd_horario", replace_existing=True,
+                      misfire_grace_time=600, coalesce=True)
+    # BD diario consolidado 23:30 — notifica + correo (GFS: dom→semanal, día 1→mensual)
+    scheduler.add_job(func=_backup_bd_diario, trigger=CronTrigger(hour=23, minute=30),
+                      id="backup_bd_diario", replace_existing=True,
+                      misfire_grace_time=3600, coalesce=True)
+    # Archivos Cloudinary incremental — cada hora al minuto 20 (silencioso)
+    scheduler.add_job(func=_backup_archivos_incremental, trigger=CronTrigger(minute=20),
+                      id="backup_archivos_incremental", replace_existing=True,
+                      misfire_grace_time=600, coalesce=True)
+    # Archivos FULL + reconciliación — domingo 22:00 (notifica)
+    scheduler.add_job(func=_backup_archivos_full_semanal,
+                      trigger=CronTrigger(day_of_week="sun", hour=22, minute=0),
+                      id="backup_archivos_full", replace_existing=True,
+                      misfire_grace_time=7200, coalesce=True)
+    # Rotación GFS — diaria 03:00
+    scheduler.add_job(func=_rotacion_backups, trigger=CronTrigger(hour=3, minute=0),
+                      id="backup_rotacion", replace_existing=True,
+                      misfire_grace_time=3600, coalesce=True)
+
     scheduler.start()
     print("⏰ Scheduler iniciado → calendario 08:00 + mantenimiento 08:15 + "
           "vencimientos 08:30 + préstamos 08:45 + pre-horario cada 5 min (4-21h) + "
