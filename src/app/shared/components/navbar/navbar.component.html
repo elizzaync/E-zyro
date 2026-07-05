@@ -386,6 +386,21 @@
                     </div>
                 </a>
                 }
+                @if (isSoporte) {
+                <div class="nav-submenu-divider"></div>
+                <a routerLink="/soporte/backups" routerLinkActive="active" class="nav-subitem"
+                    (click)="soporteOpen = false; cerrarMobileNav()">
+                    <span class="nav-subitem-ic">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/>
+                        </svg>
+                    </span>
+                    <div class="nav-subitem-txt">
+                        <span class="nav-subitem-title">Backups</span>
+                        <span class="nav-subitem-desc">Respaldos de BD y archivos</span>
+                    </div>
+                </a>
+                }
                 <div class="nav-submenu-divider"></div>
                 <a routerLink="/soporte/cuentas" routerLinkActive="active" class="nav-subitem"
                     (click)="soporteOpen = false; cerrarMobileNav()">

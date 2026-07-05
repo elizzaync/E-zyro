@@ -1,0 +1,166 @@
+<div class="bk-layout fade-in">
+
+  <!-- ═══════ CABECERA ═══════ -->
+  <header class="bk-header">
+    <div class="bk-header-main">
+      <div class="bk-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="bk-title">Backups del Sistema</h1>
+        <p class="bk-subtitle">Base de datos + PDFs + archivos Cloudinary · descarga la copia y guárdala en tu disco de respaldos</p>
+      </div>
+    </div>
+    <button class="bk-btn-config" (click)="configAbierta = !configAbierta">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      Configuración vigente
+    </button>
+  </header>
+
+  <!-- ═══════ CONFIGURACIÓN (colapsable) ═══════ -->
+  @if (configAbierta && config) {
+  <section class="bk-config-card">
+    <h3 class="bk-config-title">Frecuencia y retención automática</h3>
+    <ul class="bk-config-list">
+      @for (item of config.config | keyvalue; track item.key) {
+        <li><strong>{{ item.key }}:</strong> {{ item.value }}</li>
+      }
+    </ul>
+    <p class="bk-config-dir">Directorio de artefactos en el servidor: <code>{{ config.backupDir }}</code></p>
+    <p class="bk-config-nota">Los backups automáticos también quedan en este historial. El dump diario se envía por correo a Soporte; la copia de largo plazo es la que descargas aquí y guardas en tu disco externo.</p>
+  </section>
+  }
+
+  <!-- ═══════ GENERAR MANUAL ═══════ -->
+  <section class="bk-generar-card">
+    <div class="bk-generar-left">
+      <h3>Generar backup ahora</h3>
+      <div class="bk-alcance">
+        <label class="bk-radio">
+          <input type="radio" name="alcance" value="bd" [(ngModel)]="alcance" [disabled]="generando">
+          <span><strong>Solo base de datos</strong> · rápido (~segundos), dump completo restaurable</span>
+        </label>
+        <label class="bk-radio">
+          <input type="radio" name="alcance" value="completo" [(ngModel)]="alcance" [disabled]="generando">
+          <span><strong>Completo</strong> · BD + todos los PDFs y archivos de Cloudinary (puede tardar varios minutos)</span>
+        </label>
+      </div>
+    </div>
+    <div class="bk-generar-right">
+      @if (jobEnProceso) {
+        <div class="bk-proceso">
+          <app-spinner [size]="18"></app-spinner>
+          <span>{{ jobEnProceso.estado === 'pendiente' ? 'En cola…' : 'Generando backup…' }}</span>
+        </div>
+      } @else {
+        <button class="bk-btn-generar" (click)="generarBackup()" [disabled]="generando">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="16" height="16">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+          </svg>
+          Generar backup ahora
+        </button>
+      }
+    </div>
+  </section>
+
+  <!-- ═══════ HISTORIAL ═══════ -->
+  <section class="bk-tabla-seccion">
+    <div class="bk-filtros">
+      <select class="bk-select" [(ngModel)]="filtroEstado" (change)="filtrar()">
+        <option value="todos">Todos los estados</option>
+        <option value="completado">Completados</option>
+        <option value="fallido">Fallidos</option>
+        <option value="en_proceso">En proceso</option>
+      </select>
+      <span class="bk-total"><strong>{{ total }}</strong> backups registrados</span>
+    </div>
+
+    @if (cargando) {
+      <div class="bk-loading"><app-spinner [size]="28"></app-spinner></div>
+    } @else if (backups.length === 0) {
+      <div class="bk-empty">
+        <p>Sin backups registrados aún.</p>
+        <span>Los automáticos aparecerán aquí cada hora; también puedes generar uno manual arriba.</span>
+      </div>
+    } @else {
+      <div class="bk-table-wrap">
+        <table class="bk-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Nivel</th>
+              <th>Contenido</th>
+              <th>Origen</th>
+              <th>Tamaño</th>
+              <th>Duración</th>
+              <th>Estado</th>
+              <th>Integridad</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (b of backups; track b.id) {
+              <tr class="bk-row" [class.bk-row-fail]="b.estado === 'fallido'">
+                <td class="td-fecha">{{ fmtFecha(b.fechaInicio) }}</td>
+                <td><span class="bk-nivel">{{ nivelLabel(b.nivel) }}</span></td>
+                <td class="td-contenido">{{ contenidoLabel(b.contenido) }}</td>
+                <td class="td-origen">
+                  <span class="bk-origen bk-origen-{{ b.tipo }}">{{ b.tipo === 'auto' ? 'Automático' : 'Manual' }}</span>
+                  @if (b.disparadoPorNombre && b.tipo === 'manual') {
+                    <div class="bk-origen-nombre">{{ b.disparadoPorNombre }}</div>
+                  }
+                </td>
+                <td class="td-tamano">{{ fmtBytes(b.tamanoBytes) }}</td>
+                <td class="td-dur">{{ b.duracionSegundos != null ? (b.duracionSegundos + ' s') : '—' }}</td>
+                <td>
+                  <span class="bk-estado bk-est-{{ b.estado }}" [title]="b.errorDetalle ?? ''">{{ estadoLabel(b.estado) }}</span>
+                </td>
+                <td class="td-hash">
+                  @if (b.hashSha256) {
+                    <button class="bk-btn-hash" (click)="copiarHash(b)" [title]="'SHA-256: ' + b.hashSha256">
+                      {{ b.hashSha256.slice(0, 10) }}… ⧉
+                    </button>
+                  } @else { <span class="bk-muted">—</span> }
+                </td>
+                <td class="td-accion">
+                  @if (b.descargable) {
+                    <button class="bk-btn-descargar" (click)="descargar(b)" [disabled]="descargandoId !== null">
+                      @if (descargandoId === b.id) {
+                        <app-spinner [size]="13" theme="light"></app-spinner>
+                      } @else {
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="13" height="13">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                        </svg>
+                      }
+                      Descargar
+                    </button>
+                  } @else if (b.estado === 'fallido') {
+                    <span class="bk-muted" [title]="b.errorDetalle ?? ''">Error</span>
+                  } @else if (b.estado === 'completado') {
+                    <span class="bk-muted" title="Incremental sin novedades o artefacto expirado">—</span>
+                  } @else {
+                    <span class="bk-muted">…</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPaginas > 1) {
+        <div class="bk-paginacion">
+          <button class="bk-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
+          <span class="bk-pg-info">{{ page }} / {{ totalPaginas }}</span>
+          <button class="bk-pg-btn" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">›</button>
+        </div>
+      }
+    }
+  </section>
+
+</div>

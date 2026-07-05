@@ -229,4 +229,60 @@ export class SoporteService {
     if (params?.page_size != null) p = p.set('page_size', params.page_size.toString());
     return this.http.get<AuditoriaDto[]>(`${this.base}/auditoria`, { params: p });
   }
+
+  // ── Backups (Gestión de TIC) — backend router /backups ──────────────────
+
+  getBackups(estado = 'todos', page = 1, pageSize = 20): Observable<BackupsListDto> {
+    const p = new HttpParams().set('estado', estado).set('page', page).set('page_size', pageSize);
+    return this.http.get<BackupsListDto>(`${this.base}/backups`, { params: p });
+  }
+
+  getBackup(id: string): Observable<BackupJobDto> {
+    return this.http.get<BackupJobDto>(`${this.base}/backups/${id}`);
+  }
+
+  crearBackup(alcance: 'bd' | 'completo'): Observable<BackupJobDto> {
+    return this.http.post<BackupJobDto>(`${this.base}/backups`, { alcance });
+  }
+
+  getBackupConfig(): Observable<BackupConfigDto> {
+    return this.http.get<BackupConfigDto>(`${this.base}/backups/config`);
+  }
+
+  descargarBackup(id: string): Observable<Blob> {
+    return this.http.get(`${this.base}/backups/${id}/descargar`, { responseType: 'blob' });
+  }
+}
+
+// ── DTOs de Backups ──────────────────────────────────────────────────────────
+
+export interface BackupJobDto {
+  id: string;
+  tipo: 'auto' | 'manual';
+  nivel: string;
+  disparadoPorNombre: string | null;
+  fechaInicio: string;
+  fechaFin: string | null;
+  estado: 'pendiente' | 'en_proceso' | 'completado' | 'fallido';
+  contenido: string;               // csv: bd,pdfs,cloudinary
+  tamanoBytes: number | null;
+  hashSha256: string | null;
+  errorDetalle: string | null;
+  retencion: string | null;
+  expiraEn: string | null;
+  descargable: boolean;
+  duracionSegundos: number | null;
+}
+
+export interface BackupsListDto {
+  items: BackupJobDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface BackupConfigDto {
+  config: Record<string, string>;
+  backupDir: string;
+  retencionDias: Record<string, number>;
 }

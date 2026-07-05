@@ -38,6 +38,7 @@ import { MonitoreoComponent } from './features/soporte/components/monitoreo/moni
 import { SeguridadComponent } from './features/soporte/components/seguridad/seguridad.component';
 import { CrearCuentasComponent } from './features/soporte/components/crear-cuentas/crear-cuentas.component';
 import { GestionPermisosComponent } from './features/soporte/components/gestion-permisos/gestion-permisos.component';
+import { BackupsComponent } from './features/soporte/components/backups/backups.component';
 import { AdministracionComponent } from './features/administracion/administracion.component';
 import { ContabilidadComponent } from './features/administracion/components/contabilidad/contabilidad.component';
 import { CxcComponent } from './features/administracion/components/cxc/cxc.component';
@@ -317,6 +318,15 @@ export const routes: Routes = [
     component: GestionPermisosComponent,
     title: 'Gestión de Permisos | e-zyro TIC',
     canActivate: [authGuard, bloquearRolesGuard(['Administración', 'Admin'])]
+  },
+  {
+    // Lista BLANCA (no negra como el resto de Gestión TIC): los backups
+    // contienen la BD completa — solo Soporte/TI deben ver esta pantalla.
+    // El backend refuerza con 403 en /backups para cualquier otro rol.
+    path: 'soporte/backups',
+    component: BackupsComponent,
+    title: 'Backups | e-zyro TIC',
+    canActivate: [authGuard, rolesGuard(['Soporte', 'TI'])]
   },
 
   // ── Módulo Administración ────────────────────────────────────────────────
