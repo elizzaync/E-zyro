@@ -39,6 +39,30 @@ Q2 = Decimal("0.01")
 COD_DESC_FALTA    = "DESC_FALTA"
 COD_DESC_TARDANZA = "DESC_TARDANZA"
 
+# Código del concepto que representa el Sueldo Base (es_base=true). El monto
+# por empleado vive en EmpleadoConcepto — ver PUT /planilla/empleados/{id}/sueldo-base.
+COD_SUELDO_BASE = "SUELDO_BASE"
+
+# Catálogo estándar del motor de cálculo legal (Fase 8). Cada tupla:
+# (codigo, nombre, tipo, es_base). Se siembra una sola vez por empresa
+# (idempotente por UniqueConstraint(empresa_id, codigo)) — el motor de
+# cálculo (planilla_calculo_service, Fase 2) escribe sus BoletaPagoDetalle
+# usando estos códigos.
+CATALOGO_ESTANDAR: list[tuple[str, str, str, bool]] = [
+    (COD_SUELDO_BASE,   "Remuneración Básica",                   "ingreso",          True),
+    ("HRS_EXTRA",       "Trabajo en Sobretiempo",                 "ingreso",          False),
+    ("ASIG_FAMILIAR",   "Asignación Familiar",                    "ingreso",          False),
+    (COD_DESC_FALTA,    "Descuento por falta",                    "descuento",        False),
+    ("DESC_DOMINICAL",  "Descuento dominical (D.S. 001-96-TR)",   "descuento",        False),
+    (COD_DESC_TARDANZA, "Descuento por tardanza",                 "descuento",        False),
+    ("PENSION_ONP",     "Aporte ONP (13%)",                        "descuento",        False),
+    ("AFP_APORTE",      "AFP - Aporte Obligatorio",                "descuento",        False),
+    ("AFP_PRIMA",       "AFP - Prima de Seguro",                   "descuento",        False),
+    ("AFP_COMISION",    "AFP - Comisión",                          "descuento",        False),
+    ("RENTA_5TA",       "Retención Renta de 5ta Categoría",        "descuento",        False),
+    ("ESSALUD",         "Aporte EsSalud (empleador)",              "aporte_empleador", False),
+]
+
 
 def _get_or_create_descuento(db: Session, empresa_id: str, codigo: str, nombre: str) -> ConceptoRemunerativo:
     """Concepto de descuento (tipo='descuento') sin monto fijo; el importe lo
@@ -57,6 +81,45 @@ def _get_or_create_descuento(db: Session, empresa_id: str, codigo: str, nombre: 
         db.add(c)
         db.flush()
     return c
+
+
+def _get_or_create_concepto(
+    db: Session, empresa_id: str, codigo: str, nombre: str, tipo: str, *, es_base: bool = False,
+) -> ConceptoRemunerativo:
+    """Como `_get_or_create_descuento` pero genérico (cualquier tipo, con
+    es_base) — usado por `asegurar_catalogo_estandar` y por el endpoint de
+    Sueldo Base. Idempotente por (empresa_id, codigo). No modifica un
+    concepto ya existente (si la empresa lo editó — p. ej. renombró — se
+    respeta su versión)."""
+    c = (
+        db.query(ConceptoRemunerativo)
+        .filter(ConceptoRemunerativo.empresa_id == empresa_id,
+                ConceptoRemunerativo.codigo == codigo)
+        .first()
+    )
+    if c is None:
+        c = ConceptoRemunerativo(
+            empresa_id=empresa_id, codigo=codigo, nombre=nombre, tipo=tipo,
+            monto_referencial=None, activo="true",
+            es_base="true" if es_base else "false",
+        )
+        db.add(c)
+        db.flush()
+    return c
+
+
+def asegurar_catalogo_estandar(db: Session, empresa_id: str) -> list[ConceptoRemunerativo]:
+    """Siembra el catálogo estándar de conceptos legales (Sueldo Base, Horas
+    Extra, Asignación Familiar, descuentos por asistencia, ONP/AFP
+    desglosado, Renta 5ta, EsSalud) para la empresa, si aún no existen.
+    Idempotente — puede llamarse tantas veces como se quiera."""
+    creados = []
+    for codigo, nombre, tipo, es_base in CATALOGO_ESTANDAR:
+        creados.append(_get_or_create_concepto(db, empresa_id, codigo, nombre, tipo, es_base=es_base))
+    db.commit()
+    for c in creados:
+        db.refresh(c)
+    return creados
 
 CTA_GASTO_REMUN   = "621"   # Remuneraciones
 CTA_GASTO_APORTES = "627"   # Seguridad, previsión social y otras contribuciones

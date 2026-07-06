@@ -57,6 +57,12 @@ class Planilla(Base):
     total_descuentos     = Column(Numeric(14, 2), nullable=False, default=0)
     total_aportes        = Column(Numeric(14, 2), nullable=False, default=0)
     total_neto           = Column(Numeric(14, 2), nullable=False, default=0)
+    # Informativos (Fase 8): provisión mensualizada de CTS/Gratificación/
+    # Vacaciones. NO suman a total_ingresos/neto ni a los asientos contables —
+    # se pagan en su fecha legal real (CTS mayo/nov, gratificación jul/dic).
+    total_cts            = Column(Numeric(14, 2), nullable=False, default=0)
+    total_gratificacion  = Column(Numeric(14, 2), nullable=False, default=0)
+    total_vacaciones     = Column(Numeric(14, 2), nullable=False, default=0)
     asiento_provision_id = Column(String(36), ForeignKey("asiento_contable.id"), nullable=True)
     asiento_pago_id      = Column(String(36), ForeignKey("asiento_contable.id"), nullable=True)
     aprobado_por_id      = Column(String(36), ForeignKey("empleado.id"), nullable=True)
@@ -78,6 +84,10 @@ class BoletaPago(Base):
     total_descuentos = Column(Numeric(14, 2), nullable=False, default=0)
     total_aportes    = Column(Numeric(14, 2), nullable=False, default=0)
     total_neto       = Column(Numeric(14, 2), nullable=False, default=0)
+    # Informativos (Fase 8): ver comentario equivalente en Planilla.
+    total_cts           = Column(Numeric(14, 2), nullable=False, default=0)
+    total_gratificacion = Column(Numeric(14, 2), nullable=False, default=0)
+    total_vacaciones    = Column(Numeric(14, 2), nullable=False, default=0)
     pdf_url          = Column(Text, nullable=True)
     created_at       = Column(DateTime, nullable=False, default=datetime.utcnow)
 

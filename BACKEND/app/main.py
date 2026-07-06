@@ -181,6 +181,7 @@ from app.models import (  # noqa: F401
     activos_fijos,
     # Fase 8 — Nómina / Planilla
     planilla as planilla_model,
+    empleado_planilla_config,
     # Fase 10 — Bus de eventos contables (mapeos + historial)
     eventos_contables,
     # Fase 11 — Configuración contable (cuentas del cierre de ejercicio)

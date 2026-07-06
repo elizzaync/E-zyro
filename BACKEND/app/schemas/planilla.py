@@ -52,12 +52,89 @@ class BoletaDetalleUpdate(BaseModel):
     monto: Decimal
 
 
+TIPOS_REGIMEN_LABORAL = {"micro", "pequena", "general"}
+TIPOS_ESQUEMA_PAGO = {"mensual", "quincenal"}
+
+
 class ConfigPlanillaOut(BaseModel):
     descuento_tardanza_auto: bool
+    regimen_laboral: str
+    esquema_pago_planilla: str
 
 
 class ConfigPlanillaUpdate(BaseModel):
-    descuento_tardanza_auto: bool
+    descuento_tardanza_auto: Optional[bool] = None
+    regimen_laboral: Optional[str] = None
+    esquema_pago_planilla: Optional[str] = None
+
+    @field_validator("regimen_laboral")
+    @classmethod
+    def _regimen(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in TIPOS_REGIMEN_LABORAL:
+            raise ValueError(f"regimen_laboral debe ser uno de {sorted(TIPOS_REGIMEN_LABORAL)}")
+        return v
+
+    @field_validator("esquema_pago_planilla")
+    @classmethod
+    def _esquema(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in TIPOS_ESQUEMA_PAGO:
+            raise ValueError(f"esquema_pago_planilla debe ser uno de {sorted(TIPOS_ESQUEMA_PAGO)}")
+        return v
+
+
+# ── Configuración previsional por empleado (Fase 8) ───────────────────────────
+TIPOS_SISTEMA_PENSION = {"onp", "afp"}
+TIPOS_ENTIDAD_AFP = {"integra", "prima", "profuturo", "habitat"}
+
+
+class PensionConfigOut(BaseModel):
+    empleado_id: str
+    sistema_pension: str
+    entidad_afp: Optional[str] = None
+    comision_afp_personalizada: Optional[Decimal] = None
+    tiene_asignacion_familiar: bool
+
+
+class PensionConfigUpdate(BaseModel):
+    """Actualización parcial (PATCH semántico): solo los campos presentes
+    en el body se modifican. comision_afp_personalizada=None restablece
+    la comisión oficial de la AFP (ver AFP_COMISIONES)."""
+    sistema_pension: Optional[str] = None
+    entidad_afp: Optional[str] = None
+    comision_afp_personalizada: Optional[Decimal] = None
+    tiene_asignacion_familiar: Optional[bool] = None
+
+    @field_validator("sistema_pension")
+    @classmethod
+    def _sistema(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in TIPOS_SISTEMA_PENSION:
+            raise ValueError(f"sistema_pension debe ser uno de {sorted(TIPOS_SISTEMA_PENSION)}")
+        return v
+
+    @field_validator("entidad_afp")
+    @classmethod
+    def _entidad(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in TIPOS_ENTIDAD_AFP:
+            raise ValueError(f"entidad_afp debe ser uno de {sorted(TIPOS_ENTIDAD_AFP)}")
+        return v
+
+    @field_validator("comision_afp_personalizada")
+    @classmethod
+    def _comision(cls, v: Optional[Decimal]) -> Optional[Decimal]:
+        if v is not None and (v < 0 or v > Decimal("0.5")):
+            raise ValueError("comision_afp_personalizada debe estar entre 0 y 0.5 (50%)")
+        return v
+
+
+class SueldoBaseUpdate(BaseModel):
+    monto: Decimal
+
+    @field_validator("monto")
+    @classmethod
+    def _monto(cls, v: Decimal) -> Decimal:
+        if v < 0:
+            raise ValueError("monto no puede ser negativo")
+        return v
 
 
 class PlanillaOut(BaseModel):
@@ -97,6 +174,12 @@ class EmpleadoPlanillaOut(BaseModel):
     id: str
     nombre: Optional[str] = None
     cargo: Optional[str] = None
+    # Configuración previsional vigente (Fase 8) — de empleado_planilla_config,
+    # con los defaults de código si el empleado no tiene fila propia todavía.
+    sistema_pension: str = "onp"
+    entidad_afp: Optional[str] = None
+    comision_afp_personalizada: Optional[Decimal] = None
+    tiene_asignacion_familiar: bool = False
 
 
 class AsignacionOut(BaseModel):

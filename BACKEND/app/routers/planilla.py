@@ -22,10 +22,12 @@ from ..models.contabilidad import PeriodoContable
 from ..models.planilla import (
     ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle, EmpleadoConcepto,
 )
+from ..models.empleado_planilla_config import EmpleadoPlanillaConfig
 from ..schemas.planilla import (
     ConceptoCreate, ConceptoUpdate, ConceptoOut, PlanillaOut, BoletaOut, BoletaDetalleOut,
     EmpleadoPlanillaOut, AsignacionOut, AsignacionItem,
     BoletaDetalleUpdate, ConfigPlanillaOut, ConfigPlanillaUpdate, ModalidadUpdate,
+    PensionConfigOut, PensionConfigUpdate, SueldoBaseUpdate,
 )
 from ..services import planilla_service as planilla_svc
 
@@ -149,7 +151,10 @@ def obtener_config(
     exigir_permiso(db, payload, "planilla", "ver")
     emp = db.query(Empresa).filter(Empresa.id == payload["empresa_id"]).first()
     return ConfigPlanillaOut(
-        descuento_tardanza_auto=bool(getattr(emp, "descuento_tardanza_auto", True)) if emp else True)
+        descuento_tardanza_auto=bool(getattr(emp, "descuento_tardanza_auto", True)) if emp else True,
+        regimen_laboral=getattr(emp, "regimen_laboral", None) or "micro",
+        esquema_pago_planilla=getattr(emp, "esquema_pago_planilla", None) or "quincenal",
+    )
 
 
 @router.patch("/config", response_model=ConfigPlanillaOut)
@@ -157,13 +162,25 @@ def actualizar_config(
     body: ConfigPlanillaUpdate,
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
+    """Actualización parcial (PATCH semántico): solo los campos presentes
+    en el body se modifican."""
     exigir_permiso(db, payload, "planilla", "calcular")
     emp = db.query(Empresa).filter(Empresa.id == payload["empresa_id"]).first()
     if emp is None:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
-    emp.descuento_tardanza_auto = bool(body.descuento_tardanza_auto)
+    if body.descuento_tardanza_auto is not None:
+        emp.descuento_tardanza_auto = bool(body.descuento_tardanza_auto)
+    if body.regimen_laboral is not None:
+        emp.regimen_laboral = body.regimen_laboral
+    if body.esquema_pago_planilla is not None:
+        emp.esquema_pago_planilla = body.esquema_pago_planilla
     db.commit()
-    return ConfigPlanillaOut(descuento_tardanza_auto=bool(emp.descuento_tardanza_auto))
+    db.refresh(emp)
+    return ConfigPlanillaOut(
+        descuento_tardanza_auto=bool(emp.descuento_tardanza_auto),
+        regimen_laboral=emp.regimen_laboral,
+        esquema_pago_planilla=emp.esquema_pago_planilla,
+    )
 
 
 # ── Planilla ─────────────────────────────────────────────────────────────────
@@ -215,11 +232,112 @@ def listar_empleados_planilla(
         .order_by(Usuario.nombre)
         .all()
     )
-    return [EmpleadoPlanillaOut(
-        id=str(e.id),
-        nombre=(f"{u.nombre} {u.apellido}".strip() if u else None),
-        cargo=e.cargo,
-    ) for e, u in rows]
+    config_por_emp = {
+        str(c.empleado_id): c
+        for c in db.query(EmpleadoPlanillaConfig).filter(
+            EmpleadoPlanillaConfig.empresa_id == empresa_id).all()
+    }
+    salida = []
+    for e, u in rows:
+        cfg = config_por_emp.get(str(e.id))
+        salida.append(EmpleadoPlanillaOut(
+            id=str(e.id),
+            nombre=(f"{u.nombre} {u.apellido}".strip() if u else None),
+            cargo=e.cargo,
+            sistema_pension=(cfg.sistema_pension if cfg else "onp"),
+            entidad_afp=(cfg.entidad_afp if cfg else None),
+            comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
+            tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+        ))
+    return salida
+
+
+@router.patch("/empleados/{empleado_id}/pension", response_model=PensionConfigOut)
+def actualizar_pension_empleado(
+    empleado_id: str,
+    body: PensionConfigUpdate,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Actualización parcial (PATCH semántico) de la configuración previsional
+    del empleado: sistema de pensión (ONP/AFP), entidad AFP, comisión
+    personalizada y asignación familiar. Upsert en empleado_planilla_config."""
+    exigir_permiso(db, payload, "planilla", "calcular")
+    empresa_id = payload["empresa_id"]
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado.")
+
+    cfg = db.query(EmpleadoPlanillaConfig).filter(
+        EmpleadoPlanillaConfig.empleado_id == empleado_id).first()
+    if cfg is None:
+        cfg = EmpleadoPlanillaConfig(empresa_id=empresa_id, empleado_id=empleado_id)
+        db.add(cfg)
+
+    if body.sistema_pension is not None:
+        cfg.sistema_pension = body.sistema_pension
+    if "entidad_afp" in body.model_fields_set:
+        cfg.entidad_afp = body.entidad_afp
+    if "comision_afp_personalizada" in body.model_fields_set:
+        cfg.comision_afp_personalizada = body.comision_afp_personalizada
+    if body.tiene_asignacion_familiar is not None:
+        cfg.tiene_asignacion_familiar = body.tiene_asignacion_familiar
+
+    db.commit()
+    db.refresh(cfg)
+    return PensionConfigOut(
+        empleado_id=str(cfg.empleado_id), sistema_pension=cfg.sistema_pension,
+        entidad_afp=cfg.entidad_afp, comision_afp_personalizada=cfg.comision_afp_personalizada,
+        tiene_asignacion_familiar=bool(cfg.tiene_asignacion_familiar),
+    )
+
+
+@router.put("/empleados/{empleado_id}/sueldo-base")
+def actualizar_sueldo_base(
+    empleado_id: str,
+    body: SueldoBaseUpdate,
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Guarda el sueldo base real del empleado (reemplaza el antiguo
+    localStorage del frontend). Wrapper delgado sobre el mismo mecanismo de
+    `guardar_asignaciones`: resuelve/crea el concepto SUELDO_BASE (es_base) y
+    hace upsert del monto en EmpleadoConcepto."""
+    exigir_permiso(db, payload, "planilla", "calcular")
+    empresa_id = payload["empresa_id"]
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado.")
+
+    concepto = planilla_svc._get_or_create_concepto(
+        db, empresa_id, planilla_svc.COD_SUELDO_BASE, "Remuneración Básica",
+        "ingreso", es_base=True,
+    )
+    existe = db.query(EmpleadoConcepto).filter(
+        EmpleadoConcepto.empleado_id == empleado_id,
+        EmpleadoConcepto.concepto_id == concepto.id).first()
+    if existe:
+        existe.monto = body.monto
+    else:
+        db.add(EmpleadoConcepto(
+            empresa_id=empresa_id, empleado_id=empleado_id,
+            concepto_id=concepto.id, monto=body.monto))
+    db.commit()
+    return {"empleado_id": empleado_id, "sueldo_base": str(body.monto)}
+
+
+@router.post("/conceptos/inicializar-estandar", response_model=List[ConceptoOut])
+def inicializar_catalogo_estandar(
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    """Siembra el catálogo estándar de conceptos legales (Sueldo Base, Horas
+    Extra, Asignación Familiar, ONP/AFP desglosado, Renta 5ta, EsSalud, etc.)
+    para la empresa, si aún no existen. Idempotente."""
+    exigir_permiso(db, payload, "planilla", "calcular")
+    conceptos = planilla_svc.asegurar_catalogo_estandar(db, payload["empresa_id"])
+    return [ConceptoOut(id=str(c.id), codigo=c.codigo, nombre=c.nombre, tipo=c.tipo,
+                        monto_referencial=c.monto_referencial, activo=(c.activo == "true"),
+                        es_base=(c.es_base == "true")) for c in conceptos]
 
 
 @router.put("/empleados/{empleado_id}/modalidad")
