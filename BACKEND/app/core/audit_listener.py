@@ -65,6 +65,8 @@ _MODULO: dict[str, str] = {
     "comunicado":            "COMUNICADOS",
     "evaluacion":            "EVALUACIONES",
     "informe_tecnico":       "OPERACIONES",
+    "backup_job":            "BACKUPS",
+    "backup_config":         "BACKUPS",
 }
 
 
@@ -111,10 +113,21 @@ def _estado_anterior(obj: Any) -> dict[str, Any]:
 # ── Micro-helpers ─────────────────────────────────────────────────────────────
 
 def _pk(obj: Any) -> str | None:
-    """Extrae el valor de la PK como string (asume PK simple)."""
+    """Extrae el valor de la PK como string (asume PK simple).
+
+    La columna auditoria.registro_id es de tipo uuid en PostgreSQL: si la PK
+    no es un UUID válido (p. ej. backup_config usa id=1), devolvemos None —
+    de lo contrario el INSERT de auditoría revienta en el flush y tumba la
+    transacción de negocio completa. El id real queda igual dentro del JSON
+    datos_anteriores/datos_nuevos."""
     for pk in sa_inspect(type(obj)).primary_key:
         val = getattr(obj, pk.key, None)
-        return str(val) if val is not None else None
+        if val is None:
+            return None
+        try:
+            return str(uuid.UUID(str(val)))
+        except (ValueError, AttributeError, TypeError):
+            return None
     return None
 
 
