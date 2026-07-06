@@ -234,12 +234,17 @@ class PlanillaPreviewOut(BaseModel):
 class PlanillaOut(BaseModel):
     id: str
     periodo_id: str
+    anio: Optional[int] = None
+    mes: Optional[int] = None
     fecha_proceso: date
     estado: str
     total_ingresos: Decimal
     total_descuentos: Decimal
     total_aportes: Decimal
     total_neto: Decimal
+    total_cts: Decimal = Decimal(0)
+    total_gratificacion: Decimal = Decimal(0)
+    total_vacaciones: Decimal = Decimal(0)
     asiento_provision_id: Optional[str] = None
     asiento_pago_id: Optional[str] = None
 

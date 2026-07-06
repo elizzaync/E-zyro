@@ -66,11 +66,15 @@ def info_empresa(
     }
 
 
-def _planilla_out(p: Planilla) -> PlanillaOut:
+def _planilla_out(p: Planilla, db: Session) -> PlanillaOut:
+    periodo = db.query(PeriodoContable).filter(PeriodoContable.id == p.periodo_id).first()
     return PlanillaOut(
-        id=str(p.id), periodo_id=str(p.periodo_id), fecha_proceso=p.fecha_proceso,
+        id=str(p.id), periodo_id=str(p.periodo_id),
+        anio=(periodo.anio if periodo else None), mes=(periodo.mes if periodo else None),
+        fecha_proceso=p.fecha_proceso,
         estado=p.estado, total_ingresos=p.total_ingresos, total_descuentos=p.total_descuentos,
         total_aportes=p.total_aportes, total_neto=p.total_neto,
+        total_cts=p.total_cts, total_gratificacion=p.total_gratificacion, total_vacaciones=p.total_vacaciones,
         asiento_provision_id=(str(p.asiento_provision_id) if p.asiento_provision_id else None),
         asiento_pago_id=(str(p.asiento_pago_id) if p.asiento_pago_id else None),
     )
@@ -348,11 +352,25 @@ def _dias_laborables_rango(inicio: date, fin: date) -> list[date]:
 # ── Planilla ─────────────────────────────────────────────────────────────────
 @router.get("", response_model=List[PlanillaOut])
 def listar_planillas(
+    periodo: Optional[str] = Query(None, description="Filtro opcional YYYY-MM"),
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     exigir_permiso(db, payload, "planilla", "ver")
-    filas = db.query(Planilla).filter(Planilla.empresa_id == payload["empresa_id"]).order_by(Planilla.created_at.desc()).all()
-    return [_planilla_out(p) for p in filas]
+    empresa_id = payload["empresa_id"]
+    q = db.query(Planilla).filter(Planilla.empresa_id == empresa_id)
+    if periodo:
+        try:
+            anio, mes = (int(x) for x in periodo.split("-"))
+        except Exception:
+            raise HTTPException(status_code=422, detail="periodo inválido; use 'YYYY-MM'.")
+        p = db.query(PeriodoContable).filter(
+            PeriodoContable.empresa_id == empresa_id, PeriodoContable.anio == anio,
+            PeriodoContable.mes == mes).first()
+        if not p:
+            return []  # el período no existe todavía -> ninguna planilla puede existir para él
+        q = q.filter(Planilla.periodo_id == p.id)
+    filas = q.order_by(Planilla.created_at.desc()).all()
+    return [_planilla_out(p, db) for p in filas]
 
 
 def _periodo(db: Session, empresa_id: str, periodo: str) -> PeriodoContable:
@@ -382,7 +400,7 @@ def calcular(
 ):
     exigir_permiso(db, payload, "planilla", "calcular")
     p = _periodo(db, payload["empresa_id"], periodo)
-    return _planilla_out(planilla_svc.calcular_planilla(db, payload["empresa_id"], p.id))
+    return _planilla_out(planilla_svc.calcular_planilla(db, payload["empresa_id"], p.id), db)
 
 
 # ── Sueldos por empleado (asignación de montos por concepto) ──────────────────
@@ -590,7 +608,7 @@ def obtener(
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     exigir_permiso(db, payload, "planilla", "ver")
-    return _planilla_out(planilla_svc.get_planilla(db, payload["empresa_id"], planilla_id))
+    return _planilla_out(planilla_svc.get_planilla(db, payload["empresa_id"], planilla_id), db)
 
 
 @router.post("/{planilla_id}/aprobar", response_model=PlanillaOut)
@@ -599,7 +617,7 @@ def aprobar(
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     exigir_permiso(db, payload, "planilla", "aprobar")
-    return _planilla_out(planilla_svc.aprobar_planilla(db, payload["empresa_id"], planilla_id, _empleado_id(db, payload)))
+    return _planilla_out(planilla_svc.aprobar_planilla(db, payload["empresa_id"], planilla_id, _empleado_id(db, payload)), db)
 
 
 @router.post("/{planilla_id}/marcar-pagada", response_model=PlanillaOut)
@@ -608,7 +626,7 @@ def marcar_pagada(
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     exigir_permiso(db, payload, "planilla", "aprobar")
-    return _planilla_out(planilla_svc.marcar_pagada(db, payload["empresa_id"], planilla_id, _empleado_id(db, payload)))
+    return _planilla_out(planilla_svc.marcar_pagada(db, payload["empresa_id"], planilla_id, _empleado_id(db, payload)), db)
 
 
 @router.post("/{planilla_id}/anular", response_model=PlanillaOut)
@@ -617,7 +635,7 @@ def anular(
     payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
 ):
     exigir_permiso(db, payload, "planilla", "anular")
-    return _planilla_out(planilla_svc.anular_planilla(db, payload["empresa_id"], planilla_id))
+    return _planilla_out(planilla_svc.anular_planilla(db, payload["empresa_id"], planilla_id), db)
 
 
 @router.get("/{planilla_id}/boletas", response_model=List[BoletaOut])
@@ -673,4 +691,4 @@ def editar_detalle_boleta(
     monto=0 elimina el concepto. Recalcula totales de boleta y planilla."""
     exigir_permiso(db, payload, "planilla", "calcular")
     return _planilla_out(planilla_svc.editar_boleta_detalle(
-        db, payload["empresa_id"], planilla_id, boleta_id, body.concepto_id, body.monto))
+        db, payload["empresa_id"], planilla_id, boleta_id, body.concepto_id, body.monto), db)
