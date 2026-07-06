@@ -67,11 +67,18 @@ def eliminar_imagen_cloudinary(url: str):
         logging.error(f"Error al intentar eliminar foto antigua en Cloudinary: {str(e)}")
 
 
-def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
+def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str,
+                               db=None, nombre=None, modulo=None,
+                               usuario_id=None, empresa_id=None) -> str:
     """
     Sube un PDF a Cloudinary como recurso raw y devuelve su secure_url.
     resource_type="raw" evita el procesamiento interno del SDK que referencia
     la variable full_public_id causando NameError en ciertas versiones.
+
+    Registro incremental en el Archivo centralizado (Fase 3): si el llamador
+    pasa `db` (y opcionalmente nombre/modulo/usuario_id/empresa_id), tras subir
+    se registra/actualiza la fila documento_archivo con identidad=public_id.
+    Los llamadores existentes (2 args posicionales) siguen funcionando igual.
     """
     try:
         import io
@@ -84,7 +91,20 @@ def subir_pdf_bytes_cloudinary(pdf_bytes: bytes, public_id: str) -> str:
             overwrite=True,
             invalidate=True,
         )
-        return upload_result["secure_url"]
+        url = upload_result["secure_url"]
+        if db is not None:
+            try:
+                from app.services.document_archive_service import registrar_documento_existente
+                registrar_documento_existente(
+                    db, contenido=pdf_bytes,
+                    nombre=nombre or pid.rsplit("/", 1)[-1],
+                    tipo="pdf", modulo=modulo or "general",
+                    identidad=pid, url=url,
+                    usuario_id=usuario_id, empresa_id=empresa_id,
+                )
+            except Exception as e:  # el archivo central nunca rompe la subida
+                logging.warning(f"No se pudo registrar documento_archivo para {pid}: {e}")
+        return url
     except Exception as e:
         logging.error(f"Error subiendo PDF (bytes) a Cloudinary: {str(e)}")
         raise Exception(f"Fallo al subir PDF a Cloudinary: {str(e)}")

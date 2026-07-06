@@ -30,6 +30,11 @@ _EXCLUIDAS: frozenset[str] = frozenset({
     "sesion_usuario",
     "lectura_mensaje",
     "mensaje_chat",
+    # Gestión TIC: rastros que ya se auditan a sí mismos (evita auditoría de
+    # auditoría: cada evento/alerta/descarga generaría una fila espejo aquí).
+    "audit_log",
+    "alerta_seguridad",
+    "documento_archivo",
 })
 
 # ── Mapa tabla → módulo de negocio ────────────────────────────────────────────

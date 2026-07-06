@@ -33,6 +33,8 @@ from app.core.security import crear_token_acceso, verificar_token, ACCESS_TOKEN_
 from app.core.email import enviar_correo_otp
 from app.core.session_cache import marcar_activa, invalidar
 from app.core.session_events import manager as session_manager
+from app.core.rate_limit import verificar_limite
+from app.services.audit_service import registrar_evento
 from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 from jose import jwt, JWTError
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
@@ -180,8 +182,30 @@ def _cargo_de_usuario(db: Session, usuario_id: str) -> str:
 # =========================================================================
 @router.post("/login")
 def login_usuario(credenciales: LoginData, request: Request, db: Session = Depends(get_db)):
+    ip_login = _ip_real(request)
+    ua_login = request.headers.get("user-agent", "")[:255]
+
+    # Rate limit por IP: 10 intentos/min (web y app móvil pueden compartir IP
+    # corporativa, por eso el umbral es holgado). En memoria, sin dependencias.
+    if not verificar_limite(f"login:{ip_login or 'sin-ip'}", 10, 60):
+        registrar_evento(
+            accion="RATE_LIMITED", resultado="denegado",
+            metodo_http="POST", ruta="/auth/login", ip=ip_login,
+            user_agent=ua_login, detalle={"username": credenciales.username},
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos de inicio de sesión. Espera un minuto e inténtalo de nuevo.",
+        )
+
     usuario_db = db.query(Usuario).filter(Usuario.username == credenciales.username).first()
     if not usuario_db or not pwd_context.verify(credenciales.password, usuario_db.password_hash):
+        # El username intentado NO es secreto; el password JAMÁS se registra.
+        registrar_evento(
+            accion="LOGIN_FALLIDO", resultado="fallo",
+            metodo_http="POST", ruta="/auth/login", ip=ip_login,
+            user_agent=ua_login, detalle={"username": credenciales.username},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
@@ -284,6 +308,22 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         }
     except Exception:
         db.rollback()  # No bloqueamos el login si falla el registro de sesión
+
+    # Audit log: login exitoso (best-effort, sesión propia — nunca rompe el login)
+    registrar_evento(
+        accion="LOGIN",
+        usuario_id=str(usuario_db.id),
+        usuario_nombre=f"{usuario_db.nombre} {usuario_db.apellido}".strip(),
+        rol=nombre_rol_real,
+        empresa_id=str(usuario_db.empresa_id),
+        metodo_http="POST", ruta="/auth/login",
+        ip=ip_login, user_agent=ua_login,
+        detalle={
+            "plataforma": "movil" if es_movil else "web",
+            "nuevoEquipo": es_nuevo_equipo,
+            "dispositivo": (info_dispositivo or {}).get("dispositivo"),
+        },
+    )
 
     # Aviso en tiempo real al panel de Soporte TIC: nueva sesión iniciada.
     if info_dispositivo:
@@ -398,6 +438,7 @@ def quitar_mi_foto(payload: dict = Depends(verificar_token), db: Session = Depen
 
 @router.post("/logout")
 def logout_usuario(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Security(_http_bearer),
     current_user: dict = Depends(verificar_token),
     db: Session = Depends(get_db)
@@ -420,6 +461,18 @@ def logout_usuario(
         # Revoca el token al instante (no esperar al TTL de la caché): el JWT
         # deja de ser aceptado por verificar_token aunque no haya expirado.
         invalidar(token_hash)
+
+        # Audit log: logout (best-effort)
+        registrar_evento(
+            accion="LOGOUT",
+            usuario_id=usuario_id,
+            usuario_nombre=current_user.get("sub"),
+            rol=current_user.get("rol"),
+            empresa_id=current_user.get("empresa_id"),
+            metodo_http="POST", ruta="/auth/logout",
+            ip=_ip_real(request),
+            user_agent=request.headers.get("user-agent", "")[:255],
+        )
         return {"status": "success", "mensaje": "Sesión cerrada correctamente"}
     except Exception as e:
         db.rollback()

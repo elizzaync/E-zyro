@@ -18,17 +18,19 @@ import unicodedata
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pathlib import Path
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import verificar_limite
 from app.core.security import verificar_token
 from app.db.database import get_db
 from app.models.backup_job import BackupJob
 from app.models.usuario import Usuario
 from app.services import backup_service
+from app.services.audit_service import contexto_desde_payload, registrar_evento
 
 router = APIRouter(prefix="/backups", tags=["backups"])
 
@@ -118,6 +120,7 @@ def _out(db: Session, j: BackupJob) -> BackupJobOut:
 @router.post("", response_model=BackupJobOut, status_code=202)
 def disparar_backup_manual(
     body:    CrearBackupBody,
+    request: Request,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
@@ -147,6 +150,12 @@ def disparar_backup_manual(
         args=(job.id,), kwargs={"notificar": True},
         daemon=True, name=f"backup-manual-{job.id[:8]}",
     ).start()
+
+    registrar_evento(
+        accion="BACKUP", entidad="backup_job", entidad_id=str(job.id),
+        detalle={"alcance": body.alcance, "contenido": contenido},
+        **contexto_desde_payload(payload, request),
+    )
     return _out(db, job)
 
 
@@ -191,6 +200,7 @@ def config_backups(payload: dict = Depends(verificar_token),
 @router.put("/config")
 def actualizar_config_backups(
     body:    ConfigBackupBody,
+    request: Request,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
@@ -218,12 +228,19 @@ def actualizar_config_backups(
     cfg.actualizado_en  = datetime.utcnow()
     db.commit()
     db.refresh(cfg)
+
+    registrar_evento(
+        accion="SECURITY", entidad="backup_config", entidad_id="1",
+        detalle={"configNueva": body.dict()},
+        **contexto_desde_payload(payload, request),
+    )
     return _config_out(cfg)
 
 
 @router.post("/{job_id}/cancelar", response_model=BackupJobOut)
 def cancelar_backup(
     job_id:  str,
+    request: Request,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
@@ -243,6 +260,12 @@ def cancelar_backup(
         j.estado = "cancelado"
         j.fecha_fin = datetime.utcnow()
         db.commit()
+
+    registrar_evento(
+        accion="BACKUP", entidad="backup_job", entidad_id=str(j.id),
+        detalle={"cancelado": True, "estadoPrevio": j.estado},
+        **contexto_desde_payload(payload, request),
+    )
     return _out(db, j)
 
 
@@ -263,12 +286,24 @@ def estado_backup(
 @router.get("/{job_id}/descargar")
 def descargar_backup(
     job_id:  str,
+    request: Request,
     payload: dict    = Depends(verificar_token),
     db:      Session = Depends(get_db),
 ):
     """Streamea el artefacto a la máquina del usuario. Si era solo-BD y el
     archivo ya no está (disco efímero tras redeploy), se regenera al vuelo."""
     _autorizar_soporte(payload)
+
+    # Rate limit por usuario: 10 descargas/min (en memoria)
+    if not verificar_limite(f"backup_dl:{payload.get('id')}", 10, 60):
+        registrar_evento(
+            accion="RATE_LIMITED", resultado="denegado",
+            entidad="backup_job", entidad_id=job_id,
+            **contexto_desde_payload(payload, request),
+        )
+        raise HTTPException(status_code=429,
+                            detail="Demasiadas descargas de backups. Espera un minuto.")
+
     j = db.query(BackupJob).filter(BackupJob.id == job_id).first()
     if not j:
         raise HTTPException(status_code=404, detail="Backup no encontrado")
@@ -294,6 +329,11 @@ def descargar_backup(
         db.commit()
         ruta = destino
 
+    registrar_evento(
+        accion="DOWNLOAD", entidad="backup_job", entidad_id=str(job_id),
+        detalle={"archivo": ruta.name, "tamanoBytes": j.tamano_bytes},
+        **contexto_desde_payload(payload, request),
+    )
     return FileResponse(
         path=str(ruta),
         filename=ruta.name,

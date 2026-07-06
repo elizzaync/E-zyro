@@ -1149,6 +1149,17 @@ def _rotacion_backups():
     backup_service.aplicar_retencion()
 
 
+def _monitoreo_seguridad():
+    """Evalúa las reglas de seguridad sobre audit_log (fuerza bruta, denegados
+    repetidos, descargas masivas…) y crea alertas para Soporte. Import perezoso
+    anti-ciclos (security_monitor_service usa _usuarios_por_rol/_emitir de aquí)."""
+    from app.services.security_monitor_service import evaluar_reglas
+    try:
+        evaluar_reglas()
+    except Exception as e:
+        print(f"[Scheduler] ⚠️ Error en monitoreo de seguridad: {e}")
+
+
 def iniciar_scheduler():
     """Registra las tareas y arranca el scheduler. Llamar desde main.py."""
     # Recordatorio diario a las 08:00 AM
@@ -1247,6 +1258,10 @@ def iniciar_scheduler():
     scheduler.add_job(func=_rotacion_backups, trigger=CronTrigger(hour=3, minute=0),
                       id="backup_rotacion", replace_existing=True,
                       misfire_grace_time=3600, coalesce=True)
+    # Monitoreo de seguridad (reglas sobre audit_log) — cada 5 min
+    scheduler.add_job(func=_monitoreo_seguridad, trigger=CronTrigger(minute="*/5"),
+                      id="monitoreo_seguridad", replace_existing=True,
+                      misfire_grace_time=120, coalesce=True)
 
     scheduler.start()
     print("⏰ Scheduler iniciado → calendario 08:00 + mantenimiento 08:15 + "

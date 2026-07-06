@@ -575,6 +575,26 @@ def reporte_excel(payload: dict = Depends(verificar_token), db: Session = Depend
     wb.save(buf)
     buf.seek(0)
     filename = f"vacaciones_{date.today().isoformat()}.xlsx"
+
+    # Archivo centralizado (Fase 3) — identidad estable por reporte+mes;
+    # best-effort: un fallo del archivado jamás rompe la descarga.
+    try:
+        from app.services.document_archive_service import archivar
+        empresa_id = payload.get("empresa_id")
+        archivar(
+            db, contenido=buf.getvalue(), nombre=filename, tipo="excel",
+            modulo="rrhh",
+            identidad=f"e-zyro/{empresa_id}/archivo/rrhh/vacaciones_saldos_{date.today():%Y_%m}",
+            usuario_id=payload.get("id"), empresa_id=empresa_id, ext="xlsx",
+        )
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        buf.seek(0)
+
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1162,6 +1182,26 @@ def reporte_pdf(payload: dict = Depends(verificar_token), db: Session = Depends(
 
     buf.seek(0)
     filename = f"reporte_vacaciones_{hoy.isoformat()}.pdf"
+
+    # Archivo centralizado (Fase 3) — identidad estable por reporte+mes;
+    # best-effort: un fallo del archivado jamás rompe la descarga.
+    try:
+        from app.services.document_archive_service import archivar
+        empresa_id = payload.get("empresa_id")
+        archivar(
+            db, contenido=buf.getvalue(), nombre=filename, tipo="pdf",
+            modulo="rrhh",
+            identidad=f"e-zyro/{empresa_id}/archivo/rrhh/vacaciones_reporte_{hoy:%Y_%m}",
+            usuario_id=payload.get("id"), empresa_id=empresa_id, ext="pdf",
+        )
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        buf.seek(0)
+
     return StreamingResponse(
         buf, media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},

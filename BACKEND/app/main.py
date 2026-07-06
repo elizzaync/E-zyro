@@ -75,8 +75,12 @@ from app.routers import facturacion_electronica as facturacion_electronica_route
 from app.routers import presupuesto           as presupuesto_router
 from app.routers import chatbot               as chatbot_router
 from app.routers import backups               as backups_router
+from app.routers import seguridad_tic         as seguridad_tic_router
+from app.routers import audit_log             as audit_log_router
+from app.routers import documentos            as documentos_router
 from app.services.scheduler_service import iniciar_scheduler, detener_scheduler
 from app.core.audit_context import AuditContextMiddleware
+from app.core.audit_events import AuditEventsMiddleware
 import app.core.audit_listener  # noqa: F401 — registra el listener al importar
 
 # Importar todos los modelos para que Base los registre antes de create_all
@@ -2102,6 +2106,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(AuditContextMiddleware)
+# Captura centralizada de eventos para audit_log (403 → PERMISSION_DENIED,
+# descargas/exportaciones → DOWNLOAD/EXPORT). Best-effort: nunca rompe nada.
+app.add_middleware(AuditEventsMiddleware)
 
 # ── Middleware de bloqueo de IP ───────────────────────────────────────────────
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -2285,6 +2292,10 @@ app.include_router(facturacion_electronica_router.router)
 app.include_router(presupuesto_router.router)
 app.include_router(chatbot_router.router)
 app.include_router(backups_router.router)
+# ── Gestión de TIC: seguridad + audit log + archivo de documentos ──
+app.include_router(seguridad_tic_router.router)
+app.include_router(audit_log_router.router)
+app.include_router(documentos_router.router)
 
 
 @app.get("/")

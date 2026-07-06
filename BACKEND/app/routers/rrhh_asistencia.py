@@ -1582,7 +1582,31 @@ def _hoja_perfil(e: dict, dias: list[date], doc, styles, colors, Table,
     return flow
 
 
-def _export_response(buf: io.BytesIO, fmt: str, filename: str):
+def _export_response(buf: io.BytesIO, fmt: str, filename: str,
+                     db: Session = None, payload: dict = None):
+    """Devuelve el StreamingResponse del reporte. Si recibe db+payload, antes
+    lo archiva en el Archivo centralizado (documento_archivo) con identidad
+    estable por reporte+parámetros (el filename ya los incluye) — best-effort:
+    un fallo del archivado JAMÁS rompe la descarga."""
+    if db is not None and payload is not None:
+        try:
+            from app.services.document_archive_service import archivar, slug_archivo
+            empresa_id = payload.get("empresa_id")
+            archivar(
+                db, contenido=buf.getvalue(),
+                nombre=f"{filename}.{'pdf' if fmt == 'pdf' else 'xlsx'}",
+                tipo="pdf" if fmt == "pdf" else "excel", modulo="rrhh",
+                identidad=f"e-zyro/{empresa_id}/archivo/rrhh/{slug_archivo(filename)}_{fmt}",
+                usuario_id=payload.get("id"), empresa_id=empresa_id,
+                ext="pdf" if fmt == "pdf" else "xlsx",
+            )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        finally:
+            buf.seek(0)
     if fmt == "pdf":
         return StreamingResponse(
             buf,
@@ -1637,7 +1661,8 @@ def reporte_global(
         buf = _pdf_cronograma(titulo, subtitulo, dias_c, emps_c, tot_c)
     else:
         buf = _pdf_stream(titulo, encabezados, datos, subtitulo)
-    return _export_response(buf, fmt, f"reporte_global_{fecha_inicio.isoformat()}")
+    return _export_response(buf, fmt, f"reporte_global_{fecha_inicio.isoformat()}",
+                            db=db, payload=payload)
 
 
 # ── Reporte Semanal ───────────────────────────────────────────────────────────
@@ -1677,7 +1702,8 @@ def reporte_semanal(
             titulo, f"Período: {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}",
             dias_c, emps_c, tot_c)
 
-    return _export_response(buf, fmt, f"asistencia_semanal_{inicio.isoformat()}")
+    return _export_response(buf, fmt, f"asistencia_semanal_{inicio.isoformat()}",
+                            db=db, payload=payload)
 
 
 # ── Excel Gerencial (Reporte Mensual Rico) ────────────────────────────────────
@@ -2263,7 +2289,8 @@ def reporte_mensual(
             titulo, f"Período: {inicio.strftime('%d/%m/%Y')} al {fin.strftime('%d/%m/%Y')}",
             dias_c, emps_c, tot_c, detalle_por_empleado=True)
 
-    return _export_response(buf, fmt, f"asistencia_mensual_{anio}_{mes:02d}")
+    return _export_response(buf, fmt, f"asistencia_mensual_{anio}_{mes:02d}",
+                            db=db, payload=payload)
 
 
 # ── Reporte Tardanzas/Faltas ──────────────────────────────────────────────────
@@ -2293,7 +2320,8 @@ def reporte_tardanzas(
     else:
         buf = _pdf_stream(titulo, encabezados, datos)
 
-    return _export_response(buf, fmt, f"tardanzas_faltas_{fecha_inicio.isoformat()}")
+    return _export_response(buf, fmt, f"tardanzas_faltas_{fecha_inicio.isoformat()}",
+                            db=db, payload=payload)
 
 
 # ── Reporte Individual ────────────────────────────────────────────────────────
@@ -2390,7 +2418,8 @@ def reporte_individual(
         buf = _pdf_stream(titulo, encabezados, datos,
                           f"{fecha_inicio.strftime('%d/%m/%Y')} – {fecha_fin.strftime('%d/%m/%Y')}")
 
-    return _export_response(buf, fmt, f"asistencia_{empleado_id[:8]}_{fecha_inicio.isoformat()}")
+    return _export_response(buf, fmt, f"asistencia_{empleado_id[:8]}_{fecha_inicio.isoformat()}",
+                            db=db, payload=payload)
 
 
 # ── Reporte Horas Extra ───────────────────────────────────────────────────────
@@ -2448,4 +2477,5 @@ def reporte_horas_extra(
     else:
         buf = _pdf_stream(titulo, encabezados, datos, subtitulo)
 
-    return _export_response(buf, fmt, f"horas_extra_{inicio.isoformat()}")
+    return _export_response(buf, fmt, f"horas_extra_{inicio.isoformat()}",
+                            db=db, payload=payload)
