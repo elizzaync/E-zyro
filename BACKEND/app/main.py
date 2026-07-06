@@ -2,6 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exception_handlers import http_exception_handler as fastapi_http_exception_handler
+from fastapi.exception_handlers import request_validation_exception_handler as fastapi_validation_handler
+from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 from sqlalchemy import text
@@ -2213,6 +2215,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         content={"detail": f"{type(exc).__name__}: {exc}"},
         headers={"Access-Control-Allow-Origin": "*"},
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_logger(request: Request, exc: RequestValidationError):
+    """Respuesta 422 normal, pero deja en el log QUÉ campo falló (los clientes
+    suelen mostrar un mensaje genérico y el detalle se pierde). Se truncan los
+    valores para no volcar payloads grandes (p. ej. archivos en base64)."""
+    errs = [
+        {k: str(v)[:120] for k, v in e.items()}
+        for e in exc.errors()[:5]
+    ]
+    logger.warning("422 %s %s: %s", request.method, request.url.path, errs)
+    return await fastapi_validation_handler(request, exc)
 
 
 @app.exception_handler(StarletteHTTPException)
