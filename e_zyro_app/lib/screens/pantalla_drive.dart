@@ -122,8 +122,14 @@ class _PantallaDriveState extends State<PantallaDrive> {
     if (picked == null || picked.files.isEmpty) return;
     final f = picked.files.first;
     final bytes = f.bytes;
-    if (bytes == null) {
-      _snack('No se pudo leer el archivo', error: true);
+    // bytes vacíos (no solo null): pasa con archivos "en la nube" no
+    // descargados (OneDrive/Google Drive); el backend respondería 422.
+    if (bytes == null || bytes.isEmpty) {
+      _snack(
+        'No se pudo leer el archivo. Si está en la nube (OneDrive/Drive), '
+        'descárgalo al dispositivo e inténtalo de nuevo.',
+        error: true,
+      );
       return;
     }
     if (bytes.length > 30 * 1024 * 1024) {

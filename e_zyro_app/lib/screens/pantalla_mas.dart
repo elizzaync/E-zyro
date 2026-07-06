@@ -33,7 +33,6 @@ import 'pantalla_privilegios.dart';
 import 'pantalla_pendientes.dart';
 import 'pantalla_cotizaciones.dart';
 import 'logistica/almacen/pantalla_requerimientos_logistica.dart';
-import 'logistica/pantalla_asistente_ezyro.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -67,7 +66,6 @@ class _MoreScreenState extends State<MoreScreen> {
   // Vista acotada de Requerimientos para Técnico/Jefe de Operaciones (sin el
   // panel completo de Logística, que sigue exclusivo de Logística/Admin).
   bool _canVerRequerimientos = false;
-  bool _canAsistente = false;
 
   @override
   void initState() {
@@ -115,8 +113,6 @@ class _MoreScreenState extends State<MoreScreen> {
             AppSession.i.hasPerm('cotizaciones:ver') ||
             AppSession.i.hasPerm('cotizaciones:gestionar');
         _canVerRequerimientos = AppSession.i.canVerRequerimientosAcotado;
-        // Asistente E-zyro: mismo gate que la burbuja flotante (logística).
-        _canAsistente = AppSession.i.canGestInventario;
       });
     }
   }
@@ -366,15 +362,6 @@ class _MoreScreenState extends State<MoreScreen> {
                       onTap: () => Navigator.push(
                         context, MaterialPageRoute(
                             builder: (_) => const PantallaRequerimientosLogistica())),
-                    ),
-                  if (_canAsistente)
-                    _MenuItem(
-                      icon: Icons.smart_toy_outlined,
-                      label: 'Asistente E-zyro',
-                      onTap: () => Navigator.push(
-                        context, MaterialPageRoute(
-                            builder: (_) => const PantallaAsistenteEzyro(
-                                pantalla: 'menu_mas'))),
                     ),
                   if (_canCotizaciones)
                     _MenuItem(

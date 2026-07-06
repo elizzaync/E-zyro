@@ -11,7 +11,6 @@ import '../../../services/requerimiento_service.dart';
 import '../../../services/prestamo_service.dart';
 import '../../../utils/api_provider.dart';
 import '../../../utils/ui_insets.dart';
-import '../pantalla_asistente_ezyro.dart';
 import 'es_tokens.dart';
 import 'es_widgets.dart';
 import 'req_unificado.dart';
@@ -123,18 +122,7 @@ class _PantallaRequerimientosLogisticaState
         ESPanelBar(
           title: 'Requerimientos',
           subtitle: 'Materiales y equipos de campo',
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            ESBarIcon(Icons.smart_toy_outlined, onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const PantallaAsistenteEzyro(
-                        pantalla: 'bandeja_requerimientos')),
-              );
-            }),
-            const SizedBox(width: 8),
-            ESBarIcon(Icons.refresh_rounded, onTap: _load),
-          ]),
+          trailing: ESBarIcon(Icons.refresh_rounded, onTap: _load),
         ),
         Expanded(
           child: RefreshIndicator(

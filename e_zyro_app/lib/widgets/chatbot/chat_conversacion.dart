@@ -7,8 +7,7 @@ import '../../utils/app_notifiers.dart';
 import 'catalogo_navegacion.dart';
 
 /// Conversación con el Asistente E-zyro — REST puro contra el proxy del
-/// backend (POST /chatbot/chat). Reutilizada por el panel flotante
-/// (ChatbotLauncher) y por la pantalla completa (PantallaAsistenteEzyro).
+/// backend (POST /chatbot/chat). Usada por el panel flotante (ChatbotLauncher).
 /// Al montarse envía "__init__": el bot saluda primero. La lista de mensajes
 /// es en memoria; el historial por usuario vive en el servidor.
 class ChatConversacion extends StatefulWidget {

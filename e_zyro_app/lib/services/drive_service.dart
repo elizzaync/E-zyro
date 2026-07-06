@@ -100,14 +100,19 @@ class DriveService {
     String? descripcion,
   }) async {
     try {
-      final r = await _client.post('/drive/archivos', {
-        'nombre': nombre,
-        'filename': filename,
-        'archivo_base64': archivoBase64,
-        'ambito': ambito,
-        'carpeta_id': ?carpetaId,
-        'descripcion': ?descripcion,
-      });
+      final r = await _client.post(
+        '/drive/archivos',
+        {
+          'nombre': nombre,
+          'filename': filename,
+          'archivo_base64': archivoBase64,
+          'ambito': ambito,
+          'carpeta_id': ?carpetaId,
+          'descripcion': ?descripcion,
+        },
+        // hasta 30 MB en base64: el timeout por defecto (30 s) corta la subida
+        timeout: const Duration(minutes: 3),
+      );
       if (r.statusCode == 201 || r.statusCode == 200) {
         return ApiResult.ok(DriveArchivo.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
       }
